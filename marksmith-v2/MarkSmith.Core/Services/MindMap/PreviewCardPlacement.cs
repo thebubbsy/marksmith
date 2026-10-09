@@ -56,11 +56,19 @@ public static class PreviewCardPlacement
         return new Box(x, Math.Max(0, y), cardWidth, cardHeight);
     }
 
-    /// <summary>The first corner whose card leaves <paramref name="node"/> clear, else the one covering least of it.</summary>
+    /// <summary>
+    /// The first corner whose card leaves <paramref name="node"/> clear, else the one covering least of it.
+    /// The card is re-placed on every pan and zoom step (run #48: it was placed once, so dragging the
+    /// map slid the node under it). With <paramref name="current"/> given, the card stays where it is
+    /// while that corner is still clear, rather than snapping back to bottom-right mid-drag.
+    /// </summary>
     public static Corner Choose(Box node, double containerWidth, double containerHeight,
-        double cardWidth, double cardHeight, double topReserved, double bottomReserved)
+        double cardWidth, double cardHeight, double topReserved, double bottomReserved, Corner? current = null)
     {
         var keepClear = node.Inflate(NodeClearance);
+        if (current is { } stay &&
+            At(stay, containerWidth, containerHeight, cardWidth, cardHeight, topReserved, bottomReserved).OverlapArea(keepClear) == 0)
+            return stay;
         var best = Corner.BottomRight;
         var bestOverlap = double.MaxValue;
         foreach (var corner in Order)

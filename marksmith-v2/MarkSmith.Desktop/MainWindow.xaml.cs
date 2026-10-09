@@ -3541,12 +3541,28 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             "<Grid.ColumnDefinitions><ColumnDefinition Width='20'/><ColumnDefinition Width='*'/><ColumnDefinition Width='Auto'/><ColumnDefinition Width='Auto'/></Grid.ColumnDefinitions>" +
             "<FontIcon Glyph='{Binding Icon}' FontFamily='{Binding IconFont}' FontSize='{Binding IconSize}' FontWeight='{Binding IconWeight}' " +
             "HorizontalAlignment='Center' VerticalAlignment='Center' Foreground='{ThemeResource TextFillColorSecondaryBrush}'/>" +
-            "<TextBlock Grid.Column='1' Text='{Binding Label}' FontSize='13' TextTrimming='CharacterEllipsis' VerticalAlignment='Center'/>" +
+            "<TextBlock Grid.Column='1' FontSize='13' TextTrimming='CharacterEllipsis' VerticalAlignment='Center'/>" +
             "<TextBlock Grid.Column='2' Text='{Binding Category}' FontSize='11' VerticalAlignment='Center' Foreground='{ThemeResource TextFillColorTertiaryBrush}'/>" +
             "<Border Grid.Column='3' Visibility='{Binding ShortcutVisibility}' VerticalAlignment='Center' CornerRadius='3' Padding='5,0,5,1' " +
             "Background='{ThemeResource SubtleFillColorSecondaryBrush}' BorderBrush='{ThemeResource ControlStrokeColorDefaultBrush}' BorderThickness='1'>" +
             "<TextBlock Text='{Binding Shortcut}' FontSize='11' Foreground='{ThemeResource TextFillColorSecondaryBrush}'/></Border>" +
             "</Grid></DataTemplate>");
+        // The label is filled here rather than bound, so the letters the query matched can be bold:
+        // with abbreviations ("exppdf") it wasn't obvious why a row was listed.
+        list.ContainerContentChanging += (s, e) =>
+        {
+            if (e.InRecycleQueue || e.Item is not PaletteCommand c) return;
+            if (e.ItemContainer.ContentTemplateRoot is not Grid { Children.Count: > 1 } row || row.Children[1] is not TextBlock text) return;
+            text.Inlines.Clear();
+            var at = 0;
+            foreach (var (start, length) in Services.CommandSearch.Highlights(c.Label, search.Text))
+            {
+                if (start > at) text.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = c.Label[at..start] });
+                text.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = c.Label.Substring(start, length), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+                at = start + length;
+            }
+            if (at < c.Label.Length) text.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = c.Label[at..] });
+        };
         // Without this a query with no hits just shows an empty box, which reads as broken.
         var noMatches = new TextBlock
         {

@@ -70,4 +70,19 @@ public class PreviewCardPlacementTests
         Assert.True(card.Bottom <= 300 - PreviewCardPlacement.Edge + 0.001);
         Assert.True(card.Y >= 0);
     }
+
+    [Fact]
+    public void Stays_in_its_corner_while_that_corner_is_still_clear()
+    {
+        // Panning moved the node away from bottom-right; the card had gone top-right and should stay.
+        var node = new Box(230, 315, 155, 40);
+        Assert.Equal(Corner.TopRight, PreviewCardPlacement.Choose(node, W, H, CardW, CardH, Top, Bottom, Corner.TopRight));
+    }
+
+    [Fact]
+    public void Leaves_its_corner_when_the_node_is_panned_under_it()
+    {
+        var underBottomRight = new Box(900, 480, 155, 40);
+        Assert.Equal(Corner.TopRight, PreviewCardPlacement.Choose(underBottomRight, W, H, CardW, CardH, Top, Bottom, Corner.BottomRight));
+    }
 }

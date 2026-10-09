@@ -24,6 +24,12 @@
                 <Setter Property="VerticalAlignment" Value="Center" />
                 <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
             </Style>
+            <Style x:Key="InspectorAxis" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorTertiaryBrush}" />
+            </Style>
             <Style x:Key="PaneCaption" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="12" />
                 <Setter Property="TextWrapping" Value="Wrap" />
@@ -181,10 +187,18 @@
                             <TextBlock Text="Pick a shape, then click the canvas to drop it — or drag to draw it at the size you want." Style="{StaticResource PaneCaption}" />
                             <GridView x:Name="PaletteGrid" ItemsSource="{Binding PaletteItems}" SelectionMode="Single"
                                       SelectedItem="{Binding ArmedTool, Mode=TwoWay}" Margin="-4,0"
+                                      SizeChanged="OnPaletteGridSizeChanged"
                                       AutomationProperties.Name="Shapes to draw">
+                                <!-- Tiles share the row evenly (OnPaletteGridSizeChanged). Fixed 84 px tiles fitted
+                                     two to a row and left a third of the pane empty. -->
+                                <GridView.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <ItemsWrapGrid Orientation="Horizontal" ItemHeight="82" />
+                                    </ItemsPanelTemplate>
+                                </GridView.ItemsPanel>
                                 <GridView.ItemTemplate>
                                     <DataTemplate>
-                                        <StackPanel Width="84" Height="74" Spacing="5" Padding="2,8,2,4"
+                                        <StackPanel Height="74" Spacing="5" Padding="2,8,2,4"
                                                     AutomationProperties.Name="{Binding Converter={StaticResource PresetName}}"
                                                     ToolTipService.ToolTip="{Binding Converter={StaticResource PresetName}}">
                                             <Path Width="26" Height="22" Stretch="Uniform" HorizontalAlignment="Center"
@@ -382,7 +396,7 @@
                                                             </ItemsControl.ItemsPanel>
                                                             <ItemsControl.ItemTemplate>
                                                                 <DataTemplate>
-                                                                    <Border Width="26" Height="12" CornerRadius="3" Background="{Binding}" />
+                                                                    <Border Width="26" Height="12" CornerRadius="3" Background="{Binding}" BorderThickness="1" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" />
                                                                 </DataTemplate>
                                                             </ItemsControl.ItemTemplate>
                                                         </ItemsControl>
@@ -528,6 +542,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Text="Type" Style="{StaticResource InspectorLabel}" />
@@ -538,38 +553,52 @@
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <Path Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center"
                                                   Fill="{ThemeResource TextFillColorSecondaryBrush}"
+                                                  Stroke="{ThemeResource TextFillColorSecondaryBrush}" StrokeThickness="1.2"
                                                   Data="{Binding Converter={StaticResource ShapeGeom}}" />
-                                            <TextBlock Text="{Binding Converter={StaticResource PresetName}}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Converter={StaticResource PresetName}}" VerticalAlignment="Center"
+                                                       FontSize="13" TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
 
                             <TextBlock Grid.Row="1" Text="Position" Style="{StaticResource InspectorLabel}" />
-                            <Grid Grid.Row="1" Grid.Column="1" ColumnSpacing="6">
+                            <!-- Visible X/Y (W/H) captions: the placeholders vanished as soon as the boxes held
+                                 numbers, leaving two unexplained values side by side. -->
+                            <Grid Grid.Row="1" Grid.Column="1" ColumnSpacing="5">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <NumberBox AutomationProperties.Name="X position" PlaceholderText="X" ToolTipService.ToolTip="X — distance from the left edge (px)" Minimum="0"
+                                <TextBlock Text="X" Style="{StaticResource InspectorAxis}" />
+                                <NumberBox Grid.Column="1" AutomationProperties.Name="X position" ToolTipService.ToolTip="X — distance from the left edge (px)" Minimum="0"
                                            Value="{Binding SelectedShape.X, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
-                                <NumberBox Grid.Column="1" AutomationProperties.Name="Y position" PlaceholderText="Y" ToolTipService.ToolTip="Y — distance from the top edge (px)" Minimum="0"
+                                <TextBlock Grid.Column="2" Text="Y" Style="{StaticResource InspectorAxis}" Margin="4,0,0,0" />
+                                <NumberBox Grid.Column="3" AutomationProperties.Name="Y position" ToolTipService.ToolTip="Y — distance from the top edge (px)" Minimum="0"
                                            Value="{Binding SelectedShape.Y, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
                             </Grid>
 
                             <TextBlock Grid.Row="2" Text="Size" Style="{StaticResource InspectorLabel}" />
-                            <Grid Grid.Row="2" Grid.Column="1" ColumnSpacing="6">
+                            <!-- Visible X/Y (W/H) captions: the placeholders vanished as soon as the boxes held
+                                 numbers, leaving two unexplained values side by side. -->
+                            <Grid Grid.Row="2" Grid.Column="1" ColumnSpacing="5">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <NumberBox AutomationProperties.Name="Width" PlaceholderText="W" ToolTipService.ToolTip="Width (px)" Minimum="4"
+                                <TextBlock Text="W" Style="{StaticResource InspectorAxis}" />
+                                <NumberBox Grid.Column="1" AutomationProperties.Name="Width" ToolTipService.ToolTip="Width (px)" Minimum="4"
                                            Value="{Binding SelectedShape.Width, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
-                                <NumberBox Grid.Column="1" AutomationProperties.Name="Height" PlaceholderText="H" ToolTipService.ToolTip="Height (px)" Minimum="4"
+                                <TextBlock Grid.Column="2" Text="H" Style="{StaticResource InspectorAxis}" Margin="4,0,0,0" />
+                                <NumberBox Grid.Column="3" AutomationProperties.Name="Height" ToolTipService.ToolTip="Height (px)" Minimum="4"
                                            Value="{Binding SelectedShape.Height, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
                             </Grid>
 
-                            <TextBlock Grid.Row="3" Text="Fill" Style="{StaticResource InspectorLabel}" />
+                            <TextBlock Grid.Row="3" Text="{Binding SelectedShape.ColourLabel}" Style="{StaticResource InspectorLabel}" />
                             <Grid Grid.Row="3" Grid.Column="1" ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -594,8 +623,23 @@
                                          Text="{Binding SelectedShape.Fill, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxLength="7" />
                             </Grid>
 
-                            <TextBlock Grid.Row="4" Text="Rotation" Style="{StaticResource InspectorLabel}" />
-                            <Grid Grid.Row="4" Grid.Column="1" ColumnSpacing="8">
+                            <!-- Lines only: connectors kept whatever weight their preset gave them. -->
+                            <TextBlock Grid.Row="4" Text="Weight" Style="{StaticResource InspectorLabel}"
+                                       Visibility="{Binding SelectedShape.IsLine, Converter={StaticResource BoolToVis}}" />
+                            <Grid Grid.Row="4" Grid.Column="1" ColumnSpacing="6"
+                                  Visibility="{Binding SelectedShape.IsLine, Converter={StaticResource BoolToVis}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <NumberBox AutomationProperties.Name="Line weight in points" ToolTipService.ToolTip="Line weight (pt)"
+                                           Minimum="0.25" Maximum="24" SmallChange="0.5" LargeChange="2" SpinButtonPlacementMode="Inline"
+                                           Value="{Binding SelectedShape.StrokeWidthPt, Mode=TwoWay}" />
+                                <TextBlock Grid.Column="1" Text="pt" Style="{StaticResource InspectorAxis}" />
+                            </Grid>
+
+                            <TextBlock Grid.Row="5" Text="Rotation" Style="{StaticResource InspectorLabel}" />
+                            <Grid Grid.Row="5" Grid.Column="1" ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="40" />
@@ -608,8 +652,8 @@
                                 </TextBlock>
                             </Grid>
 
-                            <TextBlock Grid.Row="5" Text="Label" Style="{StaticResource InspectorLabel}" VerticalAlignment="Top" Margin="0,6,0,0" />
-                            <TextBox Grid.Row="5" Grid.Column="1" AutomationProperties.Name="Text label" PlaceholderText="Text shown on the shape"
+                            <TextBlock Grid.Row="6" Text="Label" Style="{StaticResource InspectorLabel}" VerticalAlignment="Top" Margin="0,6,0,0" />
+                            <TextBox Grid.Row="6" Grid.Column="1" AutomationProperties.Name="Text label" PlaceholderText="Text shown on the shape"
                                      Text="{Binding SelectedShape.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      AcceptsReturn="True" MinHeight="60" TextWrapping="Wrap" />
                         </Grid>

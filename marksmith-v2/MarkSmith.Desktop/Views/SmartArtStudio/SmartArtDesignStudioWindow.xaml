@@ -190,7 +190,7 @@
                             <ItemsControl ItemsSource="{Binding OutlineRows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Margin="{Binding Depth, Converter={StaticResource LevelToIndentConverter}}" CornerRadius="4" Background="Transparent"
+                                        <Border Margin="{Binding Depth, Converter={StaticResource LevelToIndentConverter}, ConverterParameter=depth}" CornerRadius="4" Background="Transparent"
                                                 PointerEntered="OnRowPointerEntered" PointerExited="OnRowPointerExited">
                                         <Grid Padding="8,2,4,2" MinHeight="36" CornerRadius="4"
                                               Background="{Binding IsSelected, Converter={StaticResource SelectedBrushConverter}, ConverterParameter=subtle}"

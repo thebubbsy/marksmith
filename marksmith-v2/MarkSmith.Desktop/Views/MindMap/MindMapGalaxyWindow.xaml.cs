@@ -101,9 +101,15 @@ namespace MarkSmith.Views.MindMap
         /// overlays and the legend clear (Core <see cref="PreviewCardPlacement"/>). It always sat
         /// bottom-right, so hovering a node there covered the node it was describing.
         /// </summary>
+        private PreviewCardPlacement.Corner? _previewCorner;
+
         private void PlacePreviewCard()
         {
-            if (!ViewModel.IsPreviewCardVisible || ViewModel.PreviewNode is not { } node) return;
+            if (!ViewModel.IsPreviewCardVisible || ViewModel.PreviewNode is not { } node)
+            {
+                _previewCorner = null;
+                return;
+            }
             if (!_nodeVisuals.TryGetValue(node.Id, out var visual) || visual.Root.ActualWidth <= 0) return;
             double width = CanvasContainer.ActualWidth, height = CanvasContainer.ActualHeight;
             if (width <= 0 || height <= 0) return;
@@ -122,7 +128,8 @@ namespace MarkSmith.Views.MindMap
 
             var corner = PreviewCardPlacement.Choose(
                 new PreviewCardPlacement.Box(nodeBounds.X, nodeBounds.Y, nodeBounds.Width, nodeBounds.Height),
-                width, height, cardWidth, cardHeight, topReserved, bottomReserved);
+                width, height, cardWidth, cardHeight, topReserved, bottomReserved, _previewCorner);
+            _previewCorner = corner;
             var box = PreviewCardPlacement.At(corner, width, height, cardWidth, cardHeight, topReserved, bottomReserved);
 
             PreviewOverlayCard.HorizontalAlignment = HorizontalAlignment.Left;
@@ -1019,6 +1026,8 @@ namespace MarkSmith.Views.MindMap
             WorldTransform.TranslateY = (CanvasHeight / 2.0) + (ViewModel.ViewportOffsetY * zoom);
 
             ApplyLevelOfDetail();
+            // The card was placed only when shown, so panning slid its node underneath it.
+            if (ViewModel.IsPreviewCardVisible) PlacePreviewCard();
         }
 
         /// <summary>

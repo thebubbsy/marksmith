@@ -70,8 +70,28 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     /// <summary>Curved-stroke polyline (0..100 local space) for sketch/trace lines.</summary>
     public System.Collections.Generic.List<(double X, double Y)>? PathPoints { get; set; }
 
-    /// <summary>Stroke thickness in points (sketch/trace lines).</summary>
-    public double StrokeWidthPt { get; set; } = 1.5;
+    /// <summary>Stroke thickness in points (connectors, sketch/trace lines). Editable in the
+    /// inspector as Weight; it used to be fixed at whatever the preset or tracer chose.</summary>
+    public double StrokeWidthPt
+    {
+        get => _strokeWidthPt;
+        set
+        {
+            // An emptied NumberBox writes NaN; keep the last weight rather than lose the line.
+            if (!double.IsFinite(value)) { OnPropertyChanged(); return; }
+            SetProperty(ref _strokeWidthPt, Math.Clamp(value, MinStrokeWidthPt, MaxStrokeWidthPt));
+        }
+    }
+    private double _strokeWidthPt = 1.5;
+
+    public const double MinStrokeWidthPt = 0.25;
+    public const double MaxStrokeWidthPt = 24;
+
+    /// <summary>A connector or drawn line: it has a colour and a weight rather than a fill.</summary>
+    public bool IsLine => PathPoints is { Count: >= 2 } || string.Equals(Prst, "line", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The inspector's colour row: "Fill" for shapes, "Colour" for lines.</summary>
+    public string ColourLabel => IsLine ? "Colour" : "Fill";
 
     partial void OnFillChanged(string value)
     {
@@ -97,29 +117,53 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     }
 
     /// <summary>Tells the canvas the line's points changed (they're a plain list, not observable).</summary>
-    public void NotifyPathChanged() => OnPropertyChanged(nameof(PathPoints));
+    public void NotifyPathChanged()
+    {
+        OnPropertyChanged(nameof(PathPoints));
+        OnPropertyChanged(nameof(IsLine));
+        OnPropertyChanged(nameof(ColourLabel));
+    }
 
     partial void OnPrstChanged(string value)
     {
+        OnPropertyChanged(nameof(IsLine));
+        OnPropertyChanged(nameof(ColourLabel));
         OnPropertyChanged(nameof(DisplayName));
         OnPropertyChanged(nameof(ListTitle));
         OnPropertyChanged(nameof(ListSubtitle));
     }
 
     /// <summary>Shapes-list headline: the label's first line ("Executive Board"), or the shape type
-    /// when it has no label — five rows of "Rounded rectangle" told the user nothing.</summary>
+    /// when it has no label — five rows of "Rounded rectangle" told the user nothing. An unlabelled
+    /// line says what it joins ("Executive Board → CEO / Operations"): an org chart listed eleven
+    /// rows of plain "Line".</summary>
     public string ListTitle
     {
         get
         {
-            if (string.IsNullOrWhiteSpace(Text)) return DisplayName;
+            if (string.IsNullOrWhiteSpace(Text)) return _joins.Length > 0 ? _joins : DisplayName;
             var first = Text.Trim().Split('\n')[0].Trim();
             return first.Length == 0 ? DisplayName : first;
         }
     }
 
-    /// <summary>Shapes-list second line: the shape type, shown only under a label.</summary>
-    public string ListSubtitle => string.IsNullOrWhiteSpace(Text) ? "" : DisplayName;
+    /// <summary>Shapes-list second line: the shape type under a label or a "joins" title; for a
+    /// line that joins nothing, which way it runs.</summary>
+    public string ListSubtitle =>
+        !string.IsNullOrWhiteSpace(Text) || _joins.Length > 0 ? DisplayName : _direction;
+
+    private string _joins = "";
+    private string _direction = "";
+
+    /// <summary>Set by the studio, which knows the other shapes (<see cref="ShapeDesignStudioViewModel.DescribeLines"/>).</summary>
+    internal void SetLineDescription(string joins, string direction)
+    {
+        if (_joins == joins && _direction == direction) return;
+        _joins = joins;
+        _direction = direction;
+        OnPropertyChanged(nameof(ListTitle));
+        OnPropertyChanged(nameof(ListSubtitle));
+    }
 
     // The inspector's NumberBoxes write NaN when cleared; a NaN coordinate or size would make the
     // shape vanish (and poison the export), so an emptied box restores the previous value.
@@ -305,12 +349,108 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         OnShapesMutated();
     }
 
-    private void OnShapesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => OnShapesMutated();
+    private void OnShapesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        OnShapesMutated();
+    }
+
+    // Lines are named after the shapes they touch, so moving or relabelling a shape renames them.
+    // Kept as a set because Clear() raises Reset without the removed items.
+    private readonly HashSet<ShapeCanvasItemViewModel> _watchedShapes = new();
+
+    private void WatchShapes()
+    {
+        // A traced picture is thousands of lines that are never named; don't watch those.
+        var current = Shapes.Count > MaxDescribedLines * 4
+            ? new HashSet<ShapeCanvasItemViewModel>()
+            : new HashSet<ShapeCanvasItemViewModel>(Shapes);
+        foreach (var gone in _watchedShapes.Where(s => !current.Contains(s)).ToList())
+        {
+            gone.PropertyChanged -= OnShapeGeometryChanged;
+            _watchedShapes.Remove(gone);
+        }
+        foreach (var item in current)
+        {
+            if (_watchedShapes.Add(item)) item.PropertyChanged += OnShapeGeometryChanged;
+        }
+    }
 
     public bool HasShapes => Shapes.Count > 0;
 
+    private void OnShapeGeometryChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ShapeCanvasItemViewModel.X) or nameof(ShapeCanvasItemViewModel.Y)
+            or nameof(ShapeCanvasItemViewModel.Width) or nameof(ShapeCanvasItemViewModel.Height)
+            or nameof(ShapeCanvasItemViewModel.Text) or nameof(ShapeCanvasItemViewModel.Prst)
+            or nameof(ShapeCanvasItemViewModel.PathPoints))
+            DescribeLines();
+    }
+
+    /// <summary>Above this many lines (traced line art) the shapes list keeps plain "Line" rows.</summary>
+    private const int MaxDescribedLines = 300;
+
+    /// <summary>Distance (canvas px) within which a line's end counts as touching a shape.</summary>
+    private const double TouchTolerance = 6;
+
+    /// <summary>
+    /// Names every unlabelled line in the shapes list by the labelled shapes its ends touch:
+    /// "A → B", "From A", "To B", or, touching none, just "Line" over its direction.
+    /// </summary>
+    internal void DescribeLines()
+    {
+        var lines = Shapes.Where(IsUnlabelledLine).ToList();
+        if (lines.Count == 0) return;
+        if (lines.Count > MaxDescribedLines)
+        {
+            foreach (var line in lines) line.SetLineDescription("", "");
+            return;
+        }
+        var targets = Shapes.Where(s => !IsUnlabelledLine(s) && !string.IsNullOrWhiteSpace(s.Text)).ToList();
+        foreach (var line in lines)
+        {
+            var (start, end) = LineEnds(line);
+            var from = Touching(start, targets);
+            var to = Touching(end, targets);
+            var joins = from is not null && to is not null && from != to ? $"{from.ListTitle} → {to.ListTitle}"
+                : from is not null ? $"From {from.ListTitle}"
+                : to is not null ? $"To {to.ListTitle}"
+                : "";
+            line.SetLineDescription(joins, Direction(line));
+        }
+    }
+
+    private static bool IsUnlabelledLine(ShapeCanvasItemViewModel s) =>
+        string.Equals(s.Prst, "line", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(s.Text);
+
+    /// <summary>The line's two ends in canvas coordinates (a plain "line" box runs corner to corner).</summary>
+    internal static ((double X, double Y) Start, (double X, double Y) End) LineEnds(ShapeCanvasItemViewModel line)
+    {
+        (double X, double Y) At((double X, double Y) local) => (line.X + local.X / 100 * line.Width, line.Y + local.Y / 100 * line.Height);
+        return line.PathPoints is { Count: >= 2 } pts
+            ? (At(pts[0]), At(pts[^1]))
+            : ((line.X, line.Y), (line.X + line.Width, line.Y + line.Height));
+    }
+
+    /// <summary>The smallest labelled shape the point touches: a card inside a lane, not the lane.</summary>
+    private static ShapeCanvasItemViewModel? Touching((double X, double Y) p, List<ShapeCanvasItemViewModel> shapes) =>
+        shapes.Where(s => p.X >= s.X - TouchTolerance && p.X <= s.X + s.Width + TouchTolerance
+                       && p.Y >= s.Y - TouchTolerance && p.Y <= s.Y + s.Height + TouchTolerance)
+              .OrderBy(s => s.Width * s.Height)
+              .FirstOrDefault();
+
+    private static string Direction(ShapeCanvasItemViewModel line)
+    {
+        if (line.PathPoints is { Count: > 2 }) return "Elbow";
+        var (a, b) = LineEnds(line);
+        double dx = Math.Abs(b.X - a.X), dy = Math.Abs(b.Y - a.Y);
+        return dy <= 2 || dy < dx * 0.05 ? "Horizontal" : dx <= 2 || dx < dy * 0.05 ? "Vertical" : "Diagonal";
+    }
+
     private void OnShapesMutated()
     {
+        WatchShapes();
+        DescribeLines();
+        RefreshLineStats();
         OnPropertyChanged(nameof(HasShapes));
         InsertIntoDocumentCommand.NotifyCanExecuteChanged();
         ExportDocxCommand.NotifyCanExecuteChanged();
@@ -453,7 +593,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             var x = a[i];
             var y = b[i];
             if (x.Prst != y.Prst || x.X != y.X || x.Y != y.Y || x.W != y.W || x.H != y.H ||
-                x.Fill != y.Fill || x.Rot != y.Rot || x.Text != y.Text || !ReferenceEquals(x.PathPoints, y.PathPoints))
+                x.Fill != y.Fill || x.Rot != y.Rot || x.Text != y.Text || x.StrokeWidthPt != y.StrokeWidthPt || !ReferenceEquals(x.PathPoints, y.PathPoints))
                 return false;
         }
         return true;
@@ -485,7 +625,6 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         to.Add(current);
         Shapes = new ObservableCollection<ShapeCanvasItemViewModel>(target.Select(ToItem));
         SelectedShape = null;
-        LineStats = Shapes.Count == 0 ? "" : $"{Shapes.Count:N0} shapes";
         await RefreshCanvasModeAsync();
         StatusMessage = $"{message} — {Shapes.Count:N0} shape{(Shapes.Count == 1 ? "" : "s")} on the canvas.";
         RaiseUndoChanged();
@@ -767,6 +906,16 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     [ObservableProperty]
     private string _lineStats = "";
 
+    /// <summary>The count beside "Shapes on canvas". It was set by undo and the picture
+    /// converters only, so after a preset or a drawn shape the header showed no count at all.</summary>
+    private void RefreshLineStats()
+    {
+        int n = Shapes.Count;
+        LineStats = n == 0 ? ""
+            : IsDense ? $"{n:N0} line{(n == 1 ? "" : "s")}"
+            : $"{n:N0} shape{(n == 1 ? "" : "s")}";
+    }
+
     public bool IsEmpty => CanvasMode == "empty";
     public bool IsEditable => CanvasMode == "editable";
     public bool IsDense => CanvasMode == "dense";
@@ -775,6 +924,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
     partial void OnCanvasModeChanged(string value)
     {
+        RefreshLineStats();
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(IsEditable));
         OnPropertyChanged(nameof(IsDense));
@@ -1080,7 +1230,6 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         SelectedShape = null;
         CanvasMode = "empty";
         PreviewPng = null;
-        LineStats = "";
         StatusMessage = "Canvas cleared.";
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -2199,7 +2348,6 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             RecordUndo();
             Shapes = new ObservableCollection<ShapeCanvasItemViewModel>(traced.Select(ToItem));
             SelectedShape = null;
-            LineStats = $"{traced.Count:N0} lines";
 
             byte[]? png = null;
             if (traced.Count > 0)
@@ -2239,7 +2387,6 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             RecordUndo();
             Shapes = new ObservableCollection<ShapeCanvasItemViewModel>(parsed.Select(ToItem));
             SelectedShape = null;
-            LineStats = $"{parsed.Count:N0} shapes";
             StatusMessage = $"Loaded {parsed.Count} shapes from markdown.";
             await RefreshCanvasModeAsync();
             CanvasChanged?.Invoke(this, EventArgs.Empty);

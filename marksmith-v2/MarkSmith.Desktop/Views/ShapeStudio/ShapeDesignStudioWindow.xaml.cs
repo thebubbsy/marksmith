@@ -247,6 +247,18 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
+        // ---- Shapes tab palette ----
+
+        /// <summary>Smallest tile the shape name still fits in (two lines of 11 px text).</summary>
+        private const double MinPaletteTile = 78;
+
+        private void OnPaletteGridSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (PaletteGrid.ItemsPanelRoot is not ItemsWrapGrid panel || e.NewSize.Width <= 0) return;
+            int columns = Math.Max(2, (int)(e.NewSize.Width / MinPaletteTile));
+            panel.ItemWidth = Math.Floor(e.NewSize.Width / columns);
+        }
+
         // ---- left pane tabs ----
 
         private void OnLeftTabsChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
@@ -733,6 +745,12 @@ namespace MarkSmith.Views.ShapeStudio
                        : isRoundRect ? BuildRoundRectGeometry(s.Width, s.Height)
                        : outline is not null ? MakePolygonGeometry(outline)
                        : MarkSmith.Converters.ShapeGeometries.For(s.Prst);
+                // A line's box is as thin as 2 px, and the Path is clipped to it, so any weight above
+                // that drew as 2 px (the 3 pt timeline, and every Weight edit). Grow the Path past
+                // the box by half the widest stroke it can get and shift the geometry to match.
+                double pad = isLine ? Math.Ceiling(Math.Max(2, s.StrokeWidthPt) / 2) + 1 : 0;
+                p.Margin = new Thickness(-pad);
+                if (isLine) p.Data.Transform = new TranslateTransform { X = pad, Y = pad };
             }
             catch { }
             try
@@ -770,7 +788,8 @@ namespace MarkSmith.Views.ShapeStudio
             bool realSizeGeometry = s.PathPoints is { Count: >= 2 } || string.Equals(s.Prst, "roundrect", StringComparison.OrdinalIgnoreCase)
                 || PresetGeometry.Outline(s.Prst, 1, 1) is not null;
             if ((e.PropertyName == nameof(s.Fill) || e.PropertyName == nameof(s.Prst) ||
-                 e.PropertyName == nameof(s.IsSelected) || e.PropertyName == nameof(s.PathPoints) || (sized && realSizeGeometry)) &&
+                 e.PropertyName == nameof(s.IsSelected) || e.PropertyName == nameof(s.PathPoints) ||
+                 e.PropertyName == nameof(s.StrokeWidthPt) || (sized && realSizeGeometry)) &&
                 _shapePaths.TryGetValue(s, out var path))
             {
                 ApplyShapeVisual(path, s, hovered: ReferenceEquals(s, _hoverShape));
