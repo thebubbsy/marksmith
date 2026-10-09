@@ -4838,3 +4838,8 @@ free formats; worth a clearer badge tooltip or moving the badge onto the Cover p
 4. Carried over: first real in-app update 3.14.0 → 3.15.0 (does the installer reopen MarkSmith?);
    `EmailExportFlowTests.Subject_preview_follows_the_template` flake; SmartArt Insert dialog tiles
    through Direct2D; real-mouse hover check of OptionRow.
+
+**Release (same run):** tagged **v3.15.0** on `13a3793` after CI passed on it. The release workflow
+built x64/arm64 installers and zips; the downloaded x64 zip contains `Marksmith/BrowserExtension/`
+(all 16 files), so next-up #1's zip check is done (the installer packs the same publish folder).
+Notes prepended above the workflow body with `---`. `MarksmithBaseVersion` is now **3.16.0** (`893b61b`).
