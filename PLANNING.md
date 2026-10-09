@@ -4246,3 +4246,81 @@ builds and launches.
 workflow built the x64 and arm64 installers and zips (5 assets). Notes were prepended to the
 workflow body afterwards, covering run #48's Diagram Studio canvas work and this run.
 `MarksmithBaseVersion` is now **3.10.0** (`323ea49`).
+
+### 2026-10-09 21:00–22:00 AEST (routine run #50: every SmartArt layout looks like itself)
+
+The user was idle for the whole run (about an hour by GetLastInputInfo). Test windows were still
+parked off-screen and driven by UIA only. Two Marksmith instances not started by this run (one
+from `bin\x86\Debug`, one from `bin\x64\Release`) were running throughout and left alone. The
+EverythingHttpPlugin edits in the tree aren't ours and stay uncommitted. Every commit staged
+explicit paths.
+
+**Run #48's leftover Diagram Studio edits (run #49's "Next up" #2): finished and committed.**
+Read the diff and ran its 32 canvas tests (all pass). Checked it in the app: the shape palette
+preselects the pill for the open diagram type ("Flowchart"), and a search with no hits shows "No
+Flowchart shapes match "zzzq"." with a "Show all shapes" link. Properties-panel edits are now undo
+steps (first change to a field snapshots, later changes to the same field join it;
+`SuspendEditTracking()` for code that takes its own snapshot).
+
+**Found (SmartArt, run #49's "Next up" #1):** 176 layouts drew as 25 pictures. Every cycle except
+Cycle Matrix was the same ring of circles; every radial was the same hub and spokes; 33 picture
+layouts were one card grid; 21 vertical lists were one tab-and-body row. The layout definitions
+(`GloxPackage.LayoutXml`) record which shape types each layout uses (pie slices in Segmented Cycle
+and Basic Pie, gear6/gear9 in Gear, hexagons in Hexagon Radial, blockArc in Phased Process,
+circularArrow in Circle Arrow Process and Reverse List, leftBrace in Bracket List...). `rect` is
+used for every text box, so the XML can't drive the drawing on its own. It did tell me what each
+variant should look like.
+
+**Shipped:**
+- `8eada19` Diagram Studio (run #48's work, finished; see above).
+- `3af8190` SmartArt: **Core `Preview/HtmlPreviewRenderer.Variants.cs`**. `PreviewVariant` is a look
+  within a family, and the `Variants` table maps URN tails to variants. `ResolveVariant(alias)`
+  works like `ResolveFamily`. `DrawFamily(family, items, variant)` tries `DrawVariant` first.
+  There are 70 variants across Cycle (10), Radial (10), Process (13), Vertical List (20) and
+  Pictures (13). The class is now `partial`, and the preview's container carries
+  `data-variant`. Thumbnails: `RenderThumbnailSvg(string alias)` (cached per family+variant).
+  `StudioLayoutItem.ThumbnailSvg` and `SmartArtInsert.Layout.ThumbnailSvg` use it. Text in `Ink`
+  on the page draws as grey bars in thumbnails (`_thumbBars` → `TextBars`, opt out with
+  `thumbBars: false`, as Linear Venn does). `ThickenForThumbnail` scales lines and unfilled
+  paths/circles up to 2.4× (thin ones to about 7 px; broad bands keep their width) and the marker
+  to 22. **Direct2D's SVG renderer (the gallery tiles) draws no `<marker>`**, so Block and
+  Multidirectional Cycle's arrowheads are `Tri` polygons. Tests: `SmartArtLayoutVariantTests`
+  (14, plus 3-outline theories over all 175 distinct layouts: no item lost without a "N more not
+  shown" note, shapes inside the viewBox, text-free thumbnails, no duplicate thumbnails in
+  Cycle/Radial/Process, every enum value used).
+
+**Verified:** contact sheets per family (scratch `%TEMP%\msg49\sa`, whose `Sheet.cs.txt` is the
+sheet generator: `dotnet run -- %TEMP%\msg50` writes `<Family>.html` with every layout's
+thumbnail + a 5-item preview; then `msedge --headless=new --screenshot`). I inspected Cycle,
+Radial, Process, VerticalList and Pictures sheets and fixed what they showed: stub arcs (ring
+radius), callout labels at 5 px rows, floating Phased arches, sliver pointers in Interconnected
+Block, tiny text-card type (slot 6 px short of FitText's 8 px margin), a tangled Reverse List,
+equal Varying Width bars, and the Curved List arc running off the page. In the app: SmartArt
+Studio's gallery shows the new tiles (search "cycle": 8 different tiles); the Segmented Cycle
+preview renders. The full suite with a scratch OutDir: 4237 passed, 22 failed. The 22 are all
+path-based: the known governance/gauntlet/round-trip set plus HtmlToMarkdown/MarkdownCopy, which
+assume the binaries sit in the repo. Desktop builds and launches.
+
+**Lessons:**
+- A contact sheet with many SVGs sharing `id="sa-arrow"` shows no arrowheads. That's a sheet
+  artifact; one preview alone renders them. Check a single render before "fixing" markers.
+- Python heredocs into C#: `'\b'` inside a non-raw triple-quoted string wrote a literal
+  backspace (0x08) into a verbatim regex, which silently matched nothing. `grep -P '\x08'` finds
+  it; fix with the Edit tool, not sed.
+- `Measure(...) + 6` for a `Text` slot shrinks the font: `FitText` keeps 8 px clear, so give
+  slots at least +12.
+- ShapeBounds only sees arc endpoints, not arc extremes. A ring of arcs needs a backing circle
+  (or a real circle) so thumbnails frame it.
+
+**Next up:**
+1. Variants for the mid-size families still sharing a drawing: Timeline (9: Numbered/Small Dots
+   horizontal and vertical, Bullet Timeline, Circle Accent Timeline), Horizontal List (8), Balance
+   (8: Opposing Ideas, Plus and Minus, the up/down arrow layouts), Chevron (6), Hierarchy (7:
+   Half Circle Org Chart, Circle Picture Hierarchy, Name and Title).
+2. Within-variant duplicates: Meet the Team = Meet the Team Oval, Picture Frame = Snapshot
+   Picture List, PictureGrid = ThemePictureGrid. Small knobs (oval vs circle, rotated snapshots)
+   would separate them.
+3. Real-mouse items (run #49's #3), for when the user is idle: Shape Studio hover/cursor
+   states, image drag-drop onto the editor, the "Export N tables" type picker.
+4. Insert ▸ SmartArt dialog: confirm its 12 tiles look right through Direct2D (only the studio
+   gallery was checked this run).
