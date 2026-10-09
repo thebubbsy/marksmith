@@ -4755,3 +4755,5 @@ it is dismissed. Check whether it should light-dismiss, or close once the panel 
 4. Carried over: the first real in-app update 3.13.0 → 3.14.0 (does the installer reopen MarkSmith?);
    `EmailExportFlowTests.Subject_preview_follows_the_template` flake; SmartArt Insert dialog tiles
    through Direct2D.
+
+**Release (same run):** tagged **v3.14.0** on `0479389` after CI passed on it; release workflow built x64/arm64 installers and zips; notes prepended above the workflow body with `---`. `MarksmithBaseVersion` is now **3.15.0** (`a0dd261`).
