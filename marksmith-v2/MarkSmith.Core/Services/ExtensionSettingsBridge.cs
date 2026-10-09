@@ -130,7 +130,7 @@ public sealed class ExtensionSettingsBridge
         {
             new Field("brandCoverPage", "BrandCoverPage", "Cover page", "A Word title page with the document's title, your logo and today's date.", "toggle", Pro: "info"),
             new Field("brandFontFamily", "BrandFontFamily", "Document font", "Any installed typeface, used for the body in the preview and every export. Blank: the fallback font.", "text", Placeholder: "e.g. Aptos", Pro: "info"),
-            new Field("authorName", "AuthorName", "Author", "Written into the file's properties as its author, in Word, PDF and PowerPoint.", "text", Placeholder: "Your name"),
+            new Field("authorName", "AuthorName", "Author", "Written into the file's properties as its author in Word, PDF and PowerPoint, and shown on a PowerPoint deck's title slide.", "text", Placeholder: "Your name"),
         }),
         new Group("export", "Export", "Defaults for automatic exports.", new[]
         {

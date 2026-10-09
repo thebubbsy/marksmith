@@ -137,8 +137,13 @@ public sealed class AutomationExportService
                 break;
             }
             case OutputFormats.Pptx:
-                await _pptx.ExportAsync(md, outPath, settings);
+            {
+                IReadOnlyList<byte[]?>? pngs = hasMermaid && host is not null
+                    ? await _mermaid.RenderMermaidPngsAsync(host, md, settings, theme)
+                    : null;
+                await _pptx.ExportAsync(md, outPath, settings, pngs);
                 break;
+            }
             case OutputFormats.Epub:
             {
                 IReadOnlyList<byte[]?>? pngs = hasMermaid && host is not null

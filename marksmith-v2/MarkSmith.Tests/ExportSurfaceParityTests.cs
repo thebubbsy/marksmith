@@ -116,7 +116,8 @@ public class ExportSurfaceParityTests
         {
             using var r = new StreamReader(e.Open());
             foreach (Match m in Regex.Matches(r.ReadToEnd(), "<a:t>([^<]*)</a:t>"))
-                sb.Append(m.Groups[1].Value).Append(' ');
+                sb.Append(m.Groups[1].Value);   // runs joined as drawn (code is split into coloured runs)
+            sb.Append(' ');
         }
         return sb.ToString();
     }
@@ -139,8 +140,12 @@ public class ExportSurfaceParityTests
             Assert.DoesNotContain("> Quoted", text);                 // quote marker
             Assert.DoesNotContain("$a^2", text);                     // math delimiters
             Assert.DoesNotContain("[ ]", text);                      // raw checkbox
-            Assert.Contains("☐", text);
-            Assert.Contains("☑", text);
+            // Task boxes are the paragraphs' bullet glyphs now, not text.
+            using var zip = ZipFile.OpenRead(path);
+            var xml = string.Concat(zip.Entries.Where(e => Regex.IsMatch(e.FullName, @"^ppt/slides/slide\d+\.xml$"))
+                .Select(e => new StreamReader(e.Open()).ReadToEnd()));
+            Assert.Contains("<a:buChar char=\"☐\"/>", xml);
+            Assert.Contains("<a:buChar char=\"☑\"/>", xml);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
@@ -168,7 +173,10 @@ public class ExportSurfaceParityTests
             var text = SlideText(path);
             Assert.Contains("Left", text);
             Assert.Contains("Right", text);
-            Assert.Contains("·", text);   // cells joined, not dumped as pipes
+            // A real PowerPoint table, not pipes or joined text.
+            using var zip = ZipFile.OpenRead(path);
+            Assert.Contains(zip.Entries.Where(e => Regex.IsMatch(e.FullName, @"^ppt/slides/slide\d+\.xml$")),
+                e => new StreamReader(e.Open()).ReadToEnd().Contains("<a:tbl>"));
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }

@@ -1793,7 +1793,7 @@
                                         </localcontrols:OptionRow.Details>
                                     </localcontrols:OptionRow>
                                     <localcontrols:OptionRow Header="Author"
-                                                             Description="Written into the file's properties as its author, in Word, PDF and PowerPoint.">
+                                                             Description="Written into the file's properties as its author in Word, PDF and PowerPoint, and shown on a PowerPoint deck's title slide.">
                                         <localcontrols:OptionRow.Details>
                                             <TextBox Text="{Binding AuthorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Author name"
                                                      PlaceholderText="Your name or company" IsSpellCheckEnabled="False" />
@@ -1866,8 +1866,9 @@
                                 <MenuFlyoutItem x:Name="ExportPdfItem" Text="Export as PDF (.pdf)" Click="OnConvertPdfClick">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE749;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem x:Name="ExportPptxItem" Text="Export as PowerPoint (.pptx)" Click="OnConvertPptxClick">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AC;" /></MenuFlyoutItem.Icon>
+                                <MenuFlyoutItem x:Name="ExportPptxItem" Text="Export as PowerPoint (.pptx)" Click="OnConvertPptxClick"
+                                                ToolTipService.ToolTip="A slide for each heading, with a title slide, real bullets and tables, code, pictures and diagrams. Long sections continue on the next slide.">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE786;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Export as EPUB (.epub)" Click="OnExportEpubClick">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE82D;" /></MenuFlyoutItem.Icon>

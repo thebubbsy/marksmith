@@ -8,7 +8,9 @@ namespace MarkSmith.Services;
 // older (and the thumbnail/print pipeline) uses the PNG. Rendered at 2x for a sharp fallback.
 public static class SvgRasterizer
 {
-    public static byte[]? ToPng(string svg, double scale = 2.0)
+    /// <param name="transparent">Keep the SVG's own transparency instead of putting it on white
+    /// (a slide's background shows through, so a dark theme doesn't get a white box).</param>
+    public static byte[]? ToPng(string svg, double scale = 2.0, bool transparent = false)
     {
         try
         {
@@ -25,7 +27,7 @@ public static class SvgRasterizer
             int h = Math.Max(1, (int)Math.Ceiling(baseH * scale));
 
             using var surface = SKSurface.Create(new SKImageInfo(w, h));
-            surface.Canvas.Clear(SKColors.White);
+            surface.Canvas.Clear(transparent ? SKColors.Transparent : SKColors.White);
             surface.Canvas.Scale((float)scale);
             surface.Canvas.DrawPicture(picture);
             surface.Canvas.Flush();

@@ -1653,7 +1653,15 @@ private readonly MarkdownExportService _mdExport = new();
         await RunConversionAsync("PPTX", async ct =>
         {
             var outPath = PrepareOutputPath(sourceLabel, PptxExportService.Extension);
-            await _pptxExport.ExportAsync(markdown, outPath, _settingsService.Current);
+            // Diagrams go on the slides as pictures; the renderer needs the preview engine.
+            List<byte[]?>? diagrams = null;
+            if (markdown.Contains("```mermaid", StringComparison.Ordinal) && Host is not null)
+            {
+                StatusText = "Drawing diagrams for the slides…";
+                diagrams = await _mermaidHarvest.RenderMermaidPngsAsync(Host, markdown, _settingsService.Current, CurrentTheme);
+                ct.ThrowIfCancellationRequested();
+            }
+            await _pptxExport.ExportAsync(markdown, outPath, _settingsService.Current, diagrams);
             CompleteExport("PPTX", outPath, markdown, ct);
         });
     }

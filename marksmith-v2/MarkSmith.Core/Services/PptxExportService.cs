@@ -1,498 +1,703 @@
-using System.Text.RegularExpressions;
-using DocumentFormat.OpenXml;
+using System.Globalization;
+using System.Text;
 using DocumentFormat.OpenXml.Packaging;
 using MarkSmith.Models;
+using MarkSmith.Services.Presentation;
 using A = DocumentFormat.OpenXml.Drawing;
 using P = DocumentFormat.OpenXml.Presentation;
+using static MarkSmith.Services.Presentation.SlideGeometry;
 
 namespace MarkSmith.Services;
 
-// PPTX export. Splits the Markdown on H1/H2 headings (each becomes a slide), lays the body out as
-// bullet levels, and themes the deck from the selected Marksmith theme. Built with
-// DocumentFormat.OpenXml using strongly-typed PresentationML and DrawingML objects, wired with
-// explicit relationship ids. No external dependency.
+// PowerPoint export. SlideDeckBuilder turns the Markdown into a paginated deck (title slide,
+// section dividers, content slides that continue when a section is too long); this class draws
+// it as a native, editable PowerPoint file: a slide master with real text styles and three
+// layouts (Title Slide, Title and Content, Section Header), placeholders for titles and body
+// text, real bullets and numbering, tables as PowerPoint tables, code on a themed panel with
+// syntax colours, pictures and diagrams as pictures, quotes and alerts on panels, links that
+// open, and slide numbers. Colours and fonts come from the selected Marksmith theme and the
+// branding font.
 public sealed class PptxExportService
 {
     public const string Extension = "pptx";
 
+    private const string NsA = "http://schemas.openxmlformats.org/drawingml/2006/main";
+    private const string NsR = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    private const string NsP = "http://schemas.openxmlformats.org/presentationml/2006/main";
+    private const string Ns = $"xmlns:a=\"{NsA}\" xmlns:r=\"{NsR}\" xmlns:p=\"{NsP}\"";
+
     // Shared AppServices.Themes singleton instead of a private instance (see DocxExportService).
     private static ThemeCatalog Themes => AppServices.Themes;
 
-    public Task ExportAsync(string markdown, string pptxPath, AppSettings settings) => Task.Run(() =>
+    /// <param name="mermaidPngs">Rendered PNGs of the document's ```mermaid fences, in order
+    /// (MermaidHarvestService.RenderMermaidPngsAsync). Without them a diagram is shown as its
+    /// labelled source.</param>
+    public Task ExportAsync(string markdown, string pptxPath, AppSettings settings,
+        IReadOnlyList<byte[]?>? mermaidPngs = null) => Task.Run(() =>
     {
         markdown = TextNormalizer.Newlines(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
 
-        var deckTitle = HistoryEntry.ExtractTitle(markdown) ?? "Marksmith";
-        var slides = BuildSlides(markdown, deckTitle);
-        var theme = Themes.GetOrDefault(settings.Theme);
+        var deck = SlideDeckBuilder.Build(markdown, new SlideDeckOptions
+        {
+            FallbackTitle = HistoryEntry.ExtractTitle(markdown) ?? "Marksmith",
+            AuthorName = settings.AuthorName,
+            MermaidPngs = mermaidPngs,
+            NoEmoji = settings.NoEmoji,
+        });
+        var palette = new Palette(Themes.GetOrDefault(settings.Theme), settings.BrandFontFamily);
 
         var dir = Path.GetDirectoryName(pptxPath);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
         if (File.Exists(pptxPath)) File.Delete(pptxPath);
 
-        using var doc = PresentationDocument.Create(pptxPath, PresentationDocumentType.Presentation);
+        using var doc = PresentationDocument.Create(pptxPath, DocumentFormat.OpenXml.PresentationDocumentType.Presentation);
         // Metadata parity with the DOCX exporter: creator from the user's author name, low-key
         // product attribution in the Company field, never rendered on a slide.
-        doc.PackageProperties.Title = deckTitle;
+        doc.PackageProperties.Title = deck.Title;
         doc.PackageProperties.Creator = settings.AuthorName;
         doc.PackageProperties.Subject = ExportBranding.CreatedIn;
-        // Low-key attribution in file properties (docProps/app.xml → Company).
         ExportBranding.SetCompany(doc);
         doc.PackageProperties.Created = DateTime.UtcNow;
         doc.PackageProperties.Modified = DateTime.UtcNow;
-        var presPart = doc.AddPresentationPart();
 
+        var presPart = doc.AddPresentationPart();
         var masterPart = presPart.AddNewPart<SlideMasterPart>("rIdMaster");
         var themePart = masterPart.AddNewPart<ThemePart>("rIdTheme");
-        var layoutPart = masterPart.AddNewPart<SlideLayoutPart>("rIdLayout");
-        layoutPart.AddPart(masterPart, "rIdMasterFromLayout");
+        themePart.Theme = new A.Theme(ThemeXml(palette));
 
-        masterPart.SlideMaster = CreateSlideMaster(theme);
-        layoutPart.SlideLayout = CreateSlideLayout();
-        themePart.Theme = CreateTheme(theme);
-
-        for (int i = 0; i < slides.Count; i++)
+        var layouts = new Dictionary<SlideKind, SlideLayoutPart>();
+        var layoutDefs = new (SlideKind Kind, string Id, string Xml)[]
         {
-            var rId = $"rIdSlide{i + 1}";
-            var slidePart = presPart.AddNewPart<SlidePart>(rId);
-            slidePart.AddPart(layoutPart, "rIdLayoutFromSlide");
-            slidePart.Slide = CreateSlide(slides[i], theme);
+            (SlideKind.Title, "rIdLayout1", TitleLayoutXml()),
+            (SlideKind.Content, "rIdLayout2", ContentLayoutXml()),
+            (SlideKind.Section, "rIdLayout3", SectionLayoutXml()),
+        };
+        foreach (var (kind, id, xml) in layoutDefs)
+        {
+            var part = masterPart.AddNewPart<SlideLayoutPart>(id);
+            part.SlideLayout = new P.SlideLayout(xml);
+            part.AddPart(masterPart, "rIdMaster");
+            layouts[kind] = part;
+        }
+        masterPart.SlideMaster = new P.SlideMaster(MasterXml(palette, layoutDefs.Select(l => l.Id).ToList()));
+
+        var logo = LoadLogo(settings.BrandLogoPath);
+        for (int i = 0; i < deck.Slides.Count; i++)
+        {
+            var slidePart = presPart.AddNewPart<SlidePart>($"rIdSlide{i + 1}");
+            slidePart.AddPart(layouts[deck.Slides[i].Kind], "rIdLayout");
+            var writer = new SlideWriter(slidePart, palette, deck, i);
+            slidePart.Slide = new P.Slide(writer.Write(deck.Slides[i], i == 0 ? logo : null));
         }
 
-        presPart.Presentation = CreatePresentation(slides.Count);
+        presPart.AddNewPart<PresentationPropertiesPart>("rIdPresProps").PresentationProperties =
+            new P.PresentationProperties($"<p:presentationPr {Ns}/>");
+        presPart.AddNewPart<ViewPropertiesPart>("rIdViewProps").ViewProperties =
+            new P.ViewProperties($"<p:viewPr {Ns}><p:normalViewPr><p:restoredLeft sz=\"15620\"/><p:restoredTop sz=\"94660\"/></p:normalViewPr><p:gridSpacing cx=\"76200\" cy=\"76200\"/></p:viewPr>");
+        presPart.AddNewPart<TableStylesPart>("rIdTableStyles").TableStyleList =
+            new A.TableStyleList($"<a:tblStyleLst xmlns:a=\"{NsA}\" def=\"{{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}}\"/>");
+
+        presPart.Presentation = new P.Presentation(PresentationXml(deck.Slides.Count));
     });
 
-    private sealed record Slide(string Title, List<(int Level, string Text)> Bullets);
+    // ── palette ──────────────────────────────────────────────────────────────
 
-    // Slide-splitting patterns — compiled once and reused, instead of re-resolving the pattern
-    // strings for every line of every slide (heading / fence marker / bullet / emphasis strip).
-    private static readonly Regex HeadingRegex = new(@"^(#{1,6})\s+(.*)$", RegexOptions.Compiled);
-    private static readonly Regex FenceRegex = new(@"^\s*(```|~~~)", RegexOptions.Compiled);
-    private static readonly Regex BulletRegex = new(@"^(\s*)(?:[-*+]|\d+\.)\s+(.*)$", RegexOptions.Compiled);
-    private static readonly Regex EmphasisRegex = new(@"(\*\*|__|\*|_|`|~~)", RegexOptions.Compiled);
-
-    // ---- markdown -> slides (headings split; lists/paragraphs become bullets) ----
-    private static List<Slide> BuildSlides(string markdown, string deckTitle)
+    internal sealed class Palette
     {
-        var slides = new List<Slide>();
-        Slide? cur = null;
-        bool inFence = false;
+        public readonly string Background, Text, Heading, Accent, Muted, CodeBackground, CodeText, Border, Band, Panel, Link;
+        public readonly string HeaderFill, HeaderText;
+        public readonly string MajorFont, MinorFont;
+        public readonly ThemeDefinition Theme;
 
-        foreach (var raw in markdown.Replace("\r", "").Split('\n'))
+        public Palette(ThemeDefinition t, string? brandFont)
         {
-            var line = raw.TrimEnd();
+            Theme = t;
+            Background = Hex(t.Background);
+            Text = Hex(ContrastGuard.EnsureLegibleText(Hex(t.Text), Background));
+            Heading = Hex(ContrastGuard.EnsureLegibleText(Hex(t.Heading), Background, Text));
+            Accent = Hex(ContrastGuard.EnsureVisibleFill(Hex(t.Primary), Background));
+            Link = Hex(ContrastGuard.EnsureLegibleText(Hex(t.Primary), Background, Heading));
+            Muted = Mix(Text, Background, 0.32);
+            // ThemeDefinition.Code is the code BACKGROUND.
+            CodeBackground = Hex(t.Code);
+            CodeText = Hex(ContrastGuard.EnsureLegibleText(Text, CodeBackground, ThemeDefinition.IsLight("#" + CodeBackground) ? "1F2328" : "E6EDF3"));
+            Border = Hex(t.Border);
+            Band = Mix(Background, Text, 0.05);
+            Panel = Mix(Background, Text, 0.045);
+            HeaderFill = Accent;
+            HeaderText = Hex(ContrastGuard.EnsureLegibleText("FFFFFF", HeaderFill, "111111"));
+            var font = string.IsNullOrWhiteSpace(brandFont) ? null : brandFont.Trim();
+            MajorFont = font ?? "Calibri Light";
+            MinorFont = font ?? "Calibri";
+        }
+    }
 
-            // Only the fence MARKERS were skipped before, so the code itself became bullets — and
-            // then had its emphasis stripped, turning "x * 2" into "x  2". Code is carried through
-            // verbatim instead.
-            if (FenceRegex.IsMatch(line)) { inFence = !inFence; continue; }
-            if (inFence)
+    internal static string Hex(string css)
+    {
+        var s = (css ?? "").Trim().TrimStart('#');
+        if (s.Length == 3) s = string.Concat(s.Select(c => $"{c}{c}"));
+        if (s.Length < 6 || !s[..6].All(Uri.IsHexDigit)) return "000000";
+        return s[..6].ToUpperInvariant();
+    }
+
+    internal static string Mix(string a, string b, double t)
+    {
+        int C(string h, int i) => int.Parse(h.Substring(i, 2), NumberStyles.HexNumber);
+        string Part(int i) => ((int)Math.Round(C(a, i) * (1 - t) + C(b, i) * t)).ToString("X2");
+        return Part(0) + Part(2) + Part(4);
+    }
+
+    // ── package-level parts ──────────────────────────────────────────────────
+
+    private static string PresentationXml(int slideCount)
+    {
+        var sb = new StringBuilder($"<p:presentation {Ns} saveSubsetFonts=\"1\">");
+        sb.Append("<p:sldMasterIdLst><p:sldMasterId id=\"2147483648\" r:id=\"rIdMaster\"/></p:sldMasterIdLst>");
+        sb.Append("<p:sldIdLst>");
+        for (int i = 0; i < slideCount; i++) sb.Append($"<p:sldId id=\"{256 + i}\" r:id=\"rIdSlide{i + 1}\"/>");
+        sb.Append("</p:sldIdLst>");
+        sb.Append($"<p:sldSz cx=\"{SlideWidth}\" cy=\"{SlideHeight}\"/><p:notesSz cx=\"6858000\" cy=\"9144000\"/>");
+        sb.Append("</p:presentation>");
+        return sb.ToString();
+    }
+
+    private static string ThemeXml(Palette p)
+    {
+        string C(string v) => $"<a:srgbClr val=\"{v}\"/>";
+        var a2 = Hex(p.Theme.Line);
+        var sb = new StringBuilder($"<a:theme xmlns:a=\"{NsA}\" name=\"Marksmith\"><a:themeElements>");
+        sb.Append("<a:clrScheme name=\"Marksmith\">");
+        sb.Append($"<a:dk1>{C(p.Text)}</a:dk1><a:lt1>{C(p.Background)}</a:lt1><a:dk2>{C(p.Heading)}</a:dk2><a:lt2>{C(Hex(p.Theme.Secondary))}</a:lt2>");
+        sb.Append($"<a:accent1>{C(p.Accent)}</a:accent1><a:accent2>{C(a2)}</a:accent2><a:accent3>{C(p.Heading)}</a:accent3>");
+        sb.Append($"<a:accent4>{C(p.Border)}</a:accent4><a:accent5>{C(p.CodeBackground)}</a:accent5><a:accent6>{C(p.Muted)}</a:accent6>");
+        sb.Append($"<a:hlink>{C(p.Link)}</a:hlink><a:folHlink>{C(p.Link)}</a:folHlink></a:clrScheme>");
+        sb.Append($"<a:fontScheme name=\"Marksmith\"><a:majorFont><a:latin typeface=\"{X(p.MajorFont)}\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/></a:majorFont>");
+        sb.Append($"<a:minorFont><a:latin typeface=\"{X(p.MinorFont)}\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/></a:minorFont></a:fontScheme>");
+        sb.Append("<a:fmtScheme name=\"Marksmith\"><a:fillStyleLst>");
+        for (int i = 0; i < 3; i++) sb.Append("<a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill>");
+        sb.Append("</a:fillStyleLst><a:lnStyleLst>");
+        foreach (var w in new[] { 6350, 12700, 19050 })
+            sb.Append($"<a:ln w=\"{w}\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:prstDash val=\"solid\"/><a:miter lim=\"800000\"/></a:ln>");
+        sb.Append("</a:lnStyleLst><a:effectStyleLst>");
+        for (int i = 0; i < 3; i++) sb.Append("<a:effectStyle><a:effectLst/></a:effectStyle>");
+        sb.Append("</a:effectStyleLst><a:bgFillStyleLst>");
+        for (int i = 0; i < 3; i++) sb.Append("<a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill>");
+        sb.Append("</a:bgFillStyleLst></a:fmtScheme></a:themeElements><a:objectDefaults/><a:extraClrSchemeLst/></a:theme>");
+        return sb.ToString();
+    }
+
+    private const string GroupHeader =
+        "<p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>" +
+        "<p:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/><a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"0\" cy=\"0\"/></a:xfrm></p:grpSpPr>";
+
+    private static string Xfrm(double x, double y, double w, double h) =>
+        $"<a:xfrm><a:off x=\"{Emu(x)}\" y=\"{Emu(y)}\"/><a:ext cx=\"{Emu(Math.Max(1, w))}\" cy=\"{Emu(Math.Max(1, h))}\"/></a:xfrm>";
+
+    private static string Placeholder(int id, string name, string ph, double x, double y, double w, double h, string anchor = "b") =>
+        $"<p:sp><p:nvSpPr><p:cNvPr id=\"{id}\" name=\"{name}\"/><p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr><p:nvPr>{ph}</p:nvPr></p:nvSpPr>" +
+        $"<p:spPr>{Xfrm(x, y, w, h)}</p:spPr>" +
+        $"<p:txBody><a:bodyPr anchor=\"{anchor}\"><a:normAutofit/></a:bodyPr><a:lstStyle/><a:p><a:endParaRPr lang=\"en-US\"/></a:p></p:txBody></p:sp>";
+
+    private static string MasterXml(Palette p, List<string> layoutIds)
+    {
+        var sb = new StringBuilder($"<p:sldMaster {Ns}><p:cSld><p:bg><p:bgPr><a:solidFill><a:schemeClr val=\"bg1\"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree>");
+        sb.Append(GroupHeader);
+        sb.Append(Placeholder(2, "Title Placeholder 1", "<p:ph type=\"title\"/>", MarginXPt, TitleTopPt, ContentWidthPt, TitleHeightPt));
+        sb.Append(Placeholder(3, "Text Placeholder 2", "<p:ph type=\"body\" idx=\"1\"/>", MarginXPt, BodyTopPt, ContentWidthPt, BodyHeightPt, "t"));
+        sb.Append("</p:spTree></p:cSld>");
+        sb.Append("<p:clrMap bg1=\"lt1\" tx1=\"dk1\" bg2=\"lt2\" tx2=\"dk2\" accent1=\"accent1\" accent2=\"accent2\" accent3=\"accent3\" accent4=\"accent4\" accent5=\"accent5\" accent6=\"accent6\" hlink=\"hlink\" folHlink=\"folHlink\"/>");
+        sb.Append("<p:sldLayoutIdLst>");
+        for (int i = 0; i < layoutIds.Count; i++) sb.Append($"<p:sldLayoutId id=\"{2147483649u + (uint)i}\" r:id=\"{layoutIds[i]}\"/>");
+        sb.Append("</p:sldLayoutIdLst>");
+
+        // Text styles, so slides added in PowerPoint look like the exported ones.
+        sb.Append("<p:txStyles><p:titleStyle><a:lvl1pPr algn=\"l\"><a:lnSpc><a:spcPct val=\"90000\"/></a:lnSpc><a:buNone/>");
+        sb.Append("<a:defRPr sz=\"3200\" b=\"1\"><a:solidFill><a:schemeClr val=\"tx2\"/></a:solidFill><a:latin typeface=\"+mj-lt\"/></a:defRPr></a:lvl1pPr></p:titleStyle>");
+        sb.Append("<p:bodyStyle>");
+        var chars = new[] { "•", "–", "▪", "–", "•" };
+        for (int lvl = 0; lvl < 5; lvl++)
+        {
+            var marL = Emu(BulletIndentPt * (lvl + 1));
+            var size = lvl == 0 ? 2000 : 1800;
+            sb.Append($"<a:lvl{lvl + 1}pPr marL=\"{marL}\" indent=\"{-Emu(BulletIndentPt)}\"><a:lnSpc><a:spcPct val=\"100000\"/></a:lnSpc><a:spcBef><a:spcPts val=\"800\"/></a:spcBef>");
+            sb.Append($"<a:buClr><a:schemeClr val=\"accent1\"/></a:buClr><a:buFont typeface=\"Arial\"/><a:buChar char=\"{chars[lvl]}\"/>");
+            sb.Append($"<a:defRPr sz=\"{size}\"><a:solidFill><a:schemeClr val=\"tx1\"/></a:solidFill><a:latin typeface=\"+mn-lt\"/></a:defRPr></a:lvl{lvl + 1}pPr>");
+        }
+        sb.Append("</p:bodyStyle><p:otherStyle><a:defPPr><a:defRPr lang=\"en-US\"/></a:defPPr>");
+        sb.Append("<a:lvl1pPr><a:defRPr sz=\"1800\"><a:solidFill><a:schemeClr val=\"tx1\"/></a:solidFill><a:latin typeface=\"+mn-lt\"/></a:defRPr></a:lvl1pPr></p:otherStyle></p:txStyles>");
+        sb.Append("</p:sldMaster>");
+        return sb.ToString();
+    }
+
+    private static string LayoutXml(string type, string name, string shapes) =>
+        $"<p:sldLayout {Ns} type=\"{type}\" preserve=\"1\"><p:cSld name=\"{name}\"><p:spTree>{GroupHeader}{shapes}</p:spTree></p:cSld>" +
+        "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>";
+
+    // Title slide geometry, shared by the layout and the slides that use it.
+    private const double CoverTitleTopPt = 150, CoverTitleHeightPt = 130, CoverBarTopPt = 292, CoverSubtitleTopPt = 308, CoverSubtitleHeightPt = 80;
+    private const double SectionTitleTopPt = 196, SectionTitleHeightPt = 110, SectionBarTopPt = 316;
+
+    private static string TitleLayoutXml() => LayoutXml("title", "Title Slide",
+        Placeholder(2, "Title 1", "<p:ph type=\"ctrTitle\"/>", MarginXPt, CoverTitleTopPt, ContentWidthPt, CoverTitleHeightPt) +
+        Placeholder(3, "Subtitle 2", "<p:ph type=\"subTitle\" idx=\"1\"/>", MarginXPt, CoverSubtitleTopPt, ContentWidthPt, CoverSubtitleHeightPt, "t"));
+
+    private static string ContentLayoutXml() => LayoutXml("obj", "Title and Content",
+        Placeholder(2, "Title 1", "<p:ph type=\"title\"/>", MarginXPt, TitleTopPt, ContentWidthPt, TitleHeightPt) +
+        Placeholder(3, "Content Placeholder 2", "<p:ph idx=\"1\"/>", MarginXPt, BodyTopPt, ContentWidthPt, BodyHeightPt, "t"));
+
+    private static string SectionLayoutXml() => LayoutXml("secHead", "Section Header",
+        Placeholder(2, "Title 1", "<p:ph type=\"title\"/>", MarginXPt, SectionTitleTopPt, ContentWidthPt, SectionTitleHeightPt) +
+        Placeholder(3, "Text Placeholder 2", "<p:ph type=\"body\" idx=\"1\"/>", MarginXPt, SectionBarTopPt + 16, ContentWidthPt, 60, "t"));
+
+    // ── brand logo ───────────────────────────────────────────────────────────
+
+    private sealed record Logo(byte[] Data, string ContentType, double WidthPt, double HeightPt);
+
+    private static Logo? LoadLogo(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
+        try
+        {
+            var bytes = File.ReadAllBytes(path);
+            using var codec = SkiaSharp.SKCodec.Create(new SkiaSharp.SKMemoryStream(bytes));
+            if (codec is null) return null;
+            var type = codec.EncodedFormat switch
             {
-                if (line.Trim().Length == 0) continue;
-                cur ??= NewSlide(deckTitle, slides);
-                cur.Bullets.Add((1, line.Trim()));
-                continue;
+                SkiaSharp.SKEncodedImageFormat.Png => "image/png",
+                SkiaSharp.SKEncodedImageFormat.Jpeg => "image/jpeg",
+                _ => null,
+            };
+            if (type is null) return null;
+            double w = codec.Info.Width * 0.75, h = codec.Info.Height * 0.75;
+            var scale = Math.Min(1, Math.Min(200 / Math.Max(1, w), 54 / Math.Max(1, h)));
+            return new Logo(bytes, type, w * scale, h * scale);
+        }
+        catch { return null; }
+    }
+
+    // ── XML text helpers ─────────────────────────────────────────────────────
+
+    /// <summary>XML-escapes text and drops characters XML can't carry (control codes).</summary>
+    internal static string X(string? s)
+    {
+        if (string.IsNullOrEmpty(s)) return "";
+        var sb = new StringBuilder(s.Length + 8);
+        foreach (var ch in s)
+        {
+            switch (ch)
+            {
+                case '&': sb.Append("&amp;"); break;
+                case '<': sb.Append("&lt;"); break;
+                case '>': sb.Append("&gt;"); break;
+                case '"': sb.Append("&quot;"); break;
+                case '\t': sb.Append("    "); break;
+                default:
+                    if (ch < 0x20 || ch is '￾' or '￿') continue;
+                    sb.Append(ch);
+                    break;
             }
+        }
+        return sb.ToString();
+    }
 
-            var h = HeadingRegex.Match(line);
-            if (h.Success)
+    private static string Pts(double pt) => ((int)Math.Round(pt * 100)).ToString(CultureInfo.InvariantCulture);
+
+    // ── one slide ────────────────────────────────────────────────────────────
+
+    private sealed class SlideWriter
+    {
+        private readonly SlidePart _part;
+        private readonly Palette _p;
+        private readonly PptxDeck _deck;
+        private readonly int _index;
+        private readonly Dictionary<string, string> _links = new(StringComparer.Ordinal);
+        private int _nextId = 2;
+        private int _tables, _pictures, _codes;
+
+        public SlideWriter(SlidePart part, Palette palette, PptxDeck deck, int index)
+        {
+            _part = part;
+            _p = palette;
+            _deck = deck;
+            _index = index;
+        }
+
+        public string Write(DeckSlide slide, Logo? logo)
+        {
+            var sb = new StringBuilder($"<p:sld {Ns}><p:cSld><p:spTree>");
+            sb.Append(GroupHeader);
+            switch (slide.Kind)
             {
-                var level = h.Groups[1].Value.Length;
-                var text = Plain(h.Groups[2].Value);
-                if (level <= 2) { cur = new Slide(text, new()); slides.Add(cur); }
-                else { cur ??= NewSlide(deckTitle, slides); cur.Bullets.Add((0, text)); }
-                continue;
+                case SlideKind.Title: WriteTitleSlide(sb, slide, logo); break;
+                case SlideKind.Section: WriteSectionSlide(sb, slide); break;
+                default: WriteContentSlide(sb, slide); break;
             }
-            if (string.IsNullOrWhiteSpace(line)) continue;
-            if (HorizontalRuleRegex.IsMatch(line)) continue;      // "---" was a literal bullet
+            sb.Append("</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>");
+            return sb.ToString();
+        }
 
-            // A pipe table dumped its raw rows, separator row and all. Cells are joined instead.
-            if (TableRowRegex.IsMatch(line))
+        private int Id() => _nextId++;
+
+        private void WriteTitleSlide(StringBuilder sb, DeckSlide slide, Logo? logo)
+        {
+            if (logo is not null)
             {
-                if (TableSeparatorRegex.IsMatch(line)) continue;
-                var cells = line.Trim().Trim('|').Split('|')
-                    .Select(c => Plain(c.Trim()))
-                    .Where(c => c.Length > 0);
-                var joined = string.Join("  ·  ", cells);
-                if (joined.Length == 0) continue;
-                cur ??= NewSlide(deckTitle, slides);
-                cur.Bullets.Add((1, joined));
-                continue;
+                var rel = AddImage(logo.Data, logo.ContentType);
+                sb.Append(Picture(rel, "Logo", "Logo", MarginXPt, 40, logo.WidthPt, logo.HeightPt));
             }
+            var size = slide.Title.Length > 60 ? 36 : slide.Title.Length > 32 ? 42 : 48;
+            sb.Append(TitleShape("<p:ph type=\"ctrTitle\"/>", "Title 1", slide.Title, size, MarginXPt, CoverTitleTopPt, ContentWidthPt, CoverTitleHeightPt, "b"));
+            sb.Append(Rect("Accent", MarginXPt, CoverBarTopPt, 96, 5, _p.Accent));
 
-            // Blockquote markers rendered as literal ">" characters on the slide.
-            var quoted = BlockquoteRegex.Match(line);
-            if (quoted.Success) line = quoted.Groups[1].Value;
-            if (string.IsNullOrWhiteSpace(line)) continue;
-
-            var bullet = BulletRegex.Match(line);
-            cur ??= NewSlide(deckTitle, slides);
-            if (bullet.Success)
+            var lines = new List<(string Text, double Size, string Color)>();
+            if (!string.IsNullOrWhiteSpace(slide.Subtitle)) lines.Add((slide.Subtitle!, 22, _p.Muted));
+            if (!string.IsNullOrWhiteSpace(slide.Byline)) lines.Add((slide.Byline!, 16, _p.Text));
+            if (lines.Count > 0)
             {
-                var body = bullet.Groups[2].Value;
-                // "- [ ] item" printed its brackets; a slide wants the box glyph.
-                var task = TaskBoxRegex.Match(body);
-                if (task.Success)
+                var body = new StringBuilder();
+                for (int i = 0; i < lines.Count; i++)
                 {
-                    var done = task.Groups[1].Value is "x" or "X";
-                    body = (done ? "☑ " : "☐ ") + task.Groups[2].Value;
+                    var (text, sz, color) = lines[i];
+                    body.Append($"<a:p><a:pPr marL=\"0\" indent=\"0\">{(i > 0 ? "<a:spcBef><a:spcPts val=\"1000\"/></a:spcBef>" : "")}<a:buNone/></a:pPr>");
+                    body.Append($"<a:r><a:rPr lang=\"en-US\" sz=\"{Pts(sz)}\" dirty=\"0\"><a:solidFill><a:srgbClr val=\"{color}\"/></a:solidFill><a:latin typeface=\"+mn-lt\"/></a:rPr><a:t>{X(text)}</a:t></a:r></a:p>");
                 }
-                cur.Bullets.Add((Math.Min(4, bullet.Groups[1].Value.Length / 2), Plain(body)));
+                sb.Append(Shape(Id(), "Subtitle 2", "<p:ph type=\"subTitle\" idx=\"1\"/>", MarginXPt, CoverSubtitleTopPt, ContentWidthPt, CoverSubtitleHeightPt + 60,
+                    "", body.ToString(), anchor: "t", placeholder: true));
             }
-            else
+        }
+
+        private void WriteSectionSlide(StringBuilder sb, DeckSlide slide)
+        {
+            var size = slide.Title.Length > 50 ? 34 : 40;
+            sb.Append(TitleShape("<p:ph type=\"title\"/>", "Title 1", slide.Title, size, MarginXPt, SectionTitleTopPt, ContentWidthPt, SectionTitleHeightPt, "b"));
+            sb.Append(Rect("Accent", MarginXPt, SectionBarTopPt, 96, 5, _p.Accent));
+            WriteFooter(sb);
+        }
+
+        private void WriteContentSlide(StringBuilder sb, DeckSlide slide)
+        {
+            sb.Append(TitleShape("<p:ph type=\"title\"/>", "Title 1", slide.Title, TitleFont(slide.Title), MarginXPt, TitleTopPt, ContentWidthPt, TitleHeightPt, "b"));
+            sb.Append(Rect("Accent", MarginXPt, AccentBarTopPt, 56, 3, _p.Accent));
+
+            double y = BodyTopPt;
+            // A slide that is just one picture centres it in the body area.
+            if (slide.Blocks.Count == 1 && slide.Blocks[0] is PictureSlideBlock or MissingPictureBlock)
+                y += Math.Max(0, (BodyHeightPt - slide.Blocks[0].HeightPt) / 2);
+
+            bool bodyUsed = false;
+            for (int i = 0; i < slide.Blocks.Count; i++)
             {
-                cur.Bullets.Add((0, Plain(line)));
+                if (i > 0) y += BlockGapPt;
+                var block = slide.Blocks[i];
+                switch (block)
+                {
+                    case TextBlock tb:
+                        WriteText(sb, tb, y, usePlaceholder: !bodyUsed && tb.Panel == PanelKind.None);
+                        if (tb.Panel == PanelKind.None) bodyUsed = true;
+                        break;
+                    case CodeSlideBlock code: WriteCode(sb, code, y); break;
+                    case TableSlideBlock table: WriteTable(sb, table, y); break;
+                    case PictureSlideBlock pic: WritePicture(sb, pic, y); break;
+                    case MissingPictureBlock missing: WriteMissing(sb, missing, y); break;
+                }
+                y += block.HeightPt;
             }
+            WriteFooter(sb);
         }
-        if (slides.Count == 0) slides.Add(new Slide(deckTitle, new()));
-        return slides;
-    }
 
-    private static Slide NewSlide(string title, List<Slide> slides) { var s = new Slide(title, new()); slides.Add(s); return s; }
-
-    private static readonly Regex HorizontalRuleRegex = new(@"^\s*([-*_])(\s*\1){2,}\s*$", RegexOptions.Compiled);
-    private static readonly Regex TableRowRegex = new(@"^\s*\|.*\|\s*$", RegexOptions.Compiled);
-    private static readonly Regex TableSeparatorRegex = new(@"^\s*\|[\s:|-]+\|\s*$", RegexOptions.Compiled);
-    private static readonly Regex BlockquoteRegex = new(@"^\s*>\s?(.*)$", RegexOptions.Compiled);
-    private static readonly Regex TaskBoxRegex = new(@"^\[([ xX])\]\s+(.*)$", RegexOptions.Compiled);
-    private static readonly Regex FootnoteRefRegex = new(@"\[\^[^\]]+\]", RegexOptions.Compiled);
-    private static readonly Regex FootnoteDefRegex = new(@"^\s*\[\^[^\]]+\]:\s*", RegexOptions.Compiled);
-    private static readonly Regex ImageRegex = new(@"!\[([^\]]*)\]\([^)]*\)", RegexOptions.Compiled);
-    private static readonly Regex LinkRegex = new(@"\[([^\]]+)\]\([^)]*\)", RegexOptions.Compiled);
-    private static readonly Regex DisplayMathRegex = new(@"\$\$(.+?)\$\$", RegexOptions.Compiled | RegexOptions.Singleline);
-    private static readonly Regex InlineMathRegex = new(@"\$([^$\n]+)\$", RegexOptions.Compiled);
-
-    /// <summary>
-    /// Reduces inline Markdown to the text a slide should show.
-    ///
-    /// This used to strip emphasis delimiters and nothing else, so a slide displayed
-    /// "[link](https://example.com)", "![Alt text](docs/images/logo.png)" and "$a^2 + b^2 = c^2$"
-    /// exactly as written — the syntax, not the content.
-    /// </summary>
-    private static string Plain(string md)
-    {
-        // A slide has no footnote apparatus: fold the definition into the text and drop the
-        // marker, rather than printing "[^1]" at the reader.
-        md = FootnoteDefRegex.Replace(md, "");
-        md = FootnoteRefRegex.Replace(md, "");
-        md = ImageRegex.Replace(md, "$1");           // keep the alt text, drop the URL
-        md = LinkRegex.Replace(md, "$1");            // keep the label, drop the target
-        md = DisplayMathRegex.Replace(md, "$1");     // a slide has no math renderer; show the body
-        md = InlineMathRegex.Replace(md, "$1");
-        return EmphasisRegex.Replace(md, "").Trim();
-    }
-
-    private static string Hex(string css) => css.TrimStart('#').ToUpperInvariant().PadLeft(6, '0')[..6];
-
-    // ---- OpenXML object factories ----
-
-    private static P.Presentation CreatePresentation(int slideCount)
-    {
-        var presentation = new P.Presentation();
-
-        var slideMasterIdList = new P.SlideMasterIdList();
-        slideMasterIdList.Append(new P.SlideMasterId { Id = 2147483648U, RelationshipId = "rIdMaster" });
-        presentation.Append(slideMasterIdList);
-
-        var slideIdList = new P.SlideIdList();
-        for (int i = 0; i < slideCount; i++)
+        private void WriteFooter(StringBuilder sb)
         {
-            var rId = $"rIdSlide{i + 1}";
-            slideIdList.Append(new P.SlideId { Id = (uint)(256 + i), RelationshipId = rId });
+            var title = $"<a:p><a:pPr><a:buNone/></a:pPr><a:r>{RPr(11, _p.Muted, font: "+mn-lt")}<a:t>{X(_deck.Title)}</a:t></a:r></a:p>";
+            sb.Append(Shape(Id(), "Footer", "", MarginXPt, FooterTopPt, ContentWidthPt - 80, 20, "", title, anchor: "ctr"));
+            var number = $"<a:p><a:pPr algn=\"r\"><a:buNone/></a:pPr><a:fld id=\"{{B6F15528-21DE-4FAA-801E-634DDDAF4B2B}}\" type=\"slidenum\">{RPr(11, _p.Muted, font: "+mn-lt")}<a:t>{_index + 1}</a:t></a:fld></a:p>";
+            sb.Append(Shape(Id(), "Slide Number", "", MarginXPt + ContentWidthPt - 72, FooterTopPt, 72, 20, "", number, anchor: "ctr"));
         }
-        presentation.Append(slideIdList);
 
-        presentation.Append(new P.SlideSize { Cx = 12192000, Cy = 6858000 });
-        presentation.Append(new P.NotesSize { Cx = 6858000, Cy = 9144000 });
+        // ── text ──
 
-        return presentation;
-    }
-
-    private static P.SlideMaster CreateSlideMaster(ThemeDefinition t)
-    {
-        var slideMaster = new P.SlideMaster();
-
-        var cSld = new P.CommonSlideData();
-
-        var bg = new P.Background();
-        var bgPr = new P.BackgroundProperties();
-        bgPr.Append(new A.SolidFill(new A.RgbColorModelHex { Val = Hex(t.Background) }));
-        bgPr.Append(new A.EffectList());
-        bg.Append(bgPr);
-        cSld.Append(bg);
-
-        cSld.Append(CreateShapeTree());
-        slideMaster.Append(cSld);
-
-        var clrMap = new P.ColorMap
+        private string TitleShape(string ph, string name, string text, double size, double x, double y, double w, double h, string anchor)
         {
-            Background1 = A.ColorSchemeIndexValues.Light1,
-            Text1 = A.ColorSchemeIndexValues.Dark1,
-            Background2 = A.ColorSchemeIndexValues.Light2,
-            Text2 = A.ColorSchemeIndexValues.Dark2,
-            Accent1 = A.ColorSchemeIndexValues.Accent1,
-            Accent2 = A.ColorSchemeIndexValues.Accent2,
-            Accent3 = A.ColorSchemeIndexValues.Accent3,
-            Accent4 = A.ColorSchemeIndexValues.Accent4,
-            Accent5 = A.ColorSchemeIndexValues.Accent5,
-            Accent6 = A.ColorSchemeIndexValues.Accent6,
-            Hyperlink = A.ColorSchemeIndexValues.Hyperlink,
-            FollowedHyperlink = A.ColorSchemeIndexValues.FollowedHyperlink
-        };
-        slideMaster.Append(clrMap);
+            var para = $"<a:p><a:r><a:rPr lang=\"en-US\" sz=\"{Pts(size)}\" b=\"1\" dirty=\"0\"><a:solidFill><a:srgbClr val=\"{_p.Heading}\"/></a:solidFill><a:latin typeface=\"+mj-lt\"/></a:rPr><a:t>{X(text)}</a:t></a:r></a:p>";
+            return Shape(Id(), name, ph, x, y, w, h, "", para, anchor: anchor, placeholder: true);
+        }
 
-        var slideLayoutIdList = new P.SlideLayoutIdList();
-        slideLayoutIdList.Append(new P.SlideLayoutId { Id = 2147483649U, RelationshipId = "rIdLayout" });
-        slideMaster.Append(slideLayoutIdList);
-
-        return slideMaster;
-    }
-
-    private static P.SlideLayout CreateSlideLayout()
-    {
-        var slideLayout = new P.SlideLayout
+        private void WriteText(StringBuilder sb, TextBlock tb, double y, bool usePlaceholder)
         {
-            Type = P.SlideLayoutValues.Object,
-            Preserve = true
-        };
+            var italic = tb.Panel == PanelKind.Quote;
+            var color = tb.Panel == PanelKind.Quote ? _p.Muted : _p.Text;
+            var paras = new StringBuilder();
+            for (int i = 0; i < tb.Paragraphs.Count; i++)
+                paras.Append(Paragraph(tb.Paragraphs[i], i == 0, tb.FontScale, color, italic));
 
-        var cSld = new P.CommonSlideData { Name = "Title and Content" };
-        cSld.Append(CreateShapeTree());
-        slideLayout.Append(cSld);
+            if (tb.Panel == PanelKind.None)
+            {
+                sb.Append(Shape(Id(), usePlaceholder ? "Content Placeholder 2" : "Text", usePlaceholder ? "<p:ph idx=\"1\"/>" : "",
+                    MarginXPt, y, ContentWidthPt, tb.HeightPt, "", paras.ToString(), anchor: "t", placeholder: usePlaceholder));
+                return;
+            }
 
-        var clrMapOvr = new P.ColorMapOverride();
-        clrMapOvr.Append(new A.OverrideColorMapping
+            var accent = tb.Panel == PanelKind.Alert && tb.PanelColor is { } c ? c : _p.Accent;
+            var fill = tb.Panel == PanelKind.Alert
+                ? $"<a:solidFill><a:srgbClr val=\"{accent}\"><a:alpha val=\"12000\"/></a:srgbClr></a:solidFill>"
+                : $"<a:solidFill><a:srgbClr val=\"{_p.Panel}\"/></a:solidFill>";
+            sb.Append(Shape(Id(), tb.Panel == PanelKind.Alert ? "Callout" : "Quote", "", MarginXPt, y, ContentWidthPt, tb.HeightPt, fill + "<a:ln><a:noFill/></a:ln>", "<a:p><a:endParaRPr lang=\"en-US\"/></a:p>", geometry: "rect"));
+            sb.Append(Rect("Bar", MarginXPt, y, 4, tb.HeightPt, accent));
+            sb.Append(Shape(Id(), "Text", "", MarginXPt + 4 + PanelPadXPt, y + PanelPadYPt, TextWidth(tb), tb.HeightPt - 2 * PanelPadYPt, "", paras.ToString(), anchor: "t"));
+        }
+
+        private string Paragraph(SlideParagraph para, bool first, double scale, string color, bool italic)
         {
-            Background1 = A.ColorSchemeIndexValues.Light1,
-            Text1 = A.ColorSchemeIndexValues.Dark1,
-            Background2 = A.ColorSchemeIndexValues.Light2,
-            Text2 = A.ColorSchemeIndexValues.Dark2,
-            Accent1 = A.ColorSchemeIndexValues.Accent1,
-            Accent2 = A.ColorSchemeIndexValues.Accent2,
-            Accent3 = A.ColorSchemeIndexValues.Accent3,
-            Accent4 = A.ColorSchemeIndexValues.Accent4,
-            Accent5 = A.ColorSchemeIndexValues.Accent5,
-            Accent6 = A.ColorSchemeIndexValues.Accent6,
-            Hyperlink = A.ColorSchemeIndexValues.Hyperlink,
-            FollowedHyperlink = A.ColorSchemeIndexValues.FollowedHyperlink
-        });
-        slideLayout.Append(clrMapOvr);
+            var size = FontSize(para) * scale;
+            var sb = new StringBuilder("<a:p>");
+            var marL = Emu(LeftIndent(para));
+            var before = ParagraphSpaceBefore(para, first) * scale;
+            var spc = $"<a:lnSpc><a:spcPct val=\"100000\"/></a:lnSpc><a:spcBef><a:spcPts val=\"{Pts(before)}\"/></a:spcBef>";
+            switch (para.Style)
+            {
+                case ParaStyle.Bullet:
+                {
+                    var ch = (para.Level % 3) switch { 0 => "•", 1 => "–", _ => "▪" };
+                    sb.Append($"<a:pPr marL=\"{marL}\" indent=\"{-Emu(BulletIndentPt)}\" lvl=\"{para.Level}\">{spc}<a:buClr><a:srgbClr val=\"{_p.Accent}\"/></a:buClr><a:buFont typeface=\"Arial\"/><a:buChar char=\"{ch}\"/></a:pPr>");
+                    break;
+                }
+                case ParaStyle.Numbered:
+                {
+                    var scheme = (para.Level % 3) switch { 0 => "arabicPeriod", 1 => "alphaLcPeriod", _ => "romanLcPeriod" };
+                    sb.Append($"<a:pPr marL=\"{marL}\" indent=\"{-Emu(BulletIndentPt + 6)}\" lvl=\"{para.Level}\">{spc}<a:buClr><a:srgbClr val=\"{_p.Accent}\"/></a:buClr><a:buFont typeface=\"+mj-lt\"/><a:buAutoNum type=\"{scheme}\" startAt=\"{Math.Max(1, para.Number)}\"/></a:pPr>");
+                    break;
+                }
+                case ParaStyle.Task:
+                    sb.Append($"<a:pPr marL=\"{marL}\" indent=\"{-Emu(BulletIndentPt)}\" lvl=\"{para.Level}\">{spc}<a:buClr><a:srgbClr val=\"{(para.Checked ? _p.Accent : _p.Muted)}\"/></a:buClr><a:buFont typeface=\"Segoe UI Symbol\"/><a:buChar char=\"{(para.Checked ? "☑" : "☐")}\"/></a:pPr>");
+                    break;
+                case ParaStyle.Continuation:
+                    sb.Append($"<a:pPr marL=\"{marL}\" indent=\"0\" lvl=\"{para.Level}\">{spc}<a:buNone/></a:pPr>");
+                    break;
+                case ParaStyle.Math:
+                    sb.Append($"<a:pPr marL=\"0\" indent=\"0\" algn=\"ctr\">{spc}<a:buNone/></a:pPr>");
+                    break;
+                default:
+                    sb.Append($"<a:pPr marL=\"0\" indent=\"0\">{spc}<a:buNone/></a:pPr>");
+                    break;
+            }
 
-        return slideLayout;
-    }
+            var runColor = para.Style switch
+            {
+                ParaStyle.Subheading => _p.Heading,
+                ParaStyle.Caption => _p.Muted,
+                ParaStyle.Task when para.Checked => _p.Muted,
+                _ => color,
+            };
+            foreach (var run in para.Runs) sb.Append(Run(run, size, runColor, italic || para.Style == ParaStyle.Caption, para.Style == ParaStyle.Math));
+            sb.Append($"<a:endParaRPr lang=\"en-US\" sz=\"{Pts(size)}\" dirty=\"0\"/></a:p>");
+            return sb.ToString();
+        }
 
-    private static P.ShapeTree CreateShapeTree()
-    {
-        var spTree = new P.ShapeTree();
+        private string Run(TextRun run, double size, string color, bool italic, bool math)
+        {
+            if (run.LineBreak) return $"<a:br>{RPr(size, color)}</a:br>";
+            if (run.Text.Length == 0) return "";
+            var font = run.Code ? "Consolas" : run.Math || math ? "Cambria Math" : "+mn-lt";
+            var link = run.Url is { } url ? LinkId(url) : null;
+            var rpr = RPr(size, link is null ? run.Color ?? color : null, font, run.Bold, run.Italic || italic, run.Underline, run.Strike, run.Baseline, link);
+            return $"<a:r>{rpr}<a:t>{X(run.Text)}</a:t></a:r>";
+        }
 
-        var nvGrpSpPr = new P.NonVisualGroupShapeProperties(
-            new P.NonVisualDrawingProperties { Id = 1U, Name = "" },
-            new P.NonVisualGroupShapeDrawingProperties(),
-            new P.ApplicationNonVisualDrawingProperties()
-        );
-        spTree.Append(nvGrpSpPr);
+        private static string RPr(double size, string? color, string font = "+mn-lt", bool bold = false, bool italic = false,
+            bool underline = false, bool strike = false, int baseline = 0, string? linkId = null)
+        {
+            var sb = new StringBuilder($"<a:rPr lang=\"en-US\" sz=\"{Pts(size)}\"");
+            if (bold) sb.Append(" b=\"1\"");
+            if (italic) sb.Append(" i=\"1\"");
+            if (underline) sb.Append(" u=\"sng\"");
+            if (strike) sb.Append(" strike=\"sngStrike\"");
+            if (baseline != 0) sb.Append($" baseline=\"{baseline}\"");
+            sb.Append(" dirty=\"0\">");
+            if (color is not null) sb.Append($"<a:solidFill><a:srgbClr val=\"{color}\"/></a:solidFill>");
+            sb.Append($"<a:latin typeface=\"{X(font)}\"/>");
+            if (font != "+mn-lt") sb.Append($"<a:cs typeface=\"{X(font)}\"/>");
+            if (linkId is not null) sb.Append($"<a:hlinkClick r:id=\"{linkId}\"/>");
+            sb.Append("</a:rPr>");
+            return sb.ToString();
+        }
 
-        var grpSpPr = new P.GroupShapeProperties(
-            new A.Transform2D(
-                new A.Offset { X = 0L, Y = 0L },
-                new A.Extents { Cx = 0L, Cy = 0L },
-                new A.ChildOffset { X = 0L, Y = 0L },
-                new A.ChildExtents { Cx = 0L, Cy = 0L }
-            )
-        );
-        spTree.Append(grpSpPr);
+        private string? LinkId(string url)
+        {
+            if (_links.TryGetValue(url, out var id)) return id;
+            try
+            {
+                id = _part.AddHyperlinkRelationship(new Uri(url, UriKind.Absolute), true).Id;
+                _links[url] = id;
+                return id;
+            }
+            catch { return null; }
+        }
 
-        return spTree;
-    }
+        // ── code ──
 
-    private static P.Slide CreateSlide(Slide slide, ThemeDefinition t)
-    {
-        var slideObj = new P.Slide();
-        var cSld = new P.CommonSlideData();
-        var spTree = CreateShapeTree();
+        private void WriteCode(StringBuilder sb, CodeSlideBlock code, double y)
+        {
+            _codes++;
+            var captionH = CaptionHeight(code.Caption);
+            if (captionH > 0)
+            {
+                var cap = $"<a:p><a:pPr><a:buNone/></a:pPr><a:r>{RPr(CaptionFontPt, _p.Muted, italic: true)}<a:t>{X(code.Caption)}</a:t></a:r></a:p>";
+                sb.Append(Shape(Id(), "Caption", "", MarginXPt, y, ContentWidthPt, captionH, "", cap, anchor: "t"));
+            }
+            var font = CodeFont(code);
+            var paras = new StringBuilder();
+            var text = string.Join("\n", code.Lines);
+            var line = new StringBuilder();
+            void Flush()
+            {
+                paras.Append("<a:p><a:pPr marL=\"0\" indent=\"0\"><a:lnSpc><a:spcPct val=\"100000\"/></a:lnSpc><a:spcBef><a:spcPts val=\"0\"/></a:spcBef><a:buNone/></a:pPr>");
+                paras.Append(line);
+                paras.Append($"<a:endParaRPr lang=\"en-US\" sz=\"{Pts(font)}\" dirty=\"0\"/></a:p>");
+                line.Clear();
+            }
+            foreach (var (span, hex, it, bold) in OpenXmlSyntaxHighlighter.GetHighlightedSpans(text, code.Language, _p.CodeBackground))
+            {
+                var pieces = span.Split('\n');
+                for (int i = 0; i < pieces.Length; i++)
+                {
+                    if (i > 0) Flush();
+                    if (pieces[i].Length == 0) continue;
+                    var color = hex is null ? _p.CodeText : Hex(hex);
+                    line.Append($"<a:r>{RPr(font, color, "Consolas", bold, it)}<a:t>{X(pieces[i])}</a:t></a:r>");
+                }
+            }
+            Flush();
 
-        // Title Shape
-        var titleShape = new P.Shape();
-        var titleNvSpPr = new P.NonVisualShapeProperties(
-            new P.NonVisualDrawingProperties { Id = 2U, Name = "Title" },
-            new P.NonVisualShapeDrawingProperties(new A.ShapeLocks { NoGrouping = true }),
-            new P.ApplicationNonVisualDrawingProperties(new P.PlaceholderShape { Type = P.PlaceholderValues.Title })
-        );
-        titleShape.Append(titleNvSpPr);
+            var fill = $"<a:solidFill><a:srgbClr val=\"{_p.CodeBackground}\"/></a:solidFill><a:ln w=\"9525\"><a:solidFill><a:srgbClr val=\"{_p.Border}\"/></a:solidFill></a:ln>";
+            var insets = $" lIns=\"{Emu(CodePadXPt)}\" rIns=\"{Emu(CodePadXPt)}\" tIns=\"{Emu(CodePadYPt)}\" bIns=\"{Emu(CodePadYPt)}\"";
+            sb.Append(Shape(Id(), $"Code {_codes}", "", MarginXPt, y + captionH, ContentWidthPt, code.HeightPt - captionH, fill, paras.ToString(),
+                anchor: "t", geometry: "roundRect", insets: insets, adjust: "<a:gd name=\"adj\" fmla=\"val 3000\"/>"));
+        }
 
-        var titleSpPr = new P.ShapeProperties(
-            new A.Transform2D(
-                new A.Offset { X = 685800L, Y = 381000L },
-                new A.Extents { Cx = 10820400L, Cy = 1143000L }
-            ),
-            new A.PresetGeometry(new A.AdjustValueList()) { Preset = A.ShapeTypeValues.Rectangle }
-        );
-        titleShape.Append(titleSpPr);
+        // ── tables ──
 
-        var titleTxBody = new P.TextBody(
-            new A.BodyProperties(),
-            new A.ListStyle(),
-            new A.Paragraph(
-                new A.Run(
-                    new A.RunProperties(
-                        new A.SolidFill(new A.RgbColorModelHex { Val = Hex(t.Heading) })
-                    )
+        private void WriteTable(StringBuilder sb, TableSlideBlock t, double y)
+        {
+            _tables++;
+            var font = TableFont(t);
+            var widths = t.Widths.Select(w => Emu(w * ContentWidthPt)).ToList();
+            var totalW = widths.Sum();
+            var tbl = new StringBuilder("<a:tbl><a:tblPr firstRow=\"1\" bandRow=\"1\"/><a:tblGrid>");
+            foreach (var w in widths) tbl.Append($"<a:gridCol w=\"{w}\"/>");
+            tbl.Append("</a:tblGrid>");
+
+            double h = 0;
+            void Row(IReadOnlyList<List<SlideParagraph>> cells, bool header, bool band)
+            {
+                var rh = RowHeight(t, cells);
+                h += rh;
+                tbl.Append($"<a:tr h=\"{Emu(rh)}\">");
+                for (int c = 0; c < t.Columns; c++)
+                {
+                    var cell = c < cells.Count ? cells[c] : new List<SlideParagraph>();
+                    var algn = t.Align[c] switch { CellAlign.Center => "ctr", CellAlign.Right => "r", _ => "l" };
+                    tbl.Append("<a:tc><a:txBody><a:bodyPr/><a:lstStyle/>");
+                    if (cell.Count == 0) cell = new List<SlideParagraph> { new() { Style = ParaStyle.Body } };
+                    foreach (var para in cell)
                     {
-                        Language = "en-US",
-                        FontSize = 3200,
-                        Bold = true,
-                        Dirty = false
-                    },
-                    new A.Text(slide.Title)
-                )
-            )
-        );
-        titleShape.Append(titleTxBody);
-        spTree.Append(titleShape);
+                        tbl.Append($"<a:p><a:pPr marL=\"0\" indent=\"0\" algn=\"{algn}\"><a:buNone/></a:pPr>");
+                        foreach (var run in para.Runs) tbl.Append(Run(header ? run with { Bold = true } : run, font, header ? _p.HeaderText : _p.Text, false, false));
+                        tbl.Append($"<a:endParaRPr lang=\"en-US\" sz=\"{Pts(font)}\" dirty=\"0\"/></a:p>");
+                    }
+                    tbl.Append("</a:txBody>");
+                    tbl.Append($"<a:tcPr marL=\"{Emu(CellPadXPt)}\" marR=\"{Emu(CellPadXPt)}\" marT=\"{Emu(CellPadYPt)}\" marB=\"{Emu(CellPadYPt)}\" anchor=\"ctr\">");
+                    tbl.Append("<a:lnL w=\"0\"><a:noFill/></a:lnL><a:lnR w=\"0\"><a:noFill/></a:lnR>");
+                    tbl.Append($"<a:lnT w=\"9525\"><a:solidFill><a:srgbClr val=\"{_p.Border}\"/></a:solidFill></a:lnT>");
+                    tbl.Append($"<a:lnB w=\"{(header ? 19050 : 9525)}\"><a:solidFill><a:srgbClr val=\"{(header ? _p.HeaderFill : _p.Border)}\"/></a:solidFill></a:lnB>");
+                    tbl.Append(header ? $"<a:solidFill><a:srgbClr val=\"{_p.HeaderFill}\"/></a:solidFill>"
+                        : band ? $"<a:solidFill><a:srgbClr val=\"{_p.Band}\"/></a:solidFill>" : "<a:noFill/>");
+                    tbl.Append("</a:tcPr></a:tc>");
+                }
+                tbl.Append("</a:tr>");
+            }
+            if (t.Header.Count > 0) Row(t.Header, header: true, band: false);
+            for (int r = 0; r < t.Rows.Count; r++) Row(t.Rows[r], header: false, band: r % 2 == 1);
+            tbl.Append("</a:tbl>");
 
-        // Content Shape
-        var contentShape = new P.Shape();
-        var contentNvSpPr = new P.NonVisualShapeProperties(
-            new P.NonVisualDrawingProperties { Id = 3U, Name = "Content" },
-            new P.NonVisualShapeDrawingProperties(new A.ShapeLocks { NoGrouping = true }),
-            new P.ApplicationNonVisualDrawingProperties(new P.PlaceholderShape { Type = P.PlaceholderValues.Body, Index = 1U })
-        );
-        contentShape.Append(contentNvSpPr);
-
-        var contentSpPr = new P.ShapeProperties(
-            new A.Transform2D(
-                new A.Offset { X = 685800L, Y = 1600200L },
-                new A.Extents { Cx = 10820400L, Cy = 4800600L }
-            ),
-            new A.PresetGeometry(new A.AdjustValueList()) { Preset = A.ShapeTypeValues.Rectangle }
-        );
-        contentShape.Append(contentSpPr);
-
-        var contentTxBody = new P.TextBody(
-            new A.BodyProperties(),
-            new A.ListStyle()
-        );
-
-        if (slide.Bullets.Count == 0)
-        {
-            contentTxBody.Append(new A.Paragraph(new A.EndParagraphRunProperties { Language = "en-US" }));
+            sb.Append($"<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"{Id()}\" name=\"Table {_tables}\"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp=\"1\"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>");
+            sb.Append($"<p:xfrm><a:off x=\"{Emu(MarginXPt)}\" y=\"{Emu(y)}\"/><a:ext cx=\"{totalW}\" cy=\"{Emu(h)}\"/></p:xfrm>");
+            sb.Append("<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\">");
+            sb.Append(tbl);
+            sb.Append("</a:graphicData></a:graphic></p:graphicFrame>");
         }
-        else
+
+        // ── pictures ──
+
+        private string AddImage(byte[] data, string contentType)
         {
-            foreach (var (level, text) in slide.Bullets)
+            var type = contentType switch
             {
-                var paragraph = new A.Paragraph(
-                    new A.ParagraphProperties { Level = level },
-                    new A.Run(
-                        new A.RunProperties(
-                            new A.SolidFill(new A.RgbColorModelHex { Val = Hex(t.Text) })
-                        )
-                        {
-                            Language = "en-US",
-                            Dirty = false
-                        },
-                        new A.Text(text)
-                    )
-                );
-                contentTxBody.Append(paragraph);
+                "image/jpeg" => ImagePartType.Jpeg,
+                "image/gif" => ImagePartType.Gif,
+                "image/bmp" => ImagePartType.Bmp,
+                _ => ImagePartType.Png,
+            };
+            var part = _part.AddImagePart(type);
+            using (var ms = new MemoryStream(data)) part.FeedData(ms);
+            return _part.GetIdOfPart(part);
+        }
+
+        private void WritePicture(StringBuilder sb, PictureSlideBlock pic, double y)
+        {
+            _pictures++;
+            var (w, h) = FitPicture(pic, pic.HeightPt);
+            var x = MarginXPt + (ContentWidthPt - w) / 2;
+            var rel = AddImage(pic.Data, pic.ContentType);
+            sb.Append(Picture(rel, pic.IsDiagram ? $"Diagram {_pictures}" : $"Picture {_pictures}", pic.Description, x, y, w, h));
+            if (!string.IsNullOrEmpty(pic.Caption))
+            {
+                var cap = $"<a:p><a:pPr algn=\"ctr\"><a:buNone/></a:pPr><a:r>{RPr(CaptionFontPt, _p.Muted, italic: true)}<a:t>{X(pic.Caption)}</a:t></a:r></a:p>";
+                sb.Append(Shape(Id(), "Caption", "", MarginXPt, y + h + 4, ContentWidthPt, CaptionHeight(pic.Caption), "", cap, anchor: "t"));
             }
         }
 
-        contentShape.Append(contentTxBody);
-        spTree.Append(contentShape);
+        private string Picture(string rel, string name, string description, double x, double y, double w, double h) =>
+            $"<p:pic><p:nvPicPr><p:cNvPr id=\"{Id()}\" name=\"{X(name)}\" descr=\"{X(description)}\"/><p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>" +
+            $"<p:blipFill><a:blip r:embed=\"{rel}\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>" +
+            $"<p:spPr>{Xfrm(x, y, w, h)}<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>";
 
-        cSld.Append(spTree);
-        slideObj.Append(cSld);
+        private void WriteMissing(StringBuilder sb, MissingPictureBlock m, double y)
+        {
+            var file = Path.GetFileName((m.Source ?? "").Replace('/', '\\').Split('?', '#')[0]);
+            var label = string.IsNullOrWhiteSpace(m.Description) ? "Image not found" : m.Description;
+            var detail = file.Length > 0 ? $"Image not found: {file}" : "Image not found";
+            var body = $"<a:p><a:pPr algn=\"ctr\"><a:buNone/></a:pPr><a:r>{RPr(16, _p.Text)}<a:t>{X(label)}</a:t></a:r></a:p>";
+            if (!string.IsNullOrWhiteSpace(m.Description))
+                body += $"<a:p><a:pPr algn=\"ctr\"><a:buNone/></a:pPr><a:r>{RPr(12, _p.Muted, italic: true)}<a:t>{X(detail)}</a:t></a:r></a:p>";
+            var outline = $"<a:noFill/><a:ln w=\"12700\"><a:solidFill><a:srgbClr val=\"{_p.Border}\"/></a:solidFill><a:prstDash val=\"dash\"/></a:ln>";
+            var w = Math.Min(ContentWidthPt, 420);
+            sb.Append(Shape(Id(), "Missing image", "", MarginXPt + (ContentWidthPt - w) / 2, y, w, m.HeightPt, outline, body,
+                anchor: "ctr", geometry: "roundRect"));
+        }
 
-        return slideObj;
-    }
+        // ── primitives ──
 
-    private static A.Theme CreateTheme(ThemeDefinition t)
-    {
-        string dk1 = Hex(t.Text), lt1 = Hex(t.Background), dk2 = Hex(t.Heading), lt2 = Hex(t.Secondary);
-        string a1 = Hex(t.Heading), a2 = Hex(t.Primary), a3 = Hex(t.Line), a4 = Hex(t.Code), a5 = Hex(t.Border), a6 = Hex(t.Primary);
+        private string Rect(string name, double x, double y, double w, double h, string color) =>
+            $"<p:sp><p:nvSpPr><p:cNvPr id=\"{Id()}\" name=\"{name}\"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>" +
+            $"<p:spPr>{Xfrm(x, y, w, h)}<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val=\"{color}\"/></a:solidFill><a:ln><a:noFill/></a:ln></p:spPr>" +
+            "<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang=\"en-US\"/></a:p></p:txBody></p:sp>";
 
-        var theme = new A.Theme { Name = "Marksmith" };
-
-        var colorScheme = new A.ColorScheme(
-            new A.Dark1Color(new A.RgbColorModelHex { Val = dk1 }),
-            new A.Light1Color(new A.RgbColorModelHex { Val = lt1 }),
-            new A.Dark2Color(new A.RgbColorModelHex { Val = dk2 }),
-            new A.Light2Color(new A.RgbColorModelHex { Val = lt2 }),
-            new A.Accent1Color(new A.RgbColorModelHex { Val = a1 }),
-            new A.Accent2Color(new A.RgbColorModelHex { Val = a2 }),
-            new A.Accent3Color(new A.RgbColorModelHex { Val = a3 }),
-            new A.Accent4Color(new A.RgbColorModelHex { Val = a4 }),
-            new A.Accent5Color(new A.RgbColorModelHex { Val = a5 }),
-            new A.Accent6Color(new A.RgbColorModelHex { Val = a6 }),
-            new A.Hyperlink(new A.RgbColorModelHex { Val = a2 }),
-            new A.FollowedHyperlinkColor(new A.RgbColorModelHex { Val = a2 })
-        )
-        { Name = "Marksmith" };
-
-        var fontScheme = new A.FontScheme(
-            new A.MajorFont(
-                new A.LatinFont { Typeface = "Calibri Light" },
-                new A.EastAsianFont { Typeface = "" },
-                new A.ComplexScriptFont { Typeface = "" }
-            ),
-            new A.MinorFont(
-                new A.LatinFont { Typeface = "Calibri" },
-                new A.EastAsianFont { Typeface = "" },
-                new A.ComplexScriptFont { Typeface = "" }
-            )
-        )
-        { Name = "Marksmith" };
-
-        var fillStyleList = new A.FillStyleList(
-            new A.SolidFill(new A.SchemeColor { Val = A.SchemeColorValues.PhColor }),
-            new A.SolidFill(new A.SchemeColor { Val = A.SchemeColorValues.PhColor }),
-            new A.SolidFill(new A.SchemeColor { Val = A.SchemeColorValues.PhColor })
-        );
-
-        var lineStyleList = new A.LineStyleList(
-            new A.Outline(
-                new A.SolidFill(new A.SchemeColor { Val = A.SchemeColorValues.PhColor }),
-                new A.PresetDash { Val = A.PresetLineDashValues.Solid }
-            )
-            { Width = 6350, CapType = A.LineCapValues.Flat, CompoundLineType = A.CompoundLineValues.Single, Alignment = A.PenAlignmentValues.Center },
-            new A.Outline(
-                new A.SolidFill(new A.SchemeColor { Val = A.SchemeColorValues.PhColor }),
-                new A.PresetDash { Val = A.PresetLineDashValues.Solid }
-            )
-            { Width = 12700, CapType = A.LineCapValues.Flat, CompoundLineType = A.CompoundLineValues.Single, Alignment = A.PenAlignmentValues.Center },
-            new A.Outline(
-                new A.SolidFill(new A.SchemeColor { Val = A.SchemeColorValues.PhColor }),
-                new A.PresetDash { Val = A.PresetLineDashValues.Solid }
-            )
-            { Width = 19050, CapType = A.LineCapValues.Flat, CompoundLineType = A.CompoundLineValues.Single, Alignment = A.PenAlignmentValues.Center }
-        );
-
-        var effectStyleList = new A.EffectStyleList(
-            new A.EffectStyle(new A.EffectList()),
-            new A.EffectStyle(new A.EffectList()),
-            new A.EffectStyle(new A.EffectList())
-        );
-
-        var bgFillStyleList = new A.BackgroundFillStyleList(
-            new A.SolidFill(new A.SchemeColor { Val = A.SchemeColorValues.PhColor }),
-            new A.SolidFill(new A.SchemeColor { Val = A.SchemeColorValues.PhColor }),
-            new A.SolidFill(new A.SchemeColor { Val = A.SchemeColorValues.PhColor })
-        );
-
-        var formatScheme = new A.FormatScheme(
-            fillStyleList,
-            lineStyleList,
-            effectStyleList,
-            bgFillStyleList
-        )
-        { Name = "Marksmith" };
-
-        theme.Append(new A.ThemeElements(colorScheme, fontScheme, formatScheme));
-
-        return theme;
+        /// <summary>A shape with text. <paramref name="fill"/> is the spPr fill/line XML (empty =
+        /// no fill, no line); a placeholder inherits its geometry kind from the layout.</summary>
+        private static string Shape(int id, string name, string ph, double x, double y, double w, double h, string fill, string paragraphs,
+            string anchor = "t", bool placeholder = false, string geometry = "rect", string? insets = null, string adjust = "")
+        {
+            var nv = placeholder
+                ? $"<p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr><p:nvPr>{ph}</p:nvPr>"
+                : $"<p:cNvSpPr txBox=\"{(fill.Length == 0 ? 1 : 0)}\"/><p:nvPr/>";
+            var geom = placeholder ? "" : $"<a:prstGeom prst=\"{geometry}\"><a:avLst>{adjust}</a:avLst></a:prstGeom>";
+            var fillXml = placeholder ? "" : fill.Length == 0 ? "<a:noFill/>" : fill;
+            insets ??= " lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"";
+            return $"<p:sp><p:nvSpPr><p:cNvPr id=\"{id}\" name=\"{X(name)}\"/>{nv}</p:nvSpPr>" +
+                   $"<p:spPr>{Xfrm(x, y, w, h)}{geom}{fillXml}</p:spPr>" +
+                   $"<p:txBody><a:bodyPr wrap=\"square\"{insets} anchor=\"{anchor}\"><a:normAutofit/></a:bodyPr><a:lstStyle/>{paragraphs}</p:txBody></p:sp>";
+        }
     }
 }
