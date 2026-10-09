@@ -38,10 +38,25 @@ public sealed partial class SettingsCard : UserControl
     private long _detailsVisibilityToken;
     private UIElement? _watchedDetails;
 
+    private bool _pointerOver;
+
     public SettingsCard()
     {
         InitializeComponent();
+        PointerEntered += (_, _) => { _pointerOver = true; UpdateState(); };
+        PointerExited += (_, _) => { _pointerOver = false; UpdateState(); };
+        PointerCanceled += (_, _) => { _pointerOver = false; UpdateState(); };
+        PointerCaptureLost += (_, _) => { _pointerOver = false; UpdateState(); };
+        // IsEnabled already reaches the control inside; this greys the row's own text to match.
+        IsEnabledChanged += (_, _) => UpdateState();
+        Loaded += (_, _) => UpdateState(useTransitions: false);
         Sync();
+    }
+
+    private void UpdateState(bool useTransitions = true)
+    {
+        var state = !IsEnabled ? "Disabled" : _pointerOver ? "PointerOver" : "Normal";
+        VisualStateManager.GoToState(this, state, useTransitions);
     }
 
     private void Sync()

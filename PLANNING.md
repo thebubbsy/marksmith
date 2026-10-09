@@ -4586,3 +4586,98 @@ through the old updater (the notes say so). `MarksmithBaseVersion` is now **3.13
 2. Remaining numbered gallery names (list above) once their Word names are certain.
 3. `EmailExportFlowTests.Subject_preview_follows_the_template` flake (other run's #2).
 4. SmartArt Insert dialog tiles through Direct2D (other run's #4); real-mouse items (run #49 #3).
+
+### 2026-10-10 02:00–02:45 AEST (routine run #53: Settings, done properly)
+
+**Pick.** No other run was live (list_sessions: nothing running), and run #52b's backlog was
+small items. The oldest big item never done was "Settings: audit every SettingsCard row", carried
+since run #17. This run audited all 7 pages (about 30 rows) against the code behind each one, with
+before and after screenshots of every page from a parked test instance (PrintWindow) and a real-mouse
+hover check while the user was idle (90+ min).
+
+**Shipped (one commit):**
+- **Every row now has the Windows 11 hover and disabled states.** `Controls/SettingsCard` has a
+  `CommonStates` group: PointerOver fades to `ControlFillColorSecondaryBrush` (120 ms
+  `BrushTransition`, the brush the Toolkit's SettingsCard uses), and Disabled greys the icon, title
+  and description. The first try used `CardBackgroundFillColorSecondaryBrush`, which is *darker*
+  than the card in dark mode (pixel 54 → 50). Measured after the fix: 54 → 60, and a disabled
+  row stays at 54 under the pointer. The Plugins cards get this too.
+- **Dependent rows grey out with their parent:** Port, WebSocket streaming and Browser extension
+  pairing follow the Local API toggle. Install updates automatically follows Check on startup:
+  the whole row now, where before only its switch greyed.
+- **Previews that show what a setting produces**, computed by the export's own code (new Core
+  `Services/SettingsPreviews`):
+  - Export file name: "“My Report” is saved as 2026-10-10 My Report (pdf).pdf", live as you type,
+    in the default format. It replaces a fixed example that never changed.
+  - PDF header & footer: a small page (Page 2 of 10) with the header and footer printed where they
+    will be, aligned as the page-number position says. `PdfExportService.ResolveBands` is now
+    shared by the export and the preview. **Bug fixed:** the old one-line preview showed only the
+    page number's band, so a header with page numbers off read "(no header/footer)". {date}
+    previews as the local short date, which is what Chromium prints.
+  - WebSocket streaming: the description names the address on the real port (it said `PORT`).
+  - Hardware acceleration: "Restart MarkSmith to apply this." appears once the toggle differs from
+    what the session started with.
+- **Google Docs page (two real bugs):**
+  - The VM never read the Google client ID, secret, refresh token or email back from settings.
+    After a restart, Settings showed an empty Client ID and "Not connected" for an account that was
+    still signed in (exports worked, because they read settings directly). Now loaded in the
+    constructor.
+  - Typing the secret didn't update anything; `GoogleClientChanged` now refreshes both.
+  - The status bar's colour follows the new `GoogleSignInPhase` (NotConfigured warning, Connected
+    success, Failed error). Sign in is disabled until a client exists. While signing in, the
+    device code shows large with Copy and "Open sign-in page" (`GoogleDeviceCode` and
+    `GoogleVerifyUrl` existed but nothing displayed them). Status wording from
+    `MainViewModel.DescribeGoogleAccount`.
+- **Live updates in Settings were cut off.** `SettingsView` unsubscribed from the VM and the license
+  on `Unloaded`, and the ContentDialog's popup raises Unloaded while Settings is still open. So
+  anything that should change while the dialog was up never did: About following a download, the
+  license page after a trial, the new previews. It now subscribes until the host calls the new
+  `SettingsView.Detach()` after the dialog closes. **Lesson: don't tie VM subscriptions to Unloaded
+  in anything hosted in a ContentDialog.**
+- House style: the prompt, reply box and Apply theme appear only after an import (before, there was
+  an empty JSON box and an Apply button with nothing to apply). Apply is disabled until a reply is
+  pasted, and the prompt has a Copy button (icon flips to a green tick, `CopyWithTick`).
+- Port: clearing the NumberBox left it blank with the old port still in use; now the real port comes back.
+- Plugins: install and remove failures show in the error colour.
+- About ▸ Links: full-width rows with an icon and the open-in-browser arrow, plus a tooltip giving
+  the address. Before, they were bare blue text.
+- Copy: Fallback font says what it does ("unless Document font in the side panel names one"; the
+  extension bridge says the same). "Page furniture" became "Header, footer and page numbers". The
+  API's 403 and Google's expiry message name real Settings paths (Settings ▸ Automation,
+  Settings ▸ Google Docs); they said "Settings > Local REST API" and "Settings → Google". The
+  Google export status messages too.
+- Tests: `SettingsPolishTests` (24): file-name preview (tokens, blank, unknown format, illegal
+  characters), PDF bands (the header-with-None bug, each position's band and alignment, a typed
+  footer wins, {date}, preview equals export), streaming address, Google wording, Google messages
+  name real pages, dependent rows bind IsEnabled to their parent, no static examples left, and
+  every row has a description.
+
+**Verified:**
+- Live in a parked test instance (scratch config): the page preview follows typing in the header
+  and footer and changing the position (bottom right puts "Confidential 2" at the bottom right).
+  The file name follows the template. The restart note appears. Automation rows grey with the API
+  toggle. Google shows the warning state and a disabled Sign in. House style shows no empty reply box.
+  Links render with the right glyphs. Hover measured with the real mouse, as above.
+- Full suite on a scratch OutDir: 4329 passed, 18 failed, all the known path-based set
+  (governance, gauntlet, Milestone assets, HtmlToMarkdown/MarkdownCopy). Desktop builds. Smoke
+  launch of `bin\x64\Debug` was fine.
+- **Not verified:** a real Google sign-in (no OAuth client on this PC), so the code panel was not
+  seen with a live code. Light theme for the new page preview and hover brush.
+
+**Lessons:**
+- In this repo, bash heredocs turn `\\` into `\` before Python sees them, which broke a
+  `“`-containing replace and a regex (it inserted a raw newline). Use the Edit tool, or a .py
+  file written with Write, for anything containing backslashes.
+- `gx.ps1 button <win> Close` picks the *window's* Close button and quits the app. Use the new
+  `dlgclose` (a Close button whose AutomationId isn't "Close"). Also new: `toggle` (only
+  elements with TogglePattern, because a SettingsCard shares its toggle's name) and `nav`
+  (ListItems only). Helpers are in this session's scratchpad.
+
+**Next up:**
+1. Settings in the light theme: the hover brush, the page preview's frame, and the Google warning bar.
+2. Side-panel `Controls/OptionRow` (SettingsCard's shape without the card) has no visual states:
+   no disabled greying for rows whose parent toggle is off, and no hover. Give it the Disabled
+   state at least, and the IsEnabled bindings its dependent rows need.
+3. Carried over: the first real in-app update 3.12.0 → next (does the installer reopen
+   MarkSmith?); `EmailExportFlowTests.Subject_preview_follows_the_template` flake; remaining
+   numbered SmartArt gallery names; SmartArt Insert dialog tiles through Direct2D.

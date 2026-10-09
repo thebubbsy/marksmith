@@ -93,6 +93,7 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private string _googleRefreshToken = "";
     [ObservableProperty] private string _googleAccountEmail = "";
     [ObservableProperty] private string _googleAuthStatus = "Not connected";
+    [ObservableProperty] private GoogleSignInPhase _googleSignInPhase = GoogleSignInPhase.SignedOut;
     [ObservableProperty] private string _googleDeviceCode = "";
     [ObservableProperty] private string _googleVerifyUrl = "";
 
@@ -1045,6 +1046,14 @@ private readonly MarkdownExportService _mdExport = new();
 
         RefreshCloudProviders();
 
+        // The Google fields were never read back, so after a restart Settings showed an empty
+        // client ID and "Not connected" for an account that was still signed in.
+        _googleClientId = settings.GoogleClientId ?? "";
+        _googleClientSecret = settings.GoogleClientSecret ?? "";
+        _googleRefreshToken = settings.GoogleRefreshToken ?? "";
+        _googleAccountEmail = settings.GoogleAccountEmail ?? "";
+        ResetGoogleStatus();
+
         if (_checkForUpdatesOnStartup)
         {
             _ = CheckForUpdatesOnStartupAsync();
@@ -1088,7 +1097,7 @@ private readonly MarkdownExportService _mdExport = new();
     }
 
     partial void OnOutputFolderChanged(string value) { _settingsService.Current.OutputFolder = value; SaveSettingsDebounced(); }
-    partial void OnFileNameTemplateChanged(string value) { _settingsService.Current.FileNameTemplate = value; SaveSettingsDebounced(); }
+    partial void OnFileNameTemplateChanged(string value) { _settingsService.Current.FileNameTemplate = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(FileNamePreview)); }
     partial void OnSelectedThemeNameChanged(string value) {
         _settingsService.Current.Theme = value;
         IsCurrentThemeFavorite = _settingsService.Current.FavoriteThemes.Contains(value);
@@ -1108,6 +1117,7 @@ private readonly MarkdownExportService _mdExport = new();
         OnPropertyChanged(nameof(IsPdfFormat));
         OnPropertyChanged(nameof(IsDocxFormat));
         OnPropertyChanged(nameof(TargetFormatIndex));
+        OnPropertyChanged(nameof(FileNamePreview));
     }
     partial void OnContentWidthChanged(int value) {
         // A4 lock is authoritative: a manual width edit while locked reverts to the A4 width so the
@@ -1187,9 +1197,9 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnBoldModeChanged(int value) { _settingsService.Current.BoldMode = value; SaveSettingsDebounced(); }
     partial void OnItalicModeChanged(int value) { _settingsService.Current.ItalicMode = value; SaveSettingsDebounced(); }
     partial void OnProModeChanged(bool value) { _settingsService.Current.ProMode = value; SaveSettingsDebounced(); }
-    partial void OnHardwareAccelerationChanged(bool value) { _settingsService.Current.HardwareAcceleration = value; SaveSettingsDebounced(); }
+    partial void OnHardwareAccelerationChanged(bool value) { _settingsService.Current.HardwareAcceleration = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(HardwareAccelerationNeedsRestart)); }
     partial void OnApiEnabledChanged(bool value) { _settingsService.Current.ApiEnabled = value; SaveSettingsDebounced(); }
-    partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; SaveSettingsDebounced(); }
+    partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(StreamingEndpoint)); OnPropertyChanged(nameof(StreamingDescription)); }
     partial void OnEnableStreamingApiChanged(bool value) { _settingsService.Current.EnableStreamingApi = value; SaveSettingsDebounced(); }
     partial void OnSkipLaunchVideoChanged(bool value) { _settingsService.Current.SkipLaunchVideo = value; SaveSettingsDebounced(); }
     partial void OnAllowedExtensionIdChanged(string value) { _settingsService.Current.AllowedExtensionId = value; SaveSettingsDebounced(); }
@@ -1199,9 +1209,9 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnWebDavEndpointChanged(string value) { _settingsService.Current.WebDavEndpoint = value; SaveSettingsDebounced(); }
     partial void OnWebDavUserChanged(string value) { _settingsService.Current.WebDavUser = value; SaveSettingsDebounced(); }
     partial void OnWebDavTokenChanged(string value) { _settingsService.Current.WebDavToken = value; SaveSettingsDebounced(); }
-    partial void OnPdfHeaderTemplateChanged(string value) { _settingsService.Current.PdfHeaderTemplate = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfFooterPreview)); }
-    partial void OnPdfFooterTemplateChanged(string value) { _settingsService.Current.PdfFooterTemplate = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfFooterPreview)); }
-    partial void OnPdfPageNumberPositionChanged(string value) { _settingsService.Current.PdfPageNumberPosition = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfFooterPreview)); }
+    partial void OnPdfHeaderTemplateChanged(string value) { _settingsService.Current.PdfHeaderTemplate = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfBandsPreview)); }
+    partial void OnPdfFooterTemplateChanged(string value) { _settingsService.Current.PdfFooterTemplate = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfBandsPreview)); }
+    partial void OnPdfPageNumberPositionChanged(string value) { _settingsService.Current.PdfPageNumberPosition = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfBandsPreview)); }
     partial void OnFontPresetChanged(string value) { _settingsService.Current.FontPreset = value; SaveSettingsDebounced(); }
     partial void OnPdfEncryptChanged(bool value) { _settingsService.Current.PdfEncrypt = value; SaveSettingsDebounced(); }
     partial void OnPdfUserPasswordChanged(string value) { _settingsService.Current.PdfUserPassword = value; SaveSettingsDebounced(); }
@@ -1228,21 +1238,27 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnPortalInsideBlurChanged(bool value) { _settingsService.Current.PortalInsideBlur = value; SaveSettingsDebounced(); }
     partial void OnPortalInsideBlurRadiusChanged(double value) { _settingsService.Current.PortalInsideBlurRadius = value; SaveSettingsDebounced(); }
 
-    // Live preview of the page-number chrome with sample values (Task 10), so Settings shows what the
-    // tokens expand to. Falls back to the default template when the matching band is empty.
-    public string PdfFooterPreview
-    {
-        get
-        {
-            var pos = PdfPageNumberPosition ?? "None";
-            var top = pos.StartsWith("Top", System.StringComparison.OrdinalIgnoreCase);
-            var tpl = top ? PdfHeaderTemplate : PdfFooterTemplate;
-            if (string.IsNullOrWhiteSpace(tpl) && !pos.Equals("None", System.StringComparison.OrdinalIgnoreCase))
-                tpl = "Page {page} of {pages}";
-            if (string.IsNullOrWhiteSpace(tpl)) return "(no header/footer)";
-            return Services.PdfExportService.SubstituteTokens(tpl, "Document Title", 2, 10, System.DateTime.Now);
-        }
-    }
+    // Settings draws a small page with these on it: what the top and bottom of page 2 of 10 will
+    // print, with the page-number position's default filled in. The old one-line preview showed only
+    // the band the page number lived in, so a header with page numbers off read "(no header/footer)".
+    public SettingsPreviews.PageBands PdfBandsPreview =>
+        SettingsPreviews.PdfBands(PdfPageNumberPosition, PdfHeaderTemplate, PdfFooterTemplate, DateTime.Now);
+
+    /// <summary>What an export of "My Report" is called with the file-name template and default format.</summary>
+    public string FileNamePreview => SettingsPreviews.FileName(FileNameTemplate, TargetFormat, DateTime.Now);
+
+    /// <summary>The streaming address on the configured port.</summary>
+    public string StreamingEndpoint => SettingsPreviews.StreamingEndpoint(ApiPort);
+
+    /// <summary>The WebSocket row's description, naming the address on the real port.</summary>
+    public string StreamingDescription =>
+        $"Live progress and preview events on {StreamingEndpoint}, and text streamed into the editor as it arrives.";
+
+    // The WebView2 environment reads hardware acceleration once, when it's created at launch.
+    private readonly bool _hardwareAccelerationAtLaunch = AppServices.Settings.Current.HardwareAcceleration;
+
+    /// <summary>True once the toggle differs from what this session started with: it needs a restart.</summary>
+    public bool HardwareAccelerationNeedsRestart => HardwareAcceleration != _hardwareAccelerationAtLaunch;
 
     public ThemeDefinition CurrentTheme => _themes.GetOrDefault(SelectedThemeName);
 
@@ -1667,15 +1683,33 @@ private readonly MarkdownExportService _mdExport = new();
     public bool IsGoogleConfigured => AppServices.GoogleAuth.IsConfigured(_settingsService.Current);
     public bool IsGoogleConnected => IsGoogleConfigured && !string.IsNullOrWhiteSpace(_settingsService.Current.GoogleRefreshToken);
 
-    [RelayCommand]
+    /// <summary>What the Google Docs page says when nothing is in progress.</summary>
+    public static string DescribeGoogleAccount(bool configured, bool connected, string? email) =>
+        !configured ? "Add your Google Cloud client below to sign in."
+        : !connected ? "Not connected"
+        : string.IsNullOrWhiteSpace(email) ? "Connected to Google. Exports can go straight to Google Docs."
+        : $"Connected as {email}. Exports can go straight to Google Docs.";
+
+    private void ResetGoogleStatus()
+    {
+        GoogleSignInPhase = !IsGoogleConfigured ? GoogleSignInPhase.NotConfigured
+            : IsGoogleConnected ? GoogleSignInPhase.Connected
+            : GoogleSignInPhase.SignedOut;
+        GoogleAuthStatus = DescribeGoogleAccount(IsGoogleConfigured, IsGoogleConnected, GoogleAccountEmail);
+    }
+
+    private bool CanConnectGoogle() => IsGoogleConfigured;
+
+    [RelayCommand(CanExecute = nameof(CanConnectGoogle))]
     private async Task ConnectGoogleAsync()
     {
         var s = _settingsService.Current;
         if (!AppServices.GoogleAuth.IsConfigured(s))
         {
-            GoogleAuthStatus = "Google sign-in isn't configured yet (missing client credentials).";
+            ResetGoogleStatus();
             return;
         }
+        GoogleSignInPhase = GoogleSignInPhase.SigningIn;
         GoogleAuthStatus = "Starting sign-in…";
         GoogleDeviceCode = "";
         GoogleVerifyUrl = "";
@@ -1684,18 +1718,23 @@ private readonly MarkdownExportService _mdExport = new();
             var dc = await AppServices.GoogleAuth.StartDeviceCodeAsync(s);
             GoogleDeviceCode = dc.UserCode;
             GoogleVerifyUrl = dc.VerificationUrl;
-            GoogleAuthStatus = $"1) Open {dc.VerificationUrl} · 2) enter code  {dc.UserCode}  · 3) allow access";
+            GoogleAuthStatus = "Open Google's sign-in page, enter this code and allow access. This page updates by itself.";
 
             var tok = await AppServices.GoogleAuth.PollForTokenAsync(s, dc.DeviceCode, dc.Interval, dc.ExpiresIn);
             GoogleRefreshToken = tok.RefreshToken;
             GoogleAccountEmail = await AppServices.GoogleAuth.FetchAccountEmailAsync(tok.AccessToken);
             SaveSettingsDebounced();
-            GoogleAuthStatus = string.IsNullOrEmpty(GoogleAccountEmail)
-                ? "Connected to Google — ready to export to Google Docs."
-                : $"Connected as {GoogleAccountEmail} — ready to export to Google Docs.";
+            GoogleDeviceCode = "";
+            GoogleVerifyUrl = "";
+            ResetGoogleStatus();
         }
-        catch (GoogleAuthException ex) { GoogleAuthStatus = ex.Message; }
-        catch (Exception ex) { GoogleAuthStatus = $"Sign-in failed: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            GoogleDeviceCode = "";
+            GoogleVerifyUrl = "";
+            GoogleSignInPhase = GoogleSignInPhase.Failed;
+            GoogleAuthStatus = ex is GoogleAuthException ? ex.Message : $"Sign-in failed: {ex.Message}";
+        }
     }
 
     [RelayCommand]
@@ -1703,10 +1742,10 @@ private readonly MarkdownExportService _mdExport = new();
     {
         GoogleRefreshToken = "";
         GoogleAccountEmail = "";
-        GoogleAuthStatus = "Not connected";
         GoogleDeviceCode = "";
         GoogleVerifyUrl = "";
         SaveSettingsDebounced();
+        ResetGoogleStatus();
     }
 
     public async Task ConvertToGoogleDocsAsync()
@@ -1723,13 +1762,13 @@ private readonly MarkdownExportService _mdExport = new();
         var s = _settingsService.Current;
         if (!AppServices.GoogleAuth.IsConfigured(s))
         {
-            StatusText = "Google Docs export isn't configured — see Settings → Google.";
+            StatusText = "Google Docs export isn't set up yet: add your Google Cloud client in Settings ▸ Google Docs.";
             StatusSeverity = StatusSeverity.Warning;
             return;
         }
         if (string.IsNullOrWhiteSpace(s.GoogleRefreshToken))
         {
-            StatusText = "Connect your Google account first: Settings → Google → Connect.";
+            StatusText = "Sign in to Google first: Settings ▸ Google Docs ▸ Sign in.";
             StatusSeverity = StatusSeverity.Warning;
             return;
         }
@@ -1762,8 +1801,16 @@ private readonly MarkdownExportService _mdExport = new();
         catch { return null; }
     }
 
-    partial void OnGoogleClientIdChanged(string value) { _settingsService.Current.GoogleClientId = value.Trim(); SaveSettingsDebounced(); OnPropertyChanged(nameof(IsGoogleConfigured)); OnPropertyChanged(nameof(IsGoogleConnected)); }
-    partial void OnGoogleClientSecretChanged(string value) { _settingsService.Current.GoogleClientSecret = value; SaveSettingsDebounced(); }
+    partial void OnGoogleClientIdChanged(string value) { _settingsService.Current.GoogleClientId = value.Trim(); SaveSettingsDebounced(); GoogleClientChanged(); }
+    partial void OnGoogleClientSecretChanged(string value) { _settingsService.Current.GoogleClientSecret = value; SaveSettingsDebounced(); GoogleClientChanged(); }
+
+    private void GoogleClientChanged()
+    {
+        OnPropertyChanged(nameof(IsGoogleConfigured));
+        OnPropertyChanged(nameof(IsGoogleConnected));
+        ConnectGoogleCommand.NotifyCanExecuteChanged();
+        if (GoogleSignInPhase != GoogleSignInPhase.SigningIn) ResetGoogleStatus();
+    }
     partial void OnGoogleRefreshTokenChanged(string value) { _settingsService.Current.GoogleRefreshToken = value; OnPropertyChanged(nameof(IsGoogleConnected)); }
     partial void OnGoogleAccountEmailChanged(string value) { _settingsService.Current.GoogleAccountEmail = value; }
 
@@ -2079,9 +2126,11 @@ private readonly MarkdownExportService _mdExport = new();
     // {date}, {time} and {format}; anything the template yields is re-sanitized so a custom
     // template can never produce an invalid path.
     internal static string ApplyFileNameTemplate(string? template, string title, string extension)
+        => ApplyFileNameTemplate(template, title, extension, DateTime.Now);
+
+    internal static string ApplyFileNameTemplate(string? template, string title, string extension, DateTime now)
     {
         if (string.IsNullOrWhiteSpace(template)) template = "{title}";
-        var now = DateTime.Now;
         var name = template
             .Replace("{title}", title, StringComparison.OrdinalIgnoreCase)
             .Replace("{date}", now.ToString("yyyy-MM-dd"), StringComparison.OrdinalIgnoreCase)

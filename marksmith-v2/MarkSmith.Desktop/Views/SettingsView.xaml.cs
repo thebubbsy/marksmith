@@ -24,14 +24,14 @@ public sealed partial class SettingsView : UserControl
         VersionText.Text = $"Version {App.Updates.CurrentDisplayVersion}";
         RefreshLicenseUi();
         BuildPluginCards();
+        // Listen until the dialog closes (Detach). Not until Unloaded: the dialog's popup raises
+        // Unloaded while Settings is still on screen, which silently cut off every live update
+        // after it (the PDF page preview, Google's status, a download in About, license changes).
         App.License.Changed += OnLicenseChanged;
-        // Unsubscribe when the dialog closes: License.Changed outlives every Settings instance, so
-        // each open used to leave one more dead view refreshing itself on every license change.
-        Unloaded += (_, _) => App.License.Changed -= OnLicenseChanged;
-        // Opened mid-download, About shows the download; it follows the banner until it closes.
         App.ViewModel.PropertyChanged += OnUpdateStateChanged;
-        Unloaded += (_, _) => App.ViewModel.PropertyChanged -= OnUpdateStateChanged;
         RenderAboutUpdate();
+        RenderPdfBands();
+        RenderGoogleState();
         GoogleSecretBox.Password = App.ViewModel.GoogleClientSecret; // masked; pre-fill for convenience
         Nav.SelectedItem = Nav.MenuItems[0];
         HoverPolish.Track(this);
@@ -46,6 +46,17 @@ public sealed partial class SettingsView : UserControl
     {
         Root.Width = Math.Clamp(window.Width - 140, 640, 820);
         Root.Height = Math.Clamp(window.Height - 220, 360, 600);
+    }
+
+    /// <summary>
+    /// Stops listening to the license and the view model. The host calls this once the dialog has
+    /// closed: both outlive every Settings instance, and each open used to leave one more dead
+    /// view refreshing itself.
+    /// </summary>
+    public void Detach()
+    {
+        App.License.Changed -= OnLicenseChanged;
+        App.ViewModel.PropertyChanged -= OnUpdateStateChanged;
     }
 
     /// <summary>Opens Settings on a particular page (General, Pdf, Automation, Google, License, Plugins, About).</summary>
@@ -222,7 +233,105 @@ public sealed partial class SettingsView : UserControl
 
     private void OnUpdateStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(App.ViewModel.UpdatePhase)) DispatcherQueue.TryEnqueue(RenderAboutUpdate);
+        switch (e.PropertyName)
+        {
+            case nameof(App.ViewModel.UpdatePhase):
+                DispatcherQueue.TryEnqueue(RenderAboutUpdate);
+                break;
+            case nameof(App.ViewModel.PdfBandsPreview):
+                DispatcherQueue.TryEnqueue(RenderPdfBands);
+                break;
+            case nameof(App.ViewModel.GoogleSignInPhase):
+            case nameof(App.ViewModel.GoogleDeviceCode):
+                DispatcherQueue.TryEnqueue(RenderGoogleState);
+                break;
+        }
+    }
+
+    // ---- PDF page preview ----
+
+    private void RenderPdfBands()
+    {
+        var bands = App.ViewModel.PdfBandsPreview;
+        var align = bands.Alignment switch
+        {
+            "center" => TextAlignment.Center,
+            "right" => TextAlignment.Right,
+            _ => TextAlignment.Left,
+        };
+        PdfPreviewHeader.Text = bands.Header;
+        PdfPreviewFooter.Text = bands.Footer;
+        PdfPreviewHeader.TextAlignment = align;
+        PdfPreviewFooter.TextAlignment = align;
+        PdfPreviewCaption.Text = bands.IsEmpty ? "No header or footer" : "Page 2 of 10";
+        var spoken = new System.Collections.Generic.List<string>();
+        if (bands.Header.Length > 0) spoken.Add($"header \u201C{bands.Header}\u201D");
+        if (bands.Footer.Length > 0) spoken.Add($"footer \u201C{bands.Footer}\u201D");
+        AutomationProperties.SetName(PdfPagePreview, spoken.Count == 0
+            ? "Page preview: no header or footer"
+            : "Page preview: " + string.Join(", ", spoken));
+    }
+
+    // ---- Google ----
+
+    private void RenderGoogleState()
+    {
+        var vm = App.ViewModel;
+        GoogleStatusBar.Severity = vm.GoogleSignInPhase switch
+        {
+            ViewModels.GoogleSignInPhase.Connected => InfoBarSeverity.Success,
+            ViewModels.GoogleSignInPhase.Failed => InfoBarSeverity.Error,
+            ViewModels.GoogleSignInPhase.NotConfigured => InfoBarSeverity.Warning,
+            _ => InfoBarSeverity.Informational,
+        };
+        var hasCode = !string.IsNullOrEmpty(vm.GoogleDeviceCode);
+        GoogleCodeText.Text = vm.GoogleDeviceCode;
+        GoogleCodePanel.Visibility = hasCode ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnCopyGoogleCodeClick(object sender, RoutedEventArgs e) =>
+        CopyWithTick(App.ViewModel.GoogleDeviceCode, CopyGoogleCodeIcon);
+
+    private async void OnOpenGoogleVerifyClick(object sender, RoutedEventArgs e)
+    {
+        if (!Uri.TryCreate(App.ViewModel.GoogleVerifyUrl, UriKind.Absolute, out var uri)) return;
+        try { await Windows.System.Launcher.LaunchUriAsync(uri); }
+        catch { /* no browser: the code and the address are both on screen */ }
+    }
+
+    // Copy, then swap the button's icon for a tick for a moment: the only feedback a copy gets
+    // inside a dialog, where the main window's status bar is hidden.
+    private void CopyWithTick(string text, FontIcon icon)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        try
+        {
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(text);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        }
+        catch { return; }
+        var glyph = icon.Glyph;
+        icon.Glyph = "\uE73E"; // CheckMark
+        icon.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(1400);
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) =>
+        {
+            icon.Glyph = glyph;
+            icon.ClearValue(FontIcon.ForegroundProperty);
+        };
+        timer.Start();
+    }
+
+    // ---- Automation ----
+
+    // Clearing the port box gives NaN, which the int binding silently drops while the box stays
+    // empty. Put the port that's actually in use back instead.
+    private void OnApiPortValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (double.IsNaN(args.NewValue)) sender.Value = App.ViewModel.ApiPort;
     }
 
     // True while the status bar is showing the update rather than a check's answer.
@@ -282,10 +391,13 @@ public sealed partial class SettingsView : UserControl
 
         // Collapsed while empty so a not-yet-installed card doesn't carry a blank line of spacing.
         var status = new TextBlock { Style = caption, IsTextSelectionEnabled = true, Visibility = Visibility.Collapsed };
-        void SetStatus(string message)
+        void SetStatus(string message, bool failed = false)
         {
             status.Text = message;
             status.Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible;
+            // A failure in the error colour; everything else in the caption grey.
+            if (failed) status.Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+            else status.ClearValue(TextBlock.ForegroundProperty);
         }
         var ring = new ProgressRing { IsActive = false, Width = 18, Height = 18, Visibility = Visibility.Collapsed };
         // Green success tick shown once download hits 100% — animated in by ShowTick, replacing the
@@ -347,7 +459,7 @@ public sealed partial class SettingsView : UserControl
             }
             catch (Exception ex)
             {
-                SetStatus($"Install failed: {ex.Message}");
+                SetStatus($"Install failed: {ex.Message}", failed: true);
             }
 
             ring.IsActive = false;
@@ -374,7 +486,7 @@ public sealed partial class SettingsView : UserControl
             }
             catch (Exception ex)
             {
-                SetStatus($"Remove failed: {ex.Message}");
+                SetStatus($"Remove failed: {ex.Message}", failed: true);
             }
             Refresh();
             PluginsChanged?.Invoke();
@@ -441,6 +553,12 @@ public sealed partial class SettingsView : UserControl
     // the command channel and is applied by the heartbeat poll in MainWindow.
     private void OnApplyHouseStyleJsonClick(object sender, RoutedEventArgs e)
         => App.ViewModel.ApplyHouseStyleThemeJson(App.ViewModel.HouseStyleJsonResult);
+
+    private void OnHouseStyleReplyChanged(object sender, TextChangedEventArgs e) =>
+        ApplyThemeButton.IsEnabled = !string.IsNullOrWhiteSpace(HouseStyleReplyBox.Text);
+
+    private void OnCopyHouseStylePromptClick(object sender, RoutedEventArgs e) =>
+        CopyWithTick(App.ViewModel.HouseStylePrompt, CopyPromptIcon);
 
     private async void OnImportDotxClick(object sender, RoutedEventArgs e)
     {

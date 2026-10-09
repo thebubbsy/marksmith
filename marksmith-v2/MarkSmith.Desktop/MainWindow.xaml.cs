@@ -1448,7 +1448,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // clip it (the trap the tour and Suite Hub hit too).
         dialog.Resources["ContentDialogMaxWidth"] = 900.0;
         dialog.Resources["ContentDialogMaxHeight"] = 900.0;
-        await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
+        try { await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog); }
+        finally { settingsView.Detach(); }
     }
 
     private async void OnSuiteHubClick(object sender, RoutedEventArgs e)

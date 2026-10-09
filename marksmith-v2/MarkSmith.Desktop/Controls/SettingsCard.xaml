@@ -9,6 +9,29 @@
     <Border x:Name="CardBorder" MinHeight="68" Padding="16,14" CornerRadius="8" BorderThickness="1"
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+        <!-- The row lightens under the pointer, as Windows Settings rows do, and fades rather than
+             snapping. Disabled (a row whose parent setting is off) greys the text and icon, not just
+             the control, so it reads as unavailable at a glance. -->
+        <Border.BackgroundTransition>
+            <BrushTransition Duration="0:0:0.12" />
+        </Border.BackgroundTransition>
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="CommonStates">
+                <VisualState x:Name="Normal" />
+                <VisualState x:Name="PointerOver">
+                    <VisualState.Setters>
+                        <Setter Target="CardBorder.Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="Disabled">
+                    <VisualState.Setters>
+                        <Setter Target="IconPart.Foreground" Value="{ThemeResource TextFillColorDisabledBrush}" />
+                        <Setter Target="HeaderPart.Foreground" Value="{ThemeResource TextFillColorDisabledBrush}" />
+                        <Setter Target="DescriptionPart.Foreground" Value="{ThemeResource TextFillColorDisabledBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
         <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
             <FontIcon x:Name="IconPart" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                       Foreground="{ThemeResource TextFillColorPrimaryBrush}" />

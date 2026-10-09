@@ -115,7 +115,7 @@ public sealed class GoogleAuthService
         using var resp = await _http.PostAsync(TokenUrl, new FormUrlEncodedContent(form), ct);
         var json = await ReadJsonAsync(resp, ct);
         if (!resp.IsSuccessStatusCode)
-            throw new GoogleAuthException("Google connection expired — reconnect in Settings → Google.");
+            throw new GoogleAuthException("Your Google sign-in has expired. Sign in again in Settings ▸ Google Docs.");
         return ParseToken(json);
     }
 

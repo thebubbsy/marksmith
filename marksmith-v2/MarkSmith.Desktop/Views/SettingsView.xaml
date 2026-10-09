@@ -38,6 +38,23 @@
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
 
+        <!-- A sample of what the setting produces: the caption face in the primary colour, so it
+             stands apart from the grey words around it, and selectable. -->
+        <Style x:Key="SettingsSampleStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+            <Setter Property="IsTextSelectionEnabled" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <!-- About's links: full-width rows with an icon and the open-in-browser arrow, like the
+             "Related links" in Windows Settings, rather than a bare column of blue text. -->
+        <Style x:Key="SettingsLinkStyle" TargetType="HyperlinkButton">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="12,9" />
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+        </Style>
+
         <!-- The nav sits on the dialog's own surface rather than painting a second pane colour,
              and the page area has no frame of its own: the cards are the structure. -->
         <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
@@ -132,12 +149,17 @@
                                     <TextBox AutomationProperties.Name="Export file name template"
                                              Text="{Binding FileNameTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                              PlaceholderText="{}{title}" IsSpellCheckEnabled="False" />
-                                    <TextBlock Text="Example: “{date} {title}” → 2026-07-24 My Report.pdf" Style="{StaticResource SettingsHintStyle}" />
+                                    <!-- What this template names an export right now, in the default format. -->
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="“My Report” is saved as" Style="{StaticResource SettingsHintStyle}" />
+                                        <TextBlock Text="{Binding FileNamePreview}" Style="{StaticResource SettingsSampleStyle}"
+                                                   AutomationProperties.Name="Example file name" />
+                                    </StackPanel>
                                 </StackPanel>
                             </controls:SettingsCard.Details>
                         </controls:SettingsCard>
                         <controls:SettingsCard Glyph="&#xE8D2;" Header="Fallback font"
-                                               Description="Typeface used when the document's own font field is empty.">
+                                               Description="The body typeface for the preview and every export, unless Document font in the side panel names one.">
                             <ComboBox Style="{StaticResource SettingsComboStyle}" AutomationProperties.Name="Fallback font"
                                       SelectedItem="{Binding FontPreset, Mode=TwoWay}">
                                 <x:String>System</x:String>
@@ -186,6 +208,15 @@
                                                Description="Render the live preview on the GPU. Turn off to work around graphics-driver problems (black preview, flicker, crashes). Takes effect after a restart.">
                             <ToggleSwitch Style="{StaticResource SettingsToggleStyle}" AutomationProperties.Name="Hardware acceleration"
                                           IsOn="{Binding HardwareAcceleration, Mode=TwoWay}" />
+                            <controls:SettingsCard.Details>
+                                <!-- Only once the toggle differs from what this session started with. -->
+                                <StackPanel Orientation="Horizontal" Spacing="8"
+                                            Visibility="{Binding HardwareAccelerationNeedsRestart, Converter={StaticResource SettingsBoolToVisibilityConverter}}">
+                                    <FontIcon Glyph="&#xE7BA;" FontSize="14" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                                    <TextBlock Text="Restart MarkSmith to apply this." Style="{StaticResource SettingsHintStyle}"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                </StackPanel>
+                            </controls:SettingsCard.Details>
                         </controls:SettingsCard>
                     </StackPanel>
                 </ScrollViewer>
@@ -195,7 +226,7 @@
                     <StackPanel Style="{StaticResource SettingsPageStackStyle}">
                         <TextBlock Text="PDF" Style="{StaticResource SettingsPageTitleStyle}" />
 
-                        <TextBlock Text="Page furniture" Style="{StaticResource SettingsSectionStyle}" Margin="1,0,0,4" />
+                        <TextBlock Text="Header, footer and page numbers" Style="{StaticResource SettingsSectionStyle}" Margin="1,0,0,4" />
                         <controls:SettingsCard Glyph="&#xE7C3;" Header="Page numbers"
                                                Description="Where the page number goes on every page of a PDF export.">
                             <ComboBox Style="{StaticResource SettingsComboStyle}" SelectedValuePath="Tag"
@@ -210,15 +241,41 @@
                         <controls:SettingsCard Glyph="&#xE8A1;" Header="Running header &amp; footer"
                                                Description="Text repeated at the top and bottom of every page. Tokens: {title}, {page}, {pages}, {date}.">
                             <controls:SettingsCard.Details>
-                                <Grid ColumnDefinitions="*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto" RowSpacing="8">
-                                    <TextBox Header="Header" AutomationProperties.Name="PDF header template"
-                                             Text="{Binding PdfHeaderTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             PlaceholderText="e.g. {title} — {date}" IsSpellCheckEnabled="False" />
-                                    <TextBox Grid.Column="1" Header="Footer" AutomationProperties.Name="PDF footer template"
-                                             Text="{Binding PdfFooterTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             PlaceholderText="e.g. Page {page} of {pages}" IsSpellCheckEnabled="False" />
-                                    <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding PdfFooterPreview}"
-                                               Style="{StaticResource SettingsHintStyle}" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="10" VerticalAlignment="Center">
+                                        <TextBox Header="Header" AutomationProperties.Name="PDF header template"
+                                                 Text="{Binding PdfHeaderTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 PlaceholderText="e.g. {title} — {date}" IsSpellCheckEnabled="False" />
+                                        <TextBox Header="Footer" AutomationProperties.Name="PDF footer template"
+                                                 Text="{Binding PdfFooterTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 PlaceholderText="e.g. Page {page} of {pages}" IsSpellCheckEnabled="False" />
+                                    </StackPanel>
+                                    <!-- Page 2 of 10 as it will print: header and footer text in place,
+                                         aligned as the page-number position says. Filled from code
+                                         (RenderPdfBands) whenever a template or the position changes. -->
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <Border x:Name="PdfPagePreview" Width="132" Height="172" CornerRadius="3" Padding="10,8"
+                                                Background="White" BorderThickness="1"
+                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                            <Grid RowDefinitions="Auto,*,Auto">
+                                                <TextBlock x:Name="PdfPreviewHeader" FontSize="7" Foreground="#5F6368"
+                                                           TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                                <StackPanel Grid.Row="1" Spacing="5" VerticalAlignment="Center" Margin="0,4">
+                                                    <Rectangle Height="5" Width="70" HorizontalAlignment="Left" RadiusX="1" RadiusY="1" Fill="#9AA0A6" />
+                                                    <Rectangle Height="3" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
+                                                    <Rectangle Height="3" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
+                                                    <Rectangle Height="3" Width="80" HorizontalAlignment="Left" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
+                                                    <Rectangle Height="3" RadiusX="1" RadiusY="1" Fill="#DADCE0" Margin="0,4,0,0" />
+                                                    <Rectangle Height="3" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
+                                                    <Rectangle Height="3" Width="60" HorizontalAlignment="Left" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
+                                                </StackPanel>
+                                                <TextBlock x:Name="PdfPreviewFooter" Grid.Row="2" FontSize="7" Foreground="#5F6368"
+                                                           TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                            </Grid>
+                                        </Border>
+                                        <TextBlock x:Name="PdfPreviewCaption" Style="{StaticResource SettingsHintStyle}"
+                                                   HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="132" />
+                                    </StackPanel>
                                 </Grid>
                             </controls:SettingsCard.Details>
                         </controls:SettingsCard>
@@ -272,17 +329,24 @@
                                 </Grid>
                             </controls:SettingsCard.Details>
                         </controls:SettingsCard>
+                        <!-- Port, streaming and pairing only mean something while the server runs, so they
+                             grey out with it (the values are kept). -->
                         <controls:SettingsCard Glyph="&#xEDA3;" Header="Port"
+                                               IsEnabled="{Binding ApiEnabled}"
                                                Description="1024–65535. The server restarts on the new port straight away.">
                             <NumberBox AutomationProperties.Name="API port" Value="{Binding ApiPort, Mode=TwoWay}"
-                                       Minimum="1024" Maximum="65535" SpinButtonPlacementMode="Compact" Width="140" />
+                                       Minimum="1024" Maximum="65535" SpinButtonPlacementMode="Compact" Width="140"
+                                       ValueChanged="OnApiPortValueChanged" />
                         </controls:SettingsCard>
                         <controls:SettingsCard Glyph="&#xE9D9;" Header="WebSocket streaming"
-                                               Description="Live progress and preview events on ws://127.0.0.1:PORT/api/stream, and streaming text into the editor from scripts.">
+                                               IsEnabled="{Binding ApiEnabled}"
+                                               Description="{Binding StreamingDescription}">
+                            <!-- The address is in the description (on the real port) so it greys with the row. -->
                             <ToggleSwitch Style="{StaticResource SettingsToggleStyle}" AutomationProperties.Name="WebSocket streaming"
                                           IsOn="{Binding EnableStreamingApi, Mode=TwoWay}" />
                         </controls:SettingsCard>
                         <controls:SettingsCard Glyph="&#xE71B;" Header="Browser extension pairing"
+                                               IsEnabled="{Binding ApiEnabled}"
                                                Description="Paste the Extension ID from the Chrome / Edge extension popup to accept requests from that extension only. Leave blank to allow any local request.">
                             <controls:SettingsCard.Details>
                                 <TextBox AutomationProperties.Name="Browser extension ID"
@@ -349,17 +413,29 @@
                                                Visibility="{Binding HasHouseStyleStatus, Converter={StaticResource SettingsBoolToVisibilityConverter}}" />
                                     <!-- Manual fallback: if the extension round-trip stalls, the user can copy
                                          this prompt into any web chat and paste the JSON reply back. -->
-                                    <TextBox Header="Prompt for your web AI (copy it into any chat)"
-                                             Text="{Binding HouseStylePrompt, Mode=OneWay}"
-                                             IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
-                                             MaxHeight="140" FontSize="12" IsSpellCheckEnabled="False"
-                                             Visibility="{Binding HasHouseStylePrompt, Converter={StaticResource SettingsBoolToVisibilityConverter}}" />
-                                    <TextBox Header="The AI's reply (JSON)"
-                                             Text="{Binding HouseStyleJsonResult, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             AcceptsReturn="True" TextWrapping="Wrap"
-                                             MaxHeight="140" FontSize="12" IsSpellCheckEnabled="False"
-                                             PlaceholderText="Paste the JSON your web AI returned, then Apply theme" />
-                                    <Button Content="Apply theme" Click="OnApplyHouseStyleJsonClick" HorizontalAlignment="Left" />
+                                    <!-- The prompt and the paste-back box only after an import: before it they
+                                         were an empty box and an Apply button with nothing to apply. -->
+                                    <StackPanel Spacing="10"
+                                                Visibility="{Binding HasHouseStylePrompt, Converter={StaticResource SettingsBoolToVisibilityConverter}}">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <TextBox Header="Prompt for your web AI (copy it into any chat)"
+                                                     Text="{Binding HouseStylePrompt, Mode=OneWay}"
+                                                     IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+                                                     MaxHeight="140" FontSize="12" IsSpellCheckEnabled="False" />
+                                            <Button x:Name="CopyPromptButton" Grid.Column="1" VerticalAlignment="Bottom" Click="OnCopyHouseStylePromptClick"
+                                                    ToolTipService.ToolTip="Copy the prompt" AutomationProperties.Name="Copy the prompt">
+                                                <FontIcon x:Name="CopyPromptIcon" Glyph="&#xE8C8;" FontSize="14" />
+                                            </Button>
+                                        </Grid>
+                                        <TextBox x:Name="HouseStyleReplyBox" Header="The AI's reply (JSON)"
+                                                 Text="{Binding HouseStyleJsonResult, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                                 MaxHeight="140" FontSize="12" IsSpellCheckEnabled="False"
+                                                 TextChanged="OnHouseStyleReplyChanged"
+                                                 PlaceholderText="Paste the JSON your web AI returned, then Apply theme" />
+                                        <Button x:Name="ApplyThemeButton" Content="Apply theme" Click="OnApplyHouseStyleJsonClick"
+                                                HorizontalAlignment="Left" IsEnabled="False" />
+                                    </StackPanel>
                                 </StackPanel>
                             </controls:SettingsCard.Details>
                         </controls:SettingsCard>
@@ -372,8 +448,29 @@
                         <TextBlock Text="Google Docs" Style="{StaticResource SettingsPageTitleStyle}" />
                         <TextBlock Style="{StaticResource SettingsHintStyle}" Margin="1,0,0,8"
                                    Text="Export straight to Google Docs — MarkSmith creates a real doc in your Drive with native headings, tables and images." />
+                        <!-- Severity follows GoogleSignInPhase (OnGoogleStateChanged). While signing in it
+                             carries the code to type and the page to type it on. -->
                         <InfoBar x:Name="GoogleStatusBar" IsOpen="True" Severity="Informational"
-                                 Message="{Binding GoogleAuthStatus}" IsClosable="False" Margin="0,0,0,4" />
+                                 Message="{Binding GoogleAuthStatus}" IsClosable="False" Margin="0,0,0,4">
+                            <InfoBar.Content>
+                                <StackPanel x:Name="GoogleCodePanel" Orientation="Horizontal" Spacing="10" Margin="0,0,0,12" Visibility="Collapsed">
+                                    <TextBlock x:Name="GoogleCodeText" FontFamily="Cascadia Mono, Consolas" FontSize="20" FontWeight="SemiBold"
+                                               IsTextSelectionEnabled="True" VerticalAlignment="Center" CharacterSpacing="80"
+                                               AutomationProperties.Name="Google sign-in code" />
+                                    <Button Click="OnCopyGoogleCodeClick" VerticalAlignment="Center"
+                                            ToolTipService.ToolTip="Copy the code" AutomationProperties.Name="Copy the sign-in code">
+                                        <FontIcon x:Name="CopyGoogleCodeIcon" Glyph="&#xE8C8;" FontSize="14" />
+                                    </Button>
+                                    <Button Click="OnOpenGoogleVerifyClick" Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Center"
+                                            ToolTipService.ToolTip="Opens Google's device sign-in page in your browser">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="Open sign-in page" />
+                                            <FontIcon Glyph="&#xE8A7;" FontSize="12" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </InfoBar.Content>
+                        </InfoBar>
                         <controls:SettingsCard Glyph="&#xE77B;" Header="Google account"
                                                Description="Sign-in shows a short code — approve it in your browser and you're connected. MarkSmith only creates documents and the images inside them; nothing else in your Drive is touched.">
                             <!-- One button for the state you're in: Sign out only once connected, Sign in only before. -->
@@ -524,10 +621,10 @@
                                           IsOn="{Binding CheckForUpdatesOnStartup, Mode=TwoWay}" />
                         </controls:SettingsCard>
                         <controls:SettingsCard Glyph="&#xE896;" Header="Install updates automatically"
+                                               IsEnabled="{Binding CheckForUpdatesOnStartup}"
                                                Description="When the startup check finds a new version, download it in the background. It installs at once if you haven't started working; otherwise it waits for you to restart.">
                             <ToggleSwitch Style="{StaticResource SettingsToggleStyle}" AutomationProperties.Name="Install updates automatically"
-                                          IsOn="{Binding AutoInstallUpdatesOnLaunch, Mode=TwoWay}"
-                                          IsEnabled="{Binding CheckForUpdatesOnStartup}" />
+                                          IsOn="{Binding AutoInstallUpdatesOnLaunch, Mode=TwoWay}" />
                         </controls:SettingsCard>
                         <controls:SettingsCard Glyph="&#xE72C;" Header="Restart to install straight away"
                                                Description="Once an update has downloaded, save everything, close and install it, then reopen with your document. When off, it waits for you to choose Restart and install.">
@@ -537,15 +634,49 @@
 
                         <TextBlock Text="Links" Style="{StaticResource SettingsSectionStyle}" />
                         <Border Style="{StaticResource PipelineCardStyle}" CornerRadius="8" Padding="4">
-                            <StackPanel x:Name="AboutLinks">
-                                <HyperlinkButton Content="GitHub repository" NavigateUri="https://github.com/thebubbsy/MarkSmith" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
-                                <HyperlinkButton Content="Releases &amp; changelog" NavigateUri="https://github.com/thebubbsy/MarkSmith/releases" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
-                                <HyperlinkButton Content="Report an issue" NavigateUri="https://github.com/thebubbsy/MarkSmith/issues" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
-                                <HyperlinkButton Content="License agreement (EULA)" NavigateUri="https://github.com/thebubbsy/MarkSmith/blob/main/LICENSE" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
-                                <HyperlinkButton Content="Third-party notices" NavigateUri="https://github.com/thebubbsy/MarkSmith/blob/main/THIRD-PARTY-NOTICES.md" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
-                                <!-- ISS-008: tip jar for the project. -->
-                                <HyperlinkButton Content="☕ Buy Me a Coffee — support development" ToolTipService.ToolTip="buymeacoffee.com/mbubbtechz"
-                                                 NavigateUri="https://buymeacoffee.com/mbubbtechz" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                            <StackPanel x:Name="AboutLinks" Spacing="2">
+                                <HyperlinkButton Style="{StaticResource SettingsLinkStyle}" NavigateUri="https://github.com/thebubbsy/MarkSmith" ToolTipService.ToolTip="github.com/thebubbsy/MarkSmith">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                        <FontIcon Glyph="&#xE943;" FontSize="16" />
+                                        <TextBlock Grid.Column="1" Text="GitHub repository" VerticalAlignment="Center" />
+                                        <FontIcon Grid.Column="2" Glyph="&#xE8A7;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Grid>
+                                </HyperlinkButton>
+                                <HyperlinkButton Style="{StaticResource SettingsLinkStyle}" NavigateUri="https://github.com/thebubbsy/MarkSmith/releases" ToolTipService.ToolTip="github.com/thebubbsy/MarkSmith/releases">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                        <FontIcon Glyph="&#xE81C;" FontSize="16" />
+                                        <TextBlock Grid.Column="1" Text="Releases &amp; changelog" VerticalAlignment="Center" />
+                                        <FontIcon Grid.Column="2" Glyph="&#xE8A7;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Grid>
+                                </HyperlinkButton>
+                                <HyperlinkButton Style="{StaticResource SettingsLinkStyle}" NavigateUri="https://github.com/thebubbsy/MarkSmith/issues" ToolTipService.ToolTip="github.com/thebubbsy/MarkSmith/issues">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                        <FontIcon Glyph="&#xEBE8;" FontSize="16" />
+                                        <TextBlock Grid.Column="1" Text="Report an issue" VerticalAlignment="Center" />
+                                        <FontIcon Grid.Column="2" Glyph="&#xE8A7;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Grid>
+                                </HyperlinkButton>
+                                <HyperlinkButton Style="{StaticResource SettingsLinkStyle}" NavigateUri="https://github.com/thebubbsy/MarkSmith/blob/main/LICENSE" ToolTipService.ToolTip="github.com/thebubbsy/MarkSmith/blob/main/LICENSE">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                        <FontIcon Glyph="&#xE8A5;" FontSize="16" />
+                                        <TextBlock Grid.Column="1" Text="License agreement (EULA)" VerticalAlignment="Center" />
+                                        <FontIcon Grid.Column="2" Glyph="&#xE8A7;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Grid>
+                                </HyperlinkButton>
+                                <HyperlinkButton Style="{StaticResource SettingsLinkStyle}" NavigateUri="https://github.com/thebubbsy/MarkSmith/blob/main/THIRD-PARTY-NOTICES.md" ToolTipService.ToolTip="github.com/thebubbsy/MarkSmith/blob/main/THIRD-PARTY-NOTICES.md">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                        <FontIcon Glyph="&#xE7C3;" FontSize="16" />
+                                        <TextBlock Grid.Column="1" Text="Third-party notices" VerticalAlignment="Center" />
+                                        <FontIcon Grid.Column="2" Glyph="&#xE8A7;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Grid>
+                                </HyperlinkButton>
+                                <HyperlinkButton Style="{StaticResource SettingsLinkStyle}" NavigateUri="https://buymeacoffee.com/mbubbtechz" ToolTipService.ToolTip="buymeacoffee.com/mbubbtechz">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                        <FontIcon Glyph="&#xEB51;" FontSize="16" />
+                                        <TextBlock Grid.Column="1" Text="Buy Me a Coffee: support development" VerticalAlignment="Center" />
+                                        <FontIcon Grid.Column="2" Glyph="&#xE8A7;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Grid>
+                                </HyperlinkButton>
                             </StackPanel>
                         </Border>
 

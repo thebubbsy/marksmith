@@ -63,7 +63,7 @@ public sealed class ExtensionSettingsBridge
                 _themeNames().Select(t => new Choice(t, t)).ToArray()),
             new Field("themeLightInfluence", "ThemeLightInfluence", "Light theme influence",
                 "A light centre panel with the theme's colours on the margins; text colours adjust to stay readable.", "toggle"),
-            new Field("fontPreset", "FontPreset", "Fallback font", "Typeface used when the document's own font field is empty.", "choice",
+            new Field("fontPreset", "FontPreset", "Fallback font", "The body typeface for the preview and every export, unless Document font in the side panel names one.", "choice",
                 new[] { "System", "Serif", "Sans-Serif", "Monospace", "Dyslexic-friendly" }.Select(f => new Choice(f, f)).ToArray()),
         }),
         new Group("layout", "Layout & PDF", "Page size, contents and PDF page furniture.", new[]

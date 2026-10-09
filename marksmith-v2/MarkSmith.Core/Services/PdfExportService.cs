@@ -145,6 +145,17 @@ public sealed class PdfExportService
     // {pages}"; alignment (left/center/right) follows the position. Explicit templates always render.
     public static (string Header, string Footer) BuildHeaderFooter(AppSettings settings, string title)
     {
+        var (header, footer, align) = ResolveBands(settings);
+        return (WrapBand(header, title, align), WrapBand(footer, title, align));
+    }
+
+    /// <summary>
+    /// The header and footer templates that will actually print, after the page-number position
+    /// has filled an empty matching band, and their alignment ("left", "center" or "right").
+    /// Settings' preview uses this too (<see cref="SettingsPreviews.PdfBands"/>).
+    /// </summary>
+    public static (string Header, string Footer, string Alignment) ResolveBands(AppSettings settings)
+    {
         var pos = (settings.PdfPageNumberPosition ?? "None").Trim();
         var header = settings.PdfHeaderTemplate ?? "";
         var footer = settings.PdfFooterTemplate ?? "";
@@ -161,7 +172,7 @@ public sealed class PdfExportService
                   : pos.EndsWith("Right", StringComparison.OrdinalIgnoreCase) ? "right"
                   : "left";
 
-        return (WrapBand(header, title, align), WrapBand(footer, title, align));
+        return (header, footer, align);
     }
 
     private static string WrapBand(string template, string title, string align)

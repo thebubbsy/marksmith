@@ -129,11 +129,11 @@ public sealed class ApiServer : IDisposable
 
     private async Task HandleWebSocketAsync(HttpListenerContext ctx)
     {
-        // The endpoint exists but is OFF by default — only an opt-in (Settings > Local REST API >
-        // Enable WebSocket streaming) turns it on, so a script can never stream unless the user asks.
+        // The endpoint exists but is OFF by default — only an opt-in (Settings ▸ Automation ▸
+        // WebSocket streaming) turns it on, so a script can never stream unless the user asks.
         if (!_getSettings().EnableStreamingApi)
         {
-            await WriteJsonAsync(ctx, 403, new { error = "streaming disabled (enable WebSocket streaming in Settings > Local REST API)" });
+            await WriteJsonAsync(ctx, 403, new { error = "streaming is off: turn on WebSocket streaming in MarkSmith Settings ▸ Automation" });
             return;
         }
         if (!string.Equals(ctx.Request.Headers["Upgrade"], "websocket", StringComparison.OrdinalIgnoreCase))
