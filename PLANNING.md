@@ -4135,3 +4135,8 @@ passed, 18 failed (the known path-based ones).
    doable now, from an Explorer window we open ourselves).
 4. Same real-mouse pass for Diagram Studio and Shape Studio hover/cursor states, and run #41's
    "Export N tables" type picker.
+
+**Release (same run):** tagged **v3.8.0** on `37119e4` after CI passed on `151aadc`. The release
+workflow built the x64 and arm64 installers and zips (5 assets). Notes were prepended to the
+workflow body afterwards, covering the icon pass, palette icons and the Galaxy fixes.
+`MarksmithBaseVersion` is now **3.9.0** (`4eb1438`).
