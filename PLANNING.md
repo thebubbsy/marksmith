@@ -5065,3 +5065,7 @@ coloured from `Application.Current.Resources` shows up as a light-theme colour o
    the same check.
 3. Carried over: first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
    flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
+
+**Release (same run):** tagged **v3.18.0** on `79e5c38` after CI passed on it. Release workflow built
+the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
+`MarksmithBaseVersion` is now **3.19.0** (`befe882`).
