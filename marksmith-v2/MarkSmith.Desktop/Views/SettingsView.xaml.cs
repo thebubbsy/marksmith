@@ -28,6 +28,10 @@ public sealed partial class SettingsView : UserControl
         // Unsubscribe when the dialog closes: License.Changed outlives every Settings instance, so
         // each open used to leave one more dead view refreshing itself on every license change.
         Unloaded += (_, _) => App.License.Changed -= OnLicenseChanged;
+        // Opened mid-download, About shows the download; it follows the banner until it closes.
+        App.ViewModel.PropertyChanged += OnUpdateStateChanged;
+        Unloaded += (_, _) => App.ViewModel.PropertyChanged -= OnUpdateStateChanged;
+        RenderAboutUpdate();
         GoogleSecretBox.Password = App.ViewModel.GoogleClientSecret; // masked; pre-fill for convenience
         Nav.SelectedItem = Nav.MenuItems[0];
         HoverPolish.Track(this);
@@ -191,33 +195,53 @@ public sealed partial class SettingsView : UserControl
         CheckButton.IsEnabled = false;
         CheckRing.IsActive = true;
         UpdateStatusBar.IsOpen = false;
-        DownloadLink.Visibility = Visibility.Collapsed;
 
-        var result = await App.Updates.CheckAsync();
-
-        UpdateStatusBar.Severity = !result.Ok ? InfoBarSeverity.Error
-            : result.UpdateAvailable ? InfoBarSeverity.Success : InfoBarSeverity.Informational;
-        UpdateStatusBar.Title = !result.Ok ? "Couldn't check for updates"
-            : result.UpdateAvailable ? "Update available" : "You're up to date";
-        UpdateStatusBar.Message = result.Message;
-        UpdateStatusBar.IsOpen = true;
-        if (result.UpdateAvailable)
-        {
-            App.ViewModel.IsUpdateAvailable = true;
-            App.ViewModel.LatestUpdateTag = result.LatestTag;
-            App.ViewModel.UpdateDownloadUrl = result.DownloadUrl;
-            App.ViewModel.UpdateStatusText = result.Message;
-
-            if (!string.IsNullOrEmpty(result.ReleaseUrl))
-            {
-                DownloadLink.NavigateUri = new Uri(result.ReleaseUrl);
-                DownloadLink.Visibility = Visibility.Visible;
-            }
-        }
+        var result = await App.ViewModel.CheckForUpdatesNowAsync();
 
         CheckRing.IsActive = false;
         CheckButton.IsEnabled = true;
+        // Something to install (or already on its way): the update state says it all.
+        if (App.ViewModel.UpdatePhase != ViewModels.UpdatePhase.None && result.UpdateAvailable)
+        {
+            RenderAboutUpdate();
+            return;
+        }
+
+        _showingUpdate = false;
+        UpdateStatusBar.Severity = result.Ok ? InfoBarSeverity.Informational : InfoBarSeverity.Error;
+        UpdateStatusBar.Title = result.Ok ? "You're up to date" : "Couldn't check for updates";
+        UpdateStatusBar.Message = result.Message;
+        UpdateStatusBar.IsClosable = true;
+        AboutUpdateAction.Visibility = Visibility.Collapsed;
+        AboutUpdateProgress.Visibility = Visibility.Collapsed;
+        DownloadLink.Visibility = result.Ok ? Visibility.Collapsed : Visibility.Visible;
+        DownloadLink.Content = "Open the releases page";
+        DownloadLink.NavigateUri = new Uri(UpdateService.ReleasesUrl);
+        UpdateStatusBar.IsOpen = true;
     }
+
+    private void OnUpdateStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(App.ViewModel.UpdatePhase)) DispatcherQueue.TryEnqueue(RenderAboutUpdate);
+    }
+
+    // True while the status bar is showing the update rather than a check's answer.
+    private bool _showingUpdate;
+
+    private void RenderAboutUpdate()
+    {
+        if (App.ViewModel.UpdatePhase == ViewModels.UpdatePhase.None)
+        {
+            // Dismissed from the banner: don't leave a stale "downloading" here.
+            if (_showingUpdate) UpdateStatusBar.IsOpen = false;
+            _showingUpdate = false;
+            return;
+        }
+        _showingUpdate = true;
+        UpdateBannerPresenter.Apply(UpdateStatusBar, AboutUpdateAction, AboutUpdateProgress, DownloadLink, App.ViewModel);
+    }
+
+    private async void OnAboutUpdateAction(object sender, RoutedEventArgs e) => await App.ViewModel.UpdateBannerActionAsync();
 
     // ---- Plugins tab ----
     // One card per registered plugin (built-ins + any plugin.json dropped into

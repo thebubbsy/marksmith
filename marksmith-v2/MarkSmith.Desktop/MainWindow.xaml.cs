@@ -93,6 +93,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private readonly Services.ExportCoordinator _exportCoordinator = new();
     private H.NotifyIcon.TaskbarIcon? _trayIcon;
     private bool _exitRequested;
+    // Closing for the installer: skips the debug-log dialog that a normal exit can stop at.
+    private bool _exitingForUpdate;
+    // Set when this launch is the end of an in-app update; the recovery check then puts the
+    // document back without asking (it was saved seconds ago for exactly this).
+    private MarkSmith.Services.UpdateResumeNote? _resumedUpdate;
     private bool _showingLogsDialog;
     private List<string> _sessionLogFiles = new();
 
@@ -501,6 +506,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         UpdateOutlineEmptyState();
         ViewModel.RefreshToc();
         InitTrayIcon();
+        WireUpdates();
 
         AppWindow.Closing += (sender, e) =>
         {
@@ -511,7 +517,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 return;
             }
 
-            if (_sessionLogFiles.Count > 0 && !_showingLogsDialog)
+            if (_sessionLogFiles.Count > 0 && !_showingLogsDialog && !_exitingForUpdate)
             {
                 e.Cancel = true;
                 _showingLogsDialog = true;
@@ -5651,6 +5657,42 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         catch { /* listener already registered or unavailable */ }
     }
 
+    // ---- In-app updates ----
+
+    private void WireUpdates()
+    {
+        // Everything that only lives in memory, written before the installer replaces the app.
+        ViewModel.SaveWorkBeforeExit = () =>
+        {
+            WriteRecoveryFile();
+            ViewModel.SaveUndoHistory();
+            App.Settings.Save();
+        };
+        ViewModel.NothingElseOpen = () => _historyWindow == null && _smartArtDesignStudio == null
+            && _shapeDesignStudio == null && _mindMapGalaxyWindow == null;
+        ViewModel.ExitForUpdate = () =>
+        {
+            _exitRequested = true;   // past minimise-to-tray
+            _exitingForUpdate = true;
+            _trayIcon?.Dispose();
+            Close();                 // runs Closed: undo history, watchers, tray icon
+            Application.Current.Exit(); // and any studio window still open
+        };
+        ViewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ViewModel.UpdatePhase)) DispatcherQueue.TryEnqueue(RenderUpdateBanner);
+        };
+        _resumedUpdate = ViewModel.ResumeAfterUpdate();
+        RenderUpdateBanner();
+    }
+
+    private void RenderUpdateBanner() =>
+        MarkSmith.Services.UpdateBannerPresenter.Apply(UpdateBanner, UpdateBannerAction, UpdateBannerProgress, UpdateBannerNotes, ViewModel);
+
+    private async void OnUpdateBannerAction(object sender, RoutedEventArgs e) => await ViewModel.UpdateBannerActionAsync();
+
+    private void OnUpdateBannerClosed(InfoBar sender, InfoBarClosedEventArgs args) => ViewModel.DismissUpdateBanner();
+
     // ---- Auto-recovery of unsaved editor content ----
 
     // Debounce the recovery write so a fast typist doesn't hit the disk on every keystroke.
@@ -5691,6 +5733,26 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         try
         {
+            if (_resumedUpdate is { } resumed)
+            {
+                // Back from an update: MarkSmith saved this a minute ago to close for the
+                // installer, so it isn't a lost draft to ask about. Put it straight back.
+                _resumedUpdate = null;
+                var draft = File.Exists(RecoveryPath) ? await File.ReadAllTextAsync(RecoveryPath) : "";
+                if (!string.IsNullOrWhiteSpace(draft))
+                {
+                    ViewModel.BreakUndoBurst();
+                    ViewModel.CurrentMarkdown = draft;
+                    File.Delete(RecoveryPath);
+                    await RefreshPreviewAsync(heavy: true);
+                }
+                else if (resumed.DocumentPath is { Length: > 0 } doc && File.Exists(doc) && string.IsNullOrEmpty(ViewModel.InputFilePath))
+                {
+                    ViewModel.InputFilePath = doc;
+                }
+                return;
+            }
+
             if (!File.Exists(RecoveryPath)) return;
             var content = await File.ReadAllTextAsync(RecoveryPath);
             if (string.IsNullOrWhiteSpace(content)) { File.Delete(RecoveryPath); return; }

@@ -80,3 +80,14 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; MarkSmith's in-app updater runs this installer silently with /RELAUNCH=1 and closes itself, so
+; the installer has to reopen it. runasoriginaluser: the app must not inherit the elevated token.
+; Plain silent installs (winget, scripts) leave /RELAUNCH off and never open the app.
+Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: RelaunchRequested
+
+[Code]
+function RelaunchRequested: Boolean;
+begin
+  Result := WizardSilent and (ExpandConstant('{param:RELAUNCH|0}') = '1');
+end;
+

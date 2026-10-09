@@ -501,10 +501,20 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
+                        <!-- The check's answer, and while an update is on its way the same state as the
+                             main window's banner (UpdateBannerPresenter), with its own button. -->
                         <InfoBar x:Name="UpdateStatusBar" IsOpen="False" IsClosable="True" Margin="0,4,0,0">
                             <InfoBar.ActionButton>
-                                <HyperlinkButton x:Name="DownloadLink" Content="Open release page" Visibility="Collapsed" />
+                                <Button x:Name="AboutUpdateAction" Click="OnAboutUpdateAction" Visibility="Collapsed" />
                             </InfoBar.ActionButton>
+                            <InfoBar.Content>
+                                <StackPanel Spacing="2" Margin="0,0,0,10">
+                                    <ProgressBar x:Name="AboutUpdateProgress" Maximum="100" Visibility="Collapsed"
+                                                 HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                                                 AutomationProperties.Name="Update download progress" />
+                                    <HyperlinkButton x:Name="DownloadLink" Padding="0" Content="Open the releases page" Visibility="Collapsed" />
+                                </StackPanel>
+                            </InfoBar.Content>
                         </InfoBar>
 
                         <TextBlock Text="Updates" Style="{StaticResource SettingsSectionStyle}" />
@@ -514,14 +524,14 @@
                                           IsOn="{Binding CheckForUpdatesOnStartup, Mode=TwoWay}" />
                         </controls:SettingsCard>
                         <controls:SettingsCard Glyph="&#xE896;" Header="Install updates automatically"
-                                               Description="When the startup check finds a new version, download and install it in the background without installer prompts.">
+                                               Description="When the startup check finds a new version, download it in the background. It installs at once if you haven't started working; otherwise it waits for you to restart.">
                             <ToggleSwitch Style="{StaticResource SettingsToggleStyle}" AutomationProperties.Name="Install updates automatically"
                                           IsOn="{Binding AutoInstallUpdatesOnLaunch, Mode=TwoWay}"
                                           IsEnabled="{Binding CheckForUpdatesOnStartup}" />
                         </controls:SettingsCard>
-                        <controls:SettingsCard Glyph="&#xE72C;" Header="Restart after updating"
-                                               Description="Relaunch MarkSmith as soon as an update finishes installing.">
-                            <ToggleSwitch Style="{StaticResource SettingsToggleStyle}" AutomationProperties.Name="Restart after updating"
+                        <controls:SettingsCard Glyph="&#xE72C;" Header="Restart to install straight away"
+                                               Description="Once an update has downloaded, save everything, close and install it, then reopen with your document. When off, it waits for you to choose Restart and install.">
+                            <ToggleSwitch Style="{StaticResource SettingsToggleStyle}" AutomationProperties.Name="Restart to install straight away"
                                           IsOn="{Binding AutoRestartAfterUpdate, Mode=TwoWay}" />
                         </controls:SettingsCard>
 

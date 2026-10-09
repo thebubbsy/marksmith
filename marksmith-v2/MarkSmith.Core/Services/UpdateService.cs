@@ -13,6 +13,10 @@ public sealed class UpdateService
     public const string RepoUrl = "https://github.com/thebubbsy/marksmith";
     public const string ReleasesUrl = RepoUrl + "/releases";
 
+    /// <summary>Points the update check at another releases-API URL (a local test feed). Also
+    /// lets a development build check, so the whole update flow can be tried without a release.</summary>
+    public const string FeedOverrideVariable = "MARKSMITH_UPDATE_FEED";
+
     public string CurrentVersion
     {
         get
@@ -115,7 +119,8 @@ public sealed class UpdateService
         // Dev builds (prerelease-stamped, e.g. 2.18.0-dev.8161030) are by definition ahead of —
         // or between — stable releases, so the releases feed can never offer them anything. Skip
         // the network call entirely instead of letting Compare() misfire against the latest tag.
-        if (IsDevelopmentBuild)
+        var feedOverride = Environment.GetEnvironmentVariable(FeedOverrideVariable);
+        if (IsDevelopmentBuild && string.IsNullOrWhiteSpace(feedOverride))
             return new(true, false, "", ReleasesUrl, "",
                 $"Development build ({CurrentDisplayVersion}) — update checks are disabled for non-release builds.");
 
@@ -124,7 +129,7 @@ public sealed class UpdateService
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             http.DefaultRequestHeaders.UserAgent.ParseAdd("Marksmith-UpdateCheck");
             http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
-            var json = await http.GetStringAsync(LatestReleaseApi);
+            var json = await http.GetStringAsync(string.IsNullOrWhiteSpace(feedOverride) ? LatestReleaseApi : feedOverride);
             return EvaluateReleaseJson(json, CurrentVersion);
         }
         catch (HttpRequestException)
@@ -182,8 +187,22 @@ public sealed class UpdateService
     // Downloads the installer asset silently and executes it with zero UI prompts (/VERYSILENT /NORESTART /SUPPRESSMSGBOXES /SP-).
     public async Task<bool> DownloadAndInstallAsync(string downloadUrl, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
+        var setupPath = await DownloadInstallerAsync(downloadUrl, progress, cancellationToken).ConfigureAwait(false);
+        return setupPath is not null && await RunInstallerAsync(setupPath, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The first half of an update: downloads the installer and checks it is a signed
+    /// Windows executable this copy can vouch for. Returns its path, or null with
+    /// <see cref="LastFailureReason"/> set. Split from <see cref="RunInstallerAsync"/> so the app
+    /// can save the user's work between the two: the installer replaces the running files.</summary>
+    public async Task<string?> DownloadInstallerAsync(string downloadUrl, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+    {
         LastFailureReason = null;
-        if (string.IsNullOrWhiteSpace(downloadUrl)) return Fail("There's no installer attached to this release.");
+        if (string.IsNullOrWhiteSpace(downloadUrl))
+        {
+            Fail("There's no installer attached to this release.");
+            return null;
+        }
 
         try
         {
@@ -231,7 +250,11 @@ public sealed class UpdateService
 
                 // A dropped connection can end the stream early without an exception; never run
                 // a half-downloaded installer.
-                if (totalBytes > 0 && totalRead != totalBytes) return Fail("The download was interrupted before it finished. Try again.");
+                if (totalBytes > 0 && totalRead != totalBytes)
+                {
+                    Fail("The download was interrupted before it finished. Try again.");
+                    return null;
+                }
             }
 
             // Only ever launch something that is actually a Windows executable. Previously any
@@ -239,16 +262,40 @@ public sealed class UpdateService
             // file, or (in the test suite) random bytes, which showed up as bursts of "cannot run
             // on 64-bit Windows" errors in the event log.
             if (!LooksLikeWindowsExecutable(setupPath))
-                return Fail("The download wasn't a Windows installer (a network sign-in page may have replaced it). Try again.");
+            {
+                Fail("The download wasn't a Windows installer (a network sign-in page may have replaced it). Try again.");
+                return null;
+            }
 
             // ...and only one this copy of MarkSmith can vouch for: a tampered signature is always
             // refused, and a signed install never runs an unsigned or differently-signed one.
             if (!InstallerTrust.IsTrusted(setupPath, Environment.ProcessPath))
             {
                 TryDelete(setupPath);
-                return Fail("The downloaded installer's signature doesn't match this copy of MarkSmith, so it wasn't run. Download the update from the releases page instead.");
+                Fail("The downloaded installer's signature doesn't match this copy of MarkSmith, so it wasn't run. Download the update from the releases page instead.");
+                return null;
             }
 
+            return setupPath;
+        }
+        catch (OperationCanceledException)
+        {
+            Fail("The update was cancelled.");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Fail($"The update couldn't be downloaded: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>The second half of an update: runs a verified installer silently and waits for it.</summary>
+    public async Task<bool> RunInstallerAsync(string setupPath, CancellationToken cancellationToken = default)
+    {
+        LastFailureReason = null;
+        try
+        {
             var psi = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = setupPath,
@@ -270,7 +317,48 @@ public sealed class UpdateService
         }
         catch (Exception ex)
         {
-            return Fail($"The update couldn't be downloaded: {ex.Message}");
+            return Fail($"The installer couldn't run: {ex.Message}");
+        }
+    }
+
+    /// <summary>The command line for a hand-off install. Silent, closes any MarkSmith still holding
+    /// files, and with <paramref name="relaunch"/> starts MarkSmith again when it finishes (the
+    /// installer's [Run] entry checks /RELAUNCH=1, so a plain silent install from winget or a
+    /// script never opens the app). The log is how the next launch explains a failed install.</summary>
+    public static string InstallerArguments(bool relaunch, string? logPath)
+    {
+        var args = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /CLOSEAPPLICATIONS";
+        if (relaunch) args += " /RELAUNCH=1";
+        if (!string.IsNullOrWhiteSpace(logPath)) args += $" /LOG=\"{logPath}\"";
+        return args;
+    }
+
+    /// <summary>Starts a verified installer without waiting for it: the caller exits straight
+    /// afterwards so no running file is in the installer's way. False (with
+    /// <see cref="LastFailureReason"/>) when it never started, including when someone says No to
+    /// Windows' permission prompt; then nothing has changed and the app must keep running.</summary>
+    public bool StartInstaller(string setupPath, bool relaunch, string? logPath)
+    {
+        LastFailureReason = null;
+        if (!File.Exists(setupPath)) return Fail("The downloaded installer has gone missing. Try again to download it.");
+        try
+        {
+            using var proc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = setupPath,
+                Arguments = InstallerArguments(relaunch, logPath),
+                UseShellExecute = true,
+            });
+            return proc is not null || Fail("Windows didn't start the installer.");
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            // ERROR_CANCELLED: the permission prompt was declined.
+            return Fail("Windows didn't get permission to install the update, so nothing changed. Try again and choose Yes when Windows asks.");
+        }
+        catch (Exception ex)
+        {
+            return Fail($"The installer couldn't start: {ex.Message}");
         }
     }
 

@@ -361,13 +361,6 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private bool _autoFocusOnSplit;
     [ObservableProperty] private bool _showLineNumbers;
 
-    [ObservableProperty] private bool _isUpdateAvailable;
-    [ObservableProperty] private bool _isDownloadingUpdate;
-    [ObservableProperty] private bool _isUpdateReady;
-    [ObservableProperty] private double _updateDownloadProgress;
-    [ObservableProperty] private string _updateStatusText = "";
-    [ObservableProperty] private string _latestUpdateTag = "";
-    [ObservableProperty] private string _updateDownloadUrl = "";
     [ObservableProperty] private bool _portalFocusBlur = true;
     [ObservableProperty] private double _portalSurroundBlurRadius = 6.0;
     [ObservableProperty] private bool _portalInsideBlur = true;
@@ -586,6 +579,7 @@ private readonly MarkdownExportService _mdExport = new();
         // history service coalesces a typing burst into one step and dedupes the binding
         // round-trip that follows an undo/redo, so no guard flag is needed here.
         _editorUndo.RecordChange(value ?? "", EditorCaret);
+        NoteEditorChangedForUpdates();
         ScheduleAutoSnapshot(value);
 
         HasMermaidDiagram = value?.Contains("```mermaid", StringComparison.Ordinal) == true;
@@ -1061,79 +1055,6 @@ private readonly MarkdownExportService _mdExport = new();
         foreach (var f in _recentFilesService.Load()) RecentFiles.Add(f);
 
         AppServices.License.Changed += OnLicenseChanged;
-    }
-
-    private async Task CheckForUpdatesOnStartupAsync()
-    {
-        try
-        {
-            var res = await AppServices.Updates.CheckAsync();
-            if (res.UpdateAvailable)
-            {
-                IsUpdateAvailable = true;
-                LatestUpdateTag = res.LatestTag;
-                UpdateDownloadUrl = res.DownloadUrl;
-                UpdateStatusText = res.Message;
-
-                if (AutoInstallUpdatesOnLaunch && !string.IsNullOrEmpty(UpdateDownloadUrl))
-                {
-                    await DownloadAndApplyUpdateAsync();
-                }
-            }
-        }
-        catch { }
-    }
-
-    [RelayCommand]
-    public async Task DownloadAndApplyUpdateAsync()
-    {
-        if (IsDownloadingUpdate || string.IsNullOrEmpty(UpdateDownloadUrl)) return;
-
-        IsDownloadingUpdate = true;
-        IsUpdateReady = false;
-        UpdateStatusText = $"Downloading {LatestUpdateTag}... 0%";
-
-        var progress = new Progress<double>(p =>
-        {
-            UpdateDownloadProgress = p;
-            UpdateStatusText = $"Downloading {LatestUpdateTag}... {p:F0}%";
-        });
-
-        try
-        {
-            var success = await AppServices.Updates.DownloadAndInstallAsync(UpdateDownloadUrl, progress);
-            IsDownloadingUpdate = false;
-            if (success)
-            {
-                IsUpdateReady = true;
-                UpdateStatusText = $"Update {LatestUpdateTag} downloaded and ready!";
-                if (AutoRestartAfterUpdate)
-                {
-                    MarkSmith.Services.UpdateService.RelaunchApplication();
-                }
-            }
-            else
-            {
-                UpdateStatusText = AppServices.Updates.LastFailureReason ?? "The update didn't install.";
-            }
-        }
-        catch (Exception ex)
-        {
-            IsDownloadingUpdate = false;
-            UpdateStatusText = $"Update failed: {ex.Message}";
-        }
-    }
-
-    [RelayCommand]
-    public void RelaunchNow()
-    {
-        MarkSmith.Services.UpdateService.RelaunchApplication();
-    }
-
-    [RelayCommand]
-    public void DismissUpdateBanner()
-    {
-        IsUpdateAvailable = false;
     }
 
     private CancellationTokenSource? _saveSettingsCts;

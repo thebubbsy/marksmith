@@ -66,30 +66,22 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="1" Spacing="6">
-            <!-- In-App Auto-Updater Banner -->
-            <InfoBar x:Name="UpdateBanner" Margin="16,0,16,0"
-                     IsOpen="{Binding IsUpdateAvailable, Mode=OneWay}"
-                     IsClosable="True"
-                     Title="Marksmith Update"
-                     Message="{Binding UpdateStatusText, Mode=OneWay}"
-                     Severity="Informational">
+            <!-- In-app update banner. Drawn by UpdateBannerPresenter from MainViewModel.UpdatePhase
+                 (Settings > About uses the same presenter): available, downloading with a
+                 cancel, ready to install, installing, failed with the reason, and "Updated to"
+                 after the restart. -->
+            <InfoBar x:Name="UpdateBanner" Margin="16,0,16,0" IsOpen="False" IsClosable="True"
+                     Severity="Informational" Closed="OnUpdateBannerClosed">
                 <InfoBar.ActionButton>
-                    <Button Content="Update &amp; Relaunch"
-                            Command="{Binding DownloadAndApplyUpdateCommand}"
-                            Visibility="{Binding IsDownloadingUpdate, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}"
-                            Style="{StaticResource AccentButtonStyle}">
-                        <Button.Flyout>
-                            <MenuFlyout>
-                                <MenuFlyoutItem Text="Relaunch Now" Command="{Binding RelaunchNowCommand}">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72C;" /></MenuFlyoutItem.Icon>
-                                </MenuFlyoutItem>
-                            </MenuFlyout>
-                        </Button.Flyout>
-                    </Button>
+                    <Button x:Name="UpdateBannerAction" Click="OnUpdateBannerAction" Style="{ThemeResource AccentButtonStyle}" />
                 </InfoBar.ActionButton>
                 <InfoBar.Content>
-                    <ProgressBar Visibility="{Binding IsDownloadingUpdate, Converter={StaticResource BoolToVisibilityConverter}}"
-                                 Value="{Binding UpdateDownloadProgress}" Maximum="100" Margin="0,8,0,4" HorizontalAlignment="Stretch" />
+                    <StackPanel Spacing="2" Margin="0,0,0,10">
+                        <ProgressBar x:Name="UpdateBannerProgress" Maximum="100" Visibility="Collapsed"
+                                     HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                                     AutomationProperties.Name="Update download progress" />
+                        <HyperlinkButton x:Name="UpdateBannerNotes" Padding="0" Visibility="Collapsed" />
+                    </StackPanel>
                 </InfoBar.Content>
             </InfoBar>
 
