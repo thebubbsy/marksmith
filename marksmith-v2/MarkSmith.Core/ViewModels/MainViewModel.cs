@@ -608,7 +608,7 @@ private readonly MarkdownExportService _mdExport = new();
             HasOversizedDiagram = false;
         }
     }
-    [ObservableProperty] private string _statusText = "Ready.";
+    [ObservableProperty] private string _statusText = ReadyStatus;
     [ObservableProperty] private StatusSeverity _statusSeverity = StatusSeverity.Informational;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotBusy))]
@@ -633,6 +633,39 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnStatusTextChanged(string value)
     {
         if (!_settingExportStatus) StatusOutputPath = null;
+        // Every message starts neutral; callers that mean success, a warning or an error set the
+        // severity right after the text (all of them do it in that order). About twenty messages
+        // never set one and inherited the last colour, so "SmartArt Studio opened." showed in
+        // success green, or a routine note in error red after a failed export.
+        StatusSeverity = StatusSeverity.Informational;
+    }
+
+    /// <summary>The idle status line.</summary>
+    public const string ReadyStatus = "Ready.";
+
+    /// <summary>How long a routine message stays before the line goes back to "Ready.".</summary>
+    public static readonly TimeSpan StatusFadeDelay = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Whether the current status line is a routine note that should give way to "Ready." after
+    /// <see cref="StatusFadeDelay"/>. "SmartArt Studio opened." used to sit there for the rest of
+    /// the session. Warnings and errors stay until something replaces them; so does a finished
+    /// export (its Open / folder links are the point), anything still running, and progress
+    /// lines ("Importing report.pdf…"), some of which run without IsBusy.
+    /// </summary>
+    public bool StatusFadesAway =>
+        StatusSeverity is StatusSeverity.Informational or StatusSeverity.Success
+        && !IsBusy
+        && !HasStatusOutput
+        && !string.IsNullOrWhiteSpace(StatusText)
+        && StatusText != ReadyStatus
+        && !StatusText.TrimEnd().EndsWith("…", StringComparison.Ordinal)
+        && !StatusText.TrimEnd().EndsWith("...", StringComparison.Ordinal);
+
+    /// <summary>Puts "Ready." back if <paramref name="shown"/> is still the message on the line.</summary>
+    public void FadeStatus(string shown)
+    {
+        if (StatusText == shown && StatusFadesAway) StatusText = ReadyStatus;
     }
 
     internal void AnnounceExport(string message, string? outputPath)

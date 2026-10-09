@@ -840,8 +840,34 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
 
+    // Routine status notes give way to "Ready." (Core MainViewModel.StatusFadesAway). Severity is
+    // set just after the text, so both re-arm the timer; the tick checks the line is unchanged.
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _statusFadeTimer;
+    private string _statusFadeFor = "";
+
+    private void ScheduleStatusFade()
+    {
+        if (_statusFadeTimer is null)
+        {
+            _statusFadeTimer = DispatcherQueue.CreateTimer();
+            _statusFadeTimer.IsRepeating = false;
+            _statusFadeTimer.Interval = ViewModels.MainViewModel.StatusFadeDelay;
+            _statusFadeTimer.Tick += (_, _) => ViewModel.FadeStatus(_statusFadeFor);
+        }
+        _statusFadeTimer.Stop();
+        if (!ViewModel.StatusFadesAway) return;
+        _statusFadeFor = ViewModel.StatusText;
+        _statusFadeTimer.Start();
+    }
+
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(ViewModels.MainViewModel.StatusText) or nameof(ViewModels.MainViewModel.StatusSeverity)
+            or nameof(ViewModels.MainViewModel.IsBusy) or nameof(ViewModels.MainViewModel.StatusOutputPath))
+        {
+            ScheduleStatusFade();
+        }
+
         if (e.PropertyName == nameof(ViewModels.MainViewModel.UsePasteSource))
         {
             SyncSourcePanels();
@@ -1233,6 +1259,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             // Never let the tour crash the app — but never hide the failure either. A silent
             // catch here shipped a dead "?" button once already.
             ViewModel.StatusText = $"Tour failed to open: {ex.GetType().Name}: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
 
         if (!App.Settings.Current.HasSeenWelcome)
