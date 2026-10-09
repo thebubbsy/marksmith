@@ -85,7 +85,49 @@ namespace MarkSmith.Views.MindMap
                     WatchSelectedNodeColour();
                     UpdateSwatches();
                     break;
+                case nameof(MindMapStudioViewModel.PreviewNode):
+                case nameof(MindMapStudioViewModel.IsPreviewCardVisible):
+                    PlacePreviewCard();
+                    break;
             }
+        }
+
+        // ---- Preview card placement ----
+
+        private void OnPreviewCardSizeChanged(object sender, SizeChangedEventArgs e) => PlacePreviewCard();
+
+        /// <summary>
+        /// Puts the floating preview card in a corner that leaves the previewed node, the top
+        /// overlays and the legend clear (Core <see cref="PreviewCardPlacement"/>). It always sat
+        /// bottom-right, so hovering a node there covered the node it was describing.
+        /// </summary>
+        private void PlacePreviewCard()
+        {
+            if (!ViewModel.IsPreviewCardVisible || ViewModel.PreviewNode is not { } node) return;
+            if (!_nodeVisuals.TryGetValue(node.Id, out var visual) || visual.Root.ActualWidth <= 0) return;
+            double width = CanvasContainer.ActualWidth, height = CanvasContainer.ActualHeight;
+            if (width <= 0 || height <= 0) return;
+
+            Rect BoundsOf(FrameworkElement element) =>
+                element.TransformToVisual(CanvasContainer).TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+
+            const double gap = 12;
+            var topReserved = TopOverlay.ActualHeight > 0 ? BoundsOf(TopOverlay).Bottom + gap : 0;
+            var bottomReserved = ConnectionLegend.Visibility == Visibility.Visible && ConnectionLegend.ActualHeight > 0
+                ? height - BoundsOf(ConnectionLegend).Top + gap
+                : 0;
+            var nodeBounds = BoundsOf(visual.Root);
+            var cardWidth = PreviewOverlayCard.Width;
+            var cardHeight = PreviewOverlayCard.ActualHeight > 0 ? PreviewOverlayCard.ActualHeight : PreviewOverlayCard.MaxHeight;
+
+            var corner = PreviewCardPlacement.Choose(
+                new PreviewCardPlacement.Box(nodeBounds.X, nodeBounds.Y, nodeBounds.Width, nodeBounds.Height),
+                width, height, cardWidth, cardHeight, topReserved, bottomReserved);
+            var box = PreviewCardPlacement.At(corner, width, height, cardWidth, cardHeight, topReserved, bottomReserved);
+
+            PreviewOverlayCard.HorizontalAlignment = HorizontalAlignment.Left;
+            PreviewOverlayCard.VerticalAlignment = VerticalAlignment.Top;
+            PreviewOverlayCard.Margin = new Thickness(box.X, box.Y, 0, 0);
         }
 
         // ---- Closing with unsaved changes ----
@@ -637,23 +679,8 @@ namespace MarkSmith.Views.MindMap
             // A generous transparent stroke makes the line clickable.
             var (hit, hitFigure, hitSegment) = BuildBezierPath(new SolidColorBrush(Colors.Transparent), WorldHitStrokeScreenWidth, dashed: false);
             hit.IsHitTestVisible = true;
-            hit.Tag = link;
-            hit.PointerPressed += OnLinkPointerPressed;
-            // Hovering a link thickens it, so you can tell which line a click will pick before
-            // clicking among several crossing ones.
-            hit.PointerEntered += (s, args) =>
-            {
-                if (_draggedNode != null || _isPanning) return;
-                link.IsHovered = true;
-                RequestRedraw(RedrawScope.Appearance);
-            };
-            hit.PointerExited += (s, args) =>
-            {
-                link.IsHovered = false;
-                RequestRedraw(RedrawScope.Appearance);
-            };
-            SetCursor(hit, Microsoft.UI.Input.InputSystemCursorShape.Hand);
-            hit.ContextFlyout = BuildLinkContextMenu(link);
+            var menu = BuildLinkContextMenu(link);
+            MakeLinkTarget(hit, link, menu);
             e.Hit = hit;
             e.HitFigure = hitFigure;
             e.HitSegment = hitSegment;
@@ -680,9 +707,12 @@ namespace MarkSmith.Views.MindMap
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(6, 2, 6, 2),
-                IsHitTestVisible = false,
                 Child = e.LabelText
             };
+            // The label is the most obvious thing to click on a link, but it ignored the pointer:
+            // a click or right-click on "evidence for" fell through to whatever lay beneath (run
+            // #47, real mouse). It now selects, highlights and opens the menu like the line does.
+            MakeLinkTarget(e.Label, link, menu);
             EdgeLayer.Children.Add(e.Label);
 
             return e;
@@ -1240,6 +1270,29 @@ namespace MarkSmith.Views.MindMap
             return flyout;
         }
 
+        /// <summary>Makes <paramref name="target"/> (the link's wide hit stroke, or its label) act
+        /// for the link: click selects it, hovering thickens it, right-click opens its menu.</summary>
+        private void MakeLinkTarget(FrameworkElement target, MindMapLinkViewModel link, MenuFlyout menu)
+        {
+            target.Tag = link;
+            target.PointerPressed += OnLinkPointerPressed;
+            // Hovering a link thickens it, so you can tell which line a click will pick before
+            // clicking among several crossing ones.
+            target.PointerEntered += (s, args) =>
+            {
+                if (_draggedNode != null || _isPanning) return;
+                link.IsHovered = true;
+                RequestRedraw(RedrawScope.Appearance);
+            };
+            target.PointerExited += (s, args) =>
+            {
+                link.IsHovered = false;
+                RequestRedraw(RedrawScope.Appearance);
+            };
+            SetCursor(target, Microsoft.UI.Input.InputSystemCursorShape.Hand);
+            target.ContextFlyout = menu;
+        }
+
         private void OnLinkPointerPressed(object sender, PointerRoutedEventArgs e)
         {
             if (sender is FrameworkElement fe && fe.Tag is MindMapLinkViewModel link)
@@ -1291,6 +1344,9 @@ namespace MarkSmith.Views.MindMap
             // link selection without deleting anything.
             ViewModel.SelectedNode = null;
             ViewModel.SelectedLink = null;
+            // A selected node keeps its preview card after the pointer leaves it; once nothing is
+            // selected the card would describe nothing on screen, so it goes too.
+            ViewModel.HidePreviewCard();
 
             _isPanning = true;
             _lastPanPoint = e.GetCurrentPoint(GalaxyCanvas).Position;

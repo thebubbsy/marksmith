@@ -272,10 +272,10 @@
                 </Border>
 
                 <!-- TOP OVERLAY STACK: first-run tour banner, then the tag filter pills -->
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="16,12,16,0" Spacing="8">
+                <StackPanel x:Name="TopOverlay" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="16,12,16,0" Spacing="8">
 
                     <!-- GUIDED TOUR BANNER -->
-                    <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10" Padding="14,10"
+                    <Border Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10" Padding="14,10"
                             MaxWidth="760"
                             Visibility="{Binding IsTutorialActive, Converter={StaticResource BoolToVis}}">
                         <Grid ColumnSpacing="12">
@@ -307,7 +307,7 @@
 
                     <!-- FLOATING TAG FILTER PILL BAR. The pill for the active filter is drawn in the
                          accent colour (see UpdateTagPills); before, nothing showed a filter was on. -->
-                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    <Border Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                             CornerRadius="20" Padding="8,4" HorizontalAlignment="Center"
                             Visibility="{Binding HasTags, Converter={StaticResource BoolToVis}}">
                         <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto" VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
@@ -335,8 +335,8 @@
                 </StackPanel>
 
                 <!-- CONNECTION LEGEND (bottom-centre) -->
-                <Border HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="12,6"
+                <Border x:Name="ConnectionLegend" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18"
+                        Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="12,6"
                         IsHitTestVisible="False">
                     <StackPanel Orientation="Horizontal" Spacing="14">
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -359,7 +359,7 @@
                 <Border x:Name="MinimapOverlay"
                         HorizontalAlignment="Left" VerticalAlignment="Bottom"
                         Margin="24,0,0,24" Width="180" Height="120"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                         CornerRadius="8" Padding="6"
                         ToolTipService.ToolTip="Overview: click or drag to move around the map">
                     <Canvas x:Name="MinimapCanvas" Background="Transparent"
@@ -370,13 +370,16 @@
                             PointerCaptureLost="OnMinimapPointerCaptureLost" />
                 </Border>
 
+                <!-- Everything floating over the map (tour banner, tag pills, legend, minimap, this card) uses
+                     a solid fill: the translucent card brushes let nodes and links show through the
+                     preview text once the map was panned under them (run #47). -->
                 <!-- FLOATING PREVIEW CARD: shows whichever node is under the pointer (or was double-
                      clicked), and its buttons act on that node — not on the selection. -->
-                <Border x:Name="PreviewOverlayCard"
+                <Border x:Name="PreviewOverlayCard" SizeChanged="OnPreviewCardSizeChanged"
                         Visibility="{Binding IsPreviewCardVisible, Converter={StaticResource BoolToVis}}"
                         HorizontalAlignment="Right" VerticalAlignment="Bottom"
                         Margin="0,0,24,24" Width="400" MaxHeight="320"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                         CornerRadius="12" Padding="14,12">
                     <Grid RowSpacing="8">
                         <Grid.RowDefinitions>
