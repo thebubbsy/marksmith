@@ -4984,3 +4984,7 @@ items: escaped shape labels and Version History's system title bar.
 3. Test-suite temp litter (`ms_emlimp_*`, `ms_mdcopy_*`, `ms-undo-*` in %TEMP%).
 4. Carried over: first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
    flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
+
+**Release (same run):** tagged **v3.17.0** on `b9b411f` after CI passed on it. Release workflow built
+the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
+`MarksmithBaseVersion` is now **3.18.0** (`b0ed4c6`).
