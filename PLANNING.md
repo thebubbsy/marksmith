@@ -3842,3 +3842,8 @@ PrintWindow screenshots. No synthetic mouse input.
    Confirm it's polish, not a feature, before building it.
 3. Run #42's list: Insert image onto `InsertDialogBody`; Quick insert for SmartArt; the type
    picker in "Export N tables"; Diagram Studio composite states and notes.
+
+**Release (same run):** tagged **v3.5.0** on `fa09114` after CI passed. The release workflow
+built all four installers and zips. The notes were rewritten after the workflow (it overwrites
+them) to cover Document Galaxy and run #42's Insert ▸ SmartArt. `MarksmithBaseVersion` is now
+**3.6.0** (`80ae7cf`).
