@@ -23,11 +23,48 @@ public sealed partial class HistoryWindow : Window
     private bool _webViewReady;
     private bool _dialogOpen;
 
+    private static HistoryWindow? _open;
+
+    /// <summary>The editor's view model, set by the main window. A history window opened from
+    /// anywhere (Document Galaxy, a node's menu) restores into the editor through it; before,
+    /// Galaxy opened one without it and its Restore button silently did nothing.</summary>
+    public static MainViewModel? Editor { get; set; }
+
+    /// <summary>Shows the one Version History window, on <paramref name="filePath"/> (the unsaved
+    /// text when null). Asked for again while open, it refreshes, so versions recorded since it
+    /// opened appear, and moves to that document instead of stacking a second window.</summary>
+    public static HistoryWindow ShowFor(string? filePath)
+    {
+        if (_open is { } window)
+        {
+            _ = window._vm.ShowFileAsync(string.IsNullOrWhiteSpace(filePath) ? ScratchKey : filePath);
+            if (window.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter { State: Microsoft.UI.Windowing.OverlappedPresenterState.Minimized } presenter)
+                presenter.Restore();
+        }
+        else
+        {
+            window = new HistoryWindow(Editor, filePath);
+            window.Closed += (_, _) => { if (ReferenceEquals(_open, window)) _open = null; };
+            _open = window;
+        }
+        window.Activate();
+        return window;
+    }
+
+    public static bool IsOpen => _open is not null;
+
     public HistoryWindow(MainViewModel? mainViewModel = null, string? initialFilePath = null)
     {
         InitializeComponent();
         Title = "Version History — MarkSmith";
         _main = mainViewModel;
+
+        // The header is the title bar, like the studios: one band instead of a system bar
+        // stacked on a header, with caption buttons drawn in the content's theme.
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBar);
+        TitleBarInsets.Reserve(this, AppTitleBar, gap: 16);
+        CaptionButtons.Follow(this, AppTitleBar);
 
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
         if (File.Exists(iconPath)) AppWindow.SetIcon(iconPath);

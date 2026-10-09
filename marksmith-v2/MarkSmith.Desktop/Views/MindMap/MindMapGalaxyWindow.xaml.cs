@@ -2247,8 +2247,7 @@ namespace MarkSmith.Views.MindMap
         private void OpenVersionHistoryForNode(MindMapNodeViewModel? node)
         {
             if (node == null || string.IsNullOrWhiteSpace(node.FilePath)) return;
-            var historyWin = new History.HistoryWindow(initialFilePath: node.FilePath);
-            historyWin.Activate();
+            History.HistoryWindow.ShowFor(node.FilePath);
         }
 
         private void OnOpenInEditorClick(object sender, RoutedEventArgs e)

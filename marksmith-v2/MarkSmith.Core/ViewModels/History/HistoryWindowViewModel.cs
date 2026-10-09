@@ -333,7 +333,28 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         }
     }
 
-    private async Task ReloadFilesAsync(string preferredPath)
+    /// <summary>Brings an open window up to date when it is asked for again: re-reads the store,
+    /// so versions recorded since it opened appear, and lands on <paramref name="filePath"/>. The
+    /// selected version is kept when that document is the one already showing.</summary>
+    public async Task ShowFileAsync(string filePath)
+    {
+        var keep = SamePath(_currentFile, filePath) || _currentFile == filePath ? Selected?.Id : null;
+        try
+        {
+            LoadError = "";
+            await ReloadFilesAsync(filePath, keep);
+        }
+        catch (Exception ex)
+        {
+            LoadError = "Couldn't read the version history: " + ex.Message;
+        }
+        finally
+        {
+            IsLoaded = true;
+        }
+    }
+
+    private async Task ReloadFilesAsync(string preferredPath, string? keepSelectedId = null)
     {
         Files.Clear();
         var overview = await _history.GetOverviewAsync();
@@ -345,7 +366,13 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         var preferred = Files.FirstOrDefault(f => SamePath(f.Summary.FilePath, preferredPath))
             ?? Files.FirstOrDefault();
 
-        if (preferred is not null) await SelectFileCommand.ExecuteAsync(preferred);
+        if (preferred is not null)
+        {
+            if (SelectedFile is not null) SelectedFile.IsSelected = false;
+            SelectedFile = preferred;
+            preferred.IsSelected = true;
+            await LoadTimelineAsync(preferred.Summary.FilePath, preferred.FileName, keepSelectedId);
+        }
         else
         {
             SelectedFile = null;

@@ -298,6 +298,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Persistent undo/redo: the editor owns its undo stack (native TextBox undo is disabled in
         // XAML). Keep the caret in the ViewModel so undo snapshots can restore it exactly.
         PasteTextBox.SelectionChanged += (_, _) => ViewModel.EditorCaret = PasteTextBox.SelectionStart;
+        TrackEditorCaretPlacement();
+        Views.History.HistoryWindow.Editor = ViewModel; // Version History restores into this editor
 
         // Ctrl+, opens Settings. This can't be a XAML KeyboardAccelerator: WinUI can't represent the
         // comma key in an accelerator (a raw "188" fails XAML parsing, and VirtualKey.OemComma crashes
@@ -2341,7 +2343,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             refs.Add(Services.InsertSnippetBuilder.Image("", path, docFolder ?? "").Trim('\n'));
         }
 
-        InsertMarkdown("\n" + string.Join("\n\n", refs) + "\n");
+        InsertBlock("\n" + string.Join("\n\n", refs) + "\n");
         var noun = refs.Count == 1 ? "image" : $"{refs.Count} images";
         ViewModel.StatusText = copied == 0
             ? $"Added {noun} to the document."
@@ -3981,21 +3983,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    // Pin/unpin the selected file to the top of the Step-1 picker (persisted across sessions).
-    private Views.History.HistoryWindow? _historyWindow;
-
     private void OnOpenHistoryClick(object sender, RoutedEventArgs e)
     {
         // The hub shows EVERY file ever touched, so it works even with nothing open — the current
-        // file (if any) is pre-selected so the timeline lands where the user is working.
-        if (_historyWindow == null)
-        {
-            _historyWindow = new Views.History.HistoryWindow(ViewModel, ViewModel.InputFilePath);
-            _historyWindow.Closed += (s, args) => _historyWindow = null;
-        }
-        _historyWindow.Activate();
+        // file (if any) is pre-selected so the timeline lands where the user is working. One
+        // window, shared with Document Galaxy: asking again refreshes it and moves to this file.
+        Views.History.HistoryWindow.ShowFor(ViewModel.InputFilePath);
     }
 
+    // Pin/unpin the selected file to the top of the Step-1 picker (persisted across sessions).
     private void OnTogglePinFileClick(object sender, RoutedEventArgs e)
     {
         ViewModel.TogglePinCurrentFile();
@@ -5808,7 +5804,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ViewModel.SaveUndoHistory();
             App.Settings.Save();
         };
-        ViewModel.NothingElseOpen = () => _historyWindow == null && _smartArtDesignStudio == null
+        ViewModel.NothingElseOpen = () => !Views.History.HistoryWindow.IsOpen && _smartArtDesignStudio == null
             && _shapeDesignStudio == null && _mindMapGalaxyWindow == null;
         ViewModel.ExitForUpdate = () =>
         {
@@ -5937,6 +5933,58 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
         }
         catch { /* recovery is best-effort */ }
+    }
+
+    // Whether the user has put the caret anywhere in this document (clicked or typed in the
+    // editor). A freshly opened document has its caret at 0, and a block inserted there landed
+    // above the title; BlockInsertion appends instead until the caret has been placed.
+    private bool _editorCaretPlaced;
+
+    private void TrackEditorCaretPlacement()
+    {
+        PasteTextBox.AddHandler(UIElement.PointerPressedEvent,
+            new PointerEventHandler((_, _) => _editorCaretPlaced = true), handledEventsToo: true);
+        PasteTextBox.AddHandler(UIElement.KeyDownEvent,
+            new KeyEventHandler((_, _) => _editorCaretPlaced = true), handledEventsToo: true);
+        ViewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ViewModel.InputFilePath)) _editorCaretPlaced = false;
+        };
+    }
+
+    /// <summary>
+    /// Inserts a block (table, fenced component, image, studio diagram) as its own paragraph:
+    /// below the caret's line rather than splitting it, after a selection rather than glued onto
+    /// it, with one blank line either side, and at the end of a document whose caret was never
+    /// placed. A <paramref name="suffix"/> makes it a wrapping block (a code fence): it wraps the
+    /// selected lines, or leaves the caret on its empty body line. Undoes as one step.
+    /// </summary>
+    /// <returns>True when the block went at the end because the caret was never placed.</returns>
+    private bool InsertBlock(string prefix, string suffix = "")
+    {
+        // The portal edits its own caret, the same as every other insert.
+        if (_portalOpen && PreviewWebView.CoreWebView2 is not null)
+        {
+            InsertMarkdown(prefix, suffix);
+            return false;
+        }
+
+        var tb = PasteTextBox;
+        if (tb == null) return false;
+
+        var text = tb.Text ?? "";
+        bool caretPlaced = _editorCaretPlaced || tb.SelectionStart != 0 || tb.SelectionLength != 0 || text.Length == 0;
+        var plan = Services.BlockInsertion.Plan(text, tb.SelectionStart, tb.SelectionLength, prefix, suffix, caretPlaced);
+
+        ViewModel.BreakUndoBurst(); // the block undoes as its own step
+        tb.Select(plan.Start, plan.Length);
+        tb.SelectedText = plan.Text;
+        var length = (tb.Text ?? "").Length;
+        tb.Select(Math.Clamp(plan.CaretStart, 0, length), Math.Clamp(plan.CaretLength, 0, Math.Max(0, length - plan.CaretStart)));
+        ViewModel.BreakUndoBurst();
+        tb.Focus(FocusState.Programmatic);
+        _editorCaretPlaced = true;
+        return !caretPlaced;
     }
 
     private void InsertMarkdown(string prefix, string suffix = "")
@@ -6079,7 +6127,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Quick insert: the classic bare fence straight into the editor, no modal.
         if (App.Settings.Current.ProMode)
         {
-            InsertMarkdown("\n```\n", "\n```\n");
+            InsertBlock("\n```\n", "\n```\n");
             return;
         }
 
@@ -6088,10 +6136,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (string.IsNullOrWhiteSpace(control.Body))
         {
             // No pasted code: insert prefix/suffix so the caret lands inside the fence.
-            InsertMarkdown($"\n```{control.SelectedLanguage}\n", "\n```\n");
+            InsertBlock($"\n```{control.SelectedLanguage}\n", "\n```\n");
             return;
         }
-        InsertMarkdown(Services.InsertSnippetBuilder.CodeBlock(control.SelectedLanguage, control.Body));
+        InsertBlock(Services.InsertSnippetBuilder.CodeBlock(control.SelectedLanguage, control.Body));
     }
 
     private void OnBlockquoteClick(object sender, RoutedEventArgs e) => ApplyLineMarker(Services.LineMarker.Quote, "> ");
@@ -6100,7 +6148,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (App.Settings.Current.ProMode)
         {
-            InsertMarkdown("\n:::workflow\n- Step 1\n- Step 2\n- Step 3\n:::\n");
+            InsertBlock("\n:::workflow\n- Step 1\n- Step 2\n- Step 3\n:::\n");
             return;
         }
 
@@ -6109,14 +6157,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             "Steps — one per line", "Step 1\nStep 2\nStep 3",
             Services.InsertSnippetBuilder.Workflow, "step", minimum: 2);
         if (await ShowInsertDialogAsync("Insert workflow", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.Snippet);
+        InsertBlock(control.Snippet);
     }
 
     private async void OnInsertTimelineClick(object sender, RoutedEventArgs e)
     {
         if (App.Settings.Current.ProMode)
         {
-            InsertMarkdown("\n:::timeline\n- 2020: Started\n- 2023: Progress\n- 2026: Done\n:::\n");
+            InsertBlock("\n:::timeline\n- 2020: Started\n- 2023: Progress\n- 2026: Done\n:::\n");
             return;
         }
 
@@ -6127,7 +6175,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             lineIsValid: MarkSmith.Core.AdvancedFeatures.TimelineDetector.IsTimelineEntry,
             lineHint: "write each milestone as when: what, e.g. 2026: Launch.");
         if (await ShowInsertDialogAsync("Insert timeline", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.Snippet);
+        InsertBlock(control.Snippet);
     }
 
     private async void OnInsertSmartArtClick(object sender, RoutedEventArgs e)
@@ -6137,20 +6185,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (App.Settings.Current.ProMode)
         {
             var example = Services.SmartArtInsert.Examples[0];
-            InsertMarkdown(Services.SmartArtInsert.Build(example.Alias, example.Text));
+            InsertBlock(Services.SmartArtInsert.Build(example.Alias, example.Text));
             return;
         }
 
         var control = new Views.SmartArtInsertControl();
         if (await ShowInsertDialogAsync("Insert SmartArt", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.GeneratedSnippet);
+        InsertBlock(control.GeneratedSnippet);
     }
 
     private async void OnInsertTabsClick(object sender, RoutedEventArgs e)
     {
         if (App.Settings.Current.ProMode)
         {
-            InsertMarkdown("\n:::tabs\n=== Tab 1\nContent 1\n=== Tab 2\nContent 2\n:::\n");
+            InsertBlock("\n:::tabs\n=== Tab 1\nContent 1\n=== Tab 2\nContent 2\n:::\n");
             return;
         }
 
@@ -6159,14 +6207,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             "Tab titles — one per line", "Tab 1\nTab 2",
             Services.InsertSnippetBuilder.Tabs, "tab", minimum: 2);
         if (await ShowInsertDialogAsync("Insert tab group", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.Snippet);
+        InsertBlock(control.Snippet);
     }
 
     private async void OnInsertColumnsClick(object sender, RoutedEventArgs e)
     {
         if (App.Settings.Current.ProMode)
         {
-            InsertMarkdown("\n:::columns count=\"2\"\nColumn 1 content\n===\nColumn 2 content\n:::\n");
+            InsertBlock("\n:::columns count=\"2\"\nColumn 1 content\n===\nColumn 2 content\n:::\n");
             return;
         }
 
@@ -6174,14 +6222,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             "Side-by-side columns. A line containing only === starts the next column.",
             v => Services.InsertSnippetBuilder.Columns(v[0]), ("Columns", 2, 2, 4));
         if (await ShowInsertDialogAsync("Insert multi-column section", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.Snippet);
+        InsertBlock(control.Snippet);
     }
 
     private async void OnInsertCanvasClick(object sender, RoutedEventArgs e)
     {
         if (App.Settings.Current.ProMode)
         {
-            InsertMarkdown("\n:::canvas\n<svg viewBox=\"0 0 100 100\" width=\"200\" height=\"200\">\n  <circle cx=\"50\" cy=\"50\" r=\"40\" stroke=\"black\" stroke-width=\"3\" fill=\"red\" />\n</svg>\n:::\n");
+            InsertBlock("\n:::canvas\n<svg viewBox=\"0 0 100 100\" width=\"200\" height=\"200\">\n  <circle cx=\"50\" cy=\"50\" r=\"40\" stroke=\"black\" stroke-width=\"3\" fill=\"red\" />\n</svg>\n:::\n");
             return;
         }
 
@@ -6189,7 +6237,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             "An SVG drawing area with a starter shape. Edit the SVG by hand to draw what you need.",
             v => Services.InsertSnippetBuilder.Canvas(v[0], v[1]), ("Width", 200, 10, 4000), ("Height", 200, 10, 4000));
         if (await ShowInsertDialogAsync("Insert drawing canvas", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.Snippet);
+        InsertBlock(control.Snippet);
     }
 
     private async void OnInsertWaveFunctionClick(object sender, RoutedEventArgs e)
@@ -6198,7 +6246,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             // Same block the dialog makes: the menu item is the procedural tile map, not the
             // quantum :::wavefunction diagram this used to insert.
-            InsertMarkdown(Services.InsertSnippetBuilder.WaveFunctionCollapse("Procedural WFC Grid", 5, 5));
+            InsertBlock(Services.InsertSnippetBuilder.WaveFunctionCollapse("Procedural WFC Grid", 5, 5));
             return;
         }
 
@@ -6207,7 +6255,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             v => Services.InsertSnippetBuilder.WaveFunctionCollapse("Procedural WFC Grid", v[0], v[1]),
             ("Grid width", 5, 2, 20), ("Grid height", 5, 2, 20));
         if (await ShowInsertDialogAsync("Insert random tile map", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.Snippet);
+        InsertBlock(control.Snippet);
     }
 
     // Headings and list markers act on whole lines (Core's LineFormatting): the caret's line or
@@ -6348,53 +6396,53 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // text, then Insert — the same footer as every other insert dialog.
         var control = new Views.ImageInsertControl(ViewModel.DocumentFolder);
         if (await ShowInsertDialogAsync("Insert image", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.Snippet);
+        InsertBlock(control.Snippet);
     }
 
     private async void OnTableClick(object sender, RoutedEventArgs e)
     {
         if (App.Settings.Current.ProMode)
         {
-            InsertMarkdown("\n| Header 1 | Header 2 |\n| --- | --- |\n| Value 1 | Value 2 |\n");
+            InsertBlock("\n| Header 1 | Header 2 |\n| --- | --- |\n| Value 1 | Value 2 |\n");
             return;
         }
 
         var control = new Views.TableInsertControl();
         if (await ShowInsertDialogAsync("Insert table", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.Snippet);
+        InsertBlock(control.Snippet);
     }
 
     private async void OnInsertEmbedClick(object sender, RoutedEventArgs e)
     {
         if (App.Settings.Current.ProMode)
         {
-            InsertMarkdown("\n:::embed provider=\"youtube\" src=\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"\n:::\n");
+            InsertBlock("\n:::embed provider=\"youtube\" src=\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"\n:::\n");
             return;
         }
 
         var control = new Views.EmbedInsertControl();
         if (await ShowInsertDialogAsync("Insert video embed", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.Snippet);
+        InsertBlock(control.Snippet);
     }
 
     private async void OnInsertChartClick(object sender, RoutedEventArgs e)
     {
         if (App.Settings.Current.ProMode)
         {
-            InsertMarkdown("\n:::chart type=\"bar\"\nQ1,10\nQ2,25\nQ3,15\n:::\n");
+            InsertBlock("\n:::chart type=\"bar\"\nQ1,10\nQ2,25\nQ3,15\n:::\n");
             return;
         }
 
         var control = new Views.ChartInsertControl();
         if (await ShowInsertDialogAsync("Insert chart", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.Snippet);
+        InsertBlock(control.Snippet);
     }
 
     private async void OnInsertDatagridClick(object sender, RoutedEventArgs e)
     {
         if (App.Settings.Current.ProMode)
         {
-            InsertMarkdown("\n:::datagrid\nlabel,value\nQ1,10\nQ2,25\n:::\n");
+            InsertBlock("\n:::datagrid\nlabel,value\nQ1,10\nQ2,25\n:::\n");
             return;
         }
 
@@ -6403,25 +6451,25 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             "Rows — comma-separated, headers first", "label,value\nQ1,10\nQ2,25",
             Services.InsertSnippetBuilder.Datagrid, "row", minimum: 2);
         if (await ShowInsertDialogAsync("Insert data grid", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.Snippet);
+        InsertBlock(control.Snippet);
     }
 
     private async void OnInsertReferencesClick(object sender, RoutedEventArgs e)
     {
         if (App.Settings.Current.ProMode)
         {
-            InsertMarkdown("\n:::references\n@paper-id\nauthor: Author Name\ntitle: Publication Title\nyear: 2026\n:::\n");
+            InsertBlock("\n:::references\n@paper-id\nauthor: Author Name\ntitle: Publication Title\nyear: 2026\n:::\n");
             return;
         }
 
         var control = new Views.ReferencesInsertControl();
         if (await ShowInsertDialogAsync("Insert bibliography entry", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(control.Snippet);
+        InsertBlock(control.Snippet);
     }
 
     private void OnInsertAiContextClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n:::ai-context\npromptHash: abc123\nmodel: Gemini Pro\ntimestamp: " + DateTime.Now.ToString("yyyy-MM-dd") + "\n:::\n");
+        InsertBlock("\n:::ai-context\npromptHash: abc123\nmodel: Gemini Pro\ntimestamp: " + DateTime.Now.ToString("yyyy-MM-dd") + "\n:::\n");
     }
 
     // ---- D1: Reverse Document Import (DOCX / PDF → Markdown) ------------------------------------
@@ -6602,7 +6650,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
 
             var markdown = Services.SpreadsheetService.ToMarkdownTable(model);
-            InsertMarkdown(markdown);
+            InsertBlock(markdown);
 
             var truncated = model.Rows.Count >= Services.SpreadsheetService.MaxImportRows;
             ViewModel.StatusText = truncated
@@ -6735,14 +6783,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             _smartArtDesignStudio = new Views.SmartArtStudio.SmartArtDesignStudioWindow();
             _smartArtDesignStudio.Closed += (s, args) => _smartArtDesignStudio = null;
-            // Design-stage output: add the hierarchy to the ACTIVE document as Markdown, at the
-            // editor caret. It renders in the preview and becomes native Word SmartArt on export —
+            // Design-stage output: add the hierarchy to the ACTIVE document as Markdown, as its
+            // own paragraph below the caret's line (InsertBlock). It renders in the preview and
+            // becomes native Word SmartArt on export —
             // the studio never writes its own document.
             _smartArtDesignStudio.InsertToDocumentRequested += (s, block) =>
             {
-                ViewModel.BreakUndoBurst(); // the insertion must undo as its own step
-                InsertMarkdown(block);
-                ViewModel.StatusText = "SmartArt added to the document — preview, then export to DOCX.";
+                bool atEnd = InsertBlock(block); // undoes as its own step
+                ViewModel.StatusText = (atEnd ? "SmartArt added at the end of the document" : "SmartArt added to the document") +
+                                       " — it becomes native Word SmartArt when you export to DOCX. Ctrl+Z undoes it.";
                 ViewModel.StatusSeverity = Models.StatusSeverity.Success;
             };
         }
@@ -6765,9 +6814,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             _shapeDesignStudio.Closed += (s, args) => _shapeDesignStudio = null;
             _shapeDesignStudio.InsertToDocumentRequested += (s, block) =>
             {
-                ViewModel.BreakUndoBurst();
-                InsertMarkdown(block);
-                ViewModel.StatusText = "DrawingML vector shapes added to document.";
+                bool atEnd = InsertBlock(block);
+                ViewModel.StatusText = (atEnd ? "Shape diagram added at the end of the document" : "Shape diagram added to the document") +
+                                       " — it exports as editable Word shapes. Ctrl+Z undoes it.";
                 ViewModel.StatusSeverity = Models.StatusSeverity.Success;
             };
         }

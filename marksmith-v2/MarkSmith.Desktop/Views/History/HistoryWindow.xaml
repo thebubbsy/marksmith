@@ -10,7 +10,6 @@
     <Grid x:Name="RootGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.Resources>
             <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
-            <conv:SelectedBrushConverter x:Key="SelectedBrush" />
             <conv:DiffKindBrushConverter x:Key="DiffBrush" />
         </Grid.Resources>
 
@@ -20,9 +19,11 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ═══ Header Bar ═══ -->
-        <Border Grid.Row="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="20,14,20,14">
+        <!-- ═══ Header Bar ═══ (also the window's title bar: drag it, double-click to maximise;
+             TitleBarInsets keeps the buttons clear of minimise/maximise/close) -->
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="20,12,20,12"
+              MinHeight="60">
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -87,7 +88,7 @@
                     </StackPanel>
                 </Button>
             </Grid>
-        </Border>
+        </Grid>
 
         <!-- Confirmations and errors (checkpoint saved, restore done, delete failed…). -->
         <InfoBar x:Name="NoticeBar" Grid.Row="1" Margin="20,12,20,0" IsOpen="False" IsClosable="True"
@@ -143,12 +144,22 @@
                                          focus and Enter/Space. Tag opts out of the scale lift: zooming a whole
                                          list row reads as jitter; the tint is the hover cue here. -->
                                     <Button Tag="NoHoverPolish" Click="OnFileClick"
-                                            Background="{Binding IsSelected, Converter={StaticResource SelectedBrush}, ConverterParameter=themed}"
-                                            BorderThickness="0" CornerRadius="6" Padding="10,8" Margin="6,3,6,3"
+                                            Background="{ThemeResource SubtleFillColorTransparentBrush}"
+                                            BorderThickness="0" CornerRadius="6" Padding="0" Margin="6,2,6,2"
                                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                            VerticalContentAlignment="Stretch"
                                             ToolTipService.ToolTip="{Binding Detail}"
                                             AutomationProperties.Name="{Binding FileName}">
-                                        <Grid RowSpacing="3">
+                                      <Grid>
+                                        <!-- Selection: an accent wash and a pill, in theme resources so they
+                                             follow a theme switch (a brush resolved in code did not), and
+                                             inside the content so hovering a selected row keeps it marked. -->
+                                        <Border CornerRadius="6" Background="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0.16"
+                                                Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}" />
+                                        <Border Width="3" Height="18" CornerRadius="1.5" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}" />
+                                        <Grid RowSpacing="3" Margin="12,8,10,8">
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
@@ -169,6 +180,7 @@
                                             <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding LastModifiedLabel}"
                                                        FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Margin="0,2,0,0" />
                                         </Grid>
+                                      </Grid>
                                     </Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -225,12 +237,19 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <Button Tag="NoHoverPolish" Click="OnVersionClick" ContextRequested="OnVersionContextRequested"
-                                                                Background="{Binding IsSelected, Converter={StaticResource SelectedBrush}, ConverterParameter=themed}"
+                                                                Background="{ThemeResource ControlFillColorDefaultBrush}"
                                                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8"
-                                                                Padding="10,8,4,8" Margin="2,2,2,4"
+                                                                Padding="0" Margin="2,2,2,4"
                                                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                                VerticalContentAlignment="Stretch"
                                                                 AutomationProperties.Name="{Binding AutomationName}">
-                                                            <Grid RowSpacing="4">
+                                                          <Grid>
+                                                            <Border CornerRadius="7" Background="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0.16"
+                                                                    Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}" />
+                                                            <Border Width="3" Height="22" CornerRadius="1.5" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                                    Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}" />
+                                                            <Grid RowSpacing="4" Margin="12,8,4,8">
                                                                 <Grid.RowDefinitions>
                                                                     <RowDefinition Height="Auto" />
                                                                     <RowDefinition Height="Auto" />
@@ -287,6 +306,7 @@
                                                                            TextTrimming="CharacterEllipsis" MaxLines="1" Margin="0,2,0,0"
                                                                            Visibility="{Binding HasSnippet, Converter={StaticResource BoolToVis}}" />
                                                             </Grid>
+                                                          </Grid>
                                                         </Button>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>

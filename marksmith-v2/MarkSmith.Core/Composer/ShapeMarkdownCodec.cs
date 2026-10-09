@@ -295,6 +295,30 @@ namespace MarkSmith.Core.Composer
         /// codec used to) ran a two-line label together into one word.</summary>
         public static string NormalizeLineBreaks(string text) => text.Replace("\r\n", "\n").Replace('\r', '\n');
 
+        /// <summary>Escapes a label for the quoted <c>text="…"</c> token. Only what the token
+        /// needs is escaped: quotes, line breaks, and an '&amp;' that would otherwise read back as
+        /// one of those escapes. Escaping every '&amp;' put "Vision &amp;amp; Strategy" in the
+        /// editor for a label that says "Vision &amp; Strategy". Parse decodes both forms, so
+        /// blocks written by older versions read the same.</summary>
+        public static string EscapeLabel(string text)
+        {
+            var sb = new System.Text.StringBuilder(text.Length + 8);
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+                if (c == '"') sb.Append("&quot;");
+                else if (c == '\n') sb.Append("&#10;");
+                else if (c == '&' && StartsEscape(text, i)) sb.Append("&amp;");
+                else sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
+        private static bool StartsEscape(string text, int i) =>
+            string.CompareOrdinal(text, i, "&#10;", 0, 5) == 0 ||
+            string.CompareOrdinal(text, i, "&quot;", 0, 6) == 0 ||
+            string.CompareOrdinal(text, i, "&amp;", 0, 5) == 0;
+
         public static string Format(ComposedShape s)
         {
             string line = string.Create(CultureInfo.InvariantCulture,
@@ -310,10 +334,7 @@ namespace MarkSmith.Core.Composer
             }
             if (!string.IsNullOrWhiteSpace(s.Text))
             {
-                string safeText = NormalizeLineBreaks(s.Text)
-                    .Replace("&", "&amp;")
-                    .Replace("\"", "&quot;")
-                    .Replace("\n", "&#10;");
+                string safeText = EscapeLabel(NormalizeLineBreaks(s.Text));
                 line += " text=\"" + safeText + "\"";
             }
             if (!string.IsNullOrWhiteSpace(s.TextColor))

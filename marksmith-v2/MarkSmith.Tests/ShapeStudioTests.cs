@@ -158,13 +158,38 @@ public class ShapeStudioTests
         string formatted = MarkSmith.Core.Composer.ShapeMarkdownCodec.Format(shape);
         Assert.DoesNotContain("\n", formatted);
         Assert.Contains("&#10;", formatted);
-        Assert.Contains("&amp;", formatted);
+        Assert.Contains("Line Two & Special", formatted); // a plain '&' stays readable in the editor
+        Assert.DoesNotContain("&amp;", formatted);
         Assert.Contains("&quot;", formatted);
 
         var parsed = MarkSmith.Core.Composer.ShapeMarkdownCodec.Parse(formatted);
         Assert.Single(parsed);
         Assert.Equal("cylinder", parsed[0].Prst);
         Assert.Equal("Line One\nLine Two & Special \"Quotes\"", parsed[0].Text);
+    }
+
+    [Theory]
+    [InlineData("Vision & Strategy")]
+    [InlineData("R&D")]
+    [InlineData("literal &amp; entity")]
+    [InlineData("literal &#10; break")]
+    [InlineData("literal &quot; quote")]
+    [InlineData("&&#10;&")]
+    [InlineData("Tom \"T&C\" Jones\nline two")]
+    public void Labels_round_trip_and_only_escape_what_the_token_needs(string label)
+    {
+        var shape = new MarkSmith.Core.Composer.ComposedShape { Prst = "rect", W = 1, H = 1, Fill = "0078D4", Text = label };
+        string formatted = MarkSmith.Core.Composer.ShapeMarkdownCodec.Format(shape);
+        Assert.Equal(label, MarkSmith.Core.Composer.ShapeMarkdownCodec.Parse(formatted)[0].Text);
+        if (!label.Contains("&amp;") && !label.Contains("&#10;") && !label.Contains("&quot;"))
+            Assert.DoesNotContain("&amp;", formatted);
+    }
+
+    [Fact]
+    public void Labels_written_by_older_versions_with_every_ampersand_escaped_still_read()
+    {
+        var parsed = MarkSmith.Core.Composer.ShapeMarkdownCodec.Parse("rect 0.00 0.00 1.00 1.00 0078D4 text=\"Vision &amp; Strategy\"");
+        Assert.Equal("Vision & Strategy", parsed[0].Text);
     }
 
     [Fact]

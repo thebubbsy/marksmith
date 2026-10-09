@@ -4920,3 +4920,67 @@ palette, Version History, Shape Studio, SmartArt Studio, Document Galaxy and Dia
 **Release (same run):** tagged **v3.16.0** on `05b7a68` after CI passed on it. Release workflow built
 the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
 `MarksmithBaseVersion` is now **3.17.0** (`b992037`).
+
+### 2026-10-10 09:00–09:45 AEST (routine run #57: blocks land as blocks, one Version History)
+
+**Pick.** No other run was live (list_sessions: nothing running; PC idle 5½ h). Run #56's "Next up" #2
+(studio insert position) turned out to be one symptom of a wider fault: **every** block the app
+inserts went through the inline-formatting path, raw at the caret. Also run #56's two "Noticed"
+items: escaped shape labels and Version History's system title bar.
+
+**What was wrong:**
+- Insert-menu blocks (table, image, code fence, workflow, timeline, SmartArt, tabs, columns, chart,
+  datagrid, embed, references, canvas, spreadsheet import, dropped images) and both studios'
+  Insert buttons pasted their snippet at the caret: a caret mid-line split the line; a selection got
+  the block glued onto it (and stayed selected); a fresh document (caret 0) got the diagram above
+  its title.
+- Shape labels were stored with every `&` escaped: the editor showed `Vision &amp; Strategy`.
+- Version History had the system title bar stacked over its own header. Document Galaxy opened a
+  NEW history window per click, built without the editor, so its **Restore button silently did
+  nothing**. Re-opening it from the main window just re-activated a stale window (versions recorded
+  since it opened never appeared). Selected rows used a brush resolved in code
+  (`SelectedBrushConverter` "themed"), so it ignored theme switches and was lost on hover.
+
+**Shipped:**
+- Core `Services/BlockInsertion.Plan(doc, selStart, selLength, prefix, suffix, caretPlaced)`: a block
+  goes below the caret's line (above it when the caret is at the start of a non-empty line), fills
+  an empty line, follows a selection rather than replacing it, one blank line either side, exactly
+  one break at the end of the document, the document's own line breaks (`\r` in the editor). With a
+  suffix (code fence) it wraps the selected lines whole and selects them, or leaves the caret on
+  the empty body line. Caret never placed → appended at the end.
+- MainWindow `InsertBlock` (undoes as one step, BreakUndoBurst both sides) replaces `InsertMarkdown`
+  for all 32 block call sites; inline formatting keeps `InsertMarkdown`. `_editorCaretPlaced` is set
+  by pointer/key in the editor and reset when `InputFilePath` changes; a caret anywhere but 0 counts
+  as placed. Studio status lines say where the diagram went and that Ctrl+Z undoes it.
+- `ShapeMarkdownCodec.EscapeLabel`: escapes only `"`, line breaks and an `&` that would read back
+  as an escape. Parse unchanged, so old `&amp;` blocks read the same, and old versions read new blocks.
+- `HistoryWindow.ShowFor(path)` + static `Editor` (set by MainWindow): one window app-wide; asking
+  again calls VM `ShowFileAsync` (re-reads the store, lands on that document, keeps the selected
+  version if it's the same one) and un-minimises. Galaxy uses it, so Restore works from there.
+- History header is the title bar (`ExtendsContentIntoTitleBar`, `TitleBarInsets.Reserve`,
+  `CaptionButtons.Follow`). Rows: neutral ThemeResource fills plus an accent wash and a 3px accent
+  pill inside the content, bound to IsSelected (hover keeps the mark; follows the theme).
+- Tests: `BlockInsertionTests` (12), shape label round-trip theory (7) + legacy-escape test.
+
+**Verified:**
+- Full suite: 4415 passed, 1 skipped, 0 failed. Desktop build green (scratch OutDir in the session
+  scratchpad).
+- Live, parked scratch instance: table into a never-touched document → appended after the last
+  paragraph, one blank line; 80-paragraph document → editor scrolled to the new table, file ends
+  with one break; Shape Studio "4-Tier Strategy Pyramid" → Insert → block after the table with
+  `text="1 · Vision & Strategy"` and the new status line. Version History: header-as-title-bar,
+  selection pill, asking again kept one window (same HWND), Restore dialog opens and cancels.
+
+**Noticed, not fixed:**
+- Version History opens with focus in its search box (caret + accent underline). Focusing the
+  selected timeline row would be calmer; Ctrl+F already reaches search.
+- ContentDialogs don't dim a custom title bar (all extended windows; WinUI default).
+- `SelectedBrushConverter` "themed" now has no users in XAML besides the outline editors' "subtle";
+  the same ThemeResource treatment would fix them for live theme switches.
+
+**Next up:**
+1. Live OS theme switch (carried over; the History rows are fixed, the "subtle" outline rows aren't).
+2. Version History initial focus (above).
+3. Test-suite temp litter (`ms_emlimp_*`, `ms_mdcopy_*`, `ms-undo-*` in %TEMP%).
+4. Carried over: first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
+   flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
