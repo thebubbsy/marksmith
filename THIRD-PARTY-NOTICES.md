@@ -27,7 +27,7 @@ projects or companies listed.
 | Tesseract `tessdata_best` English data (eng.traineddata) | OCR engine choice "Tesseract"; downloaded at build time | Apache-2.0 |
 | SCOWL English word list (derived, as in Ubuntu's `wamerican`) | MarkSmith OCR's dictionary correction | SCOWL permissive licence, notice in [legal/SCOWL-COPYRIGHT.txt](legal/SCOWL-COPYRIGHT.txt) |
 
-## Loaded at runtime for preview/render (from a public CDN, not redistributed)
+## Loaded at runtime for preview/render (bundled locally, loaded offline)
 
 | Component | Used for | License |
 | --- | --- | --- |
