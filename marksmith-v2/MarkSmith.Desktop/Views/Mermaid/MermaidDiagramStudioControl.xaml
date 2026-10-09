@@ -214,7 +214,7 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <Button Click="OnExportSvgClick" ToolTipService.ToolTip="Export the canvas as an SVG file" AutomationProperties.Name="Export SVG"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
-                        <FontIcon Glyph="&#xE896;" FontSize="14" Foreground="#4CC9F0" />
+                        <FontIcon Glyph="&#xEDE1;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
 
                     <Button Click="OnCopySvgClick" ToolTipService.ToolTip="Copy the diagram as SVG to the clipboard" AutomationProperties.Name="Copy SVG"

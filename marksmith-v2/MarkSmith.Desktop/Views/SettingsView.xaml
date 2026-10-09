@@ -70,7 +70,7 @@
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xEA90;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Automation" Tag="Automation">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE943;" /></NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE945;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Google Docs" Tag="Google">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE774;" /></NavigationViewItem.Icon>
@@ -94,7 +94,7 @@
                         <TextBlock Text="General" Style="{StaticResource SettingsPageTitleStyle}" />
 
                         <TextBlock Text="Editor" Style="{StaticResource SettingsSectionStyle}" Margin="1,0,0,4" />
-                        <controls:SettingsCard Glyph="&#xE945;" Header="Quick insert"
+                        <controls:SettingsCard Glyph="&#xE710;" Header="Quick insert"
                                                Description="Skip the insert dialogs. Links, images, code blocks, tabs, columns, timelines and the other components drop a ready-to-edit Markdown template straight into the editor.">
                             <ToggleSwitch Style="{StaticResource SettingsToggleStyle}" AutomationProperties.Name="Quick insert"
                                           IsOn="{Binding ProMode, Mode=TwoWay}" />
@@ -272,7 +272,7 @@
                                 </Grid>
                             </controls:SettingsCard.Details>
                         </controls:SettingsCard>
-                        <controls:SettingsCard Glyph="&#xE7F4;" Header="Port"
+                        <controls:SettingsCard Glyph="&#xEDA3;" Header="Port"
                                                Description="1024–65535. The server restarts on the new port straight away.">
                             <NumberBox AutomationProperties.Name="API port" Value="{Binding ApiPort, Mode=TwoWay}"
                                        Minimum="1024" Maximum="65535" SpinButtonPlacementMode="Compact" Width="140" />

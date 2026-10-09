@@ -187,7 +187,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE75C;" Style="{StaticResource TourGlyph}" />
+                        <FontIcon Glyph="&#xEA99;" Style="{StaticResource TourGlyph}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Cleanup switches: em-dash handling, strip emoji, and the AI-quirk normalizer — all code-block-safe." />
                     </Grid>
                     <Grid ColumnSpacing="12">
@@ -203,7 +203,7 @@
 
             <!-- 4 · Diagrams & math -->
             <StackPanel x:Name="Page3" Padding="8,4,8,4" Visibility="Collapsed">
-                <FontIcon Glyph="&#xEBD2;" Style="{StaticResource TourHero}" />
+                <FontIcon Glyph="&#xF003;" Style="{StaticResource TourHero}" />
                 <TextBlock Text="Diagrams &amp; math" Style="{StaticResource TourTitle}" />
                 <TextBlock Style="{StaticResource TourLead}" Text="The features nobody else bothers with." />
                 <StackPanel Spacing="10">

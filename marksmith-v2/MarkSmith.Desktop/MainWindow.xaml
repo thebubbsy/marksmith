@@ -80,7 +80,9 @@
                             Style="{StaticResource AccentButtonStyle}">
                         <Button.Flyout>
                             <MenuFlyout>
-                                <MenuFlyoutItem Text="Relaunch Now" Command="{Binding RelaunchNowCommand}" />
+                                <MenuFlyoutItem Text="Relaunch Now" Command="{Binding RelaunchNowCommand}">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72C;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
                             </MenuFlyout>
                         </Button.Flyout>
                     </Button>
@@ -154,7 +156,7 @@
                         Click="OnConvertPdfClick" IsEnabled="{Binding IsNotBusy}"
                         ToolTipService.ToolTip="Export as PDF (.pdf)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE749;" FontSize="12" />
+                        <FontIcon Glyph="&#xEA90;" FontSize="12" />
                         <TextBlock Text="Export PDF" FontSize="12" />
                     </StackPanel>
                 </Button>
@@ -162,7 +164,7 @@
                         Click="OnConvertDocxClick" IsEnabled="{Binding IsNotBusy}"
                         ToolTipService.ToolTip="Export as Word (.docx)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE74E;" FontSize="12" />
+                        <FontIcon Glyph="&#xE8A5;" FontSize="12" />
                         <TextBlock Text="Export Word" FontSize="12" />
                         <!-- Same PRO pill as the Branding section; only while the license can't export Word. -->
                         <Border Background="{ThemeResource SystemAccentColor}" CornerRadius="4" Padding="4,0"
@@ -184,7 +186,7 @@
                         Click="OnOpenMermaidStudioClick"
                         ToolTipService.ToolTip="Open Diagram Studio (Ctrl+Shift+M)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE943;" FontSize="12" />
+                        <FontIcon Glyph="&#xEF90;" FontSize="12" />
                         <TextBlock Text="Diagram Studio" FontSize="12" />
                     </StackPanel>
                 </Button>
@@ -1018,10 +1020,18 @@
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE0;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <MenuFlyoutItem Text="Heading 1" Click="OnH1Click" KeyboardAcceleratorTextOverride="Ctrl+1" />
-                                        <MenuFlyoutItem Text="Heading 2" Click="OnH2Click" KeyboardAcceleratorTextOverride="Ctrl+2" />
-                                        <MenuFlyoutItem Text="Heading 3" Click="OnH3Click" KeyboardAcceleratorTextOverride="Ctrl+3" />
-                                        <MenuFlyoutItem Text="Heading 4" Click="OnH4Click" KeyboardAcceleratorTextOverride="Ctrl+4" />
+                                        <MenuFlyoutItem Text="Heading 1" Click="OnH1Click" KeyboardAcceleratorTextOverride="Ctrl+1">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="H1" Style="{StaticResource MenuLetterIconStyle}" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Heading 2" Click="OnH2Click" KeyboardAcceleratorTextOverride="Ctrl+2">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="H2" Style="{StaticResource MenuLetterIconStyle}" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Heading 3" Click="OnH3Click" KeyboardAcceleratorTextOverride="Ctrl+3">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="H3" Style="{StaticResource MenuLetterIconStyle}" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Heading 4" Click="OnH4Click" KeyboardAcceleratorTextOverride="Ctrl+4">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="H4" Style="{StaticResource MenuLetterIconStyle}" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
                             </DropDownButton>
@@ -1094,11 +1104,11 @@
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEE56;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="Random tile map…" Click="OnInsertWaveFunctionClick" ToolTipService.ToolTip="A procedurally generated map of grass, road, water and wall tiles">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE945;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B1;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                         </MenuFlyoutSubItem>
                                         <MenuFlyoutSubItem Text="Diagrams and studios">
-                                            <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutSubItem.Icon>
+                                            <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xEB3C;" /></MenuFlyoutSubItem.Icon>
                                             <MenuFlyoutItem Text="Document Galaxy…" Click="OnOpenMindMapGalaxyClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEC26;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
@@ -1107,15 +1117,21 @@
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="SmartArt Studio…" Click="OnOpenSmartArtDesignStudioClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="Diagram Studio…" Click="OnOpenMermaidStudioClick" KeyboardAcceleratorTextOverride="Ctrl+Shift+M">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEF90;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Text="Workflow" Click="OnInsertWorkflowClick" />
-                                            <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
-                                            <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick" />
+                                            <MenuFlyoutItem Text="Workflow" Click="OnInsertWorkflowClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9D5;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C1;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
                                         </MenuFlyoutSubItem>
                                         <MenuFlyoutSeparator />
                                         <MenuFlyoutItem Text="References" Click="OnInsertReferencesClick">
@@ -1142,20 +1158,32 @@
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AB;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <MenuFlyoutItem Text="UPPERCASE" Click="OnTransformUpperClick" />
-                                        <MenuFlyoutItem Text="lowercase" Click="OnTransformLowerClick" />
-                                        <MenuFlyoutItem Text="Title Case" Click="OnTransformTitleClick" />
+                                        <MenuFlyoutItem Text="UPPERCASE" Click="OnTransformUpperClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="AB" Style="{StaticResource MenuLetterIconStyle}" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="lowercase" Click="OnTransformLowerClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="ab" Style="{StaticResource MenuLetterIconStyle}" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Title Case" Click="OnTransformTitleClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="Ab" Style="{StaticResource MenuLetterIconStyle}" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <MenuFlyoutItem Text="Sort lines A to Z" Click="OnSortLinesAscClick" />
-                                        <MenuFlyoutItem Text="Sort lines Z to A" Click="OnSortLinesDescClick" />
-                                        <MenuFlyoutItem Text="Remove duplicate lines" Click="OnDedupeLinesClick" />
+                                        <MenuFlyoutItem Text="Sort lines A to Z" Click="OnSortLinesAscClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Sort lines Z to A" Click="OnSortLinesDescClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Remove duplicate lines" Click="OnDedupeLinesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xECC9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
                                         <MenuFlyoutItem Text="Copy a table to Excel…" Click="OnExportTableClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE1;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
                                         <MenuFlyoutItem Text="Clean up document" Click="OnCleanupClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE771;" /></MenuFlyoutItem.Icon>
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA99;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
@@ -1246,7 +1274,7 @@
                                     </MenuFlyoutItem>
                                     <MenuFlyoutSeparator />
                                     <MenuFlyoutItem Text="Buy me a coffee" ToolTipService.ToolTip="Support MarkSmith's development (opens buymeacoffee.com in your browser)" Click="OnBuyCoffeeClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE76E;" /></MenuFlyoutItem.Icon>
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEC32;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                 </MenuFlyout>
                             </Button.Flyout>
@@ -1556,7 +1584,7 @@
                                 <InfoBar.ActionButton>
                                     <Button Click="OnOpenMermaidStudioClick" ToolTipService.ToolTip="Open Diagram Studio (Ctrl+Shift+M)">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon Glyph="&#xE943;" FontSize="14" />
+                                        <FontIcon Glyph="&#xEF90;" FontSize="14" />
                                         <TextBlock Text="Diagram Studio" />
                                     </StackPanel>
                                 </Button>
@@ -1570,7 +1598,7 @@
                                 <Expander x:Name="StyleContentExpander" Tag="Content" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon Glyph="&#xE8D2;" FontSize="14" />
+                                            <FontIcon Glyph="&#xEA99;" FontSize="14" />
                                             <TextBlock Text="Content &amp; cleanup" FontWeight="SemiBold" />
                                         </StackPanel>
                                     </Expander.Header>
@@ -1676,7 +1704,7 @@
                                 <Expander x:Name="StyleFormattingExpander" Tag="Formatting" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon Glyph="&#xE943;" FontSize="14" />
+                                            <FontIcon Glyph="&#xE8D2;" FontSize="14" />
                                             <TextBlock Text="Formatting &amp; text" FontWeight="SemiBold" />
                                         </StackPanel>
                                     </Expander.Header>
@@ -1855,16 +1883,16 @@
                                  Click="OnPrimaryExportClick" IsEnabled="{Binding IsNotBusy}"
                                  ToolTipService.ToolTip="Generate a Word document — use the chevron for other formats">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon x:Name="PrimaryExportIcon" Glyph="&#xE74E;" FontSize="16" />
+                            <FontIcon x:Name="PrimaryExportIcon" Glyph="&#xE8A5;" FontSize="16" />
                             <TextBlock x:Name="PrimaryExportText" Text="Generate Word (.docx)" FontWeight="SemiBold" />
                         </StackPanel>
                         <SplitButton.Flyout>
                             <MenuFlyout Placement="Bottom">
                                 <MenuFlyoutItem x:Name="ExportWordItem" Text="Export as Word (.docx)" Click="OnConvertDocxClick">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem x:Name="ExportPdfItem" Text="Export as PDF (.pdf)" Click="OnConvertPdfClick">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE749;" /></MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA90;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem x:Name="ExportPptxItem" Text="Export as PowerPoint (.pptx)" Click="OnConvertPptxClick"
                                                 ToolTipService.ToolTip="A slide for each heading, with a title slide, real bullets and tables, code, pictures and diagrams. Long sections continue on the next slide.">
@@ -1883,7 +1911,7 @@
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Export as Markdown (.md)" Click="OnExportMarkdownClick"
                                                 ToolTipService.ToolTip="Save the recovered/cleaned source as a Markdown file — the counterpart to importing a .docx">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C3;" /></MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="M&#x2193;" Style="{StaticResource MenuLetterIconStyle}" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutSeparator />
                                 <!-- Email is free on every plan (FeatureId.EmailDraft). -->

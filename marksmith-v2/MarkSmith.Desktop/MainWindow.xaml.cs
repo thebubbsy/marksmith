@@ -975,7 +975,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var word = Models.ProGate.PrimaryExportIsWord(st);
         PrimaryExportText.Text = Models.ProGate.PrimaryExportLabel(st);
-        PrimaryExportIcon.Glyph = word ? "\uE74E" : "\uE749";
+        PrimaryExportIcon.Glyph = word ? "\uE8A5" : "\uEA90";
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ExportSplitButton, word ? "Generate Word document" : "Generate PDF");
         ToolTipService.SetToolTip(ExportSplitButton, Models.ProGate.PrimaryExportTip(st));
 
@@ -3404,6 +3404,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         public Visibility ShortcutVisibility => Shortcut.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
+        // The same picture as the command's button or menu item (Core CommandIcons), so the
+        // palette isn't a wall of text. Letterforms (H1, AB) use the text font, like the menus.
+        public string Icon => Services.CommandIcons.ForPalette(Label, Category);
+        public FontFamily IconFont => Services.CommandIcons.IsGlyph(Icon) ? SymbolFont : LetterFont;
+        public double IconSize => Services.CommandIcons.IsGlyph(Icon) ? 16 : 11;
+        public Windows.UI.Text.FontWeight IconWeight => Services.CommandIcons.IsGlyph(Icon)
+            ? Microsoft.UI.Text.FontWeights.Normal : Microsoft.UI.Text.FontWeights.SemiBold;
+        private static readonly FontFamily SymbolFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+        private static readonly FontFamily LetterFont = new("Segoe UI Variable Text, Segoe UI");
+
         // What a screen reader announces for the row (it read the record's debug text,
         // "PaletteCommand { Label = …, Run = System.Func`1[…] }").
         public override string ToString() => Shortcut.Length > 0 ? $"{Label}, {Category}, {Shortcut}" : $"{Label}, {Category}";
@@ -3528,10 +3538,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         list.ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
             "<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>" +
             "<Grid ColumnSpacing='10' Padding='0,4'>" +
-            "<Grid.ColumnDefinitions><ColumnDefinition Width='*'/><ColumnDefinition Width='Auto'/><ColumnDefinition Width='Auto'/></Grid.ColumnDefinitions>" +
-            "<TextBlock Text='{Binding Label}' FontSize='13' TextTrimming='CharacterEllipsis' VerticalAlignment='Center'/>" +
-            "<TextBlock Grid.Column='1' Text='{Binding Category}' FontSize='11' VerticalAlignment='Center' Foreground='{ThemeResource TextFillColorTertiaryBrush}'/>" +
-            "<Border Grid.Column='2' Visibility='{Binding ShortcutVisibility}' VerticalAlignment='Center' CornerRadius='3' Padding='5,0,5,1' " +
+            "<Grid.ColumnDefinitions><ColumnDefinition Width='20'/><ColumnDefinition Width='*'/><ColumnDefinition Width='Auto'/><ColumnDefinition Width='Auto'/></Grid.ColumnDefinitions>" +
+            "<FontIcon Glyph='{Binding Icon}' FontFamily='{Binding IconFont}' FontSize='{Binding IconSize}' FontWeight='{Binding IconWeight}' " +
+            "HorizontalAlignment='Center' VerticalAlignment='Center' Foreground='{ThemeResource TextFillColorSecondaryBrush}'/>" +
+            "<TextBlock Grid.Column='1' Text='{Binding Label}' FontSize='13' TextTrimming='CharacterEllipsis' VerticalAlignment='Center'/>" +
+            "<TextBlock Grid.Column='2' Text='{Binding Category}' FontSize='11' VerticalAlignment='Center' Foreground='{ThemeResource TextFillColorTertiaryBrush}'/>" +
+            "<Border Grid.Column='3' Visibility='{Binding ShortcutVisibility}' VerticalAlignment='Center' CornerRadius='3' Padding='5,0,5,1' " +
             "Background='{ThemeResource SubtleFillColorSecondaryBrush}' BorderBrush='{ThemeResource ControlStrokeColorDefaultBrush}' BorderThickness='1'>" +
             "<TextBlock Text='{Binding Shortcut}' FontSize='11' Foreground='{ThemeResource TextFillColorSecondaryBrush}'/></Border>" +
             "</Grid></DataTemplate>");
@@ -5875,6 +5887,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnInsertSmartArtClick(object sender, RoutedEventArgs e)
     {
+        // Quick insert skipped every insert dialog but this one. Drop the dialog's opening
+        // example instead, the same as the other components.
+        if (App.Settings.Current.ProMode)
+        {
+            var example = Services.SmartArtInsert.Examples[0];
+            InsertMarkdown(Services.SmartArtInsert.Build(example.Alias, example.Text));
+            return;
+        }
+
         var control = new Views.SmartArtInsertControl();
         if (await ShowInsertDialogAsync("Insert SmartArt", control) != ContentDialogResult.Primary) return;
         InsertMarkdown(control.GeneratedSnippet);

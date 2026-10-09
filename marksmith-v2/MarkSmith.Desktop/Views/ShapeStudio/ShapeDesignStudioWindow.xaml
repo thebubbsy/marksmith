@@ -674,7 +674,9 @@
                         <MenuFlyoutItem Text="Fit diagram" Click="OnZoomFitClick" KeyboardAcceleratorTextOverride="Ctrl+0">
                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9A6;" /></MenuFlyoutItem.Icon>
                         </MenuFlyoutItem>
-                        <MenuFlyoutItem Text="Actual size" Click="OnZoomActualClick" KeyboardAcceleratorTextOverride="Ctrl+1" />
+                        <MenuFlyoutItem Text="Actual size" Click="OnZoomActualClick" KeyboardAcceleratorTextOverride="Ctrl+1">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71E;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
                         <MenuFlyoutSeparator />
                         <MenuFlyoutItem Text="Zoom in" Click="OnZoomInClick" KeyboardAcceleratorTextOverride="Ctrl+=">
                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A3;" /></MenuFlyoutItem.Icon>

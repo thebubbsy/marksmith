@@ -91,6 +91,14 @@
                 <Setter Property="Margin" Value="0,6,0,-4" />
             </Style>
 
+            <!-- A two-letter icon for menu items no glyph describes well (H1-H4, AB / ab / Ab):
+                 the same letterforms the wide editing bar shows, sized to the 16px icon column. -->
+            <Style x:Key="MenuLetterIconStyle" TargetType="FontIcon">
+                <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+
             <!-- Chevron between pipeline stages -->
             <Style x:Key="FlowChevronStyle" TargetType="FontIcon">
                 <Setter Property="Glyph" Value="&#xE76C;" />
