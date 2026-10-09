@@ -22,7 +22,8 @@
         <StackPanel Grid.Row="0" Spacing="6">
             <TextBlock Text="Shape Palette" FontWeight="SemiBold" FontSize="14" Foreground="#EDF2F4" />
             <TextBox x:Name="SearchTextBox"
-                     PlaceholderText="Search primitives…"
+                     PlaceholderText="Search shapes…"
+                     AutomationProperties.Name="Search shapes"
                      TextChanged="OnSearchTextChanged"
                      FontSize="12" />
         </StackPanel>
@@ -91,5 +92,14 @@
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
+
+        <!-- A search with no hits said nothing at all: the list just emptied. -->
+        <StackPanel x:Name="NoMatchesPanel" Grid.Row="2" Spacing="6" Margin="4,24,4,0" Visibility="Collapsed"
+                    HorizontalAlignment="Center" VerticalAlignment="Top">
+            <FontIcon Glyph="&#xE721;" FontSize="22" Foreground="#8D99AE" />
+            <TextBlock x:Name="NoMatchesText" FontSize="12" Foreground="#8D99AE" TextAlignment="Center" TextWrapping="Wrap" />
+            <HyperlinkButton x:Name="ClearSearchButton" Content="Show all shapes" Click="OnClearSearchClick"
+                             HorizontalAlignment="Center" FontSize="12" />
+        </StackPanel>
     </Grid>
 </UserControl>

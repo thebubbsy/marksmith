@@ -242,4 +242,80 @@ public class DiagramCanvasInteractionTests
         Assert.Contains(vm.Nodes, n => n.Id == "D");
         Assert.Contains("%% {", vm.GenerateMermaidCode());   // Sync to Markdown still carries them
     }
+    [Fact]
+    public void A_properties_panel_rename_is_one_undo_step()
+    {
+        var vm = Empty();
+        var a = Node(vm, "A", 100, 100);
+        a.LabelText = "Before";
+        vm.SelectNode(a, false);
+        Assert.False(vm.CanUndo);
+
+        foreach (var text in new[] { "A", "Af", "Aft", "After" })   // typed into the Label box
+            vm.SelectedNode!.LabelText = text;
+        Assert.True(vm.CanUndo);
+
+        vm.Undo();
+        Assert.Equal("Before", vm.Nodes.Single(n => n.Id == "A").LabelText);
+        Assert.False(vm.CanUndo);                                   // one step, not four
+    }
+
+    [Fact]
+    public void Each_field_edited_in_the_panel_is_its_own_step()
+    {
+        var vm = Empty();
+        var a = Node(vm, "A", 100, 100);
+        a.LabelText = "Name";
+        vm.SelectNode(a, false);
+        a.LabelText = "Renamed";
+        a.Shape = "Hexagon";
+
+        vm.Undo();
+        var n = vm.Nodes.Single(x => x.Id == "A");
+        Assert.Equal("Renamed", n.LabelText);
+        Assert.NotEqual("Hexagon", n.Shape);
+        vm.Undo();
+        Assert.Equal("Name", vm.Nodes.Single(x => x.Id == "A").LabelText);
+    }
+
+    [Fact]
+    public void A_connector_style_change_in_the_panel_can_be_undone()
+    {
+        var vm = Empty();
+        Node(vm, "A", 100, 100);
+        Node(vm, "B", 400, 100);
+        vm.AddConnector("A", "Right", "B", "Left");   // one step of its own
+        var c = vm.SelectedConnector!;
+        c.LineStyle = "Dashed";
+
+        vm.Undo();
+        Assert.Equal("Solid", vm.Connectors.Single().LineStyle);
+        Assert.True(vm.CanUndo);                      // adding the connector is still there to undo
+    }
+
+    [Fact]
+    public void A_change_made_with_its_own_snapshot_is_not_counted_twice()
+    {
+        var vm = Empty();
+        var a = Node(vm, "A", 100, 100);
+        a.LabelText = "Old";
+        vm.SelectNode(a, false);
+
+        vm.SnapshotForUndo();                         // the canvas's inline rename
+        using (vm.SuspendEditTracking())
+            a.LabelText = "New";
+
+        vm.Undo();
+        Assert.Equal("Old", vm.Nodes.Single(n => n.Id == "A").LabelText);
+        Assert.False(vm.CanUndo);
+    }
+
+    [Fact]
+    public void Edits_to_a_shape_that_is_not_selected_are_not_tracked()
+    {
+        var vm = Empty();
+        var a = Node(vm, "A", 100, 100);
+        a.LabelText = "Quiet";                        // e.g. a template being built
+        Assert.False(vm.CanUndo);
+    }
 }

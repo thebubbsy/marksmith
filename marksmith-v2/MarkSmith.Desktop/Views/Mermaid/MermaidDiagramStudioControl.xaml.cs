@@ -347,6 +347,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private void OnPalettePresetClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null || sender is not FrameworkElement { Tag: string name }) return;
+        // A preset recolours everything: one undo step (it used to be none).
+        if (!string.Equals(ViewModel.ActivePalette, name, StringComparison.Ordinal)) ViewModel.SnapshotForUndo();
         ViewModel.ActivePalette = name;
         HighlightActivePalette();
     }

@@ -37,11 +37,57 @@ public sealed partial class NodePaletteControl : UserControl
     {
         InitializeComponent();
         HoverPolish.Track(this);
+        DataContextChanged += (_, _) => WatchDiagramType();
+    }
+
+    private ViewModels.Mermaid.MermaidStudioViewModel? _watchedVm;
+
+    // The palette follows the diagram: opening a sequence diagram shows the sequence shapes (a
+    // flowchart box dropped into it has nowhere sensible to go). Any pill can still be picked.
+    private void WatchDiagramType()
+    {
+        if (_watchedVm != null) _watchedVm.PropertyChanged -= OnVmPropertyChanged;
+        _watchedVm = DataContext as ViewModels.Mermaid.MermaidStudioViewModel;
+        if (_watchedVm == null) return;
+        _watchedVm.PropertyChanged += OnVmPropertyChanged;
+        SelectCategoryFor(_watchedVm.SelectedDiagramType);
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ViewModels.Mermaid.MermaidStudioViewModel.SelectedDiagramType) && _watchedVm != null)
+            SelectCategoryFor(_watchedVm.SelectedDiagramType);
+    }
+
+    private void SelectCategoryFor(MarkSmith.Mermaid.Ast.MermaidDiagramType type)
+    {
+        var pill = type switch
+        {
+            MarkSmith.Mermaid.Ast.MermaidDiagramType.Sequence => CatSequence,
+            MarkSmith.Mermaid.Ast.MermaidDiagramType.Class => CatClass,
+            MarkSmith.Mermaid.Ast.MermaidDiagramType.State => CatState,
+            MarkSmith.Mermaid.Ast.MermaidDiagramType.Gantt => CatGantt,
+            MarkSmith.Mermaid.Ast.MermaidDiagramType.Er => CatER,
+            MarkSmith.Mermaid.Ast.MermaidDiagramType.Mindmap => CatMindmap,
+            _ => CatFlowchart,
+        };
+        SelectPill(pill);
+    }
+
+    private void OnClearSearchClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    {
+        SearchTextBox.Text = string.Empty;
+        SelectPill(CatAll);
     }
 
     private void OnCategoryPillClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
     {
-        if (sender is ToggleButton btn && btn.Content is string cat)
+        if (sender is ToggleButton btn) SelectPill(btn);
+    }
+
+    private void SelectPill(ToggleButton btn)
+    {
+        if (btn.Content is string cat)
         {
             _selectedCategory = cat;
             CatAll.IsChecked = btn == CatAll;
@@ -79,6 +125,12 @@ public sealed partial class NodePaletteControl : UserControl
             }).ToList();
 
             PaletteListView.ItemsSource = filtered;
+
+            NoMatchesPanel.Visibility = filtered.Count == 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+            if (filtered.Count == 0)
+                NoMatchesText.Text = string.IsNullOrEmpty(searchText)
+                    ? $"No {selectedCat} shapes."
+                    : selectedCat == "All" ? $"No shapes match “{SearchTextBox.Text.Trim()}”." : $"No {selectedCat} shapes match “{SearchTextBox.Text.Trim()}”.";
         }
     }
 

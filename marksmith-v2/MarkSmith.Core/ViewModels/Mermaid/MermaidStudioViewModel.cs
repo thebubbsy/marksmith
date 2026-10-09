@@ -45,6 +45,61 @@ public partial class MermaidStudioViewModel : ObservableObject
     {
         if (oldValue is not null) oldValue.IsSelected = false;
         if (newValue is not null) newValue.IsSelected = true;
+        if (oldValue is not null) oldValue.PropertyChanging -= OnTrackedItemChanging;
+        if (newValue is not null) newValue.PropertyChanging += OnTrackedItemChanging;
+        _openEditKey = null;
+    }
+
+    partial void OnSelectedNodeChanged(DiagramNodeViewModel? oldValue, DiagramNodeViewModel? newValue)
+    {
+        if (oldValue is not null) oldValue.PropertyChanging -= OnTrackedItemChanging;
+        if (newValue is not null) newValue.PropertyChanging += OnTrackedItemChanging;
+        _openEditKey = null;
+    }
+
+    // ---- Properties-panel edits are undo steps ----
+    // The panel binds straight to the selected node or connector, so its edits never went through
+    // SnapshotForUndo: Ctrl+Z skipped a rename or a recolour and undid the canvas change before
+    // it. Now the first change to a field takes a snapshot, and further changes to the same field
+    // (each keystroke of a label, each step of a colour drag) join that one step. Geometry isn't
+    // tracked here: drags, nudges and resizes take their own snapshots.
+    private static readonly HashSet<string> TrackedProperties =
+    [
+        nameof(DiagramNodeViewModel.LabelText), nameof(DiagramNodeViewModel.Shape),
+        nameof(DiagramNodeViewModel.FillColor), nameof(DiagramNodeViewModel.StrokeColor),
+        nameof(DiagramConnectorViewModel.Label), nameof(DiagramConnectorViewModel.LineStyle),
+        nameof(DiagramConnectorViewModel.EndHead),
+    ];
+
+    private (object Item, string Property)? _openEditKey;
+    private int _editTrackingSuspended;
+
+    private void OnTrackedItemChanging(object? sender, System.ComponentModel.PropertyChangingEventArgs e)
+    {
+        if (_editTrackingSuspended > 0 || sender is null || e.PropertyName is null || !TrackedProperties.Contains(e.PropertyName)) return;
+        var key = (sender, e.PropertyName);
+        if (_openEditKey == key) return;
+        SnapshotForUndo();
+        _openEditKey = key;
+    }
+
+    /// <summary>For code that sets a tracked field and takes its own snapshot (the canvas's
+    /// inline rename, a style preset): no second undo step while the scope is open.</summary>
+    public IDisposable SuspendEditTracking()
+    {
+        _editTrackingSuspended++;
+        return new EditTrackingScope(this);
+    }
+
+    private sealed class EditTrackingScope(MermaidStudioViewModel vm) : IDisposable
+    {
+        private bool _done;
+        public void Dispose()
+        {
+            if (_done) return;
+            _done = true;
+            vm._editTrackingSuspended--;
+        }
     }
 
     [ObservableProperty]
@@ -165,6 +220,7 @@ public partial class MermaidStudioViewModel : ObservableObject
     // Call BEFORE a mutation so the pre-change state is what gets restored.
     public void SnapshotForUndo()
     {
+        _openEditKey = null; // the next panel edit starts a step of its own
         _undoStack.Add(GenerateMermaidCode());
         if (_undoStack.Count > MaxUndoDepth) _undoStack.RemoveAt(0);
         _redoStack.Clear();
@@ -2703,6 +2759,7 @@ public partial class MermaidStudioViewModel : ObservableObject
     {
         var preset = StylePresets.FirstOrDefault(p => p.Name == value);
         if (preset is null) return; // empty/unknown -> keep current colors
+        using var _ = SuspendEditTracking(); // a preset is one step, taken by whoever applied it
         foreach (var n in Nodes)
         {
             n.FillColor = preset.Fill;

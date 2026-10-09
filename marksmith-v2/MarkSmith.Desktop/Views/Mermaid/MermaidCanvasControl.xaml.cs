@@ -1227,6 +1227,7 @@ public sealed partial class MermaidCanvasControl : UserControl
             if (!string.Equals(newText, _editingNode.LabelText, StringComparison.Ordinal))
             {
                 ViewModel?.SnapshotForUndo();
+                using var _ = ViewModel?.SuspendEditTracking(); // the snapshot above is the step
                 _editingNode.LabelText = newText;
                 _editingNode.RecalculateBoundsForText();
                 ViewModel?.UpdateConnectedConnectors(_editingNode);
@@ -1239,6 +1240,7 @@ public sealed partial class MermaidCanvasControl : UserControl
             if (!string.Equals(newText, _editingConnector.Label, StringComparison.Ordinal))
             {
                 ViewModel?.SnapshotForUndo();
+                using var _ = ViewModel?.SuspendEditTracking();
                 _editingConnector.Label = newText;
             }
             _editingConnector = null;
