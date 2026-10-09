@@ -4197,7 +4197,7 @@ Mermaid edits do compile alongside ours.
   Path grows past its box by half the stroke (negative margin plus a geometry translate).
   `SameCanvas` compares `StrokeWidthPt`. The palette `ItemsWrapGrid` sizes its tiles in
   `OnPaletteGridSizeChanged`. SmartArt: `LevelToIndentConverter` ConverterParameter="depth"
-  (20 px per level). Tests: `ShapeStudioLineNamesTests` (9), CommandSearch (+8),
+  (20 px per level). Tests: `ShapeStudioLineNamesTests` (9), CommandSearch (+6 methods, 11 cases),
   PreviewCardPlacement (+2).
 - `2e25362` Status bar: `OnStatusTextChanged` resets `StatusSeverity` to Informational (every
   caller sets severity after the text; checked by script, none before). Routine notes fade
@@ -4241,3 +4241,8 @@ builds and launches.
    type picker.
 4. Shape Studio: the timeline preset's cards float clear of the track (no ticks). Check Word's
    output before calling it a bug.
+
+**Release (same run):** tagged **v3.9.0** on `fb5cb02` after CI passed on `2e25362`. The release
+workflow built the x64 and arm64 installers and zips (5 assets). Notes were prepended to the
+workflow body afterwards, covering run #48's Diagram Studio canvas work and this run.
+`MarksmithBaseVersion` is now **3.10.0** (`323ea49`).
