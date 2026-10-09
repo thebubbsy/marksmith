@@ -584,7 +584,7 @@ namespace MarkSmith.Tests
             vm.AddRootNode();
 
             Assert.NotEqual(before, vm.NodesCountText);
-            Assert.Equal($"{vm.Nodes.Count} Nodes", vm.NodesCountText);
+            Assert.Equal($"{vm.Nodes.Count} nodes", vm.NodesCountText);
         }
 
         [Fact]

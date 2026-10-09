@@ -529,11 +529,17 @@ namespace MarkSmith.Services.MindMap
 
         public string HeadlineSummary()
         {
-            if (NodeCount == 0) return "Empty galaxy — import a folder or add your first document node.";
-            string hub = Hubs.Count > 0 ? $" · busiest: {Hubs[0].Title} ({Hubs[0].Degree} links)" : "";
-            string floaters = IsolatedNodeIds.Count > 0 ? $" · {IsolatedNodeIds.Count} unconnected" : "";
-            return $"{NodeCount} documents · {LinkCount + HierarchyEdgeCount} connections · " +
-                   $"{ClusterCount} cluster{(ClusterCount == 1 ? "" : "s")} · density {Density.ToString("0.##", CultureInfo.InvariantCulture)}{hub}{floaters}";
+            // Plain words: this sits in the inspector and the status bar, where "density 1.4" meant
+            // nothing to anyone. The full figures are one click away in the map report.
+            if (NodeCount == 0) return "The map is empty. Add a node or import a folder.";
+            static string N(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
+            int connections = LinkCount + HierarchyEdgeCount;
+            string text = $"{N(NodeCount, "document")} and {N(connections, "connection")}";
+            if (ClusterCount > 1) text += $" in {N(ClusterCount, "separate group")}";
+            text += ".";
+            if (Hubs.Count > 0) text += $" Most connected: {Hubs[0].Title}.";
+            if (IsolatedNodeIds.Count > 0) text += $" {IsolatedNodeIds.Count} not linked to anything.";
+            return text;
         }
     }
 }

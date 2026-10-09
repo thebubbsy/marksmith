@@ -152,21 +152,22 @@ namespace MarkSmith.ViewModels.MindMap
 
         /// <summary>Re-probes the disk for this one node. Call it off the UI thread when sweeping
         /// a whole galaxy.</summary>
-        public void RefreshFileState()
+        public void RefreshFileState() => IsFileMissing = ProbeFileMissing();
+
+        /// <summary>The disk check on its own, without touching any bindable state, so a sweep can
+        /// run it on a worker thread and apply the answers on the UI thread.</summary>
+        public bool ProbeFileMissing()
         {
-            if (string.IsNullOrWhiteSpace(FilePath))
-            {
-                IsFileMissing = false;
-                return;
-            }
+            string? path = FilePath;
+            if (string.IsNullOrWhiteSpace(path)) return false;
             try
             {
-                IsFileMissing = !File.Exists(FilePath) && !Directory.Exists(FilePath);
+                return !File.Exists(path) && !Directory.Exists(path);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
             {
                 // An unreadable path is not the same as a missing one; don't cry wolf.
-                IsFileMissing = false;
+                return false;
             }
         }
 
@@ -174,6 +175,24 @@ namespace MarkSmith.ViewModels.MindMap
         public string ProgressText => $"{Progress}%";
         public bool HasTags => Tags.Count > 0;
         public string TagSummary => Tags.Count == 0 ? "" : string.Join("  ", Tags.Take(3));
+
+        /// <summary>The tags as one editable line. The inspector used to show a read-only box
+        /// beside an "Edit Tags" button that opened a dialog holding the same box.</summary>
+        public string TagsText
+        {
+            get => string.Join(" ", Tags);
+            set
+            {
+                var parsed = Services.MindMap.MindMapGraph.NormalizeTags(
+                    (value ?? "").Split(new[] { ' ', ',', ';', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries));
+                if (parsed.SequenceEqual(Tags, StringComparer.Ordinal)) return;
+
+                OnPropertyChanging();
+                Tags.Clear();
+                foreach (var t in parsed) Tags.Add(t);
+                OnPropertyChanged();
+            }
+        }
         public bool IsHub => ConnectionCount >= 4;
 
         partial void OnProgressChanged(int value)

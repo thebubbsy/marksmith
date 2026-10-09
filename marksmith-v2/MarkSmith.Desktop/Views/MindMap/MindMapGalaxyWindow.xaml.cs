@@ -6,7 +6,9 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
@@ -54,6 +56,8 @@ namespace MarkSmith.Views.MindMap
 
             ViewModel.CanvasRedrawRequested += (s, e) => RequestRedraw();
             ViewModel.OpenDocumentRequested += (s, path) => OpenDocumentRequested?.Invoke(this, path);
+            ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+            ViewModel.NodeCreated += OnNodeCreated;
 
             // The canvas has to be able to take focus or the window never sees a key press.
             GalaxyCanvas.IsTabStop = true;
@@ -61,6 +65,105 @@ namespace MarkSmith.Views.MindMap
             this.Activated += OnWindowActivated;
             this.RootGrid.KeyDown += OnRootKeyDown;
             HoverPolish.Track(this.RootGrid);
+            SetCursor(MinimapCanvas, Microsoft.UI.Input.InputSystemCursorShape.Hand);
+
+            // Closing used to throw away every unsaved change without a word.
+            AppWindow.Closing += OnAppWindowClosing;
+        }
+
+        private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(MindMapStudioViewModel.SelectedThemeName):
+                    ApplyPalette();
+                    break;
+                case nameof(MindMapStudioViewModel.SelectedTagFilter):
+                    UpdateTagPills();
+                    break;
+                case nameof(MindMapStudioViewModel.SelectedNode):
+                    WatchSelectedNodeColour();
+                    UpdateSwatches();
+                    break;
+            }
+        }
+
+        // ---- Closing with unsaved changes ----
+
+        private bool _allowClose;
+        private bool _confirmingClose;
+
+        private void OnAppWindowClosing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
+        {
+            if (_allowClose || !ViewModel.IsDirty) return;
+
+            args.Cancel = true;
+            // Only one ContentDialog can be open per window; with the map report or a link dialog
+            // up, the X leaves the window open and that dialog in front, rather than failing to
+            // show a second one.
+            if (_confirmingClose || HoverPolish.IsContentDialogOpen(this.Content.XamlRoot)) return;
+            _confirmingClose = true;
+            _ = ConfirmCloseAsync();
+        }
+
+        private async Task ConfirmCloseAsync()
+        {
+            try
+            {
+                // A text box holding an edit commits it on LostFocus; take focus first so that edit
+                // is part of what gets saved.
+                GalaxyCanvas.Focus(FocusState.Programmatic);
+
+                var dialog = new ContentDialog
+                {
+                    Title = "Save changes to the map?",
+                    Content = "Your map has changes that haven't been saved. Save them before closing?",
+                    PrimaryButtonText = "Save",
+                    SecondaryButtonText = "Don't save",
+                    CloseButtonText = "Cancel",
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                var result = await HoverPolish.ShowPolishedAsync(dialog);
+                if (result == ContentDialogResult.None) return;
+                if (result == ContentDialogResult.Primary)
+                {
+                    await ViewModel.SaveAsync();
+                    if (ViewModel.IsDirty) return; // the save failed; the status bar says why
+                }
+                _allowClose = true;
+                Close();
+            }
+            finally
+            {
+                _confirmingClose = false;
+            }
+        }
+
+        // ---- Naming a new node ----
+
+        /// <summary>A new node arrives selected with its placeholder title highlighted in the
+        /// inspector, so typing names it and Enter goes back to the map for the next one.</summary>
+        private void OnNodeCreated(object? sender, MindMapNodeViewModel node)
+        {
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                if (ViewModel.SelectedNode != node) return;
+                TitleBox.Focus(FocusState.Programmatic);
+                TitleBox.SelectAll();
+            });
+        }
+
+        /// <summary>Enter commits a single-line inspector field and hands the keyboard back to the
+        /// map; Esc does the same. Tab/Enter on the map then keep adding nodes.</summary>
+        private void OnInspectorFieldKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Escape)
+            {
+                e.Handled = true;
+                GalaxyCanvas.Focus(FocusState.Programmatic);
+            }
         }
 
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)
@@ -71,6 +174,10 @@ namespace MarkSmith.Views.MindMap
                 // Load the user's saved galaxy. Until this call existed the studio showed the
                 // built-in sample every single time, no matter what had been saved.
                 await ViewModel.InitializeAsync();
+                ApplyPalette();
+                UpdateTagPills();
+                WatchSelectedNodeColour();
+                UpdateSwatches();
                 FitToWindow();
             }
             RequestRedraw();
@@ -148,12 +255,42 @@ namespace MarkSmith.Views.MindMap
         }
 
         private void OnCanvasContainerSizeChanged(object sender, SizeChangedEventArgs e)
-            => RequestRedraw(RedrawScope.Transform);
+        {
+            // A Canvas draws its children wherever they are, bounds or not: link labels and cards
+            // near the right edge were painted over the (translucent) inspector.
+            CanvasContainer.Clip = new RectangleGeometry { Rect = new Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
+            RequestRedraw(RedrawScope.Transform);
+        }
 
         // ---- Retained scene ----
 
         private static readonly Microsoft.UI.Xaml.Media.FontFamily IconFontFamily =
             new("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Emoji, Segoe UI");
+
+        private static readonly Microsoft.UI.Xaml.Media.FontFamily GlyphFontFamily =
+            new("Segoe Fluent Icons, Segoe MDL2 Assets");
+
+        /// <summary>A small "icon + number" label. The icon is its own run in the icon font: a
+        /// single fallback chain would draw the digits as Segoe Fluent Icons' boxes.</summary>
+        private static (TextBlock Block, Microsoft.UI.Xaml.Documents.Run Text) GlyphLabel(string glyph, double size, Brush ink)
+        {
+            var block = new TextBlock { FontSize = size, Foreground = ink, VerticalAlignment = VerticalAlignment.Center };
+            block.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = glyph, FontFamily = GlyphFontFamily, FontSize = size });
+            var text = new Microsoft.UI.Xaml.Documents.Run();
+            block.Inlines.Add(text);
+            return (block, text);
+        }
+
+        // UIElement.ProtectedCursor is protected in WinUI 3; reflection is the usual way to set it
+        // on an element from outside (same helper as the other canvases).
+        private static readonly System.Reflection.PropertyInfo? ProtectedCursorProperty =
+            typeof(UIElement).GetProperty("ProtectedCursor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+        private static void SetCursor(UIElement element, Microsoft.UI.Input.InputSystemCursorShape shape)
+        {
+            try { ProtectedCursorProperty?.SetValue(element, Microsoft.UI.Input.InputSystemCursor.Create(shape)); }
+            catch { /* cursor feedback is cosmetic */ }
+        }
 
         private sealed class NodeVisual
         {
@@ -169,9 +306,14 @@ namespace MarkSmith.Views.MindMap
             public TextBlock ProgressText = null!;
             public TextBlock TagText = null!;
             public TextBlock ConnectionText = null!;
+            public Microsoft.UI.Xaml.Documents.Run ConnectionCount = null!;
             public Border VersionHost = null!;
             public TextBlock VersionText = null!;
+            public Microsoft.UI.Xaml.Documents.Run VersionCount = null!;
             public TextBlock MissingMark = null!;
+
+            public ScaleTransform Lift = null!;
+            public bool Lifted;
 
             public SolidColorBrush CardFill = null!;
             public SolidColorBrush BorderStroke = null!;
@@ -179,6 +321,7 @@ namespace MarkSmith.Views.MindMap
             public SolidColorBrush BadgeFill = null!;
             public SolidColorBrush BadgeInk = null!;
             public SolidColorBrush MutedInk = null!;
+            public SolidColorBrush TrackFill = null!;
             public SolidColorBrush ConnectionInk = null!;
         }
 
@@ -317,9 +460,11 @@ namespace MarkSmith.Views.MindMap
                 BadgeFill = new SolidColorBrush(ColorFromHex(node.ColorHex)),
                 BadgeInk = new SolidColorBrush(Colors.White),
                 MutedInk = new SolidColorBrush(_palette.Muted),
+                TrackFill = new SolidColorBrush(_palette.Track),
                 ConnectionInk = new SolidColorBrush(_palette.Muted)
             };
 
+            v.Lift = new ScaleTransform { ScaleX = 1, ScaleY = 1 };
             v.Root = new Border
             {
                 Background = v.CardFill,
@@ -327,8 +472,12 @@ namespace MarkSmith.Views.MindMap
                 BorderThickness = new Thickness(1.4),
                 CornerRadius = new CornerRadius(9),
                 Padding = new Thickness(8, 5, 8, 5),
-                Tag = node
+                Tag = node,
+                RenderTransform = v.Lift,
+                RenderTransformOrigin = new Point(0.5, 0.5)
             };
+            AutomationProperties.SetName(v.Root, node.Title);
+            SetCursor(v.Root, Microsoft.UI.Input.InputSystemCursorShape.Hand);
 
             v.Detail = new Grid();
             v.Detail.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -342,7 +491,9 @@ namespace MarkSmith.Views.MindMap
             // Node icons are Segoe Fluent code points (the auto-linker and starter vault) or, in
             // older/hand-edited vaults, emoji. A plain TextBlock in the text font drew every
             // Fluent one as a missing-glyph box, so give it a per-character fallback chain.
-            v.Icon = new TextBlock { FontSize = 13, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center, FontFamily = IconFontFamily };
+            // Inked like the title: without its own brush the icon took the app theme's text colour
+            // and vanished on Clean White's white cards.
+            v.Icon = new TextBlock { FontSize = 13, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center, FontFamily = IconFontFamily, Foreground = v.TitleInk };
             Grid.SetColumn(v.Icon, 0);
             topPanel.Children.Add(v.Icon);
 
@@ -393,7 +544,7 @@ namespace MarkSmith.Views.MindMap
                 Width = 46,
                 Height = 4,
                 CornerRadius = new CornerRadius(2),
-                Background = new SolidColorBrush(ColorFromHex("#33FFFFFF")),
+                Background = v.TrackFill,
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = v.ProgressFill
             };
@@ -411,31 +562,33 @@ namespace MarkSmith.Views.MindMap
             v.TagText = new TextBlock { FontSize = 9, Foreground = v.MutedInk, VerticalAlignment = VerticalAlignment.Center };
             v.Bottom.Children.Add(v.TagText);
 
-            v.ConnectionText = new TextBlock { FontSize = 9, Foreground = v.ConnectionInk, VerticalAlignment = VerticalAlignment.Center };
+            // Card glyphs come from Segoe Fluent Icons, like every other icon in the app; these
+            // three were emoji (🔗 ⏱️ ⚠), which drew in colour at a different size and baseline.
+            (v.ConnectionText, v.ConnectionCount) = GlyphLabel("", 9, v.ConnectionInk);
             v.Bottom.Children.Add(v.ConnectionText);
 
-            v.VersionText = new TextBlock
-            {
-                FontSize = 8.5,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(ColorFromHex("#38BDF8"))
-            };
+            (v.VersionText, v.VersionCount) = GlyphLabel("", 9, new SolidColorBrush(ColorFromHex("#38BDF8")));
+            v.VersionText.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
             v.VersionHost = new Border
             {
                 Background = new SolidColorBrush(ColorFromHex("#1C2D42")),
                 CornerRadius = new CornerRadius(3),
                 Padding = new Thickness(4, 1, 4, 1),
+                VerticalAlignment = VerticalAlignment.Center,
                 Child = v.VersionText
             };
+            ToolTipService.SetToolTip(v.VersionHost, "Saved versions of this document");
             v.Bottom.Children.Add(v.VersionHost);
 
             v.MissingMark = new TextBlock
             {
-                Text = "⚠",
+                Text = "",
+                FontFamily = GlyphFontFamily,
                 FontSize = 10,
-                Foreground = new SolidColorBrush(ColorFromHex("#E11D48")),
+                Foreground = new SolidColorBrush(ColorFromHex("#F87171")),
                 VerticalAlignment = VerticalAlignment.Center
             };
+            ToolTipService.SetToolTip(v.MissingMark, "The linked file isn't there any more");
             v.Bottom.Children.Add(v.MissingMark);
 
             Grid.SetRow(v.Bottom, 1);
@@ -486,6 +639,20 @@ namespace MarkSmith.Views.MindMap
             hit.IsHitTestVisible = true;
             hit.Tag = link;
             hit.PointerPressed += OnLinkPointerPressed;
+            // Hovering a link thickens it, so you can tell which line a click will pick before
+            // clicking among several crossing ones.
+            hit.PointerEntered += (s, args) =>
+            {
+                if (_draggedNode != null || _isPanning) return;
+                link.IsHovered = true;
+                RequestRedraw(RedrawScope.Appearance);
+            };
+            hit.PointerExited += (s, args) =>
+            {
+                link.IsHovered = false;
+                RequestRedraw(RedrawScope.Appearance);
+            };
+            SetCursor(hit, Microsoft.UI.Input.InputSystemCursorShape.Hand);
             hit.ContextFlyout = BuildLinkContextMenu(link);
             e.Hit = hit;
             e.HitFigure = hitFigure;
@@ -691,18 +858,31 @@ namespace MarkSmith.Views.MindMap
 
                 Color borderColor;
                 double borderThickness;
-                if (node.IsSelected) { borderColor = Colors.White; borderThickness = 2.6; }
+                if (node.IsSelected) { borderColor = _palette.SelectionInk; borderThickness = 2.6; }
                 else if (node.IsHighlighted) { borderColor = ColorFromHex("#22D3EE"); borderThickness = 2.4; }
                 else if (node.IsNeighbor) { borderColor = accent; borderThickness = 2.2; }
                 else { borderColor = accent; borderThickness = node.IsHub ? 2.2 : 1.4; }
 
-                v.CardFill.Color = _palette.CardBackground;
+                // Hover: a brighter, heavier border and a small lift, so the card under the pointer
+                // reads as the one a click or drag will take.
+                bool hovered = node.IsHovered && !node.IsSelected && _draggedNode == null;
+                if (hovered)
+                {
+                    borderColor = Blend(borderColor, _palette.SelectionInk, 0.35);
+                    borderThickness += 0.8;
+                }
+
+                v.CardFill.Color = CardFillFor(node);
                 v.BorderStroke.Color = borderColor;
                 v.Root.BorderThickness = new Thickness(borderThickness);
-                v.Root.Opacity = node.IsDimmed ? 0.22 : 1.0;
+                v.Root.Opacity = node.IsDimmed ? (hovered ? 0.6 : 0.22) : 1.0;
+                Canvas.SetZIndex(v.Root, node.IsSelected ? 2 : hovered ? 1 : 0);
+                SetLift(v, hovered);
+                if (AutomationProperties.GetName(v.Root) != node.Title) AutomationProperties.SetName(v.Root, node.Title);
 
                 v.TitleInk.Color = _palette.Text;
                 v.MutedInk.Color = _palette.Muted;
+                v.TrackFill.Color = _palette.Track;
                 v.BadgeFill.Color = accent;
                 v.BadgeInk.Color = ReadableOn(accent);
 
@@ -727,13 +907,13 @@ namespace MarkSmith.Views.MindMap
                 v.ConnectionText.Visibility = hasConnections ? Visibility.Visible : Visibility.Collapsed;
                 if (hasConnections)
                 {
-                    v.ConnectionText.Text = node.IsHub ? $"🔗 {node.ConnectionCount} hub" : $"🔗 {node.ConnectionCount}";
+                    v.ConnectionCount.Text = node.IsHub ? $" {node.ConnectionCount} · hub" : $" {node.ConnectionCount}";
                     v.ConnectionText.FontWeight = node.IsHub ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
-                    v.ConnectionInk.Color = node.IsHub ? ColorFromHex("#FBBF24") : _palette.Muted;
+                    v.ConnectionInk.Color = node.IsHub ? _palette.HubInk : _palette.Muted;
                 }
 
                 v.VersionHost.Visibility = node.HasVersions ? Visibility.Visible : Visibility.Collapsed;
-                if (node.HasVersions) v.VersionText.Text = $"⏱️ {node.VersionCount}";
+                if (node.HasVersions) v.VersionCount.Text = $" {node.VersionCount}";
 
                 v.MissingMark.Visibility = node.IsFileMissing ? Visibility.Visible : Visibility.Collapsed;
 
@@ -755,9 +935,10 @@ namespace MarkSmith.Views.MindMap
                 }
 
                 var link = e.Link;
-                e.Stroke.Color = link.IsSelected ? Colors.White : ColorFromHex(link.ColorHex);
-                e.Line.StrokeThickness = link.IsSelected ? 3.6 : (link.IsInferred ? 1.6 : 2.6);
-                e.Line.Opacity = faded ? 0.15 : (link.IsInferred ? 0.62 : 0.95);
+                bool linkHovered = link.IsHovered && !link.IsSelected;
+                e.Stroke.Color = link.IsSelected ? _palette.SelectionInk : ColorFromHex(link.ColorHex);
+                e.Line.StrokeThickness = link.IsSelected ? 3.6 : (link.IsInferred ? 1.6 : 2.6) + (linkHovered ? 1.4 : 0);
+                e.Line.Opacity = faded ? 0.15 : linkHovered ? 1.0 : (link.IsInferred ? 0.62 : 0.95);
                 bool wantDashed = link.Style == MindMapLinkStyle.Dashed || link.IsInferred;
                 if (wantDashed != e.Dashed)
                 {
@@ -825,13 +1006,11 @@ namespace MarkSmith.Views.MindMap
                 if (v.Detail.Visibility != detailVisibility) v.Detail.Visibility = detailVisibility;
 
                 // Far out, a card is a few pixels tall; the accent chip alone still reads as a star.
-                if (detailVisibility == Visibility.Collapsed)
+                if (_nodeIndex.TryGetValue(id, out var node))
                 {
-                    if (_nodeIndex.TryGetValue(id, out var node)) v.CardFill.Color = ColorFromHex(node.ColorHex);
-                }
-                else
-                {
-                    v.CardFill.Color = _palette.CardBackground;
+                    v.CardFill.Color = detailVisibility == Visibility.Collapsed
+                        ? ColorFromHex(node.ColorHex)
+                        : CardFillFor(node);
                 }
             }
 
@@ -849,6 +1028,50 @@ namespace MarkSmith.Views.MindMap
         private double CanvasWidth => CanvasContainer.ActualWidth > 0 ? CanvasContainer.ActualWidth : 900;
         private double CanvasHeight => CanvasContainer.ActualHeight > 0 ? CanvasContainer.ActualHeight : 600;
 
+        // ---- Hover lift ----
+
+        /// <summary>The fill a card should have right now: a faint wash of its accent while the
+        /// pointer is over it.</summary>
+        private Color CardFillFor(MindMapNodeViewModel node)
+        {
+            bool hovered = node.IsHovered && !node.IsSelected && _draggedNode == null;
+            return hovered ? Blend(_palette.CardBackground, ColorFromHex(node.ColorHex), 0.12) : _palette.CardBackground;
+        }
+
+        private static Color Blend(Color from, Color to, double amount) => Color.FromArgb(
+            from.A,
+            (byte)Math.Round(from.R + (to.R - from.R) * amount),
+            (byte)Math.Round(from.G + (to.G - from.G) * amount),
+            (byte)Math.Round(from.B + (to.B - from.B) * amount));
+
+        /// <summary>Raises a card a little under the pointer, with the same timing as every button's
+        /// hover lift. Only animates when the state actually flips.</summary>
+        private static void SetLift(NodeVisual v, bool lifted)
+        {
+            if (v.Lifted == lifted) return;
+            v.Lifted = lifted;
+            double to = lifted ? 1.035 : 1.0;
+
+            if (!HoverPolish.AnimationsEnabled)
+            {
+                v.Lift.ScaleX = to;
+                v.Lift.ScaleY = to;
+                return;
+            }
+
+            var ease = new Microsoft.UI.Xaml.Media.Animation.CubicEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut };
+            var duration = new Duration(TimeSpan.FromMilliseconds(140));
+            var sb = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+            foreach (var property in new[] { nameof(ScaleTransform.ScaleX), nameof(ScaleTransform.ScaleY) })
+            {
+                var anim = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation { To = to, Duration = duration, EasingFunction = ease };
+                Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(anim, v.Lift);
+                Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(anim, property);
+                sb.Children.Add(anim);
+            }
+            sb.Begin();
+        }
+
         private void AttachNodeInteractions(Border border, MindMapNodeViewModel node)
         {
             border.PointerPressed += (s, e) =>
@@ -858,6 +1081,14 @@ namespace MarkSmith.Views.MindMap
                 ViewModel.SelectedNode = node;
                 _ = node.RefreshVersionHistoryAsync(AppServices.VersionHistory);
 
+                // A right-click selects the card and opens its menu; it mustn't also start a drag
+                // that the menu then leaves half-finished.
+                if (e.GetCurrentPoint(GalaxyCanvas).Properties.IsRightButtonPressed)
+                {
+                    RequestRedraw(RedrawScope.Appearance);
+                    return;
+                }
+
                 _draggedNode = node;
                 _dragMovedNode = false;
                 _dragStartNodePoint = new Point(node.X, node.Y);
@@ -866,6 +1097,7 @@ namespace MarkSmith.Views.MindMap
                 // Capture on the canvas, not the card, so a drag survives the pointer leaving the
                 // card's bounds.
                 GalaxyCanvas.CapturePointer(e.Pointer);
+                SetCursor(GalaxyCanvas, Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
                 RequestRedraw(RedrawScope.Appearance);
             };
 
@@ -877,7 +1109,9 @@ namespace MarkSmith.Views.MindMap
 
             border.PointerEntered += (s, e) =>
             {
+                if (_draggedNode != null || _isPanning) return;
                 node.IsHovered = true;
+                RequestRedraw(RedrawScope.Appearance);
                 if (!string.IsNullOrWhiteSpace(node.MarkdownContent))
                 {
                     ViewModel.ShowPreviewCard(node);
@@ -886,24 +1120,52 @@ namespace MarkSmith.Views.MindMap
 
             border.PointerExited += (s, e) =>
             {
+                if (!node.IsHovered) return;
                 node.IsHovered = false;
+                RequestRedraw(RedrawScope.Appearance);
                 // The preview follows the pointer off the card unless the node is the selection.
-                if (ViewModel.SelectedNode != node && ViewModel.PreviewTitle == node.Title)
+                if (ViewModel.SelectedNode != node && ViewModel.PreviewNode == node)
                 {
                     ViewModel.HidePreviewCard();
                 }
             };
         }
 
+        private static MenuFlyoutItem MenuItem(string text, string glyph, string? keys = null)
+        {
+            var item = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
+            if (keys != null) item.KeyboardAcceleratorTextOverride = keys;
+            return item;
+        }
+
+        /// <summary>
+        /// The card's right-click menu. Built once per card; its Opening handler refreshes what
+        /// depends on the node's current state, so "Open in editor" and "Version history" are
+        /// disabled on a node with no file instead of quietly opening a history for its title.
+        /// </summary>
         private MenuFlyout BuildNodeContextMenu(MindMapNodeViewModel node)
         {
             var flyout = new MenuFlyout();
 
-            var openItem = new MenuFlyoutItem { Text = "Open Document", Icon = new FontIcon { Glyph = "\uE8A7" } };
+            var openItem = MenuItem("Open in editor", "");
             openItem.Click += (s, e) => ViewModel.OpenLinkedDocument(node);
             flyout.Items.Add(openItem);
 
-            var linkItem = new MenuFlyoutItem { Text = "Link to Another Document…", Icon = new FontIcon { Glyph = "\uE71B" } };
+            var histItem = MenuItem("Version history", "");
+            histItem.Click += (s, e) => OpenVersionHistoryForNode(node);
+            flyout.Items.Add(histItem);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var childItem = MenuItem("Add child", "", "Tab");
+            childItem.Click += (s, e) =>
+            {
+                ViewModel.SelectedNode = node;
+                ViewModel.AddChildNode();
+            };
+            flyout.Items.Add(childItem);
+
+            var linkItem = MenuItem("Link to another node…", "", "Ctrl+L");
             linkItem.Click += async (s, e) =>
             {
                 ViewModel.SelectedNode = node;
@@ -911,11 +1173,11 @@ namespace MarkSmith.Views.MindMap
             };
             flyout.Items.Add(linkItem);
 
-            var moveItem = new MenuFlyoutItem { Text = "Move Under Parent…", Icon = new FontIcon { Glyph = "\uE8DE" } };
+            var moveItem = MenuItem("Move under…", "");
             moveItem.Click += async (s, e) => await ShowReparentDialogAsync(node);
             flyout.Items.Add(moveItem);
 
-            var focusItem = new MenuFlyoutItem { Text = "Focus on Constellation", Icon = new FontIcon { Glyph = "\uE890" } };
+            var focusItem = MenuItem("Focus on its connections", "", "F");
             focusItem.Click += (s, e) =>
             {
                 ViewModel.SelectedNode = node;
@@ -924,7 +1186,7 @@ namespace MarkSmith.Views.MindMap
             };
             flyout.Items.Add(focusItem);
 
-            var duplicateItem = new MenuFlyoutItem { Text = "Duplicate Node", Icon = new FontIcon { Glyph = "\uE8C8" } };
+            var duplicateItem = MenuItem("Duplicate", "", "Ctrl+D");
             duplicateItem.Click += (s, e) =>
             {
                 ViewModel.SelectedNode = node;
@@ -932,15 +1194,20 @@ namespace MarkSmith.Views.MindMap
             };
             flyout.Items.Add(duplicateItem);
 
-            var histItem = new MenuFlyoutItem { Text = "Version History & Time Machine", Icon = new FontIcon { Glyph = "\uE823" } };
-            histItem.Click += (s, e) => OpenVersionHistoryForNode(node);
-            flyout.Items.Add(histItem);
-
             flyout.Items.Add(new MenuFlyoutSeparator());
 
-            var deleteItem = new MenuFlyoutItem { Text = "Delete Node", Icon = new FontIcon { Glyph = "\uE74D" } };
+            var deleteItem = MenuItem("Delete", "", "Delete");
             deleteItem.Click += (s, e) => ViewModel.DeleteNode(node);
             flyout.Items.Add(deleteItem);
+
+            flyout.Opening += (s, e) =>
+            {
+                bool hasFile = node.HasFile;
+                openItem.IsEnabled = hasFile;
+                histItem.IsEnabled = hasFile;
+                moveItem.IsEnabled = ViewModel.ReparentCandidates(node).Count > 0 || node.ParentId != null;
+                linkItem.IsEnabled = ViewModel.Nodes.Count > 1;
+            };
 
             return flyout;
         }
@@ -949,24 +1216,26 @@ namespace MarkSmith.Views.MindMap
         {
             var flyout = new MenuFlyout();
 
-            var reverseItem = new MenuFlyoutItem { Text = "Reverse Direction", Icon = new FontIcon { Glyph = "\uE8AB" } };
+            var reverseItem = MenuItem("Reverse direction", "");
             reverseItem.Click += (s, e) =>
             {
                 ViewModel.SelectedLink = link;
-                ViewModel.PushUndo("Change link direction");
-                link.ReverseDirection();
-                link.SyncToModel();
-                RequestRedraw();
+                ViewModel.ReverseLink(link);
             };
             flyout.Items.Add(reverseItem);
 
-            var deleteItem = new MenuFlyoutItem { Text = "Delete Relationship", Icon = new FontIcon { Glyph = "\uE74D" } };
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var deleteItem = MenuItem("Delete link", "", "Delete");
             deleteItem.Click += (s, e) =>
             {
                 ViewModel.SelectedLink = link;
                 ViewModel.DeleteSelectionCommand.Execute(null);
             };
             flyout.Items.Add(deleteItem);
+
+            // Opening the menu selects the link, so the inspector shows which one it is about.
+            flyout.Opening += (s, e) => ViewModel.SelectedLink = link;
 
             return flyout;
         }
@@ -1026,6 +1295,7 @@ namespace MarkSmith.Views.MindMap
             _isPanning = true;
             _lastPanPoint = e.GetCurrentPoint(GalaxyCanvas).Position;
             GalaxyCanvas.CapturePointer(e.Pointer);
+            SetCursor(GalaxyCanvas, Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
             RequestRedraw(RedrawScope.Appearance);
         }
 
@@ -1063,6 +1333,18 @@ namespace MarkSmith.Views.MindMap
 
         private void OnCanvasPointerReleased(object sender, PointerRoutedEventArgs e)
         {
+            // Finish the gesture before releasing: ReleasePointerCapture raises PointerCaptureLost
+            // synchronously, and that handler ends the gesture too.
+            EndCanvasGesture();
+            GalaxyCanvas.ReleasePointerCapture(e.Pointer);
+        }
+
+        /// <summary>Capture can be taken away mid-drag (Alt+Tab, a dialog, the window losing
+        /// focus). Without this the next pointer move kept dragging a card with no button down.</summary>
+        private void OnCanvasPointerCaptureLost(object sender, PointerRoutedEventArgs e) => EndCanvasGesture();
+
+        private void EndCanvasGesture()
+        {
             if (_draggedNode != null && _dragMovedNode)
             {
                 _draggedNode.SyncToModel();
@@ -1070,10 +1352,12 @@ namespace MarkSmith.Views.MindMap
                 ViewModel.StatusMessage = $"Moved '{_draggedNode.Title}'.";
             }
 
+            bool wasDragging = _draggedNode != null;
             _isPanning = false;
             _draggedNode = null;
             _dragMovedNode = false;
-            GalaxyCanvas.ReleasePointerCapture(e.Pointer);
+            SetCursor(GalaxyCanvas, Microsoft.UI.Input.InputSystemCursorShape.Arrow);
+            if (wasDragging) RequestRedraw(RedrawScope.Appearance);
         }
 
         private void OnCanvasPointerWheelChanged(object sender, PointerRoutedEventArgs e)
@@ -1192,6 +1476,12 @@ namespace MarkSmith.Views.MindMap
                     ViewModel.FocusNextMatch(!IsShiftDown());
                     e.Handled = true;
                     return;
+                case Windows.System.VirtualKey.F2 when canvasFocused && ViewModel.SelectedNode != null:
+                    // Rename, as in Explorer: straight into the inspector's title with it selected.
+                    TitleBox.Focus(FocusState.Programmatic);
+                    TitleBox.SelectAll();
+                    e.Handled = true;
+                    return;
                 case Windows.System.VirtualKey.F when !ctrl && canvasFocused:
                     // Advertised on the focus-mode button's tooltip.
                     OnToggleFocusModeClick(this, new RoutedEventArgs());
@@ -1215,6 +1505,11 @@ namespace MarkSmith.Views.MindMap
 
         private void OnZoomOutClick(object sender, RoutedEventArgs e)
             => ZoomAbout(new Point(CanvasWidth / 2.0, CanvasHeight / 2.0), 1 / 1.15);
+
+        /// <summary>The zoom read-out is also a button: one click back to 100%, about the middle of
+        /// the view.</summary>
+        private void OnZoomResetClick(object sender, RoutedEventArgs e)
+            => ZoomAbout(new Point(CanvasWidth / 2.0, CanvasHeight / 2.0), 1.0 / Math.Max(ViewModel.ZoomLevel, 0.0001));
 
         private void OnFitToWindowClick(object sender, RoutedEventArgs e) => FitToWindow();
 
@@ -1283,21 +1578,27 @@ namespace MarkSmith.Views.MindMap
             ViewModel.ToggleFocusModeCommand.Execute(null);
         }
 
-        private async void OnSaveClick(object sender, RoutedEventArgs e) => await ViewModel.SaveAsync();
+        private async void OnSaveClick(object sender, RoutedEventArgs e)
+        {
+            // Commit a half-typed field (tags, linked file) before writing.
+            GalaxyCanvas.Focus(FocusState.Programmatic);
+            await ViewModel.SaveAsync();
+        }
 
         private async void OnSaveAsClick(object sender, RoutedEventArgs e)
         {
+            GalaxyCanvas.Focus(FocusState.Programmatic);
             var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(
-                this, "Save the galaxy", MarkSmith.Services.NativeFilePicker.Purpose.Galaxy,
+                this, "Save a copy of the map", MarkSmith.Services.NativeFilePicker.Purpose.Galaxy,
                 SanitizeFileName(ViewModel.Title) + ".msmap",
-                new[] { MarkSmith.Models.FileType.Of("Document Galaxy map", ".msmap") }, okLabel: "Save");
-            if (!string.IsNullOrEmpty(path)) await ViewModel.SaveAsync(path);
+                new[] { MarkSmith.Models.FileType.Of("Document Galaxy map", ".msmap") }, okLabel: "Save copy");
+            if (!string.IsNullOrEmpty(path)) await ViewModel.SaveCopyAsync(path);
         }
 
         private async void OnImportFolderClick(object sender, RoutedEventArgs e)
         {
             var path = await MarkSmith.Services.NativeFilePicker.PickFolderAsync(
-                this, "Choose a notes folder or vault to map", MarkSmith.Services.NativeFilePicker.Purpose.Galaxy,
+                this, "Choose a folder to map", MarkSmith.Services.NativeFilePicker.Purpose.Galaxy,
                 okLabel: "Map this folder");
             if (string.IsNullOrEmpty(path)) return;
 
@@ -1307,8 +1608,16 @@ namespace MarkSmith.Views.MindMap
 
         private async void OnExportDocxClick(object sender, RoutedEventArgs e)
         {
+            // Say it's a Pro export before asking where to save it, not after.
+            if (!AppServices.License.CanExportDocx)
+            {
+                ViewModel.StatusMessage = MarkSmith.Models.ProGate.StatusLine(MarkSmith.Models.FeatureId.DocxExport, AppServices.License.State);
+                return;
+            }
+
+            GalaxyCanvas.Focus(FocusState.Programmatic);
             var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(
-                this, "Export the galaxy as a Word document", MarkSmith.Services.NativeFilePicker.Purpose.Exports,
+                this, "Export the map as a Word document", MarkSmith.Services.NativeFilePicker.Purpose.Exports,
                 SanitizeFileName(ViewModel.Title) + ".docx",
                 new[] { MarkSmith.Models.FileType.Of("Word document", ".docx") }, okLabel: "Export");
             if (!string.IsNullOrEmpty(path)) ViewModel.ExportToDocx(path);
@@ -1318,7 +1627,7 @@ namespace MarkSmith.Views.MindMap
             => CopyMermaid(asFlowchart: true, "flowchart");
 
         private void OnCopyMermaidMindmapClick(object sender, RoutedEventArgs e)
-            => CopyMermaid(asFlowchart: false, "mindmap");
+            => CopyMermaid(asFlowchart: false, "mind map");
 
         private void CopyMermaid(bool asFlowchart, string label)
         {
@@ -1327,11 +1636,11 @@ namespace MarkSmith.Views.MindMap
                 var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
                 package.SetText(ViewModel.ExportToMermaid(asFlowchart));
                 Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-                ViewModel.StatusMessage = $"✓ Mermaid {label} copied — paste it straight into any MarkSmith document.";
+                ViewModel.StatusMessage = $"Copied the map as a Mermaid {label}. Paste it into any document.";
             }
             catch (Exception ex)
             {
-                ViewModel.StatusMessage = $"⚠ Could not copy to the clipboard: {ex.Message}";
+                ViewModel.StatusMessage = $"Couldn't copy to the clipboard: {ex.Message}";
             }
         }
 
@@ -1352,25 +1661,34 @@ namespace MarkSmith.Views.MindMap
 
         private async void OnConnectSelectedClick(object sender, RoutedEventArgs e) => await ShowConnectDialogAsync();
 
+        private static TextBlock DialogLead(string text) => new()
+        {
+            Text = text,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+        };
+
         private async Task ShowConnectDialogAsync()
         {
             if (ViewModel.SelectedNode == null)
             {
-                ViewModel.StatusMessage = "Pick a source node first, then click 🔗 Link.";
+                ViewModel.StatusMessage = "Select the node to link from first, then choose Link.";
                 return;
             }
 
             var source = ViewModel.SelectedNode;
-            var otherNodes = ViewModel.Nodes.Where(n => n.Id != source.Id).ToList();
+            var otherNodes = ViewModel.Nodes.Where(n => n.Id != source.Id)
+                .OrderBy(n => n.Title, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
             if (otherNodes.Count == 0)
             {
-                ViewModel.StatusMessage = "There is nothing else to link to yet — add another document first.";
+                ViewModel.StatusMessage = "There's nothing else to link to yet. Add another node first.";
                 return;
             }
 
             var combo = new ComboBox
             {
-                Header = "Target document / node",
+                Header = "Link to",
                 ItemsSource = otherNodes,
                 DisplayMemberPath = "Title",
                 SelectedIndex = 0,
@@ -1380,38 +1698,38 @@ namespace MarkSmith.Views.MindMap
             var labelBox = new TextBox
             {
                 Header = "Why are these connected?",
-                Text = "",
-                PlaceholderText = "e.g. grew out of, evidence for, supersedes, argues against"
+                PlaceholderText = "e.g. grew out of, evidence for, supersedes"
             };
 
             var suggestions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
             foreach (string preset in new[] { "grew out of", "evidence for", "supersedes", "references" })
             {
-                var chip = new Button { Content = preset, FontSize = 11, Padding = new Thickness(8, 3, 8, 3) };
-                chip.Click += (s, args) => labelBox.Text = preset;
+                var chip = new Button { Content = preset, FontSize = 12, Padding = new Thickness(10, 3, 10, 3), CornerRadius = new CornerRadius(12) };
+                chip.Click += (s, args) =>
+                {
+                    labelBox.Text = preset;
+                    labelBox.Focus(FocusState.Programmatic);
+                    labelBox.SelectionStart = preset.Length;
+                };
                 suggestions.Children.Add(chip);
             }
 
-            var panel = new StackPanel { Spacing = 10 };
-            panel.Children.Add(new TextBlock
-            {
-                Text = $"From: {source.Title}",
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            });
+            var panel = new StackPanel { Spacing = 12, MinWidth = 380 };
+            panel.Children.Add(DialogLead($"Draw a link from “{source.Title}” to another node, and say why they belong together. The reason is shown on the line."));
             panel.Children.Add(combo);
             panel.Children.Add(labelBox);
             panel.Children.Add(suggestions);
 
             var dialog = new ContentDialog
             {
-                Title = "🔗 Connect two documents",
-                PrimaryButtonText = "Connect",
+                Title = "Link two documents",
+                PrimaryButtonText = "Link",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = this.Content.XamlRoot,
                 Content = panel
             };
+            dialog.Opened += (s, args) => combo.Focus(FocusState.Programmatic);
 
             if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) == ContentDialogResult.Primary && combo.SelectedItem is MindMapNodeViewModel target)
             {
@@ -1422,26 +1740,42 @@ namespace MarkSmith.Views.MindMap
 
         private async Task ShowReparentDialogAsync(MindMapNodeViewModel node)
         {
-            var candidates = ViewModel.Nodes.Where(n => n.Id != node.Id).ToList();
+            // Only nodes the move can actually go to: the node's own branch used to be listed too,
+            // and picking one of those was refused after the dialog closed.
+            var candidates = ViewModel.ReparentCandidates(node);
+            var currentParent = candidates.FirstOrDefault(n => n.Id == node.ParentId);
+
+            var panel = new StackPanel { Spacing = 12, MinWidth = 380 };
+            panel.Children.Add(DialogLead(currentParent != null
+                ? $"“{node.Title}” is under “{currentParent.Title}”. Choose its new parent. Anything under it moves with it."
+                : $"“{node.Title}” has no parent. Choose one to hang it from. Anything under it moves with it."));
 
             var combo = new ComboBox
             {
                 Header = "New parent",
                 ItemsSource = candidates,
                 DisplayMemberPath = "Title",
-                SelectedIndex = 0,
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                SelectedItem = currentParent ?? candidates.FirstOrDefault(),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                IsEnabled = candidates.Count > 0
             };
+            panel.Children.Add(combo);
 
             var dialog = new ContentDialog
             {
-                Title = $"🔀 Move '{node.Title}'",
+                Title = "Move under another node",
                 PrimaryButtonText = "Move",
-                SecondaryButtonText = "Detach (no parent)",
+                IsPrimaryButtonEnabled = candidates.Count > 0,
                 CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = this.Content.XamlRoot,
-                Content = combo
+                Content = panel
             };
+            if (node.ParentId != null) dialog.SecondaryButtonText = "Remove parent";
+            combo.SelectionChanged += (s, args) =>
+                dialog.IsPrimaryButtonEnabled = combo.SelectedItem is MindMapNodeViewModel p && p.Id != node.ParentId;
+            dialog.IsPrimaryButtonEnabled = combo.SelectedItem is MindMapNodeViewModel first && first.Id != node.ParentId;
+            dialog.Opened += (s, args) => combo.Focus(FocusState.Programmatic);
 
             var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
             if (result == ContentDialogResult.Primary && combo.SelectedItem is MindMapNodeViewModel parent)
@@ -1454,135 +1788,208 @@ namespace MarkSmith.Views.MindMap
             }
         }
 
-        private async void OnEditTagsClick(object sender, RoutedEventArgs e)
-        {
-            var node = ViewModel.SelectedNode;
-            if (node == null) return;
-
-            var box = new TextBox
-            {
-                Header = "Tags, separated by spaces or commas",
-                Text = string.Join(" ", node.Tags),
-                PlaceholderText = "#research #q3 #launch"
-            };
-
-            var dialog = new ContentDialog
-            {
-                Title = $"🏷️ Tags for '{node.Title}'",
-                PrimaryButtonText = "Apply",
-                CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = this.Content.XamlRoot,
-                Content = box
-            };
-
-            if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) != ContentDialogResult.Primary) return;
-
-            ViewModel.PushUndo("Edit tags");
-            var parsed = MindMapGraph.NormalizeTags(
-                (box.Text ?? "").Split(new[] { ' ', ',', ';', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries));
-
-            node.Tags.Clear();
-            foreach (string t in parsed) node.Tags.Add(t);
-            node.SyncToModel();
-
-            ViewModel.RefreshDistinctTags();
-            ViewModel.ApplyFilterAndSearch();
-            ViewModel.IsDirty = true;
-            RequestRedraw();
-        }
-
         private async void OnBrowseForFileClick(object sender, RoutedEventArgs e)
         {
             var node = ViewModel.SelectedNode;
             if (node == null) return;
 
             var path = await MarkSmith.Services.NativeFilePicker.PickOpenFileAsync(
-                this, $"Attach a file to \u201C{node.Title}\u201D", MarkSmith.Services.NativeFilePicker.Purpose.Documents,
+                this, $"Attach a file to “{node.Title}”", MarkSmith.Services.NativeFilePicker.Purpose.Documents,
                 new[]
                 {
                     MarkSmith.Models.FileType.Of("Documents", ".md", ".markdown", ".txt", ".docx", ".pdf", ".pptx", ".epub"),
                     MarkSmith.Models.FileType.AllFiles,
                 },
-                okLabel: "Attach");
+                okLabel: "Attach",
+                folder: string.IsNullOrWhiteSpace(node.FilePath) ? null : System.IO.Path.GetDirectoryName(node.FilePath));
             if (string.IsNullOrEmpty(path)) return;
 
-            ViewModel.PushUndo("Attach file to node");
-            node.FilePath = path;
-            if (string.IsNullOrWhiteSpace(node.Title) || node.Title.StartsWith("New ", StringComparison.Ordinal))
-            {
-                node.Title = System.IO.Path.GetFileNameWithoutExtension(path);
-            }
-            node.SyncToModel();
-            ViewModel.IsDirty = true;
-            RequestRedraw();
+            ViewModel.AttachFile(node, path);
         }
 
+        // ---- Map report ----
+
+        /// <summary>
+        /// The map report: headline figures as tiles, then the busiest documents, tags and
+        /// anything unlinked as clickable rows that take you to that node. It used to be one
+        /// monospace text dump with bullet characters, and nothing in it led anywhere.
+        /// </summary>
         private async void OnShowInsightsClick(object sender, RoutedEventArgs e)
         {
             var insights = ViewModel.GetInsights();
-            var sb = new StringBuilder();
+            ContentDialog? dialog = null;
 
-            sb.AppendLine($"Documents & nodes:  {insights.NodeCount}");
-            sb.AppendLine($"Linked to real files:  {insights.LinkedFileCount}");
-            sb.AppendLine($"Named relationships:  {insights.LinkCount}");
-            sb.AppendLine($"Hierarchy edges:  {insights.HierarchyEdgeCount}");
-            sb.AppendLine($"Separate clusters:  {insights.ClusterCount} (largest holds {insights.LargestClusterSize})");
-            sb.AppendLine($"Connections per document:  {insights.Density}");
-            if (insights.TotalWordCount > 0) sb.AppendLine($"Words across the vault:  {insights.TotalWordCount:N0}");
+            var root = new StackPanel { Spacing = 18, MinWidth = 440 };
+
+            var tiles = new Grid { ColumnSpacing = 8, RowSpacing = 8 };
+            for (int c = 0; c < 3; c++) tiles.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var figures = new List<(string Value, string Label)>
+            {
+                (insights.NodeCount.ToString("N0"), insights.NodeCount == 1 ? "document" : "documents"),
+                (insights.LinkedFileCount.ToString("N0"), "linked to a file"),
+                (insights.LinkCount.ToString("N0"), insights.LinkCount == 1 ? "named link" : "named links"),
+                (insights.HierarchyEdgeCount.ToString("N0"), "parent and child"),
+                (insights.ClusterCount.ToString("N0"), insights.ClusterCount == 1 ? "group" : "separate groups"),
+                (insights.TotalWordCount > 0 ? insights.TotalWordCount.ToString("N0") : "—", "words"),
+            };
+            for (int i = 0; i < figures.Count; i++)
+            {
+                if (i % 3 == 0) tiles.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                var tile = new Border
+                {
+                    Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
+                    BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(12, 10, 12, 10),
+                    Child = new StackPanel
+                    {
+                        Spacing = 2,
+                        Children =
+                        {
+                            new TextBlock { Text = figures[i].Value, FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+                            new TextBlock { Text = figures[i].Label, FontSize = 12, Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] }
+                        }
+                    }
+                };
+                Grid.SetRow(tile, i / 3);
+                Grid.SetColumn(tile, i % 3);
+                tiles.Children.Add(tile);
+            }
+            root.Children.Add(tiles);
+
+            StackPanel Section(string heading)
+            {
+                var section = new StackPanel { Spacing = 4 };
+                section.Children.Add(new TextBlock { Text = heading, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 2) });
+                root.Children.Add(section);
+                return section;
+            }
+
+            Button NodeRow(string nodeId, string title, string detail)
+            {
+                var row = new Grid { ColumnSpacing = 12 };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                row.Children.Add(new TextBlock { Text = title, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 13 });
+                var detailText = new TextBlock { Text = detail, FontSize = 12, Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] };
+                Grid.SetColumn(detailText, 1);
+                row.Children.Add(detailText);
+
+                var button = new Button
+                {
+                    Content = row,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                    Padding = new Thickness(10, 6, 10, 6),
+                    Background = new SolidColorBrush(Colors.Transparent),
+                    BorderThickness = new Thickness(0)
+                };
+                ToolTipService.SetToolTip(button, "Show this node on the map");
+                button.Click += (s, args) =>
+                {
+                    dialog?.Hide();
+                    var node = ViewModel.Nodes.FirstOrDefault(n => n.Id == nodeId);
+                    if (node == null) return;
+                    ViewModel.SelectedLink = null;
+                    ViewModel.SelectedNode = node;
+                    ViewModel.CenterOn(node);
+                };
+                return button;
+            }
 
             if (insights.Hubs.Count > 0)
             {
-                sb.AppendLine();
-                sb.AppendLine("Busiest documents");
-                foreach (var (_, title, degree) in insights.Hubs)
+                var hubs = Section("Most connected");
+                foreach (var (id, title, degree) in insights.Hubs)
                 {
-                    sb.AppendLine($"   • {title} — {degree} connections");
-                }
-            }
-
-            if (insights.FormatBreakdown.Count > 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine("Formats");
-                foreach (var kvp in insights.FormatBreakdown)
-                {
-                    sb.AppendLine($"   • {kvp.Key.ToUpperInvariant()} — {kvp.Value}");
-                }
-            }
-
-            if (insights.TopTags.Count > 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine("Most-used tags");
-                foreach (var (tag, count) in insights.TopTags)
-                {
-                    sb.AppendLine($"   • {tag} — {count}");
+                    hubs.Children.Add(NodeRow(id, title, degree == 1 ? "1 connection" : $"{degree} connections"));
                 }
             }
 
             if (insights.IsolatedNodeIds.Count > 0)
             {
-                sb.AppendLine();
-                sb.AppendLine($"{insights.IsolatedNodeIds.Count} document(s) are not connected to anything yet — link them and they stop being lost.");
+                var lonely = Section("Not linked to anything");
+                lonely.Children.Add(new TextBlock
+                {
+                    Text = "Link these and they stop being lost.",
+                    FontSize = 12,
+                    Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                    Margin = new Thickness(0, 0, 0, 2)
+                });
+                const int shown = 8;
+                foreach (var id in insights.IsolatedNodeIds.Take(shown))
+                {
+                    var node = ViewModel.Nodes.FirstOrDefault(n => n.Id == id);
+                    if (node != null) lonely.Children.Add(NodeRow(id, node.Title, node.FormatBadge));
+                }
+                if (insights.IsolatedNodeIds.Count > shown)
+                {
+                    lonely.Children.Add(new TextBlock
+                    {
+                        Text = $"and {insights.IsolatedNodeIds.Count - shown} more",
+                        FontSize = 12,
+                        Margin = new Thickness(10, 2, 0, 0),
+                        Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
+                    });
+                }
             }
 
-            var dialog = new ContentDialog
+            if (insights.TopTags.Count > 0)
             {
-                Title = "📊 Galaxy topology",
-                CloseButtonText = "Close",
-                XamlRoot = this.Content.XamlRoot,
-                Content = new ScrollViewer
+                // Rows, like the lists above. A wrap grid sized every chip to the first one and
+                // clipped the longer tags.
+                var tags = Section("Most used tags");
+                foreach (var (tag, count) in insights.TopTags)
                 {
-                    MaxHeight = 460,
-                    Content = new TextBlock
+                    var row = new Grid { ColumnSpacing = 12 };
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    row.Children.Add(new TextBlock { Text = tag, FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis });
+                    var detail = new TextBlock { Text = count == 1 ? "1 node" : $"{count} nodes", FontSize = 12, Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] };
+                    Grid.SetColumn(detail, 1);
+                    row.Children.Add(detail);
+
+                    var button = new Button
                     {
-                        Text = sb.ToString(),
-                        FontFamily = new FontFamily("Consolas"),
-                        FontSize = 12,
-                        TextWrapping = TextWrapping.Wrap
-                    }
+                        Content = row,
+                        HorizontalAlignment = HorizontalAlignment.Stretch,
+                        HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                        Padding = new Thickness(10, 6, 10, 6),
+                        Background = new SolidColorBrush(Colors.Transparent),
+                        BorderThickness = new Thickness(0)
+                    };
+                    ToolTipService.SetToolTip(button, "Show only the nodes with this tag");
+                    button.Click += (s, args) =>
+                    {
+                        dialog?.Hide();
+                        ViewModel.SelectedTagFilter = tag;
+                    };
+                    tags.Children.Add(button);
                 }
+            }
+
+            if (insights.FormatBreakdown.Count > 0)
+            {
+                var formats = Section("Formats");
+                formats.Children.Add(new TextBlock
+                {
+                    Text = string.Join("   ·   ", insights.FormatBreakdown
+                        .OrderByDescending(kv => kv.Value)
+                        .Select(kv => $"{kv.Key.TrimStart('.').ToUpperInvariant()} {kv.Value}")),
+                    FontSize = 12,
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                });
+            }
+
+            dialog = new ContentDialog
+            {
+                Title = "Map report",
+                CloseButtonText = "Close",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = this.Content.XamlRoot,
+                Content = new ScrollViewer { MaxHeight = 480, Content = root, Padding = new Thickness(0, 0, 12, 0) }
             };
 
             await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
@@ -1598,28 +2005,86 @@ namespace MarkSmith.Views.MindMap
             }
         }
 
-        private void OnReverseLinkClick(object sender, RoutedEventArgs e)
-        {
-            var link = ViewModel.SelectedLink;
-            if (link == null) return;
+        private readonly HashSet<Button> _swatches = new();
+        private MindMapNodeViewModel? _watchedNode;
 
-            ViewModel.PushUndo("Change link direction");
-            link.ReverseDirection();
-            link.SyncToModel();
-            ViewModel.IsDirty = true;
-            RequestRedraw();
+        private void OnSwatchLoaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button b) return;
+            _swatches.Add(b);
+            if (b.Tag is string hex) AutomationProperties.SetName(b, ColourName(hex));
+            ToolTipService.SetToolTip(b, b.Tag is string h ? ColourName(h) : null);
+            UpdateSwatches();
         }
 
+        private void OnSwatchUnloaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button b) _swatches.Remove(b);
+        }
+
+        /// <summary>Swatches showed hex codes as tooltips ("#FF7C4D"); these are their names.</summary>
+        private static string ColourName(string hex) => hex.ToUpperInvariant() switch
+        {
+            "#FF7C4D" => "Orange",
+            "#22D3EE" => "Cyan",
+            "#34D399" => "Green",
+            "#3B82F6" => "Blue",
+            "#A855F7" => "Purple",
+            "#EC4899" => "Pink",
+            "#FBBF24" => "Yellow",
+            "#E11D48" => "Crimson",
+            _ => hex
+        };
+
+        /// <summary>Rings the swatch matching the selected node's colour, so the palette shows
+        /// what the node is now and not just what it could be.</summary>
+        private void UpdateSwatches()
+        {
+            string? current = ViewModel.SelectedNode?.ColorHex;
+            var ring = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+            var none = new SolidColorBrush(Colors.Transparent);
+            foreach (var b in _swatches)
+            {
+                bool on = current != null && b.Tag is string hex && string.Equals(hex, current, StringComparison.OrdinalIgnoreCase);
+                b.BorderBrush = on ? ring : none;
+                AutomationProperties.SetItemStatus(b, on ? "Current colour" : "");
+            }
+        }
+
+        /// <summary>Follows the selected node's colour, so a recolour (or an undo of one) moves the
+        /// ring with it.</summary>
+        private void WatchSelectedNodeColour()
+        {
+            if (_watchedNode != null) _watchedNode.PropertyChanged -= OnWatchedNodePropertyChanged;
+            _watchedNode = ViewModel.SelectedNode;
+            if (_watchedNode != null) _watchedNode.PropertyChanged += OnWatchedNodePropertyChanged;
+        }
+
+        private void OnWatchedNodePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(MindMapNodeViewModel.ColorHex)) UpdateSwatches();
+        }
+
+        private void OnReverseLinkClick(object sender, RoutedEventArgs e) => ViewModel.ReverseLink(ViewModel.SelectedLink);
+
         /// <summary>
-        /// Themes now recolour the cards and text, not just the backdrop. "Clean White" used to
-        /// swap the canvas to near-white while leaving every card dark-on-dark with white text,
-        /// which rendered the whole map unreadable.
+        /// Themes recolour the cards and text, not just the backdrop. "Clean White" used to swap
+        /// the canvas to near-white while leaving every card dark-on-dark with white text, which
+        /// rendered the whole map unreadable. Driven by the view model's theme, so a theme that
+        /// was saved with the map (or restored by Undo) is drawn too.
         /// </summary>
-        private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
+        private void ApplyPalette()
         {
             _palette = GalaxyPalette.ForName(ViewModel.SelectedThemeName);
             CanvasContainer.Background = new SolidColorBrush(_palette.Background);
             MinimapOverlay.Background = new SolidColorBrush(_palette.MinimapBackground);
+            // The canvas is always dark except for Clean White; the floating cards follow it, not
+            // the OS theme, so they read on whichever background is behind them.
+            CanvasContainer.RequestedTheme = _palette.IsLight ? ElementTheme.Light : ElementTheme.Dark;
+            foreach (var e in _edgeVisuals.Values)
+            {
+                if (e.Link == null) e.Stroke.Color = ColorFromHex(_palette.HierarchyLine);
+            }
             RequestRedraw();
         }
 
@@ -1650,6 +2115,52 @@ namespace MarkSmith.Views.MindMap
             ViewModel.SelectedTagFilter = null;
         }
 
+        private readonly HashSet<Button> _tagPills = new();
+
+        private void OnTagPillLoaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button b) _tagPills.Add(b);
+            UpdateTagPills();
+        }
+
+        private void OnTagPillUnloaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button b) _tagPills.Remove(b);
+        }
+
+        /// <summary>The active filter's pill (or "All tags") in the accent colour; the rest quiet.
+        /// Nothing used to show that a filter was on except the map going dim.</summary>
+        private void UpdateTagPills()
+        {
+            string? active = ViewModel.SelectedTagFilter;
+            var res = Application.Current.Resources;
+            foreach (var b in _tagPills)
+            {
+                bool on = b == AllTagsPill
+                    ? string.IsNullOrEmpty(active)
+                    : b.Tag is string tag && string.Equals(tag, active, StringComparison.OrdinalIgnoreCase);
+                // Inactive pills go back to the button's own (theme-aware) look, so they follow the
+                // canvas theme; app-level brushes would stay dark-theme on a light canvas.
+                if (on)
+                {
+                    b.Background = (Brush)res["AccentFillColorDefaultBrush"];
+                    b.Foreground = (Brush)res["TextOnAccentFillColorPrimaryBrush"];
+                    b.BorderThickness = new Thickness(0);
+                }
+                else
+                {
+                    b.ClearValue(Control.BackgroundProperty);
+                    b.ClearValue(Control.ForegroundProperty);
+                    b.ClearValue(Control.BorderThicknessProperty);
+                }
+                if (b != AllTagsPill)
+                {
+                    ToolTipService.SetToolTip(b, on ? "Show every node again" : "Show only nodes with this tag");
+                }
+                AutomationProperties.SetItemStatus(b, on ? "Active filter" : "");
+            }
+        }
+
         private void OnOpenSelectedDocumentClick(object sender, RoutedEventArgs e)
         {
             ViewModel.OpenLinkedDocument(ViewModel.SelectedNode);
@@ -1662,28 +2173,24 @@ namespace MarkSmith.Views.MindMap
 
         private void OnPreviewVersionHistoryClick(object sender, RoutedEventArgs e)
         {
-            var path = !string.IsNullOrWhiteSpace(ViewModel.PreviewFilePath)
-                ? ViewModel.PreviewFilePath
-                : (ViewModel.SelectedNode?.FilePath ?? ViewModel.SelectedNode?.Title);
-            if (!string.IsNullOrWhiteSpace(path))
-            {
-                var historyWin = new History.HistoryWindow(initialFilePath: path);
-                historyWin.Activate();
-            }
+            OpenVersionHistoryForNode(ViewModel.PreviewNode);
         }
 
+        /// <summary>Version history is per file. A node with no file has none: the menu item and
+        /// buttons are disabled for it, and this refuses rather than opening a history window for
+        /// a file named after the node's title.</summary>
         private void OpenVersionHistoryForNode(MindMapNodeViewModel? node)
         {
-            if (node == null) return;
-            var path = !string.IsNullOrWhiteSpace(node.FilePath) ? node.FilePath : node.Title;
-            var historyWin = new History.HistoryWindow(initialFilePath: path);
+            if (node == null || string.IsNullOrWhiteSpace(node.FilePath)) return;
+            var historyWin = new History.HistoryWindow(initialFilePath: node.FilePath);
             historyWin.Activate();
         }
 
         private void OnOpenInEditorClick(object sender, RoutedEventArgs e)
         {
-            ViewModel.OpenLinkedDocument(ViewModel.SelectedNode);
+            var node = ViewModel.PreviewNode;
             ViewModel.HidePreviewCard();
+            ViewModel.OpenLinkedDocument(node);
         }
 
         private void OnClosePreviewCardClick(object sender, RoutedEventArgs e)
@@ -1732,7 +2239,7 @@ namespace MarkSmith.Views.MindMap
 
             // Edges first: without them the radar is a field of unrelated dots and tells you
             // nothing about where the clusters are.
-            var edgeStroke = new SolidColorBrush(ColorFromHex("#3A3A55"));
+            var edgeStroke = new SolidColorBrush(ColorFromHex(_palette.HierarchyLine));
             foreach (var link in ViewModel.Links)
             {
                 if (!_nodeIndex.TryGetValue(link.SourceNodeId, out var s1) || !_nodeIndex.TryGetValue(link.TargetNodeId, out var t1)) continue;
@@ -1754,7 +2261,7 @@ namespace MarkSmith.Views.MindMap
                 {
                     Width = Math.Max(3, node.Width * scale),
                     Height = Math.Max(2, node.Height * scale),
-                    Fill = new SolidColorBrush(node.IsSelected ? Colors.White : ColorFromHex(node.ColorHex)),
+                    Fill = new SolidColorBrush(node.IsSelected ? _palette.SelectionInk : ColorFromHex(node.ColorHex)),
                     // Dimmed nodes fade on the radar too, so a tag filter or focus shows up here.
                     Opacity = node.IsDimmed ? 0.2 : 1.0,
                     RadiusX = 1,
@@ -1815,6 +2322,8 @@ namespace MarkSmith.Views.MindMap
             MinimapCanvas.ReleasePointerCapture(e.Pointer);
         }
 
+        private void OnMinimapPointerCaptureLost(object sender, PointerRoutedEventArgs e) => _isMinimapDragging = false;
+
         private void PanToMinimapPoint(Point pt)
         {
             if (_minimapScale <= 0) return;
@@ -1837,6 +2346,21 @@ namespace MarkSmith.Views.MindMap
             string HierarchyLine,
             Color MinimapBackground)
         {
+            /// <summary>The selected card's border and a selected link. It was hard-coded white,
+            /// which vanished on Clean White's white cards.</summary>
+            public Color SelectionInk { get; init; } = Colors.White;
+
+            /// <summary>The "hub" connection count on busy cards.</summary>
+            public Color HubInk { get; init; } = ColorFromHex("#FBBF24");
+
+            /// <summary>The empty part of a card's progress bar (was white at 20%, invisible on
+            /// light cards).</summary>
+            public Color Track { get; init; } = ColorFromHex("#33FFFFFF");
+
+            /// <summary>A light canvas. The overlays on it (tour banner, tag bar, legend, preview
+            /// card) switch to the light theme with it, or their dark-theme text is white on white.</summary>
+            public bool IsLight { get; init; }
+
             public static readonly GalaxyPalette MidnightGalaxy = new(
                 ColorFromHex("#12131C"), ColorFromHex("#1C1C28"), ColorFromHex("#F1F1F8"),
                 ColorFromHex("#9A9AB0"), "#5A6478", ColorFromHex("#E0161722"));
@@ -1845,7 +2369,13 @@ namespace MarkSmith.Views.MindMap
             {
                 "Clean White" => new GalaxyPalette(
                     ColorFromHex("#F8FAFC"), ColorFromHex("#FFFFFF"), ColorFromHex("#111827"),
-                    ColorFromHex("#64748B"), "#94A3B8", ColorFromHex("#E0F1F5FA")),
+                    ColorFromHex("#64748B"), "#94A3B8", ColorFromHex("#E0F1F5FA"))
+                {
+                    SelectionInk = ColorFromHex("#0F172A"),
+                    HubInk = ColorFromHex("#B45309"),
+                    Track = ColorFromHex("#1F0F172A"),
+                    IsLight = true
+                },
                 "Nordic Slate" => new GalaxyPalette(
                     ColorFromHex("#1E293B"), ColorFromHex("#273549"), ColorFromHex("#E2E8F0"),
                     ColorFromHex("#94A3B8"), "#64748B", ColorFromHex("#E0172033")),

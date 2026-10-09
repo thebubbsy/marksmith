@@ -3653,3 +3653,192 @@ Describe; Advice; ShiftLines; and the block rendering as a Hierarchy in `Markdow
 3. Run #41's list: the type picker in "Export N tables" with a real mouse; Diagram Studio
    composite states and notes on the canvas; the participant-colour, hover-halo and real-Word
    checks.
+
+### 2026-10-09 11:00–12:00 AEST (routine run #43: Document Galaxy, done properly)
+
+Reviewed run #42's entry. Its "Next up" items are small (Insert image onto the shared shell,
+Quick insert for SmartArt), so this run took the biggest surface that had never had a "trace
+every control to its code" pass: **Document Galaxy** (`MindMapGalaxyWindow`, ~2,500 lines plus
+`MindMapStudioViewModel`). Earlier runs only gave it an empty state, a title bar and edge-label
+routing. The PC was unlocked but the user was active (3 s idle), so everything was driven
+through UIA on my own test instance (scratch config, `MARKSMITH_CONFIG_DIR`) and checked with
+PrintWindow screenshots. No synthetic mouse input.
+
+**Found (broken, not just rough):**
+- **Inspector edits weren't edits.** Title, file, type, icon, progress, notes and a link's
+  reason are bound straight to the node/link view models, and nothing listened:
+  - a renamed node kept its old title on the card until something else redrew;
+  - "unsaved" never appeared, so the edit was lost on close;
+  - Undo skipped it and took back whatever structural change came before.
+- **The theme was never saved.** `SelectedThemeName` lived only in the combo box, so every map
+  reopened as Midnight Galaxy. The window only applied a palette from the combo's
+  SelectionChanged, so nothing else (load, undo) could change it.
+- **Clean White was unreadable in places:**
+  - the selected card's border and a selected link were hard-coded white (on white cards);
+  - card icons had no brush of their own, so they took the app theme's white text colour;
+  - the progress-bar track was white at 20%;
+  - the tour banner, tag bar, legend and preview card used the app's dark-theme brushes, giving
+    white text on a white canvas.
+- **The preview card acted on the wrong node.** Hovering any card shows its preview, but "Open
+  in Editor" opened the *selected* node. "History" used `PreviewFilePath`, which for a node
+  without a file was the literal string "Standalone project note", and opened a history window
+  for that.
+- **"Document Time Machine" on a node with no file** opened version history for a file named
+  after the node's title.
+- **Closing the window threw away unsaved changes** without asking.
+- **Export ▸ "Save Map File (.msmap)…"** cleared the unsaved marker. Ctrl+S still saved to the
+  library, which therefore never got those changes.
+- **The canvas wasn't clipped.** Cards and link labels near the edges were painted over the
+  translucent inspector and the toolbar.
+- **The node colour swatches sat under "Appearance"**, away from the node. Clicking one with
+  nothing selected silently did nothing, and no swatch showed the node's current colour.
+- **Tag filter pills had no active state.** Only the map going dim showed that a filter was on.
+- **"Move Under Parent…"** listed the node's own descendants (the move was refused after the
+  dialog closed) and always preselected the first node, not the current parent.
+- **The right-click menu's "Reverse Direction"** didn't mark the map unsaved.
+- **A right-click on a card also started a drag.**
+- **Lost pointer capture** (Alt+Tab mid-drag) left the card stuck to the pointer.
+- **Docx export asked where to save, then refused** on the free plan.
+- **Inspector bound to `IsFileMissing`** which was set from a thread-pool thread.
+- **Copy:**
+  - letter-spaced capitals ("DOCUMENT VAULT TOPOLOGY", "RADAR");
+  - Title Case everywhere ("Import Vault", "Horizontal Tree", "Edit Tags", "Delete Relationship");
+  - emoji in dialog titles, card badges and status lines (🔗 ⏱️ ⚠ 📊 🏷️ 🔀 ✓);
+  - a marketing subtitle ("Interconnected Vault · Markdown, Word, PDF & Visual Graph");
+  - status lines that printed enum names ("Applied HorizontalTree layout.");
+  - the legend said "double-click to edit" (it opens the document);
+  - "New Sub-Project / Document" and two other placeholder titles;
+  - a bare match count beside search;
+  - the overview read "density 1.4".
+- **No hover feedback anywhere on the canvas.** Cards and links never reacted to the pointer,
+  and there were no cursors.
+
+**What shipped:**
+- **Inspector edits are real edits** (`MindMapStudioViewModel`, "Inspector edits" region):
+  - it hooks `PropertyChanging` and `PropertyChanged` on every node and link view model it holds
+    (re-hooked on add, remove and reset);
+  - it snapshots *before* the change, so the edit can be undone at all;
+  - one field typed into is one undo step (`_openEditKey`), and any other undoable change closes
+    that step;
+  - each edit syncs the model, marks the map unsaved and redraws.
+  - Commands that set fields themselves (`AttachFile`, `EnsureDocumentNode`) use
+    `SuspendEditTracking()` so they don't add a second step.
+- **"Unsaved" follows the saved state through Undo/Redo.** Undo entries carry an id that moves
+  with them between the stacks, and `MarkClean()` records the top id on save and load. Undoing
+  back to the saved map clears "Unsaved"; Redo brings it back.
+- **The theme is part of the map:**
+  - saved (`Document.Theme.Name`) and restored on load;
+  - undoable, with a status line;
+  - an unknown name falls back to the default;
+  - the window repaints from the view model's property.
+  - New `GalaxyPalette` fields `SelectionInk`, `HubInk`, `Track` and `IsLight`. On a light
+    palette `CanvasContainer.RequestedTheme` is Light, so every overlay follows the canvas and not
+    the OS.
+- **Tags are one editable line** (`MindMapNodeViewModel.TagsText`, committed on Enter or focus
+  loss). The read-only box, the "Edit Tags" button and its dialog are gone.
+- **Preview card:**
+  - `PreviewNode` and `PreviewHasFile`; Open and History act on the previewed node;
+  - both are disabled when it has no file;
+  - the footer shows the file name or "No file attached".
+- **Version history** opens only for a real file. The inspector button, the card menu and the
+  preview button are all disabled otherwise.
+- **Close prompt:** "Save changes to the map?", with Save, Don't save and Cancel. A failed save
+  keeps the window open.
+- **Export ▸ "Save a copy of the map…"** is `SaveCopyAsync`: it writes a copy and leaves the
+  unsaved marker alone.
+- **Hover and motion:**
+  - cards lift 1.035× (same timing as `HoverPolish`, honours reduced motion), get a brighter,
+    heavier border and an accent wash, come to the front and show a hand cursor;
+  - links thicken under the pointer and show a hand cursor;
+  - dragging a card or panning shows a move cursor;
+  - the minimap shows a hand cursor.
+- **The canvas is clipped** to its own area.
+- **Inspector restructured:**
+  - Map overview: plain-words summary + Map report;
+  - Appearance;
+  - Selected node: title, file + browse, a warning InfoBar, type + icon, **Colour** (now here,
+    with named swatches and a ring on the current one), progress, tags, notes, Open in editor,
+    Version history;
+  - Selected link: "A → B", reason, an inferred-link note, Reverse and Delete link side by side.
+  - Sentence-case headings (`InspectorHeading` style).
+- **Naming a new node:** Add child, Add sibling and Add node put the caret in Title with "New
+  document" selected (`NodeCreated` event). Enter or Esc goes back to the map, so Tab, type,
+  Enter, Tab… builds a branch from the keyboard. **F2** renames the selected node.
+- **Toolbar:**
+  - "Add child" and "Add sibling";
+  - Delete is disabled with nothing selected;
+  - Undo and Redo tooltips name the step ("Undo: Rename node (Ctrl+Z)");
+  - "Arrange" with sentence-case layouts;
+  - **Focus is a real ToggleButton** (its checked state replaces the hand-drawn "ON" pill);
+  - "Import folder";
+  - the Export menu is grouped with separators, and Docx checks the plan before the dialog;
+  - the zoom read-out is a button that resets to 100%;
+  - the zoom glyphs are the magnifier pair, and Fit uses FitPage.
+- **Right-click menus:**
+  - card: Open in editor, Version history | Add child (Tab), Link to another node… (Ctrl+L),
+    Move under…, Focus on its connections (F), Duplicate (Ctrl+D) | Delete;
+  - link: Reverse direction | Delete link;
+  - accelerator text is shown, state is refreshed on Opening, and opening the link menu selects
+    that link.
+- **Dialogs:**
+  - **Link two documents**: a lead sentence, targets sorted A–Z, focus on the target, and chips
+    that put the caret after the text;
+  - **Move under another node**: only valid parents, the current parent preselected, Move
+    disabled until it changes, and "Remove parent" only when there is one;
+  - **Map report** rebuilt from a monospace text dump:
+    - six figure tiles;
+    - "Most connected" and "Not linked to anything" as rows that close the dialog and centre
+      that node;
+    - "Most used tags" as rows that apply the tag filter;
+    - formats as one line.
+- **Cards:** the 🔗 ⏱️ ⚠ emoji are now Segoe Fluent glyphs in their own run (`GlyphLabel`),
+  with tooltips. The cards also have UIA names.
+- **Copy:**
+  - a new subtitle, "Your documents and how they connect";
+  - status lines without emoji or enum names;
+  - legend: "Parent and child", "Your link" (dashed sample) and "Found on import" (italic),
+    plus "Drag to move · Double-click to open · Right-click for more";
+  - the tour banner says "This is a guided tour", with "Import folder" and "Clear the tour";
+  - `HeadlineSummary` is plain words ("10 documents and 14 connections. Most connected: X.").
+- Missing-file probe results are applied on the UI thread (`ProbeFileMissing`). The status bar
+  is a polite live region.
+
+**Verified live (UIA + PrintWindow, scratch config):**
+- Renaming through the Title field updates the card at once, shows "Unsaved" and enables Undo.
+  Undo restores the title, and the theme first.
+- Clean White: every overlay is legible, icons show, and the selection border is dark.
+- Link: the chip fills the reason, and Link draws "evidence for" and selects it. The inspector
+  shows "A → B", Reverse flips the arrow to ←, and Delete link drops the count to 5.
+- Add child: "New document" is selected in the focused Title box, and the swatch ring is on the
+  node's colour.
+- Map report: tiles, rows and full-width tag rows.
+- Closing with changes shows the prompt, and "Don't save" closes the window.
+
+**Tests:**
+- New `MindMapGalaxyInspectorTests` (22): edit tracking, one undo step per field, two fields
+  making two steps, tags, link reason, theme save/load/undo/fallback, save-a-copy,
+  Unsaved-through-undo/redo, reparent candidates, reverse, attach, NodeCreated, the preview
+  node, and the wording.
+- One existing count assertion was updated for the lowercase counters.
+- All 88 Galaxy tests pass.
+- Full suite: see the commit message.
+
+**Lessons:**
+- WinUI `VariableSizedWrapGrid` without `ItemWidth` sizes **every** cell to the first item. Use
+  rows (or a real wrap layout) for chips of different lengths.
+- A `Canvas` never clips; anything drawn in world space needs a `Clip` on its container.
+- An element-level `RequestedTheme` is how an always-dark (or always-light) surface gets
+  matching overlays. Brushes taken from `Application.Current.Resources` in code stay on the
+  *app* theme, so clear them (`ClearValue`) to let the control's own theme-aware style apply.
+- `gx.ps1` (run #43, `%TEMP%\msg43`): launch with scratch config, `windows`, `dump`, `invoke`,
+  `button` (Button-typed match: a canvas label can share a button's name), `expand`,
+  `setvalue`, `value`, `resize`, `shot`, `kill`. Galaxy opens via Insert ▸ Diagrams and studios ▸
+  Document Galaxy….
+
+**Next up:**
+1. Galaxy with a real mouse, when the user is idle: hover lift and cursors, drag and pan
+   cursors, the right-click menus, double-click to open.
+2. Galaxy keyboard: arrow keys to move between connected nodes (the canvas has none yet).
+   Confirm it's polish, not a feature, before building it.
+3. Run #42's list: Insert image onto `InsertDialogBody`; Quick insert for SmartArt; the type
+   picker in "Export N tables"; Diagram Studio composite states and notes.

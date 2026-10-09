@@ -14,6 +14,24 @@
         <Grid.Resources>
             <conv:FillBrushConverter x:Key="FillBrushConverter" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+
+            <!-- Inspector section titles: sentence case, the same weight as Shape Studio's, instead
+                 of the letter-spaced capitals ("DOCUMENT VAULT TOPOLOGY") this panel used to shout. -->
+            <Style x:Key="InspectorHeading" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+            </Style>
+            <Style x:Key="InspectorCaption" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
+            <!-- One shape for every text-and-icon command in the toolbar row. -->
+            <Style x:Key="GalaxyToolButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Padding" Value="10,5" />
+                <Setter Property="MinHeight" Value="32" />
+            </Style>
         </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -39,34 +57,37 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <!-- Left: Title & Badge -->
+                    <!-- Left: title, unsaved marker and what the window is for -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                         <FontIcon Glyph="&#xEC26;" FontSize="18" Foreground="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center" />
                         <StackPanel Spacing="1">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold"
                                            TextTrimming="CharacterEllipsis" MaxWidth="220" />
-                                <!-- Unsaved marker -->
                                 <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="6,1" VerticalAlignment="Center"
-                                        Visibility="{Binding IsDirty, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="unsaved" FontSize="10" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                                        Visibility="{Binding IsDirty, Converter={StaticResource BoolToVis}}"
+                                        ToolTipService.ToolTip="Changes since the last save. Ctrl+S saves them.">
+                                    <TextBlock Text="Unsaved" FontSize="10" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
                                 </Border>
                             </StackPanel>
-                            <TextBlock Text="Interconnected Vault · Markdown, Word, PDF &amp; Visual Graph" FontSize="11" Opacity="0.7" />
+                            <TextBlock Text="Your documents and how they connect" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- Right: Search & Zoom Controls -->
+                    <!-- Right: search and zoom -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search titles, notes, tags, paths…" Width="210"
+                        <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search the map" Width="240"
+                                        QueryIcon="Find" AutomationProperties.Name="Search the map"
                                         TextChanged="OnSearchTextChanged" QuerySubmitted="OnSearchQuerySubmitted"
-                                        ToolTipService.ToolTip="Ctrl+F to focus · Enter to jump to the next match" />
-                        <TextBlock Text="{Binding SearchMatchCount}" VerticalAlignment="Center" FontSize="11" Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                        ToolTipService.ToolTip="Ctrl+F · Enter or F3 jumps to the next match, Shift+F3 to the previous one" />
+                        <TextBlock Text="{Binding SearchMatchText}" VerticalAlignment="Center" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    Visibility="{Binding HasSearchQuery, Converter={StaticResource BoolToVis}}" />
-                        <Button Click="OnZoomOutClick" ToolTipService.ToolTip="Zoom out (Ctrl+-)" Padding="6,5"><FontIcon Glyph="&#xE738;" FontSize="11" /></Button>
-                        <TextBlock Text="{Binding ZoomLevelText}" VerticalAlignment="Center" Width="42" TextAlignment="Center" FontSize="11" Opacity="0.7" />
-                        <Button Click="OnZoomInClick" ToolTipService.ToolTip="Zoom in (Ctrl++)" Padding="6,5"><FontIcon Glyph="&#xE710;" FontSize="11" /></Button>
-                        <Button Click="OnFitToWindowClick" ToolTipService.ToolTip="Fit the whole network on screen (Ctrl+0)" Padding="6,5"><FontIcon Glyph="&#xE740;" FontSize="11" /></Button>
+                        <Button Click="OnZoomOutClick" ToolTipService.ToolTip="Zoom out (Ctrl+−)" AutomationProperties.Name="Zoom out" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE71F;" FontSize="13" /></Button>
+                        <Button Click="OnZoomResetClick" Content="{Binding ZoomLevelText}" MinWidth="52" Height="32" Padding="6,0" FontSize="12"
+                                Background="Transparent" BorderThickness="0"
+                                ToolTipService.ToolTip="Zoom to 100%" AutomationProperties.Name="Zoom to 100 percent" />
+                        <Button Click="OnZoomInClick" ToolTipService.ToolTip="Zoom in (Ctrl++)" AutomationProperties.Name="Zoom in" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE8A3;" FontSize="13" /></Button>
+                        <Button Click="OnFitToWindowClick" ToolTipService.ToolTip="Fit the whole map in the window (Ctrl+0)" AutomationProperties.Name="Fit to window" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE9A6;" FontSize="13" /></Button>
                     </StackPanel>
                 </Grid>
 
@@ -74,134 +95,119 @@
                 <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto"
                               VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left" VerticalAlignment="Center">
-                        <Button Command="{Binding AddChildNodeCommand}" ToolTipService.ToolTip="Add child node (Tab)" Padding="8,5">
+                        <Button Command="{Binding AddChildNodeCommand}" Style="{StaticResource GalaxyToolButton}" ToolTipService.ToolTip="Add a node under the selected one (Tab)">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE710;" FontSize="12" />
-                                <TextBlock Text="Child" FontSize="12" />
+                                <TextBlock Text="Add child" FontSize="12" />
                             </StackPanel>
                         </Button>
-                        <Button Command="{Binding AddSiblingNodeCommand}" ToolTipService.ToolTip="Add sibling node (Enter)" Padding="8,5">
+                        <Button Command="{Binding AddSiblingNodeCommand}" Style="{StaticResource GalaxyToolButton}" ToolTipService.ToolTip="Add a node beside the selected one (Enter)">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE710;" FontSize="12" />
-                                <TextBlock Text="Sibling" FontSize="12" />
+                                <TextBlock Text="Add sibling" FontSize="12" />
                             </StackPanel>
                         </Button>
-                        <Button Click="OnConnectSelectedClick" ToolTipService.ToolTip="Link two documents and name the relationship (Ctrl+L)" Padding="8,5">
+                        <Button Click="OnConnectSelectedClick" Style="{StaticResource GalaxyToolButton}" ToolTipService.ToolTip="Link the selected node to another one and say why (Ctrl+L)">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE71B;" FontSize="12" />
                                 <TextBlock Text="Link" FontSize="12" />
                             </StackPanel>
                         </Button>
-                        <Button Command="{Binding DeleteSelectionCommand}" ToolTipService.ToolTip="Delete node or link (Del)" Padding="8,5">
+                        <Button Command="{Binding DeleteSelectionCommand}" IsEnabled="{Binding HasSelection}" Style="{StaticResource GalaxyToolButton}"
+                                ToolTipService.ToolTip="Delete the selected node or link (Delete)" AutomationProperties.Name="Delete">
                             <FontIcon Glyph="&#xE74D;" FontSize="12" />
                         </Button>
 
                         <AppBarSeparator />
 
-                        <Button Command="{Binding UndoCommand}" ToolTipService.ToolTip="Undo (Ctrl+Z)" Padding="8,5"
-                                IsEnabled="{Binding CanUndo}">
+                        <Button Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" Style="{StaticResource GalaxyToolButton}"
+                                ToolTipService.ToolTip="{Binding UndoToolTip}" AutomationProperties.Name="Undo">
                             <FontIcon Glyph="&#xE7A7;" FontSize="12" />
                         </Button>
-                        <Button Command="{Binding RedoCommand}" ToolTipService.ToolTip="Redo (Ctrl+Y)" Padding="8,5"
-                                IsEnabled="{Binding CanRedo}">
+                        <Button Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" Style="{StaticResource GalaxyToolButton}"
+                                ToolTipService.ToolTip="{Binding RedoToolTip}" AutomationProperties.Name="Redo">
                             <FontIcon Glyph="&#xE7A6;" FontSize="12" />
                         </Button>
 
                         <AppBarSeparator />
 
-                        <!-- Layout Dropdown -->
-                        <DropDownButton Padding="8,5" ToolTipService.ToolTip="Automatic layout arrangements">
+                        <DropDownButton Padding="10,5" MinHeight="32" ToolTipService.ToolTip="Rearrange every node automatically">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xECA5;" FontSize="12" />
-                                <TextBlock Text="Auto-Layout" FontSize="12" />
+                                <TextBlock Text="Arrange" FontSize="12" />
                             </StackPanel>
                             <DropDownButton.Flyout>
-                                <MenuFlyout>
-                                    <MenuFlyoutItem Text="Horizontal Tree" Click="OnLayoutTreeClick">
-                                        <MenuFlyoutItem.Icon>
-                                            <FontIcon Glyph="&#xE81E;" />
-                                        </MenuFlyoutItem.Icon>
+                                <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                    <MenuFlyoutItem Text="Tree, left to right" Click="OnLayoutTreeClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem Text="Radial Constellation" Click="OnLayoutRadialClick">
-                                        <MenuFlyoutItem.Icon>
-                                            <FontIcon Glyph="&#xE707;" />
-                                        </MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem Text="Hierarchy, top down" Click="OnLayoutHierarchyClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem Text="Force-Directed Cluster" Click="OnLayoutForceClick">
-                                        <MenuFlyoutItem.Icon>
-                                            <FontIcon Glyph="&#xEC26;" />
-                                        </MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem Text="Radial, around the root" Click="OnLayoutRadialClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE707;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem Text="Hierarchy (Top-Down)" Click="OnLayoutHierarchyClick">
-                                        <MenuFlyoutItem.Icon>
-                                            <FontIcon Glyph="&#xF003;" />
-                                        </MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem Text="Clusters, by tag and link" Click="OnLayoutClustersClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF0E2;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem Text="Clustered Islands" Click="OnLayoutClustersClick">
-                                        <MenuFlyoutItem.Icon>
-                                            <FontIcon Glyph="&#xF0E2;" />
-                                        </MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem Text="Force-directed web" Click="OnLayoutForceClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEC26;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>
 
-                        <Button Click="OnToggleFocusModeClick" ToolTipService.ToolTip="Focus mode — dim everything the selected document isn't connected to (F)" Padding="8,5">
+                        <!-- A real toggle: its checked state is the "on" indicator, instead of a
+                             hand-drawn "ON" pill squeezed beside the icon. -->
+                        <ToggleButton IsChecked="{Binding IsFocusModeEnabled, Mode=TwoWay}" Padding="10,5" MinHeight="32"
+                                      ToolTipService.ToolTip="Focus: fade everything the selected node isn't connected to (F)">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE890;" FontSize="12" />
-                                <Border Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="6" Padding="5,0" VerticalAlignment="Center"
-                                        Visibility="{Binding IsFocusModeEnabled, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="ON" FontSize="9" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                                </Border>
+                                <TextBlock Text="Focus" FontSize="12" />
                             </StackPanel>
-                        </Button>
+                        </ToggleButton>
 
-                        <Button Click="OnImportFolderClick" ToolTipService.ToolTip="Scan a folder and auto-link everything in it" Padding="8,5">
+                        <AppBarSeparator />
+
+                        <Button Click="OnImportFolderClick" Style="{StaticResource GalaxyToolButton}" ToolTipService.ToolTip="Map a folder: every document in it becomes a node, linked by what they share">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE8B7;" FontSize="12" />
-                                <TextBlock Text="Import Vault" FontSize="12" />
+                                <TextBlock Text="Import folder" FontSize="12" />
                             </StackPanel>
                         </Button>
 
-                        <DropDownButton Padding="8,5" ToolTipService.ToolTip="Export document network">
+                        <DropDownButton Padding="10,5" MinHeight="32" ToolTipService.ToolTip="Export or copy the map">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xEDE1;" FontSize="12" />
                                 <TextBlock Text="Export" FontSize="12" />
                             </StackPanel>
                             <DropDownButton.Flyout>
-                                <MenuFlyout>
-                                    <MenuFlyoutItem Text="Word Document (.docx)" Click="OnExportDocxClick">
-                                        <MenuFlyoutItem.Icon>
-                                            <FontIcon Glyph="&#xE74E;" />
-                                        </MenuFlyoutItem.Icon>
+                                <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                    <MenuFlyoutItem x:Name="ExportDocxItem" Text="Word document…" Click="OnExportDocxClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem Text="Copy Mermaid Flowchart" Click="OnCopyMermaidFlowchartClick">
-                                        <MenuFlyoutItem.Icon>
-                                            <FontIcon Glyph="&#xE943;" />
-                                        </MenuFlyoutItem.Icon>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem Text="Copy as Mermaid flowchart" Click="OnCopyMermaidFlowchartClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem Text="Copy Mermaid Mindmap" Click="OnCopyMermaidMindmapClick">
-                                        <MenuFlyoutItem.Icon>
-                                            <FontIcon Glyph="&#xE8C8;" />
-                                        </MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem Text="Copy as Mermaid mind map" Click="OnCopyMermaidMindmapClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem Text="Save Map File (.msmap)…" Click="OnSaveAsClick">
-                                        <MenuFlyoutItem.Icon>
-                                            <FontIcon Glyph="&#xE74E;" />
-                                        </MenuFlyoutItem.Icon>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem Text="Save a copy of the map…" Click="OnSaveAsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA35;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>
 
-                        <Button Click="OnSaveClick" ToolTipService.ToolTip="Save galaxy (Ctrl+S)" Padding="8,5">
+                        <Button Click="OnSaveClick" Style="{StaticResource GalaxyToolButton}" ToolTipService.ToolTip="Save the map (Ctrl+S)">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE74E;" FontSize="12" />
                                 <TextBlock Text="Save" FontSize="12" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
-
                 </ScrollViewer>
             </Grid>
         </Border>
@@ -220,9 +226,11 @@
                      coordinates, so panning and zooming move a single transform instead of
                      rebuilding every card. -->
                 <Canvas x:Name="GalaxyCanvas" Background="Transparent"
+                        AutomationProperties.Name="Map canvas"
                         PointerPressed="OnCanvasPointerPressed"
                         PointerMoved="OnCanvasPointerMoved"
                         PointerReleased="OnCanvasPointerReleased"
+                        PointerCaptureLost="OnCanvasPointerCaptureLost"
                         PointerWheelChanged="OnCanvasPointerWheelChanged">
                     <Canvas x:Name="WorldCanvas">
                         <Canvas.RenderTransform>
@@ -241,10 +249,10 @@
                         CornerRadius="12" Padding="28,24"
                         Visibility="{Binding IsGalaxyEmpty, Converter={StaticResource BoolToVis}}">
                     <StackPanel Spacing="10" HorizontalAlignment="Center">
-                        <FontIcon Glyph="&#xE946;" FontSize="36" Foreground="{ThemeResource AccentFillColorDefaultBrush}" HorizontalAlignment="Center" />
-                        <TextBlock Text="Your galaxy is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"
+                        <FontIcon Glyph="&#xEC26;" FontSize="36" Foreground="{ThemeResource AccentFillColorDefaultBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Text="Your map is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"
                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                        <TextBlock Text="Add a first node and grow the map from it, or import a folder and Marksmith will link every document in it for you."
+                        <TextBlock Text="Add a first node and grow the map from it, or import a folder and MarkSmith will link every document in it for you."
                                    FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,6,0,0">
                             <Button Command="{Binding AddRootNodeCommand}" Style="{StaticResource AccentButtonStyle}" Padding="12,6">
@@ -253,10 +261,10 @@
                                     <TextBlock Text="Add first node" FontSize="12" />
                                 </StackPanel>
                             </Button>
-                            <Button Click="OnImportFolderClick" Padding="12,6" ToolTipService.ToolTip="Scan a folder and auto-link everything in it">
+                            <Button Click="OnImportFolderClick" Padding="12,6" ToolTipService.ToolTip="Map a folder: every document in it becomes a node">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE8B7;" FontSize="12" />
-                                    <TextBlock Text="Import Vault" FontSize="12" />
+                                    <TextBlock Text="Import folder" FontSize="12" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -264,61 +272,65 @@
                 </Border>
 
                 <!-- TOP OVERLAY STACK: first-run tour banner, then the tag filter pills -->
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Spacing="8">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="16,12,16,0" Spacing="8">
 
                     <!-- GUIDED TOUR BANNER -->
                     <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10" Padding="14,10"
                             MaxWidth="760"
                             Visibility="{Binding IsTutorialActive, Converter={StaticResource BoolToVis}}">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE946;" FontSize="18" Foreground="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center" />
-                            <StackPanel Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Text="Interactive Guided Tour" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                <TextBlock Text="Folders force you to pick one home per file. Here each document preserves all relationships it has earned across projects."
-                                           FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" MaxWidth="500" />
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE7BE;" FontSize="18" Foreground="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="This is a guided tour" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="A folder makes each file live in one place. Here a document keeps every connection it has, across projects. Import a folder to map your own."
+                                           FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                             </StackPanel>
-                            <StackPanel Spacing="6" VerticalAlignment="Center">
-                                <Button Click="OnImportFolderClick" Style="{StaticResource AccentButtonStyle}"
-                                        FontSize="11" Padding="10,4" CornerRadius="6" HorizontalAlignment="Stretch">
-                                    <StackPanel Orientation="Horizontal" Spacing="5">
-                                        <FontIcon Glyph="&#xE8B7;" FontSize="11" />
-                                        <TextBlock Text="Import Vault" FontSize="11" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Button Click="OnImportFolderClick" Style="{StaticResource AccentButtonStyle}" FontSize="12" Padding="10,5">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE8B7;" FontSize="12" />
+                                        <TextBlock Text="Import folder" FontSize="12" />
                                     </StackPanel>
                                 </Button>
-                                <Button Command="{Binding ClearTutorialCommand}" Background="Transparent" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11" Padding="10,4" CornerRadius="6" HorizontalAlignment="Stretch"
-                                        ToolTipService.ToolTip="Dismiss tour nodes and keep user-created nodes">
-                                    <TextBlock Text="Dismiss Tour" FontSize="11" />
+                                <Button Command="{Binding ClearTutorialCommand}" FontSize="12" Padding="10,5"
+                                        ToolTipService.ToolTip="Remove the tour's nodes. Anything you added stays.">
+                                    <TextBlock Text="Clear the tour" FontSize="12" />
                                 </Button>
                             </StackPanel>
-                        </StackPanel>
+                        </Grid>
                     </Border>
 
-                    <!-- FLOATING TAG FILTER PILL BAR -->
+                    <!-- FLOATING TAG FILTER PILL BAR. The pill for the active filter is drawn in the
+                         accent colour (see UpdateTagPills); before, nothing showed a filter was on. -->
                     <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                             CornerRadius="20" Padding="8,4" HorizontalAlignment="Center"
                             Visibility="{Binding HasTags, Converter={StaticResource BoolToVis}}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE8EC;" FontSize="11" VerticalAlignment="Center" Margin="2,0,4,0" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
-                            <Button Click="OnAllTagsClick" Padding="8,3" CornerRadius="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
-                                <TextBlock Text="All Tags" FontSize="11" />
-                            </Button>
-                            <ItemsControl ItemsSource="{Binding DistinctTags}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="4" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Button services:HoverPolish.ApplyOnLoad="True" Click="OnTagPillClick" Tag="{Binding}" Padding="8,3" CornerRadius="12"
-                                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                                            <TextBlock Text="{Binding}" FontSize="11" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto" VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE8EC;" FontSize="12" VerticalAlignment="Center" Margin="4,0,4,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <Button x:Name="AllTagsPill" Click="OnAllTagsClick" Padding="10,3" CornerRadius="12" FontSize="11"
+                                        Content="All tags" ToolTipService.ToolTip="Show every node" Loaded="OnTagPillLoaded" Unloaded="OnTagPillUnloaded" />
+                                <ItemsControl ItemsSource="{Binding DistinctTags}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="4" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button services:HoverPolish.ApplyOnLoad="True" Click="OnTagPillClick" Tag="{Binding}" Content="{Binding}"
+                                                    Padding="10,3" CornerRadius="12" FontSize="11"
+                                                    Loaded="OnTagPillLoaded" Unloaded="OnTagPillUnloaded" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ScrollViewer>
                     </Border>
                 </StackPanel>
 
@@ -328,43 +340,44 @@
                         IsHitTestVisible="False">
                     <StackPanel Orientation="Horizontal" Spacing="14">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Rectangle Width="16" Height="2" Fill="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center" />
-                            <TextBlock Text="hierarchy" FontSize="10" Opacity="0.75" />
+                            <Rectangle Width="16" Height="2" Fill="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Parent and child" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Rectangle Width="16" Height="2.5" Fill="{ThemeResource SystemFillColorSuccessBrush}" VerticalAlignment="Center" />
-                            <TextBlock Text="manual link" FontSize="10" Opacity="0.75" />
+                            <Line X1="0" Y1="0" X2="16" Y2="0" StrokeThickness="2.5" Stroke="{ThemeResource SystemFillColorSuccessBrush}" StrokeDashArray="1.5,1" VerticalAlignment="Center" />
+                            <TextBlock Text="Your link" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Rectangle Width="16" Height="2" Fill="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
-                            <TextBlock Text="inferred" FontSize="10" Opacity="0.75" />
+                            <Line X1="0" Y1="0" X2="16" Y2="0" StrokeThickness="1.6" Stroke="{ThemeResource TextFillColorSecondaryBrush}" StrokeDashArray="2,1.6" VerticalAlignment="Center" />
+                            <TextBlock Text="Found on import" FontSize="11" FontStyle="Italic" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
-                        <TextBlock Text="·  drag to position  ·  double-click to edit  ·  right-click for menu" FontSize="10" Opacity="0.5" />
+                        <TextBlock Text="Drag to move · Double-click to open · Right-click for more" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                     </StackPanel>
                 </Border>
 
-                <!-- FLOATING MINIMAP RADAR HUD (Bottom-Left) -->
+                <!-- FLOATING MINIMAP (Bottom-Left) -->
                 <Border x:Name="MinimapOverlay"
                         HorizontalAlignment="Left" VerticalAlignment="Bottom"
                         Margin="24,0,0,24" Width="180" Height="120"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                        CornerRadius="8" Padding="6">
-                    <Grid>
-                        <Canvas x:Name="MinimapCanvas" Background="Transparent"
-                                PointerPressed="OnMinimapPointerPressed"
-                                PointerMoved="OnMinimapPointerMoved"
-                                PointerReleased="OnMinimapPointerReleased" />
-                        <TextBlock Text="RADAR" FontSize="9" FontWeight="Bold" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,4,0" IsHitTestVisible="False"/>
-                    </Grid>
+                        CornerRadius="8" Padding="6"
+                        ToolTipService.ToolTip="Overview: click or drag to move around the map">
+                    <Canvas x:Name="MinimapCanvas" Background="Transparent"
+                            AutomationProperties.Name="Map overview"
+                            PointerPressed="OnMinimapPointerPressed"
+                            PointerMoved="OnMinimapPointerMoved"
+                            PointerReleased="OnMinimapPointerReleased"
+                            PointerCaptureLost="OnMinimapPointerCaptureLost" />
                 </Border>
 
-                <!-- FLOATING MARKDOWN PREVIEW CARD (Overlay) -->
+                <!-- FLOATING PREVIEW CARD: shows whichever node is under the pointer (or was double-
+                     clicked), and its buttons act on that node — not on the selection. -->
                 <Border x:Name="PreviewOverlayCard"
                         Visibility="{Binding IsPreviewCardVisible, Converter={StaticResource BoolToVis}}"
                         HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                        Margin="0,0,24,24" Width="420" MaxHeight="340"
+                        Margin="0,0,24,24" Width="400" MaxHeight="320"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                        CornerRadius="12" Padding="14">
+                        CornerRadius="12" Padding="14,12">
                     <Grid RowSpacing="8">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -372,142 +385,123 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <!-- Header -->
-                        <Grid Grid.Row="0">
-                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE8A5;" FontSize="12" VerticalAlignment="Center" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
-                                <TextBlock Text="{Binding PreviewTitle}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="300" />
-                            </StackPanel>
-                            <Button Click="OnClosePreviewCardClick" HorizontalAlignment="Right" Padding="4,2" Background="Transparent" BorderThickness="0"
-                                    ToolTipService.ToolTip="Close preview">
-                                <FontIcon Glyph="&#xE711;" FontSize="10" Opacity="0.7" />
+                        <Grid Grid.Row="0" ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE8A5;" FontSize="13" VerticalAlignment="Center" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                            <TextBlock Grid.Column="1" Text="{Binding PreviewTitle}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            <Button Grid.Column="2" Click="OnClosePreviewCardClick" Width="28" Height="28" Padding="0" Background="Transparent" BorderThickness="0"
+                                    ToolTipService.ToolTip="Close the preview (Esc)" AutomationProperties.Name="Close the preview">
+                                <FontIcon Glyph="&#xE711;" FontSize="11" />
                             </Button>
                         </Grid>
 
-                        <!-- Markdown snippet scroll -->
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                            <TextBlock Text="{Binding PreviewMarkdown}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" FontFamily="Consolas, monospace" />
+                            <TextBlock Text="{Binding PreviewMarkdown}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" IsTextSelectionEnabled="True" />
                         </ScrollViewer>
 
-                        <!-- Open in MarkSmith Action -->
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                            <TextBlock Text="{Binding PreviewFilePath}" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="150" />
-                            <Button Click="OnPreviewVersionHistoryClick" Background="{ThemeResource SubtleFillColorSecondaryBrush}" FontSize="11" Padding="8,4" CornerRadius="6">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <FontIcon Glyph="&#xE823;" FontSize="11" />
-                                    <TextBlock Text="History" FontSize="11" />
+                        <Grid Grid.Row="2" ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding PreviewFilePath}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <Button Grid.Column="1" Click="OnPreviewVersionHistoryClick" IsEnabled="{Binding PreviewHasFile}" FontSize="12" Padding="10,4"
+                                    ToolTipService.ToolTip="Earlier versions of this document">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE81C;" FontSize="12" />
+                                    <TextBlock Text="History" FontSize="12" />
                                 </StackPanel>
                             </Button>
-                            <Button Click="OnOpenInEditorClick" Style="{StaticResource AccentButtonStyle}" FontSize="11" Padding="10,4" CornerRadius="6">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <TextBlock Text="Open in Editor" FontSize="11" />
-                                    <FontIcon Glyph="&#xE76C;" FontSize="10" />
+                            <Button Grid.Column="2" Click="OnOpenInEditorClick" IsEnabled="{Binding PreviewHasFile}" Style="{StaticResource AccentButtonStyle}" FontSize="12" Padding="10,4"
+                                    ToolTipService.ToolTip="Open this document in the editor">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="Open" FontSize="12" />
+                                    <FontIcon Glyph="&#xE8A7;" FontSize="12" />
                                 </StackPanel>
                             </Button>
-                        </StackPanel>
+                        </Grid>
                     </Grid>
                 </Border>
             </Grid>
 
-            <!-- RIGHT PROPERTY & APPEARANCE INSPECTOR -->
-            <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,0,0,0" Padding="14">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="16">
+            <!-- RIGHT INSPECTOR -->
+            <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,0,0,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,14,16,16">
+                    <StackPanel Spacing="18">
 
-                        <!-- SECTION 0: GALAXY HEALTH -->
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="DOCUMENT VAULT TOPOLOGY" FontSize="11" FontWeight="Bold" Opacity="0.6" CharacterSpacing="60" />
-                            <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8">
-                                <StackPanel Spacing="6">
-                                    <TextBlock Text="{Binding InsightsSummary}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                    <Button Click="OnShowInsightsClick" HorizontalAlignment="Stretch" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" Padding="8,4" CornerRadius="6">
-                                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                                            <FontIcon Glyph="&#xE9D9;" FontSize="11" />
-                                            <TextBlock Text="Topology Report" FontSize="11" />
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-
-                        <MenuFlyoutSeparator />
-
-                        <!-- SECTION 1: APPEARANCE & THEMES -->
+                        <!-- MAP OVERVIEW -->
                         <StackPanel Spacing="8">
-                            <TextBlock Text="NETWORK APPEARANCE" FontSize="11" FontWeight="Bold" Opacity="0.6" CharacterSpacing="60" />
-                            <ComboBox AutomationProperties.Name="Network appearance" ItemsSource="{Binding AvailableThemes}" SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}" HorizontalAlignment="Stretch" SelectionChanged="OnThemeChanged" />
-
-                            <TextBlock Text="Branch accent swatches" FontSize="11" Opacity="0.6" Margin="0,4,0,0" />
-                            <ItemsControl ItemsSource="{Binding PaletteColors}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <VariableSizedWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="4" ItemWidth="40" ItemHeight="36" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Button services:HoverPolish.ApplyOnLoad="True" Click="OnPaletteSwatchClick" Tag="{Binding}" Padding="3" Margin="3" Width="32" Height="30" CornerRadius="6" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                                HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ToolTipService.ToolTip="{Binding}">
-                                            <!-- Content must stretch: with the default centred alignment this unsized swatch measured 0x0 and every button rendered empty. -->
-                                            <Border CornerRadius="4" Background="{Binding Converter={StaticResource FillBrushConverter}}" />
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <TextBlock Text="Map overview" Style="{StaticResource InspectorHeading}" />
+                            <TextBlock Text="{Binding InsightsSummary}" Style="{StaticResource InspectorCaption}" />
+                            <Button Click="OnShowInsightsClick" HorizontalAlignment="Stretch" Padding="10,5"
+                                    ToolTipService.ToolTip="Counts, the most connected documents, formats, tags and anything not linked yet">
+                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                    <FontIcon Glyph="&#xE9D9;" FontSize="12" />
+                                    <TextBlock Text="Map report" FontSize="12" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
 
-                        <MenuFlyoutSeparator />
+                        <!-- APPEARANCE -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Appearance" Style="{StaticResource InspectorHeading}" />
+                            <ComboBox AutomationProperties.Name="Map appearance" ItemsSource="{Binding AvailableThemes}" SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                        </StackPanel>
+
+                        <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
 
                         <!-- EMPTY-SELECTION HINT -->
-                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="12"
-                                Visibility="{Binding HasSelectedNode, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Nothing selected" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                <TextBlock Text="Click a node on the canvas to edit its title, file, tags and notes — or a connector to edit the relationship."
-                                           FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
+                        <StackPanel Spacing="6" Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
+                            <FontIcon Glyph="&#xE8B0;" FontSize="20" HorizontalAlignment="Left" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                            <TextBlock Text="Nothing selected" Style="{StaticResource InspectorHeading}" />
+                            <TextBlock Text="Click a node to edit its title, file, tags and notes, or click a link to say why two documents are connected."
+                                       Style="{StaticResource InspectorCaption}" />
+                        </StackPanel>
 
-                        <!-- SECTION 2: NODE DETAILS & LINKING -->
-                        <StackPanel Spacing="10" DataContext="{Binding SelectedNode}"
+                        <!-- SELECTED NODE -->
+                        <StackPanel Spacing="12" DataContext="{Binding SelectedNode}"
                                     Visibility="{Binding ElementName=RootGrid, Path=DataContext.HasSelectedNode, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="SELECTED DOCUMENT / NODE" FontSize="11" FontWeight="Bold" Opacity="0.6" CharacterSpacing="60" />
+                            <TextBlock Text="Selected node" Style="{StaticResource InspectorHeading}" />
 
-                            <TextBox Header="Title" Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Document title…" />
+                            <TextBox x:Name="TitleBox" Header="Title" Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     PlaceholderText="Name this document" KeyDown="OnInspectorFieldKeyDown" />
+
+                            <StackPanel Spacing="6">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Header="Linked file" Text="{Binding FilePath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             PlaceholderText="No file attached" KeyDown="OnInspectorFieldKeyDown" />
+                                    <Button Grid.Column="1" Click="OnBrowseForFileClick" VerticalAlignment="Bottom" Width="34" Height="32" Padding="0"
+                                            ToolTipService.ToolTip="Choose the document this node stands for" AutomationProperties.Name="Choose a file">
+                                        <FontIcon Glyph="&#xE8E5;" FontSize="13" />
+                                    </Button>
+                                </Grid>
+                                <!-- Missing-file warning -->
+                                <InfoBar IsOpen="{Binding IsFileMissing}" IsClosable="False" Severity="Warning" Padding="0"
+                                         Message="That file isn't there any more. Choose it again to point the node at its new place." />
+                            </StackPanel>
 
                             <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="88" />
                                 </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0" Header="Linked file" Text="{Binding FilePath, Mode=TwoWay}" PlaceholderText="C:\docs\project.md" />
-                                <Button Grid.Column="1" Click="OnBrowseForFileClick" VerticalAlignment="Bottom" Padding="8,6"
-                                        ToolTipService.ToolTip="Pick the document this node stands for">
-                                    <FontIcon Glyph="&#xE723;" FontSize="12" />
-                                </Button>
-                            </Grid>
-
-                            <!-- Missing-file warning -->
-                            <Border Background="{ThemeResource SystemFillColorCriticalBackgroundBrush}" BorderBrush="{ThemeResource SystemFillColorCriticalBrush}" BorderThickness="1" CornerRadius="6" Padding="8,5"
-                                    Visibility="{Binding IsFileMissing, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="That file is no longer on disk. The node keeps the path so you can repoint it."
-                                           FontSize="10.5" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" />
-                            </Border>
-
-                            <Grid ColumnSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <ComboBox Grid.Column="0" Header="Node type" HorizontalAlignment="Stretch"
+                                <ComboBox Grid.Column="0" Header="Type" HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding ElementName=RootGrid, Path=DataContext.AvailableNodeTypes}"
                                           SelectedItem="{Binding NodeType, Mode=TwoWay}" />
                                 <!-- Same fallback chain as the node cards, so a Fluent icon shows as the icon
                                      rather than a missing-glyph box (emoji still work). -->
-                                <TextBox Grid.Column="1" Text="{Binding Icon, Mode=TwoWay}" MaxLength="4" HorizontalAlignment="Stretch"
+                                <TextBox Grid.Column="1" Text="{Binding Icon, Mode=TwoWay}" MaxLength="4" HorizontalAlignment="Stretch" TextAlignment="Center"
                                          FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Emoji, Segoe UI"
-                                         ToolTipService.ToolTip="The node's icon — an emoji, or a Segoe Fluent icon character">
+                                         ToolTipService.ToolTip="An emoji, or a Segoe Fluent icon character" KeyDown="OnInspectorFieldKeyDown">
                                     <!-- The icon font chain above is inherited by the header too, and Segoe Fluent
                                          Icons draws Latin letters as boxes — "Icon" rendered as four boxes. -->
                                     <TextBox.Header>
@@ -516,77 +510,101 @@
                                 </TextBox>
                             </Grid>
 
-                            <!-- Progress Slider -->
+                            <!-- Colour: lives with the node it recolours. In "Appearance" above, a click
+                                 with nothing selected silently did nothing. -->
                             <StackPanel Spacing="4">
-                                <Grid>
-                                    <TextBlock Text="Completion / progress" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock Text="{Binding ProgressText}" HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
-                                </Grid>
-                                <Slider Value="{Binding Progress, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" />
+                                <TextBlock Text="Colour" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                <ItemsControl ItemsSource="{Binding ElementName=RootGrid, Path=DataContext.PaletteColors}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="6" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button services:HoverPolish.ApplyOnLoad="True" Click="OnPaletteSwatchClick" Tag="{Binding}" Padding="3" Width="30" Height="30" CornerRadius="15"
+                                                    BorderThickness="2" BorderBrush="Transparent" Background="Transparent"
+                                                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
+                                                    Loaded="OnSwatchLoaded" Unloaded="OnSwatchUnloaded">
+                                                <!-- Content must stretch: with the default centred alignment this unsized swatch measured 0x0 and every button rendered empty. -->
+                                                <Border CornerRadius="11" Background="{Binding Converter={StaticResource FillBrushConverter}}" />
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
 
-                            <!-- Tags -->
-                            <TextBox Header="Tags (space separated)" Text="{Binding TagSummary, Mode=OneWay}" IsReadOnly="True"
-                                     PlaceholderText="no tags yet" />
-                            <Button Click="OnEditTagsClick" HorizontalAlignment="Stretch" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                    FontSize="11" Padding="8,4" CornerRadius="6">
-                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                                    <FontIcon Glyph="&#xE8EC;" FontSize="11" />
-                                    <TextBlock Text="Edit Tags" FontSize="11" />
-                                </StackPanel>
-                            </Button>
+                            <StackPanel Spacing="2">
+                                <Grid>
+                                    <TextBlock Text="Progress" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="{Binding ProgressText}" HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </Grid>
+                                <Slider Value="{Binding Progress, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" SmallChange="5" LargeChange="25"
+                                        AutomationProperties.Name="Progress" />
+                            </StackPanel>
 
-                            <!-- Markdown Notes -->
-                            <TextBox Header="Markdown summary / notes" Text="{Binding MarkdownContent, Mode=TwoWay}" AcceptsReturn="True" Height="120" TextWrapping="Wrap" PlaceholderText="# Notes &amp; details…" />
+                            <TextBox x:Name="TagsBox" Header="Tags" Text="{Binding TagsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     PlaceholderText="#research #q3, separated by spaces" KeyDown="OnInspectorFieldKeyDown"
+                                     ToolTipService.ToolTip="Separate tags with spaces or commas. Click a tag above the map to show only its nodes." />
 
-                            <!-- Action Buttons -->
-                            <Button Click="OnOpenSelectedDocumentClick" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}" FontWeight="SemiBold">
-                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                                    <FontIcon Glyph="&#xE8A7;" FontSize="11" />
-                                    <TextBlock Text="Open Document in MarkSmith" FontSize="11" />
-                                </StackPanel>
-                            </Button>
-                            <Button Click="OnOpenVersionHistoryClick" HorizontalAlignment="Stretch" Background="{ThemeResource SubtleFillColorSecondaryBrush}" FontWeight="SemiBold" Margin="0,6,0,0" ToolTipService.ToolTip="Open version history &amp; time machine for this document">
-                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                                    <FontIcon Glyph="&#xE823;" FontSize="12" />
-                                    <TextBlock Text="Document Time Machine" FontSize="12" />
-                                    <Border Background="{ThemeResource SubtleFillColorTertiaryBrush}" CornerRadius="10" Padding="6,1" Margin="4,0,0,0" Visibility="{Binding HasVersions, Converter={StaticResource BoolToVis}}">
-                                        <TextBlock Text="{Binding VersionCountText}" FontSize="10" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
-                                    </Border>
-                                </StackPanel>
-                            </Button>
+                            <TextBox Header="Notes" Text="{Binding MarkdownContent, Mode=TwoWay}" AcceptsReturn="True" Height="130" TextWrapping="Wrap"
+                                     PlaceholderText="What this document is and why it matters (Markdown)" />
+
+                            <StackPanel Spacing="6">
+                                <Button Click="OnOpenSelectedDocumentClick" IsEnabled="{Binding HasFile}" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}" Padding="10,6"
+                                        ToolTipService.ToolTip="Open the linked file in the editor (double-click the node)">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                        <FontIcon Glyph="&#xE8A7;" FontSize="12" />
+                                        <TextBlock Text="Open in editor" FontSize="12" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Click="OnOpenVersionHistoryClick" IsEnabled="{Binding HasFile}" HorizontalAlignment="Stretch" Padding="10,6"
+                                        ToolTipService.ToolTip="Every saved version of the linked file, with what changed">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                        <FontIcon Glyph="&#xE81C;" FontSize="12" />
+                                        <TextBlock Text="Version history" FontSize="12" />
+                                        <Border Background="{ThemeResource SubtleFillColorTertiaryBrush}" CornerRadius="9" Padding="7,1" Visibility="{Binding HasVersions, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="{Binding VersionCountText}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </Border>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
                         </StackPanel>
 
-                        <!-- SECTION 3: SELECTED RELATIONSHIP -->
-                        <StackPanel Spacing="10"
+                        <!-- SELECTED LINK -->
+                        <StackPanel Spacing="12"
                                     Visibility="{Binding HasSelectedLink, Converter={StaticResource BoolToVis}}">
-                            <MenuFlyoutSeparator />
-                            <TextBlock Text="SELECTED RELATIONSHIP" FontSize="11" FontWeight="Bold" Opacity="0.6" CharacterSpacing="60" />
-                            <TextBlock Text="{Binding SelectedLinkDescription}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            <StackPanel DataContext="{Binding SelectedLink}" Spacing="10">
+                            <TextBlock Text="Selected link" Style="{StaticResource InspectorHeading}" />
+                            <TextBlock Text="{Binding SelectedLinkDescription}" FontSize="13" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
+                            <StackPanel DataContext="{Binding SelectedLink}" Spacing="8">
                                 <TextBox Header="Why are these connected?" Text="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         PlaceholderText="e.g. grew out of, evidence for, supersedes" />
-                                <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6" Padding="8,6"
-                                        Visibility="{Binding IsInferred, Converter={StaticResource BoolToVis}}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE946;" FontSize="11" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
-                                        <TextBlock Text="MarkSmith inferred this connection during directory scan."
-                                                   FontSize="10.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                </Border>
+                                         PlaceholderText="e.g. grew out of, evidence for, supersedes" KeyDown="OnInspectorFieldKeyDown" />
+                                <StackPanel Orientation="Horizontal" Spacing="6" Visibility="{Binding IsInferred, Converter={StaticResource BoolToVis}}">
+                                    <FontIcon Glyph="&#xE946;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Top" Margin="0,1,0,0" />
+                                    <TextBlock Text="MarkSmith found this link when the folder was imported. Give it a reason to make it yours."
+                                               Style="{StaticResource InspectorCaption}" />
+                                </StackPanel>
                             </StackPanel>
-                            <Button Click="OnReverseLinkClick" HorizontalAlignment="Stretch" Background="{ThemeResource SubtleFillColorSecondaryBrush}" FontSize="11" Padding="8,4" CornerRadius="6">
-                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                                    <FontIcon Glyph="&#xE8AB;" FontSize="11" />
-                                    <TextBlock Text="Reverse Direction" FontSize="11" />
-                                </StackPanel>
-                            </Button>
-                            <Button Command="{Binding DeleteSelectionCommand}" HorizontalAlignment="Stretch" Background="{ThemeResource SystemFillColorCriticalBackgroundBrush}" BorderBrush="{ThemeResource SystemFillColorCriticalBrush}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" FontSize="11" Padding="8,4" CornerRadius="6">
-                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                                    <FontIcon Glyph="&#xE74D;" FontSize="11" />
-                                    <TextBlock Text="Delete Relationship" FontSize="11" />
-                                </StackPanel>
-                            </Button>
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button Click="OnReverseLinkClick" HorizontalAlignment="Stretch" Padding="10,6"
+                                        ToolTipService.ToolTip="Flip which way the arrow points">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                        <FontIcon Glyph="&#xE8AB;" FontSize="12" />
+                                        <TextBlock Text="Reverse" FontSize="12" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="1" Command="{Binding DeleteSelectionCommand}" HorizontalAlignment="Stretch" Padding="10,6"
+                                        ToolTipService.ToolTip="Delete this link (Delete). The two nodes stay.">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                        <TextBlock Text="Delete link" FontSize="12" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
                         </StackPanel>
 
                     </StackPanel>
@@ -596,12 +614,17 @@
 
         <!-- STATUS BAR -->
         <Border Grid.Row="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="14,6">
-            <Grid>
-                <TextBlock Text="{Binding StatusMessage}" FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis" Margin="0,0,240,0" />
-                <StackPanel Orientation="Horizontal" Spacing="14" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding NodesCountText}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                    <TextBlock Text="{Binding LinksCountText}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding NodesCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    <TextBlock Text="·" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    <TextBlock Text="{Binding LinksCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                 </StackPanel>
             </Grid>
         </Border>

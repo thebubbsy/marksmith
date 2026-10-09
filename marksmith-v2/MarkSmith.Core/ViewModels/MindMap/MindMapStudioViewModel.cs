@@ -37,8 +37,8 @@ namespace MarkSmith.ViewModels.MindMap
         private double _zoomLevel = 1.0;
 
         public string ZoomLevelText => $"{(int)Math.Round(ZoomLevel * 100)}%";
-        public string NodesCountText => $"{Nodes.Count} {(Nodes.Count == 1 ? "Node" : "Nodes")}";
-        public string LinksCountText => $"{Links.Count} {(Links.Count == 1 ? "Cross-Link" : "Cross-Links")}";
+        public string NodesCountText => $"{Nodes.Count} {(Nodes.Count == 1 ? "node" : "nodes")}";
+        public string LinksCountText => $"{Links.Count} {(Links.Count == 1 ? "link" : "links")}";
 
         partial void OnZoomLevelChanged(double value)
         {
@@ -58,7 +58,7 @@ namespace MarkSmith.ViewModels.MindMap
         private MindMapLinkViewModel? _selectedLink;
 
         [ObservableProperty]
-        private string _statusMessage = "Ready — select a document node, link projects, or auto-layout your galaxy.";
+        private string _statusMessage = "Select a node to edit it, or drag the background to look around.";
 
         [ObservableProperty]
         private string _searchQuery = "";
@@ -110,6 +110,25 @@ namespace MarkSmith.ViewModels.MindMap
         }
         public bool CanUndo => _undo.Count > 0;
         public bool CanRedo => _redo.Count > 0;
+
+        /// <summary>Names the step Undo would take back ("Undo: Rename node (Ctrl+Z)"), so the
+        /// button says what it will do before you press it.</summary>
+        public string UndoToolTip => _undo.Count > 0 ? $"Undo: {_undo.Peek().Label} (Ctrl+Z)" : "Nothing to undo (Ctrl+Z)";
+        public string RedoToolTip => _redo.Count > 0 ? $"Redo: {_redo.Peek().Label} (Ctrl+Y)" : "Nothing to redo (Ctrl+Y)";
+
+        /// <summary>A node or a link is selected: what Delete acts on.</summary>
+        public bool HasSelection => SelectedNode != null || SelectedLink != null;
+
+        /// <summary>"3 matches" beside the search box. The bare count it showed read as a zoom
+        /// level or a badge, not as a result.</summary>
+        public string SearchMatchText => SearchMatchCount switch
+        {
+            0 => "No matches",
+            1 => "1 match",
+            var n => $"{n} matches"
+        };
+
+        partial void OnSearchMatchCountChanged(int value) => OnPropertyChanged(nameof(SearchMatchText));
         public bool HasTags => DistinctTags.Count > 0;
         /// <summary>True when the galaxy has no nodes at all — drives the canvas empty state.</summary>
         public bool IsGalaxyEmpty => Nodes.Count == 0;
@@ -125,7 +144,17 @@ namespace MarkSmith.ViewModels.MindMap
         }
 
         partial void OnSelectedTagFilterChanged(string? value) => ApplyFilterAndSearch();
-        partial void OnIsFocusModeEnabledChanged(bool value) => ApplyFilterAndSearch();
+        partial void OnIsFocusModeEnabledChanged(bool value)
+        {
+            // The toolbar toggle binds straight to this, so the status line is said here rather
+            // than in the command.
+            StatusMessage = !value
+                ? "Focus is off. Showing the whole map."
+                : SelectedNode != null
+                    ? $"Focus is on. Showing '{SelectedNode.Title}' and what it connects to."
+                    : "Focus is on. Select a node to see only what it connects to.";
+            ApplyFilterAndSearch();
+        }
 
         partial void OnSelectedNodeChanged(MindMapNodeViewModel? oldValue, MindMapNodeViewModel? newValue)
         {
@@ -138,6 +167,7 @@ namespace MarkSmith.ViewModels.MindMap
                 if (SelectedLink != null) SelectedLink = null;
             }
             OnPropertyChanged(nameof(HasSelectedNode));
+            OnPropertyChanged(nameof(HasSelection));
             ApplyFilterAndSearch();
         }
 
@@ -150,6 +180,7 @@ namespace MarkSmith.ViewModels.MindMap
                 if (SelectedNode != null) SelectedNode = null;
             }
             OnPropertyChanged(nameof(HasSelectedLink));
+            OnPropertyChanged(nameof(HasSelection));
             OnPropertyChanged(nameof(SelectedLinkDescription));
         }
 
@@ -165,8 +196,52 @@ namespace MarkSmith.ViewModels.MindMap
         [ObservableProperty]
         private string _previewFilePath = "";
 
+        /// <summary>The node the preview card is showing. Hovering shows a card for any node, not
+        /// just the selection, so the card's buttons must act on this one: "Open in editor" used to
+        /// open the selected node while the card described a different one.</summary>
         [ObservableProperty]
-        private string _selectedThemeName = "Midnight Galaxy";
+        private MindMapNodeViewModel? _previewNode;
+
+        /// <summary>True when the previewed node points at a file, so it has something to open
+        /// and a version history to show.</summary>
+        public bool PreviewHasFile => !string.IsNullOrWhiteSpace(PreviewNode?.FilePath);
+
+        partial void OnPreviewNodeChanged(MindMapNodeViewModel? value) => OnPropertyChanged(nameof(PreviewHasFile));
+
+        public const string DefaultThemeName = "Midnight Galaxy";
+
+        [ObservableProperty]
+        private string _selectedThemeName = DefaultThemeName;
+
+        /// <summary>The theme is part of the map: it is saved with it, restored when it opens, and
+        /// undone like any other change. It used to live only in the combo box, so every map
+        /// reopened as Midnight Galaxy whatever had been chosen.</summary>
+        partial void OnSelectedThemeNameChanging(string value)
+        {
+            if (_loadingDocument || value == SelectedThemeName) return;
+            PushUndo("Change appearance");
+        }
+
+        partial void OnSelectedThemeNameChanged(string value)
+        {
+            if (_loadingDocument) return;
+            Document.Theme ??= new MindMapTheme();
+            Document.Theme.Name = value;
+            MarkDirty($"Switched the map to {value}.");
+        }
+
+        /// <summary>Set while a document is being loaded or restored, so restoring its theme and
+        /// fields isn't recorded as an edit.</summary>
+        private bool _loadingDocument;
+
+        /// <summary>The names the theme picker offers; anything else in a file falls back to the
+        /// default rather than leaving the picker blank.</summary>
+        private string ThemeNameFor(MindMapDocument doc) =>
+            doc.Theme?.Name is { } name && AvailableThemes.Contains(name) ? name : DefaultThemeName;
+
+        /// <summary>Raised when a command creates a node the user will want to name straight away.
+        /// The window puts the caret in the inspector's title box, the way any outliner does.</summary>
+        public event EventHandler<MindMapNodeViewModel>? NodeCreated;
 
         public ObservableCollection<MindMapNodeViewModel> Nodes { get; } = new();
         public ObservableCollection<MindMapLinkViewModel> Links { get; } = new();
@@ -212,11 +287,170 @@ namespace MarkSmith.ViewModels.MindMap
             // for the life of the window.
             OnPropertyChanged(nameof(NodesCountText));
             OnPropertyChanged(nameof(IsGalaxyEmpty));
+            TrackCollectionChange(e, _trackedNodes);
         }
 
         private void OnLinkCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             OnPropertyChanged(nameof(LinksCountText));
+            TrackCollectionChange(e, _trackedLinks);
+        }
+
+        // ---- Inspector edits ----
+        //
+        // The inspector binds straight to the node and link view models. Nothing used to notice
+        // those edits: renaming a node left the old title on its card until something else
+        // redrew the canvas, the window never showed "unsaved", closing threw the edit away, and
+        // Undo skipped over it to whatever structural change came before.
+
+        private static readonly HashSet<string> TrackedNodeProperties = new(StringComparer.Ordinal)
+        {
+            nameof(MindMapNodeViewModel.Title),
+            nameof(MindMapNodeViewModel.FilePath),
+            nameof(MindMapNodeViewModel.NodeType),
+            nameof(MindMapNodeViewModel.Icon),
+            nameof(MindMapNodeViewModel.Progress),
+            nameof(MindMapNodeViewModel.MarkdownContent),
+            nameof(MindMapNodeViewModel.TagsText),
+        };
+
+        private static readonly HashSet<string> TrackedLinkProperties = new(StringComparer.Ordinal)
+        {
+            nameof(MindMapLinkViewModel.Label),
+        };
+
+        private readonly HashSet<MindMapNodeViewModel> _trackedNodes = new();
+        private readonly HashSet<MindMapLinkViewModel> _trackedLinks = new();
+        private int _editTrackingSuspended;
+
+        /// <summary>The field whose undo step is still open. Typing a title is one undo step, not
+        /// one per keystroke; any other undoable change closes it.</summary>
+        private string? _openEditKey;
+
+        private void TrackCollectionChange<T>(NotifyCollectionChangedEventArgs e, HashSet<T> tracked)
+            where T : ObservableObject
+        {
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                // Clear() reports no old items, so the set is what knows what to unhook.
+                foreach (var item in tracked) Unhook(item);
+                tracked.Clear();
+            }
+            if (e.OldItems != null)
+            {
+                foreach (T item in e.OldItems)
+                {
+                    if (tracked.Remove(item)) Unhook(item);
+                }
+            }
+            if (e.NewItems != null)
+            {
+                foreach (T item in e.NewItems)
+                {
+                    if (!tracked.Add(item)) continue;
+                    item.PropertyChanging += OnTrackedPropertyChanging;
+                    item.PropertyChanged += OnTrackedPropertyChanged;
+                }
+            }
+        }
+
+        private void Unhook(ObservableObject item)
+        {
+            item.PropertyChanging -= OnTrackedPropertyChanging;
+            item.PropertyChanged -= OnTrackedPropertyChanged;
+        }
+
+        private static bool IsTracked(object? sender, string? property) => sender switch
+        {
+            MindMapNodeViewModel => property != null && TrackedNodeProperties.Contains(property),
+            MindMapLinkViewModel => property != null && TrackedLinkProperties.Contains(property),
+            _ => false
+        };
+
+        private static string EditKey(object sender, string property) => sender switch
+        {
+            MindMapNodeViewModel n => $"node:{n.Id}:{property}",
+            MindMapLinkViewModel l => $"link:{l.Id}:{property}",
+            _ => property
+        };
+
+        /// <summary>Snapshots the map *before* the value changes, which is what makes the edit
+        /// undoable at all: by PropertyChanged the old value is gone.</summary>
+        private void OnTrackedPropertyChanging(object? sender, System.ComponentModel.PropertyChangingEventArgs e)
+        {
+            if (_editTrackingSuspended > 0 || _suppressUndoCapture || sender == null || !IsTracked(sender, e.PropertyName)) return;
+
+            string key = EditKey(sender, e.PropertyName!);
+            if (key == _openEditKey) return;
+
+            PushUndo(e.PropertyName switch
+            {
+                nameof(MindMapNodeViewModel.Title) => "Rename node",
+                nameof(MindMapNodeViewModel.FilePath) => "Change linked file",
+                nameof(MindMapNodeViewModel.NodeType) => "Change node type",
+                nameof(MindMapNodeViewModel.Icon) => "Change icon",
+                nameof(MindMapNodeViewModel.Progress) => "Change progress",
+                nameof(MindMapNodeViewModel.MarkdownContent) => "Edit notes",
+                nameof(MindMapNodeViewModel.TagsText) => "Edit tags",
+                nameof(MindMapLinkViewModel.Label) => "Rename relationship",
+                _ => "Edit"
+            });
+            _openEditKey = key;
+        }
+
+        private void OnTrackedPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (_editTrackingSuspended > 0 || _suppressUndoCapture || !IsTracked(sender, e.PropertyName)) return;
+
+            if (sender is MindMapNodeViewModel node)
+            {
+                node.SyncToModel();
+                switch (e.PropertyName)
+                {
+                    case nameof(MindMapNodeViewModel.Title):
+                        OnPropertyChanged(nameof(SelectedLinkDescription));
+                        if (PreviewNode == node) PreviewTitle = node.Title;
+                        break;
+                    case nameof(MindMapNodeViewModel.TagsText):
+                        RefreshDistinctTags();
+                        ApplyFilterAndSearch();
+                        break;
+                    case nameof(MindMapNodeViewModel.FilePath):
+                        if (PreviewNode == node) ShowPreviewCard(node);
+                        OnPropertyChanged(nameof(PreviewHasFile));
+                        break;
+                    case nameof(MindMapNodeViewModel.MarkdownContent):
+                        if (PreviewNode == node && IsPreviewCardVisible) ShowPreviewCard(node);
+                        break;
+                }
+                // Insights count linked files and words, so they follow these edits too.
+                MarkDirty();
+            }
+            else if (sender is MindMapLinkViewModel link)
+            {
+                link.SyncToModel();
+                IsDirty = true;
+            }
+
+            CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Changes made by a command rather than typed into the inspector. The command
+        /// records its own undo step, so these mustn't add a second one.</summary>
+        private IDisposable SuspendEditTracking()
+        {
+            _editTrackingSuspended++;
+            return new Resume(() => _editTrackingSuspended--);
+        }
+
+        private sealed class Resume(Action onDispose) : IDisposable
+        {
+            private Action? _onDispose = onDispose;
+            public void Dispose()
+            {
+                _onDispose?.Invoke();
+                _onDispose = null;
+            }
         }
 
         // ---- Loading & persistence ----
@@ -237,7 +471,7 @@ namespace MarkSmith.ViewModels.MindMap
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Could not open your galaxy ({ex.Message}). Showing the guided tour instead.";
+                StatusMessage = $"Couldn't open your map ({ex.Message}). Showing the guided tour instead.";
                 LoadTutorialGalaxy();
                 return;
             }
@@ -246,7 +480,7 @@ namespace MarkSmith.ViewModels.MindMap
             _undo.Clear();
             _redo.Clear();
             RaiseUndoState();
-            IsDirty = false;
+            MarkClean();
 
             if (result.LoadError != null)
             {
@@ -254,12 +488,12 @@ namespace MarkSmith.ViewModels.MindMap
             }
             else if (result.IsFirstRun)
             {
-                StatusMessage = "Welcome — this is a guided tour. Open ① to see why this replaces folders, then import your own vault.";
+                StatusMessage = "This is a guided tour. Start with ① on the left, then import a folder to map your own documents.";
             }
             else
             {
                 string repairs = result.Repairs.Summarize();
-                StatusMessage = $"Loaded '{Document.Title}' — {InsightsSummary}" + (repairs.Length > 0 ? $" · {repairs}" : "");
+                StatusMessage = $"Opened '{Document.Title}'. {InsightsSummary}" + (repairs.Length > 0 ? $" {repairs}" : "");
             }
 
             await RefreshFileStatesAsync();
@@ -275,15 +509,26 @@ namespace MarkSmith.ViewModels.MindMap
             ViewportOffsetX = doc.ViewportOffsetX;
             ViewportOffsetY = doc.ViewportOffsetY;
             IsTutorialActive = doc.IsTutorial;
+            RestoreTheme(doc);
 
             RebuildViewModels();
 
             SelectedLink = null;
             SelectedNode = Nodes.FirstOrDefault(n => n.Id == doc.RootNodeId) ?? Nodes.FirstOrDefault();
+            HidePreviewCard();
             RefreshInsights();
-            StatusMessage = $"Loaded galaxy with {Nodes.Count} nodes and {Links.Count} cross-links.";
+            StatusMessage = $"Loaded {Plural(Nodes.Count, "node")} and {Plural(Links.Count, "link")}.";
             CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
         }
+
+        private void RestoreTheme(MindMapDocument doc)
+        {
+            _loadingDocument = true;
+            try { SelectedThemeName = ThemeNameFor(doc); }
+            finally { _loadingDocument = false; }
+        }
+
+        internal static string Plural(int count, string noun) => $"{count} {noun}{(count == 1 ? "" : "s")}";
 
         private void RebuildViewModels()
         {
@@ -334,11 +579,13 @@ namespace MarkSmith.ViewModels.MindMap
         /// </summary>
         public async Task RefreshFileStatesAsync()
         {
+            // Probe off the UI thread, but set the results back on the caller's: the inspector binds
+            // to IsFileMissing, and a change notification raised from a pool thread is not one
+            // WinUI can deliver.
             var nodes = Nodes.ToList();
-            await Task.Run(() =>
-            {
-                foreach (var n in nodes) n.RefreshFileState();
-            });
+            var missing = await Task.Run(() => nodes.Select(n => n.ProbeFileMissing()).ToArray());
+            for (int i = 0; i < nodes.Count; i++) nodes[i].IsFileMissing = missing[i];
+            CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
         }
 
         public void LoadTutorialGalaxy()
@@ -374,13 +621,13 @@ namespace MarkSmith.ViewModels.MindMap
             {
                 var fresh = new MindMapNode
                 {
-                    Title = "My Vault",
+                    Title = "My vault",
                     NodeType = MindMapNodeType.Project,
                     Width = 220,
                     Height = 62,
                     ColorHex = "#FF7C4D",
                     Icon = "\uEC07",
-                    MarkdownContent = "# My Vault\n\nImport a folder, or start adding documents."
+                    MarkdownContent = "# My vault\n\nImport a folder, or start adding documents."
                 };
                 Document.Nodes.Add(fresh);
                 Document.RootNodeId = fresh.Id;
@@ -409,8 +656,8 @@ namespace MarkSmith.ViewModels.MindMap
             try
             {
                 await _storageService.SaveAsync(Document, path);
-                IsDirty = false;
-                StatusMessage = $"Saved galaxy to {Path.GetFileName(path)} · {InsightsSummary}";
+                MarkClean();
+                StatusMessage = $"Saved the map to {Path.GetFileName(path)}.";
             }
             catch (Exception ex)
             {
@@ -420,7 +667,28 @@ namespace MarkSmith.ViewModels.MindMap
 
         // ---- Undo / redo ----
 
-        private sealed record UndoEntry(MindMapDocument Snapshot, string Label, string? SelectedNodeId);
+        private sealed record UndoEntry(MindMapDocument Snapshot, string Label, string? SelectedNodeId)
+        {
+            /// <summary>Identifies the document state the entry restores. Undo and Redo pass it along
+            /// when they move an entry between the stacks, so the saved state is recognised again.</summary>
+            public long Id { get; init; } = System.Threading.Interlocked.Increment(ref _nextUndoId);
+        }
+
+        private static long _nextUndoId;
+
+        /// <summary>The undo step on top of the stack when the map was last saved (0: none). Undoing
+        /// back to it clears "Unsaved" again, the way an editor does, instead of a map that has
+        /// been put back exactly as it was still claiming unsaved changes.</summary>
+        private long _cleanUndoId;
+
+        private long TopUndoId => _undo.Count > 0 ? _undo.Peek().Id : 0;
+
+        private void MarkClean()
+        {
+            _openEditKey = null;
+            _cleanUndoId = TopUndoId;
+            IsDirty = false;
+        }
 
         /// <summary>Captures the current document before a mutation. Call this first in any command
         /// that changes structure.</summary>
@@ -428,6 +696,7 @@ namespace MarkSmith.ViewModels.MindMap
         {
             if (_suppressUndoCapture) return;
 
+            _openEditKey = null;
             SyncAllToModel();
             _undo.Push(new UndoEntry(MindMapGraph.DeepCopy(Document), label, SelectedNode?.Id));
             if (_undo.Count > MaxUndoDepth)
@@ -451,7 +720,7 @@ namespace MarkSmith.ViewModels.MindMap
 
             SyncAllToModel();
             var entry = _undo.Pop();
-            _redo.Push(new UndoEntry(MindMapGraph.DeepCopy(Document), entry.Label, SelectedNode?.Id));
+            _redo.Push(new UndoEntry(MindMapGraph.DeepCopy(Document), entry.Label, SelectedNode?.Id) { Id = entry.Id });
             RestoreSnapshot(entry);
             StatusMessage = $"Undid: {entry.Label}";
         }
@@ -467,29 +736,32 @@ namespace MarkSmith.ViewModels.MindMap
 
             SyncAllToModel();
             var entry = _redo.Pop();
-            _undo.Push(new UndoEntry(MindMapGraph.DeepCopy(Document), entry.Label, SelectedNode?.Id));
+            _undo.Push(new UndoEntry(MindMapGraph.DeepCopy(Document), entry.Label, SelectedNode?.Id) { Id = entry.Id });
             RestoreSnapshot(entry);
             StatusMessage = $"Redid: {entry.Label}";
         }
 
         private void RestoreSnapshot(UndoEntry entry)
         {
+            _openEditKey = null;
             _suppressUndoCapture = true;
             try
             {
                 Document = entry.Snapshot;
                 Title = Document.Title;
                 IsTutorialActive = Document.IsTutorial;
+                RestoreTheme(Document);
                 RebuildViewModels();
+                HidePreviewCard();
                 SelectedLink = null;
                 SelectedNode = Nodes.FirstOrDefault(n => n.Id == entry.SelectedNodeId) ?? Nodes.FirstOrDefault();
                 RefreshInsights();
-                IsDirty = true;
             }
             finally
             {
                 _suppressUndoCapture = false;
             }
+            IsDirty = TopUndoId != _cleanUndoId;
             RaiseUndoState();
             CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
         }
@@ -498,6 +770,8 @@ namespace MarkSmith.ViewModels.MindMap
         {
             OnPropertyChanged(nameof(CanUndo));
             OnPropertyChanged(nameof(CanRedo));
+            OnPropertyChanged(nameof(UndoToolTip));
+            OnPropertyChanged(nameof(RedoToolTip));
         }
 
         private void MarkDirty(string? status = null)
@@ -647,12 +921,15 @@ namespace MarkSmith.ViewModels.MindMap
             var existing = FindNodeForFile(filePath);
             if (existing != null) return existing;
 
-            AddRootNode(); // pushes undo, drops a node at the centre of the viewport and selects it
+            AddRootNodeCore(announce: false); // pushes undo, drops a node at the centre of the viewport and selects it
             var node = SelectedNode!;
-            node.FilePath = filePath;
-            node.Title = !string.IsNullOrWhiteSpace(title)
-                ? title!
-                : Path.GetFileNameWithoutExtension(filePath);
+            using (SuspendEditTracking())
+            {
+                node.FilePath = filePath;
+                node.Title = !string.IsNullOrWhiteSpace(title)
+                    ? title!
+                    : Path.GetFileNameWithoutExtension(filePath);
+            }
             node.SyncToModel();
 
             MarkDirty($"Added '{node.Title}' to the galaxy — link it to give it meaning.");
@@ -676,9 +953,6 @@ namespace MarkSmith.ViewModels.MindMap
         public void ToggleFocusMode()
         {
             IsFocusModeEnabled = !IsFocusModeEnabled;
-            StatusMessage = IsFocusModeEnabled
-                ? "Focus mode on — showing only what the selected document connects to."
-                : "Focus mode off — showing the whole galaxy.";
         }
 
         public void RefreshInsights()
@@ -709,7 +983,7 @@ namespace MarkSmith.ViewModels.MindMap
 
             var childModel = new MindMapNode
             {
-                Title = "New Sub-Project / Document",
+                Title = NewNodeTitle,
                 NodeType = MindMapNodeType.Document,
                 X = parent.X + parent.Width + 200,
                 Y = NextFreeChildY(parent),
@@ -729,8 +1003,9 @@ namespace MarkSmith.ViewModels.MindMap
             var childVm = new MindMapNodeViewModel(childModel);
             Nodes.Add(childVm);
             SelectedNode = childVm;
-            MarkDirty($"Added child node under '{parent.Title}'.");
+            MarkDirty($"Added a node under '{parent.Title}'. Type to name it.");
             CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+            NodeCreated?.Invoke(this, childVm);
         }
 
         [RelayCommand]
@@ -754,7 +1029,7 @@ namespace MarkSmith.ViewModels.MindMap
 
             var siblingModel = new MindMapNode
             {
-                Title = "New Linked Project",
+                Title = NewNodeTitle,
                 NodeType = MindMapNodeType.Document,
                 X = sel.X,
                 Y = sel.Y + sel.Height + 24,
@@ -774,18 +1049,21 @@ namespace MarkSmith.ViewModels.MindMap
             var siblingVm = new MindMapNodeViewModel(siblingModel);
             Nodes.Add(siblingVm);
             SelectedNode = siblingVm;
-            MarkDirty($"Added sibling node under '{parent.Title}'.");
+            MarkDirty($"Added a node beside '{sel.Title}'. Type to name it.");
             CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+            NodeCreated?.Invoke(this, siblingVm);
         }
 
         [RelayCommand]
-        public void AddRootNode()
+        public void AddRootNode() => AddRootNodeCore(announce: true);
+
+        private void AddRootNodeCore(bool announce)
         {
             PushUndo("Add node");
 
             var model = new MindMapNode
             {
-                Title = "New Document Node",
+                Title = NewNodeTitle,
                 NodeType = MindMapNodeType.Document,
                 X = -ViewportOffsetX - 95,
                 Y = -ViewportOffsetY - 28,
@@ -803,8 +1081,9 @@ namespace MarkSmith.ViewModels.MindMap
             var vm = new MindMapNodeViewModel(model);
             Nodes.Add(vm);
             SelectedNode = vm;
-            MarkDirty("Added a free-floating node — link it to give it meaning.");
+            MarkDirty("Added a node. Type to name it, then link it to the documents it belongs with.");
             CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+            if (announce) NodeCreated?.Invoke(this, vm);
         }
 
         [RelayCommand]
@@ -850,7 +1129,7 @@ namespace MarkSmith.ViewModels.MindMap
                 Document.Links.Remove(l.Model);
                 SelectedLink = null;
                 RefreshConnectionCounts();
-                MarkDirty("Removed cross-link.");
+                MarkDirty("Deleted the link.");
                 CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
             }
         }
@@ -866,7 +1145,7 @@ namespace MarkSmith.ViewModels.MindMap
 
             if (target.Id == Document.RootNodeId && Nodes.Count > 1)
             {
-                StatusMessage = "Cannot delete the root project node — delete its children first, or pick a different root.";
+                StatusMessage = $"'{target.Title}' is the map's root. Delete or move the nodes under it first.";
                 return;
             }
 
@@ -906,8 +1185,8 @@ namespace MarkSmith.ViewModels.MindMap
             RefreshConnectionCounts();
             int adopted = target.Model.ChildIds.Count;
             MarkDirty(adopted > 0
-                ? $"Removed '{target.Title}' — its {adopted} child node(s) moved up a level."
-                : $"Removed node '{target.Title}'.");
+                ? $"Deleted '{target.Title}'. {Plural(adopted, "node")} under it moved up a level."
+                : $"Deleted '{target.Title}'.");
             CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
         }
 
@@ -915,7 +1194,7 @@ namespace MarkSmith.ViewModels.MindMap
         {
             if (string.IsNullOrEmpty(sourceId) || string.IsNullOrEmpty(targetId) || sourceId == targetId)
             {
-                StatusMessage = "A node cannot be linked to itself.";
+                StatusMessage = "A node can't be linked to itself.";
                 return null;
             }
 
@@ -938,7 +1217,7 @@ namespace MarkSmith.ViewModels.MindMap
                 existing.Kind = MindMapLinkKind.Manual;
                 existing.SyncToModel();
                 SelectedLink = existing;
-                MarkDirty($"These are already connected — updated the relationship to '{existing.Label}'.");
+                MarkDirty($"These were already linked. The relationship is now '{existing.DisplayLabel}'.");
                 CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
                 return existing;
             }
@@ -977,7 +1256,7 @@ namespace MarkSmith.ViewModels.MindMap
             // from the map into a self-referential ring.
             if (newParentId != null && IsDescendant(newParentId, nodeId))
             {
-                StatusMessage = "Cannot move a node inside its own branch.";
+                StatusMessage = "A node can't move under one of its own branches.";
                 return false;
             }
 
@@ -995,7 +1274,7 @@ namespace MarkSmith.ViewModels.MindMap
             MindMapGraph.Normalize(Document);
             MarkDirty(newParent != null
                 ? $"Moved '{node.Title}' under '{newParent.Title}'."
-                : $"'{node.Title}' is now a free-floating node.");
+                : $"'{node.Title}' no longer has a parent.");
             CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
             return true;
         }
@@ -1039,7 +1318,7 @@ namespace MarkSmith.ViewModels.MindMap
                 }
             }
 
-            MarkDirty($"Applied {layoutType} layout.");
+            MarkDirty($"Arranged the map as {LayoutDisplayName(layoutType)}.");
             CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
         }
 
@@ -1048,11 +1327,11 @@ namespace MarkSmith.ViewModels.MindMap
         {
             if (string.IsNullOrWhiteSpace(directoryPath) || !Directory.Exists(directoryPath))
             {
-                StatusMessage = $"'{directoryPath}' is not a folder I can read.";
+                StatusMessage = $"'{directoryPath}' isn't a folder MarkSmith can read.";
                 return;
             }
 
-            StatusMessage = $"Scanning and auto-linking '{Path.GetFileName(directoryPath)}'…";
+            StatusMessage = $"Reading '{Path.GetFileName(directoryPath)}' and linking what's in it…";
             try
             {
                 var doc = await _autoLinker.BuildGalaxyFromDirectoryAsync(directoryPath);
@@ -1060,11 +1339,11 @@ namespace MarkSmith.ViewModels.MindMap
 
                 PushUndo("Import vault");
                 LoadDocument(doc);
-                MarkDirty($"Imported '{doc.Title}' — {InsightsSummary}. Press Save to keep it.");
+                MarkDirty($"Mapped '{doc.Title}'. {InsightsSummary} Save to keep it.");
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Import failed: {ex.Message}";
+                StatusMessage = $"Couldn't map that folder: {ex.Message}";
             }
         }
 
@@ -1074,7 +1353,7 @@ namespace MarkSmith.ViewModels.MindMap
         {
             if (string.IsNullOrWhiteSpace(Document.SourceDirectory))
             {
-                StatusMessage = "This galaxy wasn't imported from a folder — use Import Vault first.";
+                StatusMessage = "This map wasn't made from a folder. Use Import folder first.";
                 return;
             }
             await ImportDirectoryAsync(Document.SourceDirectory);
@@ -1098,12 +1377,12 @@ namespace MarkSmith.ViewModels.MindMap
             }
             catch (Exception ex)
             {
-                StatusMessage = $"DOCX export failed: {ex.Message}";
+                StatusMessage = MarkSmith.Services.ExportFailureMessage.Describe("Word document", ex, outputFilePath);
                 return;
             }
             if (AppServices.License.State.Edition == Models.Edition.Trial)
                 AppServices.License.ConsumeDocxExport();
-            StatusMessage = $"Exported editable Word Document Galaxy to: {outputFilePath}";
+            StatusMessage = $"Exported the map to {Path.GetFileName(outputFilePath)}.";
         }
 
         /// <summary>Mermaid text for pasting straight into a Markdown document — the flowchart form
@@ -1126,15 +1405,16 @@ namespace MarkSmith.ViewModels.MindMap
             if (!string.IsNullOrEmpty(target.FilePath) && File.Exists(target.FilePath))
             {
                 OpenDocumentRequested?.Invoke(this, target.FilePath);
-                StatusMessage = $"Opening '{Path.GetFileName(target.FilePath)}' in MarkSmith…";
+                StatusMessage = $"Opened '{Path.GetFileName(target.FilePath)}' in the editor.";
             }
             else if (!string.IsNullOrEmpty(target.FilePath))
             {
-                StatusMessage = $"'{target.FilePath}' is no longer on disk — the node still remembers it.";
+                StatusMessage = $"'{target.FileName}' is no longer on disk. Browse in the inspector to point the node at it again.";
                 ShowPreviewCard(target);
             }
             else
             {
+                StatusMessage = $"'{target.Title}' has no file attached. Browse in the inspector to attach one.";
                 ShowPreviewCard(target);
             }
         }
@@ -1142,10 +1422,11 @@ namespace MarkSmith.ViewModels.MindMap
         public void ShowPreviewCard(MindMapNodeViewModel node)
         {
             if (node == null) return;
+            PreviewNode = node;
             PreviewTitle = node.Title;
-            PreviewFilePath = node.FilePath ?? "Standalone project note";
+            PreviewFilePath = string.IsNullOrWhiteSpace(node.FilePath) ? "No file attached" : node.FileName;
             PreviewMarkdown = string.IsNullOrWhiteSpace(node.MarkdownContent)
-                ? $"# {node.Title}\n\n*No notes attached yet.*\n\nSelect this node and type into **Markdown Summary / Notes** in the inspector to give it a memory."
+                ? "No notes yet. Select the node and write some under Notes in the inspector."
                 : Excerpt(node.MarkdownContent!, PreviewCharacterBudget);
             IsPreviewCardVisible = true;
         }
@@ -1161,12 +1442,13 @@ namespace MarkSmith.ViewModels.MindMap
             // Prefer a paragraph break so the card doesn't end mid-sentence.
             int cut = text.LastIndexOf("\n\n", budget, StringComparison.Ordinal);
             if (cut < budget / 2) cut = budget;
-            return text[..cut].TrimEnd() + "\n\n*…open the document to read the rest.*";
+            return text[..cut].TrimEnd() + "\n\n… open the document to read the rest.";
         }
 
         public void HidePreviewCard()
         {
             IsPreviewCardVisible = false;
+            PreviewNode = null;
         }
 
         public void RecolorSelectedNode(string hex)
@@ -1175,7 +1457,7 @@ namespace MarkSmith.ViewModels.MindMap
             PushUndo("Recolour node");
             SelectedNode.ColorHex = MindMapGraph.NormalizeHex(hex, SelectedNode.ColorHex);
             SelectedNode.SyncToModel();
-            MarkDirty();
+            MarkDirty($"Recoloured '{SelectedNode.Title}'.");
             CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
         }
 
@@ -1191,12 +1473,95 @@ namespace MarkSmith.ViewModels.MindMap
             return siblings.Max(s => s.Y + s.Height) + 24;
         }
 
+        /// <summary>What a node is called until the user names it. The window selects this text in
+        /// the title box, so typing replaces it.</summary>
+        public const string NewNodeTitle = "New document";
+
+        /// <summary>The layout's name as the Auto-layout menu shows it, for the status line. It
+        /// used to print the enum ("Applied HorizontalTree layout.").</summary>
+        public static string LayoutDisplayName(MindMapLayoutType type) => type switch
+        {
+            MindMapLayoutType.RadialGalaxy => "a radial map",
+            MindMapLayoutType.ForceDirected => "a force-directed web",
+            MindMapLayoutType.VerticalHierarchy => "a top-down hierarchy",
+            MindMapLayoutType.ConstellationClusters => "clusters",
+            _ => "a left-to-right tree"
+        };
+
+        /// <summary>Flips a relationship's arrow. The canvas menu and the inspector button both
+        /// come here; the menu's copy used to skip marking the map unsaved.</summary>
+        public void ReverseLink(MindMapLinkViewModel? link)
+        {
+            if (link == null) return;
+            PushUndo("Reverse link");
+            link.ReverseDirection();
+            link.SyncToModel();
+            OnPropertyChanged(nameof(SelectedLinkDescription));
+            MarkDirty(link.Direction switch
+            {
+                MindMapLinkDirection.Bidirectional => "The link now points both ways.",
+                MindMapLinkDirection.None => "The link no longer has a direction.",
+                _ => "Reversed the link."
+            });
+            CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Nodes <paramref name="node"/> can be moved under: never itself or anything in
+        /// its own branch (the move would be refused), alphabetical so a long map is searchable.</summary>
+        public IReadOnlyList<MindMapNodeViewModel> ReparentCandidates(MindMapNodeViewModel node) =>
+            Nodes.Where(n => n.Id != node.Id && !IsDescendant(n.Id, node.Id))
+                 .OrderBy(n => n.Title, StringComparer.CurrentCultureIgnoreCase)
+                 .ToList();
+
+        /// <summary>Points a node at a file picked from disk, naming it after the file if it still
+        /// has a placeholder title. One undo step for both changes.</summary>
+        public void AttachFile(MindMapNodeViewModel node, string path)
+        {
+            PushUndo("Attach file");
+            using (SuspendEditTracking())
+            {
+                node.FilePath = path;
+                if (string.IsNullOrWhiteSpace(node.Title)
+                    || node.Title == NewNodeTitle
+                    || node.Title.StartsWith("New ", StringComparison.Ordinal))
+                {
+                    node.Title = Path.GetFileNameWithoutExtension(path);
+                }
+            }
+            node.SyncToModel();
+            OnPropertyChanged(nameof(PreviewHasFile));
+            MarkDirty($"Attached '{Path.GetFileName(path)}' to '{node.Title}'.");
+            _ = node.RefreshVersionHistoryAsync(AppServices.VersionHistory);
+            CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Writes the map to another file without making that file "the" map: Save still
+        /// goes to the library, and the unsaved marker stays until it does. The Export menu's old
+        /// "Save map file" cleared the marker, so closing then lost the library's changes.</summary>
+        public async Task SaveCopyAsync(string filePath)
+        {
+            SyncAllToModel();
+            var copy = MindMapGraph.DeepCopy(Document);
+            copy.IsTutorial = false;
+            try
+            {
+                await _storageService.SaveAsync(copy, filePath);
+                StatusMessage = $"Saved a copy to {Path.GetFileName(filePath)}.";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = MarkSmith.Services.ExportFailureMessage.Describe("Map copy", ex, filePath);
+            }
+        }
+
         public void SyncAllToModel()
         {
             Document.Title = Title;
             Document.ZoomLevel = ZoomLevel;
             Document.ViewportOffsetX = ViewportOffsetX;
             Document.ViewportOffsetY = ViewportOffsetY;
+            Document.Theme ??= new MindMapTheme();
+            Document.Theme.Name = SelectedThemeName;
 
             foreach (var n in Nodes) n.SyncToModel();
             foreach (var l in Links) l.SyncToModel();

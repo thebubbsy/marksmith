@@ -248,7 +248,7 @@ namespace MarkSmith.Services.MindMap
                 Tags = new() { "start-here", "next-step" },
                 MarkdownContent =
                     "## Point it at a real folder\n\n" +
-                    "**Import Vault** scans a directory and builds the map for you. It reads " +
+                    "**Import folder** scans a directory and builds the map for you. It reads " +
                     "`[[wikilinks]]`, relative Markdown links and `#tags` out of your files and draws the " +
                     "connections it finds — folders become clusters, not cages.\n\n" +
                     "Then hit **Save**: the map is yours from that point on and this tour never comes back."
