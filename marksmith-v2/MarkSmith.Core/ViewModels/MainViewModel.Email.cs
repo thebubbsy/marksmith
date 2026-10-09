@@ -197,7 +197,7 @@ public sealed partial class MainViewModel
         {
             Markdown = preparedMarkdown ?? "",
             SourceLabel = EmailSourceLabel(),
-            BaseDirectory = UsePasteSource || string.IsNullOrWhiteSpace(InputFilePath) ? null : Path.GetDirectoryName(InputFilePath),
+            BaseDirectory = DocumentFolder,
             LiveMermaidPlaceholders = true,
         }, settings, CurrentTheme);
 
@@ -242,7 +242,7 @@ public sealed partial class MainViewModel
             {
                 Markdown = markdown,
                 SourceLabel = EmailSourceLabel(),
-                BaseDirectory = UsePasteSource || string.IsNullOrWhiteSpace(InputFilePath) ? null : Path.GetDirectoryName(InputFilePath),
+                BaseDirectory = DocumentFolder,
                 MermaidPngs = mermaid,
             }, settings, CurrentTheme);
 
@@ -309,7 +309,7 @@ public sealed partial class MainViewModel
             {
                 Markdown = markdown,
                 SourceLabel = EmailSourceLabel(),
-                BaseDirectory = UsePasteSource || string.IsNullOrWhiteSpace(InputFilePath) ? null : Path.GetDirectoryName(InputFilePath),
+                BaseDirectory = DocumentFolder,
                 MermaidPngs = mermaid,
                 Attachments = attachments,
             }, settings, CurrentTheme);

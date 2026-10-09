@@ -4,7 +4,11 @@ namespace MarkSmith.Services;
 
 // One .md file surfaced in Step 1's picker. Pinned = the user explicitly opened it before (kept at
 // the top); the rest are discovered on disk and ordered by how recently they were modified.
-public sealed record MarkdownFileEntry(string Path, string Name, string Detail, bool Pinned);
+public sealed record MarkdownFileEntry(string Path, string Name, string Detail, bool Pinned)
+{
+    // What a screen reader announces for the picker row (it read the record's debug text).
+    public override string ToString() => $"{Name}, {Detail.TrimStart('★', ' ')}{(Pinned ? ", pinned" : "")}";
+}
 
 // Finds Markdown files the user might actually want to convert by scanning the usual places —
 // Downloads (resolved from the registry, since it can be relocated), Documents, Desktop, and any

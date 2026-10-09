@@ -406,6 +406,49 @@ private readonly MarkdownExportService _mdExport = new();
 
     public bool HasInputFile => !string.IsNullOrWhiteSpace(InputFilePath) && File.Exists(InputFilePath);
 
+    /// <summary>
+    /// True while the editor holds the open file's own text (opened, then edited). Pasted,
+    /// ingested and imported text replaces the editor without clearing <see cref="InputFilePath"/>,
+    /// and editing flips <see cref="UsePasteSource"/> too, so neither says whose text this is.
+    /// Without it Ctrl+S wrote a chat sent from the browser extension over the last file opened,
+    /// and relative images resolved next to a file the text never came from.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isEditingOpenFile;
+
+    /// <summary>Call whenever the editor is given text that didn't come from the open file.</summary>
+    public void DetachFromOpenFile() => IsEditingOpenFile = false;
+
+    // Switching back to the file source (picking the same file again after a paste) shows the
+    // file's own text, which is the open file's document again.
+    partial void OnUsePasteSourceChanged(bool value)
+    {
+        if (!value && HasInputFile && _openFileStamp is not null) IsEditingOpenFile = true;
+    }
+
+    // Last-write time and length of the open file when it was read or saved, so a save can tell
+    // that another program (a second editor, a sync client) changed it in the meantime.
+    private (DateTime WriteUtc, long Length)? _openFileStamp;
+
+    private static (DateTime, long)? StampOf(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            return info.Exists ? (info.LastWriteTimeUtc, info.Length) : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>True when the open file changed on disk since MarkSmith read or last saved it.</summary>
+    public bool OpenFileChangedOnDisk() =>
+        _openFileStamp is { } known && !string.IsNullOrWhiteSpace(InputFilePath)
+        && StampOf(InputFilePath) is { } now && now != known;
+
+    /// <summary>Records the open file's state right after MarkSmith wrote it.</summary>
+    public void MarkOpenFileSaved() =>
+        _openFileStamp = string.IsNullOrWhiteSpace(InputFilePath) ? null : StampOf(InputFilePath);
+
     partial void OnInputFilePathChanged(string value)
     {
         OnPropertyChanged(nameof(HasInputFile));
@@ -421,6 +464,7 @@ private readonly MarkdownExportService _mdExport = new();
         IsCurrentFilePinned = !string.IsNullOrWhiteSpace(value)
             && _settingsService.Current.PinnedFiles.Contains(Path.GetFullPath(value), Services.PathEquality.Comparer);
 
+        _openFileStamp = null;
         if (!string.IsNullOrWhiteSpace(value) && File.Exists(value))
         {
             var syncContext = SynchronizationContext.Current;
@@ -430,6 +474,7 @@ private readonly MarkdownExportService _mdExport = new();
         {
             _editorUndo.SetDocument(value);
             _cachedFileMarkdown = string.Empty;
+            IsEditingOpenFile = false;
             OnPropertyChanged(nameof(CurrentMarkdown));
         }
     }
@@ -446,6 +491,7 @@ private readonly MarkdownExportService _mdExport = new();
         {
             // Through the importers, not a raw read: a .docx, .pdf, .html or .eml opens as the
             // Markdown it converts to, never as bytes in the editor.
+            var stamp = StampOf(value);
             var imported = await Plugins.PluginFileReader.ImportAsync(value);
             token.ThrowIfCancellationRequested();
             var text = imported.Markdown;
@@ -458,6 +504,8 @@ private readonly MarkdownExportService _mdExport = new();
                 {
                     if (token.IsCancellationRequested) return;
                     SourceImportKind = imported.Kind;
+                    _openFileStamp = stamp;
+                    IsEditingOpenFile = true;
                     PastedMarkdown = text;
                     OnPropertyChanged(nameof(CurrentMarkdown));
                     if (imported.IsConverted)
@@ -481,6 +529,7 @@ private readonly MarkdownExportService _mdExport = new();
                 void Fail()
                 {
                     SourceImportKind = null;
+                    IsEditingOpenFile = false;
                     OnPropertyChanged(nameof(CurrentMarkdown));
                     StatusText = $"Couldn't open {Path.GetFileName(value)}: {ex.Message}";
                     StatusSeverity = StatusSeverity.Error;
@@ -1329,7 +1378,9 @@ private readonly MarkdownExportService _mdExport = new();
 
     /// <summary>The folder of the open file, which relative image paths resolve against; null
     /// for pasted text.</summary>
-    public string? DocumentFolder => UsePasteSource ? null : DocumentImages.FolderOf(InputFilePath);
+    // The file source (!UsePasteSource) is the file itself; the paste source is the file only
+    // while it is the open file's text being edited.
+    public string? DocumentFolder => (!UsePasteSource || IsEditingOpenFile) && HasInputFile ? DocumentImages.FolderOf(InputFilePath) : null;
 
     /// <summary>Canvas-only render for the live in-place swap path — skips the HTML shell.</summary>
     public string? BuildPreviewCanvasHtml(string markdown) =>
@@ -1435,6 +1486,7 @@ private readonly MarkdownExportService _mdExport = new();
             : $"{classification.SourceDescription} · {classification.Confidence}% · {classification.AppliedFixes.Count} fixes";
 
         _editorUndo.BreakBurst(); // an ingest must undo as its own step
+        DetachFromOpenFile();
         PastedMarkdown = text;
         UsePasteSource = true;
         StatusText = classification.Source == LlmSource.Generic

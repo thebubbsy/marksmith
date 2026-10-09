@@ -2625,7 +2625,10 @@ public partial class MermaidStudioViewModel : ObservableObject
     // ---- Style presets (QODER task 5) ----
     // A preset recolors node fills, node borders and connector lines in one click and is persisted
     // into the generated mermaid code as `%%{init}%%` themeVariables so the look survives a reload.
-    public sealed record DiagramPalette(string Name, string Fill, string Border, string Line, string Text);
+    public sealed record DiagramPalette(string Name, string Fill, string Border, string Line, string Text)
+    {
+        public override string ToString() => Name;   // the name a list or screen reader shows
+    }
 
     public static readonly IReadOnlyList<DiagramPalette> StylePresets = new[]
     {

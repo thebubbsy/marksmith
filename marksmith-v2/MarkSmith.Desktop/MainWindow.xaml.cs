@@ -1386,6 +1386,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void LoadSampleDocument()
     {
         if (!string.IsNullOrWhiteSpace(ViewModel.PastedMarkdown)) return;
+        ViewModel.DetachFromOpenFile();
         ViewModel.UsePasteSource = true;
         ViewModel.PastedMarkdown = SampleMarkdown;
     }
@@ -3194,7 +3195,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var path = ViewModel.InputFilePath;
         if (string.IsNullOrWhiteSpace(path))
         {
-            ViewModel.StatusText = "Nothing to save: open a file first (Ctrl+O). Pasted content lives in the editor and is exported, not saved.";
+            ViewModel.StatusText = "Nothing to save to: this text wasn't opened from a file. Keep it with Export as Markdown (.md), or open a file (Ctrl+O).";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            return;
+        }
+        // Pasted, sent-in or imported text replaced the file's text in the editor. Writing it over
+        // the file it never came from would destroy that file.
+        if (!ViewModel.IsEditingOpenFile)
+        {
+            ViewModel.StatusText = $"Not saved: this text didn't come from {Path.GetFileName(path)}, so Ctrl+S won't write over it. Keep it with Export as Markdown (.md).";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
             return;
         }
@@ -3206,9 +3215,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         try
         {
             // Restore any stashed %% position metadata so the saved file keeps studio layouts.
+            if (ViewModel.OpenFileChangedOnDisk() && !await ConfirmOverwriteExternalChangeAsync(path)) return;
             var toSave = Mermaid.Sync.MermaidSpatialMetadataService.Reinject(
                 ViewModel.CurrentMarkdown ?? "", _mermaidSpatialStash);
             await File.WriteAllTextAsync(path, toSave);
+            ViewModel.MarkOpenFileSaved();
             ViewModel.StatusText = $"Saved changes to {path}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
@@ -3217,6 +3228,36 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ViewModel.StatusText = $"Save failed: {ex.Message}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
+    }
+
+    // Another program (a second editor, OneDrive, git) wrote the file after MarkSmith read it.
+    // Saving would silently throw those changes away, so ask first.
+    private async Task<bool> ConfirmOverwriteExternalChangeAsync(string path)
+    {
+        var root = RootGrid?.XamlRoot ?? Content?.XamlRoot;
+        if (root is null) return false;
+        var dialog = new ContentDialog
+        {
+            Title = "File changed outside MarkSmith",
+            Content = new TextBlock
+            {
+                Text = $"{Path.GetFileName(path)} was changed by another program after MarkSmith opened it. " +
+                       "Saving replaces those changes with what's in the editor.",
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 440,
+            },
+            PrimaryButtonText = "Replace their changes",
+            CloseButtonText = "Don't save",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = root,
+        };
+        var replace = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) == ContentDialogResult.Primary;
+        if (!replace)
+        {
+            ViewModel.StatusText = $"Not saved. {Path.GetFileName(path)} keeps the other program's changes; your edits are still in the editor.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+        }
+        return replace;
     }
 
     // The open file is a Word/PDF/HTML/email document shown as Markdown. Writing Markdown over it
@@ -3362,6 +3403,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private sealed record PaletteCommand(string Label, string Category, Func<Task> Run, string Shortcut = "", string Keywords = "")
     {
         public Visibility ShortcutVisibility => Shortcut.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // What a screen reader announces for the row (it read the record's debug text,
+        // "PaletteCommand { Label = …, Run = System.Func`1[…] }").
+        public override string ToString() => Shortcut.Length > 0 ? $"{Label}, {Category}, {Shortcut}" : $"{Label}, {Category}";
     }
 
     // Every action a user might go looking for: run #21b found the palette had no Find, Save,
@@ -6147,6 +6192,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
                     return;
                 }
+                ViewModel.DetachFromOpenFile();
                 ViewModel.PastedMarkdown = read.Markdown;
                 ViewModel.UsePasteSource = true;
                 ViewModel.StatusText = $"Imported {name} · read with {read.Engine}" + (read.FellBack ? " (the chosen engine isn't available here)" : "");
@@ -6178,6 +6224,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 }
 
                 // Load the extracted Markdown into the editor as a new document.
+                ViewModel.DetachFromOpenFile();
                 ViewModel.PastedMarkdown = result.Markdown;
                 ViewModel.UsePasteSource = true;
                 ViewModel.StatusText = result.Tier == Services.ImportTier.EmbeddedSource
@@ -6204,6 +6251,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
                 return;
             }
+            ViewModel.DetachFromOpenFile();
             ViewModel.PastedMarkdown = imported.Markdown;
             ViewModel.UsePasteSource = true;
             ViewModel.StatusText = imported.Summary ?? $"Imported {Path.GetFileName(filePath)}";

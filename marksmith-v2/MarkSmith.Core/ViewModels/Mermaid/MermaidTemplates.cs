@@ -5,7 +5,10 @@ namespace MarkSmith.ViewModels.Mermaid;
 /// Every <see cref="Code"/> value is round-trip-verified against <c>MermaidParser</c> so a
 /// template can never load into a broken canvas.
 /// </summary>
-public sealed record MermaidTemplate(string Name, string Category, string Description, string Code);
+public sealed record MermaidTemplate(string Name, string Category, string Description, string Code)
+{
+    public override string ToString() => Name;   // the name a list or screen reader shows
+}
 
 /// <summary>
 /// The built-in template library — one or more curated starters for each of the seven supported
