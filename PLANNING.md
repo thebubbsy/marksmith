@@ -5660,3 +5660,7 @@ paragraph, numbering confined to the block).
    for the user; real Windows light/dark switch; first real in-app update;
    `EmailExportFlowTests.Subject_preview_follows_the_template` flake; real-mouse hover check of
    OptionRow; Load unpacked of the bundled extension.
+
+**Release (same run):** tagged **v3.25.0** on `bbf3980` after CI passed on it. Release workflow built
+the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
+`MarksmithBaseVersion` is now **3.26.0**.
