@@ -5352,3 +5352,73 @@ pages to the API path, validator 0 errors.
 **Release (same run):** tagged **v3.21.0** on `c865cfc` after CI passed on it. Release workflow built
 the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
 `MarksmithBaseVersion` is now **3.22.0** (`44b629a`).
+
+### 2026-10-10 16:00–16:40 AEDT (routine run #63: PowerPoint export, slide by slide)
+
+**Pick.** Run #61's "Next up" #1. A run #62 had started it (14:00) and died: its scratchpad held
+a working rig (`pptx.ps1`: `/api/convert` → PowerPoint COM `Slide.Export` PNG per slide + a text
+overflow audit → OpenXML validator → contact sheet) and the tree held its WIP (cover slide, SVG BOM,
+Mermaid pie palette) which did not build: it called a `LiftDirectives` that was never written. No
+other run was live (list_sessions). Adopted the WIP and finished it.
+
+**How it was tested.** Scratch Desktop build to `%TEMP%\ms63d\b`, instance on `ApiPort` 47963 with
+the dev Pro license, PowerPoint COM renders of every slide (GitHub Light and Dracula). Stress docs:
+`blocks.md` (every block the Insert menu adds: cover page, watermark, AI context, metrics, bar/pie/
+line charts, workflow, timeline, hierarchy SmartArt, tabs, columns, datagrid, canvas, references,
+embed), run #62's `report.md`, `features.md`, `pics.md`, `long.md` (57 slides) and a Mermaid
+pie/xychart doc. Plus one **real UI export**: opened `blocks.md` by argument, expanded
+`ExportSplitButton`, invoked "Export as PowerPoint (.pptx)" (the main button is only ever Word/PDF;
+PowerPoint is a flyout item): identical slides to the API path, validator 0 errors. The Mermaid
+change was also checked through the preview/PDF path (rendered the PDF page).
+
+**What was wrong:**
+- Every `:::` block printed on slides as raw source: a cover page as "title: … subtitle: …", a chart
+  as ":::chart type=bar Q1,10 …", tabs/columns with their `===` separators (a `===` under a line is
+  a setext H1, so it even started a new slide), watermark and AI-context text on the content.
+- A subheading before a table, code block or picture was left alone at the foot of a slide (KeepWith
+  Next only worked inside one text block). Tables split after 2 rows with half a slide empty, though
+  the whole table fitted on the next. "…looks like this:" was split from its code.
+- A big picture took the whole slide and pushed its one-line explanation onto "(continued)".
+- Mermaid pies drew in the page colour (white wedges, blank legend swatches); a Mermaid xychart
+  painted a white box on dark themes — in the preview and PDF too, not just slides.
+
+**Shipped:**
+- Core `Services/Presentation/SlideDirectives.Lift`: runs `AdvancedFeaturePipeline.Shared` over the
+  Markdown and rewrites each block. Cover page → title slide (`DocxExportService.ExtractCoverPage`;
+  an H1 that only repeats it is skipped). Watermark/line numbers/index/AI context → dropped. Tabs →
+  `####` sections (`ParseTabsFromContent`, now internal), columns → paragraphs, datagrid/kanban/
+  parallel → Markdown tables, references → "Author (Year). *Title*." bullets, embed → link. Chart,
+  metrics, SmartArt/workflow/timeline, canvas, shapes and engineering diagrams become placeholder
+  HTML comments (`<!--ms-slide-block:N-->`) that `Ctx.Convert` swaps for native blocks.
+- New slide blocks + writer: `ChartSlideBlock` → **native PowerPoint chart** (ChartPart + embedded
+  xlsx, so Edit Data works; palette = `MermaidChartsRenderer.BuildPalette`, all text in the slide's
+  text colour); `MetricsSlideBlock` → KPI cards (figures in the first chart colour);
+  `SmartArtSlideBlock` → **native SmartArt** from the Word export's glox packages/solver/generator
+  (PowerPoint lays it out with no drawing part; accent1 in the colours part is replaced by the chart
+  colour because many themes' accent is near-black); canvas/shapes/engineering → pictures via
+  `SvgRasterizer`.
+- Paginator (`SlideDeckBuilder.Paginate`): `DetachLeadIns` splits trailing subheadings (and a final
+  "…:" paragraph with its heading) off a text block followed by a non-text block; they move with
+  that block when `MinHeight(next)` doesn't fit. Tables and code that fit a fresh slide move whole.
+  A ≤110pt text after a picture stays if the picture keeps ≥60% of its height. Lone chart/KPI/
+  SmartArt slides centre vertically.
+- `MermaidLabelStyle.ChartVariables(theme, background)` (pie1..12, pie text colours, xyChart
+  background/axes/palette) in all four Mermaid inits; the preview passes the code-card colour.
+- Tests: `PptxSlideBlocksTests` (19 incl. theory rows).
+
+**Verified:** full suite 4497 passed + the one new test fixed after (1 skipped); PowerPoint +
+Mermaid filter 362/362. Desktop build green (scratch OutDir). Validator 0 errors on every deck.
+
+**Noticed, not fixed:**
+- `:::columns` are stacked, not side by side, on a slide. Two text columns would need a columns
+  slide block.
+- The datagrid/table header on GitHub Light is near-black (HeaderFill = theme accent, which is the
+  theme's design); Dracula's is near-white. Worth a look with the person present.
+- A title slide whose first paragraph is > 200 chars gets a second slide repeating the title.
+
+**Next up:**
+1. Same audit for EPUB export (render every page in an e-reader-ish viewer: Edge can open the
+   unzipped XHTML), especially the `:::` blocks, which EPUB and email likely also print raw.
+2. Carried over: continuous-page PDF default (run #59), for the user; real Windows light/dark switch
+   with a person present; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
+   flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
