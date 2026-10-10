@@ -5426,3 +5426,60 @@ Mermaid filter 362/362. Desktop build green (scratch OutDir). Validator 0 errors
 **Release (same run):** tagged **v3.22.0** on `b7380b4` after CI passed on it. Release workflow built
 the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
 `MarksmithBaseVersion` is now **3.23.0**.
+
+### 2026-10-10 17:00–17:20 AEDT (routine run #64: EPUB export, every `:::` block)
+
+**Pick.** Run #63's "Next up" #1: the EPUB audit, especially `:::` blocks. No other run was live;
+the tree only held the `EverythingHttpPlugin/*` edits that aren't this routine's (left alone).
+
+**How it was tested.** Scratch Desktop build to `%TEMP%\ms64d\b`, instance on `ApiPort` 47964.
+`epub.ps1` (run scratchpad): `/api/convert` with `format: epub` → unzip → headless Edge screenshot
+of every spine document at a 620 px e-reader width, on GitHub Light and Dracula. Docs: run #63's
+`blocks.md` (every Insert-menu block), `features.md`, a Mermaid doc. Every `.xhtml` parsed as XML
+and every packaged image checked against the OPF manifest. Plus one **real UI export**: opened
+`blocks.md` by argument, expanded `ExportSplitButton`, invoked "Export as EPUB (.epub)": same
+pictures and alt text as the API path, status bar "EPUB saved" with Open / Show in folder.
+
+**What was wrong** (EPUB had no `:::` handling at all):
+- The cover page printed as "title: … subtitle: … author: …" and the AI-context block as
+  "promptHash: abc123 model: …" on the first page; the title page showed only the H1 title.
+- Charts printed their data as a run of text ("Q1,10 Q2,25 Q3,15"); metrics, workflow, timeline
+  and hierarchy SmartArt fell back to plain bullet lists.
+- Tabs printed "=== Option A …" inline; in columns the `===` made the line above a setext H1, so
+  a sentence became the biggest heading in the chapter.
+- Data grids printed "label,value Q1,10"; references printed "@paper-id author: …"; an embed
+  vanished entirely.
+
+**Shipped:**
+- Core `Services/EpubDirectives.Lift`: runs `SlideDirectives.Lift` with a new `native` hook (tried
+  first for every block) so EPUB shares the slides' tokenizer and text rewrites (tabs → `####`
+  sections, columns → paragraphs, datagrid/kanban/parallel → tables, references → "Author (Year).
+  *Title*." list, embed → "▶ link", watermark/line numbers/index/AI context dropped).
+- Native for EPUB: charts (`MarkdownHtmlService.BuildChartSvg`, now internal, same palette as the
+  preview) and SmartArt/workflow/timeline (`HtmlPreviewRenderer`, layout resolved as the preview
+  does) are rasterized to 2x PNGs on a solid ground (`EpubDirectives.Rasterize` sizes our
+  container-sized SVGs from their viewBox) and packaged in `images/ms-block-NNN.png`. Each figure
+  carries `width` = its natural size and alt text with the data ("Bar chart: Q1 10, Q2 25…",
+  "Diagram: CTO · Platform · Data"). Metrics → `div.ms-metrics` KPI cards in the theme's colours.
+  Canvas/shapes/engineering use the slides' pictures.
+- The cover page feeds the title page (subtitle, author, organisation, "date · version") and the
+  OPF `dc:title`/`dc:creator` (after explicit metadata and front matter); a cover page alone now
+  turns the title page on.
+- Tests: `EpubBlocksTests` (8).
+
+**Verified:** full suite 4491 passed; the 15 failures are the known scratch-OutDir path tests
+(governance docs, gauntlet, asset files). EPUB/slide filter 104/104. Desktop build green.
+
+**Noticed, not fixed:**
+- Email export builds on the main HTML renderer, so charts and SmartArt go out as inline SVG,
+  which Gmail and Outlook don't draw. Needs its own audit, with a real mail client.
+- SmartArt pictures keep the preview's light card (#f8f9fa) on dark themes. That reads fine on
+  Dracula and matches Word, but a themed card would be nicer.
+- No epubcheck run (no Java here); XML and manifest checks only.
+
+**Next up:**
+1. Email export audit: `:::` blocks and diagrams as pictures (CID attachments or PNG data) rather
+   than inline SVG, checked in a real client.
+2. Carried over: continuous-page PDF default (run #59), for the user; real Windows light/dark switch
+   with a person present; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
+   flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
