@@ -3628,7 +3628,7 @@ public sealed partial class MarkdownHtmlService
     }
 
     /// <summary>Builds the chart SVG. Colours come from the active theme so it matches the page.</summary>
-    private static string BuildChartSvg(string kind, List<string> labels, List<double> values, ThemeDefinition theme)
+    internal static string BuildChartSvg(string kind, List<string> labels, List<double> values, ThemeDefinition theme)
     {
         static string Esc(string s) => System.Net.WebUtility.HtmlEncode(s);
         string F(double d) => d.ToString("0.##", CultureInfo.InvariantCulture);

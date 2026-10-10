@@ -44,10 +44,13 @@ public sealed class EpubExportService
         markdown = FormattingService.Apply(markdown, settings);
 
         var theme = Themes.GetOrDefault(settings.Theme);
+        var blockPictures = new List<EpubDirectives.Picture>();
+        markdown = EpubDirectives.Lift(markdown, theme, out var coverPage, blockPictures);
         var doc = XhtmlWriter.Parse(Markdown.ToHtml(markdown, Pipeline));
 
         var bookTitle = NonEmpty(meta?.Title)
                         ?? NonEmpty(frontMatter, "title")
+                        ?? NonEmpty(coverPage?.Title)
                         ?? HistoryEntry.ExtractTitle(markdown) ?? "Marksmith Export";
 
         // The person, never the tool: a reader's library lists books by dc:creator, and every
@@ -55,6 +58,7 @@ public sealed class EpubExportService
         // stamp too; with none, the book simply has no creator (EPUB doesn't require one).
         var author = NonEmpty(meta?.Author)
                      ?? NonEmpty(frontMatter, "author")
+                     ?? NonEmpty(coverPage?.Author)
                      ?? NonEmpty(settings.AuthorName);
 
         var language = NonEmpty(meta?.Language)
@@ -115,9 +119,16 @@ public sealed class EpubExportService
         // and the second needs no manifest entry.
         var images = new List<PackagedImage>();
         var embedded = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var drawn = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (file, png) in blockPictures)
+        {
+            images.Add(new($"block{drawn.Count + 1:000}", file, "image/png", png));
+            drawn.Add(file);
+        }
         foreach (var img in doc.QuerySelectorAll("img[src]"))
         {
             var src = img.GetAttribute("src")!;
+            if (drawn.Contains(src)) continue;      // a chart or diagram drawn above, already packaged
             if (src.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
                 || src.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
                 || src.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
@@ -201,7 +212,7 @@ public sealed class EpubExportService
         // A book without a cover opens on a title page instead of straight into the text, once
         // it is more than one chapter or the brand cover page is switched on (Settings › Branding,
         // the same switch that gives Word exports a title page).
-        bool titlePage = coverFile is null && (chapters.Count > 1 || settings.BrandCoverPage);
+        bool titlePage = coverFile is null && (chapters.Count > 1 || settings.BrandCoverPage || coverPage is not null);
 
         using var zip = ZipFile.Open(epubPath, ZipArchiveMode.Create);
 
@@ -211,7 +222,7 @@ public sealed class EpubExportService
         WriteEntry(zip, "OEBPS/style.css", Css(theme));
         WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, author, language, publisher, identifier ?? StableIdentifier(bookTitle, author, Path.GetFileNameWithoutExtension(epubPath)), description, rights, chapters, coverFile, coverMediaType, images, titlePage));
         if (titlePage)
-            WriteEntry(zip, "OEBPS/title.xhtml", TitleXhtml(bookTitle, author, publisher == ExportBranding.Tag ? null : publisher, language));
+            WriteEntry(zip, "OEBPS/title.xhtml", TitleXhtml(bookTitle, author, publisher == ExportBranding.Tag ? null : publisher, language, coverPage));
         WriteEntry(zip, "OEBPS/nav.xhtml", Nav(chapters, language));
         if (coverFile is not null && coverBytes is not null)
         {
@@ -489,12 +500,19 @@ public sealed class EpubExportService
         return $"urn:uuid:{hex[..8]}-{hex[8..12]}-{hex[12..16]}-{hex[16..20]}-{hex[20..32]}";
     }
 
-    private static string TitleXhtml(string title, string? author, string? publisher, string language)
+    // A :::cover-page adds its subtitle under the title and its organisation, date and version
+    // at the foot, the way the Word export's cover page sets them.
+    private static string TitleXhtml(string title, string? author, string? publisher, string language,
+                                     DocxExportService.CoverPageInfo? cover = null)
     {
         var lines = new StringBuilder();
         lines.Append($"    <h1 class=\"title\">{Esc(title)}</h1>\n");
+        if (!string.IsNullOrWhiteSpace(cover?.Subtitle)) lines.Append($"    <p class=\"subtitle\">{Esc(cover.Subtitle)}</p>\n");
         if (!string.IsNullOrWhiteSpace(author)) lines.Append($"    <p class=\"author\">{Esc(author)}</p>\n");
-        if (!string.IsNullOrWhiteSpace(publisher)) lines.Append($"    <p class=\"publisher\">{Esc(publisher)}</p>\n");
+        var org = NonEmpty(cover?.Organization) ?? NonEmpty(publisher);
+        if (org is not null) lines.Append($"    <p class=\"publisher\">{Esc(org)}</p>\n");
+        var stamp = string.Join(" · ", new[] { cover?.Date, cover?.Version }.Where(v => !string.IsNullOrWhiteSpace(v)));
+        if (stamp.Length > 0) lines.Append($"    <p class=\"edition\">{Esc(stamp)}</p>\n");
         return $"""
         <?xml version="1.0" encoding="utf-8"?>
         <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="{Esc(language)}" xml:lang="{Esc(language)}">
@@ -578,6 +596,14 @@ public sealed class EpubExportService
         section.titlepage { text-align: center; margin-top: 30%; page-break-after: always; break-after: page; }
         section.titlepage h1.title { font-size: 2.2em; margin-bottom: .6em; }
         section.titlepage p.author { font-size: 1.25em; font-style: italic; margin: 0 0 2em; }
+        section.titlepage p.subtitle { font-size: 1.2em; margin: -.2em 0 1.6em; opacity: .85; }
         section.titlepage p.publisher { font-size: .9em; opacity: .75; }
+        section.titlepage p.edition { font-size: .85em; opacity: .65; margin-top: .4em; }
+        figure.ms-block { margin: 1.2em 0; text-align: center; page-break-inside: avoid; break-inside: avoid; }
+        figure.ms-block img { max-width: 100%; height: auto; border-radius: 6px; }
+        div.ms-metrics { margin: 1.2em 0; text-align: center; }
+        div.ms-metric { display: inline-block; vertical-align: top; min-width: 8em; margin: .3em; padding: .7em 1em; border: 1px solid {{t.Border}}; border-radius: 8px; background: {{t.Code}}; page-break-inside: avoid; break-inside: avoid; }
+        p.ms-metric-value { margin: 0; font-size: 1.6em; font-weight: bold; line-height: 1.2; color: {{t.Heading}}; }
+        p.ms-metric-label { margin: .2em 0 0; font-size: .85em; opacity: .8; }
         """;
 }

@@ -24,7 +24,12 @@ internal static class SlideDirectives
     /// <summary>The placeholder an HTML comment carries: <c>&lt;!--ms-slide-block:3--&gt;</c>.</summary>
     internal static readonly Regex PlaceholderRe = new(@"^\s*<!--ms-slide-block:(\d+)-->\s*$", RegexOptions.Compiled);
 
-    public static string Lift(string markdown, out DocxExportService.CoverPageInfo? cover, List<SlideBlock> blocks)
+    /// <param name="native">
+    /// Tried first for every block: a format that can draw a block itself (EPUB packages a chart
+    /// as a picture) returns its replacement, or null to take the slide rewrite.
+    /// </param>
+    public static string Lift(string markdown, out DocxExportService.CoverPageInfo? cover, List<SlideBlock> blocks,
+                              Func<FeatureNode, string?>? native = null)
     {
         cover = null;
         if (markdown.IndexOf(":::", StringComparison.Ordinal) < 0) return markdown;
@@ -43,7 +48,7 @@ internal static class SlideDirectives
             at = node.Block.End;
 
             string? replacement;
-            try { replacement = Replace(node, ref cover, blocks); }
+            try { replacement = native?.Invoke(node) ?? Replace(node, ref cover, blocks); }
             catch { replacement = null; }
             // Unknown or unreadable: keep the author's text rather than lose it.
             sb.Append(replacement is null ? markdown[node.Block.Start..node.Block.End] : "\n\n" + replacement.Trim('\n') + "\n\n");
@@ -271,7 +276,7 @@ internal static class SlideDirectives
         return block.Items.Count > 0 ? block : null;
     }
 
-    private static SmartArtSlideBlock? SmartArt(FeatureNode node, string inner)
+    internal static SmartArtSlideBlock? SmartArt(FeatureNode node, string inner)
     {
         var body = node.Detector.FeatureName is "Timeline" or "Workflow" && !inner.Split('\n').Any(l => l.TrimStart().StartsWith('-') || l.TrimStart().StartsWith('*'))
             ? string.Join('\n', inner.Split('\n').Select(l => l.Trim().Length == 0 ? l : "- " + l.Trim()))
