@@ -545,6 +545,9 @@ public sealed class StreamingDocxExportService
         {
             DocxExportService.AddStyles(main, ctx);
         }
+        DocxExportService.EnsureSupportStyles(main, ctx);
+        // Built before any block renders: section breaks inside the body clone it.
+        ctx.BodySectionTemplate = DocxExportService.BuildSectionProperties(main, ctx, settings, "Markdown Export", refMerge);
 
         var renderedChannel = Channel.CreateBounded<RenderedBlockChunk>(new BoundedChannelOptions(128)
         {
@@ -734,8 +737,7 @@ public sealed class StreamingDocxExportService
             expectedSeq++;
         }
 
-        var sectPr = DocxExportService.BuildSectionProperties(main, ctx, settings, title, refMerge);
-        writer.WriteElement(sectPr);
+        writer.WriteElement(DocxExportService.FinalBodySection(ctx));
 
         writer.WriteEndElement(); // </w:body>
         writer.WriteEndElement(); // </w:document>

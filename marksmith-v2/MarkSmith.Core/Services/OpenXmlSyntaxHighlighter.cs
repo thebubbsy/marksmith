@@ -23,17 +23,17 @@ public class OpenXmlSyntaxHighlighter
             yield break;
 
         var profile = ResolveProfile(languageId);
+        bool isDark = !ThemeDefinition.IsLight(theme.Code);
+        string bgHex = theme.Code.TrimStart('#');
 
         if (profile == null)
         {
-            // Unknown language → one plain run, no highlighting.
-            var run = MakeRun(sourceCode, theme.Code.TrimStart('#'), false, false);
-            yield return run;
+            // Unknown language (```text, ascii art, …) → one plain run in the theme's text colour.
+            // theme.Code is the block's BACKGROUND: colouring the text with it made the block blank.
+            var plain = ContrastGuard.EnsureLegibleText(theme.Text.TrimStart('#'), bgHex, isDark ? "E6EDF3" : "1F2328");
+            yield return MakeRun(sourceCode, plain, false, false);
             yield break;
         }
-
-        bool isDark = !ThemeDefinition.IsLight(theme.Code);
-        string bgHex = theme.Code.TrimStart('#');
 
         foreach (var (text, kind) in Tokenize(sourceCode, profile))
         {

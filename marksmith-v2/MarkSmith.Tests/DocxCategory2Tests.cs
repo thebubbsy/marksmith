@@ -50,12 +50,13 @@ public class DocxCategory2Tests
         var docPath = ExportToTempDocx(md);
         try
         {
+            // The note is a real Word footnote; its number (w:footnoteRef) opens its first paragraph.
             using var pkg = WordprocessingDocument.Open(docPath, false);
-            var body = pkg.MainDocumentPart!.Document.Body!;
-            var fnParagraphs = body.Descendants<W.Paragraph>().Where(p => p.InnerText.Contains("Footnote details")).ToList();
+            var notes = pkg.MainDocumentPart!.FootnotesPart!.Footnotes!;
+            var fnParagraphs = notes.Descendants<W.Paragraph>().Where(p => p.InnerText.Contains("Footnote details")).ToList();
             Assert.NotEmpty(fnParagraphs);
             var fnPara = fnParagraphs.First();
-            var labelRun = fnPara.ChildElements.OfType<W.Run>().FirstOrDefault(r => r.InnerText.StartsWith("["));
+            var labelRun = fnPara.ChildElements.OfType<W.Run>().FirstOrDefault(r => r.GetFirstChild<W.FootnoteReferenceMark>() is not null);
             Assert.NotNull(labelRun);
             Assert.Equal(fnPara, labelRun.Parent);
             if (fnPara.ParagraphProperties != null)

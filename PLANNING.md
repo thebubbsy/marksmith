@@ -5169,3 +5169,104 @@ task list, footnote).
 **Release (same run):** tagged **v3.19.0** on `654d0d6` after CI passed on it. Release workflow built
 the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
 `MarksmithBaseVersion` is now **3.20.0** (`c4ac885`).
+
+### 2026-10-10 12:00–13:15 AEST (routine run #60: Word export, done properly)
+
+**Pick.** No other run was live (list_sessions: nothing running). Took run #59's "Next up" #1: the
+same page-by-page treatment for .docx. Word is the Pro export, and nobody had looked at its pages.
+
+**How it was tested.** Word COM now opens files headlessly here (run #59's note that it was blocked
+by the first-run dialog no longer holds). A scratch instance (`MARKSMITH_CONFIG_DIR`, `ApiPort`
+47960, dev Pro via `license.json` with `MARKSMITH-DEV-PRO-0001`, since Word export is Pro-gated)
+exported through `/api/convert` with `format: docx` (overrides go inside `output`, camelCase; a
+top-level `theme` is ignored once `output` is present). Word printed each file to PDF
+(`Documents.Open` read-only + `ExportAsFixedFormat`, killed after 120 s), `Windows.Data.Pdf`
+rendered every page, and the OpenXML SDK validator (Office 2019) checked every file. **Render
+through Word, not just the validator**: half the bugs below validate clean. Documents: run #59's
+6-page report and feature doc, plus a Word stress doc (cover, watermark, footnotes incl. a repeated
+one, `:::columns`, task and nested lists, yaml/text/plain fences, wide tables); light, GitHub Dark,
+Dracula, Nordic; A4 and Letter; TOC, page border, branded cover.
+
+**What was wrong:**
+- Code fences in a language with no highlighter (```text, ascii art, …) were **invisible**: the
+  run colour was the theme's code *background*.
+- `:::columns` had Word's section semantics backwards (a `sectPr` describes the content BEFORE
+  it): everything above the block went two-column, the block itself one column, and the column
+  break became a page break. Scoped `:::line-numbers` were inverted the same way.
+- Every section break inside the body (cover, columns, line numbers) was a bare `sectPr`: no
+  header/footer references (so every page above it lost its running header and page numbers) and
+  no paper size (Word's default instead of A4).
+- After a `:::cover-page` the body's first page had no header or footer (`titlePg` on the body
+  section), numbering counted the cover ("Page 1 of 3" for two pages), and the cover section was
+  Letter in front of an A4 body. The branded cover (Settings) printed the header and "Page 1 of N".
+- Tables used a hard-coded Letter text width (9360 twips; A4's is 9026) and autofit, so they ran
+  past the right margin and a long command or URL pushed them off the page; cells carried the
+  body's 8pt paragraph spacing (a 22-row table took three pages); dates broke at the hyphen.
+- Callouts were 100% percentage tables that measured their cell margins on top (past the margin)
+  with nothing between them, so a NOTE and the WARNING under it fused into one block.
+- Footnotes printed as body text at the end ("[1] text [1] ↩", Markdig's back-link included).
+- List items were Normal paragraphs with `contextualSpacing`, which also deleted the gap to the
+  next Normal paragraph; task items printed a bullet AND a checkbox.
+- Consecutive code blocks merged into one box (Word joins identical paragraph borders); every code
+  block had `keepLines`, so a long listing jumped to the next page leaving half a page blank, and
+  the paragraph after a listing sat on its border.
+- The watermark never printed: the VML shapetype lacked the WordArt `path`/`textpathok`, the fill
+  was a bare hex, the opacity "12%", and the default colour light grey at 10-15%.
+- Inline code drew a black "auto" box; auto-hyphenation split words the preview never splits
+  ("quar-ter"); old-style numerals made dates and money dip; the cover subtitle was fixed `555555`
+  (unreadable on dark themes); no `w:compat`, so every export opened in **Compatibility Mode**.
+- With "Table of contents" on, the field result was the text "Word fills this in when the document
+  opens", which is all a reader sees in Protected View or a preview; the dirty placeholder also
+  produced a blank page in Word's layout. The drop cap's frame shoved the next heading right when
+  the opening paragraph was short.
+
+**Shipped (Core `DocxExportService` unless noted):**
+- `PageGeometry(settings)` / `TextWidthTwips(settings)`: one source for paper, margins and table
+  width (template layout, A4 lock, Letter). Body section, cover sections and every table use it.
+- The body's `sectPr` is built BEFORE the body is written (`ctx.BodySectionTemplate`, both
+  exporters). `SectionBreakParagraph(ctx, type, layout…)` clones it for every break inside the body
+  (headers, footers, paper; `layout` swaps columns/line numbering; the first body section after a
+  cover is next-page with `pgNumType start=1`); `FinalBodySection` drops a repeated restart and is
+  continuous after in-body breaks. `CoverSectionBreak` for both covers. `ctx.HasCoverSection`.
+- `:::columns`: opening break closes the text above, closing break carries the columns; the column
+  break opens the next column's first paragraph; each column's first paragraph starts flush.
+- Footers: "of N" is `SECTIONPAGES` with a cover, `= NUMPAGES - 1` (one run) with cover + columns.
+- Tables: `SolveColumnWidths` (each column gets its longest word, rest shared by content,
+  browser-style; always sums to the text width), fixed layout, compact cell spacing
+  (`TightenCellSpacing`). Callouts: twip widths, fixed layout, spacer after.
+- Real Word footnotes (`TryAppendWordFootnote`, FootnotesPart with separators, `FootnoteText` /
+  `FootnoteReference` styles; a repeated reference repeats the number; back-links skipped). The
+  streaming exporter (block-by-block parse) keeps the old fallback.
+- List Paragraph style (`SupportStyles`, also added to merged house-style templates via
+  `EnsureSupportStyles`); task items hang their checkbox (all three forms: Markdig TaskList, the
+  formatting pass's `<input type=checkbox>`, a literal `[x]`). `ReverseImportService` reads a
+  bulletless task item back as `- [x]`.
+- Code: plain-language fences use the text colour (`OpenXmlSyntaxHighlighter`); `keepLines` only up
+  to 15 lines; 6pt before / 12pt after; border padding alternates 4/5pt so neighbours stay apart.
+- Watermark rebuilt from Word's own markup (`WatermarkShape` id kept), default colour = page text.
+- Inline code pill in the theme's code colour; no `autoHyphenation`; lining numerals; cover
+  subtitle/labels contrast-guarded; `w:compat` compatibilityMode 15; TOC pre-filled with linked
+  headings inside the same TOC field (Word still rebuilds it with page numbers).
+- Tests: `DocxPrintTests` (26), two footnote tests updated to real footnotes.
+
+**Verified:**
+- Every render listed above re-checked after the fixes; OpenXML validator 0 errors on all of them.
+- Full suite: 4464 passed, 1 skipped, 1 failed (a new TOC test reading the field code as text);
+  fixed and re-run with the Docx/import/footnote suites: 64/64. Desktop build green (default and
+  scratch OutDir `%TEMP%\ms60d\b`); the scratch instance served every export above.
+
+**Noticed, not fixed:**
+- The streaming DOCX exporter still renders footnotes as body text (it parses block by block, so a
+  link can't reach its definition) and has no pre-filled TOC.
+- The HTML-table path (`<table>` in Markdown) still uses the old proportional column solver.
+- The default PDF/preview watermark colour is still `#CCCCCC` at 10-15% (faint but visible there).
+- A real UI-driven Word export wasn't clicked through this run (the API path is the same service;
+  the UI additionally harvests Mermaid geometry).
+
+**Next up:**
+1. Word export, part 2: Mermaid/diagram sizing on the page (they print small), images (size and
+   captions), headings at page foot, the HTML-table path, and the streaming exporter's footnotes.
+2. The continuous-page PDF default (run #59), for the user to decide.
+3. Carried over: a real Windows light/dark switch with a person present; Diagram Studio/Galaxy and
+   the flip hook; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
+   flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.

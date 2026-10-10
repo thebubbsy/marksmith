@@ -275,17 +275,19 @@ public sealed partial class DocxExportService
             foreach (var (_, featNode) in featureDict)
             {
                 if (featNode.Detector.FeatureName == "Watermark")
-                    ctx.Watermark = ExtractWatermark(featNode);
+                    ctx.Watermark = ExtractWatermark(featNode, ContrastGuard.EnsureLegibleText(ctx.Theme.Text, ctx.Theme.Background).TrimStart('#'));
                 else if (featNode.Detector.FeatureName == "LineNumbers")
                     ctx.LineNumbers = ExtractLineNumbers(featNode);
                 else if (featNode.Detector.FeatureName == "CoverPage")
                     ctx.CoverPage = ExtractCoverPage(featNode);
             }
+            ctx.BodyHasSectionBreaks = featureDict.Values.Any(SplitsBodySection);
 
             if (refMerge is null || !refMerge.Applied || main.StyleDefinitionsPart is null)
             {
                 AddStyles(main, ctx);
             }
+            EnsureSupportStyles(main, ctx);
 
             CollectAnchors(doc, ctx);
 
@@ -296,6 +298,10 @@ public sealed partial class DocxExportService
             {
                 ctx.ImageCache[url] = FetchImageBytes(url);
             });
+
+            // The body's section (headers, footers, paper) exists before the body is written, so the
+            // section breaks inside it (cover, :::columns, scoped line numbers) can carry the same.
+            ctx.BodySectionTemplate = BuildSectionProperties(main, ctx, settings, title, refMerge);
 
             // True O(1) Memory SAX Streaming Architecture via OpenXmlWriter
             using (var writer = OpenXmlWriter.Create(main))
@@ -337,7 +343,7 @@ public sealed partial class DocxExportService
                 if (settings.IncludeToc)
                 {
                     var tocContainer = new W.Body();
-                    AppendTocField(tocContainer, ctx);
+                    AppendTocField(tocContainer, ctx, doc);
                     foreach (var el in tocContainer.ChildElements)
                         writer.WriteElement(el);
                 }
@@ -365,8 +371,7 @@ public sealed partial class DocxExportService
                 }
 
                 // Final section properties
-                var sectPr = BuildSectionProperties(main, ctx, settings, title, refMerge);
-                writer.WriteElement(sectPr);
+                writer.WriteElement(FinalBodySection(ctx));
 
                 writer.WriteEndElement(); // </w:body>
                 writer.WriteEndElement(); // </w:document>
@@ -509,6 +514,9 @@ public sealed partial class DocxExportService
             ctx.Anchors[key] = name.Length > 40 ? name[..40] : name;
         }
 
+        ctx.BodySectionTemplate = body.Elements<W.SectionProperties>().LastOrDefault()?.CloneNode(true) as W.SectionProperties;
+        ctx.BodySectionNumbered = true; // the document's numbering is already set up
+
         // Build the new section in a temp container, then splice it in before the trailing sectPr.
         var tmp = new W.Body();
         tmp.Append(new W.Paragraph(new W.Run(new W.Break { Type = W.BreakValues.Page })));
@@ -525,6 +533,9 @@ public sealed partial class DocxExportService
         }
 
         ctx.MainPart.NumberingDefinitionsPart?.Numbering?.Save();
+        EnsureSupportStyles(main, ctx);
+        main.StyleDefinitionsPart?.Styles?.Save();
+        main.FootnotesPart?.Footnotes?.Save();
         // Re-embed the combined source so an appended compendium still reopens losslessly.
         MarksmithSourceStore.Embed(main, combinedSource, settings);
         main.Document.Save();
@@ -566,9 +577,18 @@ public sealed partial class DocxExportService
         public CoverPageInfo? CoverPage { get; set; }
 
         public int NextCommentId = 1;
+        // Real Word footnotes: the Markdig note -> its w:footnote id and the number Word prints.
+        public readonly Dictionary<Markdig.Extensions.Footnotes.Footnote, (long Id, int Number)> WordFootnotes =
+            new(ReferenceEqualityComparer.Instance);
         public bool HasRevisions;
         public bool HasIndex;
         public bool HasFormulas;
+        public bool BodyHasSectionBreaks; // :::columns / scoped :::line-numbers split the body into sections
+        public bool HasCoverSection => CoverPage is not null || Settings.BrandCoverPage; // the first section is a cover
+        public W.SectionProperties? BodySectionTemplate; // the body's own sectPr, cloned by every break inside it
+        public int CodeBlockSeq;                          // alternates code-block border padding (see CodeParagraph)
+        public bool BodySectionNumbered;                  // page numbering already restarted at an earlier body section
+        public int BodySectionBreaks;                     // section breaks written inside the body so far
 
         public ThreadSafePartRegistry? PartRegistry { get; init; }
 
@@ -666,7 +686,7 @@ public sealed partial class DocxExportService
         string? Abstract,
         string Theme);
 
-    internal static WatermarkInfo ExtractWatermark(FeatureNode node)
+    internal static WatermarkInfo ExtractWatermark(FeatureNode node, string defaultColor = "808080")
     {
         string text = "CONFIDENTIAL";
         if (node.Attributes.TryGetValue("text", out var t) && !string.IsNullOrWhiteSpace(t))
@@ -679,7 +699,9 @@ public sealed partial class DocxExportService
             if (!string.IsNullOrWhiteSpace(firstLine)) text = firstLine.Trim();
         }
 
-        string color = "CCCCCC";
+        // Unset: the page's text colour at the watermark's opacity, like Word's own watermarks (a
+        // fixed light grey at 10-15% was white on white). An explicit color= is taken as given.
+        string color = defaultColor;
         if (node.Attributes.TryGetValue("color", out var c) && !string.IsNullOrWhiteSpace(c))
             color = c.TrimStart('#');
 
@@ -1101,6 +1123,11 @@ public sealed partial class DocxExportService
 
             case Markdig.Extensions.Footnotes.Footnote footnote:
             {
+                // A note that is referenced lives at the foot of the page as a real Word footnote
+                // (written where it is referenced); only an orphan definition prints here.
+                if (ctx.WordFootnotes.ContainsKey(footnote))
+                    break;
+
                 // Render the footnote's own content, then tie it to the body's [n] superscript by
                 // prefixing the first paragraph with its clickable "[order] " label and bookmark target.
                 var before = target.ChildElements.Count;
@@ -1193,7 +1220,10 @@ public sealed partial class DocxExportService
         if (p.Inline?.FirstChild is not LiteralInline literal) return false;
         var text = literal.Content.ToString();
         if (text.Length == 0 || !char.IsLetter(text[0])) return false;
-        if (GetPlainText(p.Inline).Trim().Length < 60) return false; // too short to wrap a drop cap
+        // The frame is three lines tall: a paragraph that doesn't run past it lets the frame push into
+        // whatever follows (the next heading was shoved right). Ask for about four lines of text.
+        var charsPerLine = TextWidthTwips(ctx.Settings) / ColumnCharTwips;
+        if (GetPlainText(p.Inline).Trim().Length < charsPerLine * 4) return false;
 
         var drop = new W.Paragraph(
             new W.ParagraphProperties(
@@ -1285,7 +1315,23 @@ public sealed partial class DocxExportService
         datePara.Append(dateRun);
         body.Append(datePara);
 
-        body.Append(new W.Paragraph(new W.Run(new W.Break { Type = W.BreakValues.Page })));
+        // Its own section with no header or footer, like :::cover-page: a plain page break printed
+        // the running title and "Page 1 of N" on the cover.
+        body.Append(CoverSectionBreak(ctx));
+    }
+
+    // Ends a cover: same paper as the body, no header/footer references, so the cover prints clean
+    // and the body section after it restarts the page numbers.
+    internal static W.Paragraph CoverSectionBreak(Ctx ctx)
+    {
+        var (size, margin) = PageGeometry(ctx.Settings);
+        return new W.Paragraph(new W.ParagraphProperties(
+            new W.SpacingBetweenLines { Before = "0", After = "0" },
+            new W.SectionProperties(
+                new W.SectionType { Val = W.SectionMarkValues.NextPage },
+                size,
+                margin,
+                new W.TitlePage())));
     }
 
     // JPEG dimensions from the first SOF0/SOF2 frame header.
@@ -1510,9 +1556,14 @@ public sealed partial class DocxExportService
     {
         var isDiff = info?.Trim().Equals("diff", StringComparison.OrdinalIgnoreCase) == true;
         var pPr = new W.ParagraphProperties();
-        pPr.KeepLines = new W.KeepLines();
+        // A short listing stays on one page; a long one may split, or keepLines pushes the whole
+        // block to the next page and leaves the page before it half empty.
+        if (CodeLineCount(text) <= KeepTogetherCodeLines)
+            pPr.KeepLines = new W.KeepLines();
         pPr.WordWrap = new W.WordWrap { Val = false }; // Explicitly add wordWrap to ensure it's kept in order
-        pPr.SpacingBetweenLines = new W.SpacingBetweenLines { Line = "240", LineRule = W.LineSpacingRuleValues.Auto, Before = "60", After = "60" };
+        // The border sits 4pt outside the text, so the paragraph after needs real space or it
+        // reads as part of the listing.
+        pPr.SpacingBetweenLines = new W.SpacingBetweenLines { Line = "240", LineRule = W.LineSpacingRuleValues.Auto, Before = "120", After = "240" };
         var langToken = info?.Trim().Split(' ', '\t')[0].TrimStart('.') ?? "";
         var isOutput = langToken.Equals("output", StringComparison.OrdinalIgnoreCase) ||
                        langToken.Equals("result", StringComparison.OrdinalIgnoreCase) ||
@@ -1521,11 +1572,14 @@ public sealed partial class DocxExportService
         var leftBorderSize = isOutput ? (uint)12 : (uint)4;
         var leftBorderColor = isOutput ? ctx.PrimaryHex : ctx.BorderHex;
 
+        // Word draws adjacent paragraphs with IDENTICAL borders as one box, so back-to-back code
+        // blocks merged into a single listing. Alternating the padding by 1pt keeps them apart.
+        var pad = 4u + (uint)(System.Threading.Interlocked.Increment(ref ctx.CodeBlockSeq) & 1);
         pPr.ParagraphBorders = new W.ParagraphBorders(
-            new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
-            new W.LeftBorder { Val = W.BorderValues.Single, Size = leftBorderSize, Space = 4, Color = leftBorderColor },
-            new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
-            new W.RightBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex });
+            new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Space = pad, Color = ctx.BorderHex },
+            new W.LeftBorder { Val = W.BorderValues.Single, Size = leftBorderSize, Space = pad, Color = leftBorderColor },
+            new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = pad, Color = ctx.BorderHex },
+            new W.RightBorder { Val = W.BorderValues.Single, Size = 4, Space = pad, Color = ctx.BorderHex });
         pPr.Shading = new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex };
 
         // Preserve the EXPLICIT fence language on the paragraph so a reverse import (DOCX -> MD) can
@@ -1610,6 +1664,11 @@ public sealed partial class DocxExportService
         }
         return para;
     }
+
+    internal const int KeepTogetherCodeLines = 15;
+
+    internal static int CodeLineCount(string text) =>
+        text.Replace("\r", "").TrimEnd('\n').Split('\n').Length;
 
     // Keeps only characters that are safe in an OOXML styleId so an arbitrary fence language can be
     // carried on the code paragraph (MSCode_<lang>) and recovered losslessly by the reverse importer.
@@ -1747,7 +1806,7 @@ public sealed partial class DocxExportService
         {
             var subP = new W.Paragraph(new W.ParagraphProperties(
                 new W.SpacingBetweenLines { After = "360" }));
-            AddText(subP, cover.Subtitle, new Fmt { Color = "555555", FontSize = "28" });
+            AddText(subP, cover.Subtitle, new Fmt { Color = ContrastGuard.EnsureLegibleText(BlendHex(ctx.TextHex, ctx.BackgroundHex, 0.3), ctx.Theme.Background), FontSize = "28" });
             target.Append(subP);
         }
 
@@ -1782,7 +1841,7 @@ public sealed partial class DocxExportService
                     new W.InsideVerticalBorder { Val = W.BorderValues.None }));
             metaTable.Append(metaProps);
 
-            int colWidth = 9000 / metaItems.Count;
+            int colWidth = TextWidthTwips(ctx.Settings) / metaItems.Count;
             var grid = new W.TableGrid();
             for (int i = 0; i < metaItems.Count; i++)
             {
@@ -1797,7 +1856,7 @@ public sealed partial class DocxExportService
                 cell.Append(new W.TableCellProperties(
                     new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = colWidth.ToString() }));
                 var pLabel = new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { Before = "120", After = "40" }));
-                AddText(pLabel, lbl.ToUpperInvariant(), new Fmt { Bold = true, Color = "888888", FontSize = "18" });
+                AddText(pLabel, lbl.ToUpperInvariant(), new Fmt { Bold = true, Color = ContrastGuard.EnsureLegibleText(BlendHex(ctx.TextHex, ctx.BackgroundHex, 0.45), ctx.Theme.Background), FontSize = "18" });
                 var pVal = new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { After = "120" }));
                 AddText(pVal, val, new Fmt { Bold = true, Color = ctx.HeadingHex, FontSize = "22" });
                 cell.Append(pLabel);
@@ -1809,14 +1868,10 @@ public sealed partial class DocxExportService
         }
 
         // Section break to separate cover page section from main body section
-        var breakP = new W.Paragraph(new W.ParagraphProperties(
-            new W.SpacingBetweenLines { Before = "720", After = "0" },
-            new W.SectionProperties(
-                new W.SectionType { Val = W.SectionMarkValues.NextPage },
-                new W.PageSize { Width = 12240u, Height = 15840u },
-                new W.PageMargin { Top = 1440, Bottom = 1440, Left = 1440, Right = 1440, Header = 720, Footer = 720 },
-                new W.TitlePage()
-            )));
+        // Same paper as the body (a Letter cover in front of an A4 document made printers stop), and
+        // no header/footer references, so the cover prints clean.
+        var breakP = CoverSectionBreak(ctx);
+        breakP.ParagraphProperties!.SpacingBetweenLines!.Before = "720";
         target.Append(breakP);
     }
 
@@ -1845,26 +1900,21 @@ public sealed partial class DocxExportService
             ? W.LineNumberRestartValues.NewPage
             : W.LineNumberRestartValues.Continuous;
 
-        var openSect = new W.Paragraph(new W.ParagraphProperties(
-            new W.SectionProperties(
-                new W.SectionType { Val = W.SectionMarkValues.Continuous },
-                new W.LineNumberType
-                {
-                    CountBy = (Int16Value)(short)countBy,
-                    Restart = restartVal,
-                    Distance = "360"
-                })));
-        target.Append(openSect);
+        // The opening break closes the text above (no numbering); the closing break below is the
+        // one that numbers the lines, because a section break describes what comes BEFORE it.
+        target.Append(SectionBreakParagraph(ctx, W.SectionMarkValues.Continuous));
 
         var innerDoc = Markdig.Markdown.Parse(node.InnerContent, ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
         foreach (var block in innerDoc)
             RenderBlock(block, target, ctx, listLevel: -1);
 
-        var closeSect = new W.Paragraph(new W.ParagraphProperties(
-            new W.SectionProperties(
-                new W.SectionType { Val = W.SectionMarkValues.Continuous },
-                new W.LineNumberType { CountBy = 0 })));
-        target.Append(closeSect);
+        target.Append(SectionBreakParagraph(ctx, W.SectionMarkValues.Continuous,
+            new W.LineNumberType
+            {
+                CountBy = (Int16Value)(short)countBy,
+                Restart = restartVal,
+                Distance = "360"
+            }));
     }
 
     /// <summary>
@@ -1886,7 +1936,7 @@ public sealed partial class DocxExportService
         }
 
         int colCount = Math.Max(2, headers.Count);
-        int colWidth = 9000 / colCount;
+        int colWidth = TextWidthTwips(ctx.Settings) / colCount;
 
         var table = new W.Table();
         var tableProps = new W.TableProperties(
@@ -2077,56 +2127,43 @@ public sealed partial class DocxExportService
     /// </summary>
     private static W.Paragraph BuildWatermarkParagraph(WatermarkInfo wm)
     {
-        int angle = wm.Diagonal ? -45 : 0;
-        string color = string.IsNullOrWhiteSpace(wm.Color) ? "silver" : wm.Color.TrimStart('#');
-        string opacity = (wm.Opacity * 100).ToString("0", CultureInfo.InvariantCulture) + "%";
-        string text = string.IsNullOrWhiteSpace(wm.Text) ? "CONFIDENTIAL" : wm.Text;
-
-        var shape = new V.Shape
-        {
-            Id = "WatermarkShape",
-            Type = "#_x0000_t136",
-            Style = $"position:absolute;margin-left:0;margin-top:0;width:520pt;height:120pt;z-index:-251656704;mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-position-vertical:center;mso-position-vertical-relative:margin;rotation:{angle}",
-            FillColor = color,
-            Stroked = false
-        };
-        shape.Append(new V.Fill { Opacity = opacity });
-        shape.Append(new V.TextPath
-        {
-            Style = "font-family:\"Calibri\";font-size:1pt;font-weight:bold",
-            String = text
-        });
-
-        var shapeType = new V.Shapetype
-        {
-            Id = "_x0000_t136",
-            CoordinateSize = "21600,21600",
-            OptionalString = "136",
-            Adjustment = "10800"
-        };
-        var formulas = new V.Formulas();
-        formulas.Append(new V.Formula { Equation = "val #0" });
-        formulas.Append(new V.Formula { Equation = "prod @0 4 1" });
-        formulas.Append(new V.Formula { Equation = "prod #0 1 2" });
-        formulas.Append(new V.Formula { Equation = "prod @2 1 2" });
-        formulas.Append(new V.Formula { Equation = "sum 1 0 @3" });
-        formulas.Append(new V.Formula { Equation = "sum 0 0 @3" });
-        formulas.Append(new V.Formula { Equation = "prod 21600 1 1" });
-        formulas.Append(new V.Formula { Equation = "sum 21600 0 @3" });
-        formulas.Append(new V.Formula { Equation = "val #0" });
-        shapeType.Append(formulas);
-        shapeType.Append(new V.TextPath { On = true, FitShape = true });
-        shapeType.Append(new Ovml.Lock { Extension = V.ExtensionHandlingBehaviorValues.Edit, ShapeType = true });
-
-        var pict = new W.Picture();
-        pict.Append(shapeType);
-        pict.Append(shape);
+        int rotation = wm.Diagonal ? -45 : 0;
+        // VML wants "#rrggbb" and a fraction: a bare "1b1f23" and "12%" were both ignored.
+        string color = string.IsNullOrWhiteSpace(wm.Color) ? "silver"
+            : Regex.IsMatch(wm.Color.TrimStart('#'), "^[0-9a-fA-F]{6}$") ? "#" + wm.Color.TrimStart('#') : wm.Color;
+        string opacity = Math.Clamp(wm.Opacity, 0.01, 1.0).ToString("0.###", CultureInfo.InvariantCulture);
+        string text = System.Security.SecurityElement.Escape(string.IsNullOrWhiteSpace(wm.Text) ? "CONFIDENTIAL" : wm.Text);
+        // Word's own text-watermark shape, as Word writes it. The WordArt shapetype needs its path
+        // and textpathok, or Word draws nothing at all: the earlier hand-built one printed no watermark.
+        // Size follows the text, so a short word isn't stretched across the page.
+        var widthPt = Math.Clamp(60 * text.Length, 200, 460);
+        var heightPt = Math.Round(widthPt / Math.Max(2.4, text.Length * 0.62));
+        var pict = $$"""
+            <w:pict xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w10="urn:schemas-microsoft-com:office:word">
+              <v:shapetype id="_x0000_t136" coordsize="21600,21600" o:spt="136" adj="10800" path="m@7,l@8,m@5,21600l@6,21600e">
+                <v:formulas>
+                  <v:f eqn="sum #0 0 10800"/><v:f eqn="prod #0 2 1"/><v:f eqn="sum 21600 0 @1"/><v:f eqn="sum 0 0 @2"/>
+                  <v:f eqn="sum 21600 0 @3"/><v:f eqn="if @0 @3 0"/><v:f eqn="if @0 21600 @1"/><v:f eqn="if @0 0 @2"/>
+                  <v:f eqn="if @0 @4 21600"/><v:f eqn="mid @5 @6"/><v:f eqn="mid @8 @5"/><v:f eqn="mid @7 @8"/>
+                  <v:f eqn="mid @6 @7"/><v:f eqn="sum @6 0 @5"/>
+                </v:formulas>
+                <v:path textpathok="t" o:connecttype="custom" o:connectlocs="@9,0;@10,10800;@11,21600;@12,10800" o:connectangles="270,180,90,0"/>
+                <v:textpath on="t" fitshape="t"/>
+                <o:lock v:ext="edit" text="t" shapetype="t"/>
+              </v:shapetype>
+              <v:shape id="WatermarkShape" o:spid="_x0000_s2049" type="#_x0000_t136" o:allowincell="f" fillcolor="{{color}}" stroked="f" style="position:absolute;margin-left:0;margin-top:0;width:{{widthPt}}pt;height:{{heightPt}}pt;rotation:{{rotation}};z-index:-251657216;mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-position-vertical:center;mso-position-vertical-relative:margin">
+                <v:fill opacity="{{opacity}}"/>
+                <v:textpath style="font-family:&quot;Calibri&quot;;font-size:1pt;font-weight:bold" string="{{text}}"/>
+                <w10:wrap anchorx="margin" anchory="margin"/>
+              </v:shape>
+            </w:pict>
+            """;
 
         return new W.Paragraph(
             new W.ParagraphProperties(
                 new W.ParagraphStyleId { Val = "Header" },
                 new W.SpacingBetweenLines { After = "0" }),
-            new W.Run(pict));
+            new W.Run(new W.RunProperties(new W.NoProof()), new W.Picture(pict)));
     }
 
     /// <summary>
@@ -2149,34 +2186,43 @@ public sealed partial class DocxExportService
             count = parsed;
         count = Math.Clamp(count, 2, 6);
 
-        // --- Opening continuous section break with column definition ---
-        var openSect = new W.Paragraph(new W.ParagraphProperties(
-            new W.SectionProperties(
-                new W.SectionType { Val = W.SectionMarkValues.Continuous },
-                new W.Columns { ColumnCount = (Int16Value)(short)count, EqualWidth = true, Space = "720" })));
-        target.Append(openSect);
+        // A section break describes the content BEFORE it. The opening break closes the text above
+        // (which keeps the page's normal layout); the closing break below carries the columns.
+        target.Append(SectionBreakParagraph(ctx, W.SectionMarkValues.Continuous));
 
         // --- Render each column's markdown content, emitting column breaks between them ---
         for (int i = 0; i < segments.Count; i++)
         {
-            if (i > 0)
-            {
-                var colBreak = new W.Paragraph(new W.Run(new W.Break { Type = W.BreakValues.Column }));
-                target.Append(colBreak);
-            }
-
             var innerDoc = Markdig.Markdown.Parse(segments[i].Trim(),
                 ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
+            var firstOfColumn = target.ChildElements.Count;
             foreach (var block in innerDoc)
                 RenderBlock(block, target, ctx, listLevel: -1);
+            // Every column starts flush at the top, so the columns line up: Word keeps a heading's
+            // space-before after a column break but drops it after the section break.
+            var top = target.ChildElements.Count > firstOfColumn ? target.ChildElements[firstOfColumn] as W.Paragraph : null;
+            if (top is not null)
+            {
+                var pPr = top.ParagraphProperties ?? top.PrependChild(new W.ParagraphProperties());
+                pPr.SpacingBetweenLines ??= new W.SpacingBetweenLines();
+                pPr.SpacingBetweenLines.Before = "0";
+            }
+            if (i > 0)
+            {
+                // The break opens the column's first paragraph. At the end of the previous one (or
+                // in a paragraph of its own) it left that paragraph's mark as an empty line at the top
+                // of this column, so the columns started out of line.
+                var brk = new W.Run(new W.Break { Type = W.BreakValues.Column });
+                if (top is not null)
+                    top.InsertAfter(brk, top.ParagraphProperties);
+                else
+                    target.InsertAt(new W.Paragraph(brk), firstOfColumn);
+            }
         }
 
-        // --- Closing continuous section break that resets to single column ---
-        var closeSect = new W.Paragraph(new W.ParagraphProperties(
-            new W.SectionProperties(
-                new W.SectionType { Val = W.SectionMarkValues.Continuous },
-                new W.Columns { ColumnCount = (Int16Value)(short)1, EqualWidth = true })));
-        target.Append(closeSect);
+        // --- Closing continuous break: the section that ends here is the columns ---
+        target.Append(SectionBreakParagraph(ctx, W.SectionMarkValues.Continuous,
+            new W.Columns { ColumnCount = (Int16Value)(short)count, EqualWidth = true, Space = "720" }));
     }
 
     /// <summary>
@@ -2200,7 +2246,7 @@ public sealed partial class DocxExportService
         else if (rawLines.Count == 2 || rawLines.Count == 4)
             cols = rawLines.Count == 2 ? 2 : 4;
 
-        int printableWidth = 9360;
+        int printableWidth = TextWidthTwips(ctx.Settings);
         int colWidthDxa = printableWidth / cols;
 
         var tblPr = new W.TableProperties(
@@ -2341,7 +2387,7 @@ public sealed partial class DocxExportService
         table.Append(tableProps);
 
         int totalTabs = tabs.Count;
-        int cellWidth = totalTabs > 0 ? 9000 / totalTabs : 9000;
+        int cellWidth = totalTabs > 0 ? TextWidthTwips(ctx.Settings) / totalTabs : TextWidthTwips(ctx.Settings);
 
         var tableGrid = new W.TableGrid();
         for (int i = 0; i < totalTabs; i++)
@@ -3005,9 +3051,18 @@ public sealed partial class DocxExportService
             {
                 if (child is ParagraphBlock pb)
                 {
-                    var pPr = new W.ParagraphProperties();
-                    
-                    if (first)
+                    // List Paragraph, not Normal: contextualSpacing drops the gap between paragraphs
+                    // of the SAME style, so on Normal it also glued the list to the paragraph after it.
+                    var pPr = new W.ParagraphProperties(new W.ParagraphStyleId { Val = ListParagraphStyleId });
+
+                    if (first && IsTaskItem(pb))
+                    {
+                        // The checkbox is the marker: hang it where the bullet would sit instead of
+                        // printing "•  ☐ Task".
+                        pPr.Indentation = new W.Indentation { Left = ((level + 1) * 720).ToString(), Hanging = "360" };
+                        pPr.ContextualSpacing = new W.ContextualSpacing();
+                    }
+                    else if (first)
                     {
                         pPr.NumberingProperties = new W.NumberingProperties(
                             new W.NumberingLevelReference { Val = level },
@@ -3037,6 +3092,19 @@ public sealed partial class DocxExportService
         }
     }
 
+    internal const string ListParagraphStyleId = "ListParagraph";
+
+    // A Markdig task marker, the <input type="checkbox"> the formatting pass turns "[x]" into, or a
+    // literal "[x] " (RenderInlines draws the same checkbox for all three).
+    private static bool IsTaskItem(ParagraphBlock pb) =>
+        pb.Inline?.FirstChild switch
+        {
+            TaskList => true,
+            HtmlInline html => Regex.IsMatch(html.Tag ?? "", @"^<input\b[^>]*type\s*=\s*[""']?checkbox", RegexOptions.IgnoreCase),
+            LiteralInline lit => Regex.IsMatch(lit.Content.ToString(), @"^\s*\[[ xX]\](?:\s|$)"),
+            _ => false,
+        };
+
     private static int NewOrderedInstance(Ctx ctx, int start, int level)
     {
         lock (ctx.Numbering)
@@ -3063,8 +3131,11 @@ public sealed partial class DocxExportService
         // blue card, a WARNING as amber, etc. — GitHub-style — instead of blending into the page.
         var panelFill = BlendHex(ctx.Theme.Background, accentHex, 0.16);
 
+        // Exact widths in twips: a 100% percentage table measured its cell margins on top and ran
+        // past the right margin.
+        var width = TextWidthTwips(ctx.Settings).ToString(CultureInfo.InvariantCulture);
         var cell = new W.TableCell(new W.TableCellProperties(
-            new W.TableCellWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" },
+            new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = width },
             new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = panelFill },
             new W.TableCellMargin(
                 new W.TopMargin { Width = "160", Type = W.TableWidthUnitValues.Dxa },
@@ -3086,6 +3157,7 @@ public sealed partial class DocxExportService
             RenderBlock(child, cell, ctx, -1);
         if (cell.LastChild is not W.Paragraph)
             cell.Append(new W.Paragraph());
+        TightenCellSpacing(cell);
 
         // The cell background is the tinted panel — force high-contrast text color against panelFill.
         foreach (var run in cell.Descendants<W.Run>())
@@ -3109,16 +3181,19 @@ public sealed partial class DocxExportService
 
         target.Append(new W.Table(
             new W.TableProperties(
-                new W.TableWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" },
+                new W.TableWidth { Type = W.TableWidthUnitValues.Dxa, Width = width },
                 new W.TableBorders(
                     new W.TopBorder { Val = W.BorderValues.None },
                     new W.LeftBorder { Val = W.BorderValues.Single, Size = 30, Color = accentHex },
                     new W.BottomBorder { Val = W.BorderValues.None },
                     new W.RightBorder { Val = W.BorderValues.None },
                     new W.InsideHorizontalBorder { Val = W.BorderValues.None },
-                    new W.InsideVerticalBorder { Val = W.BorderValues.None })),
-            new W.TableGrid(new W.GridColumn()),
+                    new W.InsideVerticalBorder { Val = W.BorderValues.None }),
+                new W.TableLayout { Type = W.TableLayoutValues.Fixed }),
+            new W.TableGrid(new W.GridColumn { Width = width }),
             new W.TableRow(new W.TableRowProperties(new W.CantSplit()), cell)));
+        // Word draws adjacent tables as one: without this a NOTE and the WARNING under it fused.
+        target.Append(SpacerParagraph());
     }
 
     // ---------------------------------------------------------------- raw HTML blocks
@@ -3720,7 +3795,7 @@ public sealed partial class DocxExportService
                 new W.RightMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa }));
 
         int maxCols = tableNode.MaxColumns;
-        int htmlPrintableWidth = 9360;
+        int htmlPrintableWidth = TextWidthTwips(ctx.Settings);
         var htmlMaxColLens = new int[maxCols];
         for (int c = 0; c < maxCols; c++) htmlMaxColLens[c] = 6;
 
@@ -3938,11 +4013,14 @@ public sealed partial class DocxExportService
         tblPr.TableBorders = new W.TableBorders(
             Border<W.TopBorder>(), Border<W.LeftBorder>(), Border<W.BottomBorder>(),
             Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>());
+        // Fixed layout: Word keeps the solved widths and wraps a long command or URL inside its
+        // cell. Autofit let one unbreakable string push the table off the page.
+        tblPr.TableLayout = new W.TableLayout { Type = W.TableLayoutValues.Fixed };
         tblPr.TableCellMarginDefault = new W.TableCellMarginDefault(
-            new W.TopMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
-            new W.LeftMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa },
-            new W.BottomMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
-            new W.RightMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa });
+            new W.TopMargin { Width = "80", Type = W.TableWidthUnitValues.Dxa },
+            new W.LeftMargin { Width = "140", Type = W.TableWidthUnitValues.Dxa },
+            new W.BottomMargin { Width = "80", Type = W.TableWidthUnitValues.Dxa },
+            new W.RightMargin { Width = "140", Type = W.TableWidthUnitValues.Dxa });
 
         var rowList = table.OfType<MdTableRow>().ToList();
         int rowCount = rowList.Count;
@@ -3981,33 +4059,10 @@ public sealed partial class DocxExportService
             }
         }
 
-        // Intelligent Proportional Column Width Solver
-        int printableWidthDxa = 9360;
-        var maxColLens = new int[colCount];
-        for (int c = 0; c < colCount; c++) maxColLens[c] = 6;
-        for (int r = 0; r < rowCount; r++)
-        {
-            for (int c = 0; c < colCount; c++)
-            {
-                var txt = cellTexts[r, c];
-                if (!string.IsNullOrEmpty(txt))
-                    maxColLens[c] = Math.Max(maxColLens[c], Math.Min(txt.Length, 60));
-            }
-        }
-        int totalWeights = maxColLens.Sum();
-        var colWidths = new int[colCount];
-        int allocatedWidth = 0;
-        for (int c = 0; c < colCount; c++)
-        {
-            if (c == colCount - 1)
-                colWidths[c] = Math.Max(1000, printableWidthDxa - allocatedWidth);
-            else
-            {
-                int w = (int)((double)maxColLens[c] / (totalWeights > 0 ? totalWeights : 1) * printableWidthDxa);
-                colWidths[c] = Math.Max(1000, w);
-                allocatedWidth += colWidths[c];
-            }
-        }
+        // Column widths that fit between the margins (A4's are narrower than Letter's).
+        var colWidths = SolveColumnWidths(Enumerable.Range(0, colCount)
+            .Select(c => ColumnTextStats(Enumerable.Range(0, rowCount).Select(r => cellTexts[r, c]))).ToList(),
+            TextWidthTwips(ctx.Settings));
 
         var wTable = new W.Table(
             tblPr,
@@ -4081,6 +4136,7 @@ public sealed partial class DocxExportService
                 }
                 if (wCell.LastChild is not W.Paragraph)
                     wCell.Append(new W.Paragraph());
+                TightenCellSpacing(wCell);
 
                 var align = c < table.ColumnDefinitions.Count ? table.ColumnDefinitions[c].Alignment : null;
                 if (align is TableColumnAlign.Center or TableColumnAlign.Right)
@@ -4125,6 +4181,7 @@ public sealed partial class DocxExportService
                             ?? run.RunProperties.Elements<W.Underline>().FirstOrDefault() as OpenXmlElement
                             ?? run.RunProperties.Elements<W.Border>().FirstOrDefault() as OpenXmlElement
                             ?? run.RunProperties.Elements<W.Shading>().FirstOrDefault() as OpenXmlElement
+                            ?? run.RunProperties.Elements<W.VerticalTextAlignment>().FirstOrDefault() as OpenXmlElement // footnote marks
                             ?? run.RunProperties.GetFirstChild<DocumentFormat.OpenXml.AlternateContent>();
                         if (afterAnchor != null)
                             run.RunProperties.InsertBefore(newColor, afterAnchor);
@@ -4142,6 +4199,62 @@ public sealed partial class DocxExportService
         target.Append(SpacerParagraph());
     }
 
+    // A cell's text uses the body's paragraph spacing (8pt after every paragraph), which made each
+    // row a line taller than its text. Cells space their own paragraphs a little and end flush.
+    internal static void TightenCellSpacing(W.TableCell cell)
+    {
+        var paras = cell.Elements<W.Paragraph>().ToList();
+        for (var i = 0; i < paras.Count; i++)
+        {
+            var pPr = paras[i].ParagraphProperties ?? paras[i].PrependChild(new W.ParagraphProperties());
+            if (pPr.SpacingBetweenLines is not null || pPr.ParagraphStyleId is not null) continue;
+            pPr.SpacingBetweenLines = new W.SpacingBetweenLines
+            {
+                Before = "0", After = i == paras.Count - 1 ? "0" : "80",
+                Line = "252", LineRule = W.LineSpacingRuleValues.Auto,
+            };
+        }
+    }
+
+    // Average glyph advance at the body size (11pt Segoe ≈ 5.7pt) and a cell's side margins + slack.
+    private const int ColumnCharTwips = 115, ColumnPaddingTwips = 330;
+
+    // (chars of text, chars in the longest word) for one column, from its cells' plain text.
+    internal static (int TextLen, int LongestWord) ColumnTextStats(IEnumerable<string?> cells)
+    {
+        int text = 1, word = 1;
+        foreach (var t in cells)
+        {
+            if (string.IsNullOrEmpty(t)) continue;
+            text = Math.Max(text, t.Length);
+            foreach (var w in t.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+                word = Math.Max(word, w.Length);
+        }
+        return (text, word);
+    }
+
+    // Browser-style auto layout in twips: every column first gets its longest word (capped, so a
+    // URL can still wrap), then the rest of the width goes to the columns that hold more text, in
+    // proportion to how much more they'd need to sit on one line. Always sums to `total`.
+    internal static int[] SolveColumnWidths(IReadOnlyList<(int TextLen, int LongestWord)> cols, int total)
+    {
+        var n = cols.Count;
+        if (n == 0) return Array.Empty<int>();
+        var min = cols.Select(c => Math.Min(c.LongestWord, 22) * ColumnCharTwips + ColumnPaddingTwips).ToArray();
+        var want = cols.Select((c, i) => Math.Max(min[i], Math.Min(c.TextLen, 70) * ColumnCharTwips + ColumnPaddingTwips)).ToArray();
+        double minSum = min.Sum(), wantSum = want.Sum();
+        var widths = new double[n];
+        for (var i = 0; i < n; i++)
+        {
+            if (minSum >= total) widths[i] = min[i] * total / minSum;                      // even the words don't fit: shrink evenly
+            else if (wantSum <= total) widths[i] = want[i] * total / wantSum;               // everything fits on one line: spread out
+            else widths[i] = min[i] + (want[i] - min[i]) * (total - minSum) / (wantSum - minSum);
+        }
+        var result = widths.Select(w => (int)Math.Floor(w)).ToArray();
+        result[n - 1] += total - result.Sum();
+        return result;
+    }
+
     // Word renders adjacent tables as one; a tiny paragraph keeps them (and following text) apart.
     private static W.Paragraph SpacerParagraph() => new(new W.ParagraphProperties(
         new W.SpacingBetweenLines { Before = "0", After = "0" }));
@@ -4149,21 +4262,63 @@ public sealed partial class DocxExportService
     // Real TOC field over Heading1-N with hyperlinks (\h) — combined with w:updateFields, Word
     // rebuilds it (page numbers and all) the moment the document opens. The upper bound adapts to
     // HeadingShift so shifted headings still appear (e.g. shift +3 pushes H1→H4, so range becomes 1-6).
-    internal static void AppendTocField(W.Body body, Ctx ctx)
+    internal static void AppendTocField(W.Body body, Ctx ctx, MarkdownDocument? doc = null)
     {
         var heading = new W.Paragraph();
-        AddText(heading, "Contents", new Fmt { Bold = true, Color = ctx.HeadingHex });
-        heading.Descendants<W.RunProperties>().First().FontSize = new W.FontSize { Val = "32" };
+        AddText(heading, "Contents", new Fmt { Bold = true, Color = ctx.HeadingHex, FontSize = "32" });
         body.Append(heading);
 
         var tocMax = Math.Clamp(3 + Math.Max(0, ctx.Settings.HeadingShift), 3, 6);
         var fieldCode = $" TOC \\o \"1-{tocMax}\" \\h \\z \\u ";
-        body.Append(new W.Paragraph(
-            new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Begin, Dirty = true }),
-            new W.Run(new W.FieldCode(fieldCode) { Space = SpaceProcessingModeValues.Preserve }),
-            new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Separate }),
-            new W.Run(new W.Text("Table of contents — Word fills this in when the document opens.")),
-            new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.End })));
+        var begin = new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Begin, Dirty = true });
+        var code = new W.Run(new W.FieldCode(fieldCode) { Space = SpaceProcessingModeValues.Preserve });
+        var separate = new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Separate });
+        var end = new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.End });
+
+        // The field's current result is the real list of headings, each linked to its heading. Word
+        // still rebuilds it with page numbers when it updates fields on open; where it doesn't
+        // (Protected View, previews, other apps) readers used to see only "Word fills this in".
+        var entries = doc is null ? new List<(int Level, string Text, string? Anchor)>() : TocEntries(doc, ctx, tocMax);
+        if (entries.Count == 0)
+        {
+            body.Append(new W.Paragraph(begin, code, separate,
+                new W.Run(new W.Text("Table of contents — Word fills this in when the document opens.")), end));
+            return;
+        }
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var (level, text, anchor) = entries[i];
+            var p = new W.Paragraph(new W.ParagraphProperties(
+                new W.ParagraphStyleId { Val = $"TOC{Math.Clamp(level, 1, 9)}" },
+                new W.SpacingBetweenLines { After = "60" },
+                new W.Indentation { Left = ((level - 1) * 240).ToString(CultureInfo.InvariantCulture) }));
+            if (i == 0) p.Append(begin, code, separate);
+            OpenXmlCompositeElement holder = p;
+            if (anchor is not null)
+            {
+                var link = new W.Hyperlink { Anchor = anchor, History = true };
+                p.Append(link);
+                holder = link;
+            }
+            AddText(holder, text, new Fmt { Color = ctx.TextHex });
+            if (i == entries.Count - 1) p.Append(end);
+            body.Append(p);
+        }
+    }
+
+    // Headings the TOC field would list (levels 1..max), in order, with their bookmarks.
+    private static List<(int Level, string Text, string? Anchor)> TocEntries(MarkdownDocument doc, Ctx ctx, int maxLevel)
+    {
+        var list = new List<(int, string, string?)>();
+        foreach (var h in doc.Descendants<HeadingBlock>())
+        {
+            if (h.Level > maxLevel || h.Inline is null) continue;
+            var text = GetPlainText(h.Inline).Trim();
+            if (text.Length == 0) continue;
+            var id = h.TryGetAttributes()?.Id;
+            list.Add((h.Level, text, id is not null && ctx.Anchors.TryGetValue(id, out var bm) ? bm : null));
+        }
+        return list;
     }
 
     // ---------------------------------------------------------------- inlines
@@ -4242,7 +4397,7 @@ public sealed partial class DocxExportService
                     break;
 
                 case CodeInline code:
-                    AddText(target, code.Content, current with { Code = true }, ctx);
+                    AddText(target, code.Content, current with { Code = true, ShadingColor = current.ShadingColor ?? ctx.CodeHex }, ctx);
                     break;
 
                 case LineBreakInline br:
@@ -4290,6 +4445,12 @@ public sealed partial class DocxExportService
                 case MathInline math:
                     // Inline math → an editable Word equation (OMML) dropped into the run flow.
                     target.Append(LatexToOmml.Build(math.Content.ToString()));
+                    break;
+
+                case FootnoteLink { IsBackLink: true }:
+                    break; // the "back to text" link inside a note; a Word footnote needs none
+
+                case FootnoteLink fn when TryAppendWordFootnote(fn, target, current, ctx):
                     break;
 
                 case FootnoteLink fn:
@@ -4731,7 +4892,7 @@ public sealed partial class DocxExportService
                 ShadingColor = shdColor ?? current.ShadingColor,
                 Color = htmlColor ?? current.Color
             },
-            "kbd" or "code" or "samp" or "tt" => current with { Code = true, Color = htmlColor ?? current.Color },
+            "kbd" or "code" or "samp" or "tt" => current with { Code = true, Color = htmlColor ?? current.Color, ShadingColor = current.ShadingColor ?? ctx.CodeHex },
             "u" => current with {
                 Underline = true,
                 UnderlineStyle = uStyle ?? current.UnderlineStyle,
@@ -5068,8 +5229,11 @@ public sealed partial class DocxExportService
         // Shading (schema order: w:bdr -> w:shd)
         if (fmt.Code && !fmt.BlockCode) // character border + shading: the rarely-touched w:bdr, boxing inline code only
         {
-            rPr.Append(new W.Border { Val = W.BorderValues.Single, Size = 4, Space = 1, Color = "auto" });
-            rPr.Append(new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = "auto" });
+            // A border in the fill's own colour pads the text like the preview's code pill; a
+            // black "auto" box looked like a form field.
+            var fill = fmt.ShadingColor ?? "auto";
+            rPr.Append(new W.Border { Val = W.BorderValues.Single, Size = 4, Space = 1, Color = fill });
+            rPr.Append(new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = fill });
         }
         else if (!string.IsNullOrEmpty(fmt.ShadingColor))
         {
@@ -5088,13 +5252,14 @@ public sealed partial class DocxExportService
             rPr.Append(new W.VerticalTextAlignment { Val = W.VerticalPositionValues.Subscript });
 
         // OpenType typography on every text run (the only rPr the w14 extensions are schema-legal
-        // in): kerned ligatures, old-style proportional numerals, contextual alternates.
+        // in): kerned ligatures, lining proportional numerals, contextual alternates. Lining, as in
+        // the preview and the PDF: old-style figures made dates, versions and table money dip.
         if (!fmt.Code)
         {
             rPr.Append(new AlternateContent(
                 new AlternateContentChoice(
                     new W14.Ligatures { Val = W14.LigaturesValues.StandardContextual },
-                    new W14.NumberingFormat { Val = W14.NumberFormValues.OldStyle },
+                    new W14.NumberingFormat { Val = W14.NumberFormValues.Lining },
                     new W14.NumberSpacing { Val = W14.NumberSpacingValues.Proportional },
                     new W14.ContextualAlternatives()
                 ) { Requires = "w14" }));
@@ -5229,7 +5394,123 @@ public sealed partial class DocxExportService
             });
         }
 
+        foreach (var style in SupportStyles(defaultText))
+            styles.Append(style);
+
         part.Styles = styles;
+    }
+
+    // Styles the body relies on beyond headings: List Paragraph (lists keep their gap to the next
+    // paragraph) and the footnote pair. Also added to a merged house-style template that lacks them.
+    private static IEnumerable<W.Style> SupportStyles(string textHex)
+    {
+        yield return new W.Style(
+            new W.StyleName { Val = "List Paragraph" },
+            new W.BasedOn { Val = "Normal" },
+            new W.UIPriority { Val = 34 },
+            new W.PrimaryStyle())
+        { Type = W.StyleValues.Paragraph, StyleId = ListParagraphStyleId };
+
+        yield return new W.Style(
+            new W.StyleName { Val = "footnote text" },
+            new W.BasedOn { Val = "Normal" },
+            new W.StyleParagraphProperties(
+                new W.SpacingBetweenLines { After = "40", Line = "240", LineRule = W.LineSpacingRuleValues.Auto }),
+            new W.StyleRunProperties(
+                new W.Color { Val = textHex },
+                new W.FontSize { Val = "18" },
+                new W.FontSizeComplexScript { Val = "18" }))
+        { Type = W.StyleValues.Paragraph, StyleId = FootnoteTextStyleId };
+
+        yield return new W.Style(
+            new W.StyleName { Val = "footnote reference" },
+            new W.StyleRunProperties(new W.VerticalTextAlignment { Val = W.VerticalPositionValues.Superscript }))
+        { Type = W.StyleValues.Character, StyleId = FootnoteReferenceStyleId };
+    }
+
+    internal const string FootnoteTextStyleId = "FootnoteText";
+    internal const string FootnoteReferenceStyleId = "FootnoteReference";
+
+    // [^1] becomes a real Word footnote: a numbered mark in the text and the note at the foot of
+    // that page (Word renumbers, moves and prints them). The note is written at its FIRST reference;
+    // a second reference to the same note repeats its number. False when the link can't be tied to
+    // a definition (the streaming exporter parses block by block), leaving the bookmark fallback.
+    private static bool TryAppendWordFootnote(FootnoteLink fn, OpenXmlCompositeElement target, Fmt current, Ctx ctx)
+    {
+        if (fn.Footnote is not { } note) return false;
+
+        W.Run Mark(OpenXmlElement content) => new(
+            new W.RunProperties(
+                new W.RunStyle { Val = FootnoteReferenceStyleId },
+                new W.VerticalTextAlignment { Val = W.VerticalPositionValues.Superscript }),
+            content);
+
+        lock (ctx.WordFootnotes)
+        {
+            if (ctx.WordFootnotes.TryGetValue(note, out var known))
+            {
+                AddText(target, known.Number.ToString(CultureInfo.InvariantCulture), current with { Superscript = true }, ctx);
+                return true;
+            }
+
+            var part = ctx.MainPart.FootnotesPart ?? ctx.MainPart.AddNewPart<FootnotesPart>();
+            part.Footnotes ??= new W.Footnotes(
+                new W.Footnote(new W.Paragraph(
+                    new W.ParagraphProperties(new W.SpacingBetweenLines { After = "0", Line = "240", LineRule = W.LineSpacingRuleValues.Auto }),
+                    new W.Run(new W.SeparatorMark())))
+                { Type = W.FootnoteEndnoteValues.Separator, Id = -1 },
+                new W.Footnote(new W.Paragraph(
+                    new W.ParagraphProperties(new W.SpacingBetweenLines { After = "0", Line = "240", LineRule = W.LineSpacingRuleValues.Auto }),
+                    new W.Run(new W.ContinuationSeparatorMark())))
+                { Type = W.FootnoteEndnoteValues.ContinuationSeparator, Id = 0 });
+            if (part.Footnotes.LookupNamespace("w14") is null)
+            {
+                // Runs carry mc:AlternateContent Requires="w14" (ligatures, number forms); the prefix
+                // must be declared on this part's root too, or Word calls the file corrupt.
+                part.Footnotes.AddNamespaceDeclaration("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006");
+                part.Footnotes.AddNamespaceDeclaration("w14", "http://schemas.microsoft.com/office/word/2010/wordml");
+                part.Footnotes.AddNamespaceDeclaration("w15", "http://schemas.microsoft.com/office/word/2012/wordml");
+                part.Footnotes.MCAttributes = new MarkupCompatibilityAttributes { Ignorable = "w14 w15" };
+            }
+
+            // Appending to an existing document: continue after the ids already there.
+            var id = Math.Max(0L, part.Footnotes.Elements<W.Footnote>().Select(f => f.Id?.Value ?? 0L).DefaultIfEmpty(0L).Max()) + 1;
+            var number = ctx.WordFootnotes.Count + 1;
+            ctx.WordFootnotes[note] = (id, number);
+
+            var holder = new W.Body();
+            foreach (var child in note)
+                RenderBlock(child, holder, ctx, -1);
+            var wfn = new W.Footnote { Id = id };
+            foreach (var el in holder.ChildElements.ToList())
+            {
+                el.Remove();
+                wfn.Append(el);
+            }
+            if (wfn.GetFirstChild<W.Paragraph>() is not { } first)
+                wfn.Append(first = new W.Paragraph());
+            foreach (var p in wfn.Elements<W.Paragraph>())
+            {
+                var pPr = p.ParagraphProperties ?? p.PrependChild(new W.ParagraphProperties());
+                pPr.ParagraphStyleId ??= new W.ParagraphStyleId { Val = FootnoteTextStyleId };
+            }
+            // The note's own number, then a space, before its text.
+            var mark = first.InsertAfter(Mark(new W.FootnoteReferenceMark()), first.ParagraphProperties);
+            mark.InsertAfterSelf(new W.Run(new W.Text(" ") { Space = SpaceProcessingModeValues.Preserve }));
+            part.Footnotes.Append(wfn);
+
+            target.Append(Mark(new W.FootnoteReference { Id = id }));
+            return true;
+        }
+    }
+
+    internal static void EnsureSupportStyles(MainDocumentPart main, Ctx ctx)
+    {
+        if (main.StyleDefinitionsPart?.Styles is not { } styles) return;
+        var have = styles.Elements<W.Style>().Select(s => s.StyleId?.Value).ToHashSet(StringComparer.Ordinal);
+        foreach (var style in SupportStyles(ContrastGuard.EnsureLegibleText(ctx.Theme.Text, ctx.Theme.Background)))
+            if (!have.Contains(style.StyleId!.Value))
+                styles.Append(style);
     }
 
     internal static void AddSettings(MainDocumentPart main, Ctx ctx, bool updateFieldsOnOpen, bool webLayout, bool trackChanges)
@@ -5248,9 +5529,19 @@ public sealed partial class DocxExportService
         // with revision markup. (w:trackChanges must precede w:autoHyphenation in the ECMA-376 schema.)
         if (trackChanges)
             settings.Append(new W.TrackRevisions { Val = true });
-        settings.Append(new W.AutoHyphenation());
+        // No w:autoHyphenation: the preview and the PDF never split a word, and ragged-right text
+        // doesn't need it. Word hyphenating "quar-ter" read as a typo.
         if (updateFieldsOnOpen)
             settings.Append(new W.UpdateFieldsOnOpen { Val = true }); // TOC rebuilds itself on open
+
+        // Word 2013+ layout. Without it every export opened in "Compatibility Mode" (title bar) and
+        // used Word 2007's table rules, which hang tables into the left margin.
+        settings.Append(new W.Compatibility(new W.CompatibilitySetting
+        {
+            Name = W.CompatSettingNameValues.CompatibilityMode,
+            Uri = "http://schemas.microsoft.com/office/word",
+            Val = "15",
+        }));
 
         if (ctx.CoverPage is { } cp)
         {
@@ -5270,6 +5561,138 @@ public sealed partial class DocxExportService
 
         part.Settings = settings;
     }
+
+    // The page every section of the export uses: the house-style template's paper and margins when
+    // it provides them, else A4 (the "Lock to A4" setting) or Letter with 1" margins. The cover
+    // section, the body section and table widths all read it, so they always agree.
+    internal static (W.PageSize Size, W.PageMargin Margin) PageGeometry(AppSettings settings)
+    {
+        var layout = settings.BrandLayout;
+        uint width, height;
+        if (layout is { HasPageLayout: true } && layout.PageWidthTwips is { } pw && layout.PageHeightTwips is { } ph)
+        {
+            width = pw;
+            height = ph;
+        }
+        else
+        {
+            // A4FixedWidth drives the physical page too, mirroring the PDF export geometry.
+            (width, height) = settings.A4FixedWidth ? (11906u, 16838u) : (12240u, 15840u);
+        }
+        var pageSize = new W.PageSize { Width = width, Height = height };
+        if (layout?.Orientation?.StartsWith("landscape", StringComparison.OrdinalIgnoreCase) == true)
+            pageSize.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "orient",
+                "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "landscape"));
+
+        var pageMargin = new W.PageMargin();
+        void SetMar(string name, int? value, int fallback) =>
+            pageMargin.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", name,
+                "http://schemas.openxmlformats.org/wordprocessingml/2006/main", (value ?? fallback).ToString()));
+        SetMar("top", layout?.MarginTop, 1440);
+        SetMar("right", layout?.MarginRight, 1440);
+        SetMar("bottom", layout?.MarginBottom, 1440);
+        SetMar("left", layout?.MarginLeft, 1440);
+        SetMar("header", layout?.HeaderDistance, 576);
+        SetMar("footer", layout?.FooterDistance, 576);
+        pageMargin.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "gutter",
+            "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "0"));
+        return (pageSize, pageMargin);
+    }
+
+    // Width between the margins, in twips: what a 100%-wide table really has to fit in.
+    internal static int TextWidthTwips(AppSettings settings)
+    {
+        var layout = settings.BrandLayout;
+        var (size, _) = PageGeometry(settings);
+        var landscape = layout?.Orientation?.StartsWith("landscape", StringComparison.OrdinalIgnoreCase) == true;
+        var w = (int)(size.Width?.Value ?? 12240u);
+        if (landscape && size.Height?.Value is { } h && h > w) w = (int)h;
+        var text = w - (layout?.MarginLeft ?? 1440) - (layout?.MarginRight ?? 1440);
+        return Math.Max(2880, text);
+    }
+
+    // "Page X of Y": with a cover, Y counts the body's pages only (the cover is unnumbered).
+    // SECTIONPAGES gives that when the body is one section; with :::columns it is several, so Y is
+    // { = { NUMPAGES } - 1 }, a formula Word re-evaluates with the page fields.
+    private static OpenXmlElement TotalPages(Ctx ctx)
+    {
+        static W.RunProperties Props() => new(new W.Color { Val = "808080" }, new W.FontSize { Val = "16" });
+        if (!ctx.HasCoverSection || !ctx.BodyHasSectionBreaks)
+            return new W.SimpleField(new W.Run(Props(), new W.Text("1")))
+            { Instruction = ctx.HasCoverSection ? " SECTIONPAGES " : " NUMPAGES " };
+
+        // One run may carry the whole nested field: begin "=" {NUMPAGES} "- 1" separate result end.
+        static W.FieldCode Code(string t) => new(t) { Space = SpaceProcessingModeValues.Preserve };
+        return new W.Run(Props(),
+            new W.FieldChar { FieldCharType = W.FieldCharValues.Begin }, Code(" = "),
+            new W.FieldChar { FieldCharType = W.FieldCharValues.Begin }, Code(" NUMPAGES "),
+            new W.FieldChar { FieldCharType = W.FieldCharValues.Separate }, new W.Text("2"),
+            new W.FieldChar { FieldCharType = W.FieldCharValues.End }, Code(" - 1 "),
+            new W.FieldChar { FieldCharType = W.FieldCharValues.Separate }, new W.Text("1"),
+            new W.FieldChar { FieldCharType = W.FieldCharValues.End });
+    }
+
+    // ECMA-376 order of w:sectPr children; new ones are inserted where the schema wants them.
+    private static readonly string[] SectPrOrder =
+    {
+        "headerReference", "footerReference", "footnotePr", "endnotePr", "type", "pgSz", "pgMar", "paperSrc",
+        "pgBorders", "lnNumType", "pgNumType", "cols", "formProt", "vAlign", "noEndnote", "titlePg",
+        "textDirection", "bidi", "rtlGutter", "docGrid", "printerSettings", "sectPrChange",
+    };
+
+    private static void InsertInSchemaOrder(W.SectionProperties sp, OpenXmlElement child)
+    {
+        var rank = Array.IndexOf(SectPrOrder, child.LocalName);
+        var before = sp.ChildElements.FirstOrDefault(e => Array.IndexOf(SectPrOrder, e.LocalName) > rank);
+        if (before is null) sp.Append(child); else sp.InsertBefore(child, before);
+    }
+
+    // A section break inside the body. It describes the content BEFORE it, with the body's own
+    // headers, footers, paper and margins (a bare sectPr dropped the header and footer from every
+    // page above it and fell back to Word's default paper). `layout` replaces the body's columns or
+    // line numbering for that stretch. The first one after a cover restarts the page numbers.
+    internal static W.Paragraph SectionBreakParagraph(Ctx ctx, W.SectionMarkValues type, params OpenXmlElement[] layout)
+    {
+        var sp = ctx.BodySectionTemplate?.CloneNode(true) as W.SectionProperties ?? new W.SectionProperties();
+        var replaced = layout.Select(e => e.LocalName).ToHashSet();
+        foreach (var e in sp.ChildElements.Where(e => e.LocalName is "type" or "pgNumType" or "titlePg" || replaced.Contains(e.LocalName)).ToList())
+            e.Remove();
+        lock (ctx)
+        {
+            if (ctx.HasCoverSection && !ctx.BodySectionNumbered && ctx.BodySectionTemplate is not null)
+            {
+                // The first body section after the cover: a section's w:type says how IT starts,
+                // so a "continuous" one here pulled the body up onto the cover page.
+                type = W.SectionMarkValues.NextPage;
+                InsertInSchemaOrder(sp, new W.PageNumberType { Start = 1 });
+                ctx.BodySectionNumbered = true;
+            }
+        }
+        InsertInSchemaOrder(sp, new W.SectionType { Val = type });
+        System.Threading.Interlocked.Increment(ref ctx.BodySectionBreaks);
+        foreach (var e in layout)
+            InsertInSchemaOrder(sp, e);
+        return new W.Paragraph(new W.ParagraphProperties(
+            new W.SpacingBetweenLines { Before = "0", After = "0", Line = "20", LineRule = W.LineSpacingRuleValues.Exact },
+            sp));
+    }
+
+    // The body's last section: its template, less a numbering restart an earlier body section took.
+    internal static W.SectionProperties FinalBodySection(Ctx ctx)
+    {
+        var sp = ctx.BodySectionTemplate ?? new W.SectionProperties();
+        if (ctx.BodySectionNumbered)
+            foreach (var n in sp.Elements<W.PageNumberType>().ToList()) n.Remove();
+        // After a break inside the body the last stretch carries straight on (no w:type means
+        // "next page", which pushed the text after a :::columns block onto a new page).
+        if (ctx.BodySectionBreaks > 0 && sp.GetFirstChild<W.SectionType>() is null)
+            InsertInSchemaOrder(sp, new W.SectionType { Val = W.SectionMarkValues.Continuous });
+        return sp;
+    }
+
+    internal static bool SplitsBodySection(FeatureNode node) =>
+        node.Detector.FeatureName == "Columns"
+        || (node.Detector.FeatureName == "LineNumbers" && !string.IsNullOrWhiteSpace(node.InnerContent));
 
     internal static W.SectionProperties BuildSectionProperties(
         MainDocumentPart main, Ctx ctx, AppSettings settings, string title, ReferenceDocumentMerger.MergedReferenceResult? refMerge = null)
@@ -5345,7 +5768,7 @@ public sealed partial class DocxExportService
                     new W.ParagraphProperties(
                         new W.SpacingBetweenLines { After = "0" },
                         new W.Justification { Val = W.JustificationValues.Center }),
-                    FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES ")));
+                    FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), TotalPages(ctx)));
 
                 if (settings.ShowAttribution && Themes.IsBuiltin(settings.Theme))
                 {
@@ -5353,7 +5776,7 @@ public sealed partial class DocxExportService
                         new W.ParagraphProperties(
                             new W.SpacingBetweenLines { After = "0" },
                             new W.Justification { Val = W.JustificationValues.Center }),
-                        FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES "),
+                        FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), TotalPages(ctx),
                         FooterRun("  \u00b7  MarkSmith")));
                 }
                 targetSp.Append(new W.FooterReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(footerPart) });
@@ -5442,7 +5865,7 @@ public sealed partial class DocxExportService
                 new W.ParagraphProperties(
                     new W.SpacingBetweenLines { After = "0" },
                     new W.Justification { Val = W.JustificationValues.Center }),
-                FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES ")));
+                FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), TotalPages(ctx)));
 
             // The "· MarkSmith" brand stamp is omitted when a custom house-style theme is active OR the
             // user explicitly disabled attribution, so the document looks like the user's own work.
@@ -5455,41 +5878,14 @@ public sealed partial class DocxExportService
                     new W.ParagraphProperties(
                         new W.SpacingBetweenLines { After = "0" },
                         new W.Justification { Val = W.JustificationValues.Center }),
-                    FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES "),
+                    FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), TotalPages(ctx),
                     FooterRun("  \u00b7  MarkSmith")));
             }
             footerRef = new W.FooterReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(footerPart) };
         }
 
         // ---- page geometry: the template's paper when the house style provides one ----
-        uint width, height;
-        if (layout is { HasPageLayout: true } && layout.PageWidthTwips is { } pw && layout.PageHeightTwips is { } ph)
-        {
-            width = pw;
-            height = ph;
-        }
-        else
-        {
-            // A4FixedWidth drives the physical page too, mirroring the PDF export geometry.
-            (width, height) = settings.A4FixedWidth ? (11906u, 16838u) : (12240u, 15840u);
-        }
-        var pageSize = new W.PageSize { Width = width, Height = height };
-        if (layout?.Orientation?.StartsWith("landscape", StringComparison.OrdinalIgnoreCase) == true)
-            pageSize.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "orient",
-                "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "landscape"));
-
-        var pageMargin = new W.PageMargin();
-        void SetMar(string name, int? value, int fallback) =>
-            pageMargin.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", name,
-                "http://schemas.openxmlformats.org/wordprocessingml/2006/main", (value ?? fallback).ToString()));
-        SetMar("top", layout?.MarginTop, 1440);
-        SetMar("right", layout?.MarginRight, 1440);
-        SetMar("bottom", layout?.MarginBottom, 1440);
-        SetMar("left", layout?.MarginLeft, 1440);
-        SetMar("header", layout?.HeaderDistance, 576);
-        SetMar("footer", layout?.FooterDistance, 576);
-        pageMargin.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "gutter",
-            "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "0"));
+        var (pageSize, pageMargin) = PageGeometry(settings);
 
         var sp = new W.SectionProperties(headerRef, footerRef, pageSize, pageMargin);
 
@@ -5520,7 +5916,7 @@ public sealed partial class DocxExportService
             });
         }
 
-        if (ctx.CoverPage is not null)
+        if (ctx.HasCoverSection)
         {
             sp.Append(new W.PageNumberType { Start = 1 });
         }
@@ -5536,10 +5932,8 @@ public sealed partial class DocxExportService
             });
         }
 
-        if (ctx.CoverPage is not null)
-        {
-            sp.Append(new W.TitlePage());
-        }
+        // No w:titlePg here: the cover is its own section, so the body's FIRST page is a normal page
+        // with the running header and footer (titlePg gave it an empty first-page header).
 
         return sp;
     }

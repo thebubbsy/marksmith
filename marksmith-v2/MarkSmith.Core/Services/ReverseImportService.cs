@@ -542,6 +542,18 @@ public sealed class ReverseImportService : IReverseImportService
             return new ListItemBlock(numId, isTask, isChecked, text, ilvl);
         }
 
+        // Task item without a bullet: the forward engine hangs the checkbox where the bullet would
+        // sit (List Paragraph, left indent 720 per level) instead of numbering the paragraph.
+        if (styleId == "ListParagraph" && p.Descendants<W.Text>().FirstOrDefault()?.Text is { Length: > 0 } firstText &&
+            (firstText[0] == '\u2612' || firstText[0] == '\u2610'))
+        {
+            var parts = p.Descendants<W.Text>().Select(t => t.Text).ToList();
+            parts[0] = parts[0].Substring(1);
+            int.TryParse(pPr?.GetFirstChild<W.Indentation>()?.Left?.Value, out var left);
+            var level = Math.Max(0, left / 720 - 1);
+            return new ListItemBlock(-1, true, firstText[0] == '\u2612', string.Concat(parts).TrimStart(), level);
+        }
+
         // Plain paragraph (may contain inline math / links / images / formatting).
         var inline = ConvertInlines(p);
         if (string.IsNullOrWhiteSpace(inline)) return null; // drop empty spacer paragraphs

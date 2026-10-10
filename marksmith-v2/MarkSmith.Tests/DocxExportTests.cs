@@ -135,7 +135,8 @@ public class DocxExportTests
     [Fact] public void Header_row_repeats_across_pages() => Assert.Contains("<w:tblHeader", Export("| h |\n|---|\n| 1 |"));
 
     // ---- structure ----------------------------------------------------------------------------
-    [Fact] public void Footnote_reference_present() { var x = Export("claim[^1]\n\n[^1]: source note"); Assert.Contains("source note", x); }
+    // The note itself lives in footnotes.xml (a real Word footnote); the body carries the mark.
+    [Fact] public void Footnote_reference_present() { var x = Export("claim[^1]\n\n[^1]: source note"); Assert.Contains("<w:footnoteReference", x); Assert.DoesNotContain("source note", x); }
     [Fact] public void Emoji_shortcode_lands_in_docx() => Assert.Contains("🚀", Export("go :rocket:"));
     [Fact] public void Alert_renders_shaded_box() => Assert.Contains("<w:shd", Export("> [!NOTE]\n> hi"));
     [Fact] public void Admonition_becomes_alert_box() => Assert.Contains("NOTE", Export(":::note\nhello there\n:::"));
