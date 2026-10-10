@@ -80,11 +80,28 @@ public static class SlideDeckBuilder
     public static PptxDeck Build(string markdown, SlideDeckOptions? options = null)
     {
         options ??= new SlideDeckOptions();
-        var doc = Markdown.Parse(markdown ?? "", options.NoEmoji ? PipelineNoEmoji : Pipeline);
-        var ctx = new Ctx(options, doc);
+        var lifted = new List<SlideBlock>();
+        markdown = SlideDirectives.Lift(markdown ?? "", out var cover, lifted);
+        var doc = Markdown.Parse(markdown, options.NoEmoji ? PipelineNoEmoji : Pipeline);
+        var ctx = new Ctx(options, doc, lifted);
 
-        var title = FindTitle(doc) ?? options.FallbackTitle;
+        var title = cover?.Title ?? FindTitle(doc) ?? options.FallbackTitle;
         var deck = new PptxDeck { Title = title };
+        if (cover is not null)
+        {
+            // A :::cover-page is the title slide; the document's own H1 then opens the content.
+            var meta = new[] { cover.Author, cover.Organization, cover.Date, cover.Version }
+                .Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!.Trim()).ToList();
+            if (meta.Count == 0 && !string.IsNullOrWhiteSpace(options.AuthorName)) meta.Add(options.AuthorName.Trim());
+            deck.Slides.Add(new DeckSlide
+            {
+                Kind = SlideKind.Title,
+                Title = cover.Title,
+                Subtitle = !string.IsNullOrWhiteSpace(cover.Subtitle) ? cover.Subtitle.Trim()
+                    : cover.Abstract is { Length: > 0 and <= MaxSubtitleLength } a ? a.Trim() : null,
+                Byline = meta.Count > 0 ? string.Join("  ·  ", meta) : null,
+            });
+        }
 
         var sections = new List<Section>();
         Section? cur = null;
@@ -135,7 +152,10 @@ public static class SlideDeckBuilder
         for (int i = 0; i < sections.Count; i++)
         {
             var s = sections[i];
-            if (i == 0 && s.Level == 1)
+            // The cover already shows the title: an H1 repeating it with nothing under it adds nothing.
+            if (i == 0 && cover is not null && s.Flow.Count == 0 && string.Equals(s.Title.Trim(), cover.Title.Trim(), StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (i == 0 && s.Level == 1 && cover is null)
             {
                 var slide = new DeckSlide { Kind = SlideKind.Title, Title = s.Title };
                 slide.Subtitle = TakeSubtitle(s.Flow);
@@ -219,13 +239,42 @@ public static class SlideDeckBuilder
             slide.Blocks.Add(b);
         }
 
-        foreach (var block in flow)
+        // A subheading that ends a text block belongs with the table, code, picture or chart after
+        // it: split it off so it can move to the next slide with that block instead of being left
+        // alone at the foot of this one.
+        flow = DetachLeadIns(flow, out var leadIns);
+
+        for (int i = 0; i < flow.Count; i++)
         {
+            var block = flow[i];
+            if (block is TextBlock lead && leadIns.Contains(lead) && i + 1 < flow.Count && slide.Blocks.Count > 0)
+            {
+                var need = SlideGeometry.TextHeight(lead) + SlideGeometry.BlockGapPt + MinHeight(flow[i + 1]);
+                if (need > Room() && need <= SlideGeometry.BodyHeightPt) Next();
+            }
             switch (block)
             {
                 case TextBlock tb:
                     PlaceText(tb);
                     break;
+                case ChartSlideBlock chart:
+                    if (slide.Blocks.Count > 0 && Room() < MinChartHeightPt) Next();
+                    Place(chart, Math.Min(Room(), ChartHeightPt));
+                    break;
+                case MetricsSlideBlock metrics:
+                {
+                    var h = MetricsHeight(metrics);
+                    if (slide.Blocks.Count > 0 && h > Room()) Next();
+                    Place(metrics, Math.Min(h, SlideGeometry.BodyHeightPt));
+                    break;
+                }
+                case SmartArtSlideBlock art:
+                {
+                    var h = SmartArtHeight(art);
+                    if (slide.Blocks.Count > 0 && Room() < Math.Min(h, MinSmartArtHeightPt)) Next();
+                    Place(art, Math.Min(h, Room()));
+                    break;
+                }
                 case CodeSlideBlock code:
                     PlaceCode(code);
                     break;
@@ -237,7 +286,17 @@ public static class SlideDeckBuilder
                     var (_, fh) = SlideGeometry.FitPicture(pic, Room());
                     var (_, fullH) = SlideGeometry.FitPicture(pic, SlideGeometry.BodyHeightPt);
                     if (slide.Blocks.Count > 0 && fh < Math.Min(fullH, MinPictureHeightPt)) Next();
-                    var (_, h) = SlideGeometry.FitPicture(pic, Room());
+                    var room = Room();
+                    var (_, h) = SlideGeometry.FitPicture(pic, room);
+                    // A short line or two of text after a picture stays on its slide when the picture
+                    // can give up a little height for it, rather than sitting alone on "(continued)".
+                    if (i + 1 < flow.Count && flow[i + 1] is TextBlock { Panel: PanelKind.None } after)
+                    {
+                        var textH = SlideGeometry.TextHeight(after);
+                        if (textH <= ShortTextPt && room - textH - SlideGeometry.BlockGapPt - 2 is var less && less > 0
+                            && SlideGeometry.FitPicture(pic, less).H is var hs && hs < h && hs >= h * 0.6)
+                            h = hs;
+                    }
                     Place(pic, h + SlideGeometry.CaptionHeight(pic.Caption));
                     break;
                 }
@@ -287,6 +346,9 @@ public static class SlideDeckBuilder
 
         void PlaceCode(CodeSlideBlock code)
         {
+            // Code that fits on a slide of its own is never cut in two.
+            var whole = SlideGeometry.CodeHeight(code, 0, code.Lines.Count);
+            if (slide.Blocks.Count > 0 && whole > Room() && whole <= SlideGeometry.BodyHeightPt) Next();
             int start = 0;
             bool first = true;
             while (start < code.Lines.Count || first)
@@ -327,6 +389,9 @@ public static class SlideDeckBuilder
         void PlaceTable(TableSlideBlock table)
         {
             double headerH = table.Header.Count > 0 ? SlideGeometry.RowHeight(table, table.Header) : 0;
+            // Likewise a table that fits on a slide of its own.
+            var whole = TableHeight(table);
+            if (slide.Blocks.Count > 0 && whole > Room() && whole <= SlideGeometry.BodyHeightPt) Next();
             int start = 0;
             while (true)
             {
@@ -355,6 +420,103 @@ public static class SlideDeckBuilder
                 Next();
             }
         }
+    }
+
+    internal const double ChartHeightPt = 300, MinChartHeightPt = 220;
+    private const double ShortTextPt = 110;
+    internal const double MetricCardHeightPt = 100, MinSmartArtHeightPt = 200;
+
+    internal static int MetricsPerRow(int count) => count <= 4 ? Math.Max(1, count) : count % 3 == 0 && count <= 6 ? 3 : 4;
+
+    internal static double MetricsHeight(MetricsSlideBlock m)
+    {
+        var rows = (int)Math.Ceiling(m.Items.Count / (double)MetricsPerRow(m.Items.Count));
+        return rows * MetricCardHeightPt + (rows - 1) * SlideGeometry.BlockGapPt;
+    }
+
+    // Wide layouts (a process row) need little height; stacked or hierarchical ones more.
+    internal static double SmartArtHeight(SmartArtSlideBlock a)
+    {
+        var layout = a.Layout.ToLowerInvariant();
+        if (a.Depth > 1 || layout.Contains("hierarchy") || layout.Contains("org") || layout.Contains("tree") || layout.Contains("cycle")
+            || layout.Contains("pyramid") || layout.Contains("venn") || layout.Contains("target") || layout.Contains("matrix"))
+            return SlideGeometry.BodyHeightPt;
+        if (layout.Contains("process") || layout.Contains("workflow") || layout.Contains("timeline") || layout.Contains("chevron"))
+            return 200;
+        return Math.Clamp(60 + 44 * a.TopLevelCount, MinSmartArtHeightPt, SlideGeometry.BodyHeightPt);
+    }
+
+    private static double TableHeight(TableSlideBlock t)
+    {
+        double h = t.Header.Count > 0 ? SlideGeometry.RowHeight(t, t.Header) : 0;
+        foreach (var r in t.Rows) h += SlideGeometry.RowHeight(t, r);
+        return h;
+    }
+
+    // The least of a block that may start a slide: what a lead-in subheading must see room for.
+    private static double MinHeight(SlideBlock b)
+    {
+        switch (b)
+        {
+            case TableSlideBlock t:
+            {
+                var whole = TableHeight(t);
+                if (whole <= SlideGeometry.BodyHeightPt) return whole;
+                double h = t.Header.Count > 0 ? SlideGeometry.RowHeight(t, t.Header) : 0;
+                for (int r = 0; r < Math.Min(2, t.Rows.Count); r++) h += SlideGeometry.RowHeight(t, t.Rows[r]);
+                return h;
+            }
+            case CodeSlideBlock c:
+            {
+                var whole = SlideGeometry.CodeHeight(c, 0, c.Lines.Count);
+                return whole <= SlideGeometry.BodyHeightPt ? whole : SlideGeometry.CodeHeight(c, 0, MinCodeLinesOnSlide);
+            }
+            case PictureSlideBlock p:
+            {
+                var (_, full) = SlideGeometry.FitPicture(p, SlideGeometry.BodyHeightPt);
+                return Math.Min(full, MinPictureHeightPt) + SlideGeometry.CaptionHeight(p.Caption);
+            }
+            case MissingPictureBlock: return SlideGeometry.MissingPictureHeightPt;
+            case ChartSlideBlock: return MinChartHeightPt;
+            case MetricsSlideBlock m: return MetricsHeight(m);
+            case SmartArtSlideBlock a: return Math.Min(SmartArtHeight(a), MinSmartArtHeightPt);
+            case TextBlock t when t.Paragraphs.Count > 0:
+                return SlideGeometry.TextHeight(t.Paragraphs.GetRange(0, 1), t.Panel, SlideGeometry.TextWidth(t));
+            default: return 0;
+        }
+    }
+
+    // Splits trailing subheadings off each plain text block that is followed by a non-text block
+    // (or a panel), so the paginator can keep them with it.
+    private static List<SlideBlock> DetachLeadIns(List<SlideBlock> flow, out HashSet<TextBlock> leadIns)
+    {
+        leadIns = new HashSet<TextBlock>(ReferenceEqualityComparer.Instance);
+        var result = new List<SlideBlock>(flow.Count + 4);
+        for (int i = 0; i < flow.Count; i++)
+        {
+            if (flow[i] is TextBlock { Panel: PanelKind.None } tb && i + 1 < flow.Count && flow[i + 1] is not TextBlock { Panel: PanelKind.None })
+            {
+                int k = tb.Paragraphs.Count;
+                while (k > 0 && tb.Paragraphs[k - 1].KeepWithNext) k--;
+                // "…looks like this:" introduces what follows, and so does the heading above it.
+                if (k == tb.Paragraphs.Count && k > 0 && tb.Paragraphs[k - 1] is { Style: ParaStyle.Body } intro
+                    && intro.PlainText.TrimEnd().EndsWith(':'))
+                {
+                    k--;
+                    while (k > 0 && tb.Paragraphs[k - 1].KeepWithNext) k--;
+                }
+                if (k < tb.Paragraphs.Count)
+                {
+                    if (k > 0) result.Add(Clone(tb, tb.Paragraphs.GetRange(0, k)));
+                    var lead = Clone(tb, tb.Paragraphs.GetRange(k, tb.Paragraphs.Count - k));
+                    leadIns.Add(lead);
+                    result.Add(lead);
+                    continue;
+                }
+            }
+            result.Add(flow[i]);
+        }
+        return result;
     }
 
     private static TextBlock Clone(TextBlock source, IEnumerable<SlideParagraph> paragraphs)
@@ -392,10 +554,12 @@ public static class SlideDeckBuilder
         private readonly SlideDeckOptions _options;
         private readonly List<FencedCodeBlock> _mermaid;
         private readonly Dictionary<string, PictureSlideBlock?> _images = new(StringComparer.Ordinal);
+        private readonly List<SlideBlock> _lifted;
 
-        public Ctx(SlideDeckOptions options, MarkdownDocument doc)
+        public Ctx(SlideDeckOptions options, MarkdownDocument doc, List<SlideBlock> lifted)
         {
             _options = options;
+            _lifted = lifted;
             _mermaid = options.DrawDiagrams ? doc.Descendants<FencedCodeBlock>().Where(IsMermaid).ToList() : [];
         }
 
@@ -468,6 +632,11 @@ public static class SlideDeckBuilder
                     return;
                 case Table table:
                     AddTable(table, flow);
+                    return;
+                case HtmlBlock html when SlideDirectives.PlaceholderRe.Match(html.Lines.ToString()) is { Success: true } m:
+                    // A chart, KPI cards, SmartArt or a drawing lifted out of a ::: block.
+                    if (int.TryParse(m.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) && n < _lifted.Count)
+                        flow.Add(_lifted[n]);
                     return;
                 case HtmlBlock html:
                     AddHtml(html, flow);
@@ -798,7 +967,8 @@ public static class SlideDeckBuilder
 
             if (LooksLikeSvg(bytes, src))
             {
-                var svg = Encoding.UTF8.GetString(bytes);
+                // Notepad and PowerShell save SVG with a byte-order mark, which the parser rejects.
+                var svg = Encoding.UTF8.GetString(bytes).TrimStart((char)0xFEFF);
                 var png = SvgRasterizer.ToPng(svg, 2.0, transparent: true);
                 if (png is null || Measure(png) is not { } ps) return null;
                 return new PictureSlideBlock

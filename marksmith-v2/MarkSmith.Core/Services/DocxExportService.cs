@@ -2518,7 +2518,7 @@ public sealed partial class DocxExportService
     private static readonly Regex TabLineRegex = new(@"^:::tab(?:\s+title=(?:""(?<t1>.*)""|(?<t2>\S+))|\s+(?<t3>[^\n]+))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex TabHeaderRegex = new(@"^={2,3}\s+(?:""(?<t1>.*)""|(?<t3>[^\n]+))$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    private static List<(string Title, string Content)> ParseTabsFromContent(string innerContent)
+    internal static List<(string Title, string Content)> ParseTabsFromContent(string innerContent)
     {
         var result = new List<(string Title, string Content)>();
         if (string.IsNullOrWhiteSpace(innerContent)) return result;

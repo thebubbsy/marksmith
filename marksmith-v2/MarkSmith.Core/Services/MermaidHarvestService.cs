@@ -64,7 +64,7 @@ public sealed class MermaidHarvestService
               themeVariables: { primaryColor: "{{theme.Background}}", primaryTextColor: "{{theme.Primary}}",
                 primaryBorderColor: "{{theme.Line}}", lineColor: "{{theme.Line}}",
                 secondaryColor: "{{theme.Secondary}}", tertiaryColor: "{{theme.Background}}",
-                edgeLabelBackground: "{{theme.Background}}" },
+                edgeLabelBackground: "{{theme.Background}}"{{MermaidLabelStyle.ChartVariables(theme)}} },
               themeCSS: {{MermaidLabelStyle.ThemeCss(theme.Background)}},
               flowchart: { useMaxWidth: false, htmlLabels: false, curve: "linear" },
               securityLevel: "strict" });

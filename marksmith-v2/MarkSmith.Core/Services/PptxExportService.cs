@@ -316,7 +316,7 @@ public sealed class PptxExportService
         private readonly int _index;
         private readonly Dictionary<string, string> _links = new(StringComparer.Ordinal);
         private int _nextId = 2;
-        private int _tables, _pictures, _codes;
+        private int _tables, _pictures, _codes, _charts, _diagrams;
 
         public SlideWriter(SlidePart part, Palette palette, PptxDeck deck, int index)
         {
@@ -384,8 +384,8 @@ public sealed class PptxExportService
             sb.Append(Rect("Accent", MarginXPt, AccentBarTopPt, 56, 3, _p.Accent));
 
             double y = BodyTopPt;
-            // A slide that is just one picture centres it in the body area.
-            if (slide.Blocks.Count == 1 && slide.Blocks[0] is PictureSlideBlock or MissingPictureBlock)
+            // A slide that is just one picture, chart, diagram or row of KPIs centres it in the body area.
+            if (slide.Blocks.Count == 1 && slide.Blocks[0] is PictureSlideBlock or MissingPictureBlock or ChartSlideBlock or MetricsSlideBlock or SmartArtSlideBlock)
                 y += Math.Max(0, (BodyHeightPt - slide.Blocks[0].HeightPt) / 2);
 
             bool bodyUsed = false;
@@ -403,6 +403,9 @@ public sealed class PptxExportService
                     case TableSlideBlock table: WriteTable(sb, table, y); break;
                     case PictureSlideBlock pic: WritePicture(sb, pic, y); break;
                     case MissingPictureBlock missing: WriteMissing(sb, missing, y); break;
+                    case ChartSlideBlock chart: WriteChart(sb, chart, y); break;
+                    case MetricsSlideBlock metrics: WriteMetrics(sb, metrics, y); break;
+                    case SmartArtSlideBlock art: WriteSmartArt(sb, art, y); break;
                 }
                 y += block.HeightPt;
             }
@@ -676,6 +679,233 @@ public sealed class PptxExportService
             var w = Math.Min(ContentWidthPt, 420);
             sb.Append(Shape(Id(), "Missing image", "", MarginXPt + (ContentWidthPt - w) / 2, y, w, m.HeightPt, outline, body,
                 anchor: "ctr", geometry: "roundRect"));
+        }
+
+        // ── charts ──
+
+        // A :::chart as a native PowerPoint chart: the data travels with it (an embedded workbook,
+        // so "Edit Data" works), colours come from the theme's chart palette and every label is in
+        // the slide's text colour, so a dark theme doesn't get black axis labels.
+        private void WriteChart(StringBuilder sb, ChartSlideBlock chart, double y)
+        {
+            _charts++;
+            var part = _part.AddNewPart<ChartPart>();
+            var rel = _part.GetIdOfPart(part);
+            var data = part.AddNewPart<EmbeddedPackagePart>("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            using (var ms = new MemoryStream(ChartWorkbook(chart)))
+                data.FeedData(ms);
+            var xml = ChartXml(chart, part.GetIdOfPart(data));
+            using (var stream = part.GetStream(FileMode.Create))
+            using (var w = new StreamWriter(stream, new UTF8Encoding(false)))
+                w.Write(xml);
+
+            var width = chart.Kind == ChartKind.Pie ? Math.Min(ContentWidthPt, 640) : ContentWidthPt;
+            var x = MarginXPt + (ContentWidthPt - width) / 2;
+            sb.Append($"<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"{Id()}\" name=\"Chart {_charts}\"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>");
+            sb.Append($"<p:xfrm><a:off x=\"{Emu(x)}\" y=\"{Emu(y)}\"/><a:ext cx=\"{Emu(width)}\" cy=\"{Emu(chart.HeightPt)}\"/></p:xfrm>");
+            sb.Append("<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\">");
+            sb.Append($"<c:chart xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" r:id=\"{rel}\"/>");
+            sb.Append("</a:graphicData></a:graphic></p:graphicFrame>");
+        }
+
+        private string ChartXml(ChartSlideBlock chart, string dataRel)
+        {
+            var palette = Mermaid.MermaidChartsRenderer.BuildPalette(_p.Theme).Select(Hex).ToArray();
+            int n = chart.Labels.Count;
+            string Fill(string hex) => $"<a:solidFill><a:srgbClr val=\"{hex}\"/></a:solidFill>";
+            string TxPr(double size, string color, bool bold = false) =>
+                $"<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"{Pts(size)}\" b=\"{(bold ? 1 : 0)}\">{Fill(color)}<a:latin typeface=\"+mn-lt\"/></a:defRPr></a:pPr><a:endParaRPr lang=\"en-US\"/></a:p></c:txPr>";
+
+            var cat = new StringBuilder($"<c:cat><c:strRef><c:f>Sheet1!$A$2:$A${n + 1}</c:f><c:strCache><c:ptCount val=\"{n}\"/>");
+            for (int i = 0; i < n; i++) cat.Append($"<c:pt idx=\"{i}\"><c:v>{X(chart.Labels[i])}</c:v></c:pt>");
+            cat.Append("</c:strCache></c:strRef></c:cat>");
+            var val = new StringBuilder($"<c:val><c:numRef><c:f>Sheet1!$B$2:$B${n + 1}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val=\"{n}\"/>");
+            for (int i = 0; i < n; i++) val.Append($"<c:pt idx=\"{i}\"><c:v>{chart.Values[i].ToString("R", CultureInfo.InvariantCulture)}</c:v></c:pt>");
+            val.Append("</c:numCache></c:numRef></c:val>");
+            const string tx = "<c:tx><c:strRef><c:f>Sheet1!$B$1</c:f><c:strCache><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>Value</c:v></c:pt></c:strCache></c:strRef></c:tx>";
+
+            var sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>");
+            sb.Append($"<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"{NsA}\" xmlns:r=\"{NsR}\">");
+            sb.Append("<c:date1904 val=\"0\"/><c:roundedCorners val=\"0\"/><c:chart><c:autoTitleDeleted val=\"1\"/><c:plotArea><c:layout/>");
+            switch (chart.Kind)
+            {
+                case ChartKind.Pie:
+                {
+                    sb.Append($"<c:pieChart><c:varyColors val=\"1\"/><c:ser><c:idx val=\"0\"/><c:order val=\"0\"/>{tx}");
+                    sb.Append($"<c:spPr><a:ln w=\"19050\">{Fill(_p.Background)}</a:ln></c:spPr>");
+                    for (int i = 0; i < n; i++)
+                        sb.Append($"<c:dPt><c:idx val=\"{i}\"/><c:bubble3D val=\"0\"/><c:spPr>{Fill(palette[i % palette.Length])}<a:ln w=\"19050\">{Fill(_p.Background)}</a:ln></c:spPr></c:dPt>");
+                    // Percentages on the slices, in the text colour that reads on the palette.
+                    var onSlice = ThemeDefinition.IsLight("#" + _p.Background) ? "FFFFFF" : "111111";
+                    sb.Append($"<c:dLbls><c:numFmt formatCode=\"0%\" sourceLinked=\"0\"/><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>{TxPr(14, onSlice, bold: true)}");
+                    sb.Append("<c:dLblPos val=\"ctr\"/><c:showLegendKey val=\"0\"/><c:showVal val=\"0\"/><c:showCatName val=\"0\"/><c:showSerName val=\"0\"/><c:showPercent val=\"1\"/><c:showBubbleSize val=\"0\"/><c:showLeaderLines val=\"0\"/></c:dLbls>");
+                    sb.Append(cat).Append(val).Append("</c:ser><c:firstSliceAng val=\"0\"/></c:pieChart>");
+                    break;
+                }
+                case ChartKind.Line:
+                    sb.Append($"<c:lineChart><c:grouping val=\"standard\"/><c:varyColors val=\"0\"/><c:ser><c:idx val=\"0\"/><c:order val=\"0\"/>{tx}");
+                    sb.Append($"<c:spPr><a:ln w=\"34925\" cap=\"rnd\">{Fill(palette[0])}<a:round/></a:ln></c:spPr>");
+                    sb.Append($"<c:marker><c:symbol val=\"circle\"/><c:size val=\"8\"/><c:spPr>{Fill(palette[0])}<a:ln w=\"19050\">{Fill(_p.Background)}</a:ln></c:spPr></c:marker>");
+                    sb.Append(DataLabels("t"));
+                    sb.Append(cat).Append(val).Append("<c:smooth val=\"0\"/></c:ser><c:marker val=\"1\"/><c:axId val=\"1001\"/><c:axId val=\"1002\"/></c:lineChart>");
+                    break;
+                default:
+                    sb.Append($"<c:barChart><c:barDir val=\"col\"/><c:grouping val=\"clustered\"/><c:varyColors val=\"0\"/><c:ser><c:idx val=\"0\"/><c:order val=\"0\"/>{tx}");
+                    sb.Append($"<c:spPr>{Fill(palette[0])}<a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val=\"0\"/>");
+                    sb.Append(DataLabels("outEnd"));
+                    sb.Append(cat).Append(val).Append("</c:ser><c:gapWidth val=\"70\"/><c:axId val=\"1001\"/><c:axId val=\"1002\"/></c:barChart>");
+                    break;
+            }
+            if (chart.Kind != ChartKind.Pie)
+            {
+                var axisLine = $"<c:spPr><a:ln w=\"9525\">{Fill(_p.Border)}</a:ln></c:spPr>";
+                sb.Append("<c:catAx><c:axId val=\"1001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"b\"/>");
+                sb.Append("<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/><c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>");
+                sb.Append(axisLine).Append(TxPr(14, _p.Text));
+                sb.Append("<c:crossAx val=\"1002\"/><c:crosses val=\"autoZero\"/><c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/><c:noMultiLvlLbl val=\"0\"/></c:catAx>");
+                sb.Append("<c:valAx><c:axId val=\"1002\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"l\"/>");
+                sb.Append($"<c:majorGridlines><c:spPr><a:ln w=\"6350\">{Fill(Mix(_p.Background, _p.Text, 0.14))}</a:ln></c:spPr></c:majorGridlines>");
+                sb.Append("<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/><c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>");
+                sb.Append("<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>").Append(TxPr(12, _p.Muted));
+                sb.Append("<c:crossAx val=\"1001\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"between\"/></c:valAx>");
+            }
+            sb.Append("</c:plotArea>");
+            // A pie tells its slices apart by colour alone, so it needs a legend; a bar or line chart
+            // names its categories on the axis.
+            if (chart.Kind == ChartKind.Pie)
+                sb.Append($"<c:legend><c:legendPos val=\"r\"/><c:overlay val=\"0\"/>{TxPr(14, _p.Text)}</c:legend>");
+            sb.Append("<c:plotVisOnly val=\"1\"/><c:dispBlanksAs val=\"gap\"/></c:chart>");
+            sb.Append("<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>");
+            sb.Append(TxPr(14, _p.Text));
+            sb.Append($"<c:externalData r:id=\"{dataRel}\"><c:autoUpdate val=\"0\"/></c:externalData></c:chartSpace>");
+            return sb.ToString();
+
+            string DataLabels(string pos) =>
+                $"<c:dLbls><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>{TxPr(12, _p.Text)}<c:dLblPos val=\"{pos}\"/>" +
+                "<c:showLegendKey val=\"0\"/><c:showVal val=\"1\"/><c:showCatName val=\"0\"/><c:showSerName val=\"0\"/><c:showPercent val=\"0\"/><c:showBubbleSize val=\"0\"/></c:dLbls>";
+        }
+
+        private static byte[] ChartWorkbook(ChartSlideBlock chart)
+        {
+            using var ms = new MemoryStream();
+            using (var doc = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Create(ms, DocumentFormat.OpenXml.SpreadsheetDocumentType.Workbook))
+            {
+                var wb = doc.AddWorkbookPart();
+                var ws = wb.AddNewPart<WorksheetPart>();
+                var rows = new StringBuilder("<x:row r=\"1\"><x:c r=\"A1\" t=\"inlineStr\"><x:is><x:t>Category</x:t></x:is></x:c><x:c r=\"B1\" t=\"inlineStr\"><x:is><x:t>Value</x:t></x:is></x:c></x:row>");
+                for (int i = 0; i < chart.Labels.Count; i++)
+                {
+                    var r = i + 2;
+                    rows.Append($"<x:row r=\"{r}\"><x:c r=\"A{r}\" t=\"inlineStr\"><x:is><x:t>{X(chart.Labels[i])}</x:t></x:is></x:c>");
+                    rows.Append($"<x:c r=\"B{r}\"><x:v>{chart.Values[i].ToString("R", CultureInfo.InvariantCulture)}</x:v></x:c></x:row>");
+                }
+                const string ns = "xmlns:x=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"";
+                ws.Worksheet = new DocumentFormat.OpenXml.Spreadsheet.Worksheet($"<x:worksheet {ns}><x:sheetData>{rows}</x:sheetData></x:worksheet>");
+                wb.Workbook = new DocumentFormat.OpenXml.Spreadsheet.Workbook(
+                    $"<x:workbook {ns} xmlns:r=\"{NsR}\"><x:sheets><x:sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"{wb.GetIdOfPart(ws)}\"/></x:sheets></x:workbook>");
+            }
+            return ms.ToArray();
+        }
+
+        // ── KPI cards ──
+
+        private void WriteMetrics(StringBuilder sb, MetricsSlideBlock m, double y)
+        {
+            int perRow = SlideDeckBuilder.MetricsPerRow(m.Items.Count);
+            var gap = BlockGapPt + 4;
+            var w = (ContentWidthPt - (perRow - 1) * gap) / perRow;
+            var h = SlideDeckBuilder.MetricCardHeightPt;
+            var fill = $"<a:solidFill><a:srgbClr val=\"{_p.Panel}\"/></a:solidFill><a:ln w=\"9525\"><a:solidFill><a:srgbClr val=\"{_p.Border}\"/></a:solidFill></a:ln>";
+            // The figures take the first chart colour, so KPI cards and the charts beside them match.
+            var figure = Hex(ContrastGuard.EnsureLegibleText(Hex(Mermaid.MermaidChartsRenderer.BuildPalette(_p.Theme)[0]), _p.Panel, _p.Heading));
+            for (int i = 0; i < m.Items.Count; i++)
+            {
+                int row = i / perRow, col = i % perRow;
+                // A short last row is centred under the full ones.
+                int inRow = Math.Min(perRow, m.Items.Count - row * perRow);
+                var x = MarginXPt + (ContentWidthPt - (inRow * w + (inRow - 1) * gap)) / 2 + col * (w + gap);
+                var top = y + row * (h + BlockGapPt);
+                if (top + h > y + m.HeightPt + 0.5) break;
+                var (value, label) = m.Items[i];
+                var size = value.Length > 12 ? 22 : value.Length > 8 ? 28 : 34;
+                var body = $"<a:p><a:pPr algn=\"ctr\"><a:lnSpc><a:spcPct val=\"90000\"/></a:lnSpc><a:buNone/></a:pPr><a:r>{RPr(size, figure, bold: true)}<a:t>{X(value)}</a:t></a:r></a:p>";
+                if (label.Length > 0)
+                    body += $"<a:p><a:pPr algn=\"ctr\"><a:spcBef><a:spcPts val=\"400\"/></a:spcBef><a:buNone/></a:pPr><a:r>{RPr(14, _p.Muted)}<a:t>{X(label)}</a:t></a:r></a:p>";
+                var insets = $" lIns=\"{Emu(10)}\" rIns=\"{Emu(10)}\" tIns=\"{Emu(8)}\" bIns=\"{Emu(8)}\"";
+                sb.Append(Shape(Id(), $"Metric {i + 1}", "", x, top, w, h, fill, body, anchor: "ctr", geometry: "roundRect",
+                    insets: insets, adjust: "<a:gd name=\"adj\" fmla=\"val 8000\"/>"));
+                sb.Append(Rect("Metric accent", x + w / 2 - 18, top + h - 3, 36, 3, figure));
+            }
+        }
+
+        // ── SmartArt ──
+
+        // Native SmartArt, from the same layout packages and solver as the Word export, so a
+        // :::smartart, :::workflow or :::timeline stays editable in PowerPoint. Falls back to the
+        // entries as a bulleted list if the layout can't be built.
+        private void WriteSmartArt(StringBuilder sb, SmartArtSlideBlock art, double y)
+        {
+            _diagrams++;
+            try
+            {
+                var catalog = MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared;
+                var ast = MarkSmith.Core.AST.MarkdownAstParser.Parse(art.Body);
+                ast.RequestedLayout = art.Layout;
+                var pkg = catalog.TryResolve(art.Layout) ?? catalog.TryResolve("default")
+                    ?? throw new InvalidOperationException($"SmartArt layout '{art.Layout}' not found.");
+                var solved = new MarkSmith.Core.Solver.ConstraintSolver().Solve(ast, pkg);
+                var result = new MarkSmith.Core.Generator.OpenXmlDiagramGenerator().Generate(solved, pkg);
+
+                string AddPart<T>(T part, string xml) where T : OpenXmlPart
+                {
+                    using (var stream = part.GetStream(FileMode.Create))
+                    using (var w = new StreamWriter(stream, new UTF8Encoding(false)))
+                        w.Write(xml);
+                    return _part.GetIdOfPart(part);
+                }
+                var dm = _part.AddNewPart<DiagramDataPart>();
+                var rDm = AddPart(dm, result.DiagramDataXml);
+                var rLo = AddPart(_part.AddNewPart<DiagramLayoutDefinitionPart>(), result.DiagramLayoutXml);
+                var rQs = AddPart(_part.AddNewPart<DiagramStylePart>(), result.DiagramStyleXml);
+                // The colour package fills shapes with accent1, which on many themes is a near-black
+                // text colour; use the first chart colour instead, so diagrams and charts match.
+                var fill = Hex(Mermaid.MermaidChartsRenderer.BuildPalette(_p.Theme)[0]);
+                var colors = System.Text.RegularExpressions.Regex.Replace(result.DiagramColorsXml,
+                    @"<a:schemeClr val=""accent1""\s*(/>|>(.*?)</a:schemeClr>)",
+                    m => m.Groups[1].Value == "/>" ? $"<a:srgbClr val=\"{fill}\"/>" : $"<a:srgbClr val=\"{fill}\">{m.Groups[2].Value}</a:srgbClr>",
+                    System.Text.RegularExpressions.RegexOptions.Singleline);
+                var rCs = AddPart(_part.AddNewPart<DiagramColorsPart>(), colors);
+                foreach (var (imgPath, rId) in result.ImageRelMap)
+                {
+                    if (!File.Exists(imgPath)) continue;
+                    var ext = Path.GetExtension(imgPath).TrimStart('.').ToLowerInvariant();
+                    var img = dm.AddImagePart(ext is "jpg" or "jpeg" ? ImagePartType.Jpeg : ImagePartType.Png, rId);
+                    using var fs = File.OpenRead(imgPath);
+                    img.FeedData(fs);
+                }
+
+                sb.Append($"<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"{Id()}\" name=\"Diagram {_diagrams}\"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>");
+                sb.Append($"<p:xfrm><a:off x=\"{Emu(MarginXPt)}\" y=\"{Emu(y)}\"/><a:ext cx=\"{Emu(ContentWidthPt)}\" cy=\"{Emu(art.HeightPt)}\"/></p:xfrm>");
+                sb.Append("<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/diagram\">");
+                sb.Append($"<dgm:relIds xmlns:dgm=\"http://schemas.openxmlformats.org/drawingml/2006/diagram\" r:dm=\"{rDm}\" r:lo=\"{rLo}\" r:qs=\"{rQs}\" r:cs=\"{rCs}\"/>");
+                sb.Append("</a:graphicData></a:graphic></p:graphicFrame>");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Slide SmartArt failed, writing a list: {ex.Message}");
+                var paras = new StringBuilder();
+                bool first = true;
+                foreach (var line in art.Body.Split('\n'))
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(line, @"^(\s*)[-*+]\s+(.*)$");
+                    if (!m.Success) continue;
+                    var para = new SlideParagraph { Style = ParaStyle.Bullet, Level = Math.Min(4, m.Groups[1].Value.Replace("\t", "  ").Length / 2) };
+                    para.Runs.Add(new TextRun(m.Groups[2].Value.Trim()));
+                    paras.Append(Paragraph(para, first, 1, _p.Text, false));
+                    first = false;
+                }
+                sb.Append(Shape(Id(), "Text", "", MarginXPt, y, ContentWidthPt, art.HeightPt, "", paras.ToString(), anchor: "t"));
+            }
         }
 
         // ── primitives ──

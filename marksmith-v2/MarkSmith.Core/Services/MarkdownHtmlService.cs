@@ -516,7 +516,7 @@ public sealed partial class MarkdownHtmlService
                     lineColor: "{{theme.Line}}",
                     secondaryColor: "{{theme.Secondary}}",
                     tertiaryColor: "{{theme.Background}}",
-                    edgeLabelBackground: "{{theme.Code}}"
+                    edgeLabelBackground: "{{theme.Code}}"{{MermaidLabelStyle.ChartVariables(theme, theme.Code)}}
                 },
                 // Diagrams sit on the code-coloured .mermaid card, so labels take that colour.
                 themeCSS: {{MermaidLabelStyle.ThemeCss(theme.Code)}},
@@ -2741,7 +2741,7 @@ public sealed partial class MarkdownHtmlService
               themeVariables: { primaryColor: "{{theme.Background}}", primaryTextColor: "{{theme.Primary}}",
                 primaryBorderColor: "{{theme.Line}}", lineColor: "{{theme.Line}}",
                 secondaryColor: "{{theme.Secondary}}", tertiaryColor: "{{theme.Background}}",
-                edgeLabelBackground: "{{theme.Background}}" },
+                edgeLabelBackground: "{{theme.Background}}"{{MermaidLabelStyle.ChartVariables(theme)}} },
               themeCSS: {{MermaidLabelStyle.ThemeCss(theme.Background)}},
               maxTextSize: 10000000, maxNodes: 10000,
               flowchart: { useMaxWidth: false, htmlLabels: true, curve: "linear" },

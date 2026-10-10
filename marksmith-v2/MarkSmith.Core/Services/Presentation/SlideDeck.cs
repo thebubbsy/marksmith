@@ -113,6 +113,35 @@ public sealed class PictureSlideBlock : SlideBlock
     public string? Caption { get; init; }
 }
 
+public enum ChartKind { Bar, Line, Pie }
+
+/// <summary>A <c>:::chart</c> block, drawn as a native PowerPoint chart (editable, with its data).</summary>
+public sealed class ChartSlideBlock : SlideBlock
+{
+    public ChartKind Kind { get; init; }
+    public List<string> Labels { get; } = new();
+    public List<double> Values { get; } = new();
+}
+
+/// <summary>A <c>:::metrics</c> / <c>:::kpi</c> block: a row (or rows) of KPI cards.</summary>
+public sealed class MetricsSlideBlock : SlideBlock
+{
+    public List<(string Value, string Label)> Items { get; } = new();
+}
+
+/// <summary>A <c>:::smartart</c>, <c>:::workflow</c> or <c>:::timeline</c> block, drawn as native
+/// SmartArt from the same layout packages the Word export uses.</summary>
+public sealed class SmartArtSlideBlock : SlideBlock
+{
+    /// <summary>The layout asked for (or suggested from the content), e.g. "process".</summary>
+    public string Layout { get; init; } = "list";
+    /// <summary>The bulleted body ("- step" lines; indentation is hierarchy).</summary>
+    public string Body { get; init; } = "";
+    /// <summary>Top-level entries, for the height estimate and the text fallback.</summary>
+    public int TopLevelCount { get; init; }
+    public int Depth { get; init; } = 1;
+}
+
 /// <summary>An image that couldn't be loaded: drawn as a labelled placeholder, never dropped.</summary>
 public sealed class MissingPictureBlock : SlideBlock
 {
