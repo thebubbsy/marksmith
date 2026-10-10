@@ -2048,6 +2048,22 @@ public sealed partial class MarkdownHtmlService
                 user-select: none;
             }
 
+            .line-numbered-section.ms-ln-block { padding-left: 0; counter-reset: none; }
+            .ms-ln { display: grid; grid-template-columns: 36px minmax(0, 1fr); column-gap: 16px; align-items: baseline; }
+            .ms-ln::before { content: none !important; }
+            .ms-ln-n {
+                text-align: right;
+                font-size: 11px;
+                font-family: Consolas, "Courier New", monospace;
+                font-variant-numeric: tabular-nums;
+                color: {{theme.Text}};
+                opacity: 0.45;
+                user-select: none;
+            }
+            .ms-ln-t > :first-child { margin-top: 0; }
+            .ms-ln-t > :last-child { margin-bottom: 0; }
+            .ms-ln-gap { height: 0.85em; }
+
             /* --- R4: Editorial Drop Caps --- */
             .dropcap > p:first-of-type::first-letter,
             .dropcap::first-letter {
@@ -3377,8 +3393,33 @@ public sealed partial class MarkdownHtmlService
             {
                 return $"<div class=\"line-numbered-section line-numbered-doc\" style=\"--line-count-by: {countBy};\"></div>";
             }
-            return $"\n\n<div class=\"line-numbered-section\" style=\"--line-count-by: {countBy};\">\n\n{inner}\n\n</div>\n\n";
+            return "\n\n" + LineNumberedRows(inner, countBy) + "\n\n";
         });
+    }
+
+    // Each written line of a :::line-numbers block is one numbered row, as on a legal page: the
+    // number shows on every count-by'th line (5, 10, 15…) and a blank line is a paragraph gap that
+    // isn't counted. Emitted as ONE raw HTML block with no blank lines inside, so Markdig passes it
+    // through whole; each line's own Markdown is rendered here and the result is sanitized with the
+    // rest of the body.
+    private static string LineNumberedRows(string inner, int countBy)
+    {
+        var sb = new StringBuilder($"<div class=\"line-numbered-section ms-ln-block\" style=\"--line-count-by: {countBy};\">");
+        int n = 0;
+        var gap = false;
+        foreach (var raw in inner.Replace("\r", "").Split('\n'))
+        {
+            if (raw.Trim().Length == 0) { gap = n > 0; continue; }
+            if (gap) { sb.Append("<div class=\"ms-ln-gap\"></div>"); gap = false; }
+            n++;
+            var html = Markdown.ToHtml(DialectNormalizer.Apply(raw.Trim()), Pipeline).Trim();
+            if (html.StartsWith("<p>") && html.EndsWith("</p>") && html.IndexOf("<p>", 3, StringComparison.Ordinal) < 0)
+                html = html[3..^4];
+            sb.Append("<div class=\"ms-ln\"><span class=\"ms-ln-n\" aria-hidden=\"true\">")
+              .Append(n % countBy == 0 ? n.ToString(CultureInfo.InvariantCulture) : "")
+              .Append("</span><div class=\"ms-ln-t\">").Append(html.Replace("\n", " ")).Append("</div></div>");
+        }
+        return sb.Append("</div>").ToString();
     }
 
     private static string TransformDropCaps(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans)
@@ -3413,6 +3454,22 @@ public sealed partial class MarkdownHtmlService
 
             return $"\n\n<div class=\"dropcap\" style=\"--dropcap-lines: {dropLines};\">\n\n{inner}\n\n</div>\n\n";
         });
+    }
+
+    private sealed class IndexNode
+    {
+        public SortedDictionary<string, IndexNode> Children { get; } = new(StringComparer.InvariantCultureIgnoreCase);
+    }
+
+    // Sub-entries nest one indent per level (ms-index-subentry keeps its existing look).
+    private static void AppendIndexChildren(StringBuilder sb, IndexNode node, int depth = 1)
+    {
+        foreach (var (name, child) in node.Children)
+        {
+            var indent = depth > 1 ? $" style=\"margin-left:{depth * 16}px\"" : "";
+            sb.AppendLine($"<div class=\"ms-index-subentry\"{indent}>{System.Net.WebUtility.HtmlEncode(name)}</div>");
+            AppendIndexChildren(sb, child, depth + 1);
+        }
     }
 
     private static string LiftIndexBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> indexBlocks)
@@ -3462,7 +3519,10 @@ public sealed partial class MarkdownHtmlService
 
             var sb = new StringBuilder();
             sb.AppendLine($"<div class=\"ms-index-block\" style=\"--index-cols: {cols};\">");
-            sb.AppendLine("<h3 class=\"ms-index-title\">Index</h3>");
+            // The author's own "## Index" right above the block already titles it.
+            var before = markdown[..m.Index].TrimEnd();
+            if (!before[(before.LastIndexOf('\n') + 1)..].TrimStart().StartsWith('#'))
+                sb.AppendLine("<h3 class=\"ms-index-title\">Index</h3>");
 
             if (uniqueTerms.Count == 0)
             {
@@ -3470,21 +3530,17 @@ public sealed partial class MarkdownHtmlService
             }
             else
             {
-                var catMap = new Dictionary<string, SortedSet<string>>(StringComparer.OrdinalIgnoreCase);
+                // "Storage:Relational:PostgreSQL" is three levels, as in Word's XE "a:b:c".
+                var catMap = new Dictionary<string, IndexNode>(StringComparer.OrdinalIgnoreCase);
                 foreach (var t in uniqueTerms)
                 {
-                    var parts = t.Split(':', 2);
-                    var cat = parts[0].Trim();
-                    var sub = parts.Length > 1 ? parts[1].Trim() : null;
-
-                    if (!catMap.TryGetValue(cat, out var set))
+                    var parts = t.Split(':').Select(p => p.Trim()).Where(p => p.Length > 0).ToArray();
+                    if (parts.Length == 0) continue;
+                    if (!catMap.TryGetValue(parts[0], out var node)) catMap[parts[0]] = node = new IndexNode();
+                    foreach (var p in parts.Skip(1))
                     {
-                        set = new SortedSet<string>(StringComparer.InvariantCultureIgnoreCase);
-                        catMap[cat] = set;
-                    }
-                    if (!string.IsNullOrEmpty(sub))
-                    {
-                        set.Add(sub);
+                        if (!node.Children.TryGetValue(p, out var child)) node.Children[p] = child = new IndexNode();
+                        node = child;
                     }
                 }
 
@@ -3499,16 +3555,9 @@ public sealed partial class MarkdownHtmlService
                     sb.AppendLine($"<div class=\"ms-index-letter\">{group.Key}</div>");
                     foreach (var cat in group.OrderBy(c => c, StringComparer.InvariantCultureIgnoreCase))
                     {
-                        var subs = catMap[cat];
                         sb.AppendLine("<div class=\"ms-index-entry\">");
                         sb.AppendLine($"<strong>{System.Net.WebUtility.HtmlEncode(cat)}</strong>");
-                        if (subs.Count > 0)
-                        {
-                            foreach (var s in subs)
-                            {
-                                sb.AppendLine($"<div class=\"ms-index-subentry\">{System.Net.WebUtility.HtmlEncode(s)}</div>");
-                            }
-                        }
+                        AppendIndexChildren(sb, catMap[cat]);
                         sb.AppendLine("</div>");
                     }
                     sb.AppendLine("</div>");

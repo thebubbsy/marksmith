@@ -76,7 +76,9 @@ public class AdvancedLayoutsTests
             Assert.Contains("InactiveTab", xml);
             Assert.Contains("outlineLvl", xml);
             Assert.Contains("val=\"8\"", xml);
-            Assert.True(xml.Contains("collapsed", StringComparison.OrdinalIgnoreCase) || xml.Contains("defaultCollapsed", StringComparison.OrdinalIgnoreCase));
+            // Never collapsed (run #66): Word prints without a collapsed heading's content.
+            Assert.DoesNotContain("collapsed", xml, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Inactive content", xml);
         }
         finally
         {

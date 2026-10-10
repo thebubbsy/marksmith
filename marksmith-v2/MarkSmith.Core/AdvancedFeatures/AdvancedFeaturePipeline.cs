@@ -246,12 +246,18 @@ namespace MarkSmith.Core.AdvancedFeatures
                         // Check if this is a standalone single-line directive without a matching closing :::
                         if (Regex.IsMatch(trimmed, @"^:::(watermark|line-numbers|index)\b", RegexOptions.IgnoreCase))
                         {
+                            // Same rule as the preview (MarkdownHtmlService's LineNumbers/Watermark/
+                            // Index regexes): it's a block when the very next line is content, and
+                            // then it runs to its ":::" across blank lines, so a numbered passage of
+                            // two paragraphs is one block. Breaking at the first blank line made Word
+                            // number the whole document and print the passage as plain paragraphs.
                             bool hasClosing = false;
                             for (int j = i + 1; j < lines.Length; j++)
                             {
                                 var nextTrim = lines[j].TrimEnd('\r').TrimStart();
                                 if (nextTrim == ":::") { hasClosing = true; break; }
-                                if (Regex.IsMatch(nextTrim, @"^:::(?!tab\b)[a-zA-Z]", RegexOptions.IgnoreCase) || nextTrim.StartsWith("#") || string.IsNullOrWhiteSpace(nextTrim)) break;
+                                if (Regex.IsMatch(nextTrim, @"^:::(?!tab\b)[a-zA-Z]", RegexOptions.IgnoreCase)) break;
+                                if (j == i + 1 && (nextTrim.StartsWith("#") || string.IsNullOrWhiteSpace(nextTrim))) break;
                             }
                             if (!hasClosing)
                             {

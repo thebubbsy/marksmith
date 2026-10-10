@@ -491,6 +491,13 @@ public sealed class ApiServer : IDisposable
                     // applies so a free install can't bypass it by calling /api/convert directly.
                     // No format means the default output format. The response used to be labelled
                     // "export.pdf" whatever that was, so a Word default came back as a .pdf name.
+                    // A format we don't make is an error, not silently the default (an "html" request
+                    // used to come back as a PDF).
+                    if (!string.IsNullOrWhiteSpace(ovr.Format) && OutputFormats.Normalize(ovr.Format) is null)
+                    {
+                        await WriteJsonAsync(ctx, 400, new { error = $"Unsupported format \"{ovr.Format}\". Use pdf, docx, pptx, epub, eml or msg." });
+                        break;
+                    }
                     var format = OutputFormats.Normalize(ovr.Format) ?? OutputFormats.Normalize(_getSettings().TargetFormat) ?? OutputFormats.Pdf;
                     ovr.Format = format;
                     var gateError = LicenseGateError(format);

@@ -84,7 +84,7 @@ public static class ContainerBlockParsers
             }
             else
             {
-                cells = line.Split(new[] { ',', '\t' });
+                cells = SplitDelimited(line, line.Contains('\t') ? '\t' : ',');
             }
             rows.Add(cells.Select(c => c.Trim()).ToArray());
         }
@@ -93,6 +93,38 @@ public static class ContainerBlockParsers
         for (int i = 0; i < rows.Count; i++)
             if (rows[i].Length < width) rows[i] = rows[i].Concat(Enumerable.Repeat("", width - rows[i].Length)).ToArray();
         return rows;
+    }
+
+    /// <summary>True for a cell that reads as a number: "1,240", "$980.50", "-3%".</summary>
+    public static bool LooksNumeric(string s)
+    {
+        var t = s.Trim().TrimStart('$', '€', '£', '¥').TrimEnd('%').Replace(",", "");
+        return t.Length > 0 && double.TryParse(t, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _);
+    }
+
+    /// <summary>One CSV/TSV row. A <c>"quoted"</c> cell keeps its delimiters (<c>"$1,240,000"</c>
+    /// is one cell, not three) and <c>""</c> inside it is a literal quote, as in a spreadsheet's
+    /// CSV export.</summary>
+    public static string[] SplitDelimited(string line, char delimiter)
+    {
+        var cells = new List<string>();
+        var cell = new System.Text.StringBuilder();
+        var quoted = false;
+        for (int i = 0; i < line.Length; i++)
+        {
+            var ch = line[i];
+            if (quoted)
+            {
+                if (ch != '"') cell.Append(ch);
+                else if (i + 1 < line.Length && line[i + 1] == '"') { cell.Append('"'); i++; }
+                else quoted = false;
+            }
+            else if (ch == '"' && string.IsNullOrWhiteSpace(cell.ToString())) { cell.Clear(); quoted = true; }
+            else if (ch == delimiter) { cells.Add(cell.ToString()); cell.Clear(); }
+            else cell.Append(ch);
+        }
+        cells.Add(cell.ToString());
+        return cells.ToArray();
     }
 
     /// <summary>One bibliography entry from a <c>:::references</c> block.</summary>

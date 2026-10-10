@@ -30,6 +30,7 @@ public sealed partial class MarkdownHtmlService
         var output = new StringBuilder(markdown.Length);
         string? fence = null;
         var tabsCssEmitted = false;
+        var citations = new Dictionary<string, (string Anchor, string Label)>(StringComparer.OrdinalIgnoreCase);
 
         for (int i = 0; i < lines.Length; i++)
         {
@@ -47,7 +48,7 @@ public sealed partial class MarkdownHtmlService
                 {
                     "tabs" => RenderTabsHtml(inner, theme, blocks.Count, ref tabsCssEmitted),
                     "datagrid" => RenderDatagridHtml(inner, theme),
-                    "references" => RenderReferencesHtml(inner, theme),
+                    "references" => RenderReferencesHtml(inner, theme, UnderHeading(output), citations),
                     "embed" => RenderEmbedHtml(trimmed, inner, theme),
                     _ => RenderAiContextHtml(inner, theme),
                 };
@@ -62,7 +63,100 @@ public sealed partial class MarkdownHtmlService
             output.Append(line);
             if (i < lines.Length - 1) output.Append('\n');
         }
-        return output.ToString();
+        return citations.Count == 0 ? output.ToString() : LinkCitations(output.ToString(), citations);
+    }
+
+    // True when the last non-blank line written so far is a Markdown heading, i.e. the author has
+    // already titled the block ("## References") and a second "Bibliography" heading would stack.
+    private static bool UnderHeading(StringBuilder output)
+    {
+        var text = output.ToString().TrimEnd();
+        var last = text[(text.LastIndexOf('\n') + 1)..].TrimStart();
+        return last.StartsWith('#');
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex CitationClusterRe =
+        new(@"\[@([\w\-]+(?:\s*;\s*@[\w\-]+)*)\]", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// For exports with no anchors to link to (Word): every <c>[@key]</c> a <c>:::references</c>
+    /// block defines becomes plain "(Knuth, 1984)" text, the same label the preview links.
+    /// </summary>
+    /// <remarks>Also marks a block the author already headed ("## References" right above it)
+    /// with <c>titled="true"</c>, so Word adds no second "Bibliography" heading: its renderer
+    /// draws into a fresh body and can't see what came before.</remarks>
+    internal static string CiteReferencesAsText(string markdown)
+    {
+        if (string.IsNullOrEmpty(markdown) || !markdown.Contains(":::references", StringComparison.OrdinalIgnoreCase)) return markdown;
+        var refs = new Dictionary<string, (string Anchor, string Label)>(StringComparer.OrdinalIgnoreCase);
+        var lines = markdown.Split('\n');
+        string? fence = null;
+        var lastText = "";
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var t = lines[i].Trim();
+            if (fence is null && (t.StartsWith("```") || t.StartsWith("~~~"))) { fence = t[..3]; lastText = t; continue; }
+            if (fence is not null) { if (t.StartsWith(fence)) fence = null; continue; }
+            if (ContainerName(t) != "references" || FindCloser(lines, i) is not (var close and > 0))
+            {
+                if (t.Length > 0) lastText = t;
+                continue;
+            }
+            if (lastText.StartsWith('#') && !t.Contains("titled=", StringComparison.OrdinalIgnoreCase))
+                lines[i] = lines[i].TrimEnd('\r', ' ') + " titled=\"true\"" + (lines[i].EndsWith('\r') ? "\r" : "");
+            foreach (var r in ContainerBlockParsers.ParseReferences(string.Join("\n", lines[(i + 1)..close]).Replace("\r", "")))
+                if (r.Id.Length > 0) refs.TryAdd(r.Id, ("", CitationLabel(r)));
+            lastText = ":::";
+            i = close;
+        }
+        var marked = string.Join('\n', lines);
+        return refs.Count == 0 || !marked.Contains("[@", StringComparison.Ordinal) ? marked : LinkCitations(marked, refs, linked: false);
+    }
+
+    // "[@knuth1984]" -> "[(Knuth, 1984)](#ref-knuth1984)" for every key a :::references block
+    // defines, outside fenced code. Keys the document never defines are left as written.
+    private static string LinkCitations(string markdown, Dictionary<string, (string Anchor, string Label)> refs, bool linked = true)
+    {
+        var lines = markdown.Split('\n');
+        string? fence = null;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var t = lines[i].Trim();
+            if (fence is null && (t.StartsWith("```") || t.StartsWith("~~~"))) { fence = t[..3]; continue; }
+            if (fence is not null) { if (t.StartsWith(fence)) fence = null; continue; }
+            if (!lines[i].Contains("[@", StringComparison.Ordinal)) continue;
+            lines[i] = CitationClusterRe.Replace(lines[i], m =>
+            {
+                var keys = m.Groups[1].Value.Split(';').Select(k => k.Trim().TrimStart('@')).ToList();
+                if (!keys.All(refs.ContainsKey)) return m.Value;
+                if (!linked) return "(" + string.Join("; ", keys.Select(k => refs[k].Label)) + ")";
+                if (keys.Count == 1) return $"[({refs[keys[0]].Label})](#{refs[keys[0]].Anchor})";
+                return "(" + string.Join("; ", keys.Select(k => $"[{refs[k].Label}](#{refs[k].Anchor})")) + ")";
+            });
+        }
+        return string.Join('\n', lines);
+    }
+
+    // "Donald E. Knuth" -> "Knuth"; "Lamport, Leslie" -> "Lamport"; two authors "A & B", more "A et al.".
+    private static string CitationLabel(ContainerBlockParsers.Reference r)
+    {
+        static string Surname(string name)
+        {
+            name = name.Trim();
+            if (name.Contains(',')) return name[..name.IndexOf(',')].Trim();
+            var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length == 0 ? name : parts[^1];
+        }
+        var authors = System.Text.RegularExpressions.Regex.Split(r.Author, @"\s+and\s+|\s*;\s*|\s*&\s*")
+            .Where(a => a.Trim().Length > 0).Select(Surname).ToList();
+        var who = authors.Count switch
+        {
+            0 => r.Title.Length > 0 ? r.Title : r.Id,
+            1 => authors[0],
+            2 => $"{authors[0]} & {authors[1]}",
+            _ => $"{authors[0]} et al.",
+        };
+        return $"{who}, {(r.Year.Length > 0 ? r.Year : "n.d.")}";
     }
 
     private static string? ContainerName(string trimmedLine)
@@ -155,11 +249,7 @@ public sealed partial class MarkdownHtmlService
         return sb.Append("</div></div>").ToString();
     }
 
-    private static bool LooksNumeric(string s)
-    {
-        var t = s.Trim().TrimStart('$', '€', '£', '¥').TrimEnd('%').Replace(",", "");
-        return t.Length > 0 && double.TryParse(t, NumberStyles.Float, CultureInfo.InvariantCulture, out _);
-    }
+    private static bool LooksNumeric(string s) => ContainerBlockParsers.LooksNumeric(s);
 
     private static string RenderDatagridHtml(string inner, ThemeDefinition theme)
     {
@@ -190,17 +280,21 @@ public sealed partial class MarkdownHtmlService
         return sb.Append("</tbody></table></div>").ToString();
     }
 
-    private static string RenderReferencesHtml(string inner, ThemeDefinition theme)
+    private static string RenderReferencesHtml(string inner, ThemeDefinition theme, bool underHeading,
+        Dictionary<string, (string Anchor, string Label)> citations)
     {
         var refs = ContainerBlockParsers.ParseReferences(inner);
         if (refs.Count == 0)
             return "<div class=\"ms-block-hint\">Bibliography: start each entry with an <code>@id</code> line, then <code>author:</code>, <code>title:</code>, <code>year:</code>.</div>";
 
-        // Same heading the DOCX export writes above its BIBLIOGRAPHY field.
-        var sb = new StringBuilder("<section class=\"ms-references\"><h2>Bibliography</h2><ol style=\"padding-left:1.6em\">");
+        // Same heading the DOCX export writes above its BIBLIOGRAPHY field, unless the author
+        // already put one ("## References") right above the block.
+        var sb = new StringBuilder("<section class=\"ms-references\">" + (underHeading ? "" : "<h2>Bibliography</h2>") + "<ol style=\"padding-left:1.6em\">");
         foreach (var r in refs)
         {
-            var idAttr = r.Id.Length > 0 ? $" id=\"ref-{Enc(new string(r.Id.Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_').ToArray()))}\"" : "";
+            var anchor = "ref-" + new string(r.Id.Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_').ToArray());
+            if (r.Id.Length > 0) citations.TryAdd(r.Id, (anchor, CitationLabel(r)));
+            var idAttr = r.Id.Length > 0 ? $" id=\"{Enc(anchor)}\"" : "";
             sb.Append($"<li{idAttr} style=\"margin:.35rem 0;line-height:1.5\">");
             if (r.Author.Length > 0) sb.Append(Enc(r.Author)).Append(' ');
             if (r.Year.Length > 0) sb.Append('(').Append(Enc(r.Year)).Append("). ");
@@ -208,7 +302,6 @@ public sealed partial class MarkdownHtmlService
             if (r.Title.Length > 0) sb.Append("<em>").Append(Enc(r.Title)).Append("</em>. ");
             if (r.Journal.Length > 0) sb.Append(Enc(r.Journal)).Append(". ");
             if (IsWebUrl(r.Url)) sb.Append($"<a href=\"{Enc(r.Url)}\">{Enc(r.Url)}</a> ");
-            if (r.Id.Length > 0) sb.Append($"<span style=\"color:{Enc(theme.Line)};font-size:.85em\">[@{Enc(r.Id)}]</span>");
             sb.Append("</li>");
         }
         return sb.Append("</ol></section>").ToString();

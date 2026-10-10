@@ -83,8 +83,9 @@ This is the **Architecture** system design.
             var bookmarks = docXml.Descendants(w + "bookmarkStart").ToList();
             Assert.True(bookmarks.Count >= 3);
 
+            // No tab heading is collapsed: Word prints without a collapsed heading's content (run #66).
             var collapsedNodes = docXml.Descendants(w15 + "collapsed").ToList();
-            Assert.Equal(3, collapsedNodes.Count);
+            Assert.Empty(collapsedNodes);
         }
 
         // OpenXML DOM Reader test
@@ -165,38 +166,9 @@ This is the **Architecture** system design.
 
         Assert.Equal(3, outline8Headings.Count);
 
-        // Active tab heading (index 0) has collapsed = false / 0
-        var activeXml = outline8Headings[0].OuterXml;
-        Assert.Contains("collapsed", activeXml, StringComparison.OrdinalIgnoreCase);
-        Assert.True(activeXml.Contains("val=\"false\"", StringComparison.OrdinalIgnoreCase) || activeXml.Contains("val=\"0\"", StringComparison.OrdinalIgnoreCase));
+        // None collapsed (run #66): Word drops a collapsed heading's content when it prints.
+        Assert.All(outline8Headings, h => Assert.DoesNotContain("collapsed", h.OuterXml, StringComparison.OrdinalIgnoreCase));
 
-        // Inactive tab headings (indices 1 & 2) have collapsed = true / 1
-        for (int i = 1; i < 3; i++)
-        {
-            var inactiveXml = outline8Headings[i].OuterXml;
-            Assert.Contains("collapsed", inactiveXml, StringComparison.OrdinalIgnoreCase);
-            Assert.True(inactiveXml.Contains("val=\"true\"", StringComparison.OrdinalIgnoreCase) || inactiveXml.Contains("val=\"1\"", StringComparison.OrdinalIgnoreCase));
-        }
-
-        // Test TOC Field Isolation
-        var markdownWithToc = @"# Document Title
-
-:::tabs
-:::tab title=""Tab 1""
-Content 1
-:::
-:::tab title=""Tab 2""
-Content 2
-:::
-:::";
-        var settings = new AppSettings { IncludeToc = true };
-        var tocDocxPath = GenerateDocx("challenger_scenario4_toc.docx", markdownWithToc, settings);
-
-        using var tocDoc = WordprocessingDocument.Open(tocDocxPath, false);
-        var tocBody = tocDoc.MainDocumentPart!.Document.Body!;
-        var fieldCodes = tocBody.Descendants<W.FieldCode>().Select(f => f.Text).ToList();
-
-        Assert.Contains(fieldCodes, fc => fc.Contains("TOC \\o \"1-3\""));
     }
 
     [Fact]

@@ -26,7 +26,8 @@ public class ConcordanceIndexTests
             Assert.Empty(errors);
 
             var docXml = E2ETestHelpers.ReadZipEntry(docxPath, "word/document.xml")!;
-            Assert.Contains("<w:fldSimple", docXml);
+            // A complex field since run #66: an empty <w:fldSimple> XE scrambled the paragraph in Word.
+            Assert.Contains("<w:instrText", docXml);
             Assert.Contains("XE", docXml);
             Assert.Contains("Microservices", docXml);
         }

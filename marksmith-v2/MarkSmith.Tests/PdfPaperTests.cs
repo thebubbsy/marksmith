@@ -70,6 +70,9 @@ public class PdfPaperTests
         Assert.Contains(@"/\bprint\b/i", js);
         Assert.Contains("width: 794px", js);
         Assert.Contains("scrollHeight", js);
+        // Run #66: copied into <head>, the print rules lost to a block's own <style> in the body
+        // (tabs), the tab strip stayed in the measure and a tabbed document spilled onto page 2.
+        Assert.Contains("(document.body || document.head).appendChild(style)", js);
     }
 
     // ---- Title and bands ----

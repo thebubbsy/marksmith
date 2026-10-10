@@ -537,8 +537,8 @@ Concept A^[index: ""Concept A""] and Concept B^[index: ""Concept B""].
             Assert.Empty(errors);
 
             var docXml = E2ETestHelpers.ReadZipEntry(docxPathB, "word/document.xml")!;
-            Assert.Contains("XE &quot;Concept A&quot;", docXml);
-            Assert.Contains("XE &quot;Concept B&quot;", docXml);
+            Assert.Contains("XE \"Concept A\"", docXml);
+            Assert.Contains("XE \"Concept B\"", docXml);
 
             var settingsXml = E2ETestHelpers.ReadZipEntry(docxPathB, "word/settings.xml")!;
             Assert.Contains("<w:updateFields", settingsXml);
@@ -728,7 +728,7 @@ public sealed class EmpiricalChallenger
             Assert.Contains("<w:ins", docXml);
             Assert.Contains("<w:commentRangeStart", docXml);
             Assert.Contains("<w:commentReference", docXml);
-            Assert.Contains("XE &quot;Governance:Reliability Invariant&quot;", docXml);
+            Assert.Contains("XE \"Governance:Reliability Invariant\"", docXml);
             Assert.Contains("INDEX \\c &quot;2&quot;", docXml);
 
             // 4. Header1.xml watermark check

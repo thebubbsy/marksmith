@@ -125,26 +125,16 @@ This is the **Architecture** system design.
         Assert.All(anchors, a => Assert.False(string.IsNullOrEmpty(a)));
         Assert.All(anchors, a => Assert.StartsWith("tab_", a));
 
-        // 4. Verify Tab Section Headings with OutlineLevel 8 and DefaultCollapsed
+        // 4. Verify Tab Section Headings with OutlineLevel 8, none collapsed
         var sectionHeadings = body.Descendants<W.Paragraph>()
             .Where(p => p.ParagraphProperties?.OutlineLevel?.Val?.Value == 8)
             .ToList();
 
         Assert.Equal(3, sectionHeadings.Count);
 
-        // Heading 0 (Active Tab): DefaultCollapsed is false (0)
-        var heading0Xml = sectionHeadings[0].OuterXml;
-        Assert.Contains("collapsed", heading0Xml.ToLowerInvariant());
-        Assert.True(heading0Xml.Contains("val=\"false\"", StringComparison.OrdinalIgnoreCase) || heading0Xml.Contains("val=\"0\"", StringComparison.OrdinalIgnoreCase));
-
-        // Heading 1 & 2 (Inactive Tabs): DefaultCollapsed is true (1)
-        var heading1Xml = sectionHeadings[1].OuterXml;
-        Assert.Contains("collapsed", heading1Xml.ToLowerInvariant());
-        Assert.True(heading1Xml.Contains("val=\"true\"", StringComparison.OrdinalIgnoreCase) || heading1Xml.Contains("val=\"1\"", StringComparison.OrdinalIgnoreCase));
-
-        var heading2Xml = sectionHeadings[2].OuterXml;
-        Assert.Contains("collapsed", heading2Xml.ToLowerInvariant());
-        Assert.True(heading2Xml.Contains("val=\"true\"", StringComparison.OrdinalIgnoreCase) || heading2Xml.Contains("val=\"1\"", StringComparison.OrdinalIgnoreCase));
+        // No tab is collapsed: Word prints and saves to PDF without a collapsed heading's
+        // content, so every tab but the first vanished on paper (run #66).
+        Assert.All(sectionHeadings, h => Assert.DoesNotContain("collapsed", h.OuterXml.ToLowerInvariant()));
 
         // 5. Verify Bookmarks match Hyperlink anchors
         var bookmarkStarts = body.Descendants<W.BookmarkStart>().ToList();

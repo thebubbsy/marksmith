@@ -157,12 +157,9 @@ internal static class SlideDirectives
     // First line is the header, like the Word export.
     private static string Datagrid(string inner)
     {
-        var lines = inner.Split('\n').Where(l => l.Trim().Length > 0).ToList();
-        if (lines.Count == 0) return "";
-        var rows = lines.Select(l => (IReadOnlyList<string>)l.Split(',', '\t').Select(c => c.Trim()).ToList()).ToList();
-        var width = rows.Max(r => r.Count);
-        var header = rows[0].Concat(Enumerable.Repeat("", width - rows[0].Count)).ToList();
-        return Table(header, rows.Skip(1));
+        var rows = ContainerBlockParsers.ParseDatagrid(inner.Replace("\r", ""));
+        if (rows.Count == 0) return "";
+        return Table(rows[0], rows.Skip(1).Select(r => (IReadOnlyList<string>)r));
     }
 
     private static string Kanban(FeatureNode node, string inner)

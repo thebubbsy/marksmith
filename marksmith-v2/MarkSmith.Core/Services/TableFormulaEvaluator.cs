@@ -87,29 +87,181 @@ namespace MarkSmith.Services
 
             int maxRows = cells.Count;
             int maxCols = cells.Max(r => r.Count);
+            var texts = new string?[maxRows, maxCols];
             var grid = new double?[maxRows, maxCols];
             for (int r = 0; r < maxRows; r++)
                 for (int c = 0; c < cells[r].Count; c++)
-                    if (TryParseNumber(cells[r][c], out double val)) grid[r, c] = val;
-
-            bool changed = false;
-            for (int r = 0; r < maxRows; r++)
-            {
-                bool rowChanged = false;
-                for (int c = 0; c < cells[r].Count; c++)
                 {
-                    if (TryEvaluateCell(cells[r][c], r, c, grid, maxRows, maxCols, out double result, out string formatted, out _))
+                    texts[r, c] = cells[r][c];
+                    if (TryParseNumber(cells[r][c], out double val)) grid[r, c] = val;
+                }
+
+            var results = EvaluateAll(texts, grid);
+            if (results.Count == 0) return false;
+            foreach (var ((r, c), res) in results) cells[r][c] = res.Formatted;
+            foreach (var r in results.Keys.Select(k => k.Row).Distinct())
+                lines[body[r]] = "| " + string.Join(" | ", cells[r]) + " |";
+            return true;
+        }
+
+        /// <summary>One evaluated formula cell: its value, the text shown, and the Word field code.</summary>
+        public readonly record struct FormulaResult(double Value, string Formatted, string Instruction);
+
+        /// <summary>
+        /// Evaluates every formula cell of one table. <paramref name="texts"/> is the cell text
+        /// (row 0 is the header, so "A1" is the first header cell, as in Word and Excel) and
+        /// <paramref name="grid"/> the numbers already in it; results are written back into
+        /// <paramref name="grid"/>. A formula is evaluated only after every formula it reads, so
+        /// a total row may sum a column of <c>=B2*C2</c> cells whatever order they appear in. A
+        /// formula still waiting when nothing else can move (a cycle) reads those cells as empty.
+        /// </summary>
+        public static Dictionary<(int Row, int Col), FormulaResult> EvaluateAll(string?[,] texts, double?[,] grid)
+        {
+            int maxRows = texts.GetLength(0), maxCols = texts.GetLength(1);
+            var results = new Dictionary<(int Row, int Col), FormulaResult>();
+            var pending = new bool[maxRows, maxCols];
+            var waiting = new List<(int R, int C)>();
+            for (int r = 0; r < maxRows; r++)
+                for (int c = 0; c < maxCols; c++)
+                    if (texts[r, c] is { } t && t.TrimStart().StartsWith('='))
                     {
-                        cells[r][c] = formatted;
-                        grid[r, c] = result;
-                        rowChanged = true;
+                        pending[r, c] = true;
+                        grid[r, c] = null;
+                        waiting.Add((r, c));
+                    }
+
+            var force = false;
+            while (waiting.Count > 0)
+            {
+                var progressed = false;
+                foreach (var (r, c) in waiting.ToList())
+                {
+                    if (!force && References(texts[r, c]!, r, c, maxRows, maxCols).Any(p => (p.Row != r || p.Col != c) && pending[p.Row, p.Col]))
+                        continue;
+                    waiting.Remove((r, c));
+                    pending[r, c] = false;
+                    progressed = true;
+                    if (TryEvaluateCell(texts[r, c]!, r, c, grid, maxRows, maxCols, out var value, out var shown, out var instr))
+                    {
+                        grid[r, c] = value;
+                        results[(r, c)] = new FormulaResult(value, shown, instr);
                     }
                 }
-                if (!rowChanged) continue;
-                lines[body[r]] = "| " + string.Join(" | ", cells[r]) + " |";
-                changed = true;
+                // Only a cycle is left: evaluate it once with the cycle's cells read as empty.
+                force = !progressed;
             }
-            return changed;
+            return results;
+        }
+
+        // The cells a formula reads, for ordering; an unknown formula reads nothing.
+        private static IEnumerable<(int Row, int Col)> References(string cellText, int r, int c, int maxRows, int maxCols)
+        {
+            var trimmed = cellText.Trim();
+            var pos = PositionalFormulaRegex.Match(trimmed);
+            if (pos.Success)
+            {
+                return pos.Groups["pos"].Value.ToUpperInvariant() switch
+                {
+                    "ABOVE" => Enumerable.Range(0, r).Select(row => (row, c)),
+                    "BELOW" => Enumerable.Range(r + 1, Math.Max(0, maxRows - r - 1)).Select(row => (row, c)),
+                    "LEFT" => Enumerable.Range(0, c).Select(col => (r, col)),
+                    _ => Enumerable.Range(c + 1, Math.Max(0, maxCols - c - 1)).Select(col => (r, col)),
+                };
+            }
+            var refs = new List<(int, int)>();
+            foreach (Match m in CellRefRegex.Matches(trimmed))
+                if (TryParseCoordinate(m.Value, out int row, out int col) && row < maxRows && col < maxCols)
+                    refs.Add((row, col));
+            var range = RangeFormulaRegex.Match(trimmed);
+            if (range.Success && refs.Count == 2)
+            {
+                var (r1, c1) = refs[0];
+                var (r2, c2) = refs[1];
+                for (int row = Math.Min(r1, r2); row <= Math.Max(r1, r2); row++)
+                    for (int col = Math.Min(c1, c2); col <= Math.Max(c1, c2); col++)
+                        refs.Add((row, col));
+            }
+            return refs;
+        }
+
+        private static readonly Regex CellRefRegex = new(@"(?<![A-Za-z0-9.])[A-Za-z]{1,3}[0-9]+(?![A-Za-z0-9(])", RegexOptions.Compiled);
+
+        // "=B2*C2", "=(B2+C2)/2 \# 0.00", "=D2*1.1": numbers, cell references, + - * / and brackets.
+        private static readonly Regex ArithmeticFormulaRegex = new(
+            @"^=\s*(?<expr>[A-Za-z0-9.\s+\-*/()]+?)(?:\s*(?:\\#\s*)?""(?<fmt>[^""]*)""|\s+\\#\s*(?<fmt>\S+))?\s*$",
+            RegexOptions.Compiled);
+
+        private static bool TryEvaluateArithmetic(string expr, double?[,] grid, int maxRows, int maxCols, out double value)
+        {
+            value = 0;
+            int i = 0;
+            bool ok = true;
+
+            void Skip() { while (i < expr.Length && char.IsWhiteSpace(expr[i])) i++; }
+
+            double Primary()
+            {
+                Skip();
+                if (i >= expr.Length) { ok = false; return 0; }
+                if (expr[i] == '-') { i++; return -Primary(); }
+                if (expr[i] == '+') { i++; return Primary(); }
+                if (expr[i] == '(')
+                {
+                    i++;
+                    var v = Sum();
+                    Skip();
+                    if (i < expr.Length && expr[i] == ')') i++; else ok = false;
+                    return v;
+                }
+                int start = i;
+                if (char.IsDigit(expr[i]) || expr[i] == '.')
+                {
+                    while (i < expr.Length && (char.IsDigit(expr[i]) || expr[i] == '.')) i++;
+                    if (double.TryParse(expr[start..i], NumberStyles.Float, CultureInfo.InvariantCulture, out var n)) return n;
+                    ok = false; return 0;
+                }
+                while (i < expr.Length && char.IsLetterOrDigit(expr[i])) i++;
+                // An empty cell counts as 0, as in a spreadsheet; anything else that isn't a cell is an error.
+                if (start < i && TryParseCoordinate(expr[start..i], out int row, out int col) && row < maxRows && col < maxCols)
+                    return grid[row, col] ?? 0;
+                ok = false; return 0;
+            }
+
+            double Product()
+            {
+                var v = Primary();
+                while (ok)
+                {
+                    Skip();
+                    if (i < expr.Length && expr[i] == '*') { i++; v *= Primary(); }
+                    else if (i < expr.Length && expr[i] == '/')
+                    {
+                        i++;
+                        var d = Primary();
+                        if (d == 0) { ok = false; return 0; }
+                        v /= d;
+                    }
+                    else break;
+                }
+                return v;
+            }
+
+            double Sum()
+            {
+                var v = Product();
+                while (ok)
+                {
+                    Skip();
+                    if (i < expr.Length && expr[i] == '+') { i++; v += Product(); }
+                    else if (i < expr.Length && expr[i] == '-') { i++; v -= Product(); }
+                    else break;
+                }
+                return v;
+            }
+
+            value = Sum();
+            Skip();
+            return ok && i == expr.Length && !double.IsNaN(value) && !double.IsInfinity(value);
         }
 
         // "| a | `x | y` | b \| c |" -> ["a", "`x | y`", "b \| c"]: a pipe inside a code span or
@@ -260,6 +412,17 @@ namespace MarkSmith.Services
                 }
             }
 
+            var arith = ArithmeticFormulaRegex.Match(trimmed);
+            if (arith.Success && TryEvaluateArithmetic(arith.Groups["expr"].Value, grid, maxRows, maxCols, out result))
+            {
+                string fmt = arith.Groups["fmt"].Success ? arith.Groups["fmt"].Value : "";
+                formattedResult = FormatNumber(result, fmt);
+                // Word's table formula fields take the same A1 arithmetic.
+                var expr = Regex.Replace(arith.Groups["expr"].Value, @"\s+", "").ToUpperInvariant();
+                formulaInstruction = string.IsNullOrEmpty(fmt) ? $"={expr}" : $"={expr} \\# \"{fmt.Trim('"', '\'')}\"";
+                return true;
+            }
+
             return false;
         }
 
@@ -274,6 +437,12 @@ namespace MarkSmith.Services
             val = 0;
             if (string.IsNullOrWhiteSpace(text)) return false;
             var s = text.Trim();
+            // Only a number reads as one: a formula ("=B2*C2" is not 22), a label ("Q1" is not 1)
+            // or a date-like code stays text. Currency signs, %, spaces and brackets are allowed.
+            foreach (var ch in s)
+                if (!(char.IsDigit(ch) || ch is '.' or ',' or '-' or '+' or '%' or '(' or ')' or ' ' or ' '
+                      || CharUnicodeInfo.GetUnicodeCategory(ch) == UnicodeCategory.CurrencySymbol))
+                    return false;
 
             // Negative in parentheses e.g. (100) or ($100)
             bool isNegative = false;

@@ -185,7 +185,11 @@ public sealed class PdfExportService
             css.push('html, body { width: {{pageWidthPx}}px !important; }');
             const style = document.createElement('style');
             style.textContent = css.join('\n');
-            document.head.appendChild(style);
+            // Last in the document, not in <head>: a block's own <style> in the body (tabs) holds
+            // screen rules of the same specificity, and the copy must come after them to win, as
+            // the print rule does when it prints. In <head> the tab strip stayed in the measure,
+            // the panel titles stayed out, and the page ended short of the last lines.
+            (document.body || document.head).appendChild(style);
             return Math.ceil(document.documentElement.scrollHeight);
         })();
         """;

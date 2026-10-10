@@ -189,6 +189,7 @@ public sealed partial class DocxExportService
             markdown = AdmonitionNormalizer.Apply(markdown);
             markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
             markdown = DiagramFenceSniffer.Apply(markdown);
+            markdown = MarkdownHtmlService.CiteReferencesAsText(markdown);
             
             var pipelineFeatures = AdvancedFeaturePipeline.Shared;
             var docId = AdvancedFeaturePipeline.ContentBasedDocumentId(markdown);
@@ -276,7 +277,9 @@ public sealed partial class DocxExportService
             {
                 if (featNode.Detector.FeatureName == "Watermark")
                     ctx.Watermark = ExtractWatermark(featNode, ContrastGuard.EnsureLegibleText(ctx.Theme.Text, ctx.Theme.Background).TrimStart('#'));
-                else if (featNode.Detector.FeatureName == "LineNumbers")
+                // Only the empty form numbers the whole document; a block with lines numbers just
+                // its own section (RenderLineNumbers), which this used to spread to every page.
+                else if (featNode.Detector.FeatureName == "LineNumbers" && string.IsNullOrWhiteSpace(featNode.InnerContent))
                     ctx.LineNumbers = ExtractLineNumbers(featNode);
                 else if (featNode.Detector.FeatureName == "CoverPage")
                     ctx.CoverPage = ExtractCoverPage(featNode);
@@ -434,6 +437,7 @@ public sealed partial class DocxExportService
         markdown = AdmonitionNormalizer.Apply(markdown);
         markdown = DialectNormalizer.Apply(markdown);
         markdown = DiagramFenceSniffer.Apply(markdown);
+        markdown = MarkdownHtmlService.CiteReferencesAsText(markdown);
 
         var pipelineFeatures = AdvancedFeaturePipeline.Shared;
         var docId = AdvancedFeaturePipeline.ContentBasedDocumentId(markdown);
@@ -577,6 +581,9 @@ public sealed partial class DocxExportService
         public WatermarkInfo? Watermark { get; set; }
         public LineNumbersInfo? LineNumbers { get; set; }
         public CoverPageInfo? CoverPage { get; set; }
+        /// <summary>Word document variables from :::ai-context blocks (MARKSMITH_AI_*), written by
+        /// <see cref="AddSettings"/> into the one settings part a package may hold.</summary>
+        public Dictionary<string, string> AiContextVariables { get; } = new(StringComparer.Ordinal);
 
         public int NextCommentId = 1;
         // Real Word footnotes: the Markdig note -> its w:footnote id and the number Word prints.
@@ -2362,8 +2369,8 @@ public sealed partial class DocxExportService
     /// 2. Active tab has accent background shading (#EBF3FE / ctx.SecondaryHex) with bold title.
     /// 3. Inactive tabs have light/muted background shading (#F8F9FA) with standard title text.
     /// 4. Tab header titles are wrapped in W.Hyperlink anchors pointing to tab section bookmarks.
-    /// 5. Each tab section heading is rendered with W.OutlineLevel (Val = 8) and W15.DefaultCollapsed
-    ///    (Val = false / 0 for active tab, Val = true / 1 for inactive tabs).
+    /// 5. Each tab section heading is rendered with W.OutlineLevel (Val = 8), never collapsed: Word
+    ///    drops a collapsed heading's content when it prints or saves to PDF.
     /// 6. Child Markdown body blocks are rendered under each tab section heading.
     /// </summary>
     private static void RenderTabs(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
@@ -2474,8 +2481,9 @@ public sealed partial class DocxExportService
                     Fill = isActive ? ctx.BackgroundHex : ctx.SecondaryHex
                 },
                 new W.SpacingBetweenLines { Before = "160", After = "80" },
-                new W.OutlineLevel { Val = 8 },
-                new W15.DefaultCollapsed { Val = !isActive }
+                new W.OutlineLevel { Val = 8 }
+                // No w15:defaultCollapsed: Word folds a collapsed heading's content away and
+                // prints/saves to PDF without it, so every tab but the first vanished on paper.
             );
 
             var heading = new W.Paragraph(tabPPr);
@@ -2621,26 +2629,11 @@ public sealed partial class DocxExportService
             }
         }
 
-        // --- Inject as Document Variables into the Settings part ---
-        var settingsPart = ctx.MainPart.DocumentSettingsPart;
-        if (settingsPart == null)
-        {
-            settingsPart = ctx.MainPart.AddNewPart<DocumentSettingsPart>();
-            settingsPart.Settings = new W.Settings();
-        }
-        var settings = settingsPart.Settings;
-        var docVars = settings.GetFirstChild<W.DocumentVariables>() ?? settings.AppendChild(new W.DocumentVariables());
-
+        // --- Document Variables, written with the rest of the settings at the end ---
+        // (Creating the settings part here made AddSettings add a second one, which OpenXML
+        // refuses: every Word export with an AI context block failed.)
         foreach (var kv in kvPairs)
-        {
-            var varName = $"MARKSMITH_AI_{kv.Key.ToUpperInvariant().Replace(' ', '_')}";
-            var existing = docVars.Elements<W.DocumentVariable>()
-                .FirstOrDefault(v => v.Name?.Value == varName);
-            if (existing != null)
-                existing.Val = kv.Value;
-            else
-                docVars.AppendChild(new W.DocumentVariable { Name = varName, Val = kv.Value });
-        }
+            ctx.AiContextVariables[$"MARKSMITH_AI_{kv.Key.ToUpperInvariant().Replace(' ', '_')}"] = kv.Value;
 
         // --- Render a styled metadata panel in the document body ---
         // Header bar
@@ -2968,20 +2961,43 @@ public sealed partial class DocxExportService
         using (var writer = new System.IO.StreamWriter(stream))
             writer.Write(sources.ToString(System.Xml.Linq.SaveOptions.DisableFormatting));
 
-        var heading = new W.Paragraph(new W.ParagraphProperties(
-            new W.ParagraphStyleId { Val = "Heading2" },
-            new W.SpacingBetweenLines { Before = "240", After = "120" }));
-        AddText(heading, "📚 Bibliography", new Fmt { Bold = true });
-        target.Append(heading);
+        // The preview's heading, unless the author already titled the block ("## References").
+        // (MarkdownHtmlService.CiteReferencesAsText marks such a block titled="true".)
+        if (!node.Attributes.ContainsKey("titled"))
+        {
+            var heading = new W.Paragraph(new W.ParagraphProperties(
+                new W.ParagraphStyleId { Val = "Heading2" },
+                new W.SpacingBetweenLines { Before = "240", After = "120" }));
+            AddText(heading, "Bibliography", new Fmt { Bold = true });
+            target.Append(heading);
+        }
 
-        var bibPara = new W.Paragraph();
-        bibPara.Append(
-            new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Begin }),
-            new W.Run(new W.FieldCode(" BIBLIOGRAPHY \\l 1033 ") { Space = SpaceProcessingModeValues.Preserve }),
-            new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Separate }),
-            new W.Run(new W.Text($"[{parsedTags.Count} sources — update fields to render bibliography]")),
-            new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.End }));
-        target.Append(bibPara);
+        // Word's BIBLIOGRAPHY field rebuilds the list from the sources part when fields update;
+        // until then (and in any viewer that never updates fields) its result is the list itself,
+        // written the way the preview writes it, not a "[2 sources — update fields…]" placeholder.
+        var entries = ContainerBlockParsers.ParseReferences(node.InnerContent.Replace("\r", ""));
+        if (entries.Count == 0) return;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            var r = entries[i];
+            var p = new W.Paragraph(new W.ParagraphProperties(
+                new W.SpacingBetweenLines { Before = "0", After = "120" },
+                new W.Indentation { Left = "720", Hanging = "720" }));
+            if (i == 0)
+                p.Append(
+                    new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Begin }),
+                    new W.Run(new W.FieldCode(" BIBLIOGRAPHY \\l 1033 ") { Space = SpaceProcessingModeValues.Preserve }),
+                    new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Separate }));
+            var lead = (r.Author.Length > 0 ? r.Author + " " : "")
+                + (r.Year.Length > 0 ? $"({r.Year}). " : r.Author.Length > 0 ? "(n.d.). " : "");
+            if (lead.Length > 0) AddText(p, lead, new Fmt());
+            if (r.Title.Length > 0) AddText(p, r.Title + ". ", new Fmt { Italic = true });
+            if (r.Journal.Length > 0) AddText(p, r.Journal + ". ", new Fmt());
+            if (r.Url.Length > 0) AddText(p, r.Url, new Fmt());
+            if (i == entries.Count - 1)
+                p.Append(new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.End }));
+            target.Append(p);
+        }
     }
 
     /// <summary>
@@ -4054,19 +4070,9 @@ public sealed partial class DocxExportService
             }
         }
 
-        // Evaluate formula cells
-        for (int r = 0; r < rowCount; r++)
-        {
-            for (int c = 0; c < colCount; c++)
-            {
-                var txt = cellTexts[r, c];
-                if (TableFormulaEvaluator.TryEvaluateCell(txt, r, c, numGrid, rowCount, colCount, out double res, out _, out _))
-                {
-                    numGrid[r, c] = res;
-                    ctx.HasFormulas = true;
-                }
-            }
-        }
+        // Evaluate formula cells (in dependency order, same as the preview).
+        var formulas = TableFormulaEvaluator.EvaluateAll(cellTexts, numGrid);
+        if (formulas.Count > 0) ctx.HasFormulas = true;
 
         // Column widths that fit between the margins (A4's are narrower than Letter's).
         // A column holding a picture asks for as much room as a long line of text, so the picture
@@ -4118,13 +4124,11 @@ public sealed partial class DocxExportService
 
                 if (row[c] is MdTableCell mdCell)
                 {
-                    var txt = cellTexts[rIdx, c];
-                    if (TableFormulaEvaluator.TryEvaluateCell(txt, rIdx, c, numGrid, rowCount, colCount, out _, out string formatted, out string instr))
+                    if (formulas.TryGetValue((rIdx, c), out var formula))
                     {
-                        ctx.HasFormulas = true;
                         var p = new W.Paragraph();
-                        var fld = new W.SimpleField { Instruction = instr };
-                        var r = new W.Run(new W.Text(formatted) { Space = SpaceProcessingModeValues.Preserve });
+                        var fld = new W.SimpleField { Instruction = formula.Instruction };
+                        var r = new W.Run(new W.Text(formula.Formatted) { Space = SpaceProcessingModeValues.Preserve });
                         fld.Append(r);
                         p.Append(fld);
                         wCell.Append(p);
@@ -4877,7 +4881,12 @@ public sealed partial class DocxExportService
             if (!string.IsNullOrWhiteSpace(term))
             {
                 ctx.HasIndex = true;
-                target.Append(new W.SimpleField { Instruction = $"XE \"{term}\"" });
+                // A complex field (begin / code / end, no result), as Word writes XE itself. An
+                // empty <w:fldSimple> XE made Word scramble the paragraph around it: its sentences
+                // printed in reverse order, styled as a heading.
+                target.Append(new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Begin }));
+                target.Append(new W.Run(new W.FieldCode($" XE \"{term.Replace("\"", "")}\" ") { Space = SpaceProcessingModeValues.Preserve }));
+                target.Append(new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.End }));
             }
             if (!selfClosing) { stack.Push(current); current = current with { Hidden = true }; }
             return;
@@ -5560,9 +5569,9 @@ public sealed partial class DocxExportService
             Val = "15",
         }));
 
+        var docVars = new W.DocumentVariables();
         if (ctx.CoverPage is { } cp)
         {
-            var docVars = new W.DocumentVariables();
             if (!string.IsNullOrWhiteSpace(cp.Title))
                 docVars.Append(new W.DocumentVariable { Name = "Title", Val = cp.Title });
             if (!string.IsNullOrWhiteSpace(cp.Author))
@@ -5573,8 +5582,11 @@ public sealed partial class DocxExportService
                 docVars.Append(new W.DocumentVariable { Name = "Date", Val = cp.Date });
             if (!string.IsNullOrWhiteSpace(cp.Version))
                 docVars.Append(new W.DocumentVariable { Name = "Version", Val = cp.Version });
-            settings.Append(docVars);
         }
+        foreach (var (name, val) in ctx.AiContextVariables)
+            docVars.Append(new W.DocumentVariable { Name = name, Val = val });
+        if (docVars.HasChildren)
+            settings.Append(docVars);
 
         part.Settings = settings;
     }
@@ -6090,33 +6102,56 @@ public sealed partial class DocxExportService
     }
     private static void RenderDatagrid(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
     {
-        var lines = (node.InnerContent ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-        if (lines.Length == 0) return;
+        // Same rows as the preview: quoted CSV cells stay whole, pipe rows work, short rows pad.
+        var rows = ContainerBlockParsers.ParseDatagrid((node.InnerContent ?? "").Replace("\r", ""));
+        if (rows.Count == 0) return;
+        var headFill = (ctx.Theme.Primary ?? "#F3F4F6").TrimStart('#');
+        var headInk = ContrastGuard.GetContrastRatio("#ffffff", "#" + headFill) >= ContrastGuard.GetContrastRatio("#111111", "#" + headFill) ? "FFFFFF" : "111111";
+        var cols = rows[0].Length;
+        var numeric = new bool[cols];
+        for (int c = 0; c < cols; c++)
+            numeric[c] = rows.Count > 1 && rows.Skip(1).All(r => r[c].Length == 0 || ContainerBlockParsers.LooksNumeric(r[c])) && rows.Skip(1).Any(r => r[c].Length > 0);
 
         var table = new W.Table(
             new W.TableProperties(
                 new W.TableStyle { Val = "TableGrid" },
                 new W.TableWidth { Width = "5000", Type = W.TableWidthUnitValues.Pct },
+                // The export defines no "TableGrid" style, so the grid's lines and padding are
+                // spelled out (cells ran together: "12%Avery").
+                new W.TableBorders(
+                    new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Space = 0, Color = ctx.BorderHex },
+                    new W.LeftBorder { Val = W.BorderValues.Single, Size = 4, Space = 0, Color = ctx.BorderHex },
+                    new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = 0, Color = ctx.BorderHex },
+                    new W.RightBorder { Val = W.BorderValues.Single, Size = 4, Space = 0, Color = ctx.BorderHex },
+                    new W.InsideHorizontalBorder { Val = W.BorderValues.Single, Size = 4, Space = 0, Color = ctx.BorderHex },
+                    new W.InsideVerticalBorder { Val = W.BorderValues.Single, Size = 4, Space = 0, Color = ctx.BorderHex }),
+                new W.TableCellMarginDefault(
+                    new W.TopMargin { Width = "60", Type = W.TableWidthUnitValues.Dxa },
+                    new W.LeftMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
+                    new W.BottomMargin { Width = "60", Type = W.TableWidthUnitValues.Dxa },
+                    new W.RightMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa }),
                 new W.TableLook { Val = "04A0", FirstRow = true, LastRow = false, FirstColumn = true, LastColumn = false, NoHorizontalBand = false, NoVerticalBand = true }
             ));
         
         bool isHeader = true;
-        foreach (var line in lines)
+        foreach (var cells in rows)
         {
-            var cells = line.Split(new[] { ',', '\t' });
             var row = new W.TableRow();
-            foreach (var cellText in cells)
+            for (int c = 0; c < cells.Length; c++)
             {
+                var cellText = cells[c];
                 var tc = new W.TableCell(
                     new W.TableCellProperties(
                         new W.TableCellWidth { Width = "0", Type = W.TableWidthUnitValues.Auto },
-                        new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = isHeader ? (ctx.Theme.Primary?.TrimStart('#') ?? "F3F4F6") : "FFFFFF" }
+                        new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = isHeader ? headFill : "FFFFFF" }
                     ),
                     new W.Paragraph(
-                        new W.ParagraphProperties(new W.SpacingBetweenLines { After = "120" }),
+                        new W.ParagraphProperties(
+                            new W.SpacingBetweenLines { Before = "0", After = "0" },
+                            new W.Justification { Val = numeric[c] ? W.JustificationValues.Right : W.JustificationValues.Left }),
                         new W.Run(
                             new W.RunProperties(
-                                new W.Color { Val = isHeader ? "FFFFFF" : (ctx.Theme.Text.TrimStart('#') ?? "000000") },
+                                new W.Color { Val = isHeader ? headInk : ContrastGuard.EnsureLegibleText(ctx.Theme.Text, "#FFFFFF").TrimStart('#') },
                                 new W.Bold { Val = isHeader ? new DocumentFormat.OpenXml.OnOffValue(true) : new DocumentFormat.OpenXml.OnOffValue(false) }
                             ),
                             new W.Text(cellText.Trim())
