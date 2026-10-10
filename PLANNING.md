@@ -5483,3 +5483,7 @@ pictures and alt text as the API path, status bar "EPUB saved" with Open / Show 
 2. Carried over: continuous-page PDF default (run #59), for the user; real Windows light/dark switch
    with a person present; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
    flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
+
+**Release (same run):** tagged **v3.23.0** on `731e82c` after CI passed on `b0f807a`. Release
+workflow built the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body
+with `---`. `MarksmithBaseVersion` is now **3.24.0**.
