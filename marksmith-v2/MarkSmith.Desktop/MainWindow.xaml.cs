@@ -1108,10 +1108,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void ApplyUndoSnapshot(Services.UndoSnapshot snap)
     {
-        PasteTextBox.Text = snap.Text; // binding round-trip is deduped by the history service
+        PasteTextBox.Text = snap.Text;
         PasteTextBox.SelectionStart = Math.Clamp(snap.Caret, 0, PasteTextBox.Text.Length);
         PasteTextBox.SelectionLength = 0;
         ViewModel.EditorCaret = PasteTextBox.SelectionStart;
+        SyncDocumentFromEditor();
+        UpdateCursorPosition();
+        if (FindBar.Visibility == Visibility.Visible) RecomputeFindMatches(keepPosition: true);
         _ = RefreshPreviewAsync(); // undo/redo changes the source — keep the preview honest
     }
 
@@ -2246,6 +2249,28 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         DropZoneIcon.Opacity = _dropZonePointerOver ? 0.9 : 0.7;
     }
 
+    private void OnInputFileTextBoxTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (InputFileTextBox is null) return;
+        var candidate = (InputFileTextBox.Text ?? string.Empty).Trim().Trim('"');
+        if (string.IsNullOrEmpty(candidate) || File.Exists(candidate))
+        {
+            if (ViewModel.InputFilePath != candidate)
+                ViewModel.InputFilePath = candidate;
+        }
+    }
+
+    private void OnInputFileTextBoxKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter && InputFileTextBox is not null)
+        {
+            var candidate = (InputFileTextBox.Text ?? string.Empty).Trim().Trim('"');
+            if (InputFileTextBox.Text != candidate) InputFileTextBox.Text = candidate;
+            ViewModel.InputFilePath = candidate;
+            e.Handled = true;
+        }
+    }
+
     private void OnDropZonePointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         _dropZonePointerOver = true;
@@ -2261,6 +2286,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnDropZonePointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
+        if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse
+            && !e.GetCurrentPoint(DropZone).Properties.IsLeftButtonPressed)
+            return;
         if (IsInsideButton(e.OriginalSource as DependencyObject)) return;
         _dropZonePointerPressed = true;
         UpdateDropZoneVisual();
@@ -2290,6 +2318,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (e.DataView.Contains(StandardDataFormats.StorageItems))
         {
+            e.Handled = true;
             e.AcceptedOperation = DataPackageOperation.Copy;
             if (e.DragUIOverride is not null)
             {
@@ -2318,6 +2347,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             UpdateDropZoneVisual();
         }
         if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
+        e.Handled = true;
 
         var items = await e.DataView.GetStorageItemsAsync();
         // Markdown, plus everything the importers turn into Markdown (Word, PDF, HTML, email and
@@ -2358,6 +2388,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private async void OnWindowDrop(object sender, DragEventArgs e)
     {
         if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
+        e.Handled = true;
         var items = await e.DataView.GetStorageItemsAsync();
         var docs = items.OfType<StorageFile>().Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
         if (docs.Count == 0) return;
@@ -2378,6 +2409,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (e.DataView.Contains(StandardDataFormats.StorageItems))
         {
+            e.Handled = true;
             e.AcceptedOperation = DataPackageOperation.Copy;
             if (e.DragUIOverride is not null)
                 e.DragUIOverride.Caption = "Drop to open document or embed image";
@@ -2387,6 +2419,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private async void OnEditorDrop(object sender, DragEventArgs e)
     {
         if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
+        e.Handled = true;
         var items = await e.DataView.GetStorageItemsAsync();
 
         // 1. Check for documents first (Markdown or supported text formats)
@@ -4177,7 +4210,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         RecomputeFindMatches();
         // Start from the caret: the first match at or after it is "current".
         _findMatchIndex = _findMatches.Count == 0 ? -1 : Math.Max(0, _findMatches.FindIndex(m => m >= PasteTextBox.SelectionStart));
-        UpdateFindCount();
+        if (_findMatchIndex >= 0) SelectFindMatch(keepFindFocus: false);
+        else UpdateFindCount();
 
         if (replace && FindTextBox.Text.Length > 0)
         {
@@ -4189,6 +4223,18 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             FindTextBox.Focus(FocusState.Programmatic);
             FindTextBox.SelectAll();
         }
+    }
+
+    private bool EnsureUnfoldedForFind()
+    {
+        var focused = FindBar?.Visibility == Visibility.Visible
+            ? (ReplaceTextBox?.FocusState != FocusState.Unfocused ? (Control?)ReplaceTextBox
+               : FindTextBox?.FocusState != FocusState.Unfocused ? FindTextBox : null)
+            : null;
+        if (!UnfoldAll()) return false;
+        focused?.Focus(FocusState.Programmatic);
+        RecomputeFindMatches();
+        return true;
     }
 
     // Find, insert and format commands act on the editor; from Preview view bring it back (Split
@@ -4249,6 +4295,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Typing a query jumps to the first match from the caret (search-as-you-type).
     private void OnFindTextChanged(object sender, TextChangedEventArgs e)
     {
+        EnsureUnfoldedForFind();
         RecomputeFindMatches();
         if (_suppressFindJump || _findMatches.Count == 0) return;
         var caret = PasteTextBox.SelectionStart;
@@ -4268,15 +4315,30 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // Rebuild the match list for the current query and refresh the "3 of 12" readout.
     // keepPosition (used while the user edits with the bar open) keeps the current match.
-    private void RecomputeFindMatches(bool keepPosition = false)
+    private void RecomputeFindMatches(bool keepPosition = false, int anchorOffset = -1)
     {
-        var previous = keepPosition && _findMatchIndex >= 0 && _findMatchIndex < _findMatches.Count
-            ? _findMatches[_findMatchIndex] : -1;
+        var previous = anchorOffset >= 0 ? anchorOffset
+            : keepPosition && _findMatchIndex >= 0 && _findMatchIndex < _findMatches.Count
+                ? _findMatches[_findMatchIndex] : -1;
+        var text = PasteTextBox?.Text ?? string.Empty;
+        var query = FindTextBox?.Text ?? string.Empty;
+        var cmp = FindComparison;
         _findMatches.Clear();
         _findMatchIndex = -1;
-        _findMatches.AddRange(MarkSmith.Services.TextSearch.FindAll(
-            PasteTextBox?.Text ?? string.Empty, FindTextBox?.Text ?? string.Empty, FindComparison));
-        if (previous >= 0 && _findMatches.Count > 0)
+        _findMatches.AddRange(MarkSmith.Services.TextSearch.FindAll(text, query, cmp));
+        if (previous >= 0 && query.Length > 0
+            && previous + query.Length <= text.Length
+            && string.Compare(text, previous, query, 0, query.Length, cmp) == 0
+            && !_findMatches.Contains(previous))
+        {
+            // `previous` is a valid match shadowed in FindAll by an earlier overlapping match
+            // (e.g. after replacing the first "aa" in "aaaaaa" with "a", `previous` is 1).
+            _findMatches.RemoveAll(m => m > previous - query.Length);
+            _findMatchIndex = _findMatches.Count;
+            foreach (var m in MarkSmith.Services.TextSearch.FindAll(text.Substring(previous), query, cmp))
+                _findMatches.Add(previous + m);
+        }
+        else if (previous >= 0 && _findMatches.Count > 0)
         {
             var i = _findMatches.FindIndex(m => m >= previous);
             _findMatchIndex = i < 0 ? _findMatches.Count - 1 : i;
@@ -4299,6 +4361,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             hasQuery && count == 0 ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(FindCountText, FindCountText.Text);
 
+        // If a button that is about to be disabled owns focus, move focus to FindTextBox first so
+        // WinUI doesn't kick focus to the window's first tab stop ("Start free trial").
+        if (count == 0 && (FindPrevButton.FocusState != FocusState.Unfocused
+            || FindNextButton.FocusState != FocusState.Unfocused
+            || ReplaceOneButton.FocusState != FocusState.Unfocused
+            || ReplaceAllButton.FocusState != FocusState.Unfocused))
+        {
+            FindTextBox?.Focus(FocusState.Programmatic);
+        }
+
         // Dead buttons look dead: nothing to step through or replace without a match.
         FindPrevButton.IsEnabled = FindNextButton.IsEnabled = count > 0;
         ReplaceOneButton.IsEnabled = ReplaceAllButton.IsEnabled = count > 0;
@@ -4312,11 +4384,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // end of the document says so on the status line, like Notepad, instead of silently jumping.
     private void StepFind(bool forward)
     {
+        EnsureUnfoldedForFind();
         if (_findMatches.Count == 0) { UpdateFindCount(); return; }
         // If the user has moved the caret since the last match, carry on from the caret (past any
         // selection), not from the old match.
         var current = _findMatchIndex;
-        if (current >= 0 && current < _findMatches.Count && PasteTextBox.SelectionStart != _findMatches[current])
+        var queryLen = (FindTextBox?.Text ?? string.Empty).Length;
+        if (current >= 0 && current < _findMatches.Count
+            && (PasteTextBox.SelectionStart != _findMatches[current] || PasteTextBox.SelectionLength != queryLen))
             current = -1;
         var caret = forward ? PasteTextBox.SelectionStart + PasteTextBox.SelectionLength : PasteTextBox.SelectionStart;
         var (index, wrapped) = forward
@@ -4408,6 +4483,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Replace the current match (when the editor's selection is it), then go to the next one.
     private void OnReplaceClick(object sender, RoutedEventArgs e)
     {
+        EnsureUnfoldedForFind();
         var query = FindTextBox?.Text ?? string.Empty;
         if (query.Length == 0) return;
         var replacement = ReplaceTextBox?.Text ?? string.Empty;
@@ -4422,33 +4498,43 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             ViewModel.BreakUndoBurst();
             PasteTextBox.SelectedText = replacement; // swaps the selected match in place
+            selStart += replacement.Length;
+            ViewModel.EditorCaret = selStart;
             SyncDocumentFromEditor();
             ViewModel.BreakUndoBurst();
-            selStart += replacement.Length;
             text = PasteTextBox.Text ?? string.Empty;
         }
 
         // Continue from just after the replacement, wrapping to the top if needed.
         var from = Math.Clamp(selStart, 0, text.Length);
-        var next = text.IndexOf(query, from, cmp);
-        if (next < 0) next = text.IndexOf(query, 0, cmp);
-
-        RecomputeFindMatches();
-        if (next >= 0)
+        var nextAt = text.IndexOf(query, from, cmp);
+        var wrapped = false;
+        if (nextAt < 0 && from > 0)
         {
-            _findMatchIndex = _findMatches.IndexOf(next);
+            nextAt = text.IndexOf(query, 0, cmp);
+            wrapped = nextAt >= 0;
+        }
+        RecomputeFindMatches(anchorOffset: nextAt);
+        if (nextAt >= 0 && _findMatchIndex >= 0)
+        {
             SelectFindMatch(keepFindFocus: true);
+            if (wrapped && !isMatch)
+                ViewModel.StatusText = "Reached the end of the document; continued from the top.";
         }
         else
         {
-            ViewModel.StatusText = "Replaced the last match.";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+            PasteTextBox.Focus(FocusState.Programmatic);
+            PasteTextBox.Select(from, 0);
+            UpdateCursorPosition();
+            ViewModel.StatusText = isMatch ? "Replaced the last match." : "No matches to replace.";
+            ViewModel.StatusSeverity = isMatch ? Models.StatusSeverity.Success : Models.StatusSeverity.Informational;
         }
     }
 
     // Replace every match in the document in one pass (one undo step).
     private void OnReplaceAllClick(object sender, RoutedEventArgs e)
     {
+        EnsureUnfoldedForFind();
         var query = FindTextBox?.Text ?? string.Empty;
         if (query.Length == 0) return;
         var replacement = ReplaceTextBox?.Text ?? string.Empty;
@@ -4461,11 +4547,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             // caret (moved through the edit) and the scroll position where the user was.
             var sv = FindEditorScrollViewer();
             var offset = sv?.VerticalOffset ?? 0;
+            var clampedCaret = Math.Clamp(caret, 0, newText.Length);
             ViewModel.BreakUndoBurst(); // Replace All must undo as its own step
             PasteTextBox.Text = newText;
+            ViewModel.EditorCaret = clampedCaret;
             SyncDocumentFromEditor();
             ViewModel.BreakUndoBurst();
-            PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
+            PasteTextBox.Focus(FocusState.Programmatic);
+            PasteTextBox.Select(clampedCaret, 0);
             UpdateCursorPosition();
             if (sv is not null)
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
@@ -5920,6 +6009,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 {
                     ViewModel.BreakUndoBurst();
                     ViewModel.CurrentMarkdown = draft;
+                    ViewModel.BreakUndoBurst();
                     File.Delete(RecoveryPath);
                     await RefreshPreviewAsync(heavy: true);
                 }
@@ -5952,6 +6042,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             {
                 ViewModel.BreakUndoBurst(); // restoring the draft must undo as its own step
                 ViewModel.CurrentMarkdown = content;
+                ViewModel.BreakUndoBurst();
                 ViewModel.StatusText = "Unsaved document restored from your last session.";
                 ViewModel.StatusSeverity = Models.StatusSeverity.Success;
                 await RefreshPreviewAsync(heavy: true);
@@ -6075,6 +6166,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             tb.Select(plan.Start + inBlock, select.Length);
         else
             tb.Select(Math.Clamp(plan.CaretStart, 0, length), Math.Clamp(plan.CaretLength, 0, Math.Max(0, length - plan.CaretStart)));
+        ViewModel.EditorCaret = tb.SelectionStart;
+        SyncDocumentFromEditor();
         ViewModel.BreakUndoBurst();
         tb.Focus(FocusState.Programmatic);
         _editorCaretPlaced = true;
@@ -6392,8 +6485,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var length = (tb.Text ?? "").Length;
         var start = Math.Clamp(edit.SelectionStart, 0, length);
         tb.Select(start, Math.Clamp(edit.SelectionLength, 0, length - start));
-        tb.Focus(FocusState.Programmatic);
+        ViewModel.EditorCaret = tb.SelectionStart;
+        SyncDocumentFromEditor();
         ViewModel.BreakUndoBurst();
+        tb.Focus(FocusState.Programmatic);
     }
 
     // Ctrl+B / Ctrl+I / Ctrl+1-4 (editor-scoped accelerators, listed in Core's KeyboardShortcuts).

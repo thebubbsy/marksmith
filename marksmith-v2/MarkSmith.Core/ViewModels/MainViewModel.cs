@@ -457,8 +457,13 @@ private readonly MarkdownExportService _mdExport = new();
         var token = _fileReadCts.Token;
 
         // Reflect whether the newly-selected file is one the user has pinned.
-        IsCurrentFilePinned = !string.IsNullOrWhiteSpace(value)
-            && _settingsService.Current.PinnedFiles.Contains(Path.GetFullPath(value), Services.PathEquality.Comparer);
+        string? fullPath = null;
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            try { fullPath = Path.GetFullPath(value); } catch { }
+        }
+        IsCurrentFilePinned = fullPath is not null
+            && _settingsService.Current.PinnedFiles.Contains(fullPath, Services.PathEquality.Comparer);
 
         _openFileStamp = null;
         if (!string.IsNullOrWhiteSpace(value) && File.Exists(value))

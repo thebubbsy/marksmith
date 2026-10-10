@@ -129,4 +129,57 @@ public class TextSearchTests
         Assert.Equal(("hello", 0, 0), TextSearch.ReplaceAll("hello", "", "x", Any, -5));
         Assert.Equal(("hello", 0, 5), TextSearch.ReplaceAll("hello", "", "x", Any, 99));
     }
+
+    [Fact]
+    public void Next_after_single_replace_in_overlapping_run_resolves_valid_match_index()
+    {
+        // Replacing the first "aa" in "aaaa" with "a" leaves "aaa" with caret at 1;
+        // FindAll("aaa", "aa") is [0], and Next([0], -1, 1) must wrap to index 0 rather than -1.
+        var matches = TextSearch.FindAll("aaa", "aa", Any);
+        Assert.Equal(new[] { 0 }, matches);
+        Assert.Equal((0, true), TextSearch.Next(matches, -1, 1));
+    }
+
+    [Fact]
+    public void InputFilePath_with_invalid_path_characters_or_quotes_does_not_throw()
+    {
+        var vm = new MarkSmith.ViewModels.MainViewModel();
+        var ex = Record.Exception(() =>
+        {
+            vm.InputFilePath = "\"C:\\nonexistent\\quoted.md\"";
+            vm.InputFilePath = "C:\\bad:path|<>\"*?.md";
+        });
+        Assert.Null(ex);
+        Assert.False(vm.HasInputFile);
+        Assert.False(vm.IsCurrentFilePinned);
+    }
+
+    [Fact]
+    public void ReplaceAll_undo_and_redo_round_trips_text_and_clamped_caret()
+    {
+        var vm = new MarkSmith.ViewModels.MainViewModel();
+        vm.CurrentMarkdown = "alpha one alpha two";
+        vm.EditorCaret = 6;
+        vm.BreakUndoBurst();
+
+        var (newText, count, caret) = TextSearch.ReplaceAll(vm.CurrentMarkdown, "alpha", "BETA", Any, vm.EditorCaret);
+        Assert.Equal(2, count);
+        var clampedCaret = Math.Clamp(caret, 0, newText.Length);
+
+        vm.BreakUndoBurst();
+        vm.EditorCaret = clampedCaret;
+        vm.CurrentMarkdown = newText;
+        vm.BreakUndoBurst();
+
+        var undoSnap = vm.UndoStep();
+        Assert.NotNull(undoSnap);
+        Assert.Equal("alpha one alpha two", undoSnap!.Text);
+        vm.EditorCaret = undoSnap.Caret;
+        vm.CurrentMarkdown = undoSnap.Text;
+
+        var redoSnap = vm.RedoStep();
+        Assert.NotNull(redoSnap);
+        Assert.Equal("BETA one BETA two", redoSnap!.Text);
+        Assert.Equal(clampedCaret, redoSnap.Caret);
+    }
 }

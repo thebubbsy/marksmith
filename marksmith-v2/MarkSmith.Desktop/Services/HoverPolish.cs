@@ -239,15 +239,19 @@ public static class HoverPolish
         }
         else if (root is NumberBox nb)
         {
-            if ( string.IsNullOrWhiteSpace(AutomationProperties.GetName(nb))
-                 && nb.Header is null
-                 && ToolTipService.GetToolTip(nb) is string { Length: > 0 } nbTip)
+            if (string.IsNullOrWhiteSpace(AutomationProperties.GetName(nb))
+                && nb.Header is null
+                && ToolTipService.GetToolTip(nb) is string { Length: > 0 } nbTip)
             {
                 AutomationProperties.SetName(nb, nbTip);
             }
             SuppressNumberBoxClearButton(nb);
-            nb.Loaded += (_, _) => SuppressNumberBoxClearButton(nb);
-            nb.GotFocus += (_, _) => SuppressNumberBoxClearButton(nb);
+            if (!(bool)nb.GetValue(AttachedProperty))
+            {
+                nb.SetValue(AttachedProperty, true);
+                nb.Loaded += (_, _) => SuppressNumberBoxClearButton(nb);
+                nb.GotFocus += (_, _) => SuppressNumberBoxClearButton(nb);
+            }
         }
         else if (root is Expander expander
                  && string.IsNullOrWhiteSpace(AutomationProperties.GetName(expander))
@@ -324,6 +328,7 @@ public static class HoverPolish
         button.Opacity = 0;
         button.IsHitTestVisible = false;
         button.IsTabStop = false;
+        AutomationProperties.SetAccessibilityView(button, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
     }
 
     private static void AttachTo(ButtonBase button)

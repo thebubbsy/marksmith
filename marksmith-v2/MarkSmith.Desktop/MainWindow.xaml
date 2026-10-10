@@ -297,8 +297,9 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0" Header="Selected file" Text="{Binding InputFilePath, Mode=TwoWay}"
-                                         PlaceholderText="No file selected" IsSpellCheckEnabled="False" />
+                                <TextBox x:Name="InputFileTextBox" Grid.Column="0" Header="Selected file" Text="{Binding InputFilePath, Mode=TwoWay}"
+                                         PlaceholderText="No file selected" IsSpellCheckEnabled="False"
+                                         TextChanged="OnInputFileTextBoxTextChanged" KeyDown="OnInputFileTextBoxKeyDown" />
                                 <Button Grid.Column="2" VerticalAlignment="Bottom" Click="OnOpenHistoryClick" Padding="10,4"
                                         AutomationProperties.Name="Version history"
                                         ToolTipService.ToolTip="Version history: every saved version of this file (and of unsaved text), with what changed in each">
