@@ -1396,6 +1396,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
     private void RotateSelectionBy(int deltaDegrees)
     {
+        if (IsDense) return;
         var selected = SelectedItems.Where(s => s.PathPoints is not { Count: >= 2 }).ToList();
         if (selected.Count == 0)
         {

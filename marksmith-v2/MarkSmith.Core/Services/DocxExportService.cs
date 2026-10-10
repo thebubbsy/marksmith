@@ -205,6 +205,9 @@ public sealed partial class DocxExportService
                 var cursor = 0;
                 foreach (var node in featureNodes.OrderBy(n => n.Block.Start))
                 {
+                    var before = markdown[..node.Block.Start].TrimEnd();
+                    if (before[(before.LastIndexOf('\n') + 1)..].TrimStart().StartsWith('#'))
+                        node.Attributes["titled"] = "true";
                     marked.Append(markdown, cursor, node.Block.Start - cursor);
                     marked.Append("\n\n<!-- MARKSMITH_FEATURE:").Append(node.StableId).Append(" -->\n\n");
                     cursor = node.Block.End;
@@ -2111,11 +2114,17 @@ public sealed partial class DocxExportService
         else if (node.Attributes.TryGetValue("count", out var cntStr) && int.TryParse(cntStr, out int cntVal) && cntVal >= 1)
             cols = cntVal;
 
-        var titlePara = new W.Paragraph(new W.ParagraphProperties(
-            new W.ParagraphStyleId { Val = "Heading1" },
-            new W.SpacingBetweenLines { Before = "360", After = "180" }));
-        AddText(titlePara, "Index", new Fmt { Bold = true, FontSize = "36", Color = ctx.HeadingHex }, ctx);
-        target.Append(titlePara);
+        bool hasAuthorHeading = node.Attributes.ContainsKey("titled")
+            || (target.LastChild is W.Paragraph prevPara
+                && prevPara.ParagraphProperties?.ParagraphStyleId?.Val?.Value?.StartsWith("Heading", StringComparison.OrdinalIgnoreCase) == true);
+        if (!hasAuthorHeading)
+        {
+            var titlePara = new W.Paragraph(new W.ParagraphProperties(
+                new W.ParagraphStyleId { Val = "Heading1" },
+                new W.SpacingBetweenLines { Before = "360", After = "180" }));
+            AddText(titlePara, "Index", new Fmt { Bold = true, FontSize = "36", Color = ctx.HeadingHex }, ctx);
+            target.Append(titlePara);
+        }
 
         var indexPara = new W.Paragraph();
         var indexFld = new W.SimpleField
@@ -2134,7 +2143,7 @@ public sealed partial class DocxExportService
             var parts = uniqueTerms[i].Split(':').Select(p => p.Trim()).Where(p => p.Length > 0).ToArray();
             if (parts.Length == 0) continue;
             var run = new W.Run();
-            if (i > 0) run.Append(new W.Break());
+            if (indexFld.HasChildren) run.Append(new W.Break());
             var label = parts.Length == 1
                 ? parts[0]
                 : $"{parts[0]} — {string.Join(" › ", parts.Skip(1))}";

@@ -83,6 +83,8 @@ namespace MarkSmith.Views.ShapeStudio
             BuildResizeHandles();
             MarqueeRect.Fill = new SolidColorBrush(AccentColor(0x33));
             SetCursor(MainCanvas, Microsoft.UI.Input.InputSystemCursorShape.Arrow);
+            if (StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
             // Open with the canvas focused (no focus ring) so Ctrl+Z / Del work at once and the
             // first title-bar button doesn't come up wearing a keyboard-focus rectangle.
             this.RootGrid.Loaded += (_, _) => CanvasScroller.Focus(FocusState.Programmatic);
@@ -397,7 +399,7 @@ namespace MarkSmith.Views.ShapeStudio
                     ViewModel.SendBackwardCommand.Execute(null);
                     e.Handled = true;
                     return;
-                case VirtualKey.F2 when ViewModel.SelectedShape is not null:
+                case VirtualKey.F2 when ViewModel.SelectedShape is { IsLine: false }:
                     FocusLabelEditor();
                     e.Handled = true;
                     return;
@@ -724,7 +726,7 @@ namespace MarkSmith.Views.ShapeStudio
 
         private void FocusLabelEditor()
         {
-            if (ViewModel.SelectedShape is null || LabelTextBox is null) return;
+            if (ViewModel.SelectedShape is null || ViewModel.SelectedShape.IsLine || LabelTextBox is null) return;
             LabelTextBox.Focus(FocusState.Programmatic);
             LabelTextBox.SelectAll();
         }
@@ -914,12 +916,15 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (sender is Microsoft.UI.Xaml.Shapes.Path p)
             {
+                if (p.IsLoaded) return;
                 p.Unloaded -= OnShapePathUnloaded;
                 if (_pathItems.Remove(p, out var s))
                 {
                     if (_shapePaths.TryGetValue(s, out var current) && ReferenceEquals(current, p))
+                    {
                         _shapePaths.Remove(s);
-                    s.PropertyChanged -= OnShapeItemChanged;
+                        s.PropertyChanged -= OnShapeItemChanged;
+                    }
                 }
             }
         }

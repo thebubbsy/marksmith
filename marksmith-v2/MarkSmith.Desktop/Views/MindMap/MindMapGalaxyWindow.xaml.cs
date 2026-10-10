@@ -69,6 +69,14 @@ namespace MarkSmith.Views.MindMap
 
             // Closing used to throw away every unsaved change without a word.
             AppWindow.Closing += OnAppWindowClosing;
+
+            if (StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
+            {
+                AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
+                AutomationProperties.SetLiveSetting(StatusBarText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+            }
+            if (SearchMatchLabel != null)
+                AutomationProperties.SetName(SearchMatchLabel, ViewModel.SearchMatchText ?? "");
         }
 
         private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -91,7 +99,10 @@ namespace MarkSmith.Views.MindMap
                     break;
                 case nameof(MindMapStudioViewModel.StatusMessage):
                     if (StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
+                    {
                         AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
+                        AutomationProperties.SetLiveSetting(StatusBarText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+                    }
                     break;
                 case nameof(MindMapStudioViewModel.SearchMatchText):
                     if (SearchMatchLabel != null)

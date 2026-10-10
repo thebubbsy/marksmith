@@ -188,6 +188,8 @@ public class PreviewBlockSweepTests
     {
         var withHeading = Render("Pg^[index: \"Storage\"].\n\n## Index\n\n:::index\n:::\n");
         Assert.Contains("border-top: none", withHeading);
+        var docxWithHeading = MarkSmith.Core.Tests.E2ETestHelpers.ExportDocxXml("Pg^[index: \"Storage\"].\n\n## Index\n\n:::index\n:::\n");
+        Assert.Single(Regex.Matches(docxWithHeading, ">Index</w:t>"));
 
         var standalone = Render("Pg^[index: \"Storage\"].\n\n:::index\n:::\n");
         Assert.DoesNotContain("border-top: none", standalone);
