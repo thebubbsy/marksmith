@@ -4,9 +4,13 @@ using System.IO;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.System;
 using MarkSmith.Services;
 
 namespace MarkSmith.Views;
@@ -46,7 +50,18 @@ public sealed partial class SuiteHubView : UserControl
 
         _notificationTimer.Tick += (_, _) => { _notificationTimer.Stop(); Notification.IsOpen = false; };
         Unloaded += (_, _) => _notificationTimer.Stop();
+        AddHandler(KeyDownEvent, new KeyEventHandler(OnHubKeyDown), true);
         HoverPolish.Track(this);
+    }
+
+    private void OnHubKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Escape && Notification.IsOpen)
+        {
+            Notification.IsOpen = false;
+            _notificationTimer.Stop();
+            e.Handled = true;
+        }
     }
 
     private static string CliPath => Path.Combine(AppContext.BaseDirectory, "marksmith.exe");
@@ -107,6 +122,8 @@ public sealed partial class SuiteHubView : UserControl
         _notificationTimer.Stop();
         Notification.Message = message.TrimStart('✓', ' ');
         Notification.Severity = success ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
+        AutomationProperties.SetName(Notification, Notification.Message);
+        AutomationProperties.SetLiveSetting(Notification, AutomationLiveSetting.Assertive);
         Notification.IsOpen = true;
         // The hub scrolls in a short window; the result must land where it can be read.
         Notification.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = HoverPolish.AnimationsEnabled });

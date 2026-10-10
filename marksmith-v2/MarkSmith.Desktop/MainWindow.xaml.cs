@@ -6554,15 +6554,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 dialog.DefaultButton = ContentDialogButton.Primary;
             }
             configure?.Invoke(dialog);
+            bool primaryCommitted = false;
             if (content is Views.InsertDialogBody body)
             {
                 // Insert stays disabled while the values can't make a usable block (the body says
                 // why in red), and the caret starts in the first field with its sample selected.
                 dialog.IsPrimaryButtonEnabled = body.IsValid;
                 body.ValidityChanged += valid => dialog.IsPrimaryButtonEnabled = valid;
+                body.CommitRequested += () =>
+                {
+                    primaryCommitted = true;
+                    dialog.Hide();
+                };
                 dialog.Opened += (_, _) => body.FocusFirstField();
             }
-            return await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
+            var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
+            return primaryCommitted ? ContentDialogResult.Primary : result;
         }
         catch (Exception ex)
         {

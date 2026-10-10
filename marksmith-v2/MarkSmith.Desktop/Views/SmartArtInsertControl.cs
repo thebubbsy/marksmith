@@ -95,6 +95,14 @@ public sealed class SmartArtInsertControl : InsertDialogBody
                 Update();
             }
         };
+        _gallery.KeyDown += (s, e) =>
+        {
+            if (e.Key == VirtualKey.Enter)
+            {
+                _box?.Focus(FocusState.Programmatic);
+                e.Handled = true;
+            }
+        };
 
         // The gallery shows pictures only (as Word's does), so the chosen layout's name and what
         // it's for are spelled out underneath.
@@ -103,6 +111,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
         }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        AutomationProperties.SetLiveSetting(_layoutCaption, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
 
         AddField(new StackPanel { Spacing = 6, Children = { galleryHeader, _gallery, _layoutCaption } });
 
@@ -181,6 +190,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
     private void Update()
     {
         _layoutCaption.Text = $"{_layout.Name} — {_layout.Hint}";
+        AutomationProperties.SetName(_layoutCaption, _layoutCaption.Text);
         _indentHint.Text = SmartArt.IndentHint(_layout);
         var advice = SmartArt.Advice(_layout, SmartArt.Parse(_box.Text));
         _adviceText.Text = advice ?? "";
@@ -249,6 +259,17 @@ public sealed class SmartArtInsertControl : InsertDialogBody
 
     private void OnOutlineKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (ctrl && e.Key == VirtualKey.Enter)
+        {
+            if (IsValid)
+            {
+                e.Handled = true;
+                RequestCommit();
+            }
+            return;
+        }
+
         var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         if (!alt || !shift || e.Key is not (VirtualKey.Right or VirtualKey.Left)) return;

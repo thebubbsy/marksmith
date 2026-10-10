@@ -2,11 +2,15 @@ using System;
 using System.IO;
 using System.Linq;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
+using Windows.System;
 using MarkSmith.Services;
 using Snippets = MarkSmith.Services.InsertSnippetBuilder;
 
@@ -50,8 +54,15 @@ public sealed class ImageInsertControl : InsertDialogBody
         _zoneIcon = new FontIcon { Glyph = "\uE8B9", FontSize = 28, Opacity = 0.55, HorizontalAlignment = HorizontalAlignment.Center };
         _zoneTitle = new TextBlock { Text = "Drag an image here", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
         _zoneHint = new TextBlock { Text = "PNG · JPG · GIF · WebP · SVG", FontSize = 11, Opacity = 0.6, HorizontalAlignment = HorizontalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        AutomationProperties.SetLiveSetting(_zoneTitle, AutomationLiveSetting.Polite);
+
         _thumb = new Image { MaxHeight = 88, MaxWidth = 400, Stretch = Stretch.Uniform, Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Center };
-        _thumb.ImageFailed += (_, _) => ShowThumb(null);
+        _thumb.ImageFailed += (_, _) =>
+        {
+            ShowThumb(null);
+            _zoneHint.Text = "Preview not supported (image will still insert)";
+            AutomationProperties.SetName(_zoneHint, _zoneHint.Text);
+        };
 
         var browse = new Button
         {
@@ -64,8 +75,8 @@ public sealed class ImageInsertControl : InsertDialogBody
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 6, 0, 0),
         };
-        ToolTipService.SetToolTip(browse, "Pick an image file on this PC");
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(browse, "Browse for an image");
+        ToolTipService.SetToolTip(browse, "Pick an image file on this PC (Ctrl+O, Alt+B)");
+        AutomationProperties.SetName(browse, "Browse for an image");
         browse.Click += OnBrowseClick;
 
         _zone = new Border
@@ -106,6 +117,21 @@ public sealed class ImageInsertControl : InsertDialogBody
         AddField(_zone);
         AddField(_source);
         AddField(_alt);
+
+        AddHandler(KeyDownEvent, new KeyEventHandler(OnImageControlKeyDown), true);
+    }
+
+    private void OnImageControlKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if ((e.Key == VirtualKey.O && ctrl) || (e.Key == VirtualKey.B && alt))
+        {
+            e.Handled = true;
+            OnBrowseClick(this, new RoutedEventArgs());
+        }
     }
 
     public string Source => Clean(_source.Text);
@@ -179,7 +205,9 @@ public sealed class ImageInsertControl : InsertDialogBody
         }
         _thumb.Visibility = Visibility.Visible;
         _zoneIcon.Visibility = Visibility.Collapsed;
-        _zoneTitle.Text = IsWeb(source) ? "From the web" : Path.GetFileName(source);
+        var title = IsWeb(source) ? "From the web" : Path.GetFileName(source);
+        _zoneTitle.Text = title;
+        AutomationProperties.SetName(_zoneTitle, $"Selected image: {title}");
         _zoneHint.Text = IsWeb(source) ? new Uri(source).Host : SizeOf(source);
     }
 
@@ -218,7 +246,11 @@ public sealed class ImageInsertControl : InsertDialogBody
             var items = await e.DataView.GetStorageItemsAsync();
             var file = items.OfType<StorageFile>().FirstOrDefault(f => ImageExtensions.Contains(f.FileType.ToLowerInvariant()))
                        ?? items.OfType<StorageFile>().FirstOrDefault();
-            if (file is not null) _source.Text = file.Path;   // the problem line explains a non-image
+            if (file is not null)
+            {
+                _source.Text = file.Path;   // the problem line explains a non-image
+                AutomationProperties.SetName(_zoneTitle, $"Selected image: {file.Name}");
+            }
         }
         catch
         {

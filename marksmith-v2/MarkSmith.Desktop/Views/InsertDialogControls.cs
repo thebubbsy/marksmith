@@ -2,8 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.System;
 using Snippets = MarkSmith.Services.InsertSnippetBuilder;
 using MarkSmith.Services;
 
@@ -31,6 +35,16 @@ public abstract class InsertDialogBody : UserControl
     private readonly TextBlock _problem;
     private bool _valid = true;
     private bool _opened;
+    private string? _lastAnnouncedProblem;
+
+    /// <summary>Raised when the user presses Enter on a valid single-line input to commit the dialog.</summary>
+    public event Action? CommitRequested;
+
+    /// <summary>Requests the hosting dialog to commit the primary action if valid.</summary>
+    public void RequestCommit()
+    {
+        if (IsValid) CommitRequested?.Invoke();
+    }
 
     protected InsertDialogBody(string description)
     {
@@ -41,12 +55,15 @@ public abstract class InsertDialogBody : UserControl
             TextWrapping = TextWrapping.Wrap,
             IsTextSelectionEnabled = true,
         }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        AutomationProperties.SetName(_preview, "Markdown preview");
+
         _problem = new TextBlock
         {
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             Visibility = Visibility.Collapsed,
         }.Themed(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
+        AutomationProperties.SetLiveSetting(_problem, AutomationLiveSetting.Polite);
 
         var previewCard = new Border
         {
@@ -63,6 +80,7 @@ public abstract class InsertDialogBody : UserControl
                 },
             },
         }.Themed(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush").Themed(Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
+        AutomationProperties.SetName(previewCard, "Generated Markdown preview");
 
         Content = new StackPanel
         {
@@ -89,7 +107,22 @@ public abstract class InsertDialogBody : UserControl
             Refresh();
             _opened = true;
         };
+        AddHandler(KeyDownEvent, new KeyEventHandler(OnBodyKeyDown), true);
         Services.HoverPolish.Track(this);
+    }
+
+    private void OnBodyKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != VirtualKey.Enter) return;
+        var root = XamlRoot;
+        var focused = root is null ? null : FocusManager.GetFocusedElement(root) as DependencyObject;
+        if (focused is TextBox { AcceptsReturn: true }) return; // Do not commit inside multiline text editors
+        if (focused is ComboBox) return; // Do not commit when interacting with dropdowns
+        if (IsValid)
+        {
+            e.Handled = true;
+            RequestCommit();
+        }
     }
 
     /// <summary>The Markdown this dialog inserts with its current values.</summary>
@@ -113,6 +146,21 @@ public abstract class InsertDialogBody : UserControl
         _problem.Text = problem ?? "";
         _problem.Visibility = problem is null ? Visibility.Collapsed : Visibility.Visible;
         _problem.Foreground = (Brush)Application.Current.Resources[_opened ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush"];
+        
+        if (_opened && problem != _lastAnnouncedProblem)
+        {
+            _lastAnnouncedProblem = problem;
+            if (!string.IsNullOrWhiteSpace(problem))
+            {
+                AutomationProperties.SetName(_problem, $"Problem: {problem}");
+                AutomationProperties.SetLiveSetting(_problem, AutomationLiveSetting.Polite);
+            }
+            else
+            {
+                AutomationProperties.SetName(_problem, "");
+            }
+        }
+
         // An empty card read as broken; say plainly that nothing has been chosen yet.
         var snippet = Snippet.Trim('\n');
         _preview.Text = snippet.Length == 0 ? "Nothing yet" : snippet;
@@ -170,12 +218,17 @@ public abstract class InsertDialogBody : UserControl
         return (int)Math.Round(Math.Clamp(v, box.Minimum, box.Maximum));
     }
 
-    protected static TextBlock CountBadge() => new()
+    protected static TextBlock CountBadge()
     {
-        FontSize = 12,
-        Opacity = 0.6,
-        HorizontalAlignment = HorizontalAlignment.Right,
-    };
+        var tb = new TextBlock
+        {
+            FontSize = 12,
+            Opacity = 0.6,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        AutomationProperties.SetName(tb, "Item count");
+        return tb;
+    }
 
     protected static TextBox MultilineBox(string text, string placeholder, bool monospace = false)
     {

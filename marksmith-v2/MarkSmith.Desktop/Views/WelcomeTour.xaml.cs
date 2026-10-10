@@ -1,4 +1,6 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -24,6 +26,17 @@ public sealed partial class WelcomeTour : UserControl
     private StackPanel[] _pages = Array.Empty<StackPanel>();
     private int _index;
     private Storyboard? _transition;
+
+    private static readonly string[] PageTitles =
+    {
+        "Welcome to MarkSmith",
+        "Source",
+        "Style",
+        "Preview & Export",
+        "Diagrams & math",
+        "Automation & Pro",
+        "You're all set",
+    };
 
     // editorHasDocument: the tour was replayed with work in the editor. The sample never replaces
     // a document, so its card says so and stays disabled instead of silently doing nothing.
@@ -83,6 +96,13 @@ public sealed partial class WelcomeTour : UserControl
         NextButton.Visibility = last ? Visibility.Collapsed : Visibility.Visible;
         SkipButton.Visibility = last ? Visibility.Collapsed : Visibility.Visible;
         if (_index != previous) SlideIn(_pages[_index], forward: _index > previous);
+
+        var title = _index < PageTitles.Length ? PageTitles[_index] : "";
+        var announcement = $"Step {_index + 1} of {_pages.Length}: {title}";
+        AutomationProperties.SetName(PagesHost, announcement);
+        AutomationProperties.SetLiveSetting(PagesHost, AutomationLiveSetting.Polite);
+        AutomationProperties.SetName(Pips, $"Page {_index + 1} of {_pages.Length}");
+
         // Next had focus and just collapsed; hand keyboard focus to the first card rather than
         // dropping it on the dialog.
         if (last && _index != previous)
@@ -127,6 +147,8 @@ public sealed partial class WelcomeTour : UserControl
         // the focused dot and the page in step.
         if (e.Key == Windows.System.VirtualKey.Right && _index < Last) { Show(_index + 1); e.Handled = true; }
         else if (e.Key == Windows.System.VirtualKey.Left && _index > 0) { Show(_index - 1); e.Handled = true; }
+        else if (e.Key == Windows.System.VirtualKey.Home && _index > 0) { Show(0); e.Handled = true; }
+        else if (e.Key == Windows.System.VirtualKey.End && _index < Last) { Show(Last); e.Handled = true; }
     }
 
     private static bool IsInside(DependencyObject element, DependencyObject ancestor)

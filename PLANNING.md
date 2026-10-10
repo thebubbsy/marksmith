@@ -6070,6 +6070,76 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Smoke launch: `Marksmith.exe` (PID 27068) booted stably with 0 crashes and clean shutdown.
 
 **Next up:**
-1. Complete remaining polish sweeps across any unreviewed dialogs (e.g. `TableInsertDialog`, `MathEditorDialog`, `ColorPickerFlyout`).
+1. Completed in run #74: Insert dialog keyboard submission ergonomics, live validation accessibility, Image/SmartArt accelerators, and guided tour navigation.
 2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59); real Windows light/dark switch; first real in-app update; Word INDEX field pre-fill.
+
+### 2026-10-11 07:10 – 2026-10-11 07:40 AEDT (routine run #74: Insert dialog keyboard submission ergonomics, live validation accessibility, Image/SmartArt accelerators, and guided tour navigation)
+
+**Agent / Execution Metadata:**
+- **Model:** `Gemini 3.8 Flash (High)`
+- **Identity:** Antigravity AI Agent (Google DeepMind)
+- **Modes:** Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- **Trigger:** Scheduled hourly desktop polish routine
+- **Protocol:** AI-Executable 3-Block Cycle + Execution Phase (GEMINI.md §7)
+
+**Picked up from run #73's "Next up" #1:**
+1. Polish sweeps across unreviewed secondary dialog surfaces (`InsertDialogBody` family, `ImageInsertControl`, `SmartArtInsertControl`).
+2. Keyboard submission ergonomics (`Enter` to commit, `Ctrl+Enter`, `Ctrl+O`/`Alt+B` browse).
+3. Accessibility live region announcements for validation errors, layout changes, and notifications.
+4. Companion view and guided tour polish (`SuiteHubView`, `WelcomeTour`).
+
+**Found:**
+- **InsertDialogBody family keyboard friction:**
+  - Single-line inputs (`LinkInsertControl`, `TableInsertControl`, `NumbersInsertControl`, `EmbedInsertControl`, `ReferencesInsertControl`) did not submit the dialog when pressing `Enter`. Users had to reach for the mouse to click "Insert".
+  - Validation error reporting via `_problem` set text and visibility without `AutomationProperties.LiveSetting` or name updates, leaving screen reader users unaware of why the "Insert" button was disabled.
+- **ImageInsertControl browse accelerator & drop feedback:**
+  - Browsing for an image required clicking the "Browse…" button with no keyboard shortcut (`Ctrl+O` or `Alt+B`).
+  - Dropping a file updated text boxes and visual borders, but did not announce the selected image file name to screen reader users.
+  - Image preview failures (`_thumb.ImageFailed`) silently collapsed the preview without explaining to the user that the image would still be inserted cleanly.
+- **SmartArtInsertControl gallery-to-outline flow & outline commit:**
+  - Navigating `_gallery` layout tiles using arrow keys did not transition to the outline editor when pressing `Enter`.
+  - Pressing `Ctrl+Enter` while editing outline nodes in `_box` did not commit the dialog.
+  - Layout description updates in `_layoutCaption` lacked UIAutomation live settings.
+- **SuiteHubView notifications & Escape dismissal:**
+  - Copying MCP/CLI configurations opened the `Notification` InfoBar without assertive live announcement, and pressing `Escape` did not dismiss the open notification bar.
+- **WelcomeTour slide navigation shortcuts & accessibility:**
+  - `WelcomeTour` lacked `Home` (jump to first slide) and `End` (jump to final slide) accelerators.
+  - Transitioning between slides changed visibility without announcing the new slide title or step progress ("Step X of 7: Title") to screen reader users.
+
+**Shipped:**
+- `Views/InsertDialogControls.cs` (`InsertDialogBody`):
+  - Added `public event Action? CommitRequested` and `public void RequestCommit()`.
+  - Added centralized `KeyDown` handler routing `VirtualKey.Enter` to `RequestCommit()` for single-line inputs and `NumberBox`, while explicitly preserving standard multiline line breaks in `LinesInsertControl`, `ChartInsertControl`, and `CodeBlockInsertControl`, and preserving ComboBox dropdown navigation.
+  - Added `AutomationProperties.SetName` and `AutomationProperties.SetLiveSetting(..., AutomationLiveSetting.Polite)` on `_problem` with state-change debouncing so validation errors are announced without keystroke spam.
+  - Added accessible names on preview cards and `CountBadge()`.
+- `MainWindow.xaml.cs` (`ShowInsertDialogAsync`):
+  - Wired `body.CommitRequested` to set `primaryCommitted = true` and hide the dialog, cleanly returning `ContentDialogResult.Primary` on keyboard submission.
+- `Views/ImageInsertControl.cs`:
+  - Added `Ctrl+O` and `Alt+B` browse accelerators.
+  - Added polite live announcements on `_zoneTitle` for dropped or selected images ("Selected image: {fileName}").
+  - Added accessible failure notice on `_thumb.ImageFailed` ("Preview not supported (image will still insert)").
+- `Views/SmartArtInsertControl.cs`:
+  - Added `VirtualKey.Enter` handling on `_gallery` to shift keyboard focus directly to `_box`.
+  - Added `Ctrl+Enter` handling on `_box` to commit the dialog when valid.
+  - Added `AutomationProperties.SetLiveSetting` and dynamic accessible name updates on `_layoutCaption`.
+- `Views/SuiteHubView.xaml.cs`:
+  - Added `AutomationProperties.SetName` and `AutomationLiveSetting.Assertive` on `Notification`.
+  - Added `VirtualKey.Escape` handler to dismiss open notifications.
+- `Views/WelcomeTour.xaml.cs`:
+  - Added `VirtualKey.Home` and `VirtualKey.End` slide navigation shortcuts.
+  - Added polite slide transition announcements on `PagesHost` ("Step {index + 1} of 7: {Title}").
+  - Added accessible page count names on `Pips` ("Page {index + 1} of 7").
+- `MarkSmith.Tests/InsertDialogPolishTests.cs`:
+  - Added tests for `Table`, `Chart`, `Embed`, and `References` snippet generation and formatting.
+  - Added tests for `SmartArt` outline indentation shifting (`ShiftLines`) and layout metadata integrity.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors**.
+- Full test suite (`dotnet test marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj`): **4,630 passed, 0 failed, 1 skipped (remote web test)**.
+- Smoke launch: `Marksmith.exe` (PID 18416) booted cleanly and terminated cleanly with 0 errors.
+
+**Next up:**
+1. Carried over from Block 3: Further polish on Suite Hub and Welcome Tour interactive affordances and keyboard focus rings.
+2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59); real Windows light/dark switch; first real in-app update; Word INDEX field pre-fill.
+
 
