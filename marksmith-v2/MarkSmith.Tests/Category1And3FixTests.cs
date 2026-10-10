@@ -81,7 +81,7 @@ public class Category1And3FixTests
         var result = AdmonitionNormalizer.Apply(markdown);
 
         Assert.Contains("> [!TIP]", result);
-        Assert.Contains("> **Code Example**", result);
+        Assert.Contains("> <span class=\"md-callout-title\">Code Example</span>", result);
         Assert.Contains("> :::", result);
         Assert.Contains("> End of tip.", result);
     }

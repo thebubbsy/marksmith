@@ -149,11 +149,11 @@ public class GoldenDocumentVerificationTests
         var (path, xml, _) = ExportGoldenDocument();
         try
         {
-            Assert.Contains("NOTE", xml);
-            Assert.Contains("TIP", xml);
-            Assert.Contains("IMPORTANT", xml);
-            Assert.Contains("WARNING", xml);
-            Assert.Contains("CAUTION", xml);
+            Assert.Contains("Note", xml);
+            Assert.Contains("Tip", xml);
+            Assert.Contains("Important", xml);
+            Assert.Contains("Warning", xml);
+            Assert.Contains("Caution", xml);
         }
         finally
         {

@@ -38,7 +38,8 @@ public class AdvancedLayoutsTests
             Assert.Contains("IP: 192.168.1.1", xml);
             Assert.Contains("outlineLvl", xml);
             Assert.Contains("val=\"8\"", xml);
-            Assert.True(xml.Contains("collapsed", StringComparison.OrdinalIgnoreCase) || xml.Contains("defaultCollapsed", StringComparison.OrdinalIgnoreCase));
+            // Starts open (run #67): Word prints a collapsed section without its body.
+            Assert.DoesNotContain("defaultCollapsed", xml);
         }
         finally
         {
@@ -57,7 +58,8 @@ public class AdvancedLayoutsTests
             Assert.Contains("Firewall rules enabled", xml);
             Assert.Contains("outlineLvl", xml);
             Assert.Contains("val=\"8\"", xml);
-            Assert.True(xml.Contains("collapsed", StringComparison.OrdinalIgnoreCase) || xml.Contains("defaultCollapsed", StringComparison.OrdinalIgnoreCase));
+            // Starts open (run #67): Word prints a collapsed section without its body.
+            Assert.DoesNotContain("defaultCollapsed", xml);
         }
         finally
         {

@@ -74,8 +74,7 @@ internal static class EmailTextRenderer
                 sb.Append('\n');
                 return;
             case AlertBlock alert:
-                sb.Append(indent).Append(char.ToUpperInvariant(alert.Kind.ToString().FirstOrDefault('n')))
-                  .Append(alert.Kind.ToString().ToLowerInvariant().Skip(1).ToArray()).Append(":\n");
+                sb.Append(indent).Append(CalloutTitles.Label(alert)).Append(":\n");
                 foreach (var c in alert) Block(sb, c, omit, indent + "  ", drawDiagrams);
                 return;
             case QuoteBlock q:

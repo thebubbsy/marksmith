@@ -37,7 +37,7 @@ public class NormalizerTests
     [Fact] public void Admonition_rewrites_to_alert() => Assert.Contains("> [!TIP]", AdmonitionNormalizer.Apply(":::tip\nhi\n:::"));
     [Fact] public void Admonition_missing_closer_still_converts() => Assert.Contains("> [!NOTE]", AdmonitionNormalizer.Apply(":::note\nno closer here"));
     [Fact] public void Python_admonition_single_line_rewrites_to_alert() => Assert.Contains("> [!NOTE]", AdmonitionNormalizer.Apply("!!! note Python Markdown style admonitions work too!"));
-    [Fact] public void Python_admonition_multiline_indented_rewrites_to_alert() => Assert.Contains("> [!WARNING]\n> **Watch out**", AdmonitionNormalizer.Apply("!!! warning \"Watch out\"\n    Carefully read this"));
+    [Fact] public void Python_admonition_multiline_indented_rewrites_to_alert() => Assert.Contains("> [!WARNING]\n> <span class=\"md-callout-title\">Watch out</span>", AdmonitionNormalizer.Apply("!!! warning \"Watch out\"\n    Carefully read this"));
     [Fact] public void Folded_callout_rewrites_to_details() => Assert.Contains("<details", AdmonitionNormalizer.Apply("> [!tip]- T\n> body"));
     [Fact] public void Folded_callout_kind_mapped() => Assert.Contains("md-callout-caution", AdmonitionNormalizer.Apply("> [!danger]- T\n> body"));
     [Fact] public void Plain_alert_untouched_by_fold_rewrite() { var s = AdmonitionNormalizer.Apply("> [!NOTE]\n> plain"); Assert.Contains("> [!NOTE]", s); Assert.DoesNotContain("<details", s); }

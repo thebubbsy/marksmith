@@ -41,7 +41,7 @@ public class ToggleTests
         Assert.Contains("Contains server setup parameters", xml);
         Assert.Contains("outlineLvl", xml);
         Assert.Contains("val=\"8\"", xml);
-        Assert.Contains("collapsed", xml);
+        Assert.DoesNotContain("defaultCollapsed", xml); // starts open: Word prints a collapsed section without its body
     }
 
     [Fact]
@@ -176,7 +176,7 @@ Content 2
         var xml = ExportToXml(md);
 
         Assert.Contains("Security Policy", xml);
-        Assert.Contains("WARNING", xml);
+        Assert.Contains("Warning", xml);
         Assert.Contains("Do not expose API keys", xml);
     }
 
@@ -273,7 +273,7 @@ This collapsible section was created using standard HTML details/summary syntax.
 
         foreach (var p in outline8Paragraphs)
         {
-            Assert.Contains("collapsed", p.OuterXml.ToLowerInvariant());
+            Assert.DoesNotContain("defaultcollapsed", p.OuterXml.ToLowerInvariant());
 
             var runs = p.Descendants<DocumentFormat.OpenXml.Wordprocessing.Run>().ToList();
             Assert.NotEmpty(runs);

@@ -93,6 +93,12 @@ public static class GoogleDocsDocumentBuilder
                 InsertParagraph(st, Runs(p.Inline, st), indentPt: quoteDepth * 36 + listDepth * 36);
                 break;
 
+            case Markdig.Extensions.Alerts.AlertBlock alert:
+                // A callout's label ("Tip", or the author's own title) as a bold first line.
+                InsertParagraph(st, new List<Run> { new(CalloutTitles.Label(alert), Bold: true) }, indentPt: (quoteDepth + 1) * 36);
+                foreach (var child in alert) EmitBlock(child, st, quoteDepth + 1, listDepth);
+                break;
+
             case QuoteBlock q:
                 foreach (var child in q) EmitBlock(child, st, quoteDepth + 1, listDepth);
                 break;
@@ -406,5 +412,5 @@ public static class GoogleDocsDocumentBuilder
     }
 
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseMathematics().Build();
+        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics().Build();
 }

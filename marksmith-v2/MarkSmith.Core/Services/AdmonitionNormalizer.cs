@@ -10,8 +10,15 @@ namespace MarkSmith.Services;
 // with no new per-exporter rendering code.
 //
 //   :::tip Optional title            > [!TIP]
-//   Be careful here.        ─────►    > **Optional title**
-//   :::                               > Be careful here.
+//   Be careful here.        ─────►    > <span class="md-callout-title">Optional title</span>
+//   :::                               >
+//                                     > Be careful here.
+//
+// The marker span is lifted off the alert by CalloutTitles (UseCalloutTitles) so the title replaces
+// the "Tip" label in every format. A kind that isn't one of GitHub's five keeps its own name as the
+// label (`:::danger` is a CAUTION box labelled "Danger"). Obsidian's `> [!tip] Title` and
+// `> [!faq]` forms, which Markdig leaks as text or leaves unstyled, get the same treatment. For a
+// saved .md file (markdownFile: true) the title is a bold line instead, which reads on GitHub.
 //
 // GitHub alerts only define five kinds (NOTE/TIP/IMPORTANT/WARNING/CAUTION); the much larger set of
 // admonition names the various ecosystems use is mapped onto the closest one so nothing renders as
@@ -25,7 +32,7 @@ public static class AdmonitionNormalizer
         ["tldr"] = "NOTE", ["question"] = "NOTE", ["help"] = "NOTE", ["faq"] = "NOTE",
         ["quote"] = "NOTE", ["cite"] = "NOTE", ["example"] = "NOTE", ["seealso"] = "NOTE",
         ["tip"] = "TIP", ["hint"] = "TIP", ["success"] = "TIP", ["check"] = "TIP",
-        ["done"] = "TIP", ["important"] = "IMPORTANT",
+        ["done"] = "TIP", ["important"] = "IMPORTANT", ["todo"] = "NOTE",
         ["warning"] = "WARNING", ["caution"] = "WARNING", ["attention"] = "WARNING",
         ["danger"] = "CAUTION", ["error"] = "CAUTION", ["bug"] = "CAUTION",
         ["failure"] = "CAUTION", ["fail"] = "CAUTION", ["missing"] = "CAUTION", ["deprecated"] = "CAUTION",
@@ -44,10 +51,41 @@ public static class AdmonitionNormalizer
     // so Markdig still parses **bold**, code, math inside). Group 3 captures the fold char.
     private static readonly Regex FoldedCallout = new(@"^(\s*)>\s*\[!([A-Za-z]+)\]([-+])\s*(.*)$", RegexOptions.Compiled);
 
+    // Obsidian/GitHub alert opener with anything GitHub's parser can't take: a lowercase or
+    // non-GitHub kind (`[!faq]`) or a title after the bracket (`[!tip] Pro tip`).
+    private static readonly Regex AlertOpener = new(@"^(\s*)>\s*\[!([A-Za-z]+)\]\s*(.*?)\s*$", RegexOptions.Compiled);
+    private static readonly HashSet<string> GitHubKinds = new(StringComparer.Ordinal) { "NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION" };
+
     private static readonly Regex BlockquoteStartRx = new(@"^\s*>", RegexOptions.Compiled);
     private static readonly Regex StripBlockquoteRx = new(@"^\s*>\s?", RegexOptions.Compiled);
 
-    public static string Apply(string markdown)
+    /// <summary>The label for a kind the author named: "Danger" for `danger` (drawn as CAUTION),
+    /// null when the name is GitHub's own kind and its default label already fits.</summary>
+    private static string? KindLabel(string name, string kind) =>
+        name.Equals(kind, StringComparison.OrdinalIgnoreCase) ? null : name.ToLowerInvariant() switch
+        {
+            "faq" => "FAQ",
+            "tldr" => "TL;DR",
+            "seealso" => "See also",
+            "todo" => "To do",
+            var n => char.ToUpperInvariant(n[0]) + n[1..],
+        };
+
+    private static string MapKind(string name) =>
+        TypeMap.TryGetValue(name, out var mapped) ? mapped : "NOTE";
+
+    /// <summary>The alert's title line(s), each without the "> " prefix.</summary>
+    private static IEnumerable<string> TitleLines(string title, bool markdownFile)
+    {
+        if (string.IsNullOrWhiteSpace(title)) yield break;
+        yield return markdownFile ? $"**{title.Trim()}**" : CalloutTitles.MarkerLine(title);
+        yield return "";
+    }
+
+    /// <param name="markdownFile">Writing a .md file: titles as a bold line, not the marker span.</param>
+    /// <param name="foldable">The format can fold (preview, PDF, EPUB, email). Word and slides
+    /// pass false and get a plain callout box: Word prints a collapsed section without its body.</param>
+    public static string Apply(string markdown, bool markdownFile = false, bool foldable = true)
     {
         if (string.IsNullOrEmpty(markdown)) return markdown;
         if (!markdown.Contains(":::", StringComparison.Ordinal) && !markdown.Contains("[!", StringComparison.Ordinal) && !markdown.Contains("!!!", StringComparison.Ordinal))
@@ -81,7 +119,8 @@ public static class AdmonitionNormalizer
             var folded = FoldedCallout.Match(line);
             if (folded.Success)
             {
-                var kind = TypeMap.TryGetValue(folded.Groups[2].Value, out var mapped) ? mapped : folded.Groups[2].Value.ToUpperInvariant();
+                var foldName = folded.Groups[2].Value;
+                var kind = GitHubKinds.Contains(foldName.ToUpperInvariant()) ? foldName.ToUpperInvariant() : MapKind(foldName);
                 var startOpen = folded.Groups[3].Value == "+";  // `+` = expanded, `-` = collapsed
                 var foldTitle = folded.Groups[4].Value.Trim();
 
@@ -95,7 +134,19 @@ public static class AdmonitionNormalizer
                 }
                 i = j - 1; // the for-loop's i++ lands on the first non-blockquote line
 
-                var summary = string.IsNullOrEmpty(foldTitle) ? kind : $"{kind} · {foldTitle}";
+                if (!foldable)
+                {
+                    if (outLines.Count > 0 && outLines[^1].Length > 0) outLines.Add("");
+                    outLines.Add($"> [!{kind}]");
+                    var label = foldTitle.Length > 0 ? foldTitle : KindLabel(foldName, kind) ?? "";
+                    foreach (var t in TitleLines(label, markdownFile)) outLines.Add(t.Length == 0 ? ">" : "> " + t);
+                    foreach (var b in body) outLines.Add(b.Length == 0 ? ">" : "> " + b);
+                    outLines.Add("");
+                    continue;
+                }
+
+                var summary = !string.IsNullOrEmpty(foldTitle) ? foldTitle
+                    : KindLabel(folded.Groups[2].Value, kind) ?? CalloutTitles.DefaultLabel(kind);
                 if (outLines.Count > 0 && outLines[^1].Length > 0) outLines.Add("");
                 outLines.Add($"<details class=\"md-callout md-callout-{kind.ToLowerInvariant()}\"{(startOpen ? " open" : "")}>");
                 outLines.Add($"<summary>{System.Net.WebUtility.HtmlEncode(summary)}</summary>");
@@ -105,6 +156,25 @@ public static class AdmonitionNormalizer
                 outLines.Add("</details>");
                 outLines.Add("");
                 continue;
+            }
+
+            var ob = AlertOpener.Match(line);
+            if (ob.Success)
+            {
+                var name = ob.Groups[2].Value;
+                // GitHub's own five keep their kind in any case (`[!caution]` is GitHub's red
+                // CAUTION, not Docusaurus's amber `:::caution`).
+                var kind = GitHubKinds.Contains(name.ToUpperInvariant()) ? name.ToUpperInvariant() : MapKind(name);
+                var title = ob.Groups[3].Value;
+                if (title.Length == 0) title = KindLabel(name, kind) ?? "";
+                if (title.Length > 0 || !GitHubKinds.Contains(name))
+                {
+                    var indent = ob.Groups[1].Value;
+                    outLines.Add($"{indent}> [!{kind}]");
+                    foreach (var t in TitleLines(title, markdownFile))
+                        outLines.Add(t.Length == 0 ? $"{indent}>" : $"{indent}> {t}");
+                    continue;
+                }
             }
 
             var m = Opener.Match(line);
@@ -176,7 +246,7 @@ public static class AdmonitionNormalizer
                 outLines.Add("<details>");
                 outLines.Add($"<summary>{System.Net.WebUtility.HtmlEncode(title)}</summary>");
                 outLines.Add("");
-                var innerNormalized = Apply(string.Join("\n", body));
+                var innerNormalized = Apply(string.Join("\n", body), markdownFile, foldable);
                 outLines.Add(innerNormalized);
                 outLines.Add("");
                 outLines.Add("</details>");
@@ -278,9 +348,10 @@ public static class AdmonitionNormalizer
                     i = j; // the for-loop's i++ then steps past the closing ::: (or lands at EOF)
                 }
 
+                if (string.IsNullOrWhiteSpace(title)) title = KindLabel(match.Groups[1].Value, alertType) ?? "";
                 if (outLines.Count > 0 && outLines[^1].Length > 0) outLines.Add(""); // ensure blockquote starts a new block
                 outLines.Add($"> [!{alertType}]");
-                if (!string.IsNullOrWhiteSpace(title)) outLines.Add($"> **{title}**");
+                foreach (var t in TitleLines(title, markdownFile)) outLines.Add(t.Length == 0 ? ">" : "> " + t);
                 foreach (var b in body) outLines.Add(b.Length == 0 ? ">" : "> " + b);
                 outLines.Add("");
                 continue;

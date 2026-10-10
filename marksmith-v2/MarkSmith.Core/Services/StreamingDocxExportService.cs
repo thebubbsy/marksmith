@@ -601,7 +601,7 @@ public sealed class StreamingDocxExportService
             while (reader.TryRead(out var chunk))
             {
                 var md = TextNormalizer.Newlines(chunk.Markdown);
-                md = AdmonitionNormalizer.Apply(md);
+                md = AdmonitionNormalizer.Apply(md, foldable: false);
                 md = DialectNormalizer.Apply(md, ctx.Settings.DashMode);
                 md = DiagramFenceSniffer.Apply(md);
 

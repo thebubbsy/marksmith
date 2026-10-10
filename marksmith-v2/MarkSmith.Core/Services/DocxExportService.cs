@@ -57,7 +57,7 @@ public sealed partial class DocxExportService
     internal static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .UseYamlFrontMatter()
-        .UseAlertBlocks()
+        .UseAlertBlocks().UseCalloutTitles()
         .UseMathematics()
         .UseEmojiAndSmiley(enableSmileys: false) // :rocket: -> emoji chars in Word too (same as the HTML pipeline)
         .Build();
@@ -67,7 +67,7 @@ public sealed partial class DocxExportService
     internal static readonly MarkdownPipeline PipelineNoEmoji = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .UseYamlFrontMatter()
-        .UseAlertBlocks()
+        .UseAlertBlocks().UseCalloutTitles()
         .UseMathematics()
         .Build();
 
@@ -186,7 +186,7 @@ public sealed partial class DocxExportService
             // user's exact input (lossless round-trip). Every transform below is presentation-only.
             var originalSource = markdown;
             markdown = TextNormalizer.Newlines(markdown);
-            markdown = AdmonitionNormalizer.Apply(markdown);
+            markdown = AdmonitionNormalizer.Apply(markdown, foldable: false);
             markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
             markdown = DiagramFenceSniffer.Apply(markdown);
             markdown = MarkdownHtmlService.CiteReferencesAsText(markdown);
@@ -434,7 +434,7 @@ public sealed partial class DocxExportService
         // Pristine new section, captured before normalization, for the combined embedded source.
         var originalSource = markdown;
         markdown = TextNormalizer.Newlines(markdown);
-        markdown = AdmonitionNormalizer.Apply(markdown);
+        markdown = AdmonitionNormalizer.Apply(markdown, foldable: false);
         markdown = DialectNormalizer.Apply(markdown);
         markdown = DiagramFenceSniffer.Apply(markdown);
         markdown = MarkdownHtmlService.CiteReferencesAsText(markdown);
@@ -3170,7 +3170,8 @@ public sealed partial class DocxExportService
         {
             "note" => "[i]", "tip" => "[*]", "important" => "[!]", "warning" => "[!]", "caution" => "[x]", _ => "[i]",
         };
-        var titleText = ctx.NoEmoji ? $"{textGlyph} {kind.ToUpperInvariant()}" : $"{icon} {kind.ToUpperInvariant()}";
+        var label = CalloutTitles.Label(alert); // "Note", as the preview, email and slides say it
+        var titleText = ctx.NoEmoji ? $"{textGlyph} {label}" : $"{icon} {label}";
         var titleColor = ContrastGuard.EnsureLegibleText(accentHex, panelFill);
         AddText(title, titleText, new Fmt { Bold = true, Color = titleColor });
         cell.Append(title);
@@ -3681,14 +3682,15 @@ public sealed partial class DocxExportService
             }
         }
 
+        // Standalone <details><summary>. Outline level 8 gives the heading Word's fold arrow, but
+        // it starts open: Word prints and saves to PDF without a collapsed heading's content.
         // Foldable-callout or standalone <details><summary>
         var openDetails = OpenDetailsRe.Match(raw);
         if (openDetails.Success)
         {
             var head = new W.Paragraph(new W.ParagraphProperties(
                 new W.ParagraphStyleId { Val = "Heading4" },
-                new W.OutlineLevel { Val = 8 },
-                new W15.DefaultCollapsed { Val = true }));
+                new W.OutlineLevel { Val = 8 }));
             AddText(head, StripHtmlToText(openDetails.Groups[1].Value), new Fmt { Bold = true, Color = ctx.TextHex });
             target.Append(head);
             return;
@@ -3699,8 +3701,7 @@ public sealed partial class DocxExportService
         {
             var head = new W.Paragraph(new W.ParagraphProperties(
                 new W.ParagraphStyleId { Val = "Heading4" },
-                new W.OutlineLevel { Val = 8 },
-                new W15.DefaultCollapsed { Val = true }));
+                new W.OutlineLevel { Val = 8 }));
             AddText(head, StripHtmlToText(summaryOnly.Groups[1].Value), new Fmt { Bold = true, Color = ctx.TextHex });
             target.Append(head);
             return;
@@ -3710,8 +3711,8 @@ public sealed partial class DocxExportService
         if (DetailsCloseRe.IsMatch(raw)) return;
 
         // <details><summary>…</summary>…</details> → a GENUINELY collapsible section: the summary
-        // paragraph carries an outline level (8 for toggle folding without polluting TOC) plus
-        // w15:defaultCollapsed so it starts folded, matching <details>'s default-closed semantics.
+        // paragraph carries an outline level (8 for toggle folding without polluting TOC). It starts
+        // open, not w15:defaultCollapsed: Word prints a collapsed section without its body.
         // The closing tag is found with a NESTING-AWARE scan (not a non-greedy regex) so a nested
         // <details> can't truncate the outer block at the INNER closer — the outer tail and any
         // content after the block must survive.
@@ -3729,8 +3730,7 @@ public sealed partial class DocxExportService
 
                 var head = new W.Paragraph(new W.ParagraphProperties(
                     new W.ParagraphStyleId { Val = "Heading4" },
-                    new W.OutlineLevel { Val = 8 },
-                    new W15.DefaultCollapsed { Val = true }));
+                    new W.OutlineLevel { Val = 8 }));
                 AddText(head, summaryText, new Fmt { Bold = true, Color = ctx.TextHex });
                 target.Append(head);
 

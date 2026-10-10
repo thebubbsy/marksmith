@@ -62,11 +62,11 @@ public sealed class EmailHtmlRenderer
     private const string MonoStack = "Consolas, 'Cascadia Mono', 'Courier New', monospace";
 
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseMathematics()
+        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics()
         .UseEmojiAndSmiley(enableSmileys: false).Build();
 
     private static readonly MarkdownPipeline PipelineNoEmoji = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseMathematics().Build();
+        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics().Build();
 
     private static readonly Dictionary<string, (string Color, string Tint, string Label)> AlertStyles = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -358,6 +358,7 @@ public sealed class EmailHtmlRenderer
     {
         var kind = alert.Kind.ToString();
         var (colour, tint, label) = AlertStyles.TryGetValue(kind, out var s) ? s : AlertStyles["note"];
+        label = CalloutTitles.Get(alert) ?? label;
         sb.Append($"<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;margin:0 0 16px 0;\"><tr>");
         sb.Append($"<td bgcolor=\"{tint}\" style=\"font-family:{FontStack};background-color:{tint};border-left:4px solid {colour};padding:10px 14px;\">\n");
         sb.Append($"<p style=\"margin:0 0 6px 0;font-weight:600;color:{colour};\">{Enc(label)}</p>\n");

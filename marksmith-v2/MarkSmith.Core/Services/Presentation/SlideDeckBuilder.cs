@@ -51,11 +51,11 @@ public sealed class SlideDeckOptions
 public static class SlideDeckBuilder
 {
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseMathematics()
+        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics()
         .UseEmojiAndSmiley(enableSmileys: false).Build();
 
     private static readonly MarkdownPipeline PipelineNoEmoji = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseMathematics().Build();
+        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics().Build();
 
     internal static readonly Dictionary<string, (string Color, string Label)> AlertStyles = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -81,7 +81,10 @@ public static class SlideDeckBuilder
     {
         options ??= new SlideDeckOptions();
         var lifted = new List<SlideBlock>();
-        markdown = SlideDirectives.Lift(markdown ?? "", out var cover, lifted);
+        // Callouts first (`:::tip Title`, `> [!faq]`), as every other format does: without it a
+        // slide printed ":::tip Pro tip" as text.
+        markdown = AdmonitionNormalizer.Apply(markdown ?? "", foldable: false);
+        markdown = SlideDirectives.Lift(markdown, out var cover, lifted);
         var doc = Markdown.Parse(markdown, options.NoEmoji ? PipelineNoEmoji : Pipeline);
         var ctx = new Ctx(options, doc, lifted);
 
@@ -620,6 +623,7 @@ public static class SlideDeckBuilder
                 {
                     var kind = alert.Kind.ToString();
                     var (color, label) = AlertStyles.TryGetValue(kind, out var s) ? s : AlertStyles["note"];
+                    label = CalloutTitles.Get(alert) ?? label;
                     var panel = new TextBlock { Panel = PanelKind.Alert, PanelColor = color };
                     var head = new SlideParagraph { Style = ParaStyle.Body };
                     head.Runs.Add(new TextRun(label) { Bold = true, Color = color });

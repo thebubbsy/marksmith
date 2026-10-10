@@ -227,11 +227,11 @@ public class FiveDocumentXmlVerificationTests
         Assert.Contains("00FF9F", colorElements);
 
         var allText = string.Join(" ", doc.Descendants(W + "t").Select(t => t.Value));
-        Assert.Contains("NOTE", allText);
-        Assert.Contains("TIP", allText);
-        Assert.Contains("IMPORTANT", allText);
-        Assert.Contains("WARNING", allText);
-        Assert.Contains("CAUTION", allText);
+        Assert.Contains("Note", allText);
+        Assert.Contains("Tip", allText);
+        Assert.Contains("Important", allText);
+        Assert.Contains("Warning", allText);
+        Assert.Contains("Caution", allText);
         Assert.Contains("custom neon pink", allText);
         Assert.Contains("electric green", allText);
     }

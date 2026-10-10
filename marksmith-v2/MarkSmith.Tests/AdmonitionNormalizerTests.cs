@@ -20,7 +20,7 @@ public class AdmonitionNormalizerTests
         var input = ":::warning[Security Notice]\nDo not share keys.\n:::";
         var result = AdmonitionNormalizer.Apply(input);
         Assert.Contains("> [!WARNING]", result);
-        Assert.Contains("> **Security Notice**", result);
+        Assert.Contains("> <span class=\"md-callout-title\">Security Notice</span>", result);
         Assert.Contains("> Do not share keys.", result);
     }
 
@@ -30,7 +30,7 @@ public class AdmonitionNormalizerTests
         var input = ":::note Code Snippet\n```\n:::\n```\nEnd of note.\n:::";
         var result = AdmonitionNormalizer.Apply(input);
         Assert.Contains("> [!NOTE]", result);
-        Assert.Contains("> **Code Snippet**", result);
+        Assert.Contains("> <span class=\"md-callout-title\">Code Snippet</span>", result);
         Assert.Contains("> :::", result);
         Assert.Contains("> End of note.", result);
     }

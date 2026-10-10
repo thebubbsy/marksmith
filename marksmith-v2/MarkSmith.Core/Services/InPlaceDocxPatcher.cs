@@ -789,7 +789,7 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
         if (string.IsNullOrWhiteSpace(markdown)) return elements;
 
         // 1. Normalize admonitions (e.g. :::tip, :::warning, :::note -> > [!TIP])
-        string normalized = AdmonitionNormalizer.Apply(markdown);
+        string normalized = AdmonitionNormalizer.Apply(markdown, markdownFile: true);
 
         // 2. Check for container blocks (:::smartart, :::chart, :::tabs, :::columns, :::timeline, :::shapes, :::workflow)
         if (normalized.Contains(":::", StringComparison.Ordinal))

@@ -15,7 +15,7 @@ public sealed class MarkdownExportService
     public Task ExportAsync(string markdown, string mdPath, AppSettings settings) => Task.Run(() =>
     {
         markdown = TextNormalizer.Newlines(markdown);
-        markdown = AdmonitionNormalizer.Apply(markdown);
+        markdown = AdmonitionNormalizer.Apply(markdown, markdownFile: true);
         markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);

@@ -304,13 +304,14 @@ More body after code block.
     }
 
     [Fact]
-    public void Stress_FoldedObsidianCallout_RendersAsCollapsibleToggle()
+    public void Stress_FoldedObsidianCallout_RendersAsCalloutBoxInWord()
     {
         var md = "> [!note]- Folded Obsidian Note\n> This note is collapsed by default.\n> Line 2 of folded note.\n";
         var xml = ExportToXml(md);
-        Assert.Contains("NOTE · Folded Obsidian Note", xml);
+        Assert.Contains("Folded Obsidian Note", xml);
+        Assert.DoesNotContain("NOTE · ", xml);
         Assert.Contains("This note is collapsed by default", xml);
-        Assert.Contains("outlineLvl", xml);
+        Assert.Contains("Line 2 of folded note", xml); // a callout box in Word, body printed
         ValidateOpenXmlDocument(md);
     }
 }

@@ -139,7 +139,7 @@ public class DocxExportTests
     [Fact] public void Footnote_reference_present() { var x = Export("claim[^1]\n\n[^1]: source note"); Assert.Contains("<w:footnoteReference", x); Assert.DoesNotContain("source note", x); }
     [Fact] public void Emoji_shortcode_lands_in_docx() => Assert.Contains("🚀", Export("go :rocket:"));
     [Fact] public void Alert_renders_shaded_box() => Assert.Contains("<w:shd", Export("> [!NOTE]\n> hi"));
-    [Fact] public void Admonition_becomes_alert_box() => Assert.Contains("NOTE", Export(":::note\nhello there\n:::"));
+    [Fact] public void Admonition_becomes_alert_box() => Assert.Contains(" Note</w:t>", Export(":::note\nhello there\n:::"));
     [Fact] public void Fence_caption_lands_bold() => Assert.Contains("train.py", Export("```python title=\"train.py\"\nx=1\n```"));
     [Fact] public void Content_tab_labels_land() { var x = Export("=== \"Windows\"\n    body a\n=== \"macOS\"\n    body b"); Assert.Contains("Windows", x); Assert.DoesNotContain("===", x); }
     [Fact] public void Wikilink_text_clean_in_docx() { var x = Export("see [[Project Phoenix]] now"); Assert.Contains("Project Phoenix", x); Assert.DoesNotContain("[[", x); Assert.Contains("w:val=\"dash\"", x); Assert.Contains("<w:noProof", x); }

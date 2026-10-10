@@ -110,7 +110,7 @@ public sealed partial class MarkdownHtmlService
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions() // tables, footnotes, task lists, etc. — mirrors mdit-py-plugins' table/footnote support
         .UseYamlFrontMatter()    // mirrors front_matter_plugin
-        .UseAlertBlocks()        // GitHub-style > [!NOTE] blocks, mirrors the hand-rolled ALERT_PATTERN parsing
+        .UseAlertBlocks().UseCalloutTitles()        // GitHub-style > [!NOTE] blocks, mirrors the hand-rolled ALERT_PATTERN parsing
         .UseMathematics()        // $..$ / $$..$$ -> span.math/div.math, rendered by KaTeX (ChatGPT exports carry LaTeX)
         .UseEmojiAndSmiley(enableSmileys: false) // :rocket: -> 🚀 (GitHub/Discord shortcodes, everywhere in AI output); smileys OFF so ":)" in prose isn't rewritten
         .Build();
@@ -122,7 +122,7 @@ public sealed partial class MarkdownHtmlService
     private static readonly MarkdownPipeline PipelineNoEmoji = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .UseYamlFrontMatter()
-        .UseAlertBlocks()
+        .UseAlertBlocks().UseCalloutTitles()
         .UseMathematics()
         .Build();
 

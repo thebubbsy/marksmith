@@ -14,7 +14,7 @@ public sealed class EpubExportService
     public const string Extension = "epub";
 
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseMathematics().Build();
+        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics().Build();
 
     // Shared AppServices.Themes singleton instead of a private instance (see DocxExportService).
     private static ThemeCatalog Themes => AppServices.Themes;

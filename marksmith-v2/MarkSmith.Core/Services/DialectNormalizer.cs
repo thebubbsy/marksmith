@@ -37,6 +37,7 @@ public static class DialectNormalizer
     private static readonly Regex InlineCode = new(@"(`+)[^\n]*?\1", RegexOptions.Compiled);
     private static readonly Regex HtmlTag = new(@"</?[a-zA-Z!][^>]*>|<!--.*?-->", RegexOptions.Compiled);
     private static readonly Regex DefinitionList = new(@"^(\s*):\s+(.*)$", RegexOptions.Compiled);
+    private static readonly Regex FootnoteDefinition = new(@"^\[\^[^\]\s]+\]:", RegexOptions.Compiled);
     private static readonly Regex CriticHlComment = new(@"\{==(?<text>(?:(?!==\}).)+)==\}\{>>(?<comment>(?:(?!<<\}).)*)<<\}", RegexOptions.Compiled);
     private static readonly Regex CriticSub = new(@"\{~~(?!=)((?:(?!~>|~~\}).)+)\~>~?((?:(?!~~\}).)+)\~~\}", RegexOptions.Compiled);
     private static readonly Regex CriticDel = new(@"\{(--|~~)((?:(?!--\}|~~\}).)+)\1\}", RegexOptions.Compiled);
@@ -73,6 +74,7 @@ public static class DialectNormalizer
         string? fenceMarker = null;
 
         bool inTabsBlock = false;
+        bool afterDefinitionList = false;
 
         for (int i = 0; i < lines.Length; i++)
         {
@@ -172,8 +174,19 @@ public static class DialectNormalizer
             if (dlMatch.Success)
             {
                 output.Add(dlMatch.Groups[1].Value + ":   " + dlMatch.Groups[2].Value);
+                afterDefinitionList = true;
                 continue;
             }
+            // A footnote definition straight after a definition list: Markdig reads it as the next
+            // term, then as a link reference definition, so "[^1]" printed raw in every format.
+            // An empty comment closes the list first.
+            if (afterDefinitionList && FootnoteDefinition.IsMatch(line))
+            {
+                if (output.Count > 0 && output[^1].Trim().Length > 0) output.Add("");
+                output.Add("<!-- -->");
+                output.Add("");
+            }
+            if (trimmed.Length > 0 && trimmed.Length == line.Length) afterDefinitionList = false;
 
             // ---- ChatGPT-style escaped quotes in table cells — \" leftovers from JSON-to-markdown
             // conversions go back to plain quotes. Table lines ONLY, so prose keeps its literal
