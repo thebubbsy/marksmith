@@ -655,7 +655,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         ViewModel.StatusText = $"SVG exported to {System.IO.Path.GetFileName(path)}.";
     }
 
-    private void OnCopySvgClick(object sender, RoutedEventArgs e)
+    private async void OnCopySvgClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null) return;
         string svg = BuildSvg();
@@ -663,8 +663,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         var package = new DataPackage();
         package.SetText(svg);
         package.SetHtmlFormat(HtmlFormatHelper.CreateHtmlFormat(svg));
-        Clipboard.SetContent(package);
-
-        ViewModel.StatusText = "SVG copied to the clipboard.";
+        // This used to call Clipboard.SetContent bare: a busy clipboard threw out of the click.
+        var error = await MarkSmith.Services.ClipboardWriter.TrySetAsync(package);
+        ViewModel.StatusText = error is null ? "SVG copied to the clipboard." : $"The SVG wasn't copied. {error}";
     }
 }

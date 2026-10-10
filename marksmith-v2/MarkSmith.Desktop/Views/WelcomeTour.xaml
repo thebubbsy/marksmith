@@ -247,7 +247,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xEA90;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Pixel-perfect PDF, or a proprietary MD-to-Word DOCX with a self-updating table of contents and tables that survive page breaks." />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Pixel-perfect PDF, or a real Word document with a self-updating table of contents and tables that survive page breaks." />
                     </Grid>
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>

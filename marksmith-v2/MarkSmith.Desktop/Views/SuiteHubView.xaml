@@ -22,7 +22,8 @@
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="Suite Hub" FontSize="16" FontWeight="SemiBold" />
+                            <!-- The dialog title already says Suite Hub; this card is about the app itself. -->
+                            <TextBlock Text="MarkSmith" FontSize="16" FontWeight="SemiBold" />
                             <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="6,1" VerticalAlignment="Center">
                                 <TextBlock x:Name="VersionText" Text="Version 3.0.0" FontSize="10.5" Opacity="0.8" />
                             </Border>
@@ -312,14 +313,11 @@
                 </Border>
             </Grid>
 
-            <!-- Status Banner Toast / Feedback -->
-            <StackPanel x:Name="NotificationRow" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center"
-                        Margin="0,2,0,0" Opacity="0" MinHeight="20">
-                <FontIcon x:Name="NotificationIcon" Glyph="&#xE73E;" FontSize="13"
-                          Foreground="{ThemeResource SystemFillColorSuccessBrush}" VerticalAlignment="Center" />
-                <TextBlock x:Name="NotificationText" Text="" FontSize="12" TextWrapping="Wrap" MaxWidth="600"
-                           VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
-            </StackPanel>
+            <!-- The result of the last action (copied, connected, couldn't open). An InfoBar rather
+                 than the old hand-faded text row: after its first message that row never drew
+                 again inside the dialog, so every "Copied…" was invisible. -->
+            <InfoBar x:Name="Notification" IsOpen="False" IsClosable="True" Margin="0,0,0,0"
+                     AutomationProperties.LiveSetting="Polite" />
 
         </StackPanel>
     </ScrollViewer>

@@ -1694,18 +1694,18 @@ namespace MarkSmith.Views.MindMap
         private void OnCopyMermaidMindmapClick(object sender, RoutedEventArgs e)
             => CopyMermaid(asFlowchart: false, "mind map");
 
-        private void CopyMermaid(bool asFlowchart, string label)
+        private async void CopyMermaid(bool asFlowchart, string label)
         {
             try
             {
-                var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                package.SetText(ViewModel.ExportToMermaid(asFlowchart));
-                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-                ViewModel.StatusMessage = $"Copied the map as a Mermaid {label}. Paste it into any document.";
+                var error = await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(ViewModel.ExportToMermaid(asFlowchart));
+                ViewModel.StatusMessage = error is null
+                    ? $"Copied the map as a Mermaid {label}. Paste it into any document."
+                    : $"The map wasn't copied. {error}";
             }
             catch (Exception ex)
             {
-                ViewModel.StatusMessage = $"Couldn't copy to the clipboard: {ex.Message}";
+                ViewModel.StatusMessage = $"Couldn't build the Mermaid {label}: {ex.Message}";
             }
         }
 

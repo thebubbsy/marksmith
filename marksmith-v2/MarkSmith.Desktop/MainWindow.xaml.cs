@@ -230,8 +230,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var package = new DataPackage();
             package.SetText(content.Text);
             package.SetHtmlFormat(HtmlFormatHelper.CreateHtmlFormat(content.Html));
-            Clipboard.SetContent(package);
-            Clipboard.Flush(); // stays pasteable after the app closes
+            Services.ClipboardWriter.Set(package); // flushed: stays pasteable after the app closes
         };
 
         // App-wide hover/press "lift" animation for every button already declared in XAML —
@@ -3850,7 +3849,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var package = new DataPackage();
             package.SetText(html);
             package.SetHtmlFormat(HtmlFormatHelper.CreateHtmlFormat(html));
-            Clipboard.SetContent(package);
+            if (await Services.ClipboardWriter.TrySetAsync(package) is string error)
+            {
+                ViewModel.StatusText = $"The HTML wasn't copied. {error}";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                return;
+            }
 
             ViewModel.StatusText = "Rendered HTML copied to the clipboard.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
@@ -5776,7 +5780,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var dialog = new ContentDialog
             {
                 Title = "Recover unsaved document",
-                Content = "MarkSmith found an unsaved document from your last session. Would you like to restore it?",
+                Content = BuildRecoveryPreview(content, File.GetLastWriteTime(RecoveryPath)),
                 PrimaryButtonText = "Restore",
                 // Discard is the *secondary* button, not the Close button: Escape (and any other
                 // dismissal) reports the Close/None result, and a stray Escape must never delete
@@ -5815,6 +5819,53 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         catch { /* recovery is best-effort */ }
     }
 
+    // The recovery prompt names the draft (its first line, when it was saved, how long it is), so
+    // Restore or Discard is a choice about a piece of work the user recognises, not a guess.
+    private static FrameworkElement BuildRecoveryPreview(string draft, DateTime savedAt)
+    {
+        var (title, detail) = MarkSmith.Services.DraftSummary.Describe(draft, savedAt, DateTime.Now);
+        var panel = new StackPanel { Spacing = 12, MaxWidth = 440 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "MarkSmith found a document from your last session that was never saved. Restore it to keep working on it.",
+            TextWrapping = TextWrapping.Wrap,
+        });
+
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(14, 10, 14, 12),
+        };
+        Services.ThemeBrush.Set(card, Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
+        Services.ThemeBrush.Set(card, Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
+        var row = new Grid { ColumnSpacing = 12 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var icon = new FontIcon { Glyph = "\uE8A5", FontSize = 20, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 0, 0) };
+        Services.ThemeBrush.Set(icon, FontIcon.ForegroundProperty, "AccentTextFillColorPrimaryBrush");
+        row.Children.Add(icon);
+        var text = new StackPanel { Spacing = 2 };
+        text.Children.Add(new TextBlock { Text = title, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+        var sub = new TextBlock { Text = detail, FontSize = 12 };
+        Services.ThemeBrush.Set(sub, TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        text.Children.Add(sub);
+        Grid.SetColumn(text, 1);
+        row.Children.Add(text);
+        card.Child = row;
+        panel.Children.Add(card);
+
+        var hint = new TextBlock
+        {
+            Text = "Keep as file saves it to your Recovered drafts folder instead.",
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        Services.ThemeBrush.Set(hint, TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        panel.Children.Add(hint);
+        return panel;
+    }
+
     // Whether the user has put the caret anywhere in this document (clicked or typed in the
     // editor). A freshly opened document has its caret at 0, and a block inserted there landed
     // above the title; BlockInsertion appends instead until the caret has been placed.
@@ -5839,8 +5890,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     /// placed. A <paramref name="suffix"/> makes it a wrapping block (a code fence): it wraps the
     /// selected lines, or leaves the caret on its empty body line. Undoes as one step.
     /// </summary>
+    /// <para><paramref name="select"/> names a placeholder inside the block (a table's first
+    /// cell) to leave selected, so typing replaces it instead of starting after the block.</para>
     /// <returns>True when the block went at the end because the caret was never placed.</returns>
-    private bool InsertBlock(string prefix, string suffix = "")
+    private bool InsertBlock(string prefix, string suffix = "", string? select = null)
     {
         // The portal edits its own caret, the same as every other insert.
         if (_portalOpen && PreviewWebView.CoreWebView2 is not null)
@@ -5860,7 +5913,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         tb.Select(plan.Start, plan.Length);
         tb.SelectedText = plan.Text;
         var length = (tb.Text ?? "").Length;
-        tb.Select(Math.Clamp(plan.CaretStart, 0, length), Math.Clamp(plan.CaretLength, 0, Math.Max(0, length - plan.CaretStart)));
+        var inBlock = string.IsNullOrEmpty(select) || suffix.Length > 0 ? -1 : plan.Text.IndexOf(select, StringComparison.Ordinal);
+        if (inBlock >= 0 && plan.Start + inBlock + select!.Length <= length)
+            tb.Select(plan.Start + inBlock, select.Length);
+        else
+            tb.Select(Math.Clamp(plan.CaretStart, 0, length), Math.Clamp(plan.CaretLength, 0, Math.Max(0, length - plan.CaretStart)));
         ViewModel.BreakUndoBurst();
         tb.Focus(FocusState.Programmatic);
         _editorCaretPlaced = true;
@@ -6283,13 +6340,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (App.Settings.Current.ProMode)
         {
-            InsertBlock("\n| Header 1 | Header 2 |\n| --- | --- |\n| Value 1 | Value 2 |\n");
+            InsertBlock("\n| Header 1 | Header 2 |\n| --- | --- |\n| Value 1 | Value 2 |\n", select: "Header 1");
             return;
         }
 
         var control = new Views.TableInsertControl();
         if (await ShowInsertDialogAsync("Insert table", control) != ContentDialogResult.Primary) return;
-        InsertBlock(control.Snippet);
+        // The first cell comes selected, so typing fills the table instead of starting after it.
+        InsertBlock(control.Snippet, select: control.Snippet.Contains("Header 1") ? "Header 1" : "Value 1");
     }
 
     private async void OnInsertEmbedClick(object sender, RoutedEventArgs e)

@@ -320,7 +320,7 @@ public sealed class TableInsertControl : InsertDialogBody
     private readonly CheckBox _header;
 
     public TableInsertControl()
-        : base("A Markdown table with placeholder cells. Type over them once it's in the document.")
+        : base("A Markdown table with placeholder cells. The first cell comes selected, so you can type straight over it.")
     {
         _rows = MakeNumberBox("Body rows", 2, 1, 50);
         _cols = MakeNumberBox("Columns", 2, 1, 20);

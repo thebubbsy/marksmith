@@ -1215,16 +1215,19 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
-        private void OnCopyMarkdownClick(object sender, RoutedEventArgs e)
+        private async void OnCopyMarkdownClick(object sender, RoutedEventArgs e)
         {
             try
             {
                 // SnapshotComposed carries Text/TextColor too — the copy must round-trip the
                 // exact same payload that export writes, or labels vanish on paste.
                 var block = MarkSmith.Core.Composer.ShapeMarkdownCodec.Serialize(ViewModel.SnapshotComposed());
-                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                dp.SetText(block);
-                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+                if (await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(block) is string error)
+                {
+                    // Not kept: the shapes aren't anywhere else yet, so closing should still ask.
+                    ViewModel.StatusMessage = $"The shapes weren't copied. {error}";
+                    return;
+                }
                 ViewModel.MarkKept();
                 ViewModel.StatusMessage = $"Copied {ViewModel.Shapes.Count} shapes as a :::shapes Markdown block.";
             }

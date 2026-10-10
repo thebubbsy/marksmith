@@ -72,6 +72,7 @@ public sealed partial class WelcomeTour : UserControl
     private void Show(int index)
     {
         var previous = _index;
+        var focused = XamlRoot is null ? null : FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
         _index = Math.Clamp(index, 0, Last);
         for (var i = 0; i < _pages.Length; i++)
             _pages[i].Visibility = i == _index ? Visibility.Visible : Visibility.Collapsed;
@@ -86,6 +87,11 @@ public sealed partial class WelcomeTour : UserControl
         // dropping it on the dialog.
         if (last && _index != previous)
             (SampleCard.IsEnabled ? SampleCard : BlankCard).Focus(FocusState.Programmatic);
+        // A welcome-slide card had focus and its page just collapsed. Left alone, focus fell to
+        // the page dots, where the arrow keys only move a focus ring between dots and the tour
+        // stopped turning. Next is where the keyboard user is headed anyway.
+        else if (_index != previous && focused is not null && IsInside(focused, _pages[previous]))
+            NextButton.Focus(FocusState.Programmatic);
     }
 
     // The incoming page fades in while drifting 24px from the side it came from, so paging reads
@@ -116,9 +122,9 @@ public sealed partial class WelcomeTour : UserControl
 
     private void OnTourKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        // Leave arrows alone while the PipsPager has focus — it already moves the selection and
-        // reports it through OnPipSelected, so handling them here too would skip a page.
-        if (FocusManager.GetFocusedElement(XamlRoot) is DependencyObject focused && IsInside(focused, Pips)) return;
+        // This runs for the page dots too: their own arrow handling only moves keyboard focus to
+        // the neighbouring dot (selection waits for Enter), so paging here keeps the selected dot,
+        // the focused dot and the page in step.
         if (e.Key == Windows.System.VirtualKey.Right && _index < Last) { Show(_index + 1); e.Handled = true; }
         else if (e.Key == Windows.System.VirtualKey.Left && _index > 0) { Show(_index - 1); e.Handled = true; }
     }

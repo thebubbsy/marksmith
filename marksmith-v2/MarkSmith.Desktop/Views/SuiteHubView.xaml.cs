@@ -6,7 +6,6 @@ using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
 using Windows.ApplicationModel.DataTransfer;
 using MarkSmith.Services;
 
@@ -23,7 +22,6 @@ public sealed partial class SuiteHubView : UserControl
     private int _apiPort;
     private readonly Func<System.Threading.Tasks.Task<(bool Running, int Port, string? Error)>>? _turnOnApi;
     private readonly DispatcherTimer _notificationTimer = new() { Interval = TimeSpan.FromSeconds(6) };
-    private Storyboard? _notificationFade;
 
     // apiRunning/apiPort come from the live AutomationManager: the Browser Companion badge used to
     // say "REST API Listening" in green whether or not the API was enabled, and the copied URL
@@ -46,7 +44,7 @@ public sealed partial class SuiteHubView : UserControl
         if (!cliPresent)
             ToolTipService.SetToolTip(CopyCliPathButton, "marksmith.exe isn't installed alongside this copy of MarkSmith");
 
-        _notificationTimer.Tick += (_, _) => { _notificationTimer.Stop(); FadeNotification(to: 0); };
+        _notificationTimer.Tick += (_, _) => { _notificationTimer.Stop(); Notification.IsOpen = false; };
         Unloaded += (_, _) => _notificationTimer.Stop();
         HoverPolish.Track(this);
     }
@@ -102,53 +100,23 @@ public sealed partial class SuiteHubView : UserControl
         catch { }
     }
 
-    // A result line under the cards: success tick or warning icon, fades in, and fades away after a
-    // few seconds so a stale "Copied…" never lingers into the next action.
+    // A result line under the cards. A success closes itself after a few seconds so a stale
+    // "Copied…" never lingers into the next action; a problem stays until it's dismissed or replaced.
     private void SetNotification(string message, bool success = true)
     {
-        NotificationText.Text = message.TrimStart('✓', ' ');
-        NotificationIcon.Glyph = success ? "\uE73E" : "\uE7BA";
-        ThemeBrush.Set(NotificationIcon, FontIcon.ForegroundProperty,
-            success ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush");
-        FadeNotification(to: 1);
         _notificationTimer.Stop();
-        _notificationTimer.Start();
+        Notification.Message = message.TrimStart('✓', ' ');
+        Notification.Severity = success ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
+        Notification.IsOpen = true;
+        // The hub scrolls in a short window; the result must land where it can be read.
+        Notification.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = HoverPolish.AnimationsEnabled });
+        if (success) _notificationTimer.Start();
     }
 
-    private void FadeNotification(double to)
+    private async void CopyToClipboard(string text, string successMessage)
     {
-        _notificationFade?.Stop();
-        if (!HoverPolish.AnimationsEnabled)
-        {
-            NotificationRow.Opacity = to;
-            return;
-        }
-        var fade = new DoubleAnimation
-        {
-            To = to,
-            Duration = new Duration(TimeSpan.FromMilliseconds(to > 0 ? 160 : 400)),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-        };
-        Storyboard.SetTarget(fade, NotificationRow);
-        Storyboard.SetTargetProperty(fade, nameof(Opacity));
-        _notificationFade = new Storyboard();
-        _notificationFade.Children.Add(fade);
-        _notificationFade.Begin();
-    }
-
-    private void CopyToClipboard(string text, string successMessage)
-    {
-        try
-        {
-            var dp = new DataPackage();
-            dp.SetText(text);
-            Clipboard.SetContent(dp);
-            SetNotification(successMessage);
-        }
-        catch (Exception ex)
-        {
-            SetNotification($"Clipboard copy failed: {ex.Message}", success: false);
-        }
+        var error = await ClipboardWriter.TrySetTextAsync(text);
+        SetNotification(error is null ? successMessage : $"Nothing was copied. {error}", success: error is null);
     }
 
     private void OnOpenConfigFolderClick(object sender, RoutedEventArgs e)
