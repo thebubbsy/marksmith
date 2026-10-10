@@ -5422,3 +5422,7 @@ Mermaid filter 362/362. Desktop build green (scratch OutDir). Validator 0 errors
 2. Carried over: continuous-page PDF default (run #59), for the user; real Windows light/dark switch
    with a person present; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
    flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
+
+**Release (same run):** tagged **v3.22.0** on `b7380b4` after CI passed on it. Release workflow built
+the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
+`MarksmithBaseVersion` is now **3.23.0**.
