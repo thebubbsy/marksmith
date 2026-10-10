@@ -5664,3 +5664,67 @@ paragraph, numbering confined to the block).
 **Release (same run):** tagged **v3.25.0** on `bbf3980` after CI passed on it. Release workflow built
 the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
 `MarksmithBaseVersion` is now **3.26.0**.
+
+### 2026-10-10 21:00–21:50 AEDT (routine run #68: callout titles finished, every inline feature in every format)
+
+**Picked up:** run #67 (20:24) hit the session limit mid-run and left its callout-title work
+uncommitted (25 files). Reviewed the diff, restored `Gemini38DialectTests.cs`'s CRLF endings (the
+dead run had rewritten the whole file as LF), ran the full suite (4574 passed) and committed it as
+`3c9465d`. The uncommitted `EverythingHttpPlugin/*` changes in the tree are not this routine's: left
+alone, not staged.
+
+**Run #67's work, as committed (`3c9465d`):**
+- `CalloutTitles` (Core): `:::tip Pro tip`, `> [!tip] Pro tip`, `!!! tip "Pro tip"` put the title IN
+  the label ("Pro tip", not "Tip" over a bold first line) in the preview, PDF, Word, email, EPUB,
+  Google Docs and slides. Non-GitHub kinds keep their own name (`:::danger` → red box "Danger",
+  `> [!faq]` → "FAQ"). Saved .md keeps a bold title line (`markdownFile: true`).
+- Word: folded callouts and `<details>` print open (`foldable: false`; no `w15:defaultCollapsed`).
+- Slides run `AdmonitionNormalizer`. A footnote definition right after a definition list no longer
+  prints raw `[^1]`.
+
+**Found by rendering one inline sweep (`inline.md`) through PDF, Word (COM), email (Edge),
+EPUB (Edge) and slides (PowerPoint COM):**
+- Word, email, slides, Google Docs, TOC, table extraction: **abbreviated words vanished** ("the HTML
+  spec" → "the  spec"). Every hand-written inline switch lacked a case for `AbbreviationInline`.
+- `^[inline footnote]` printed raw in every format.
+- Slides never ran `DialectNormalizer`: `{--del--}`, `[[Wiki]]`, `^[note]` printed as syntax,
+  `{++ins++}` kept its braces.
+- Email: `<mark>` (CriticMarkup `{==hl==}`) became a bare span (no highlight); `{~~old~>new~~}`
+  read "oldnew" (also EPUB).
+- EPUB: `:rocket:` printed raw (no emoji extension); `<kbd>` unstyled.
+- Preview/PDF: two rules above the footnotes (Markdig's `<hr>` + `.footnotes` border-top);
+  underline hanging under the superscript note numbers.
+
+**Shipped (`427e4c0`):**
+- `PlainAbbreviations.UsePlainAbbreviations()` on every pipeline that doesn't render through
+  Markdig's HTML renderer (Docx ×2, email ×2, slides ×2, Google Docs, InPlaceDocxPatcher, excerpt,
+  rasterizer, spreadsheet extraction, TOC). **Any new pipeline that walks inlines itself needs it.**
+- `DialectNormalizer`: `^[text]` → `[^ms-inline-N]` + definitions appended at the end (after
+  reviewer-comment and index forms, which share the opener; code spans and fences untouched).
+- `SlideDeckBuilder.Build` runs `DialectNormalizer` and strips comment-anchor badges.
+- Email `WriteHtmlInline`: mark → highlighted span, del/ins/s/u inline-styled, space before an
+  `<ins>` that follows `</del>`. EPUB: emoji pipeline (NoEmoji-aware), kbd/mark/abbr/`del + ins` CSS.
+- Preview CSS: `.footnotes > hr { display: none }`, no underline on note refs/back-refs.
+- Tests: `InlineFeatureSweepTests` (abbreviations in Word/email/preview, inline footnotes, slides
+  dialects, email highlight, EPUB emoji, code/comment guards).
+
+**Verified:** full suite **4584 passed, 1 skipped, 0 failed**. Desktop build green (scratch
+instance launched and served `/api/convert`). Final renders of the sweep: PDF, Word, email, EPUB and
+slides all clean.
+
+**Noticed, not fixed:**
+- Word writes CriticMarkup deletions as real tracked changes; Word's default "Simple Markup" view
+  (and a headless PDF save) hides deleted text. Correct semantics, but a reader may think the text
+  vanished. Worth a look at whether a document can ask for All Markup.
+- Slides: `{~~old~>new~~}` still reads "oldnew" (the slide run builder has no "previous tag" state);
+  `==mark==` is drawn bold, not highlighted (TextRun has no highlight).
+- In Word, "Smart quotes" / dash conversion follow DashMode as designed; `--` stays as typed by default.
+- The `gx.ps1 park` step hung once with no visible window: cycle.ps1 in this run's scratchpad drops it.
+
+**Next up:**
+1. Back to the app itself (the WinUI3 surfaces): the last several runs were export fidelity. Pick
+   the least-touched surfaces in the inventory (Settings pages, History, the command palette) and
+   do a real-mouse hover/press/focus pass with screenshots.
+2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run
+   #59), for the user; real Windows light/dark switch; first real in-app update;
+   `EmailExportFlowTests.Subject_preview_follows_the_template` flake; Word INDEX field pre-fill.
