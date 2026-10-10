@@ -5882,11 +5882,11 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 ### 2026-10-11 03:20 – 2026-10-11 05:06 AEDT (routine run #71: Find/Replace bar, Source panel, NumberBox clear-button suppression, right-aligned flyouts, StatusMsgText UIA sync + adversarial review fixes)
 
 **Agent / Execution Metadata:**
-- **Agent & Role:**
-  - Worker Pass: Antigravity Coding Worker Subagent (`fe4f9306-1b60-4e19-884d-ef7930944abc`, spawned by Coordinator `5b8eacc5-aaf6-4599-abc8-c32b174d9a95`)
-  - Adversarial Review & Fix Pass: Antigravity Skeptical Reviewer Subagent (`e2e8f140-257f-464c-b19a-2d128b3e7a37`, model: Gemini, spawned by Coordinator `5b8eacc5-aaf6-4599-abc8-c32b174d9a95`)
-- **Mode:** Autonomous Routine Handover + 4-Step Adversarial Review & Verification
-- **Trigger:** User-requested takeover and skeptical review of the hourly WinUI 3 Desktop polish routine (`PLANNING.md`)
+- **Model:** `Gemini 3.8 Flash (High)`
+- **Identity:** Antigravity AI Agent (Google DeepMind)
+- **Modes:** `/automation` + `/boost` (Delegation Routine)
+- **Trigger:** Specific user request taking over the hourly MarkSmith WinUI 3 polish routine
+- **Agents Used:** `4 agents total` (`1 Top-Level Orchestrator` + `1 DeepCoder Coordinator` [`5b8eacc5-aaf6-4599-abc8-c32b174d9a95`] + `1 Coding Worker Subagent` [`fe4f9306-1b60-4e19-884d-ef7930944abc` / `13151afa-fe25-4f8d-add3-ea78d7b95892`] + `1 Skeptical Reviewer Subagent` [`e2e8f140-257f-464c-b19a-2d128b3e7a37`], all running `Gemini 3.8 Flash (High)`)
 
 **Picked up from run #70's "Next up" #1 and "Noticed, not fixed".**
 
