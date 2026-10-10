@@ -1057,7 +1057,13 @@ namespace MarkSmith.ViewModels.MindMap
         [RelayCommand]
         public void AddRootNode() => AddRootNodeCore(announce: true);
 
-        private void AddRootNodeCore(bool announce)
+        private void AddRootNodeCore(bool announce) =>
+            AddNodeAt(-ViewportOffsetX - 95, -ViewportOffsetY - 28, announce);
+
+        /// <summary>Places a new standalone node at <paramref name="x"/>, <paramref name="y"/> in
+        /// world coordinates, selects it, and optionally raises <see cref="NodeCreated"/> so the
+        /// inspector focuses its title field immediately.</summary>
+        public MindMapNodeViewModel AddNodeAt(double x, double y, bool announce = true)
         {
             PushUndo("Add node");
 
@@ -1065,8 +1071,8 @@ namespace MarkSmith.ViewModels.MindMap
             {
                 Title = NewNodeTitle,
                 NodeType = MindMapNodeType.Document,
-                X = -ViewportOffsetX - 95,
-                Y = -ViewportOffsetY - 28,
+                X = Math.Round(x, 1),
+                Y = Math.Round(y, 1),
                 Width = 190,
                 Height = 56,
                 ColorHex = NextPaletteColor(),
@@ -1084,6 +1090,7 @@ namespace MarkSmith.ViewModels.MindMap
             MarkDirty("Added a node. Type to name it, then link it to the documents it belongs with.");
             CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
             if (announce) NodeCreated?.Invoke(this, vm);
+            return vm;
         }
 
         [RelayCommand]

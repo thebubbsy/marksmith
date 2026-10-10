@@ -172,11 +172,34 @@ public class PreviewBlockSweepTests
     }
 
     [Fact]
-    public void Word_index_entries_are_complex_fields()
+    public void Word_index_entries_are_complex_fields_and_index_block_prefills_terms()
     {
-        var xml = MarkSmith.Core.Tests.E2ETestHelpers.ExportDocxXml("Pg^[index: \"Storage:Relational\"] rocks.\n\n:::index\n:::\n");
+        var xml = MarkSmith.Core.Tests.E2ETestHelpers.ExportDocxXml(
+            "Pg^[index: \"Storage:Relational\"] and Redis^[index: \"Caching\"].\n\n:::index\n:::\n");
         Assert.DoesNotContain("w:instr=\"XE", xml);
         Assert.Contains(" XE \"Storage:Relational\" </w:instrText>", xml);
+        // The INDEX field pre-fills its result so viewers that do not update fields still show the entries.
+        Assert.Contains(">Caching</w:t>", xml);
+        Assert.Contains(">Storage — Relational</w:t>", xml);
+    }
+
+    [Fact]
+    public void Index_under_a_heading_suppresses_its_own_top_border_rule()
+    {
+        var withHeading = Render("Pg^[index: \"Storage\"].\n\n## Index\n\n:::index\n:::\n");
+        Assert.Contains("border-top: none", withHeading);
+
+        var standalone = Render("Pg^[index: \"Storage\"].\n\n:::index\n:::\n");
+        Assert.DoesNotContain("border-top: none", standalone);
+        Assert.Contains("class=\"ms-index-title\"", standalone);
+    }
+
+    [Fact]
+    public void Word_ai_context_header_matches_preview_without_emoji()
+    {
+        var xml = MarkSmith.Core.Tests.E2ETestHelpers.ExportDocxXml(":::ai-context\nmodel: Claude\n:::\n");
+        Assert.Contains(">AI context</w:t>", xml);
+        Assert.DoesNotContain("🤖", xml);
     }
 
     [Fact]

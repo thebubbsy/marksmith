@@ -381,6 +381,36 @@ namespace MarkSmith.Views.ShapeStudio
                     ViewModel.DuplicateSelectedCommand.Execute(null);
                     e.Handled = true;
                     return;
+                case (VirtualKey)221 when ctrl && shift && ViewModel.HasSelection: // Ctrl+Shift+]
+                    ViewModel.BringToFrontCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                case (VirtualKey)221 when ctrl && ViewModel.HasSelection: // Ctrl+]
+                    ViewModel.BringForwardCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                case (VirtualKey)219 when ctrl && shift && ViewModel.HasSelection: // Ctrl+Shift+[
+                    ViewModel.SendToBackCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                case (VirtualKey)219 when ctrl && ViewModel.HasSelection: // Ctrl+[
+                    ViewModel.SendBackwardCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                case VirtualKey.F2 when ViewModel.SelectedShape is not null:
+                    FocusLabelEditor();
+                    e.Handled = true;
+                    return;
+                case VirtualKey.Application:
+                case VirtualKey.F10 when shift:
+                    if (ViewModel.SelectedShape is { } selected && _shapePaths.TryGetValue(selected, out var path) && path.Parent is FrameworkElement host)
+                        ShowShapeContextMenu(host, new Point(host.ActualWidth / 2, host.ActualHeight / 2));
+                    else if (ViewModel.SelectedShape is not null)
+                        ShowShapeContextMenu(MainCanvas, new Point(120, 120));
+                    else
+                        ShowCanvasContextMenu(new Point(160, 140));
+                    e.Handled = true;
+                    return;
                 case (VirtualKey.Delete or VirtualKey.Back) when ViewModel.HasSelection:
                     ViewModel.RemoveSelectedCommand.Execute(null);
                     e.Handled = true;
@@ -517,7 +547,21 @@ namespace MarkSmith.Views.ShapeStudio
         private void OnCanvasPointerPressed(object sender, PointerRoutedEventArgs e)
         {
             CanvasScroller.Focus(FocusState.Pointer);
-            var pos = e.GetCurrentPoint(MainCanvas).Position;
+            var pt = e.GetCurrentPoint(MainCanvas);
+            var pos = pt.Position;
+            if (pt.Properties.IsRightButtonPressed)
+            {
+                if (ViewModel.IsPlacing)
+                {
+                    ViewModel.ArmedTool = null;
+                    ViewModel.StatusMessage = "Placing cancelled.";
+                    e.Handled = true;
+                    return;
+                }
+                ShowCanvasContextMenu(pos);
+                e.Handled = true;
+                return;
+            }
             if (ViewModel.ArmedTool is null)
             {
                 // Select tool: a click on empty canvas clears the selection; a drag draws a
@@ -636,7 +680,7 @@ namespace MarkSmith.Views.ShapeStudio
         private static Rect DragRect(Point a, Point b) =>
             new(Math.Max(0, Math.Min(a.X, b.X)), Math.Max(0, Math.Min(a.Y, b.Y)), Math.Abs(b.X - a.X), Math.Abs(b.Y - a.Y));
 
-        // ---- shapes: click / Ctrl+click / drag the selection ----
+        // ---- shapes: click / Ctrl+click / drag the selection / context menus ----
 
         private void OnShapePointerPressed(object sender, PointerRoutedEventArgs e)
         {
@@ -644,6 +688,15 @@ namespace MarkSmith.Views.ShapeStudio
             if (ViewModel.IsPlacing) return;
             if (sender is not FrameworkElement fe || fe.DataContext is not ShapeCanvasItemViewModel shape) return;
             CanvasScroller.Focus(FocusState.Pointer);
+
+            var pt = e.GetCurrentPoint(fe);
+            if (pt.Properties.IsRightButtonPressed)
+            {
+                ViewModel.ClickSelect(shape);
+                ShowShapeContextMenu(fe, pt.Position);
+                e.Handled = true;
+                return;
+            }
 
             if (IsDown(VirtualKey.Control) || IsDown(VirtualKey.Shift))
             {
@@ -659,6 +712,106 @@ namespace MarkSmith.Views.ShapeStudio
             _dragStart = e.GetCurrentPoint(MainCanvas).Position;
             fe.CapturePointer(e.Pointer);
             e.Handled = true;
+        }
+
+        private void OnShapesListItemRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement fe || fe.DataContext is not ShapeCanvasItemViewModel shape) return;
+            ViewModel.ClickSelect(shape);
+            ShowShapeContextMenu(fe, e.GetPosition(fe));
+            e.Handled = true;
+        }
+
+        private void FocusLabelEditor()
+        {
+            if (ViewModel.SelectedShape is null || LabelTextBox is null) return;
+            LabelTextBox.Focus(FocusState.Programmatic);
+            LabelTextBox.SelectAll();
+        }
+
+        private static MenuFlyoutItem ShapeMenuItem(string text, string glyph, Action onClick, string? shortcut = null, bool enabled = true)
+        {
+            var item = new MenuFlyoutItem
+            {
+                Text = text,
+                Icon = new FontIcon { Glyph = glyph },
+                IsEnabled = enabled
+            };
+            if (!string.IsNullOrEmpty(shortcut)) item.KeyboardAcceleratorTextOverride = shortcut;
+            item.Click += (_, _) => onClick();
+            return item;
+        }
+
+        private void ShowShapeContextMenu(FrameworkElement anchor, Point position)
+        {
+            if (ViewModel.SelectedShape is null) return;
+            var flyout = new MenuFlyout();
+            bool isLine = ViewModel.SelectedShape.IsLine;
+
+            if (!isLine)
+            {
+                flyout.Items.Add(ShapeMenuItem("Edit label", "\uE70F", FocusLabelEditor, "F2"));
+            }
+            flyout.Items.Add(ShapeMenuItem("Duplicate", "\uE8C8", () => ViewModel.DuplicateSelectedCommand.Execute(null), "Ctrl+D"));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Bring to front", "\uE74A", () => ViewModel.BringToFrontCommand.Execute(null), "Ctrl+Shift+]"));
+            flyout.Items.Add(ShapeMenuItem("Bring forward", "\uE74A", () => ViewModel.BringForwardCommand.Execute(null), "Ctrl+]"));
+            flyout.Items.Add(ShapeMenuItem("Send backward", "\uE74B", () => ViewModel.SendBackwardCommand.Execute(null), "Ctrl+["));
+            flyout.Items.Add(ShapeMenuItem("Send to back", "\uE74B", () => ViewModel.SendToBackCommand.Execute(null), "Ctrl+Shift+["));
+
+            if (!isLine)
+            {
+                flyout.Items.Add(new MenuFlyoutSeparator());
+                flyout.Items.Add(ShapeMenuItem("Rotate 90° clockwise", "\uE7AD", () => ViewModel.RotateClockwiseCommand.Execute(null)));
+                flyout.Items.Add(ShapeMenuItem("Rotate 90° counter-clockwise", "\uE80C", () => ViewModel.RotateCounterClockwiseCommand.Execute(null)));
+            }
+
+            if (ViewModel.CanAlign)
+            {
+                var alignSub = new MenuFlyoutSubItem
+                {
+                    Text = "Align selection",
+                    Icon = new FontIcon { Glyph = "\uE8E4" }
+                };
+                alignSub.Items.Add(ShapeMenuItem("Align left", "\uE8E4", () => ViewModel.AlignLeftCommand.Execute(null)));
+                alignSub.Items.Add(ShapeMenuItem("Align centre", "\uE8E3", () => ViewModel.AlignCenterCommand.Execute(null)));
+                alignSub.Items.Add(ShapeMenuItem("Align right", "\uE8E2", () => ViewModel.AlignRightCommand.Execute(null)));
+                alignSub.Items.Add(new MenuFlyoutSeparator());
+                alignSub.Items.Add(ShapeMenuItem("Align top", "\uE74A", () => ViewModel.AlignTopCommand.Execute(null)));
+                alignSub.Items.Add(ShapeMenuItem("Align middle", "\uE8E3", () => ViewModel.AlignMiddleCommand.Execute(null)));
+                alignSub.Items.Add(ShapeMenuItem("Align bottom", "\uE74B", () => ViewModel.AlignBottomCommand.Execute(null)));
+                if (ViewModel.CanDistribute)
+                {
+                    alignSub.Items.Add(new MenuFlyoutSeparator());
+                    alignSub.Items.Add(ShapeMenuItem("Distribute horizontally", "\uE8E3", () => ViewModel.DistributeHorizontalCommand.Execute(null)));
+                    alignSub.Items.Add(ShapeMenuItem("Distribute vertically", "\uE8E3", () => ViewModel.DistributeVerticalCommand.Execute(null)));
+                }
+                flyout.Items.Add(new MenuFlyoutSeparator());
+                flyout.Items.Add(alignSub);
+            }
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Delete", "\uE74D", () => ViewModel.RemoveSelectedCommand.Execute(null), "Del"));
+
+            flyout.ShowAt(anchor, position);
+        }
+
+        private void ShowCanvasContextMenu(Point position)
+        {
+            var flyout = new MenuFlyout();
+            bool any = ViewModel.HasShapes;
+
+            flyout.Items.Add(ShapeMenuItem("Paste shapes from clipboard", "\uE77F", () => OnLoadMarkdownClick(this, new RoutedEventArgs())));
+            flyout.Items.Add(ShapeMenuItem("Copy shapes as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), enabled: any));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Select all", "\uE8B3", () => ViewModel.SelectAllCommand.Execute(null), "Ctrl+A", enabled: any && !ViewModel.IsDense));
+            flyout.Items.Add(ShapeMenuItem("Fit diagram", "\uE9A6", FitCanvasToContent, "Ctrl+0", enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Actual size (100%)", "\uE71E", () => ZoomTo(1), "Ctrl+1"));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Clear canvas", "\uE74D", () => OnClearClick(this, new RoutedEventArgs()), enabled: any));
+
+            flyout.ShowAt(MainCanvas, position);
         }
 
         private void OnShapePointerMoved(object sender, PointerRoutedEventArgs e)

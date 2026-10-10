@@ -394,5 +394,25 @@ namespace MarkSmith.Tests
             vm.IsFocusModeEnabled = false;
             Assert.Contains("whole map", vm.StatusMessage);
         }
+
+        [Fact]
+        public void AddNodeAtPlacesANodeAtTheClickedWorldPositionAndUndoes()
+        {
+            var vm = CleanStudio();
+            int beforeCount = vm.Nodes.Count;
+            MindMapNodeViewModel? created = null;
+            vm.NodeCreated += (_, n) => created = n;
+
+            var added = vm.AddNodeAt(420.4, -185.6);
+
+            Assert.Equal(beforeCount + 1, vm.Nodes.Count);
+            Assert.Same(added, vm.SelectedNode);
+            Assert.Same(added, created);
+            Assert.Equal(420.4, added.X);
+            Assert.Equal(-185.6, added.Y);
+
+            vm.Undo();
+            Assert.Equal(beforeCount, vm.Nodes.Count);
+        }
     }
 }

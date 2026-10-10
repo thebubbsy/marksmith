@@ -364,6 +364,13 @@
                             <Button Style="{StaticResource ToolIconButton}" Command="{Binding DistributeHorizontalCommand}" AutomationProperties.Name="Distribute horizontally" ToolTipService.ToolTip="Space evenly left to right — select three or more shapes"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h1.12 v10.5 h-1.12 Z M10.12,0.75 h1.12 v10.5 h-1.12 Z M4.88,3 h2.25 v6 h-2.25 Z" /></Button>
                             <Button Style="{StaticResource ToolIconButton}" Command="{Binding DistributeVerticalCommand}" AutomationProperties.Name="Distribute vertically" ToolTipService.ToolTip="Space evenly top to bottom — select three or more shapes"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h10.5 v1.12 h-10.5 Z M0.75,10.12 h10.5 v1.12 h-10.5 Z M3,4.88 h6 v2.25 h-6 Z" /></Button>
                             <AppBarSeparator Margin="0" Padding="0" />
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding BringToFrontCommand}" AutomationProperties.Name="Bring to front" ToolTipService.ToolTip="Bring to front (Ctrl+Shift+])">
+                                <FontIcon Glyph="&#xE74A;" FontSize="14" />
+                            </Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding SendToBackCommand}" AutomationProperties.Name="Send to back" ToolTipService.ToolTip="Send to back (Ctrl+Shift+[)">
+                                <FontIcon Glyph="&#xE74B;" FontSize="14" />
+                            </Button>
+                            <AppBarSeparator Margin="0" Padding="0" />
                             <Button Style="{StaticResource ToolIconButton}" Command="{Binding DuplicateSelectedCommand}" AutomationProperties.Name="Duplicate" ToolTipService.ToolTip="Duplicate the selection (Ctrl+D)">
                                 <FontIcon Glyph="&#xE8C8;" FontSize="14" />
                             </Button>
@@ -654,7 +661,8 @@
                             </Grid>
 
                             <TextBlock Grid.Row="6" Text="Label" Style="{StaticResource InspectorLabel}" VerticalAlignment="Top" Margin="0,6,0,0" />
-                            <TextBox Grid.Row="6" Grid.Column="1" AutomationProperties.Name="Text label" PlaceholderText="Text shown on the shape"
+                            <TextBox x:Name="LabelTextBox" Grid.Row="6" Grid.Column="1" AutomationProperties.Name="Text label" PlaceholderText="Text shown on the shape"
+                                     ToolTipService.ToolTip="Text shown on the shape (F2)"
                                      Text="{Binding SelectedShape.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      AcceptsReturn="True" MinHeight="60" TextWrapping="Wrap" />
                         </Grid>
@@ -676,7 +684,7 @@
                                   Margin="-10,4,-10,0" AutomationProperties.Name="Shapes on canvas">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Padding="0,6" ColumnSpacing="10" AutomationProperties.Name="{Binding ListTitle}">
+                                    <Grid Padding="0,6" ColumnSpacing="10" Background="Transparent" RightTapped="OnShapesListItemRightTapped" AutomationProperties.Name="{Binding ListTitle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />

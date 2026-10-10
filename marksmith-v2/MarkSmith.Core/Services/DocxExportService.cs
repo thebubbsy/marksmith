@@ -591,6 +591,7 @@ public sealed partial class DocxExportService
             new(ReferenceEqualityComparer.Instance);
         public bool HasRevisions;
         public bool HasIndex;
+        public readonly List<string> IndexTerms = new();
         public bool HasFormulas;
         public bool BodyHasSectionBreaks; // :::columns / scoped :::line-numbers split the body into sections
         public bool HasCoverSection => CoverPage is not null || Settings.BrandCoverPage; // the first section is a cover
@@ -2098,6 +2099,8 @@ public sealed partial class DocxExportService
 
     /// <summary>
     /// Renders a :::index block as a back-of-document subject concordance index with INDEX field code.
+    /// Pre-fills the <see cref="W.SimpleField"/> result with the collected terms so viewers that do
+    /// not update fields still show the index entries, matching the preview and BIBLIOGRAPHY.
     /// </summary>
     private static void RenderIndex(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
     {
@@ -2119,6 +2122,26 @@ public sealed partial class DocxExportService
         {
             Instruction = $"INDEX \\c \"{cols}\" \\z \"1033\""
         };
+
+        var uniqueTerms = ctx.IndexTerms
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(t => t, StringComparer.InvariantCultureIgnoreCase)
+            .ToList();
+
+        for (int i = 0; i < uniqueTerms.Count; i++)
+        {
+            var parts = uniqueTerms[i].Split(':').Select(p => p.Trim()).Where(p => p.Length > 0).ToArray();
+            if (parts.Length == 0) continue;
+            var run = new W.Run();
+            if (i > 0) run.Append(new W.Break());
+            var label = parts.Length == 1
+                ? parts[0]
+                : $"{parts[0]} — {string.Join(" › ", parts.Skip(1))}";
+            run.Append(new W.Text(label) { Space = SpaceProcessingModeValues.Preserve });
+            indexFld.Append(run);
+        }
+
         indexPara.Append(indexFld);
         target.Append(indexPara);
     }
@@ -2644,7 +2667,7 @@ public sealed partial class DocxExportService
                 new W.ParagraphBorders(
                     new W.LeftBorder { Val = W.BorderValues.Single, Size = 18, Space = 8, Color = ctx.BorderHex }
                 )));
-        AddText(header, "🤖 AI Context", new Fmt { Bold = true });
+        AddText(header, "AI context", new Fmt { Bold = true });
         target.Append(header);
 
         // Key-value rows
@@ -4881,6 +4904,7 @@ public sealed partial class DocxExportService
             if (!string.IsNullOrWhiteSpace(term))
             {
                 ctx.HasIndex = true;
+                ctx.IndexTerms.Add(term.Trim());
                 // A complex field (begin / code / end, no result), as Word writes XE itself. An
                 // empty <w:fldSimple> XE made Word scramble the paragraph around it: its sentences
                 // printed in reverse order, styled as a heading.

@@ -86,4 +86,15 @@ public class CommandSearchTests
     [Fact]
     public void Keyword_Matches_Have_Nothing_To_Highlight() =>
         Assert.Empty(CommandSearch.Highlights("Export PDF", "acrobat"));
+
+    [Fact]
+    public void Scattered_Single_Letter_Initials_Mid_Sentence_Are_Rejected()
+    {
+        // "head" used to match h(TML) + e(mail) + a(s) + d(ocument) starting at the 4th word.
+        Assert.Null(CommandSearch.Score("Import Word, PDF, HTML or email as a new document", "File", "head"));
+        // Real initialisms starting at the beginning and staying contiguous still score.
+        Assert.NotNull(CommandSearch.Score("Export PDF", "Export", "ep"));
+        Assert.NotNull(CommandSearch.Score("Find and replace", "Edit", "far"));
+        Assert.NotNull(CommandSearch.Score("Open Diagram Studio", "Studio", "ods"));
+    }
 }

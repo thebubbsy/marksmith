@@ -130,4 +130,62 @@ public class ShapeStudioCanvasEditingTests
         // Nothing more to give: a further push reports no movement.
         Assert.Equal((0.0, 0.0), vm.NudgeSelection(-5, 0));
     }
+
+    [Fact]
+    public async System.Threading.Tasks.Task Layer_ordering_reorders_shapes_preserves_selection_and_undoes()
+    {
+        var vm = ThreeRects();
+        var a = vm.Shapes[0];
+        var b = vm.Shapes[1];
+        var c = vm.Shapes[2];
+        a.Text = "A";
+        b.Text = "B";
+        c.Text = "C";
+
+        vm.SelectedShape = a;
+        vm.BringForward();
+        Assert.Equal(new[] { "B", "A", "C" }, vm.Shapes.Select(s => s.Text).ToArray());
+        Assert.Same(a, vm.SelectedShape);
+
+        vm.BringToFront();
+        Assert.Equal(new[] { "B", "C", "A" }, vm.Shapes.Select(s => s.Text).ToArray());
+        Assert.Same(a, vm.SelectedShape);
+
+        // Already at the front: a second BringToFront is a no-op and does not push another undo step.
+        vm.BringToFront();
+        Assert.Equal("Already at the front.", vm.StatusMessage);
+
+        vm.SendBackward();
+        Assert.Equal(new[] { "B", "A", "C" }, vm.Shapes.Select(s => s.Text).ToArray());
+
+        vm.SendToBack();
+        Assert.Equal(new[] { "A", "B", "C" }, vm.Shapes.Select(s => s.Text).ToArray());
+        Assert.Same(a, vm.SelectedShape);
+
+        await vm.UndoAsync();
+        Assert.Equal(new[] { "B", "A", "C" }, vm.Shapes.Select(s => s.Text).ToArray());
+    }
+
+    [Fact]
+    public void Rotate_90_degrees_wraps_within_inspector_bounds_and_skips_connectors()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        var box = vm.AddShapeAt("roundrect", 40, 40, 120, 60, text: "Step");
+        var line = vm.AddConnectorLine(40, 120, 160, 120);
+
+        vm.SelectedShape = box;
+        vm.RotateClockwise();
+        Assert.Equal(90, box.Rotation);
+        vm.RotateClockwise();
+        Assert.Equal(180, box.Rotation);
+        vm.RotateClockwise();
+        Assert.Equal(-90, box.Rotation);
+        vm.RotateCounterClockwise();
+        Assert.Equal(180, box.Rotation);
+
+        vm.SelectedShape = line;
+        vm.RotateClockwise();
+        Assert.Equal(0, line.Rotation);
+        Assert.Contains("endpoints", vm.StatusMessage);
+    }
 }

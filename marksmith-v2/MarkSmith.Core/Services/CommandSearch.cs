@@ -99,22 +99,31 @@ public static class CommandSearch
 
     /// <summary>
     /// Splits the query into pieces that each start a later word of the label: "exppdf" is
-    /// "exp" + "pdf", "ep" is "e" + "p". Accepted only as a pure initialism (every piece one
-    /// letter) or in few pieces; "case" against "Copy as email" needs c + as + e and is refused.
+    /// "exp" + "pdf", "ep" is "e" + "p". Accepted only as a contiguous initialism starting near the
+    /// first word (every piece one letter) or in few multi-letter pieces; "case" against "Copy as email"
+    /// needs c + as + e and is refused, and "head" against "Import Word, PDF, HTML or email as a new
+    /// document" is refused because its initials start halfway through the sentence and skip words.
     /// </summary>
     private static IReadOnlyList<(int Start, int Length)>? Abbreviation(List<(int Start, string Text)> words, string query)
     {
         if (query.Length < 2) return null;
         var pieces = Parse(words, query, 0, 0);
-        if (pieces is null) return null;
-        var initialism = pieces.All(p => p.Length == 1);
+        if (pieces is null || pieces.Count == 0) return null;
+        if (pieces.All(p => p.Length == 1))
+        {
+            int firstWord = pieces[0].WordIndex;
+            int lastWord = pieces[^1].WordIndex;
+            return firstWord <= 1 && lastWord - firstWord <= pieces.Count
+                ? pieces.Select(p => (p.Start, p.Length)).ToList()
+                : null;
+        }
         var fewPieces = pieces.Count <= Math.Max(2, (query.Length + 2) / 3);
-        return initialism || fewPieces ? pieces : null;
+        return fewPieces ? pieces.Select(p => (p.Start, p.Length)).ToList() : null;
     }
 
-    private static List<(int Start, int Length)>? Parse(List<(int Start, string Text)> words, string query, int qi, int wi)
+    private static List<(int Start, int Length, int WordIndex)>? Parse(List<(int Start, string Text)> words, string query, int qi, int wi)
     {
-        if (qi == query.Length) return new List<(int, int)>();
+        if (qi == query.Length) return new List<(int, int, int)>();
         for (var w = wi; w < words.Count; w++)
         {
             var text = words[w].Text;
@@ -125,7 +134,7 @@ public static class CommandSearch
             {
                 var rest = Parse(words, query, qi + k, w + 1);
                 if (rest is null) continue;
-                rest.Insert(0, (words[w].Start, k));
+                rest.Insert(0, (words[w].Start, k, w));
                 return rest;
             }
         }

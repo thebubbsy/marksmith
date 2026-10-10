@@ -6199,8 +6199,81 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Smoke launch: `Marksmith.exe` (PID 15624) booted cleanly, ran stably, and shut down cleanly with 0 errors.
 
 **Next up:**
-1. Carried over: Further polish on secondary canvas interactions (MindMap and ShapeStudio context menus).
-2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59); real Windows light/dark switch; first real in-app update; Word INDEX field pre-fill.
+1. Completed in run #76: Further polish on secondary canvas interactions (MindMap and ShapeStudio context menus) and Word INDEX field pre-fill.
+2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59); real Windows light/dark switch; first real in-app update.
 
+### 2026-10-11 08:55 – 2026-10-11 09:55 AEDT (routine run #76: Shape Studio & Document Galaxy context menus, layer ordering & rotation, Word INDEX field pre-fill, Settings OCR card & Plugins footer alignment, and CommandSearch initialism precision)
 
+**Agent / Execution Metadata:**
+- **Model:** `Claude Opus 5.5 (High)`
+- **Identity:** Antigravity AI Agent (Google DeepMind)
+- **Modes:** `/boost` (Delegation Routine)
+- **Trigger:** Specific user request (`"run it again"` / `"run it with opus"`)
+- **Agents Used:** `2 agents total` (`1 Parent Orchestrator` [`6d95e3ef-9798-4c98-b968-85606ae1e3d6`] + `1 Autonomous Polish Worker Subagent` [`61d82636-5ee0-4bc9-ad79-350a1f4c0bc0`], running `Claude Opus 5.5 (High)`)
+
+**Picked up from run #75's "Next up" #1 and #2:**
+1. Secondary canvas interactions (`ShapeDesignStudioWindow` and `MindMapGalaxyWindow` right-click context menus, layer ordering, rotation, and keyboard accelerators).
+2. Word `INDEX` field pre-fill and `AI context` label consistency in `DocxExportService`, plus duplicate `border-top` suppression on `.ms-index-block` in `MarkdownHtmlService`.
+3. `SettingsView` `OCR engine` card primary action slot placement, `General` dropdown width alignment, and `Plugins` footer link consistency.
+4. `CommandSearch` single-letter initialism false-positive guard for 4-letter queries like `"head"`.
+
+**Found:**
+- **Shape Design Studio lacked canvas/list context menus, layer ordering, and quick rotation:**
+  - Right-clicking a shape on `DrawingCanvas` (`OnShapePointerPressed`) or empty canvas (`OnCanvasPointerPressed`) lacked a right-button guard, unintentionally initiating a drag or marquee/deselection instead of opening a context menu.
+  - Neither `DrawingCanvas` nor `ShapesList` had a right-click context menu (`MenuFlyout`), and `Shift+F10` / `Application` key did nothing.
+  - `ShapeDesignStudioViewModel` had no z-order commands (`BringToFront`, `BringForward`, `SendBackward`, `SendToBack`) or 90° rotation commands (`RotateClockwise`, `RotateCounterClockwise`), leaving overlapping shapes stuck in creation order.
+  - Pressing `F2` with a shape selected did not focus `LabelTextBox` in the inspector to rename the shape.
+- **Document Galaxy context menu & accessibility gaps:**
+  - Right-clicking empty space on `GalaxyCanvas` did nothing (`ShowCanvasContextMenu` was missing).
+  - `BuildNodeContextMenu` lacked `Rename (F2)`, `Add sibling (Enter)`, and a dynamic `Focus on its connections (F)` / `Show whole map` toggle.
+  - `BuildLinkContextMenu` lacked `Edit reason… (F2)`, and pressing `F2` with a link selected did not focus `LinkLabelBox`.
+  - Pressing `Shift+F10` or `Application` key on `GalaxyCanvas` did not open the context menu for the selected node, link, or canvas.
+  - `StatusBarText` and `SearchMatchLabel` did not sync `AutomationProperties.Name` when `ViewModel.StatusBarText` or `ViewModel.SearchMatchDisplay` changed.
+- **Word `INDEX` field empty before field update & preview/DOCX block polish:**
+  - `DocxExportService.RenderIndex` emitted `<w:fldSimple w:instr="INDEX \c &quot;2&quot; \z &quot;1033&quot;"/>` with no cached display runs, so opening the `.docx` in viewers (or Word before pressing `F9` to update fields) showed a blank index block.
+  - `DocxExportService.RenderAiContext` emitted `"🤖 AI Context"` instead of `"AI context"` (matching the HTML preview).
+  - `MarkdownHtmlService` drew a `border-top` on `.ms-index-block` even when immediately preceded by an author's `#`/`##` heading that already draws a `border-bottom`, producing a double horizontal rule.
+- **Settings `OCR engine` card & `Plugins` footer visual mismatch:**
+  - In `SettingsView.xaml`, the `OCR engine` `ComboBox` was placed inside `<controls:SettingsCard.Details>` underneath the description instead of in the card's primary right-aligned `Action` slot, breaking alignment with the three dropdowns above it (`Default output format`, `Fallback font`, `Earlier messages in an email`).
+  - `SettingsComboStyle` had `MinWidth="140"`, so adjacent dropdowns on the `General` page rendered at ragged widths instead of aligning cleanly at `210px` (`Right=1195`).
+  - On the `Plugins` page footer, `Open plugins folder` used a 12px grey `Button` next to the `HyperlinkButton` `Browse more plugins & write your own`.
+- **`CommandSearch` scattered single-letter initialism false positive:**
+  - `BestInitialismSpan` allowed single-letter initialism pieces (`pieces.All(p => p.Length == 1)`) to start anywhere in a long label and skip words, causing `"head"` (`h-e-a-d`) to match `"Import Word, PDF, HTML or email as a new document"` (`H`TML ... `e`mail `a`s ... `d`ocument).
+
+**Shipped:**
+- `MarkSmith.Core/ViewModels/ShapeStudio/ShapeDesignStudioViewModel.cs`:
+  - Added `BringToFront`, `BringForward`, `SendBackward`, `SendToBack`, `RotateClockwise` (+90°), and `RotateCounterClockwise` (−90°) commands with undo snapshots, multi-selection ordering preservation, boundary no-op checks, and descriptive `StatusMessage` updates.
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`:
+  - Added `BringToFrontButton` (`Ctrl+Shift+]`) and `SendToBackButton` (`Ctrl+Shift+[`) to `ToolStrip`, named `LabelTextBox`, and wired `RightTapped="OnShapesListItemRightTapped"` on `ShapesList` items.
+  - Guarded `OnShapePointerPressed` and `OnCanvasPointerPressed` against right-click drag/marquee start, and wired `ShowShapeContextMenu` (`Edit label (F2)`, `Duplicate`, `Bring to front`, `Bring forward`, `Send backward`, `Send to back`, `Rotate 90° clockwise/counter-clockwise`, `Align selection` submenu when `CanAlign`, `Delete`) and `ShowCanvasContextMenu` (`Paste shapes from clipboard`, `Copy shapes as Markdown`, `Select all`, `Fit diagram`, `Actual size (100%)`, `Clear canvas`).
+  - Added `F2` (focus `LabelTextBox` + `SelectAll`), `Ctrl+]` / `Ctrl+[` / `Ctrl+Shift+]` / `Ctrl+Shift+[`, and `Shift+F10` / `VirtualKey.Application` keyboard accelerators.
+- `MarkSmith.Core/ViewModels/MindMap/MindMapStudioViewModel.cs`:
+  - Added `AddNodeAt(double x, double y, bool announce = true)` for coordinate-targeted node creation from the canvas context menu.
+- `Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`:
+  - Added `x:Name="SearchMatchLabel"`, `x:Name="LinkLabelBox"`, and `x:Name="StatusBarText"`, syncing `AutomationProperties.SetName` on `StatusBarText` and `SearchMatchLabel` in the constructor and `OnViewModelPropertyChanged`.
+  - Added `ShowCanvasContextMenu` on right-clicking empty `GalaxyCanvas` (`Add node here`, `Import folder…`, `Arrange` submenu, `Fit to window`, `Zoom to 100%`).
+  - Enhanced `BuildNodeContextMenu` with `Rename (F2)`, `Add sibling (Enter)`, and dynamic `Focus on its connections (F)` / `Show whole map`.
+  - Enhanced `BuildLinkContextMenu` with `Edit reason… (F2)` and added `F2` link-label focus + `Shift+F10` / `Application` key support on `GalaxyCanvas`.
+- `MarkSmith.Core/Services/DocxExportService.cs` & `MarkdownHtmlService.cs`:
+  - Collected inline `ms-index-anchor` terms into `ctx.IndexTerms` and pre-filled `RenderIndex`'s `<w:fldSimple w:instr="INDEX \c &quot;2&quot; \z &quot;1033&quot;">` with alphabetical `<w:r>` and `<w:br/>` entries; updated `RenderAiContext` header to `"AI context"`.
+  - Added `h1 + .ms-index-block, h2 + .ms-index-block { border-top: none; margin-top: 0.4em; padding-top: 0.2em; }` in `MarkdownHtmlService.cs`.
+- `Views/SettingsView.xaml`:
+  - Moved `OcrEngineCombo` into the primary `Action` slot of its `SettingsCard` (keeping `OcrEngineDescription` in `Details`), set `MinWidth="210"` on `SettingsComboStyle` so all four `General` dropdowns align cleanly, and converted `Open plugins folder` in the `Plugins` footer to a `HyperlinkButton`.
+- `MarkSmith.Core/Services/CommandSearch.cs`:
+  - Restricted single-letter initialism matches in `BestInitialismSpan` to start within the first two words (`firstWord <= 1`) and span at most one skipped word (`lastWord - firstWord <= pieces.Count`).
+- `MarkSmith.Tests/CommandSearchTests.cs`, `PreviewBlockSweepTests.cs`, `ShapeStudioCanvasEditingTests.cs`, `MindMapGalaxyInspectorTests.cs`:
+  - Added 6 new unit tests covering `CommandSearch` `"head"` vs real initialisms, `.ms-index-block` border rule and DOCX pre-filled `INDEX` field / `AI context` label, Shape Studio layer ordering and 90° rotation, and Document Galaxy `AddNodeAt`.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64 -p:OutDir="$env:TEMP\ms76d\b\"`: **0 errors** (0 warnings in touched files).
+- Targeted test suites (`CommandSearchTests`, `PreviewBlockSweepTests`, `ShapeStudioCanvasEditingTests`, `MindMapGalaxyInspectorTests`): **91 passed, 0 failed**.
+- Full test suite (`dotnet test marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj`): **4,653 passed, 0 failed, 1 skipped (remote web test)**.
+- Live WinUI 3 UIAutomation & `PrintWindow` screenshot verification (`v_settings_general.png`, `v_settings_plugins.png`, `v_shape_after_layer.png`, `v_galaxy.png`):
+  - `SettingsView` `General` dropdowns (`Default output format`, `Fallback font`, `Earlier messages in an email`, `OCR engine`) all align at `Right=1195`; `Plugins` footer renders both `Open plugins folder` and `Browse more plugins & write your own` as `ControlType.Hyperlink`.
+  - `ShapeDesignStudioWindow` applying `'4-Tier Strategy Pyramid'` updates `StatusBarText` UIA `Name` to `"Applied preset '4-Tier Strategy Pyramid' (4 shapes) · Ctrl+Z to undo"`, enables `Bring to front` and `Send to back`, and updates `StatusBarText` UIA `Name` to `"Brought triangle to the front"` and `"Sent triangle to the back"`.
+  - `MindMapGalaxyWindow` initializes `StatusBarText` UIA `Name` on load and live-updates it on `Add child` (`"Added a node under 'MarkSmith Document Galaxy'. Type to name it."`) and `Add sibling` (`"Added a node beside 'New document'. Type to name it."`).
+
+**Next up:**
+1. Carried over: Polish pass on `MermaidStudioWindow` and `SmartArtDesignStudioWindow` canvas context menus and inspector keyboard shortcuts.
+2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59); real Windows light/dark switch; first real in-app update.
 

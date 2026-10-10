@@ -89,6 +89,14 @@ namespace MarkSmith.Views.MindMap
                 case nameof(MindMapStudioViewModel.IsPreviewCardVisible):
                     PlacePreviewCard();
                     break;
+                case nameof(MindMapStudioViewModel.StatusMessage):
+                    if (StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
+                        AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
+                    break;
+                case nameof(MindMapStudioViewModel.SearchMatchText):
+                    if (SearchMatchLabel != null)
+                        AutomationProperties.SetName(SearchMatchLabel, ViewModel.SearchMatchText ?? "");
+                    break;
             }
         }
 
@@ -1186,17 +1194,26 @@ namespace MarkSmith.Views.MindMap
         {
             var flyout = new MenuFlyout();
 
-            var openItem = MenuItem("Open in editor", "");
+            var openItem = MenuItem("Open in editor", "\uE8A7");
             openItem.Click += (s, e) => ViewModel.OpenLinkedDocument(node);
             flyout.Items.Add(openItem);
 
-            var histItem = MenuItem("Version history", "");
+            var histItem = MenuItem("Version history", "\uE81C");
             histItem.Click += (s, e) => OpenVersionHistoryForNode(node);
             flyout.Items.Add(histItem);
 
             flyout.Items.Add(new MenuFlyoutSeparator());
 
-            var childItem = MenuItem("Add child", "", "Tab");
+            var renameItem = MenuItem("Rename", "\uE8AC", "F2");
+            renameItem.Click += (s, e) =>
+            {
+                ViewModel.SelectedNode = node;
+                TitleBox.Focus(FocusState.Programmatic);
+                TitleBox.SelectAll();
+            };
+            flyout.Items.Add(renameItem);
+
+            var childItem = MenuItem("Add child", "\uE710", "Tab");
             childItem.Click += (s, e) =>
             {
                 ViewModel.SelectedNode = node;
@@ -1204,7 +1221,15 @@ namespace MarkSmith.Views.MindMap
             };
             flyout.Items.Add(childItem);
 
-            var linkItem = MenuItem("Link to another node…", "", "Ctrl+L");
+            var siblingItem = MenuItem("Add sibling", "\uE710", "Enter");
+            siblingItem.Click += (s, e) =>
+            {
+                ViewModel.SelectedNode = node;
+                ViewModel.AddSiblingNode();
+            };
+            flyout.Items.Add(siblingItem);
+
+            var linkItem = MenuItem("Link to another node…", "\uE71B", "Ctrl+L");
             linkItem.Click += async (s, e) =>
             {
                 ViewModel.SelectedNode = node;
@@ -1212,20 +1237,27 @@ namespace MarkSmith.Views.MindMap
             };
             flyout.Items.Add(linkItem);
 
-            var moveItem = MenuItem("Move under…", "");
+            var moveItem = MenuItem("Move under…", "\uE8DE");
             moveItem.Click += async (s, e) => await ShowReparentDialogAsync(node);
             flyout.Items.Add(moveItem);
 
-            var focusItem = MenuItem("Focus on its connections", "", "F");
+            var focusItem = MenuItem("Focus on its connections", "\uE890", "F");
             focusItem.Click += (s, e) =>
             {
-                ViewModel.SelectedNode = node;
-                ViewModel.IsFocusModeEnabled = true;
-                ViewModel.CenterOn(node);
+                if (ViewModel.IsFocusModeEnabled && ViewModel.SelectedNode == node)
+                {
+                    ViewModel.IsFocusModeEnabled = false;
+                }
+                else
+                {
+                    ViewModel.SelectedNode = node;
+                    ViewModel.IsFocusModeEnabled = true;
+                    ViewModel.CenterOn(node);
+                }
             };
             flyout.Items.Add(focusItem);
 
-            var duplicateItem = MenuItem("Duplicate", "", "Ctrl+D");
+            var duplicateItem = MenuItem("Duplicate", "\uE8C8", "Ctrl+D");
             duplicateItem.Click += (s, e) =>
             {
                 ViewModel.SelectedNode = node;
@@ -1235,7 +1267,7 @@ namespace MarkSmith.Views.MindMap
 
             flyout.Items.Add(new MenuFlyoutSeparator());
 
-            var deleteItem = MenuItem("Delete", "", "Delete");
+            var deleteItem = MenuItem("Delete", "\uE74D", "Delete");
             deleteItem.Click += (s, e) => ViewModel.DeleteNode(node);
             flyout.Items.Add(deleteItem);
 
@@ -1246,6 +1278,9 @@ namespace MarkSmith.Views.MindMap
                 histItem.IsEnabled = hasFile;
                 moveItem.IsEnabled = ViewModel.ReparentCandidates(node).Count > 0 || node.ParentId != null;
                 linkItem.IsEnabled = ViewModel.Nodes.Count > 1;
+                focusItem.Text = ViewModel.IsFocusModeEnabled && ViewModel.SelectedNode == node
+                    ? "Show whole map"
+                    : "Focus on its connections";
             };
 
             return flyout;
@@ -1255,7 +1290,16 @@ namespace MarkSmith.Views.MindMap
         {
             var flyout = new MenuFlyout();
 
-            var reverseItem = MenuItem("Reverse direction", "");
+            var editReasonItem = MenuItem("Edit reason…", "\uE70F", "F2");
+            editReasonItem.Click += (s, e) =>
+            {
+                ViewModel.SelectedLink = link;
+                LinkLabelBox.Focus(FocusState.Programmatic);
+                LinkLabelBox.SelectAll();
+            };
+            flyout.Items.Add(editReasonItem);
+
+            var reverseItem = MenuItem("Reverse direction", "\uE8AB");
             reverseItem.Click += (s, e) =>
             {
                 ViewModel.SelectedLink = link;
@@ -1265,7 +1309,7 @@ namespace MarkSmith.Views.MindMap
 
             flyout.Items.Add(new MenuFlyoutSeparator());
 
-            var deleteItem = MenuItem("Delete link", "", "Delete");
+            var deleteItem = MenuItem("Delete link", "\uE74D", "Delete");
             deleteItem.Click += (s, e) =>
             {
                 ViewModel.SelectedLink = link;
@@ -1346,8 +1390,16 @@ namespace MarkSmith.Views.MindMap
         {
             GalaxyCanvas.Focus(FocusState.Programmatic);
 
-            var props = e.GetCurrentPoint(GalaxyCanvas).Properties;
-            if (props.IsRightButtonPressed) return;
+            var pt = e.GetCurrentPoint(GalaxyCanvas);
+            if (pt.Properties.IsRightButtonPressed)
+            {
+                var pos = pt.Position;
+                double worldX = ((pos.X - CanvasWidth / 2.0) / ViewModel.ZoomLevel) - ViewModel.ViewportOffsetX;
+                double worldY = ((pos.Y - CanvasHeight / 2.0) / ViewModel.ZoomLevel) - ViewModel.ViewportOffsetY;
+                ShowCanvasContextMenu(pos, worldX, worldY);
+                e.Handled = true;
+                return;
+            }
 
             // Clicking empty space clears the selection, which is also how you get back out of a
             // link selection without deleting anything.
@@ -1358,10 +1410,59 @@ namespace MarkSmith.Views.MindMap
             ViewModel.HidePreviewCard();
 
             _isPanning = true;
-            _lastPanPoint = e.GetCurrentPoint(GalaxyCanvas).Position;
+            _lastPanPoint = pt.Position;
             GalaxyCanvas.CapturePointer(e.Pointer);
             SetCursor(GalaxyCanvas, Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
             RequestRedraw(RedrawScope.Appearance);
+        }
+
+        private void ShowCanvasContextMenu(Point screenPos, double worldX, double worldY)
+        {
+            var flyout = new MenuFlyout();
+
+            var addHereItem = MenuItem("Add node here", "\uE710");
+            addHereItem.Click += (s, e) => ViewModel.AddNodeAt(worldX - 95, worldY - 28);
+            flyout.Items.Add(addHereItem);
+
+            var importItem = MenuItem("Import folder…", "\uE8B7");
+            importItem.Click += OnImportFolderClick;
+            flyout.Items.Add(importItem);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var arrangeSub = new MenuFlyoutSubItem
+            {
+                Text = "Arrange",
+                Icon = new FontIcon { Glyph = "\uE80A" },
+                IsEnabled = ViewModel.Nodes.Count > 1
+            };
+            var treeItem = MenuItem("Tree (left to right)", "\uE80A");
+            treeItem.Click += OnLayoutTreeClick;
+            arrangeSub.Items.Add(treeItem);
+            var hierItem = MenuItem("Hierarchy (top to bottom)", "\uE80A");
+            hierItem.Click += OnLayoutHierarchyClick;
+            arrangeSub.Items.Add(hierItem);
+            var radialItem = MenuItem("Radial around the root", "\uEC26");
+            radialItem.Click += OnLayoutRadialClick;
+            arrangeSub.Items.Add(radialItem);
+            var clusterItem = MenuItem("By folder & tag", "\uF246");
+            clusterItem.Click += OnLayoutClustersClick;
+            arrangeSub.Items.Add(clusterItem);
+            var forceItem = MenuItem("Spread apart", "\uE945");
+            forceItem.Click += OnLayoutForceClick;
+            arrangeSub.Items.Add(forceItem);
+            flyout.Items.Add(arrangeSub);
+
+            var fitItem = MenuItem("Fit to window", "\uE9A6", "Ctrl+0");
+            fitItem.IsEnabled = ViewModel.Nodes.Count > 0;
+            fitItem.Click += OnFitToWindowClick;
+            flyout.Items.Add(fitItem);
+
+            var resetZoomItem = MenuItem("Zoom to 100%", "\uE71E");
+            resetZoomItem.Click += OnZoomResetClick;
+            flyout.Items.Add(resetZoomItem);
+
+            flyout.ShowAt(GalaxyCanvas, screenPos);
         }
 
         private void OnCanvasPointerMoved(object sender, PointerRoutedEventArgs e)
@@ -1551,6 +1652,27 @@ namespace MarkSmith.Views.MindMap
                     // Rename, as in Explorer: straight into the inspector's title with it selected.
                     TitleBox.Focus(FocusState.Programmatic);
                     TitleBox.SelectAll();
+                    e.Handled = true;
+                    return;
+                case Windows.System.VirtualKey.F2 when canvasFocused && ViewModel.SelectedLink != null:
+                    LinkLabelBox.Focus(FocusState.Programmatic);
+                    LinkLabelBox.SelectAll();
+                    e.Handled = true;
+                    return;
+                case Windows.System.VirtualKey.Application when canvasFocused:
+                case Windows.System.VirtualKey.F10 when canvasFocused && IsShiftDown():
+                    if (ViewModel.SelectedNode is { } selNode && _nodeVisuals.TryGetValue(selNode.Id, out var vis) && vis.Root.ContextFlyout is MenuFlyout nodeFlyout)
+                    {
+                        nodeFlyout.ShowAt(vis.Root, new Point(vis.Root.ActualWidth / 2, vis.Root.ActualHeight / 2));
+                    }
+                    else if (ViewModel.SelectedLink is { } selLink)
+                    {
+                        BuildLinkContextMenu(selLink).ShowAt(GalaxyCanvas, new Point(CanvasWidth / 2.0, CanvasHeight / 2.0));
+                    }
+                    else
+                    {
+                        ShowCanvasContextMenu(new Point(CanvasWidth / 2.0, CanvasHeight / 2.0), -ViewModel.ViewportOffsetX, -ViewModel.ViewportOffsetY);
+                    }
                     e.Handled = true;
                     return;
                 case Windows.System.VirtualKey.F when !ctrl && canvasFocused:

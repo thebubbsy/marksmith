@@ -3523,11 +3523,13 @@ public sealed partial class MarkdownHtmlService
                 }
             }
 
-            var sb = new StringBuilder();
-            sb.AppendLine($"<div class=\"ms-index-block\" style=\"--index-cols: {cols};\">");
-            // The author's own "## Index" right above the block already titles it.
+            // The author's own "## Index" right above the block already titles it and draws a bottom rule.
             var before = markdown[..m.Index].TrimEnd();
-            if (!before[(before.LastIndexOf('\n') + 1)..].TrimStart().StartsWith('#'))
+            bool hasAuthorHeading = before[(before.LastIndexOf('\n') + 1)..].TrimStart().StartsWith('#');
+            var borderStyle = hasAuthorHeading ? " border-top: none; padding-top: 0; margin-top: 12px;" : "";
+            var sb = new StringBuilder();
+            sb.AppendLine($"<div class=\"ms-index-block\" style=\"--index-cols: {cols};{borderStyle}\">");
+            if (!hasAuthorHeading)
                 sb.AppendLine("<h3 class=\"ms-index-title\">Index</h3>");
 
             if (uniqueTerms.Count == 0)

@@ -545,6 +545,12 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectionSummary));
         DuplicateSelectedCommand.NotifyCanExecuteChanged();
         RemoveSelectedCommand.NotifyCanExecuteChanged();
+        BringToFrontCommand.NotifyCanExecuteChanged();
+        BringForwardCommand.NotifyCanExecuteChanged();
+        SendBackwardCommand.NotifyCanExecuteChanged();
+        SendToBackCommand.NotifyCanExecuteChanged();
+        RotateClockwiseCommand.NotifyCanExecuteChanged();
+        RotateCounterClockwiseCommand.NotifyCanExecuteChanged();
         AlignLeftCommand.NotifyCanExecuteChanged();
         AlignCenterCommand.NotifyCanExecuteChanged();
         AlignRightCommand.NotifyCanExecuteChanged();
@@ -1234,6 +1240,178 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         foreach (var s in doomed) Shapes.Remove(s);
         await RefreshCanvasModeAsync();
         StatusMessage = doomed.Count == 1 ? "Deleted 1 shape · Ctrl+Z to undo" : $"Deleted {doomed.Count} shapes · Ctrl+Z to undo";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    // ---- Z-order / layering & 90° rotation ----
+
+    /// <summary>Moves every selected shape to the top of the drawing order, preserving their
+    /// relative order and keeping the multi-selection intact.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    public void BringToFront()
+    {
+        var selected = SelectedItems.ToList();
+        if (selected.Count == 0 || IsDense) return;
+        int firstTarget = Shapes.Count - selected.Count;
+        bool alreadyAtFront = selected.Select((s, idx) => Shapes.IndexOf(s) == firstTarget + idx).All(x => x);
+        if (alreadyAtFront)
+        {
+            StatusMessage = "Already at the front.";
+            return;
+        }
+        RecordUndo();
+        var primary = SelectedShape;
+        _additiveSelect = true;
+        try
+        {
+            foreach (var s in selected)
+            {
+                int cur = Shapes.IndexOf(s);
+                if (cur >= 0 && cur != Shapes.Count - 1) Shapes.Move(cur, Shapes.Count - 1);
+            }
+            foreach (var s in selected) s.IsSelected = true;
+            SelectedShape = primary;
+        }
+        finally { _additiveSelect = false; }
+        RaiseSelectionChanged();
+        StatusMessage = selected.Count == 1
+            ? $"Brought {selected[0].DisplayName.ToLowerInvariant()} to the front"
+            : $"Brought {selected.Count} shapes to the front";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Moves every selected shape one step forward in the drawing order.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    public void BringForward()
+    {
+        var selected = SelectedItems.ToList();
+        if (selected.Count == 0 || IsDense) return;
+        bool canMove = false;
+        for (int i = Shapes.Count - 2; i >= 0; i--)
+        {
+            if (Shapes[i].IsSelected && !Shapes[i + 1].IsSelected) { canMove = true; break; }
+        }
+        if (!canMove)
+        {
+            StatusMessage = "Already at the front.";
+            return;
+        }
+        RecordUndo();
+        var primary = SelectedShape;
+        _additiveSelect = true;
+        try
+        {
+            for (int i = Shapes.Count - 2; i >= 0; i--)
+            {
+                if (Shapes[i].IsSelected && !Shapes[i + 1].IsSelected) Shapes.Move(i, i + 1);
+            }
+            foreach (var s in selected) s.IsSelected = true;
+            SelectedShape = primary;
+        }
+        finally { _additiveSelect = false; }
+        RaiseSelectionChanged();
+        StatusMessage = selected.Count == 1
+            ? $"Brought {selected[0].DisplayName.ToLowerInvariant()} forward"
+            : $"Brought {selected.Count} shapes forward";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Moves every selected shape one step backward in the drawing order.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    public void SendBackward()
+    {
+        var selected = SelectedItems.ToList();
+        if (selected.Count == 0 || IsDense) return;
+        bool canMove = false;
+        for (int i = 1; i < Shapes.Count; i++)
+        {
+            if (Shapes[i].IsSelected && !Shapes[i - 1].IsSelected) { canMove = true; break; }
+        }
+        if (!canMove)
+        {
+            StatusMessage = "Already at the back.";
+            return;
+        }
+        RecordUndo();
+        var primary = SelectedShape;
+        _additiveSelect = true;
+        try
+        {
+            for (int i = 1; i < Shapes.Count; i++)
+            {
+                if (Shapes[i].IsSelected && !Shapes[i - 1].IsSelected) Shapes.Move(i, i - 1);
+            }
+            foreach (var s in selected) s.IsSelected = true;
+            SelectedShape = primary;
+        }
+        finally { _additiveSelect = false; }
+        RaiseSelectionChanged();
+        StatusMessage = selected.Count == 1
+            ? $"Sent {selected[0].DisplayName.ToLowerInvariant()} backward"
+            : $"Sent {selected.Count} shapes backward";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Moves every selected shape to the bottom of the drawing order, preserving their
+    /// relative order and keeping the multi-selection intact.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    public void SendToBack()
+    {
+        var selected = SelectedItems.ToList();
+        if (selected.Count == 0 || IsDense) return;
+        bool alreadyAtBack = selected.Select((s, idx) => Shapes.IndexOf(s) == idx).All(x => x);
+        if (alreadyAtBack)
+        {
+            StatusMessage = "Already at the back.";
+            return;
+        }
+        RecordUndo();
+        var primary = SelectedShape;
+        _additiveSelect = true;
+        try
+        {
+            for (int i = 0; i < selected.Count; i++)
+            {
+                int cur = Shapes.IndexOf(selected[i]);
+                if (cur >= 0 && cur != i) Shapes.Move(cur, i);
+            }
+            foreach (var s in selected) s.IsSelected = true;
+            SelectedShape = primary;
+        }
+        finally { _additiveSelect = false; }
+        RaiseSelectionChanged();
+        StatusMessage = selected.Count == 1
+            ? $"Sent {selected[0].DisplayName.ToLowerInvariant()} to the back"
+            : $"Sent {selected.Count} shapes to the back";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Rotates every selected shape 90° clockwise, wrapping into [-180, 180].</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    public void RotateClockwise() => RotateSelectionBy(90);
+
+    /// <summary>Rotates every selected shape 90° counter-clockwise, wrapping into [-180, 180].</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    public void RotateCounterClockwise() => RotateSelectionBy(-90);
+
+    private void RotateSelectionBy(int deltaDegrees)
+    {
+        var selected = SelectedItems.Where(s => s.PathPoints is not { Count: >= 2 }).ToList();
+        if (selected.Count == 0)
+        {
+            StatusMessage = "Connector lines are routed by their endpoints — drag an endpoint to turn a line.";
+            return;
+        }
+        RecordUndo();
+        foreach (var s in selected)
+        {
+            int next = ((s.Rotation + deltaDegrees) % 360 + 360) % 360;
+            if (next > 180) next -= 360;
+            s.Rotation = next;
+        }
+        StatusMessage = selected.Count == 1
+            ? $"Rotated {selected[0].DisplayName.ToLowerInvariant()} to {selected[0].Rotation}°"
+            : $"Rotated {selected.Count} shapes by {(deltaDegrees > 0 ? "+90°" : "−90°")}";
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
 
