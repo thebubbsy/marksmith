@@ -5270,3 +5270,7 @@ Dracula, Nordic; A4 and Letter; TOC, page border, branded cover.
 3. Carried over: a real Windows light/dark switch with a person present; Diagram Studio/Galaxy and
    the flip hook; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
    flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
+
+**Release (same run):** tagged **v3.20.0** on `db5381a` after CI passed on it. Release workflow built
+the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
+`MarksmithBaseVersion` is now **3.21.0** (`3dbf8de`).
