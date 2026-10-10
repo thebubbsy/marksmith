@@ -5808,3 +5808,73 @@ screenshots. Full test suite **4592 passed, 1 skipped, 0 failed**.
    `EmailExportFlowTests.Subject_preview_follows_the_template` flake; Word INDEX field pre-fill.
 
 **Release (same run):** tagged **v3.27.0** on `a63f786` after CI passed on it. Release workflow built the x64/arm64 installers and zips; notes prepended above the workflow body with `---`. `MarksmithBaseVersion` is now **3.28.0**.
+
+### 2026-10-10 23:00 – 2026-10-11 00:30 AEDT (routine run #70: Suite Hub, Welcome tour, editor menus with real input)
+
+**Picked up from run #69's "Next up" #1.** Every surface driven with real mouse and keyboard in a scratch
+instance (`%TEMP%\ms70d\b`, isolated `MARKSMITH_CONFIG_DIR`).
+
+**Found:**
+- **Suite Hub's result line never showed.** `NotificationRow` (Opacity 0, faded by a Storyboard) set its
+  text but drew nothing inside the ContentDialog — not even after swapping to an `OpacityTransition`. A
+  probe (row starting at Opacity 1 with a red background) drew until its first message, then vanished
+  while the dialog still grew to make room. Every "Copied…", "Connected" and error in the hub was invisible.
+- **Clipboard failures said nothing.** "Copy HTML failed: " / "Clipboard copy failed: " with an empty
+  reason (the COMException has no Message), `CopyFeedback.CopyWithTick` returned false and every caller
+  ignored it (the button just did nothing), and Diagram Studio's Copy SVG called `Clipboard.SetContent`
+  with no try/catch at all. (Found because this session's sandbox blocks the clipboard for every process:
+  `0x80070008`, PowerShell's own `Clipboard.SetText` fails too. Not an app bug, but it exposed these.)
+- **Welcome tour arrows stopped after page 1.** Paging away from the welcome cards collapsed the focused
+  card, focus fell to the PipsPager, and there the arrow keys only move a focus ring between dots (selection
+  waits for Enter); the tour's own handler stepped aside for the pips, so nothing paged.
+- Suite Hub's header card repeated "Suite Hub" under the dialog title "Suite Hub".
+- Insert table left the caret after the table; the dialog said "Type over them" but you had to click in first.
+- "Recover unsaved document" asked about a draft without saying which one.
+- Insert / Tools / Text style / Lists / Export / ⋯ / outline / lint flyouts: every shortcut shown is real,
+  icons consistent, focus returns to the editor after a menu action (UPPERCASE then typing landed in the
+  editor) and after an insert dialog. Nothing to fix there.
+
+**Shipped:**
+- Suite Hub feedback is an `InfoBar` (success closes after 6 s, warnings stay), brought into view when shown.
+  Header card title is "MarkSmith".
+- Desktop `Services/ClipboardWriter`: `TrySetAsync`/`TrySetTextAsync` (retry 6× with backoff, Flush, return a
+  readable reason) and `Set` (same, throws with that reason, for the view model's Copy as email delegate).
+  Every clipboard write in the Desktop app goes through it: Copy HTML, Copy as email, Suite Hub, Diagram
+  Studio SVG, Galaxy Mermaid, Shape Studio Markdown, and `CopyFeedback` (now shows an amber warning glyph
+  with the reason in the button's tooltip for 4 s instead of nothing).
+- Welcome tour: when the focused element's page collapses, focus moves to Next; arrows page from anywhere
+  including the dots. Tour copy: "a real Word document" instead of "a proprietary MD-to-Word DOCX".
+- `InsertBlock(..., select:)`: a placeholder inside the inserted block is left selected. Insert table (dialog
+  and quick insert) selects the first cell; dialog copy says so.
+- Recovery prompt: a card with the draft's first line, "Last saved 18 min ago · 26 words", and what Keep as
+  file does. Core `Services/DraftSummary` + `DraftSummaryTests` (8).
+
+**Verified:** Desktop build green. Real input: tour paged 1→7 with Right from a Tab-focused start (focus on
+Next, then "Open the sample"); Suite Hub Copy server path shows the warning InfoBar with the reason; UPPERCASE
+from Tools then typing lands in the editor; table insert then typing "Name" replaced "Header 1"; recovery
+prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 skipped, 0 failed**.
+
+**Rig notes (for the next run):**
+- `dotnet build -o <dir>` produces a broken app (MainWindow `XamlParseException` at launch). Use
+  `-p:OutDir=<dir>\` like earlier runs.
+- `mouse.ps1`'s over-our-window check now accepts any window owned by the test pid (tooltips are a separate
+  `Pop-upHost` window and used to make clicks refuse). An aborted mouse.ps1 still sends its Alt tap, which
+  then trips the 60 s idle guard: wait it out.
+- `gx.ps1 screen` (new): `CopyFromScreen` of the window rect; PrintWindow misses MenuFlyouts (separate popup
+  windows). Needs the test window in front.
+- Don't run `launch` inside a call that may time out into the background: stopping that task kills the app.
+- The clipboard is unavailable in this sandbox, so copy *success* paths can't be verified here.
+
+**Noticed, not fixed:**
+- After Restore the status bar reads "Ready." rather than "Unsaved document restored…" (probably overwritten
+  by the heavy preview refresh).
+- NumberBoxes in the insert dialogs show a TextBox clear (×) button when focused; odd on a number field.
+- The ⋯ menu opens partly outside a non-maximised window's right edge (it's allowed to; just looks loose).
+
+**Next up:**
+1. Continue the surface pass with real input: Settings pages end to end (every control's hover/press/focus,
+   a narrow window), the Find/Replace bar, the Source panel (drop zone hover, recent-files picker, Automation
+   expander), and the three noticed items above.
+2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59), for
+   the user; real Windows light/dark switch; first real in-app update;
+   `EmailExportFlowTests.Subject_preview_follows_the_template` flake; Word INDEX field pre-fill.
