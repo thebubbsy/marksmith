@@ -5487,3 +5487,80 @@ pictures and alt text as the API path, status bar "EPUB saved" with Open / Show 
 **Release (same run):** tagged **v3.23.0** on `731e82c` after CI passed on `b0f807a`. Release
 workflow built the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body
 with `---`. `MarksmithBaseVersion` is now **3.24.0**.
+
+### 2026-10-10 18:00–18:30 AEDT (routine run #65: email export, every `:::` block)
+
+**Pick.** Run #64's "Next up" #1: the email export audit. No other run was live; the tree only held
+the `EverythingHttpPlugin/*` edits that aren't this routine's (left alone, not committed).
+
+**How it was tested.** Scratch Desktop build to `%TEMP%\ms65d\b`, instance on `ApiPort` 47965.
+`mail.ps1` (run scratchpad): `/api/email` with `open: false, format: eml` → `unpack.py` (Python
+`email` lib: body.html with `cid:` rewritten to the unpacked PNGs, body.txt, a check for leftover
+`cid:`/`data:`/`<svg>`/`:::`) → headless Edge screenshot (modern webmail) and, with `-Word`, Word COM
+opening body.html and exporting a PDF (classic Outlook draws mail with Word's engine), pages rendered
+with PyMuPDF (`pdf2png.py`; PyMuPDF is installed, no need to build a pdfr tool). Docs: run #63's
+`blocks.md`, `features.md`, `report.md`, a Mermaid doc; GitHub Light and Dracula. The PDF export
+(`/api/convert` pdf, one continuous page) was rendered too, to check the shared preview fixes.
+
+**What was wrong.** Run #64 guessed charts went out as inline SVG; they didn't (email already had
+its own CID-PNG figure path). The real defects:
+- The AI context printed its fields at the top, and because it came before the H1, the title
+  stayed in the body as well as the subject.
+- Metrics read "99.98%** Uptime", one huge full-width card each. **This was a preview bug too**
+  (`LiftMetricsBlocks` trimmed `*` off the line, eating the `**` opener): every PDF/preview metric
+  card had no label.
+- Tabs printed their tab strip ("Option AOption B") above the panels; the data grid had a black
+  header and no padding; a canvas was a 135-byte empty picture; an embed vanished; references gave a
+  second "Bibliography" heading and leaked "[@paper-id]".
+- Charts were drawn in the document theme's colours (dark-theme charts in a white email) and
+  their axes read 10.33 · 20.67 · 31 (shared with the preview).
+- **Any document with an `=` anywhere had the pipe rows in its code blocks rewritten**: the ASCII
+  diagram in `features.md` lost its spacing in the preview, PDF, Word and email.
+  `TableFormulaEvaluator.EvaluateTableMarkdown` scanned every `|…|` line of the whole document,
+  fences included, as ONE table, and re-joined every row.
+- In classic Outlook (Word engine), table cells fell back to Times New Roman.
+
+**Shipped:**
+- `MarkdownHtmlService.LiftEmailDirectives` (runs first in `PrepareForEmail`): the shared
+  `SlideDirectives.Lift` with an email `native` hook. Text blocks take the slide rewrites (tabs →
+  `####` sections, datagrid/kanban/parallel → tables, references → list, embed → "▶ link", AI
+  context/cover/watermark/index dropped). Charts and SmartArt/workflow/timeline are drawn by the new
+  shared `EpubDirectives.Draw(node, theme, cardGround)` in `EmailPalette.DiagramTheme()` colours on
+  the white page, with data alt text. Metrics → `EmailFigureFragment.Metrics` → `WriteMetrics`, a
+  cellspacing table of cards (≤4 a row). Canvas → the slides' picture. Shapes, engineering diagrams
+  and columns still take the older preview-renderer lifts (they were fine).
+- `EmailFigureFragment` now carries `Png`/`Alt`/`Metrics`; the plain-text part describes each
+  picture by its alt text and spells KPIs out.
+- `font-family` on every table/quote/alert cell.
+- Preview: metrics strip only the list marker (and accept "**v**: label"); charts use
+  `NiceStep` (1/2/2.5/5 × 10ⁿ) axes with grouped thousands and a value label on each bar.
+- `TableFormulaEvaluator`: skips fenced code, one grid per table, splits cells respecting `\|` and
+  code spans, rewrites only rows whose formulas changed.
+- Tests: `EmailBlocksTests` (8) + `SharedBlockRenderingTests` (7 incl. theory rows).
+
+**Verified:** full suite **4522 passed, 1 skipped, 0 failed** (no scratch-OutDir path failures this
+time). Desktop build green. Final renders: blocks.md and features.md in Edge and Word, Dracula
+blocks.md in Edge, PDF export page with the KPI row and the bar chart.
+
+**Noticed, not fixed:**
+- Run #64's tip "Bash heredocs turn '\\uFEFF' into a raw char" is broader: **any backslash escape in
+  a Python heredoc run through the Bash tool can arrive mangled** (`'\\n'` became a real newline in
+  C# string literals). Write edit scripts with the Write tool and run them as files.
+- The in-app preview can't be scrolled from UIA (WebView2); render the PDF export instead to look
+  at anything below the cover.
+- Charts sit at their natural 460-unit width (≈430 px) on the left of a 680 px email; centring or
+  widening them would look better but changes every format's figure sizing.
+- The cover page is dropped from email entirely; its title could feed the subject when the
+  document has no H1 or front matter title.
+- Word prints the email's wide image/table off the page edge; that's Word paginating HTML, not what
+  Outlook shows in a reading pane. A real Outlook draft check is still owed.
+
+**Next up:**
+1. Real Outlook check of a draft (`/api/email` with `open: true` creates one) once someone is
+   present to look, then the "Copy as email" clipboard path in Outlook/Gmail compose.
+2. A sweep of the other shared `:::` renderers in the preview itself for the kind of bug found
+   today (metrics): kanban, parallel, references, datagrid in the live preview, each checked by
+   rendering the PDF export.
+3. Carried over: continuous-page PDF default (run #59), for the user; real Windows light/dark switch
+   with a person present; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
+   flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
