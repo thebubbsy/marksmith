@@ -5937,4 +5937,4 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 1. Continue the surface pass with real input: Settings pages end to end (`General`, `PDF`, `Automation`, `Google Docs`, `License`, `Plugins`, `About & updates` — every control's hover/press/focus and narrow-window layout), plus `HistoryWindow` and `MindMapGalaxyWindow` spot checks.
 2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59), for the user; real Windows light/dark switch; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template` flake; Word INDEX field pre-fill.
 
-
+**Release (same run):** tagged **v3.29.0** on `5fe5a725` after CI passed on `257aba07` (`38071930587`) and `ba3710ca` (`38074642972`). Release workflow (`38075102674`) built the x64/arm64 installers and portable zips (5 assets including `checksums.txt`); user-facing notes covering Find & Replace, the Source panel, and desktop polish were prepended above the workflow body with `---`. `MarksmithBaseVersion` is now **3.30.0**.
