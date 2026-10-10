@@ -13,6 +13,7 @@ using Windows.Storage;
 using WinRT.Interop;
 using MarkSmith.Mermaid.Sync;
 using Shortcuts = MarkSmith.Services.KeyboardShortcuts;
+using PaletteCommand = MarkSmith.Controls.PaletteCommand;
 using MarkSmith.Services;
 
 namespace MarkSmith;
@@ -3557,26 +3558,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // ---- Command palette (Ctrl+K): fuzzy search across actions, themes, and recent files ----
 
-    // Shortcut is display-only, read from Core's KeyboardShortcuts (the accelerators live in XAML).
-    private sealed record PaletteCommand(string Label, string Category, Func<Task> Run, string Shortcut = "", string Keywords = "")
-    {
-        public Visibility ShortcutVisibility => Shortcut.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-
-        // The same picture as the command's button or menu item (Core CommandIcons), so the
-        // palette isn't a wall of text. Letterforms (H1, AB) use the text font, like the menus.
-        public string Icon => Services.CommandIcons.ForPalette(Label, Category);
-        public FontFamily IconFont => Services.CommandIcons.IsGlyph(Icon) ? SymbolFont : LetterFont;
-        public double IconSize => Services.CommandIcons.IsGlyph(Icon) ? 16 : 11;
-        public Windows.UI.Text.FontWeight IconWeight => Services.CommandIcons.IsGlyph(Icon)
-            ? Microsoft.UI.Text.FontWeights.Normal : Microsoft.UI.Text.FontWeights.SemiBold;
-        private static readonly FontFamily SymbolFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
-        private static readonly FontFamily LetterFont = new("Segoe UI Variable Text, Segoe UI");
-
-        // What a screen reader announces for the row (it read the record's debug text,
-        // "PaletteCommand { Label = …, Run = System.Func`1[…] }").
-        public override string ToString() => Shortcut.Length > 0 ? $"{Label}, {Category}, {Shortcut}" : $"{Label}, {Category}";
-    }
-
     // Every action a user might go looking for: run #21b found the palette had no Find, Save,
     // Import, view switching, inserting or clean-up. Names match the toolbar and menus (one name
     // per studio: Diagram Studio, Shape Studio, SmartArt Studio, Document Galaxy, Suite Hub).
@@ -3686,101 +3667,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         return cmds;
     }
 
+    // Remembered across sessions: the palette opens on the commands you ran last.
+    private Services.PaletteRecents? _paletteRecents;
+
     private async Task ShowCommandPaletteAsync()
     {
-        var commands = BuildPaletteCommands();
+        // A second Ctrl+K (or a click on the title bar's search button) closes it again.
+        if (Controls.CommandPalette.IsOpen) { Controls.CommandPalette.CloseOpen(); return; }
+        if (Content.XamlRoot is null || HoverPolish.IsContentDialogOpen(Content.XamlRoot)) return;
 
-        var search = new TextBox { PlaceholderText = "Type what you want to do: export, find, heading, theme\u2026", FontSize = 14 };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(search, "Search commands");
-        var list = new ListView { SelectionMode = ListViewSelectionMode.Single, MaxHeight = 340, IsItemClickEnabled = true };
-        list.ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
-            "<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>" +
-            "<Grid ColumnSpacing='10' Padding='0,4'>" +
-            "<Grid.ColumnDefinitions><ColumnDefinition Width='20'/><ColumnDefinition Width='*'/><ColumnDefinition Width='Auto'/><ColumnDefinition Width='Auto'/></Grid.ColumnDefinitions>" +
-            "<FontIcon Glyph='{Binding Icon}' FontFamily='{Binding IconFont}' FontSize='{Binding IconSize}' FontWeight='{Binding IconWeight}' " +
-            "HorizontalAlignment='Center' VerticalAlignment='Center' Foreground='{ThemeResource TextFillColorSecondaryBrush}'/>" +
-            "<TextBlock Grid.Column='1' FontSize='13' TextTrimming='CharacterEllipsis' VerticalAlignment='Center'/>" +
-            "<TextBlock Grid.Column='2' Text='{Binding Category}' FontSize='11' VerticalAlignment='Center' Foreground='{ThemeResource TextFillColorTertiaryBrush}'/>" +
-            "<Border Grid.Column='3' Visibility='{Binding ShortcutVisibility}' VerticalAlignment='Center' CornerRadius='3' Padding='5,0,5,1' " +
-            "Background='{ThemeResource SubtleFillColorSecondaryBrush}' BorderBrush='{ThemeResource ControlStrokeColorDefaultBrush}' BorderThickness='1'>" +
-            "<TextBlock Text='{Binding Shortcut}' FontSize='11' Foreground='{ThemeResource TextFillColorSecondaryBrush}'/></Border>" +
-            "</Grid></DataTemplate>");
-        // The label is filled here rather than bound, so the letters the query matched can be bold:
-        // with abbreviations ("exppdf") it wasn't obvious why a row was listed.
-        list.ContainerContentChanging += (s, e) =>
-        {
-            if (e.InRecycleQueue || e.Item is not PaletteCommand c) return;
-            if (e.ItemContainer.ContentTemplateRoot is not Grid { Children.Count: > 1 } row || row.Children[1] is not TextBlock text) return;
-            text.Inlines.Clear();
-            var at = 0;
-            foreach (var (start, length) in Services.CommandSearch.Highlights(c.Label, search.Text))
-            {
-                if (start > at) text.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = c.Label[at..start] });
-                text.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = c.Label.Substring(start, length), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
-                at = start + length;
-            }
-            if (at < c.Label.Length) text.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = c.Label[at..] });
-        };
-        // Without this a query with no hits just shows an empty box, which reads as broken.
-        var noMatches = new TextBlock
-        {
-            Opacity = 0.6,
-            FontSize = 13,
-            Margin = new Thickness(4, 6, 4, 6),
-            TextWrapping = TextWrapping.Wrap,
-            Visibility = Visibility.Collapsed,
-        };
-
-        void Refresh()
-        {
-            var q = search.Text.Trim();
-            var filtered = Services.CommandSearch.Rank(commands, q, c => c.Label, c => c.Category, c => c.Keywords);
-            list.ItemsSource = filtered;
-            if (filtered.Count > 0) list.SelectedIndex = 0;
-            noMatches.Text = $"No commands, themes or recent files match \u201C{q}\u201D.";
-            noMatches.Visibility = filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        var panel = new StackPanel { Spacing = 10, Width = 480 };
-        panel.Children.Add(search);
-        panel.Children.Add(list);
-        panel.Children.Add(noMatches);
-
-        var dialog = new ContentDialog
-        {
-            Title = "Command palette",
-            Content = panel,
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = Content.XamlRoot,
-        };
-
-        PaletteCommand? chosen = null;
-        search.TextChanged += (s, e) => Refresh();
-        search.KeyDown += (s, e) =>
-        {
-            if (e.Key == Windows.System.VirtualKey.Enter && list.SelectedItem is PaletteCommand c)
-            {
-                chosen = c;
-                dialog.Hide();
-                e.Handled = true;
-            }
-            else if (e.Key is Windows.System.VirtualKey.Down or Windows.System.VirtualKey.Up && list.Items.Count > 0)
-            {
-                var idx = list.SelectedIndex;
-                idx = e.Key == Windows.System.VirtualKey.Down ? Math.Min(idx + 1, list.Items.Count - 1) : Math.Max(idx - 1, 0);
-                list.SelectedIndex = idx;
-                list.ScrollIntoView(list.SelectedItem);
-                e.Handled = true;
-            }
-        };
-        list.ItemClick += (s, e) => { if (e.ClickedItem is PaletteCommand c) { chosen = c; dialog.Hide(); } };
-
-        Refresh();
-        search.Focus(FocusState.Programmatic);
-
-        await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
-
+        _paletteRecents ??= Services.PaletteRecents.ForConfigDir(Services.AppPaths.ConfigDir);
+        var chosen = await Controls.CommandPalette.ShowAsync(Content.XamlRoot, BuildPaletteCommands(), _paletteRecents);
         if (chosen is not null) await chosen.Run();
     }
 

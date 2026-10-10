@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="MarkSmith.Controls.CommandPalette"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <!-- Key caps in the footer and on the rows: one look for "this is a key". -->
+        <Style x:Key="PaletteKeyCapStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6,1,6,2" />
+            <Setter Property="MinWidth" Value="22" />
+            <Setter Property="Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1,1,1,2" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="PaletteKeyCapTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+        </Style>
+        <Style x:Key="PaletteHintTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorTertiaryBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid x:Name="Root">
+        <!-- A light veil over the window: the palette reads as on top of the work, not instead of
+             it. Clicking it closes the palette, like clicking away from a menu. -->
+        <Rectangle x:Name="Scrim" Fill="{ThemeResource SmokeFillColorDefaultBrush}" Opacity="0"
+                   PointerPressed="OnScrimPressed" />
+
+        <Border x:Name="Card"
+                VerticalAlignment="Top" HorizontalAlignment="Center"
+                Margin="0,46,0,0" Width="600"
+                Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}" BorderThickness="1"
+                CornerRadius="8" Translation="0,0,48">
+            <Border.Shadow>
+                <ThemeShadow />
+            </Border.Shadow>
+            <Border.Transitions>
+                <TransitionCollection>
+                    <EntranceThemeTransition FromVerticalOffset="-12" IsStaggeringEnabled="False" />
+                </TransitionCollection>
+            </Border.Transitions>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Search row: magnifier, borderless box, and an Esc cap that also closes. -->
+                <Grid Padding="16,6,8,6" ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE721;" FontSize="16" VerticalAlignment="Center"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBox x:Name="SearchBox" Grid.Column="1" FontSize="15"
+                             VerticalAlignment="Center" Padding="0,8,0,8"
+                             BorderThickness="0" Background="Transparent"
+                             PlaceholderText="Type a command: export, find, heading, theme…"
+                             AutomationProperties.Name="Search commands"
+                             TextChanged="OnSearchTextChanged">
+                        <TextBox.Resources>
+                            <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="Transparent" />
+                            <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="Transparent" />
+                            <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent" />
+                            <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="Transparent" />
+                            <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="Transparent" />
+                            <Thickness x:Key="TextControlBorderThemeThicknessFocused">0</Thickness>
+                        </TextBox.Resources>
+                    </TextBox>
+                    <Button x:Name="EscButton" Grid.Column="2" Padding="8,3,8,4" MinWidth="0"
+                            VerticalAlignment="Center" Click="OnEscClick" IsTabStop="False"
+                            Background="{ThemeResource SubtleFillColorTransparentBrush}"
+                            BorderThickness="0"
+                            ToolTipService.ToolTip="Close (Esc)"
+                            AutomationProperties.Name="Close command palette">
+                        <Border Style="{StaticResource PaletteKeyCapStyle}">
+                            <TextBlock Text="Esc" Style="{StaticResource PaletteKeyCapTextStyle}" />
+                        </Border>
+                    </Button>
+                </Grid>
+
+                <Rectangle Grid.Row="1" Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                <Grid Grid.Row="2">
+                    <ListView x:Name="Results"
+                              MaxHeight="420" Padding="0,4,0,6"
+                              SelectionMode="Single" IsItemClickEnabled="True"
+                              IsTabStop="False"
+                              ItemClick="OnResultClick"
+                              ContainerContentChanging="OnContainerContentChanging"
+                              AutomationProperties.Name="Commands">
+                        <!-- Sticky headings drew over the row scrolled beneath them (the header
+                             container is transparent on acrylic), so headings scroll away. -->
+                        <ListView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ItemsStackPanel AreStickyGroupHeadersEnabled="False" />
+                            </ItemsPanelTemplate>
+                        </ListView.ItemsPanel>
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                                <Setter Property="MinHeight" Value="38" />
+                                <Setter Property="Padding" Value="12,0,12,0" />
+                                <Setter Property="Margin" Value="4,1,4,1" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.GroupStyle>
+                            <GroupStyle HidesIfEmpty="True">
+                                <GroupStyle.HeaderContainerStyle>
+                                    <Style TargetType="ListViewHeaderItem">
+                                        <Setter Property="MinHeight" Value="0" />
+                                        <Setter Property="Padding" Value="20,10,16,4" />
+                                        <Setter Property="IsTabStop" Value="False" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListViewHeaderItem">
+                                                    <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                                      Content="{TemplateBinding Content}"
+                                                                      ContentTemplate="{TemplateBinding ContentTemplate}" />
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </GroupStyle.HeaderContainerStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Key}" FontSize="12" FontWeight="SemiBold"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListView.GroupStyle>
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="20" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="{Binding Icon}" FontFamily="{Binding IconFont}"
+                                              FontSize="{Binding IconSize}" FontWeight="{Binding IconWeight}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Grid.Column="1" FontSize="13" TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Category}" FontSize="11"
+                                               VerticalAlignment="Center"
+                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                    <Border Grid.Column="3" Visibility="{Binding ShortcutVisibility}"
+                                            Style="{StaticResource PaletteKeyCapStyle}">
+                                        <TextBlock Text="{Binding Shortcut}" Style="{StaticResource PaletteKeyCapTextStyle}" />
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <!-- A query with no hits used to leave an empty box, which reads as broken. -->
+                    <StackPanel x:Name="NoMatches" Visibility="Collapsed" Spacing="6"
+                                Padding="24,28,24,30" HorizontalAlignment="Center">
+                        <FontIcon Glyph="&#xE721;" FontSize="28" Opacity="0.45" />
+                        <TextBlock x:Name="NoMatchesTitle" FontSize="14" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                        <TextBlock Text="Try a shorter word, or an abbreviation like “ep” for Export PDF."
+                                   FontSize="12" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Footer: how to drive it, and how many rows there are. -->
+                <Border Grid.Row="3" Padding="16,8,16,9" CornerRadius="0,0,7,7"
+                        Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+                    <Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <Border Style="{StaticResource PaletteKeyCapStyle}"><TextBlock Text="↑" Style="{StaticResource PaletteKeyCapTextStyle}" /></Border>
+                                <Border Style="{StaticResource PaletteKeyCapStyle}"><TextBlock Text="↓" Style="{StaticResource PaletteKeyCapTextStyle}" /></Border>
+                                <TextBlock Text="to move" Margin="2,0,0,0" Style="{StaticResource PaletteHintTextStyle}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <Border Style="{StaticResource PaletteKeyCapStyle}"><TextBlock Text="Enter" Style="{StaticResource PaletteKeyCapTextStyle}" /></Border>
+                                <TextBlock Text="to run" Margin="2,0,0,0" Style="{StaticResource PaletteHintTextStyle}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <Border Style="{StaticResource PaletteKeyCapStyle}"><TextBlock Text="Esc" Style="{StaticResource PaletteKeyCapTextStyle}" /></Border>
+                                <TextBlock Text="to close" Margin="2,0,0,0" Style="{StaticResource PaletteHintTextStyle}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <TextBlock x:Name="CountText" HorizontalAlignment="Right"
+                                   Style="{StaticResource PaletteHintTextStyle}"
+                                   AutomationProperties.LiveSetting="Polite" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -33,17 +33,31 @@ public sealed partial class VersionItemViewModel : ObservableObject
 
         // Segoe Fluent Icons code points (rendered by a FontIcon), so the timeline matches the
         // rest of the app's iconography instead of mixing in colour emoji.
-        SourceGlyph = entry.Source switch
-        {
-            "opened" => "",                    // OpenFile
-            "autosave" => "",                  // Edit
-            "snapshot" or "manual" => "",      // Save
-            "ingest" => "",                    // Download
-            var s when s.Contains("pdf") => "", // PDF
-            var s when s.Contains("docx") => "", // Document
-            _ => ""                            // Clock
-        };
+        SourceGlyph = GlyphFor(entry.Source);
     }
+
+    // Segoe Fluent Icons code points (rendered by a FontIcon), so the timeline matches the rest of
+    // the app's iconography instead of mixing in colour emoji. Exports use the Export menu's icon
+    // for their format (Core CommandIcons).
+    internal static string GlyphFor(string source) => source switch
+    {
+        "opened" => CommandIcons.Open,
+        "autosave" => "\uE70F",                 // Edit
+        "snapshot" or "manual" => CommandIcons.Save,
+        "ingest" => "\uE896",                   // Download
+        var s when s.StartsWith("export:") => s["export:".Length..] switch
+        {
+            "pdf" => CommandIcons.Pdf,
+            "docx" or "word" => CommandIcons.Word,
+            "pptx" or "powerpoint" => CommandIcons.PowerPoint,
+            "epub" => CommandIcons.Epub,
+            "html" => CommandIcons.WebPage,
+            "msg" => CommandIcons.OutlookMessage,
+            "eml" or "email" => CommandIcons.Email,
+            _ => CommandIcons.Export,
+        },
+        _ => "\uE823",                          // Clock
+    };
 
     internal static string SourceLabelFor(string source) => source switch
     {
@@ -306,6 +320,27 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         ShowSplitDiff = mode == HistoryDiffMode.Split;
         ShowPreview = mode == HistoryDiffMode.Preview;
         OnPropertyChanged(nameof(ShowNoChanges));
+        ApplyHeading();
+    }
+
+    // The comparison's heading ("Changes in this version / vs the version before"), kept apart
+    // from DiffTitle/DiffHeader because Preview shows the version itself, not a comparison: the
+    // inspector used to say "vs the version before" over a rendered page.
+    private string _compareTitle = "Select a version to see its changes";
+    private string _compareHeader = "";
+
+    private void ApplyHeading()
+    {
+        if (ShowPreview && Selected is not null)
+        {
+            DiffTitle = "This version as a document";
+            DiffHeader = $"{Selected.SourceLabel} \u00B7 {Selected.TimestampLabel}";
+        }
+        else
+        {
+            DiffTitle = _compareTitle;
+            DiffHeader = _compareHeader;
+        }
     }
 
     [RelayCommand]
@@ -412,8 +447,9 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         FilterHidesAll = false;
         IsUnchanged = false;
         SelectedHeader = "";
-        DiffTitle = "Select a version to see its changes";
-        DiffHeader = "";
+        _compareTitle = "Select a version to see its changes";
+        _compareHeader = "";
+        ApplyHeading();
         DiffStats = "";
     }
 
@@ -687,12 +723,13 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             int added = lines.Count(l => l.Kind == LineDiff.Kind.Added);
             int removed = lines.Count(l => l.Kind == LineDiff.Kind.Removed);
             IsUnchanged = segments.Count == 0;
-            DiffTitle = !hasPrevious ? "First version"
+            _compareTitle = !hasPrevious ? "First version"
                 : IsUnchanged ? "No text changes"
                 : "Changes in this version";
             // Short on purpose: it shares a row with the three view toggles and the stats pill.
             // The selected version's full date is already in the timeline header.
-            DiffHeader = hasPrevious ? "vs the version before" : "nothing earlier to compare";
+            _compareHeader = hasPrevious ? "vs the version before" : "nothing earlier to compare";
+            ApplyHeading();
             DiffStats = IsUnchanged ? "" : $"{added} added · {removed} removed";
         }
         catch (Exception ex)

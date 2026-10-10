@@ -171,14 +171,17 @@
                                             </Grid.ColumnDefinitions>
                                             <FontIcon Grid.Row="0" Grid.Column="0" Glyph="&#xE8A5;" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"
                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding FileName}" FontSize="13" FontWeight="SemiBold"
+                                            <!-- The name gets the whole row: with the version count beside it,
+                                                 "Quarterly report.md" was cut to "Quarterly report…." in a
+                                                 240 px pane. The count sits on the date line instead. -->
+                                            <TextBlock Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding FileName}" FontSize="13" FontWeight="SemiBold"
                                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
-                                            <Border Grid.Row="0" Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="10"
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LastModifiedLabel}" VerticalAlignment="Center"
+                                                       FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis" />
+                                            <Border Grid.Row="1" Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="10"
                                                     Padding="6,1" Margin="6,0,0,0" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding VersionCountLabel}" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                             </Border>
-                                            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding LastModifiedLabel}"
-                                                       FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Margin="0,2,0,0" />
                                         </Grid>
                                       </Grid>
                                     </Button>
@@ -339,14 +342,29 @@
                             </Grid.ColumnDefinitions>
 
                             <!-- Mode Selector -->
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <ToggleButton x:Name="UnifiedToggle" Content="Unified" IsChecked="True" Padding="10,4" CornerRadius="4"
-                                              Click="OnUnifiedToggleClick" ToolTipService.ToolTip="Changes inline: removed lines, then the lines that replaced them" />
-                                <ToggleButton x:Name="SplitToggle" Content="Side by side" Padding="10,4" CornerRadius="4"
-                                              Click="OnSplitToggleClick" ToolTipService.ToolTip="The version before on the left, this version on the right" />
-                                <ToggleButton x:Name="PreviewToggle" Content="Preview" Padding="10,4" CornerRadius="4"
-                                              Click="OnPreviewToggleClick" ToolTipService.ToolTip="This version rendered as a document" />
-                            </StackPanel>
+                            <!-- One segmented control: three loose bordered buttons read as three
+                                 separate actions, not one choice of view. -->
+                            <Border Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    CornerRadius="6" Padding="2" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                    <StackPanel.Resources>
+                                        <Style TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
+                                            <Setter Property="Padding" Value="10,3,10,4" />
+                                            <Setter Property="CornerRadius" Value="4" />
+                                            <Setter Property="FontSize" Value="12" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Background" Value="{ThemeResource SubtleFillColorTransparentBrush}" />
+                                        </Style>
+                                    </StackPanel.Resources>
+                                    <ToggleButton x:Name="UnifiedToggle" Content="Unified" IsChecked="True"
+                                                  Click="OnUnifiedToggleClick" ToolTipService.ToolTip="Changes inline: removed lines, then the lines that replaced them" />
+                                    <ToggleButton x:Name="SplitToggle" Content="Side by side"
+                                                  Click="OnSplitToggleClick" ToolTipService.ToolTip="The version before on the left, this version on the right" />
+                                    <ToggleButton x:Name="PreviewToggle" Content="Preview"
+                                                  Click="OnPreviewToggleClick" ToolTipService.ToolTip="This version rendered as a document" />
+                                </StackPanel>
+                            </Border>
 
                             <!-- Diff Summary Info -->
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">

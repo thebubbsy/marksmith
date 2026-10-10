@@ -105,6 +105,18 @@ public static class HoverPolish
     /// </summary>
     public static Func<XamlRoot, Control?>? FocusFallback { get; set; }
 
+    /// <summary>
+    /// Puts focus back after an overlay that isn't a ContentDialog (the command palette) closes:
+    /// to <paramref name="before"/> if it is still there, otherwise to <see cref="FocusFallback"/>.
+    /// Queued at low priority, like the dialog path, so it lands after WinUI's own focus move.
+    /// </summary>
+    public static void RestoreFocus(XamlRoot? root, Control? before)
+    {
+        var queue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        if (queue is null) { ReturnFocus(root, before); return; }
+        queue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => ReturnFocus(root, before));
+    }
+
     private static void ReturnFocus(XamlRoot? root, Control? before)
     {
         if (root is null || IsContentDialogOpen(root)) return;

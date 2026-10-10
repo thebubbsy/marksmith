@@ -5732,3 +5732,77 @@ slides all clean.
 **Release (same run):** tagged **v3.26.0** on `b350558` after CI passed on `427e4c0`. Release workflow built
 the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
 `MarksmithBaseVersion` is now **3.27.0**.
+
+### 2026-10-10 22:00–23:00 AEDT (routine run #69: command palette rebuilt, Version History hover/press/focus pass)
+
+**Picked up:** run #68's "Next up" #1 (back to the WinUI3 surfaces: Settings, History, command
+palette, with a real-mouse hover/press/focus pass). The previous run had finished cleanly; no other
+run was live. The user was idle (2 h+), so real mouse and keyboard input went to a test instance
+(scratch config, `MARKSMITH_CONFIG_DIR`). Uncommitted `EverythingHttpPlugin/*` changes aren't this
+routine's, so they were left alone and not staged.
+
+**Found on screen:**
+- The **command palette** (Ctrl+K / the title bar's "Search commands") was a stock ContentDialog: a
+  "Command palette" title, a full-width Cancel button under the list, opened in the middle of the
+  window. With nothing typed it listed 73 commands in one run whose first screen was always the
+  Export rows, so you couldn't get back to what you'd just used. Ctrl+B typed in its search box
+  went to the window's accelerators (it would bold the document behind). After Esc, focus went to
+  the title-bar button, so the next keystrokes typed into nothing. Matched letters were SemiBold
+  next to Regular, too quiet to see.
+- **Version History:** in Preview mode the inspector still said "Changes in this version / vs the
+  version before" over a rendered page. PowerPoint, EPUB, HTML and email exports all showed the
+  clock icon (only PDF and Word had their own). The version count shared the name's row, so
+  "Quarterly report.md" was cut to "Quarterly report…." in the 240 px Documents pane. The view
+  switch (Unified / Side by side / Preview) was three loose bordered buttons, not one choice.
+- **Settings** (opened from the palette): card hover, toggles and focus were already right after
+  run #53. Nothing to fix.
+
+**Shipped:**
+- `Controls/CommandPalette` (new): a launcher card in a `Popup` that drops from under the title
+  bar. It has an acrylic card with a ThemeShadow, a 140 ms scrim fade and an entrance slide, a
+  borderless search box with a magnifier and a clickable Esc cap, and grouped results ("Recently
+  used", then Export / File / Edit / Insert / View / Studios / App / Themes / Recent files). Search
+  results come as one ranked run that shows the category tag, with matched letters in accent
+  SemiBold. A footer has key caps (↑ ↓ to move, Enter to run, Esc to close) and a live count. The
+  no-match state has an icon and a hint.
+  Arrow keys wrap, PageUp/PageDown page, Tab stays in the box, and Ctrl+K or a click on the scrim
+  closes it. It swallows the window's keyboard accelerators while open and closes itself when any
+  ContentDialog is about to open (`HoverPolish.DialogOpening`). Focus goes back to where it was,
+  or to the editor if it was on a button (`HoverPolish.RestoreFocus`, new). Sticky group headers
+  are off (they drew over the row scrolled under them).
+- Core `Services/CommandPaletteSections` (what the palette lists, with recently used commands
+  winning score ties) + `PaletteRecents` (MRU of 12 labels in `<ConfigDir>/palette-recent.json`,
+  forgiving of a bad file). `PaletteCommand` moved from MainWindow to `Controls/CommandPalette.xaml.cs`
+  (MainWindow aliases it, so `CommandIconsTests` still finds `BuildPaletteCommands`).
+- History: the heading follows the view (Preview reads "This version as a document · Export · EPUB ·
+  22:31"). Export rows use the Export menu's icon for their format (`VersionItemViewModel.GlyphFor`,
+  from Core `CommandIcons`). The version count moved onto the date line. The view switch is one
+  segmented control.
+- Tests: `CommandPaletteSectionsTests` (8).
+
+**Verified:** Desktop build green. Test instance driven with real mouse and keyboard: hover tint on
+palette rows; type "split" + Enter ran Split view; Ctrl+K reopened it with "Recently used" on top,
+and it still did after a relaunch; Up wrapped to the last row; Ctrl+B inside the palette left the
+document alone; Esc then typing landed in the editor; "version" + Enter opened History; "settings" +
+Enter opened Settings. Checked in light theme (`MARKSMITH_THEME=Light`) and at the minimum window
+size. History: every view, the star hover, and the new icons and heading checked by PrintWindow
+screenshots. Full test suite **4592 passed, 1 skipped, 0 failed**.
+
+**Noticed, not fixed:**
+- `MainViewModel.CreateManualSnapshotAsync` has no callers (dead code). The History window's
+  checkpoint path is the live one and handles the "nothing changed" case properly.
+- `CommandSearch` accepts four one-letter initialisms anywhere ("head" also lists "Import Word, PDF,
+  HTML or email as a new document", last). Harmless, but it could require the initialism to start
+  at the label's first word.
+- Rig gotcha: `mouse.ps1` matched windows with `-like "*MarkSmith*"`, so with Version History open
+  it clicked into History. It now prefers an exact title match. `keys.ps1` (new) refuses to send
+  unless the foreground window belongs to the test instance's pid. But Version History shares that
+  pid, so check which window is in front.
+
+**Next up:**
+1. Continue the WinUI3 surface pass with real input: Suite Hub, the Welcome tour, the Export
+   split-button flyouts and the editor bar's Insert/Tools menus (hover, press, keyboard order,
+   focus after close).
+2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run
+   #59), for the user; real Windows light/dark switch; first real in-app update;
+   `EmailExportFlowTests.Subject_preview_follows_the_template` flake; Word INDEX field pre-fill.
