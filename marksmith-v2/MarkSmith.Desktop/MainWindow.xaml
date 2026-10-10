@@ -1421,7 +1421,7 @@
                                     </Expander.Header>
                                     <StackPanel Spacing="12">
                             <localcontrols:OptionRow Header="Lock to A4 width"
-                                                     Description="Pins the page to A4 width (794 px), so PDFs come out true A4 and Word uses A4 paper. Off: the width below sets the page, and Word uses Letter.">
+                                                     Description="Pins the page to A4 width (794 px), so PDFs come out true A4 and Word uses A4 paper. Off: the width below sets the page, in Letter proportions, and Word uses Letter.">
                                 <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding A4FixedWidth, Mode=TwoWay}" />
                             </localcontrols:OptionRow>
                             <!-- Width only means something while A4 isn't locking it. -->

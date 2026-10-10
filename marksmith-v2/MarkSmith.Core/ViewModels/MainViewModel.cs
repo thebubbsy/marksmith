@@ -966,7 +966,8 @@ private readonly MarkdownExportService _mdExport = new();
         _fileNameTemplate = string.IsNullOrWhiteSpace(settings.FileNameTemplate) ? "{title}" : settings.FileNameTemplate;
         _selectedThemeName = settings.Theme;
         _themeLightInfluence = settings.ThemeLightInfluence;
-        _contentWidth = settings.ContentWidth;
+        // The A4 lock pins the width; an older settings file can still say 800 under it.
+        _contentWidth = PdfExportService.PageWidthPx(settings);
         _a4FixedWidth = settings.A4FixedWidth;
         _unlimitedHeight = settings.UnlimitedHeight;
         _normalizeLlm = settings.NormalizeLlm;

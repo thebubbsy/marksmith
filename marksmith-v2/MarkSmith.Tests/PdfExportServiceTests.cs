@@ -157,10 +157,12 @@ public class PdfExportServiceTests
             PdfPageNumberPosition = "BottomRight",
             PdfFooterTemplate = "{title} — {date}",
         };
-        var (_, footer) = PdfExportService.BuildHeaderFooter(s, "Notes");
+        var (_, footer) = PdfExportService.BuildHeaderFooter(s, "Notes", date: new DateTime(2026, 10, 10, 11, 13, 0));
 
         Assert.Contains("Notes", footer);
-        Assert.Contains("<span class=\"date\"></span>", footer);
+        // The reader's short date, with no time (Chromium's date span adds one).
+        Assert.Contains(new DateTime(2026, 10, 10).ToString("d", System.Globalization.CultureInfo.CurrentCulture), footer);
+        Assert.DoesNotContain("11:13", footer);
         // The user's template replaced the default, so no bare pageNumber span was injected.
         Assert.DoesNotContain("pageNumber", footer);
     }

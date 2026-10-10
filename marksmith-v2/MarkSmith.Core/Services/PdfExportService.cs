@@ -12,6 +12,58 @@ public sealed class PdfExportService
 {
     private const double PxPerInch = 96.0;
 
+    /// <summary>The tallest page a PDF may have: 14,400 points (200 in). Acrobat crops or refuses
+    /// anything taller, so a continuous page past it carries on onto a second tall page.</summary>
+    public const double MaxPageHeightIn = 200.0;
+
+    /// <summary>
+    /// The height of a continuous page whose content is <paramref name="contentHeightPx"/> tall: the
+    /// content plus a hair, or, past the PDF limit, the content shared evenly over as many tall pages
+    /// as it needs (each repeats the page padding, hence the extra inch or two), rather than one full
+    /// page and a second mostly empty one.
+    /// </summary>
+    public static double ContinuousPageHeightIn(double contentHeightPx)
+    {
+        var neededIn = (Math.Max(contentHeightPx, 96) + 24) / PxPerInch;
+        if (neededIn <= MaxPageHeightIn) return neededIn;
+        var pages = Math.Ceiling(neededIn / MaxPageHeightIn);
+        return Math.Min(MaxPageHeightIn, neededIn / pages + 2);
+    }
+
+    /// <summary>Space between the paper edge and the text at the top and bottom of every page.</summary>
+    public const double PageInsetIn = 0.6;
+
+    /// <summary>Height of a header or footer band; the page inset under it shrinks to match.</summary>
+    public const double BandHeightIn = 0.45;
+
+    /// <summary>
+    /// The paper a paginated PDF prints on. The A4 lock gives true A4 (8.27 x 11.69 in); with the
+    /// lock off the page is the chosen width in Letter proportions, the paper Word uses then.
+    /// </summary>
+    public static (double WidthIn, double HeightIn) PaperSize(AppSettings settings)
+    {
+        if (settings.A4FixedWidth) return (8.27, 11.69);
+        var width = PageWidthPx(settings) / PxPerInch;
+        return (width, width * 11.0 / 8.5);
+    }
+
+    /// <summary>The page's width in CSS pixels: 794 (A4) while the A4 lock is on, whatever an older
+    /// settings file says the width is, so the preview, a continuous PDF and paper all agree.</summary>
+    public static int PageWidthPx(AppSettings settings) =>
+        settings.A4FixedWidth ? 794 : Math.Clamp(settings.ContentWidth, 400, 2400);
+
+    /// <summary>The page inset under a band: the band's own height counts towards the white space,
+    /// so text starts a little further from the paper's edge than without one.</summary>
+    public static double InsetUnderBand(bool hasBand) => hasBand ? PageInsetIn - BandHeightIn * 0.8 : PageInsetIn;
+
+    /// <summary>The title {title} prints and the PDF's Title property: the document's own title
+    /// (front matter, then first heading), falling back to the file name.</summary>
+    public static string DocumentTitle(string? sourceMarkdown, string pdfPath)
+    {
+        var title = HistoryEntry.ExtractTitle(sourceMarkdown ?? "");
+        return string.IsNullOrWhiteSpace(title) ? Path.GetFileNameWithoutExtension(pdfPath) : title;
+    }
+
     // `host` must already be ready (EnsureReadyAsync) and its underlying web control parented in a
     // visual tree — nothing will render (and therefore nothing meaningful will print) otherwise, so
     // callers should reuse the visible preview host rather than an unparented one-off instance.
@@ -26,60 +78,64 @@ public sealed class PdfExportService
         var checkMermaid = settings.MermaidEnabled && html.Contains("mermaid", StringComparison.OrdinalIgnoreCase);
         await host.WaitForExportReadyAsync(checkMermaid);
 
+        var docTitle = DocumentTitle(sourceMarkdown, pdfPath);
+        var look = PageLook.Parse(await host.ExecuteScriptAsync(PageLook.Script));
+
+        // Paper can't be clicked: a folded callout (> [!tip]-) or any other closed <details> would
+        // print as its title alone, so everything folded prints open.
+        await host.ExecuteScriptAsync("document.querySelectorAll('details:not([open])').forEach(d => d.open = true);");
+
+        // Header / footer bands (Settings > PDF): Chromium draws them in the page margin, so a band
+        // gets a margin of its own. A single continuous page has no pages to number, so no bands.
+        var (headerTpl, footerTpl) = settings.UnlimitedHeight ? ("", "") : BuildHeaderFooter(settings, docTitle, look);
+
         PdfPageSetup setup;
+        string canvasPadding;
         if (settings.UnlimitedHeight)
         {
-            // Continuous/no-page-breaks mode is meant to be an exact export of the on-screen
-            // preview — one tall page, not a real paper size — so the PDF's page width must equal
-            // the content's actual rendered width, not some other value. #canvas in
-            // MarkdownHtmlService.cs is `max-width: {settings.ContentWidth}px` with
-            // box-sizing:border-box (padding included in that width) inside a zero-padding body,
-            // so the page must be exactly ContentWidth px wide to fill edge-to-edge with no blank
-            // margin. Calculates layout dimensions dynamically from configured page setup parameters.
-            var pageWidthPx = settings.ContentWidth;
-            var scrollHeightResult = await host.ExecuteScriptAsync("document.body.scrollHeight");
-            var scrollHeightPx = double.TryParse(scrollHeightResult, out var h) ? h : 1000;
+            // One tall page as wide as the preview's page. The height is measured with the
+            // document's print rules applied on screen first (print pads the page differently and
+            // wraps long code lines), so the page ends just below the last line: a guess fell short
+            // and spilled the end onto a second page, or left a blank band at the bottom.
+            var pageWidthPx = PageWidthPx(settings);
+            var scrollHeightResult = await host.ExecuteScriptAsync(MeasurePrintHeightScript(pageWidthPx));
+            var scrollHeightPx = double.TryParse(scrollHeightResult, NumberStyles.Float, CultureInfo.InvariantCulture, out var h) ? h : 1000;
             setup = new PdfPageSetup(
                 PageWidthIn: pageWidthPx / PxPerInch,
-                PageHeightIn: (scrollHeightPx + 100) / PxPerInch,
+                PageHeightIn: ContinuousPageHeightIn(scrollHeightPx),
                 MarginTopIn: 0, MarginBottomIn: 0, MarginLeftIn: 0, MarginRightIn: 0,
                 PrintBackgrounds: true);
+            canvasPadding = "#canvas { -webkit-box-decoration-break: clone; box-decoration-break: clone; }";
         }
         else
         {
-            // Paginated mode: page width follows ContentWidth so the HTML canvas (laid out at
-            // ContentWidth px in MarkdownHtmlService) maps edge-to-edge onto the printed page.
-            // Height stays A4-proportional; the previous hardcoded 8.27in clipped wider content.
-            var pageW = settings.ContentWidth / PxPerInch;
-            var pageH = pageW * (11.69 / 8.27); // maintain A4 aspect ratio
+            // Real paper. The page colour runs edge to edge (zero side margins, the theme's colour
+            // behind everything), and box-decoration-break repeats the canvas's top and bottom
+            // padding on every page, so page 2 onwards no longer starts at the paper's very edge.
+            var (pageW, pageH) = PaperSize(settings);
+            var hasHeader = headerTpl.Length > 0;
+            var hasFooter = footerTpl.Length > 0;
             setup = new PdfPageSetup(
                 PageWidthIn: pageW, PageHeightIn: pageH,
-                MarginTopIn: 0, MarginBottomIn: 0, MarginLeftIn: 0, MarginRightIn: 0, // Edge-to-edge theme background
-                PrintBackgrounds: true);
+                MarginTopIn: hasHeader ? BandHeightIn : 0, MarginBottomIn: hasFooter ? BandHeightIn : 0,
+                MarginLeftIn: 0, MarginRightIn: 0,
+                PrintBackgrounds: true, HeaderTemplate: headerTpl, FooterTemplate: footerTpl);
+            var insetTop = Inches(InsetUnderBand(hasHeader));
+            var insetBottom = Inches(InsetUnderBand(hasFooter));
+            // A cover page fills the first page exactly: the page area less the text insets.
+            canvasPadding =
+                $":root {{ --ms-cover-min-height: calc(100vh - {insetTop}in - {insetBottom}in - 2px); }} " +
+                $"#canvas {{ padding-top: {insetTop}in !important; padding-bottom: {insetBottom}in !important; " +
+                "-webkit-box-decoration-break: clone; box-decoration-break: clone; }";
         }
 
-        // Header / footer engine (Task 10): build the Chromium template pair and, when a band is
-        // present, reserve top/bottom margin space for it (Chromium draws the header/footer inside the
-        // margin box, so a zero-margin page would clip them). Off by default — existing edge-to-edge
-        // exports keep margin 0 and no header/footer until the user opts in via Settings.
-        // Skipped in UnlimitedHeight mode: the output is a single continuous page, so per-page
-        // header/footer chrome is semantically void (would render once at the very top/bottom of a
-        // giant scroll and contradict the zero-margin edge-to-edge contract of that mode).
-        var docTitle = Path.GetFileNameWithoutExtension(pdfPath);
-        var (headerTpl, footerTpl) = settings.UnlimitedHeight ? ("", "") : BuildHeaderFooter(settings, docTitle);
-        if (headerTpl.Length > 0) setup = setup with { MarginTopIn = Math.Max(setup.MarginTopIn, 0.4), HeaderTemplate = headerTpl };
-        if (footerTpl.Length > 0) setup = setup with { MarginBottomIn = Math.Max(setup.MarginBottomIn, 0.4), FooterTemplate = footerTpl };
-
-        // @page CSS mirrors the print margins (0 for edge-to-edge theme backgrounds, or the reserved
-        // header/footer space) and forces exact background color rendering so the theme fills the page.
-        await host.ExecuteScriptAsync($$"""
-            (() => {
-                const style = document.createElement('style');
-                style.textContent = `@page { size: {{Inches(setup.PageWidthIn)}}in {{Inches(setup.PageHeightIn)}}in; margin: {{Inches(setup.MarginTopIn)}}in {{Inches(setup.MarginRightIn)}}in {{Inches(setup.MarginBottomIn)}}in {{Inches(setup.MarginLeftIn)}}in !important; }
-                    html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }`;
-                document.head.appendChild(style);
-            })();
-            """);
+        // @page mirrors the print setup so the CSS and the print settings agree, and the theme's
+        // page colour fills the paper (Chromium paints the root background edge to edge).
+        await host.ExecuteScriptAsync(InjectStyle(
+            $"@page {{ size: {Inches(setup.PageWidthIn)}in {Inches(setup.PageHeightIn)}in; margin: {Inches(setup.MarginTopIn)}in 0 {Inches(setup.MarginBottomIn)}in 0 !important; }} " +
+            $"@media print {{ html {{ background: {look.Background} !important; }} " +
+            "html, body { margin: 0 !important; padding: 0 !important; height: auto !important; min-height: 0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } " +
+            canvasPadding + " }"));
 
         var ok = await host.PrintToPdfAsync(pdfPath, setup);
         if (!ok) throw new InvalidOperationException("PDF export failed (the web renderer reported failure).");
@@ -107,6 +163,84 @@ public sealed class PdfExportService
         {
             // unreadable/corrupt output — the plain printed PDF still stands
         }
+    }
+
+    /// <summary>
+    /// A script that copies every <c>@media print</c> rule of the document into a screen
+    /// stylesheet, lays the page out at the paper's width and returns its height in pixels: the
+    /// height the printed page needs. The copied rules are the print rules, so printing afterwards
+    /// lays out the same way.
+    /// </summary>
+    public static string MeasurePrintHeightScript(int pageWidthPx) => $$"""
+        (() => {
+            const css = [];
+            for (const sheet of document.styleSheets) {
+                let rules;
+                try { rules = sheet.cssRules; } catch { continue; }
+                for (const rule of rules) {
+                    if (rule instanceof CSSMediaRule && /\bprint\b/i.test(rule.media.mediaText))
+                        for (const inner of rule.cssRules) css.push(inner.cssText);
+                }
+            }
+            css.push('html, body { width: {{pageWidthPx}}px !important; }');
+            const style = document.createElement('style');
+            style.textContent = css.join('\n');
+            document.head.appendChild(style);
+            return Math.ceil(document.documentElement.scrollHeight);
+        })();
+        """;
+
+    // A script that appends one <style> to the document. The CSS travels as a JSON string, so
+    // quotes and backslashes in it (font names) can't break out of the script.
+    private static string InjectStyle(string css) =>
+        $"(() => {{ const s = document.createElement('style'); s.textContent = {System.Text.Json.JsonSerializer.Serialize(css)}; document.head.appendChild(s); }})();";
+
+    /// <summary>The printed page's colours and font, read from the rendered document, so header and
+    /// footer bands match the page whatever the theme, light influence or brand font did to it.</summary>
+    public sealed record PageLook(string Background, string Text, string FontFamily)
+    {
+        public static readonly PageLook Default = new("#ffffff", "#24292f", "\"Segoe UI\", sans-serif");
+
+        internal const string Script = """
+            (() => {
+                const canvas = document.getElementById('canvas') || document.body;
+                const cs = getComputedStyle(canvas), bs = getComputedStyle(document.body);
+                const clear = c => !c || c === 'transparent' || /^rgba\(.*,\s*0\)$/.test(c);
+                return JSON.stringify({ bg: clear(cs.backgroundColor) ? bs.backgroundColor : cs.backgroundColor, fg: cs.color, font: bs.fontFamily });
+            })();
+            """;
+
+        /// <summary>Reads <see cref="Script"/>'s result. ExecuteScriptAsync returns the value JSON
+        /// encoded, so the JSON arrives as a quoted string; anything unexpected gives the default page.</summary>
+        public static PageLook Parse(string? result)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(result)) return Default;
+                var json = result.TrimStart().StartsWith('"') ? System.Text.Json.JsonSerializer.Deserialize<string>(result) : result;
+                using var doc = System.Text.Json.JsonDocument.Parse(json ?? "{}");
+                var root = doc.RootElement;
+                if (root.ValueKind != System.Text.Json.JsonValueKind.Object) return Default;
+                string Read(string name, string fallback) =>
+                    root.TryGetProperty(name, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String
+                    && v.GetString() is { Length: > 0 } s && SafeCss(s) ? s : fallback;
+                var bg = Read("bg", Default.Background);
+                if (IsClear(bg)) bg = Default.Background;
+                return new PageLook(bg, Read("fg", Default.Text), Read("font", Default.FontFamily));
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return Default;
+            }
+        }
+
+        private static bool IsClear(string color) =>
+            color.Equals("transparent", StringComparison.OrdinalIgnoreCase)
+            || (color.StartsWith("rgba(", StringComparison.OrdinalIgnoreCase) && color.Replace(" ", "").EndsWith(",0)"));
+
+        // The values go into a style attribute and a stylesheet: nothing that ends a declaration or
+        // the markup around it.
+        private static bool SafeCss(string value) => value.IndexOfAny(['<', '>', ';', '{', '}']) < 0;
     }
 
     private static string Inches(double value) => value.ToString(CultureInfo.InvariantCulture);
@@ -143,10 +277,15 @@ public sealed class PdfExportService
     // Builds the (header, footer) Chromium template pair from settings + the chosen page-number
     // position. A non-"None" position with an empty matching band injects a default "Page {page} of
     // {pages}"; alignment (left/center/right) follows the position. Explicit templates always render.
-    public static (string Header, string Footer) BuildHeaderFooter(AppSettings settings, string title)
+    public static (string Header, string Footer) BuildHeaderFooter(AppSettings settings, string title, PageLook? look = null, DateTime? date = null)
     {
         var (header, footer, align) = ResolveBands(settings);
-        return (WrapBand(header, title, align), WrapBand(footer, title, align));
+        look ??= PageLook.Default;
+        // {date} is the reader's short date, filled in here as Settings previews it: Chromium's own
+        // date span prints the time as well ("10/10/2026, 11:13").
+        var day = System.Net.WebUtility.HtmlEncode((date ?? DateTime.Now).ToString("d", CultureInfo.CurrentCulture));
+        string Dated(string band) => band.Replace("{date}", day, StringComparison.Ordinal);
+        return (WrapBand(Dated(header), title, align, look), WrapBand(Dated(footer), title, align, look));
     }
 
     /// <summary>
@@ -175,11 +314,18 @@ public sealed class PdfExportService
         return (header, footer, align);
     }
 
-    private static string WrapBand(string template, string title, string align)
+    // A band fills its margin with the page's own colour (Chromium leaves margins white: white
+    // stripes on a dark theme) and sets its text in the page's font and colour, a little quieter.
+    // Chromium pads its #header/#footer boxes, so the style resets that to reach the paper's edges.
+    private static string WrapBand(string template, string title, string align, PageLook look)
     {
         var body = BuildChromiumTemplate(template, title);
-        return body.Length == 0
-            ? ""
-            : $"<div style=\"font-size:9px; text-align:{align}; width:100%; padding:0 0.3in;\">{body}</div>";
+        if (body.Length == 0) return "";
+        var justify = align switch { "center" => "center", "right" => "flex-end", _ => "flex-start" };
+        var font = System.Net.WebUtility.HtmlEncode(look.FontFamily);
+        return "<style>#header, #footer { padding: 0 !important; margin: 0 !important; }</style>" +
+               $"<div style=\"box-sizing:border-box; width:100%; height:{Inches(BandHeightIn)}in; margin:0; padding:0 54px; display:flex; align-items:center; justify-content:{justify}; text-align:{align}; " +
+               $"background:{look.Background}; color:{look.Text}; font-family:{font}; font-size:12px; -webkit-print-color-adjust:exact; print-color-adjust:exact;\">" +
+               $"<span style=\"opacity:0.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;\">{body}</span></div>";
     }
 }

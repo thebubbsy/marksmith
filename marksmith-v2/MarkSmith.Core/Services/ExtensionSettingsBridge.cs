@@ -69,7 +69,7 @@ public sealed class ExtensionSettingsBridge
         new Group("layout", "Layout & PDF", "Page size, contents and PDF page furniture.", new[]
         {
             new Field("a4FixedWidth", "A4FixedWidth", "Lock to A4 width",
-                "Pins the page to A4 width (794 px), so PDFs come out true A4 and Word uses A4 paper. Off: the width below sets the page, and Word uses Letter.", "toggle"),
+                "Pins the page to A4 width (794 px), so PDFs come out true A4 and Word uses A4 paper. Off: the width below sets the page, in Letter proportions, and Word uses Letter.", "toggle"),
             new Field("contentWidth", "ContentWidth", "Page width (px)", "400–2400 px. Sets the preview and PDF page width while the A4 lock is off.", "number", Min: 400, Max: 2400),
             new Field("unlimitedHeight", "UnlimitedHeight", "Single continuous page",
                 "PDF only: one long page with no page breaks. Word has no page-less print mode, so a DOCX opens in Web Layout instead.", "toggle"),

@@ -62,8 +62,8 @@ public class PreviewShellCacheTests
     public void Render_ContentWidthChange_ProducesDifferentShell()
     {
         const string md = "Hello.\n";
-        var narrow = new AppSettings { ContentWidth = 700 };
-        var wide = new AppSettings { ContentWidth = 900 };
+        var narrow = new AppSettings { ContentWidth = 700, A4FixedWidth = false };
+        var wide = new AppSettings { ContentWidth = 900, A4FixedWidth = false };
 
         var htmlNarrow = new MarkdownHtmlService().Render(md, narrow, ThemeA);
         var htmlWide = new MarkdownHtmlService().Render(md, wide, ThemeA);
@@ -71,6 +71,18 @@ public class PreviewShellCacheTests
         Assert.NotEqual(htmlNarrow, htmlWide);
         Assert.Contains("width: 700px", htmlNarrow);
         Assert.Contains("width: 900px", htmlWide);
+    }
+
+    [Fact]
+    public void Render_A4Lock_PinsTheWidthWhateverTheStoredWidth()
+    {
+        // An older settings file can hold 800 under the lock; the page is still A4 wide, and
+        // turning the lock off must not reuse the locked shell.
+        var locked = new MarkdownHtmlService().Render("Hello.\n", new AppSettings { ContentWidth = 800, A4FixedWidth = true }, ThemeA);
+        var free = new MarkdownHtmlService().Render("Hello.\n", new AppSettings { ContentWidth = 800, A4FixedWidth = false }, ThemeA);
+
+        Assert.Contains("width: 794px", locked);
+        Assert.Contains("width: 800px", free);
     }
 
     [Fact]

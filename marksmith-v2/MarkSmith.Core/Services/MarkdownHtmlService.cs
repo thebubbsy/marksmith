@@ -719,19 +719,25 @@ public sealed partial class MarkdownHtmlService
 
                 document.querySelectorAll(".page-break-gap").forEach(el => el.remove());
 
-                // A4 page height at 96 DPI: the preview page is always at least one full A4 page
-                // tall (min-height on #canvas), so the dashed break markers sit on true page
-                // boundaries — every 1123px — and a document that fits on one page shows none.
-                const pageHeight = 1123;
-                const totalHeight = canvas.scrollHeight;
-                if (totalHeight <= pageHeight + 50) return;
+                // The PDF's paper (PdfExportService.PaperSize) at the canvas's width, less the
+                // text inset every printed page repeats at its top and bottom: each page holds
+                // `usable` pixels of the document, so the markers fall about where the PDF breaks.
+                // A document that fits on one page shows none.
+                const scale = canvas.offsetWidth / {{(int)Math.Round(PdfExportService.PaperSize(settings).WidthIn * 96)}};
+                const pageHeight = {{(int)Math.Round(PdfExportService.PaperSize(settings).HeightIn * 96)}} * scale;
+                const inset = {{(int)Math.Round(PdfExportService.PageInsetIn * 96)}} * scale;
+                const usable = pageHeight - 2 * inset;
+                const style = getComputedStyle(canvas);
+                const top = parseFloat(style.paddingTop) || 0;
+                const contentHeight = canvas.scrollHeight - top - (parseFloat(style.paddingBottom) || 0);
+                if (contentHeight <= usable) return;
 
-                const pageCount = Math.ceil(totalHeight / pageHeight);
+                const pageCount = Math.ceil(contentHeight / usable);
                 for (let i = 1; i < pageCount; i++) {
                     const gap = document.createElement("div");
                     gap.className = "page-break-gap";
-                    gap.style.top = (i * pageHeight) + "px";
-                    gap.setAttribute("data-page", "Page " + i + " Break · Page " + (i + 1) + " Starts Below");
+                    gap.style.top = Math.round(top + i * usable) + "px";
+                    gap.setAttribute("data-page", "Page " + (i + 1));
                     canvas.appendChild(gap);
                 }
             }
@@ -1822,12 +1828,31 @@ public sealed partial class MarkdownHtmlService
                       auto margins collapse to 0 on any axis the zoomed sheet overflows (so panning
                       works and never clips the sheet's start edge). */
                    {{(interactive ? "display: flex; flex-direction: column; min-height: 100%; padding: 40px 0; box-sizing: border-box;" : "")}} }
-            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"flex-shrink: 0; min-height: 1123px; height: auto; background: {pageBg}; box-shadow: 0 2px 6px rgba(0,0,0,0.16), 0 10px 24px rgba(0,0,0,0.22), 0 28px 56px rgba(0,0,0,0.18); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
+            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : PdfExportService.PageWidthPx(settings))}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : PdfExportService.PageWidthPx(settings))}}px; max-width: none; margin: {{(interactive ? "auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"flex-shrink: 0; min-height: 1123px; height: auto; background: {pageBg}; box-shadow: 0 2px 6px rgba(0,0,0,0.16), 0 10px 24px rgba(0,0,0,0.22), 0 28px 56px rgba(0,0,0,0.18); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
             @media print {
-              @page { margin: 0 !important; }
+              @page { margin: 0; }
               html, body { margin: 0 !important; padding: 0 !important; background: {{effectiveBodyBg}} !important; height: auto !important; min-height: 0 !important; display: block !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 48px 54px !important; transform: none !important; height: auto !important; }
+              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 0.6in 54px !important; -webkit-box-decoration-break: clone; box-decoration-break: clone; transform: none !important; height: auto !important; }
             }
+            /* On paper: nothing scrolls, so code wraps instead of being cut off at the page edge
+               (ASCII art keeps its columns); a heading stays with what follows it; rows, figures
+               and diagrams aren't cut in two; no lone first or last lines. The preview's own
+               furniture (page-break markers, the overflow warning, the zoom lens) never prints. */
+            @media print {
+              pre { white-space: pre-wrap !important; overflow: visible !important; overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+              pre code { white-space: inherit !important; }
+              pre.ascii-diagram, pre:has(> code.language-ascii), pre:has(> code.language-text), pre:has(> code.language-txt) { white-space: pre !important; overflow-wrap: normal; }
+              h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; break-inside: avoid; }
+              p, li, dd, blockquote { orphans: 3; widows: 3; }
+              tr, img, svg, figure, .mermaid, .plugin-diagram, .katex-display, .markdown-alert { break-inside: avoid; page-break-inside: avoid; }
+              thead { display: table-header-group; }
+              .page-break-gap, #overflow-banner { display: none !important; }
+            }
+            /* Page border (Style & Export > Layout): a frame on every printed page (a fixed element
+               repeats on each page), and around the sheet on screen so the preview shows it too. */
+            .ms-page-frame { display: none; }
+            @media screen { .ms-page-frame { display: block; position: absolute; inset: 22px; border: 1.5px solid {{theme.Border}}; border-radius: 2px; pointer-events: none; } }
+            @media print { .ms-page-frame { display: block; position: fixed; inset: 0.3in; border: 1.5px solid {{theme.Border}}; pointer-events: none; z-index: 1; } }
             body.ms-loading #canvas { filter: blur(14px); opacity: .6; }
             h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
             /* Hard rule: explicit colored font (inline HTML / syntax highlighting) cannot be overridden by theming */
@@ -1837,8 +1862,9 @@ public sealed partial class MarkdownHtmlService
             /* ASCII / box-drawing diagrams (ISS-006): ligatures and loose leading break column
                alignment, so code blocks flagged as ascii/text get tight, uniform metrics. */
             pre code.language-ascii, pre code.language-text, pre code.language-txt, pre.ascii-diagram { line-height: 1.15 !important; letter-spacing: 0px !important; font-size: 14px; display: block; overflow-x: auto; }
-            table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 2px solid {{theme.Border}}; word-break: break-word; overflow-wrap: anywhere; }
-            th, td { border: 1px solid {{theme.Border}}; padding: 8px 12px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
+            table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 2px solid {{theme.Border}}; overflow-wrap: break-word; }
+            th, td { border: 1px solid {{theme.Border}}; padding: 8px 12px; text-align: left; overflow-wrap: break-word; }
+            td a, td code, th a, th code { overflow-wrap: anywhere; }
             th { background: {{theme.Code}}; font-weight: bold; }
             /* Body copy the palette never reached: links were the browser's #0000EE (unreadable on
                every dark theme), blockquotes had no quote styling at all, and inline code, kbd,
@@ -2279,12 +2305,12 @@ public sealed partial class MarkdownHtmlService
             }
             @media print {
                 .cover-page {
-                    min-height: 100vh;
-                    page-break-after: always;
-                    break-after: page;
+                    min-height: var(--ms-cover-min-height, 800px);
+                    {{(settings.UnlimitedHeight ? "margin-bottom: 36px;" : "margin: 0; page-break-after: always; break-after: page;")}}
                     border: none;
                     border-radius: 0;
                 }
+                .cover-page + .page-break { display: none; }
             }
             
             /* Custom styles for diagram errors and page overflow warnings */
@@ -2376,7 +2402,7 @@ public sealed partial class MarkdownHtmlService
             if (ShellCache.Count > 12) ShellCache.Clear();
             ShellCache[shellKey] = shell;
         }
-        return shell.Head + attribution + toc + body + footer + shell.Tail;
+        return shell.Head + PageFrame(settings) + AfterCoverPage(attribution + toc, body) + footer + shell.Tail;
     }
 
     // Preview shell cache (perf audit #18): the ~50 KB JS/CSS shell depends only on theme,
@@ -2400,7 +2426,7 @@ public sealed partial class MarkdownHtmlService
         // and settings, so they are keyed by value, not just presence.
         return string.Concat(
             theme.GetHashCode().ToString(), "|",
-            settings.TargetFormat, "|", settings.ContentWidth.ToString(), "|",
+            settings.TargetFormat, "|", settings.ContentWidth.ToString(), "|", settings.A4FixedWidth ? "a4" : "free", "|",
             settings.UnlimitedHeight.ToString(), "|", settings.MermaidEnabled.ToString(), "|",
             settings.ThemeLightInfluence.ToString(), "|", settings.NoEmoji.ToString(), "|",
             htmlAttrs, "|", bodyClass, "|", interactive.ToString(), "|", isDark.ToString(), "|",
@@ -2588,7 +2614,7 @@ public sealed partial class MarkdownHtmlService
             ? "<div class=\"mark-footer\">Made with <a href=\"https://github.com/thebubbsy/marksmith\">Marksmith</a> — turn AI chats into polished documents</div>"
             : "";
 
-        return attribution + toc + body + footer;
+        return PageFrame(settings) + AfterCoverPage(attribution + toc, body) + footer;
     }
 
     private static readonly Regex MermaidFenceRe =
@@ -3159,7 +3185,9 @@ public sealed partial class MarkdownHtmlService
             {
                 if (m.Index >= f.Start && m.Index < f.End) return m.Value;
             }
-            var lines = m.Value.TrimEnd().Split('\n');
+            // Trim both ends: the pattern's leading \s* takes any blank lines before the ::: line
+            // into the match, and the first line must be the directive itself.
+            var lines = m.Value.Trim().Split('\n');
             var firstLine = lines[0].TrimEnd('\r');
             var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
 
@@ -3206,6 +3234,33 @@ public sealed partial class MarkdownHtmlService
         });
     }
 
+    private const string CoverPageEnd = "<!--/cover-page-->";
+
+    // The Page border option's frame (styled per medium in the stylesheet); Word draws its own.
+    private static string PageFrame(AppSettings settings) =>
+        settings.PageBorder ? "<div class=\"ms-page-frame\" aria-hidden=\"true\"></div>" : "";
+
+    /// <summary>
+    /// <paramref name="front"/> (the AI-source badge and the contents box) then the body; when the
+    /// document opens with a cover page, the cover comes first and the front matter follows it, as
+    /// in a printed report (the contents box used to print above the cover).
+    /// </summary>
+    internal static string AfterCoverPage(string front, string body)
+    {
+        if (front.Length == 0) return body;
+        var start = body.IndexOf("<div class=\"cover-page", StringComparison.Ordinal);
+        var end = body.IndexOf(CoverPageEnd, StringComparison.Ordinal);
+        if (start < 0 || end < start) return front + body;
+        // Only a cover the document opens with: nothing but whitespace or a watermark before it.
+        var before = WatermarkOverlayRe().Replace(body[..start], "");
+        if (!string.IsNullOrWhiteSpace(before)) return front + body;
+        end += CoverPageEnd.Length;
+        return body[..end] + front + body[end..];
+    }
+
+    [GeneratedRegex(@"<div class=""mk-watermark-overlay""[^>]*><div class=""mk-watermark-text"">[^<]*</div></div>")]
+    private static partial Regex WatermarkOverlayRe();
+
     private static string LiftCoverPages(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> coverPageBlocks)
     {
         coverPageBlocks = new List<string>();
@@ -3216,7 +3271,9 @@ public sealed partial class MarkdownHtmlService
             {
                 if (m.Index >= f.Start && m.Index < f.End) return m.Value;
             }
-            var lines = m.Value.TrimEnd().Split('\n');
+            // Trim both ends: the pattern's leading \s* takes any blank lines before the ::: line
+            // into the match, and the first line must be the directive itself.
+            var lines = m.Value.Trim().Split('\n');
             var firstLine = lines[0].TrimEnd('\r');
             var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
 
@@ -3287,6 +3344,7 @@ public sealed partial class MarkdownHtmlService
             sb.Append("</div>");
             sb.Append("</div>");
             sb.Append("<div class=\"page-break\" style=\"page-break-after: always; break-after: page;\"></div>");
+            sb.Append(CoverPageEnd);
 
             blocks.Add(sb.ToString());
             return $"\n\n<!--COVERPAGE:{blocks.Count - 1}-->\n\n";
@@ -3301,7 +3359,9 @@ public sealed partial class MarkdownHtmlService
             {
                 if (m.Index >= f.Start && m.Index < f.End) return m.Value;
             }
-            var lines = m.Value.TrimEnd().Split('\n');
+            // Trim both ends: the pattern's leading \s* takes any blank lines before the ::: line
+            // into the match, and the first line must be the directive itself.
+            var lines = m.Value.Trim().Split('\n');
             var firstLine = lines[0].TrimEnd('\r');
             var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
 
@@ -3329,7 +3389,9 @@ public sealed partial class MarkdownHtmlService
             {
                 if (m.Index >= f.Start && m.Index < f.End) return m.Value;
             }
-            var lines = m.Value.TrimEnd().Split('\n');
+            // Trim both ends: the pattern's leading \s* takes any blank lines before the ::: line
+            // into the match, and the first line must be the directive itself.
+            var lines = m.Value.Trim().Split('\n');
             var firstLine = lines[0].TrimEnd('\r');
             var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
 
