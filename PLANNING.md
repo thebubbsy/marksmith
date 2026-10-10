@@ -5274,3 +5274,77 @@ Dracula, Nordic; A4 and Letter; TOC, page border, branded cover.
 **Release (same run):** tagged **v3.20.0** on `db5381a` after CI passed on it. Release workflow built
 the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
 `MarksmithBaseVersion` is now **3.21.0** (`3dbf8de`).
+
+### 2026-10-10 13:15–14:05 AEST (routine run #61: Word export part 2, pictures, diagrams and tables)
+
+**Pick.** No other run was live (list_sessions: nothing running). Took run #60's "Next up" #1:
+pictures, diagrams and tables in Word export.
+
+**How it was tested.** Same rig as run #60, rebuilt in this run's scratchpad (`%TEMP%\ms60d` had
+been cleaned up, so `pdfr` (Windows.Data.Pdf page renderer) and `val` (OpenXML validator, Office
+2019) were recreated as tiny console apps built to `%TEMP%\ms61d\{pdfr,val}`). Scratch instance
+on `ApiPort` 47960 with the dev Pro license; `/api/convert` → Word COM print to PDF → render every
+page → contact sheet. Stress docs: wide (1800x1000), tall (700x2000), icon, banner, size-hinted and
+BOM-prefixed SVG pictures; pictures in a table, a list item, a callout, a quote and `:::columns`;
+flowchart TD/LR, sequence, pie; an HTML table with colspan; headings at a page foot. Light and
+Dracula; run #60's report and Word stress doc re-rendered for regressions. Plus one **real
+UI-driven export** (opened `pics.md` by command-line argument, Skip on the tour, invoked
+`ExportSplitButton` with `TargetFormat` docx and `OutputFolder` set to the scratchpad): identical
+pages to the API path, validator 0 errors.
+
+**What was wrong:**
+- Every picture was capped at a fixed 460pt: past the right margin on A4 (451pt of text), short of
+  it on landscape. Nothing fitted a table cell (a screenshot in a cell spilled out, cropped), a
+  `:::columns` column, a list item or a callout.
+- A tall picture had no height cap: it ran off the bottom of the page, and because headings keep
+  with the next paragraph, its heading sat alone on the page before.
+- An SVG saved with a UTF-8 byte-order mark (Notepad, PowerShell) failed to parse and printed as
+  "[Image: Vector chart]".
+- **Every flowchart arrow printed dashed.** Mermaid styles solid edges `stroke-dasharray: 0`
+  (computed "0px"); the harvest script and `SvgShapeForge` treated anything but "none" as dashed.
+- Pie/Gantt/XY palette rotated hues from `theme.Heading`, near-black on most themes, so every
+  slice was a muddy brown.
+- Tables split anywhere: a 5-row HTML table left one row at a page foot.
+- HTML tables used an old proportional solver with a 1000-twip floor per column (could exceed the
+  text width), autofit, body paragraph spacing in cells, and no spacer (Word joins adjacent tables).
+- Short bold headers broke mid-word ("Owne / r").
+
+**Shipped (Core `DocxExportService` unless noted):**
+- `FitDrawings(scope, settings, frameWidthTwips?)`: shrinks every `wp:inline` (extent + the
+  graphic's first `a:ext`, so a shape group scales as one) to `AvailableWidthTwips` (frame less
+  paragraph indent / list level, then every enclosing cell's `tcW` less its tcMar/tblCellMar sides,
+  read by local name since the SDK has two classes for each) and `TextHeightTwips - 1440`. Called
+  per top-level block (main + append-mode loops, streaming exporter) and per column in
+  `RenderColumns`. Idempotent. `MaxPicturePt(ctx)` replaces the 460 caps.
+- `RenderTable`: a column holding a picture solves as `(70, 22)`.
+- BOM stripped before SVG sniffing/parsing in `TryEmbedImage`.
+- `MermaidHarvestService` JS `dashOf(v)` (both harvest scripts) and `SvgShapeForge.Dashed`: dashed
+  only when some dash length > 0.
+- `MermaidChartsRenderer.BuildPalette` (now internal): from `theme.Primary` (blue if grey), golden-
+  angle hue steps, s 0.62, l 0.50/0.58 (0.62/0.70 on dark backgrounds). Dead `RotateHue` removed.
+- `KeepTableTogether(table)` on Markdown and HTML tables: ≤ 12 rows keep-with-next on all but the
+  last; longer tables rows 0, 1 and n-2.
+- HTML tables: `SolveColumnWidths`, fixed layout (top-level only; nested ones autofit inside their
+  cell), `TightenCellSpacing`, `SpacerParagraph` after.
+- `SolveColumnWidths`: a word's minimum is 1.2x the average glyph.
+- Tests: `DocxPicturesTests` (15).
+
+**Verified:**
+- Full suite: 4480 passed, 1 skipped, 0 failed. Desktop build green (scratch OutDir `%TEMP%\ms61d\b`).
+- Every render above re-checked after the fixes; validator 0 errors on all of them.
+
+**Noticed, not fixed:**
+- A long LR flowchart (9 nodes in a row) prints tiny: it is fitted to the page width, as in the
+  preview. Wrapping it is a diagram-layout change, not a Word one.
+- The streaming DOCX exporter (`ExportStreamAsync`) still prints footnotes as body text, but nothing
+  in the desktop app calls it (only the public API surface), so it's out of this routine's scope.
+- Image titles (`![alt](src "Figure 1: …")`) aren't captions in Word, nor in the preview.
+- An inline icon taller than the text line (96 px) opens the line up, in Word as in the preview.
+
+**Next up:**
+1. PowerPoint export, page by page (slide by slide), the same way: render every slide through
+   PowerPoint COM, check pictures, diagrams, tables, code and themes.
+2. The continuous-page PDF default (run #59), for the user to decide.
+3. Carried over: a real Windows light/dark switch with a person present; Diagram Studio/Galaxy and
+   the flip hook; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
+   flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
