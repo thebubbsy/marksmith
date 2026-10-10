@@ -81,16 +81,16 @@
                                  FontSize="12" VerticalAlignment="Center"
                                  AutomationProperties.Name="Extension folder" />
                         <Button Grid.Column="1" x:Name="CopyFolderButton" Click="OnCopyFolderClick"
-                                AutomationProperties.Name="Copy folder path"
-                                ToolTipService.ToolTip="Copy the folder's path">
+                                AutomationProperties.Name="Copy folder path (Ctrl+Shift+C)"
+                                ToolTipService.ToolTip="Copy the folder's path (Ctrl+Shift+C)">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon x:Name="CopyFolderIcon" Glyph="&#xE8C8;" FontSize="14" />
                                 <TextBlock Text="Copy" />
                             </StackPanel>
                         </Button>
-                        <Button Grid.Column="2" Click="OnOpenFolderClick"
-                                AutomationProperties.Name="Open folder"
-                                ToolTipService.ToolTip="Show the folder in File Explorer">
+                        <Button Grid.Column="2" x:Name="OpenFolderButton" Click="OnOpenFolderClick"
+                                AutomationProperties.Name="Open folder (Ctrl+O)"
+                                ToolTipService.ToolTip="Show the folder in File Explorer (Ctrl+O)">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE838;" FontSize="14" />
                                 <TextBlock Text="Open" />
@@ -117,7 +117,8 @@
         <!-- Live connection status: off (with Turn on), waiting, connected. -->
         <Border x:Name="StatusCard" CornerRadius="8" Padding="14,12" BorderThickness="1"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                AutomationProperties.Name="Extension connection status">
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />

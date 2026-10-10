@@ -1,6 +1,9 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using System;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using MarkSmith.Services;
 
 namespace MarkSmith.Controls
@@ -23,14 +26,31 @@ namespace MarkSmith.Controls
         private static void OnIsOpenChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             var control = (ExtensionTip)d;
-            control.Visibility = (bool)e.NewValue ? Visibility.Visible : Visibility.Collapsed;
+            var open = (bool)e.NewValue;
+            control.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            if (open)
+            {
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(control, "Extension tip: Install the MarkSmith Connector browser extension to send AI replies straight here.");
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(control, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+            }
         }
 
         public ExtensionTip()
         {
             this.InitializeComponent();
             this.Visibility = IsOpen ? Visibility.Visible : Visibility.Collapsed;
+            AddHandler(KeyDownEvent, new KeyEventHandler(OnTipKeyDown), true);
             HoverPolish.Track(this);
+        }
+
+        private void OnTipKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Escape && IsOpen)
+            {
+                IsOpen = false;
+                Closed?.Invoke(this, EventArgs.Empty);
+                e.Handled = true;
+            }
         }
 
         // Opens the in-app setup guide (MainWindow.ShowExtensionSetupAsync), which points Load

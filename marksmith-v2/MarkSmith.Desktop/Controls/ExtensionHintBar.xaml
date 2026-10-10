@@ -13,11 +13,12 @@
     <Border CornerRadius="10" Margin="0,0,0,10" Padding="14,12"
             Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-            BorderThickness="1">
+            BorderThickness="1"
+            AutomationProperties.Name="Notice: That paste looks like plain text">
         <Grid x:Name="LayoutGrid" ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto"
               ColumnSpacing="12" RowSpacing="8">
             <FontIcon Glyph="&#xE946;" FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                      VerticalAlignment="Top" Margin="0,2,0,0" />
+                      VerticalAlignment="Top" Margin="0,2,0,0" AutomationProperties.AccessibilityView="Raw" />
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                 <TextBlock Text="That paste looks like plain text" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -28,9 +29,10 @@
 
             <Button x:Name="GetExtensionButton" Grid.Column="2" Click="OnGetExtensionClick"
                     ToolTipService.ToolTip="Set up the MarkSmith Connector in Edge or Chrome: about a minute, once"
+                    AutomationProperties.Name="Get the extension"
                     Style="{ThemeResource AccentButtonStyle}" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                    <FontIcon Glyph="&#xEA86;" FontSize="14" VerticalAlignment="Center" />
+                    <FontIcon Glyph="&#xEA86;" FontSize="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
                     <TextBlock Text="Get the extension" />
                 </StackPanel>
             </Button>

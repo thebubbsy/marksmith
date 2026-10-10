@@ -1563,6 +1563,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             OnOpenShapeDesignStudioClick(this, new RoutedEventArgs());
         };
 
+        suiteHubView.OpenSmartArtStudioRequested += () =>
+        {
+            dialog?.Hide();
+            OnOpenSmartArtDesignStudioClick(this, new RoutedEventArgs());
+        };
+
         suiteHubView.OpenGalaxyRequested += () =>
         {
             dialog?.Hide();

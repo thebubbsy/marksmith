@@ -6138,8 +6138,69 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Full test suite (`dotnet test marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj`): **4,630 passed, 0 failed, 1 skipped (remote web test)**.
 - Smoke launch: `Marksmith.exe` (PID 18416) booted cleanly and terminated cleanly with 0 errors.
 
+### 2026-10-11 07:40 – 2026-10-11 08:30 AEDT (routine run #75: Suite Hub SmartArt Studio integration, Welcome Tour focus-preserving card navigation, SettingsCard interactive click-to-toggle, and CommandPalette live search ergonomics)
+
+**Agent / Execution Metadata:**
+- **Model:** `Gemini 3.8 Flash (High)`
+- **Identity:** Antigravity AI Agent (Google DeepMind)
+- **Modes:** Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- **Trigger:** Scheduled hourly desktop polish routine
+- **Protocol:** AI-Executable 3-Block Cycle + Execution Phase (GEMINI.md §7)
+
+**Picked up from run #74's "Next up" #1:**
+1. Further polish on Suite Hub and Welcome Tour interactive affordances and keyboard focus rings.
+2. SettingsCard click-to-toggle behavior and accessible name inheritance.
+3. CommandPalette search query clearing, boundary jumping, and live accessibility announcements.
+4. Extension Hint Bar and Extension Tip keyboard dismissals and polite announcements.
+
+**Found:**
+- **Suite Hub Drawing Studios completeness & keyboard parity:**
+  - Card 1 ("Drawing studios") mentioned Word-ready shapes and diagrams but only had buttons for Diagram Studio and Shape Studio. SmartArt Studio (one of MarkSmith's three native studios) was completely missing from the launcher.
+  - Action buttons had inconsistent widths that risked clipping on narrow dialog widths.
+  - Global studio shortcuts (`Ctrl+Shift+M`, `Ctrl+Shift+S`, `Ctrl+Shift+A`) were not handled from within the Suite Hub dialog.
+- **Welcome Tour multi-card focus trap:**
+  - `OnTourKeyDown` registered with `handledEventsToo: true` intercepted `Left` and `Right` arrow keys globally. On Page 6, pressing `Left` while focused on `BlankCard` (to focus `SampleCard`) erroneously paged back to Page 5. On Page 0, pressing `Right` on Step 1 card erroneously advanced to Page 1 instead of moving focus to Step 2 card.
+- **SettingsCard missing interactive row toggling & accessible name inheritance:**
+  - Unlike Windows 11 Settings cards and `OptionRow`, clicking the card header, description, or icon in `SettingsCard` did not toggle an associated `ToggleSwitch` or `CheckBox`.
+  - Unnamed controls inside `ActionPart` and `DetailsPart` failed to inherit the card's `Header` as their accessible name, causing screen readers to announce bare unnamed switches or combos.
+- **CommandPalette search clearing & boundary jumping:**
+  - Pressing `Escape` in `SearchBox` always closed the palette immediately even when a query was typed, rather than first clearing the query to return to recents.
+  - No shortcuts existed for jumping to the top (`Ctrl+Home`) or bottom (`Ctrl+End`) of the command list.
+  - Zero-match search results (`NoMatches`) lacked assertive screen reader live setting announcements.
+
+**Shipped:**
+- `Views/SuiteHubView.xaml` & `Views/SuiteHubView.xaml.cs`:
+  - Added `Card1SmartArtButton` ("SmartArt") with hierarchy glyph `&#xE8EC;` and tooltip.
+  - Switched Card 1 buttons to compact labels ("Diagrams", "Shapes", "SmartArt") with `Spacing="4" Padding="7,4"` ensuring clean fit without clipping.
+  - Exposed `public event Action? OpenSmartArtStudioRequested` and `OnOpenSmartArtStudioClick`.
+  - Added `Ctrl+Shift+M` (Mermaid), `Ctrl+Shift+S` (Shapes), and `Ctrl+Shift+A` (SmartArt) accelerators in `OnHubKeyDown`.
+- `MainWindow.xaml.cs`:
+  - Wired `suiteHubView.OpenSmartArtStudioRequested` to hide dialog and invoke `OnOpenSmartArtDesignStudioClick`.
+- `Views/WelcomeTour.xaml.cs`:
+  - Updated `OnTourKeyDown` to check focused elements: arrow keys between `SampleCard` and `BlankCard` on Page 6, and between Step 1, 2, and 3 cards on Page 0, cleanly move focus between sibling buttons before falling back to slide paging.
+  - Added `FindStepButton` and `FindButtons` helpers.
+- `Controls/SettingsCard.xaml.cs`:
+  - Added `Tapped += OnCardTapped` with recursive `IsInside` exclusion of `ActionPart` and `DetailsPart`, toggling `ToggleSwitch.IsOn` and `CheckBox.IsChecked`.
+  - Added `NameUnnamed` in `Sync()` to automatically assign the card's `Header` to child controls for screen readers.
+- `Controls/CommandPalette.xaml.cs`:
+  - Updated `OnPreviewKeyDown`: `Escape` clears non-empty query first; `Ctrl+Home` / `Ctrl+End` jump to list start/end via `Move(-9999)` / `Move(9999)`.
+  - Updated `Refresh()`: polite live announcement on `CountText` and assertive live announcement on `NoMatches` ("Nothing matches '{query}'").
+- `Controls/ExtensionHintBar.xaml` & `ExtensionTip.xaml`:
+  - Added polite live announcements on appearance and `Escape` keyboard dismissal.
+- `Views/SettingsView.xaml.cs`:
+  - Added missing `Microsoft.UI.Xaml.Automation.Peers` and `Microsoft.UI.Xaml.Input` usings for clean build.
+- `MarkSmith.Tests/SuiteAndTourPolishTests.cs` & `SuiteHubAndTourPolishTests.cs`:
+  - Added unit tests validating Suite Hub studio contracts, keyboard accelerators, Welcome Tour focus handoffs, SettingsCard click-to-toggle, and CommandPalette live search ergonomics.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors**.
+- Test suite (`SuiteAndTourPolishTests` & `SuiteHubAndTourPolishTests`): **17 passed, 0 failed**.
+- Full test suite (`dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj`): **4,647 passed, 0 failed, 1 skipped (remote web test)**.
+- Smoke launch: `Marksmith.exe` (PID 15624) booted cleanly, ran stably, and shut down cleanly with 0 errors.
+
 **Next up:**
-1. Carried over from Block 3: Further polish on Suite Hub and Welcome Tour interactive affordances and keyboard focus rings.
+1. Carried over: Further polish on secondary canvas interactions (MindMap and ShapeStudio context menus).
 2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59); real Windows light/dark switch; first real in-app update; Word INDEX field pre-fill.
+
 
 

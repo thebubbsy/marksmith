@@ -180,6 +180,16 @@ public sealed partial class CommandPalette : UserControl
         CountText.Text = !_searching ? $"{count} commands"
             : count == 0 ? "" // the empty state already says so
             : count == 1 ? "1 match" : $"{count} matches";
+
+        if (count == 0)
+        {
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(NoMatches, NoMatchesTitle.Text);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(NoMatches, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
+        }
+        else
+        {
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CountText, CountText.Text);
+        }
     }
 
     private void OnSearchTextChanged(object sender, TextChangedEventArgs e) => Refresh();
@@ -227,13 +237,26 @@ public sealed partial class CommandPalette : UserControl
         switch (e.Key)
         {
             case VirtualKey.Escape:
-                Close(null);
+                if (SearchBox.Text.Length > 0)
+                {
+                    SearchBox.Text = "";
+                }
+                else
+                {
+                    Close(null);
+                }
                 break;
             case VirtualKey.K when ctrl:
                 Close(null);
                 break;
             case VirtualKey.Enter:
                 if (Results.SelectedItem is PaletteCommand c) Close(c);
+                break;
+            case VirtualKey.Home when ctrl:
+                Move(-9999);
+                break;
+            case VirtualKey.End when ctrl:
+                Move(9999);
                 break;
             case VirtualKey.Down:
                 Move(1);

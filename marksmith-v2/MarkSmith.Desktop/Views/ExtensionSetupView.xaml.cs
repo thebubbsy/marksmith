@@ -1,7 +1,10 @@
 using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using MarkSmith.Services;
 using Phase = MarkSmith.Services.BrowserExtensionPackage.ConnectionPhase;
@@ -59,7 +62,33 @@ public sealed partial class ExtensionSetupView : UserControl
         _poll.Tick += (_, _) => Refresh();
         _poll.Start();
         Refresh();
+        AddHandler(KeyDownEvent, new KeyEventHandler(OnSetupKeyDown), true);
         HoverPolish.Track(this);
+    }
+
+    private void OnSetupKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        if (ctrl && shift && e.Key == Windows.System.VirtualKey.C)
+        {
+            if (_folder is not null)
+            {
+                CopyFeedback.CopyWithTick(_folder, CopyFolderIcon);
+                e.Handled = true;
+            }
+        }
+        else if (ctrl && !shift && e.Key == Windows.System.VirtualKey.O)
+        {
+            if (_folder is not null)
+            {
+                OnOpenFolderClick(sender, new RoutedEventArgs());
+                e.Handled = true;
+            }
+        }
     }
 
     /// <summary>Stops the status poll. Call after the hosting dialog closes.</summary>
@@ -81,7 +110,7 @@ public sealed partial class ExtensionSetupView : UserControl
         content.Children.Add(icon);
         var button = new Button { Content = content };
         ToolTipService.SetToolTip(button, $"Copy {address} for {browser}'s address bar");
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, $"Copy {address}");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, $"Copy {address} for {browser}'s address bar");
         button.Click += (_, _) => CopyFeedback.CopyWithTick(address, icon);
         return button;
     }
@@ -101,7 +130,11 @@ public sealed partial class ExtensionSetupView : UserControl
         StatusIcon.Glyph = phase == Phase.Connected ? "\uE73E" : "\uE7BA"; // CheckMark / Warning
         ThemeBrush.Set(StatusIcon, FontIcon.ForegroundProperty,
             phase == Phase.Connected ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush");
-        StatusText.Text = _error?.Text ?? BrowserExtensionPackage.Describe(phase, _apiPort());
+        var message = _error?.Text ?? BrowserExtensionPackage.Describe(phase, _apiPort());
+        StatusText.Text = message;
+        AutomationProperties.SetName(StatusText, message);
+        AutomationProperties.SetLiveSetting(StatusText, AutomationLiveSetting.Polite);
+        AutomationProperties.SetName(StatusCard, $"Extension status: {message}");
         TurnOnButton.Visibility = phase == Phase.ApiOff ? Visibility.Visible : Visibility.Collapsed;
         ThemeBrush.Set(StatusCard, Border.BackgroundProperty,
             phase == Phase.Connected ? "SystemFillColorSuccessBackgroundBrush" : "CardBackgroundFillColorDefaultBrush");

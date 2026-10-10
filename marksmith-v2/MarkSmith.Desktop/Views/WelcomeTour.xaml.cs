@@ -142,13 +142,92 @@ public sealed partial class WelcomeTour : UserControl
 
     private void OnTourKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        // This runs for the page dots too: their own arrow handling only moves keyboard focus to
-        // the neighbouring dot (selection waits for Enter), so paging here keeps the selected dot,
-        // the focused dot and the page in step.
-        if (e.Key == Windows.System.VirtualKey.Right && _index < Last) { Show(_index + 1); e.Handled = true; }
-        else if (e.Key == Windows.System.VirtualKey.Left && _index > 0) { Show(_index - 1); e.Handled = true; }
-        else if (e.Key == Windows.System.VirtualKey.Home && _index > 0) { Show(0); e.Handled = true; }
-        else if (e.Key == Windows.System.VirtualKey.End && _index < Last) { Show(Last); e.Handled = true; }
+        var focused = XamlRoot is null ? null : FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
+
+        // On Page 6, allow arrowing between SampleCard and BlankCard before falling back to paging:
+        if (_index == Last && focused is not null)
+        {
+            if (e.Key == Windows.System.VirtualKey.Left && IsInside(focused, BlankCard) && SampleCard.IsEnabled)
+            {
+                SampleCard.Focus(FocusState.Keyboard);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Windows.System.VirtualKey.Right && IsInside(focused, SampleCard))
+            {
+                BlankCard.Focus(FocusState.Keyboard);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        // On Page 0, allow arrowing between Step 1, Step 2, and Step 3 cards:
+        if (_index == 0 && focused is Button { Tag: string tag } && int.TryParse(tag, out var step))
+        {
+            if (e.Key == Windows.System.VirtualKey.Right && step < 3)
+            {
+                var nextBtn = FindStepButton(step + 1);
+                if (nextBtn is not null)
+                {
+                    nextBtn.Focus(FocusState.Keyboard);
+                    e.Handled = true;
+                    return;
+                }
+            }
+            else if (e.Key == Windows.System.VirtualKey.Left && step > 1)
+            {
+                var prevBtn = FindStepButton(step - 1);
+                if (prevBtn is not null)
+                {
+                    prevBtn.Focus(FocusState.Keyboard);
+                    e.Handled = true;
+                    return;
+                }
+            }
+        }
+
+        // Global slide navigation: PageUp/PageDown, Home/End, Left/Right
+        if ((e.Key == Windows.System.VirtualKey.Right || e.Key == Windows.System.VirtualKey.PageDown) && _index < Last)
+        {
+            Show(_index + 1);
+            e.Handled = true;
+        }
+        else if ((e.Key == Windows.System.VirtualKey.Left || e.Key == Windows.System.VirtualKey.PageUp) && _index > 0)
+        {
+            Show(_index - 1);
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Home && _index > 0)
+        {
+            Show(0);
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.End && _index < Last)
+        {
+            Show(Last);
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            Completed?.Invoke(this, EventArgs.Empty);
+            e.Handled = true;
+        }
+    }
+
+    private Button? FindStepButton(int step)
+    {
+        return FindButtons(Page0).FirstOrDefault(b => b.Tag is string s && int.TryParse(s, out var v) && v == step);
+    }
+
+    private static IEnumerable<Button> FindButtons(DependencyObject parent)
+    {
+        var count = VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is Button b) yield return b;
+            foreach (var descendant in FindButtons(child)) yield return descendant;
+        }
     }
 
     private static bool IsInside(DependencyObject element, DependencyObject ancestor)

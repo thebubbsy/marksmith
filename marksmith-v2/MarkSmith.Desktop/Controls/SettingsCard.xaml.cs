@@ -1,7 +1,9 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Markup;
+using Microsoft.UI.Xaml.Media;
 
 namespace MarkSmith.Controls;
 
@@ -47,6 +49,7 @@ public sealed partial class SettingsCard : UserControl
         PointerExited += (_, _) => { _pointerOver = false; UpdateState(); };
         PointerCanceled += (_, _) => { _pointerOver = false; UpdateState(); };
         PointerCaptureLost += (_, _) => { _pointerOver = false; UpdateState(); };
+        Tapped += OnCardTapped;
         // IsEnabled already reaches the control inside; this greys the row's own text to match.
         IsEnabledChanged += (_, _) => UpdateState();
         Loaded += (_, _) => UpdateState(useTransitions: false);
@@ -57,6 +60,32 @@ public sealed partial class SettingsCard : UserControl
     {
         var state = !IsEnabled ? "Disabled" : _pointerOver ? "PointerOver" : "Normal";
         VisualStateManager.GoToState(this, state, useTransitions);
+    }
+
+    // Clicking anywhere on the card toggles its switch or checkbox, matching Windows 11 Settings.
+    private void OnCardTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (!IsEnabled) return;
+        if (e.OriginalSource is DependencyObject source && (IsInside(source, ActionPart) || IsInside(source, DetailsPart)))
+            return;
+
+        if (Action is ToggleSwitch { IsEnabled: true } toggle)
+        {
+            toggle.IsOn = !toggle.IsOn;
+            e.Handled = true;
+        }
+        else if (Action is CheckBox { IsEnabled: true } check)
+        {
+            check.IsChecked = !(check.IsChecked ?? false);
+            e.Handled = true;
+        }
+    }
+
+    private static bool IsInside(DependencyObject element, DependencyObject ancestor)
+    {
+        for (var d = element; d is not null; d = VisualTreeHelper.GetParent(d))
+            if (ReferenceEquals(d, ancestor)) return true;
+        return false;
     }
 
     private void Sync()
@@ -84,6 +113,15 @@ public sealed partial class SettingsCard : UserControl
 
         // The row's accessible name is its title; the control inside carries its own name.
         AutomationProperties.SetName(this, Header ?? "");
+        NameUnnamed(Action as DependencyObject);
+        NameUnnamed(Details as DependencyObject);
+    }
+
+    private void NameUnnamed(DependencyObject? control)
+    {
+        if (control is not Control || string.IsNullOrEmpty(Header)) return;
+        if (string.IsNullOrEmpty(AutomationProperties.GetName(control)))
+            AutomationProperties.SetName(control, Header);
     }
 
     private void SyncDetails()

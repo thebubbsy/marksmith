@@ -13,13 +13,14 @@
     <Border CornerRadius="10" Padding="14,12"
             Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-            BorderThickness="1">
+            BorderThickness="1"
+            AutomationProperties.Name="Tip: Work in your AI chat as normal">
         <!-- Stacked, not side-by-side: the card lives in the ~320px Source column, where a
              four-column row squeezed the body into one word per line. Icon + title + dismiss on
              top, the body under the title, the CTA under the body (aligned to the text). -->
         <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="6">
             <FontIcon Glyph="&#xE774;" FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                      VerticalAlignment="Center" />
+                      VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
 
             <TextBlock Grid.Column="1" Text="Work in your AI chat as normal" FontWeight="SemiBold"
                        TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -37,9 +38,10 @@
 
             <Button Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Click="OnGetExtensionClick"
                     Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" Margin="0,4,0,0"
+                    AutomationProperties.Name="Get the extension"
                     ToolTipService.ToolTip="Set up the MarkSmith Connector in Edge or Chrome: about a minute, once">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                    <FontIcon Glyph="&#xEA86;" FontSize="14" VerticalAlignment="Center" />
+                    <FontIcon Glyph="&#xEA86;" FontSize="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
                     <TextBlock Text="Get the extension" />
                 </StackPanel>
             </Button>

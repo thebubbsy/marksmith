@@ -1,6 +1,9 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using System;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using MarkSmith.Services;
 
 namespace MarkSmith.Controls
@@ -21,15 +24,31 @@ namespace MarkSmith.Controls
         private static void OnIsOpenChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             var control = (ExtensionHintBar)d;
-            control.Visibility = (bool)e.NewValue ? Visibility.Visible : Visibility.Collapsed;
+            var open = (bool)e.NewValue;
+            control.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            if (open)
+            {
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(control, "That paste looks like plain text. Use the MarkSmith Connector to keep full formatting.");
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(control, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+            }
         }
 
         public ExtensionHintBar()
         {
             this.InitializeComponent();
             this.Visibility = IsOpen ? Visibility.Visible : Visibility.Collapsed;
+            AddHandler(KeyDownEvent, new KeyEventHandler(OnBarKeyDown), true);
             HoverPolish.Track(this);
             SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width);
+        }
+
+        private void OnBarKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Escape && IsOpen)
+            {
+                IsOpen = false;
+                e.Handled = true;
+            }
         }
 
         // Wide: [icon | text | CTA | ×] on one row. Narrow: the CTA drops under the text so the

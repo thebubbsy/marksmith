@@ -2,7 +2,9 @@ using System;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.UI;
@@ -34,7 +36,25 @@ public sealed partial class SettingsView : UserControl
         RenderGoogleState();
         GoogleSecretBox.Password = App.ViewModel.GoogleClientSecret; // masked; pre-fill for convenience
         Nav.SelectedItem = Nav.MenuItems[0];
+        AddHandler(KeyDownEvent, new KeyEventHandler(OnSettingsKeyDown), true);
         HoverPolish.Track(this);
+    }
+
+    private void OnSettingsKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            if (UpdateStatusBar.IsOpen)
+            {
+                UpdateStatusBar.IsOpen = false;
+                e.Handled = true;
+            }
+            else if (LicenseStatusBar.IsOpen)
+            {
+                LicenseStatusBar.IsOpen = false;
+                e.Handled = true;
+            }
+        }
     }
 
     /// <summary>
@@ -109,7 +129,16 @@ public sealed partial class SettingsView : UserControl
     {
         LicenseStatusBar.Severity = ok ? InfoBarSeverity.Success : InfoBarSeverity.Error;
         LicenseStatusBar.Message = message;
-        LicenseStatusBar.IsOpen = !string.IsNullOrEmpty(message);
+        if (!string.IsNullOrEmpty(message))
+        {
+            AutomationProperties.SetName(LicenseStatusBar, message);
+            AutomationProperties.SetLiveSetting(LicenseStatusBar, AutomationLiveSetting.Polite);
+            LicenseStatusBar.IsOpen = true;
+        }
+        else
+        {
+            LicenseStatusBar.IsOpen = false;
+        }
     }
 
     // Activate stays disabled until there's something to activate, and Enter in the key box
@@ -263,6 +292,8 @@ public sealed partial class SettingsView : UserControl
         UpdateStatusBar.Severity = result.Ok ? InfoBarSeverity.Informational : InfoBarSeverity.Error;
         UpdateStatusBar.Title = result.Ok ? "You're up to date" : "Couldn't check for updates";
         UpdateStatusBar.Message = result.Message;
+        AutomationProperties.SetName(UpdateStatusBar, $"{UpdateStatusBar.Title}: {UpdateStatusBar.Message}");
+        AutomationProperties.SetLiveSetting(UpdateStatusBar, AutomationLiveSetting.Polite);
         UpdateStatusBar.IsClosable = true;
         AboutUpdateAction.Visibility = Visibility.Collapsed;
         AboutUpdateProgress.Visibility = Visibility.Collapsed;

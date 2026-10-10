@@ -14,11 +14,13 @@
             <Setter Property="Foreground" Value="{ThemeResource AccentTextFillColorPrimaryBrush}" />
             <Setter Property="Width" Value="26" />
             <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="AutomationProperties.AccessibilityView" Value="Raw" />
         </Style>
         <Style x:Key="TourHero" TargetType="FontIcon">
             <Setter Property="FontSize" Value="40" />
             <Setter Property="Foreground" Value="{ThemeResource AccentTextFillColorPrimaryBrush}" />
             <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="AutomationProperties.AccessibilityView" Value="Raw" />
         </Style>
         <!-- Plain setters, not BasedOn a system text style — see the FlipView note below for why
              this file trusts nothing that can't be proven to parse detached. -->
@@ -317,6 +319,7 @@
                     <!-- The recommended start: accent border in every state. -->
                     <Button x:Name="SampleCard" Click="OnSampleCard" Style="{StaticResource TourStepCard}" BorderThickness="2"
                             AutomationProperties.Name="Open the sample document"
+                            AutomationProperties.HelpText="Loads a sample report with tables, math, and live diagrams into Split view"
                             ToolTipService.ToolTip="Open the sample beside its live preview">
                         <Button.Resources>
                             <ResourceDictionary>
@@ -329,11 +332,12 @@
                             <FontIcon Glyph="&#xE8A5;" Style="{StaticResource TourGlyph}" HorizontalAlignment="Left" />
                             <TextBlock Text="Open the sample" FontWeight="SemiBold" />
                             <TextBlock x:Name="SampleCaption" Style="{StaticResource TourStepCaption}"
-                                       Text="A short report with a table, math and live diagrams, shown beside its preview. Restyle it and export." />
+                                        Text="A short report with a table, math and live diagrams, shown beside its preview. Restyle it and export." />
                         </StackPanel>
                     </Button>
                     <Button Grid.Column="1" x:Name="BlankCard" Click="OnBlankCard" Style="{StaticResource TourStepCard}"
                             AutomationProperties.Name="Start with my own document"
+                            AutomationProperties.HelpText="Closes the tour and returns to the Markdown editor"
                             ToolTipService.ToolTip="Close the tour and start in the editor">
                         <StackPanel Spacing="4">
                             <FontIcon Glyph="&#xE70F;" Style="{StaticResource TourGlyph}" HorizontalAlignment="Left" />

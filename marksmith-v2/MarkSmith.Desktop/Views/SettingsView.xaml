@@ -28,6 +28,7 @@
              a group, a clear gap and a label between groups. -->
         <Style x:Key="SettingsSectionStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
             <Setter Property="Margin" Value="1,18,0,4" />
+            <Setter Property="AutomationProperties.HeadingLevel" Value="Level2" />
         </Style>
 
         <Style x:Key="SettingsPageStackStyle" TargetType="StackPanel">
@@ -628,7 +629,8 @@
                         </Border>
                         <!-- The check's answer, and while an update is on its way the same state as the
                              main window's banner (UpdateBannerPresenter), with its own button. -->
-                        <InfoBar x:Name="UpdateStatusBar" IsOpen="False" IsClosable="True" Margin="0,4,0,0">
+                        <InfoBar x:Name="UpdateStatusBar" IsOpen="False" IsClosable="True" Margin="0,4,0,0"
+                                 AutomationProperties.LiveSetting="Polite">
                             <InfoBar.ActionButton>
                                 <Button x:Name="AboutUpdateAction" Click="OnAboutUpdateAction" Visibility="Collapsed" />
                             </InfoBar.ActionButton>

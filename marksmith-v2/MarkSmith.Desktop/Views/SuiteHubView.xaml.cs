@@ -19,6 +19,7 @@ public sealed partial class SuiteHubView : UserControl
 {
     public event Action? OpenMermaidStudioRequested;
     public event Action? OpenShapeStudioRequested;
+    public event Action? OpenSmartArtStudioRequested;
     public event Action? OpenGalaxyRequested;
     // The host closes the hub and opens the extension setup guide (one ContentDialog at a time).
     public event Action? OpenExtensionSetupRequested;
@@ -61,6 +62,57 @@ public sealed partial class SuiteHubView : UserControl
             Notification.IsOpen = false;
             _notificationTimer.Stop();
             e.Handled = true;
+            return;
+        }
+
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        if (ctrl && !shift)
+        {
+            Control? target = e.Key switch
+            {
+                VirtualKey.Number1 => Card1DiagramButton,
+                VirtualKey.Number2 => Card2CopySetupButton,
+                VirtualKey.Number3 => TurnOnApiButton.Visibility == Visibility.Visible ? TurnOnApiButton : CopyApiUrlButton,
+                VirtualKey.Number4 => Card4CopyCommandButton,
+                VirtualKey.Number5 => Card5ExpressButton,
+                VirtualKey.Number6 => Card6GalaxyButton,
+                _ => null
+            };
+
+            if (target is not null)
+            {
+                target.Focus(FocusState.Programmatic);
+                target.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = HoverPolish.AnimationsEnabled });
+                e.Handled = true;
+                return;
+            }
+        }
+        else if (ctrl && shift)
+        {
+            if (e.Key == VirtualKey.M)
+            {
+                OpenMermaidStudioRequested?.Invoke();
+                e.Handled = true;
+            }
+            else if (e.Key == VirtualKey.S)
+            {
+                OpenShapeStudioRequested?.Invoke();
+                e.Handled = true;
+            }
+            else if (e.Key == VirtualKey.A)
+            {
+                OpenSmartArtStudioRequested?.Invoke();
+                e.Handled = true;
+            }
+            else if (e.Key == VirtualKey.C && File.Exists(CliPath))
+            {
+                CopyToClipboard(CliPath, "Copied the MarkSmith CLI path.");
+                e.Handled = true;
+            }
         }
     }
 
@@ -97,6 +149,7 @@ public sealed partial class SuiteHubView : UserControl
     private static void SetBadge(TextBlock badge, string text, bool positive)
     {
         badge.Text = text;
+        AutomationProperties.SetName(badge, $"Status: {text}");
         ThemeBrush.Set(badge, TextBlock.ForegroundProperty,
             positive ? "SystemFillColorSuccessBrush" : "TextFillColorSecondaryBrush");
     }
@@ -111,6 +164,7 @@ public sealed partial class SuiteHubView : UserControl
 
             AppServices.License.Load();
             LicenseText.Text = MarkSmith.Models.ProGate.PlanBadge(AppServices.License.State);
+            AutomationProperties.SetName(LicenseBadge, $"Plan: {LicenseText.Text}");
         }
         catch { }
     }
@@ -163,6 +217,11 @@ public sealed partial class SuiteHubView : UserControl
     private void OnOpenShapeStudioClick(object sender, RoutedEventArgs e)
     {
         OpenShapeStudioRequested?.Invoke();
+    }
+
+    private void OnOpenSmartArtStudioClick(object sender, RoutedEventArgs e)
+    {
+        OpenSmartArtStudioRequested?.Invoke();
     }
 
     private void OnOpenGalaxyClick(object sender, RoutedEventArgs e)
