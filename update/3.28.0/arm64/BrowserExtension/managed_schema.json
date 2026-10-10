@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "port": {
+      "type": "integer",
+      "title": "Marksmith API Port",
+      "description": "Port number for the Marksmith local REST API (default: 47821)",
+      "minimum": 1024,
+      "maximum": 65535
+    },
+    "autoSendIdle": {
+      "type": "boolean",
+      "title": "Auto-send on idle",
+      "description": "Enable automatic sending of full conversation when idle"
+    },
+    "idleSeconds": {
+      "type": "integer",
+      "title": "Idle timeout (seconds)",
+      "description": "Number of seconds of inactivity before triggering auto-send",
+      "minimum": 5,
+      "maximum": 300
+    }
+  }
+}
