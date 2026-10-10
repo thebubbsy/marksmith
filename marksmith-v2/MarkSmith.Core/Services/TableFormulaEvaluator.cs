@@ -21,78 +21,125 @@ namespace MarkSmith.Services
             @"^=\s*(?<op>SUM|AVERAGE|AVG|COUNT|MIN|MAX|PRODUCT)\s*\(\s*(?<from>[A-Za-z]+[0-9]+)\s*:\s*(?<to>[A-Za-z]+[0-9]+)\s*\)(?:\s*(?:\\#\s*)?(?:""(?<fmt>[^""]*)""|(?<fmt>\S+)))?\s*$",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        /// <summary>
+        /// Replaces each formula cell (<c>=SUM(ABOVE)</c>, <c>=AVERAGE(B2:B4)</c>…) of every pipe
+        /// table in <paramref name="markdownTable"/> with its value. Each table is its own grid, so
+        /// ABOVE and A1 references never reach into another table; rows inside fenced code are
+        /// never tables; and only a row whose formula changed is rewritten, so every other line
+        /// (an ASCII diagram in a code block, a table cell with an escaped <c>\|</c>) stays exactly
+        /// as written.
+        /// </summary>
         public static string EvaluateTableMarkdown(string markdownTable)
         {
             if (string.IsNullOrWhiteSpace(markdownTable)) return markdownTable;
             if (!markdownTable.Contains('=')) return markdownTable;
 
-            var rawLines = markdownTable.Split('\n');
-            var tableRows = new List<List<string>>();
-            var lineIndices = new List<int>();
+            var lines = markdownTable.Split('\n');
+            bool changed = false;
+            string? fence = null;
+            var table = new List<int>();
 
-            for (int i = 0; i < rawLines.Length; i++)
+            for (int i = 0; i <= lines.Length; i++)
             {
-                var line = rawLines[i].Trim();
-                if (line.StartsWith('|') && line.EndsWith('|'))
+                var line = i < lines.Length ? lines[i] : null;
+                var trimmed = line?.Trim() ?? "";
+                if (line is not null && fence is null && IsFenceOpen(trimmed, out var opened))
                 {
-                    if (IsSeparatorLine(line)) continue;
-
-                    var cells = line.Trim('|').Split('|').Select(c => c.Trim()).ToList();
-                    tableRows.Add(cells);
-                    lineIndices.Add(i);
+                    changed |= Evaluate(lines, table);
+                    fence = opened;
+                    continue;
                 }
+                if (fence is not null)
+                {
+                    if (line is not null && trimmed.StartsWith(fence, StringComparison.Ordinal) && trimmed.TrimStart(fence[0]).Trim().Length == 0)
+                        fence = null;
+                    continue;
+                }
+                if (line is not null && trimmed.Length > 1 && trimmed.StartsWith('|') && trimmed.EndsWith('|'))
+                {
+                    table.Add(i);
+                    continue;
+                }
+                changed |= Evaluate(lines, table);
             }
+            return changed ? string.Join('\n', lines) : markdownTable;
+        }
 
-            if (tableRows.Count == 0) return markdownTable;
+        private static bool IsFenceOpen(string trimmed, out string fence)
+        {
+            fence = "";
+            if (trimmed.Length < 3 || (trimmed[0] != '`' && trimmed[0] != '~')) return false;
+            int n = 0;
+            while (n < trimmed.Length && trimmed[n] == trimmed[0]) n++;
+            if (n < 3) return false;
+            fence = new string(trimmed[0], n);
+            return true;
+        }
 
-            int maxRows = tableRows.Count;
-            int maxCols = tableRows.Max(r => r.Count);
+        // One table: the rows at `rows` (consumed). Returns whether any line was rewritten.
+        private static bool Evaluate(string[] lines, List<int> rows)
+        {
+            if (rows.Count == 0) return false;
+            var body = rows.Where(i => !IsSeparatorLine(lines[i].Trim())).ToList();
+            rows.Clear();
+            var cells = body.Select(i => SplitCells(lines[i].Trim())).ToList();
+            if (!cells.Any(r => r.Any(c => c.TrimStart().StartsWith('=')))) return false;
+
+            int maxRows = cells.Count;
+            int maxCols = cells.Max(r => r.Count);
             var grid = new double?[maxRows, maxCols];
+            for (int r = 0; r < maxRows; r++)
+                for (int c = 0; c < cells[r].Count; c++)
+                    if (TryParseNumber(cells[r][c], out double val)) grid[r, c] = val;
 
-            // 1. First pass: extract literal numeric values
+            bool changed = false;
             for (int r = 0; r < maxRows; r++)
             {
-                for (int c = 0; c < tableRows[r].Count; c++)
+                bool rowChanged = false;
+                for (int c = 0; c < cells[r].Count; c++)
                 {
-                    var text = tableRows[r][c];
-                    if (TryParseNumber(text, out double val))
+                    if (TryEvaluateCell(cells[r][c], r, c, grid, maxRows, maxCols, out double result, out string formatted, out _))
                     {
-                        grid[r, c] = val;
-                    }
-                }
-            }
-
-            // 2. Second pass: evaluate formula cells
-            var outputLines = (string[])rawLines.Clone();
-            for (int r = 0; r < maxRows; r++)
-            {
-                for (int c = 0; c < tableRows[r].Count; c++)
-                {
-                    var cellText = tableRows[r][c];
-                    if (TryEvaluateCell(cellText, r, c, grid, maxRows, maxCols, out double result, out string formattedResult, out _))
-                    {
-                        tableRows[r][c] = formattedResult;
+                        cells[r][c] = formatted;
                         grid[r, c] = result;
+                        rowChanged = true;
                     }
                 }
+                if (!rowChanged) continue;
+                lines[body[r]] = "| " + string.Join(" | ", cells[r]) + " |";
+                changed = true;
             }
+            return changed;
+        }
 
-            // 3. Rebuild updated markdown table lines
-            int rowIdx = 0;
-            for (int i = 0; i < rawLines.Length; i++)
+        // "| a | `x | y` | b \| c |" -> ["a", "`x | y`", "b \| c"]: a pipe inside a code span or
+        // after a backslash is part of the cell, as Markdig reads it.
+        private static List<string> SplitCells(string row, bool codeSpans = true)
+        {
+            var inner = row.Substring(1, row.Length - 2);
+            var cells = new List<string>();
+            var sb = new StringBuilder();
+            int ticks = 0;
+            for (int i = 0; i < inner.Length; i++)
             {
-                var line = rawLines[i].Trim();
-                if (line.StartsWith('|') && line.EndsWith('|') && !IsSeparatorLine(line))
+                char ch = inner[i];
+                if (ch == '\\' && i + 1 < inner.Length) { sb.Append(ch).Append(inner[++i]); continue; }
+                if (ch == '`' && codeSpans)
                 {
-                    if (rowIdx < tableRows.Count)
-                    {
-                        outputLines[i] = "| " + string.Join(" | ", tableRows[rowIdx]) + " |";
-                        rowIdx++;
-                    }
+                    int run = 1;
+                    while (i + run < inner.Length && inner[i + run] == '`') run++;
+                    ticks = ticks == 0 ? run : ticks == run ? 0 : ticks;
+                    sb.Append('`', run);
+                    i += run - 1;
+                    continue;
                 }
+                if (ch == '|' && ticks == 0) { cells.Add(sb.ToString().Trim()); sb.Clear(); continue; }
+                sb.Append(ch);
             }
-
-            return string.Join('\n', outputLines);
+            // A backtick that never closed is a literal one, not a code span.
+            if (ticks != 0) return SplitCells(row, codeSpans: false);
+            cells.Add(sb.ToString().Trim());
+            return cells;
         }
 
         public static bool TryEvaluateCell(string cellText, int r, int c, double?[,] grid, int maxRows, int maxCols, out double result, out string formattedResult, out string formulaInstruction)

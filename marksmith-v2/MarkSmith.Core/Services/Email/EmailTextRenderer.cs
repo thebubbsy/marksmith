@@ -15,12 +15,32 @@ namespace MarkSmith.Services.Email;
 /// like Markdown: no asterisks, links written as "text (url)", tables as aligned columns.</summary>
 internal static class EmailTextRenderer
 {
-    public static string Render(MarkdownDocument doc, Block? omit, int figureCount, bool drawDiagrams = true)
+    // The figures of the Render in progress on this thread, so a picture can be described by its
+    // alt text (and KPI cards spelled out) rather than as a bare "[Diagram]".
+    [ThreadStatic] private static IReadOnlyList<MarkdownHtmlService.EmailFigureFragment>? _figures;
+
+    public static string Render(MarkdownDocument doc, Block? omit,
+        IReadOnlyList<MarkdownHtmlService.EmailFigureFragment>? figures = null, bool drawDiagrams = true)
     {
         var sb = new StringBuilder();
-        foreach (var b in doc) Block(sb, b, omit, "", drawDiagrams);
+        _figures = figures;
+        try { foreach (var b in doc) Block(sb, b, omit, "", drawDiagrams); }
+        finally { _figures = null; }
         var text = System.Text.RegularExpressions.Regex.Replace(sb.ToString(), @"\n{3,}", "\n\n");
         return text.Trim() + "\n";
+    }
+
+    private static void Figure(StringBuilder sb, string indent, int n)
+    {
+        var f = _figures is not null && n < _figures.Count ? _figures[n] : null;
+        if (f?.Metrics is { Count: > 0 } metrics)
+        {
+            foreach (var (value, label) in metrics)
+                sb.Append(indent).Append(value).Append(label.Length > 0 ? "  " + label : "").Append('\n');
+            sb.Append('\n');
+            return;
+        }
+        sb.Append(indent).Append('[').Append(string.IsNullOrWhiteSpace(f?.Alt) ? "Diagram" : f!.Alt).Append("]\n\n");
     }
 
     private static void Block(StringBuilder sb, Block block, Block? omit, string indent, bool drawDiagrams)
@@ -102,7 +122,8 @@ internal static class EmailTextRenderer
             case HtmlBlock html:
             {
                 var raw = html.Lines.ToString().Trim();
-                if (raw.StartsWith("<!--MSFIG:", StringComparison.Ordinal)) { sb.Append(indent).Append("[Diagram]\n\n"); return; }
+                var fig = System.Text.RegularExpressions.Regex.Match(raw, @"^<!--MSFIG:(\d+)-->$");
+                if (fig.Success) { Figure(sb, indent, int.Parse(fig.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)); return; }
                 var stripped = System.Net.WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(raw, "<[^>]+>", " ")).Trim();
                 if (stripped.Length > 0) sb.Append(indent).Append(System.Text.RegularExpressions.Regex.Replace(stripped, @"\s{2,}", " ")).Append("\n\n");
                 return;

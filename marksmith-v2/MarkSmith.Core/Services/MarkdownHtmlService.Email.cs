@@ -14,9 +14,12 @@ namespace MarkSmith.Services;
 // message (watermarks, cover pages, the concordance index) is dropped.
 public sealed partial class MarkdownHtmlService
 {
-    internal sealed record EmailFigureFragment(string Kind, string Html);
+    /// <summary>A lifted block: preview HTML to flatten or rasterize, or (from the shared
+    /// <c>:::</c> lift) a ready picture with its alt text, or KPI cards.</summary>
+    internal sealed record EmailFigureFragment(string Kind, string Html, byte[]? Png = null, string? Alt = null,
+        IReadOnlyList<(string Value, string Label)>? Metrics = null);
 
-    [GeneratedRegex(@"<!--(?<kind>SHAPES|SMARTART|ENGDIAGRAM|MSBLOCK|CHART|METRICS|COLUMNS|PARALLEL|WATERMARK|COVERPAGE|INDEX):(?<n>\d+)-->")]
+    [GeneratedRegex(@"<!--(?<kind>EMAILFIG|SHAPES|SMARTART|ENGDIAGRAM|MSBLOCK|CHART|METRICS|COLUMNS|PARALLEL|WATERMARK|COVERPAGE|INDEX):(?<n>\d+)-->")]
     private static partial Regex EmailPlaceholderRe();
 
     /// <summary>Normalizes <paramref name="markdown"/> exactly as the preview does, then swaps each
@@ -26,6 +29,7 @@ public sealed partial class MarkdownHtmlService
         out List<EmailFigureFragment> figures)
     {
         markdown = NormalizeForRender(markdown ?? "", settings);
+        markdown = LiftEmailDirectives(markdown, theme, out var direct);
         var (clean, shapes) = MarkSmith.Core.Composer.ShapeMarkdownHtml.LiftShapes(markdown);
         markdown = clean;
 
@@ -57,6 +61,12 @@ public sealed partial class MarkdownHtmlService
         {
             var kind = m.Groups["kind"].Value;
             var n = int.Parse(m.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture);
+            if (kind == "EMAILFIG")
+            {
+                if (n >= direct.Count) return "";
+                found.Add(direct[n]);
+                return $"<!--MSFIG:{found.Count - 1}-->";
+            }
             List<string>? source = kind switch
             {
                 "SHAPES" => shapes,
@@ -75,6 +85,59 @@ public sealed partial class MarkdownHtmlService
         });
         figures = found;
         return markdown;
+    }
+
+    /// <summary>
+    /// The <c>:::</c> blocks, through the same lift EPUB and the slides use (Core
+    /// <see cref="Presentation.SlideDirectives"/>): tabs become headed sections, a data grid, kanban
+    /// board or parallel text a table, references a reading list, an embed a link; the AI context,
+    /// cover page, watermark, line numbers and index stay out of the message. Charts and SmartArt
+    /// are drawn as pictures in the email's light colours with their data in the alt text, metrics
+    /// become KPI cards, a canvas its own picture. Shapes, engineering diagrams and columns are left
+    /// for the preview-renderer lifts that follow.
+    /// </summary>
+    private static string LiftEmailDirectives(string markdown, ThemeDefinition theme, out List<EmailFigureFragment> figures)
+    {
+        var found = figures = new List<EmailFigureFragment>();
+        if (markdown.IndexOf(":::", StringComparison.Ordinal) < 0) return markdown;
+
+        var light = Email.EmailPalette.From(theme);
+        var drawTheme = light.DiagramTheme();
+        string Add(EmailFigureFragment f)
+        {
+            found.Add(f);
+            return $"<!--EMAILFIG:{found.Count - 1}-->";
+        }
+
+        var slideBlocks = new List<Presentation.SlideBlock>();
+        var lifted = Presentation.SlideDirectives.Lift(markdown, out _, slideBlocks, node =>
+        {
+            switch (node.Detector.FeatureName)
+            {
+                case "Shapes" or "EngineeringDiagram" or "Columns":
+                    return markdown[node.Block.Start..node.Block.End];
+                case "Metrics":
+                    return Presentation.SlideDirectives.Metrics((node.InnerContent ?? "").Replace("\r", "")) is { } m
+                        ? Add(new EmailFigureFragment("KPI", "", Metrics: m.Items
+                            .Select(i => (EpubDirectives.Plain(i.Value), EpubDirectives.Plain(i.Label))).ToList()))
+                        : null;
+                case "Chart" or "SmartArt" or "Workflow" or "Timeline":
+                    return EpubDirectives.Draw(node, drawTheme, light.Page) is { } pic
+                        ? Add(new EmailFigureFragment(node.Detector.FeatureName.ToUpperInvariant(), "", pic.Png, pic.Alt))
+                        : null;
+                default:
+                    return null;
+            }
+        });
+
+        // What the slide rewrite drew as a picture (a canvas).
+        return Regex.Replace(lifted, @"<!--ms-slide-block:(\d+)-->", m =>
+        {
+            var i = int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            return i < slideBlocks.Count && slideBlocks[i] is Presentation.PictureSlideBlock p && p.Data.Length > 0
+                ? Add(new EmailFigureFragment("PICTURE", "", p.Data, p.Description))
+                : "";
+        });
     }
 
     private static string RenderSmartArtForEmail(string alias, string inner)

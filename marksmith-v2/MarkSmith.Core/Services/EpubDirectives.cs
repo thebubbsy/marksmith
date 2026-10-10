@@ -45,6 +45,31 @@ internal static class EpubDirectives
 
     private static string? Native(FeatureNode node, ThemeDefinition theme, List<Picture> pictures)
     {
+        if (node.Detector.FeatureName == "Metrics")
+        {
+            var metrics = SlideDirectives.Metrics((node.InnerContent ?? "").Replace("\r", ""));
+            if (metrics is null) return null;
+            var sb = new StringBuilder("<div class=\"ms-metrics\">");
+            foreach (var (value, label) in metrics.Items)
+            {
+                sb.Append("<div class=\"ms-metric\"><p class=\"ms-metric-value\">").Append(Html(Plain(value))).Append("</p>");
+                if (label.Length > 0) sb.Append("<p class=\"ms-metric-label\">").Append(Html(Plain(label))).Append("</p>");
+                sb.Append("</div>");
+            }
+            return sb.Append("</div>").ToString();
+        }
+        return Draw(node, theme, "#f8f9fa") is { } pic ? Figure(pictures, pic.Png, pic.Alt) : null;
+    }
+
+    /// <summary>
+    /// A chart or SmartArt/workflow/timeline block drawn as a 2x PNG, with alt text that carries
+    /// its data ("Bar chart: Q1 10, Q2 25", "Diagram: CTO · Platform"); null for any other block.
+    /// Shared by every format that can't show the preview's SVG (EPUB, email).
+    /// </summary>
+    /// <param name="cardGround">Ground behind SmartArt, which draws on the preview's light card;
+    /// charts sit on the theme's own background.</param>
+    internal static (byte[] Png, string Alt)? Draw(FeatureNode node, ThemeDefinition theme, string cardGround)
+    {
         var inner = (node.InnerContent ?? "").Replace("\r", "");
         switch (node.Detector.FeatureName)
         {
@@ -59,20 +84,7 @@ internal static class EpubDirectives
                 if (png is null) return null;
                 var name = kind switch { "pie" => "Pie chart", "doughnut" => "Doughnut chart", "line" => "Line chart", _ => "Bar chart" };
                 var data = string.Join(", ", chart.Labels.Zip(chart.Values, (l, v) => $"{l} {v.ToString("0.##", CultureInfo.InvariantCulture)}"));
-                return Figure(pictures, png, $"{name}: {data}");
-            }
-            case "Metrics":
-            {
-                var metrics = SlideDirectives.Metrics(inner);
-                if (metrics is null) return null;
-                var sb = new StringBuilder("<div class=\"ms-metrics\">");
-                foreach (var (value, label) in metrics.Items)
-                {
-                    sb.Append("<div class=\"ms-metric\"><p class=\"ms-metric-value\">").Append(Html(Plain(value))).Append("</p>");
-                    if (label.Length > 0) sb.Append("<p class=\"ms-metric-label\">").Append(Html(Plain(label))).Append("</p>");
-                    sb.Append("</div>");
-                }
-                return sb.Append("</div>").ToString();
+                return (png, $"{name}: {data}");
             }
             case "SmartArt" or "Workflow" or "Timeline":
             {
@@ -90,12 +102,12 @@ internal static class EpubDirectives
                 var open = html.IndexOf("<svg", StringComparison.Ordinal);
                 var close = html.LastIndexOf("</svg>", StringComparison.Ordinal);
                 if (open < 0 || close < open) return null;
-                var png = Rasterize(html[open..(close + 6)], "#f8f9fa");
+                var png = Rasterize(html[open..(close + 6)], cardGround);
                 if (png is null) return null;
                 var items = block.Body.Split('\n')
                     .Where(l => Regex.IsMatch(l, @"^\s*[-*+]\s+\S"))
                     .Select(l => Plain(l.TrimStart().TrimStart('-', '*', '+', ' ', '\t')));
-                return Figure(pictures, png, "Diagram: " + string.Join(" · ", items));
+                return (png, "Diagram: " + string.Join(" · ", items));
             }
             default:
                 return null;
@@ -136,7 +148,7 @@ internal static class EpubDirectives
     }
 
     // "**99.9%**" or "`code`" in a card or alt text: the words, not the markup.
-    private static string Plain(string s) => Regex.Replace(s, @"(\*\*|__|`)", "").Trim();
+    internal static string Plain(string s) => Regex.Replace(s, @"(\*\*|__|`)", "").Trim();
 
     private static string Html(string s) => System.Net.WebUtility.HtmlEncode(s);
 }

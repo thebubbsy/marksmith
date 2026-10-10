@@ -3628,10 +3628,21 @@ public sealed partial class MarkdownHtmlService
     }
 
     /// <summary>Builds the chart SVG. Colours come from the active theme so it matches the page.</summary>
+    /// <summary>The 1, 2, 2.5 or 5 × 10ⁿ step at or above <paramref name="raw"/>.</summary>
+    internal static double NiceStep(double raw)
+    {
+        if (raw <= 0 || double.IsNaN(raw) || double.IsInfinity(raw)) return 1;
+        var exp = Math.Pow(10, Math.Floor(Math.Log10(raw)));
+        var f = raw / exp;
+        return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * exp;
+    }
+
     internal static string BuildChartSvg(string kind, List<string> labels, List<double> values, ThemeDefinition theme)
     {
         static string Esc(string s) => System.Net.WebUtility.HtmlEncode(s);
         string F(double d) => d.ToString("0.##", CultureInfo.InvariantCulture);
+        // Axis and value labels: thousands grouped, so 12000 reads 12,000.
+        string Tick(double d) => d.ToString("#,0.##", CultureInfo.InvariantCulture);
 
         // Categorical hues in fixed order, stepped for the surface. Deriving them from the theme
         // (Heading/Primary/Line) produced eight shades of black on GitHub Light, whose accent IS
@@ -3652,6 +3663,12 @@ public sealed partial class MarkdownHtmlService
         var max = values.Count == 0 ? 0 : values.Max();
         if (max <= 0) max = 1;
         var sb = new StringBuilder();
+
+        // Axis on round numbers: the top gridline is the data max rounded up to a 1/2/2.5/5 step,
+        // so the labels read 10 · 20 · 30 · 40 rather than 10.33 · 20.67 · 31.
+        var step = NiceStep(max / 4);
+        var ticks = Math.Max(1, (int)Math.Ceiling(max / step - 1e-9));
+        var top = step * ticks;
 
         if (kind is "pie" or "doughnut")
         {
@@ -3684,30 +3701,30 @@ public sealed partial class MarkdownHtmlService
         }
 
         // Bar / column / line share one axis frame.
-        const double left = 48, top = 16, plotW = 380, plotH = 190;
-        var baseline = top + plotH;
+        const double left = 48, plotTop = 16, plotW = 380, plotH = 190;
+        var baseline = plotTop + plotH;
         sb.Append($"<svg viewBox=\"0 0 460 260\" role=\"img\" class=\"ms-chart ms-chart-{Esc(kind)}\">");
         sb.Append($"<line x1=\"{F(left)}\" y1=\"{F(baseline)}\" x2=\"{F(left + plotW)}\" y2=\"{F(baseline)}\" ")
           .Append($"stroke=\"{Esc(theme.Border)}\" stroke-width=\"1\" />");
-        for (int g = 1; g <= 3; g++)
+        for (int g = 1; g <= ticks; g++)
         {
-            var gy = baseline - plotH * g / 3.0;
+            var gy = baseline - plotH * g / (double)ticks;
             sb.Append($"<line x1=\"{F(left)}\" y1=\"{F(gy)}\" x2=\"{F(left + plotW)}\" y2=\"{F(gy)}\" ")
               .Append($"stroke=\"{Esc(theme.Border)}\" stroke-width=\"1\" stroke-dasharray=\"3 4\" opacity=\"0.55\" />")
               .Append($"<text x=\"{F(left - 8)}\" y=\"{F(gy + 4)}\" text-anchor=\"end\" font-size=\"11\" ")
-              .Append($"fill=\"{Esc(theme.Text)}\" opacity=\"0.7\">{F(max * g / 3.0)}</text>");
+              .Append($"fill=\"{Esc(theme.Text)}\" opacity=\"0.7\">{Tick(step * g)}</text>");
         }
 
         var slot = plotW / Math.Max(labels.Count, 1);
         if (kind == "line")
         {
             var pts = string.Join(" ", values.Select((v, i) =>
-                $"{F(left + slot * (i + 0.5))},{F(baseline - v / max * plotH)}"));
+                $"{F(left + slot * (i + 0.5))},{F(baseline - v / top * plotH)}"));
             sb.Append($"<polyline points=\"{pts}\" fill=\"none\" stroke=\"{Esc(series)}\" stroke-width=\"2\" ")
               .Append("stroke-linejoin=\"round\" stroke-linecap=\"round\" />");
             // A surface ring keeps a marker legible where the line passes under it.
             for (int i = 0; i < values.Count; i++)
-                sb.Append($"<circle cx=\"{F(left + slot * (i + 0.5))}\" cy=\"{F(baseline - values[i] / max * plotH)}\" ")
+                sb.Append($"<circle cx=\"{F(left + slot * (i + 0.5))}\" cy=\"{F(baseline - values[i] / top * plotH)}\" ")
                   .Append($"r=\"4\" fill=\"{Esc(series)}\" stroke=\"{Esc(theme.Background)}\" stroke-width=\"2\" />");
         }
         else
@@ -3715,9 +3732,12 @@ public sealed partial class MarkdownHtmlService
             var barW = Math.Min(slot * 0.62, 54);
             for (int i = 0; i < values.Count; i++)
             {
-                var h = values[i] / max * plotH;
+                var h = Math.Max(0, values[i]) / top * plotH;
                 sb.Append($"<rect x=\"{F(left + slot * (i + 0.5) - barW / 2)}\" y=\"{F(baseline - h)}\" ")
                   .Append($"width=\"{F(barW)}\" height=\"{F(h)}\" rx=\"4\" fill=\"{Esc(series)}\" />");
+                // The value on the bar: the exact number, not an estimate against the gridlines.
+                sb.Append($"<text x=\"{F(left + slot * (i + 0.5))}\" y=\"{F(baseline - h - 6)}\" text-anchor=\"middle\" ")
+                  .Append($"font-size=\"11\" font-weight=\"600\" fill=\"{Esc(theme.Text)}\">{Tick(values[i])}</text>");
             }
         }
 
@@ -3971,8 +3991,11 @@ public sealed partial class MarkdownHtmlService
 
             var items = body.Split('\n')
                 .Select(l => l.Trim())
-                .Where(l => l.StartsWith("-") || l.StartsWith("*"))
-                .Select(l => l.TrimStart('-', '*', ' ').Trim())
+                .Select(l => Regex.Match(l, @"^[-*+]\s+(.*)$"))
+                .Where(m => m.Success)
+                // Only the list marker: trimming '*' also ate the "**" opening "**99.9%** Uptime",
+                // so the card read "99.9%** Uptime" with no label.
+                .Select(m => m.Groups[1].Value.Trim())
                 .Where(l => !string.IsNullOrWhiteSpace(l))
                 .ToList();
 
@@ -3986,7 +4009,7 @@ public sealed partial class MarkdownHtmlService
             {
                 string val = item;
                 string lbl = "";
-                var boldMatch = Regex.Match(item, @"^\*\*(.*?)\*\*\s*(.*)$");
+                var boldMatch = Regex.Match(item, @"^\*\*(.*?)\*\*\s*[:\-–—]?\s*(.*)$");
                 if (boldMatch.Success)
                 {
                     val = boldMatch.Groups[1].Value;

@@ -139,7 +139,7 @@ public sealed class EmailHtmlRenderer
         return new EmailRenderResult
         {
             Html = WrapDocument(bodyText, title),
-            Text = EmailTextRenderer.Render(doc, _omittedTitle, _figures.Count, _settings.MermaidEnabled),
+            Text = EmailTextRenderer.Render(doc, _omittedTitle, _figures, _settings.MermaidEnabled),
             Title = title,
             Images = _images,
             Notes = _notes,
@@ -240,7 +240,7 @@ public sealed class EmailHtmlRenderer
                 return;
             case QuoteBlock quote:
                 sb.Append($"<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;margin:0 0 14px 0;\"><tr>");
-                sb.Append($"<td style=\"border-left:4px solid {_p.QuoteBar};padding:2px 0 2px 14px;color:{_p.Muted};\">\n");
+                sb.Append($"<td style=\"font-family:{FontStack};border-left:4px solid {_p.QuoteBar};padding:2px 0 2px 14px;color:{_p.Muted};\">\n");
                 WriteBlocks(sb, quote);
                 sb.Append("</td></tr></table>\n");
                 return;
@@ -359,7 +359,7 @@ public sealed class EmailHtmlRenderer
         var kind = alert.Kind.ToString();
         var (colour, tint, label) = AlertStyles.TryGetValue(kind, out var s) ? s : AlertStyles["note"];
         sb.Append($"<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;margin:0 0 16px 0;\"><tr>");
-        sb.Append($"<td bgcolor=\"{tint}\" style=\"background-color:{tint};border-left:4px solid {colour};padding:10px 14px;\">\n");
+        sb.Append($"<td bgcolor=\"{tint}\" style=\"font-family:{FontStack};background-color:{tint};border-left:4px solid {colour};padding:10px 14px;\">\n");
         sb.Append($"<p style=\"margin:0 0 6px 0;font-weight:600;color:{colour};\">{Enc(label)}</p>\n");
         var inner = new StringBuilder();
         WriteBlocks(inner, alert);
@@ -374,7 +374,7 @@ public sealed class EmailHtmlRenderer
         if (AlertStyles.TryGetValue(kind, out var s))
         {
             sb.Append($"<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;margin:0 0 16px 0;\"><tr>");
-            sb.Append($"<td bgcolor=\"{s.Tint}\" style=\"background-color:{s.Tint};border-left:4px solid {s.Color};padding:10px 14px;\">\n");
+            sb.Append($"<td bgcolor=\"{s.Tint}\" style=\"font-family:{FontStack};background-color:{s.Tint};border-left:4px solid {s.Color};padding:10px 14px;\">\n");
             sb.Append($"<p style=\"margin:0 0 6px 0;font-weight:600;color:{s.Color};\">{Enc(s.Label)}</p>\n");
             var inner = new StringBuilder();
             WriteBlocks(inner, custom);
@@ -383,7 +383,7 @@ public sealed class EmailHtmlRenderer
             return;
         }
         sb.Append($"<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;margin:0 0 16px 0;\"><tr>");
-        sb.Append($"<td style=\"border:1px solid {_p.Border};padding:10px 14px;\">\n");
+        sb.Append($"<td style=\"font-family:{FontStack};border:1px solid {_p.Border};padding:10px 14px;\">\n");
         var body = new StringBuilder();
         WriteBlocks(body, custom);
         sb.Append(TrimLastMargin(body.ToString()));
@@ -480,7 +480,7 @@ public sealed class EmailHtmlRenderer
                 var fill = row.IsHeader ? $" bgcolor=\"{_p.HeaderFill}\"" : "";
                 var fillStyle = row.IsHeader ? $"background-color:{_p.HeaderFill};font-weight:600;color:{_p.Heading};" : "";
                 var span = cell.ColumnSpan > 1 ? $" colspan=\"{cell.ColumnSpan}\"" : "";
-                sb.Append($"<{tag}{span} align=\"{alignName}\" valign=\"top\"{fill} style=\"border:1px solid {_p.Border};padding:6px 10px;text-align:{alignName};vertical-align:top;{fillStyle}\">");
+                sb.Append($"<{tag}{span} align=\"{alignName}\" valign=\"top\"{fill} style=\"font-family:{FontStack};color:{_p.Text};border:1px solid {_p.Border};padding:6px 10px;text-align:{alignName};vertical-align:top;{fillStyle}\">");
                 var first = true;
                 foreach (var child in cell)
                 {
@@ -572,6 +572,13 @@ public sealed class EmailHtmlRenderer
 
     private void WriteFigure(StringBuilder sb, MarkdownHtmlService.EmailFigureFragment figure)
     {
+        if (figure.Metrics is { Count: > 0 } metrics) { WriteMetrics(sb, metrics); return; }
+        if (figure.Png is { Length: > 0 } drawn)
+        {
+            if (AddImage(drawn, "image/png", $"{figure.Kind.ToLowerInvariant()}-{_images.Count + 1}.png", 2.0, out var pic))
+                WriteFigureImage(sb, pic, figure.Alt ?? FigureAlt(figure));
+            return;
+        }
         var svg = EmailHtmlScrubber.FirstSvg(figure.Html);
         if (svg is not null && SvgRasterizer.ToPng(svg, 2.0) is { Length: > 0 } png
             && AddImage(png, "image/png", $"{figure.Kind.ToLowerInvariant()}-{_images.Count + 1}.png", 2.0, out var img))
@@ -582,6 +589,32 @@ public sealed class EmailHtmlRenderer
         var flat = EmailHtmlScrubber.Scrub(figure.Html);
         if (flat.Length == 0) return;
         sb.Append($"<div style=\"margin:0 0 16px 0;\">").Append(flat).Append("</div>\n");
+    }
+
+    /// <summary>KPI cards: a table, since Outlook draws neither grid nor flex. Up to four to a row
+    /// (three for five, six or nine, so no row ends with one lonely card); cellspacing, which Outlook
+    /// honours where it ignores margins, keeps the gutters.</summary>
+    private void WriteMetrics(StringBuilder sb, IReadOnlyList<(string Value, string Label)> items)
+    {
+        int cols = items.Count <= 4 ? items.Count : items.Count is 5 or 6 or 9 ? 3 : 4;
+        int width = (int)Math.Floor(100.0 / cols);
+        sb.Append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"8\" border=\"0\" style=\"margin:0 0 12px -8px;width:100%;\">\n");
+        for (int r = 0; r < items.Count; r += cols)
+        {
+            sb.Append("<tr>\n");
+            for (int c = 0; c < cols; c++)
+            {
+                if (r + c >= items.Count) { sb.Append($"<td width=\"{width}%\" style=\"width:{width}%;\"></td>\n"); continue; }
+                var (value, label) = items[r + c];
+                sb.Append($"<td width=\"{width}%\" valign=\"top\" bgcolor=\"{_p.CodeBackground}\" style=\"width:{width}%;background-color:{_p.CodeBackground};border:1px solid {_p.Border};border-top:3px solid {_p.Accent};padding:12px 14px;\">");
+                sb.Append($"<div style=\"font-family:{FontStack};font-size:24px;line-height:1.2;font-weight:bold;color:{_p.Accent};\">").Append(Enc(value)).Append("</div>");
+                if (label.Length > 0)
+                    sb.Append($"<div style=\"font-family:{FontStack};font-size:13px;line-height:1.4;color:{_p.Muted};padding-top:4px;\">").Append(Enc(label)).Append("</div>");
+                sb.Append("</td>\n");
+            }
+            sb.Append("</tr>\n");
+        }
+        sb.Append("</table>\n");
     }
 
     private static string FigureAlt(MarkdownHtmlService.EmailFigureFragment f) => f.Kind switch
