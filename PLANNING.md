@@ -5806,3 +5806,5 @@ screenshots. Full test suite **4592 passed, 1 skipped, 0 failed**.
 2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run
    #59), for the user; real Windows light/dark switch; first real in-app update;
    `EmailExportFlowTests.Subject_preview_follows_the_template` flake; Word INDEX field pre-fill.
+
+**Release (same run):** tagged **v3.27.0** on `a63f786` after CI passed on it. Release workflow built the x64/arm64 installers and zips; notes prepended above the workflow body with `---`. `MarksmithBaseVersion` is now **3.28.0**.
