@@ -33,6 +33,8 @@
             <KeyboardAccelerator Modifiers="Control" Key="S" Invoked="OnSaveDocumentAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="OnFindAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="H" Invoked="OnReplaceAcceleratorInvoked" />
+            <KeyboardAccelerator Key="F3" Invoked="OnFindNextAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Shift" Key="F3" Invoked="OnFindNextAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="P" Invoked="OnPrintAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="D" Invoked="OnDuplicateLineAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Menu" Key="Up" Invoked="OnMoveLineUpAcceleratorInvoked" />
@@ -244,43 +246,50 @@
                                             Closed="OnExtensionTipClosed" />
 
                 <Border Grid.Row="2" Style="{StaticResource PipelineCardStyle}"
-                        AllowDrop="True" DragOver="OnSourceDragOver" Drop="OnSourceDrop">
+                        AllowDrop="True" DragOver="OnSourceDragOver" DragLeave="OnSourceDragLeave" Drop="OnSourceDrop">
                     <ScrollViewer x:Name="SourceScroll" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
                     <Grid Padding="14" RowSpacing="12"
                           MinHeight="{Binding ViewportHeight, ElementName=SourceScroll}">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <SelectorBar x:Name="SourceSelector" Grid.Row="0" SelectionChanged="OnSourceSelectorChanged">
-                            <SelectorBarItem x:Name="FileTab" Text="File">
-                                <SelectorBarItem.Icon>
-                                    <FontIcon Glyph="&#xE8A5;" />
-                                </SelectorBarItem.Icon>
-                            </SelectorBarItem>
-                            
-                        </SelectorBar>
-
-                        <!-- File mode -->
-                        <StackPanel x:Name="FilePanel" Grid.Row="1" Spacing="12">
-                            <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
-                                    BorderThickness="1" CornerRadius="8" Padding="16,24">
-                                <StackPanel Spacing="8" HorizontalAlignment="Center">
-                                    <FontIcon Glyph="&#xE896;" FontSize="26" Opacity="0.6" HorizontalAlignment="Center" />
-                                    <TextBlock Text="Drop a document here" HorizontalAlignment="Center" Opacity="0.75" />
+                        <!-- File source (the single "File" SelectorBar tab that sat above this after
+                             the Paste tab moved into the centre editor is gone — a one-tab tab bar
+                             had nothing to switch to). -->
+                        <StackPanel x:Name="FilePanel" Grid.Row="0" Spacing="12">
+                            <Grid x:Name="DropZone" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                  CornerRadius="8"
+                                  PointerEntered="OnDropZonePointerEntered"
+                                  PointerExited="OnDropZonePointerExited"
+                                  PointerPressed="OnDropZonePointerPressed"
+                                  PointerReleased="OnDropZonePointerReleased"
+                                  ToolTipService.ToolTip="Drop a file here, or click anywhere to browse (Ctrl+O)">
+                                <!-- Dashed outline reads as a drop target rather than a plain card;
+                                     turns solid accent while a file is dragged over the card. -->
+                                <Rectangle x:Name="DropZoneOutline" RadiusX="8" RadiusY="8"
+                                           Stroke="{ThemeResource ControlStrongStrokeColorDefaultBrush}"
+                                           StrokeThickness="1" StrokeDashArray="4,3" Opacity="0.55"
+                                           IsHitTestVisible="False" />
+                                <StackPanel Spacing="6" HorizontalAlignment="Center" Padding="16,20">
+                                    <FontIcon x:Name="DropZoneIcon" Glyph="&#xE896;" FontSize="26" Opacity="0.7"
+                                              HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="DropZoneTitle" Text="Drop a document here"
+                                               HorizontalAlignment="Center" FontWeight="SemiBold" Opacity="0.85" />
                                     <TextBlock Text="Markdown, Word, PDF, HTML or email (.eml, .msg)" HorizontalAlignment="Center"
-                                               Opacity="0.55" TextAlignment="Center" TextWrapping="WrapWholeWords"
+                                               Opacity="0.6" TextAlignment="Center" TextWrapping="WrapWholeWords"
                                                Style="{StaticResource CaptionTextBlockStyle}" />
-                                    <TextBlock Text="or" HorizontalAlignment="Center" Opacity="0.4"
-                                               Style="{StaticResource CaptionTextBlockStyle}" />
-                                    <Button Content="Browse files" Click="OnBrowseFileClick" HorizontalAlignment="Center"
-                                            ToolTipService.ToolTip="Open Markdown, or a Word, PDF, HTML or email file as Markdown (Ctrl+O)" />
+                                    <Button Click="OnBrowseFileClick" HorizontalAlignment="Center" Margin="0,6,0,0"
+                                            ToolTipService.ToolTip="Open Markdown, or a Word, PDF, HTML or email file as Markdown (Ctrl+O)">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE8E5;" FontSize="13" />
+                                            <TextBlock Text="Browse files" />
+                                        </StackPanel>
+                                    </Button>
                                 </StackPanel>
-                            </Border>
+                            </Grid>
 
                             <Grid ColumnSpacing="6">
                                 <Grid.ColumnDefinitions>
@@ -298,8 +307,10 @@
                                         <TextBlock Text="History" FontSize="13" />
                                     </StackPanel>
                                 </Button>
-                                <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnTogglePinFileClick"
-                                        ToolTipService.ToolTip="Pin/unpin this file to the top of the file list">
+                                <Button x:Name="PinFileButton" Grid.Column="1" VerticalAlignment="Bottom"
+                                        Click="OnTogglePinFileClick" IsEnabled="{Binding HasInputFile}"
+                                        AutomationProperties.Name="Pin this file"
+                                        ToolTipService.ToolTip="Pin this file to the top of the file list">
                                     <Grid>
                                         <FontIcon Glyph="&#xE735;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                                                   Visibility="{Binding IsCurrentFilePinned, Converter={StaticResource BoolToVisibilityConverter}}" />
@@ -338,14 +349,16 @@
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
-                            <TextBlock x:Name="ScanningLabel" Text="Scanning your files…" Opacity="0.6" Margin="2,-6,0,0"
-                                       Style="{StaticResource CaptionTextBlockStyle}" Visibility="Collapsed" />
+                            <StackPanel x:Name="ScanningLabel" Orientation="Horizontal" Spacing="6"
+                                        Margin="2,-6,0,0" Visibility="Collapsed">
+                                <ProgressRing IsActive="True" Width="12" Height="12" VerticalAlignment="Center" />
+                                <TextBlock Text="Scanning your files…" Opacity="0.6" VerticalAlignment="Center"
+                                           Style="{StaticResource CaptionTextBlockStyle}" />
+                            </StackPanel>
                         </StackPanel>
 
-                        
-
                         <!-- Automated ingest: clipboard watcher, watched folder, local REST API -->
-                        <Expander x:Name="AutomationExpander" Grid.Row="2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Expander x:Name="AutomationExpander" Grid.Row="1" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                             <Expander.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE945;" FontSize="14" />
@@ -597,7 +610,7 @@
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                     BorderThickness="1" CornerRadius="8" Padding="6,6,8,6"
-                                    SizeChanged="OnFindBarSizeChanged">
+                                    SizeChanged="OnFindBarSizeChanged" KeyDown="OnFindBarKeyDown">
                                 <Grid ColumnSpacing="4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -608,7 +621,28 @@
                                                   AutomationProperties.Name="Show replace"
                                                   ToolTipService.ToolTip="Show replace (Ctrl+H)"
                                                   Checked="OnReplaceExpandToggled" Unchecked="OnReplaceExpandToggled">
-                                        <FontIcon x:Name="ReplaceExpandGlyph" Glyph="&#xE76C;" FontSize="11" />
+                                        <!-- A disclosure chevron, not an option: checked must not fill with
+                                             accent like the Aa toggle (it read as a second "on" switch). -->
+                                        <ToggleButton.Resources>
+                                            <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="SubtleFillColorSecondaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="SubtleFillColorTertiaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="TextFillColorPrimaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="TextFillColorPrimaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="TextFillColorSecondaryBrush" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
+                                        </ToggleButton.Resources>
+                                        <!-- Turns a quarter (right → down) instead of swapping glyphs. -->
+                                        <FontIcon x:Name="ReplaceExpandGlyph" Glyph="&#xE76C;" FontSize="11" Width="12" Height="12"
+                                                  CenterPoint="6,6,0">
+                                            <FontIcon.RotationTransition>
+                                                <ScalarTransition Duration="0:0:0.15" />
+                                            </FontIcon.RotationTransition>
+                                        </FontIcon>
                                     </ToggleButton>
                                     <StackPanel Grid.Column="1" Spacing="6">
                                         <Grid ColumnSpacing="6">
@@ -635,12 +669,12 @@
                                             </ToggleButton>
                                             <Button x:Name="FindPrevButton" Grid.Column="3" Width="32" Height="30" Padding="0" Click="OnFindPrevClick"
                                                     AutomationProperties.Name="Previous match"
-                                                    ToolTipService.ToolTip="Previous match (Shift+Enter)">
+                                                    ToolTipService.ToolTip="Previous match (Shift+Enter or Shift+F3)">
                                                 <FontIcon Glyph="&#xE70E;" FontSize="12" />
                                             </Button>
                                             <Button x:Name="FindNextButton" Grid.Column="4" Width="32" Height="30" Padding="0" Click="OnFindNextClick"
                                                     AutomationProperties.Name="Next match"
-                                                    ToolTipService.ToolTip="Next match (Enter)">
+                                                    ToolTipService.ToolTip="Next match (Enter or F3)">
                                                 <FontIcon Glyph="&#xE70D;" FontSize="12" />
                                             </Button>
                                             <Button Grid.Column="5" Width="32" Height="30" Padding="0" Click="OnFindCloseClick"
@@ -1231,7 +1265,7 @@
                         <Button x:Name="OutlineButton" ToolTipService.ToolTip="Document outline (H1–H6)">
                             <FontIcon Glyph="&#xE8A4;" FontSize="14" />
                             <Button.Flyout>
-                                <Flyout Placement="Bottom">
+                                <Flyout Placement="BottomEdgeAlignedRight">
                                     <Grid RowSpacing="8" Width="340">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
@@ -1258,7 +1292,7 @@
                         <Button x:Name="MoreMenuButton" ToolTipService.ToolTip="More — history, tour, shortcuts, settings, support">
                             <FontIcon Glyph="&#xE712;" FontSize="14" />
                             <Button.Flyout>
-                                <MenuFlyout Placement="Bottom">
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
                                     <MenuFlyoutItem Text="Version history…" Click="OnOpenHistoryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
@@ -1282,7 +1316,7 @@
                                 </MenuFlyout>
                             </Button.Flyout>
                             <FlyoutBase.AttachedFlyout>
-                                <Flyout Placement="Bottom">
+                                <Flyout Placement="BottomEdgeAlignedRight">
                                     <Grid RowSpacing="8" Width="380">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />

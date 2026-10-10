@@ -226,8 +226,28 @@ public static class HoverPolish
     {
         if (root is ButtonBase button)
         {
+            // WinUI's NumberBox embeds a TextBox ("InputBox") whose template includes a clear
+            // "×" button ("DeleteButton"). On a compact numeric field with spin buttons it crowds
+            // the digits and clearing a number to NaN is never what the user wants.
+            if (button.Name == "DeleteButton" && IsInsideNumberBox(button))
+            {
+                DisableClearButton(button);
+                return;
+            }
             EnsureAccessibleName(button);
             AttachTo(button);
+        }
+        else if (root is NumberBox nb)
+        {
+            if ( string.IsNullOrWhiteSpace(AutomationProperties.GetName(nb))
+                 && nb.Header is null
+                 && ToolTipService.GetToolTip(nb) is string { Length: > 0 } nbTip)
+            {
+                AutomationProperties.SetName(nb, nbTip);
+            }
+            SuppressNumberBoxClearButton(nb);
+            nb.Loaded += (_, _) => SuppressNumberBoxClearButton(nb);
+            nb.GotFocus += (_, _) => SuppressNumberBoxClearButton(nb);
         }
         else if (root is Expander expander
                  && string.IsNullOrWhiteSpace(AutomationProperties.GetName(expander))
@@ -263,6 +283,47 @@ public static class HoverPolish
         {
             Apply(VisualTreeHelper.GetChild(root, i));
         }
+    }
+
+    private static bool IsInsideNumberBox(DependencyObject element)
+    {
+        for (var cur = VisualTreeHelper.GetParent(element); cur is not null; cur = VisualTreeHelper.GetParent(cur))
+        {
+            if (cur is NumberBox) return true;
+        }
+        return false;
+    }
+
+    private static void SuppressNumberBoxClearButton(DependencyObject root)
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is ButtonBase { Name: "DeleteButton" } btn)
+            {
+                DisableClearButton(btn);
+            }
+            else
+            {
+                SuppressNumberBoxClearButton(child);
+            }
+        }
+    }
+
+    private static void DisableClearButton(ButtonBase button)
+    {
+        button.Width = 0;
+        button.MinWidth = 0;
+        button.MaxWidth = 0;
+        button.Height = 0;
+        button.MinHeight = 0;
+        button.MaxHeight = 0;
+        button.Padding = new Thickness(0);
+        button.Margin = new Thickness(0);
+        button.Opacity = 0;
+        button.IsHitTestVisible = false;
+        button.IsTabStop = false;
     }
 
     private static void AttachTo(ButtonBase button)

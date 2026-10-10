@@ -291,6 +291,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         PasteTextBox.TextChanged += (_, _) => SyncDocumentFromEditor();
         // The ⋯ menu tip covers the top of Style & Export; typing means the user has moved on.
         PasteTextBox.PreviewKeyDown += (_, _) => { if (MoreMenuTip.IsOpen) MoreMenuTip.IsOpen = false; };
+        // Escape in the editor puts away an open find bar (the editor has no other use for it).
+        PasteTextBox.KeyDown += (_, e) =>
+        {
+            if (e.Key == Windows.System.VirtualKey.Escape && FindBar.Visibility == Visibility.Visible)
+            {
+                CloseFindBar();
+                e.Handled = true;
+            }
+        };
         ViewModel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(ViewModel.CurrentMarkdown)) SyncEditorFromDocument();
@@ -509,7 +518,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Standardized pro-gate: any PRO feature a free user attempts raises this; the shell shows
         // the modal with trial/upgrade actions (non-UI hosts get only the StatusText fallback).
         ViewModel.ProFeatureAttempted += feature => DispatcherQueue.TryEnqueue(() => _ = ShowProGateAsync(feature));
-        SyncSourcePanels();
+        UpdatePinFileButton();
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusMsgText, ViewModel.StatusText ?? string.Empty);
         ApplyAutomationSettings();
         UpdateLicenseBanner();
         ExtensionTip.IsOpen = ViewModel.ShowExtensionTip;
@@ -876,6 +886,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.StatusText) && StatusMsgText is not null)
+        {
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusMsgText, ViewModel.StatusText ?? string.Empty);
+        }
+
         if (e.PropertyName is nameof(ViewModels.MainViewModel.StatusText) or nameof(ViewModels.MainViewModel.StatusSeverity)
             or nameof(ViewModels.MainViewModel.IsBusy) or nameof(ViewModels.MainViewModel.StatusOutputPath))
         {
@@ -887,9 +902,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ApplyStatusSeverityBrush();
         }
 
-        if (e.PropertyName == nameof(ViewModels.MainViewModel.UsePasteSource))
+        if (e.PropertyName is nameof(ViewModels.MainViewModel.HasInputFile)
+            or nameof(ViewModels.MainViewModel.IsCurrentFilePinned))
         {
-            SyncSourcePanels();
+            UpdatePinFileButton();
         }
 
         // The "Get the extension" card has done its job once the extension checks in: retire it
@@ -2177,19 +2193,97 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         return await tcs.Task;
     }
 
-    // ---- Source panel (File | Paste) ----
+    // ---- Source panel ----
 
-    private void OnSourceSelectorChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    private bool _dropZonePointerOver;
+    private bool _dropZonePointerPressed;
+    private bool _dropZoneDragOver;
+
+    // Keep the pin star's tooltip and screen-reader name in step with whether a file is loaded
+    // and whether it's already pinned (when no file is selected the button is disabled).
+    private void UpdatePinFileButton()
     {
-        // ViewModel.UsePasteSource = sender.SelectedItem == PasteTab;
+        if (PinFileButton is null) return;
+        var pinned = ViewModel.HasInputFile && ViewModel.IsCurrentFilePinned;
+        var tip = !ViewModel.HasInputFile
+            ? "Select a file first to pin it to the top of the list"
+            : pinned
+                ? "Unpin this file from the top of the file list"
+                : "Pin this file to the top of the file list";
+        ToolTipService.SetToolTip(PinFileButton, tip);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            PinFileButton, pinned ? "Unpin this file" : "Pin this file");
     }
 
-    private void SyncSourcePanels()
+    private void UpdateDropZoneVisual()
     {
-        // var paste = ViewModel.UsePasteSource;
-        // SourceSelector.SelectedItem = paste ? PasteTab : FileTab;
-        // FilePanel.Visibility = paste ? Visibility.Collapsed : Visibility.Visible;
-        // PastePanel.Visibility = paste ? Visibility.Visible : Visibility.Collapsed;
+        if (DropZone is null || DropZoneOutline is null) return;
+        if (_dropZoneDragOver)
+        {
+            MarkSmith.Services.ThemeBrush.Set(DropZone, Panel.BackgroundProperty, "SubtleFillColorTertiaryBrush");
+            MarkSmith.Services.ThemeBrush.Set(DropZoneOutline, Microsoft.UI.Xaml.Shapes.Shape.StrokeProperty, "AccentFillColorDefaultBrush");
+            DropZoneOutline.StrokeThickness = 1.5;
+            DropZoneOutline.StrokeDashArray.Clear();
+            DropZoneOutline.Opacity = 1;
+            DropZoneTitle.Text = "Release to open";
+            DropZoneIcon.Opacity = 1;
+            return;
+        }
+
+        MarkSmith.Services.ThemeBrush.Set(DropZone, Panel.BackgroundProperty,
+            _dropZonePointerPressed ? "SubtleFillColorSecondaryBrush"
+            : _dropZonePointerOver ? "SubtleFillColorTertiaryBrush"
+            : "SubtleFillColorSecondaryBrush");
+        MarkSmith.Services.ThemeBrush.Set(DropZoneOutline, Microsoft.UI.Xaml.Shapes.Shape.StrokeProperty, "ControlStrongStrokeColorDefaultBrush");
+        DropZoneOutline.StrokeThickness = 1;
+        if (DropZoneOutline.StrokeDashArray.Count == 0)
+        {
+            DropZoneOutline.StrokeDashArray.Add(4);
+            DropZoneOutline.StrokeDashArray.Add(3);
+        }
+        DropZoneOutline.Opacity = _dropZonePointerOver ? 0.85 : 0.55;
+        DropZoneTitle.Text = "Drop a document here";
+        DropZoneIcon.Opacity = _dropZonePointerOver ? 0.9 : 0.7;
+    }
+
+    private void OnDropZonePointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        _dropZonePointerOver = true;
+        UpdateDropZoneVisual();
+    }
+
+    private void OnDropZonePointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        _dropZonePointerOver = false;
+        _dropZonePointerPressed = false;
+        UpdateDropZoneVisual();
+    }
+
+    private void OnDropZonePointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (IsInsideButton(e.OriginalSource as DependencyObject)) return;
+        _dropZonePointerPressed = true;
+        UpdateDropZoneVisual();
+    }
+
+    // Clicking the drop box anywhere outside the inner "Browse files" button opens the same
+    // file picker (standard drop-zone behaviour — the whole dashed area is the target).
+    private void OnDropZonePointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var wasPressed = _dropZonePointerPressed;
+        _dropZonePointerPressed = false;
+        UpdateDropZoneVisual();
+        if (!wasPressed || IsInsideButton(e.OriginalSource as DependencyObject)) return;
+        OnBrowseFileClick(sender, new RoutedEventArgs());
+    }
+
+    private bool IsInsideButton(DependencyObject? src)
+    {
+        for (var cur = src; cur is not null && !ReferenceEquals(cur, DropZone); cur = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(cur))
+        {
+            if (cur is Microsoft.UI.Xaml.Controls.Primitives.ButtonBase) return true;
+        }
+        return false;
     }
 
     private void OnSourceDragOver(object sender, DragEventArgs e)
@@ -2201,11 +2295,28 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             {
                 e.DragUIOverride.Caption = "Drop to open";
             }
+            if (!_dropZoneDragOver)
+            {
+                _dropZoneDragOver = true;
+                UpdateDropZoneVisual();
+            }
         }
+    }
+
+    private void OnSourceDragLeave(object sender, DragEventArgs e)
+    {
+        if (!_dropZoneDragOver) return;
+        _dropZoneDragOver = false;
+        UpdateDropZoneVisual();
     }
 
     private async void OnSourceDrop(object sender, DragEventArgs e)
     {
+        if (_dropZoneDragOver)
+        {
+            _dropZoneDragOver = false;
+            UpdateDropZoneVisual();
+        }
         if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
 
         var items = await e.DataView.GetStorageItemsAsync();
@@ -4093,7 +4204,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var open = ReplaceExpandToggle.IsChecked == true;
         ReplaceRow.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-        ReplaceExpandGlyph.Glyph = open ? "\uE70D" : "\uE76C"; // chevron down / right
+        ReplaceExpandGlyph.Rotation = open ? 90 : 0; // chevron right \u2192 down
+        // Hiding the row under the caret would drop focus to nowhere; keep typing in Find.
+        if (!open && ReplaceTextBox.FocusState != FocusState.Unfocused) FindTextBox.Focus(FocusState.Keyboard);
         var name = open ? "Hide replace" : "Show replace";
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ReplaceExpandToggle, name);
         ToolTipService.SetToolTip(ReplaceExpandToggle, open ? name : $"{name} ({Shortcuts.KeysFor("edit.replace")})");
@@ -4115,9 +4228,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            var shiftDown = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
-                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-            if (shiftDown) FindPrev(); else FindNext();
+            if (ShiftDown()) FindPrev(); else FindNext();
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Tab && !ShiftDown() && ReplaceRow.Visibility == Visibility.Visible)
+        {
+            ReplaceTextBox.Focus(FocusState.Keyboard);
+            ReplaceTextBox.SelectAll();
             e.Handled = true;
         }
         else if (e.Key == Windows.System.VirtualKey.Escape)
@@ -4157,18 +4274,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ? _findMatches[_findMatchIndex] : -1;
         _findMatches.Clear();
         _findMatchIndex = -1;
-        var query = FindTextBox?.Text ?? string.Empty;
-        var text = PasteTextBox?.Text ?? string.Empty;
-        if (query.Length > 0 && text.Length > 0)
-        {
-            var cmp = FindComparison;
-            var idx = text.IndexOf(query, cmp);
-            while (idx >= 0)
-            {
-                _findMatches.Add(idx);
-                idx = text.IndexOf(query, idx + query.Length, cmp);
-            }
-        }
+        _findMatches.AddRange(MarkSmith.Services.TextSearch.FindAll(
+            PasteTextBox?.Text ?? string.Empty, FindTextBox?.Text ?? string.Empty, FindComparison));
         if (previous >= 0 && _findMatches.Count > 0)
         {
             var i = _findMatches.FindIndex(m => m >= previous);
@@ -4197,20 +4304,65 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ReplaceOneButton.IsEnabled = ReplaceAllButton.IsEnabled = count > 0;
     }
 
-    private void FindNext()
+    private void FindNext() => StepFind(forward: true);
+
+    private void FindPrev() => StepFind(forward: false);
+
+    // Enter / Shift+Enter, the arrows, and F3 / Shift+F3 (from the editor too). Going past either
+    // end of the document says so on the status line, like Notepad, instead of silently jumping.
+    private void StepFind(bool forward)
     {
         if (_findMatches.Count == 0) { UpdateFindCount(); return; }
-        _findMatchIndex = (_findMatchIndex + 1) % _findMatches.Count;
-        SelectFindMatch(keepFindFocus: true);
+        // If the user has moved the caret since the last match, carry on from the caret (past any
+        // selection), not from the old match.
+        var current = _findMatchIndex;
+        if (current >= 0 && current < _findMatches.Count && PasteTextBox.SelectionStart != _findMatches[current])
+            current = -1;
+        var caret = forward ? PasteTextBox.SelectionStart + PasteTextBox.SelectionLength : PasteTextBox.SelectionStart;
+        var (index, wrapped) = forward
+            ? MarkSmith.Services.TextSearch.Next(_findMatches, current, caret)
+            : MarkSmith.Services.TextSearch.Previous(_findMatches, current, caret);
+        _findMatchIndex = index;
+        SelectFindMatch(keepFindFocus: FindBar.Visibility == Visibility.Visible && !PasteTextBoxHasFocus());
+        if (wrapped)
+            ViewModel.StatusText = forward
+                ? "Reached the end of the document; continued from the top."
+                : "Reached the top of the document; continued from the end.";
     }
 
-    private void FindPrev()
+    private bool PasteTextBoxHasFocus() => PasteTextBox.FocusState != FocusState.Unfocused;
+
+    // F3 / Shift+F3: the next or previous match of the last query, from anywhere in the editor. With
+    // no query yet it opens the find bar instead.
+    private void OnFindNextAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (_findMatches.Count == 0) { UpdateFindCount(); return; }
-        _findMatchIndex = _findMatchIndex < 0 ? _findMatches.Count - 1
-            : (_findMatchIndex - 1 + _findMatches.Count) % _findMatches.Count;
-        SelectFindMatch(keepFindFocus: true);
+        args.Handled = true;
+        if (string.IsNullOrEmpty(FindTextBox.Text)) { ShowFindBar(); return; }
+        if (FindBar.Visibility != Visibility.Visible)
+        {
+            EnsureEditorVisible();
+            UnfoldAll();
+            FindBar.Visibility = Visibility.Visible;
+            SyncFindBarSpacer();
+            RecomputeFindMatches();
+        }
+        StepFind(forward: sender.Modifiers != Windows.System.VirtualKeyModifiers.Shift);
     }
+
+    // Escape closes the bar from any of its controls (Aa, the arrows, the chevron), not only from
+    // the two text boxes; Tab goes from Find straight to Replace when that row is open.
+    private void OnFindBarKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            CloseFindBar();
+            e.Handled = true;
+        }
+    }
+
+    private static bool ShiftDown() =>
+        Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
     // Highlight the current match in the editor and scroll it into view. Selecting text on a
     // focused TextBox makes WinUI bring the caret into view, so the editor is focused for the
@@ -4240,6 +4392,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             OnReplaceClick(sender, new RoutedEventArgs());
             e.Handled = true;
         }
+        else if (e.Key == Windows.System.VirtualKey.Tab && ShiftDown())
+        {
+            FindTextBox.Focus(FocusState.Keyboard);
+            FindTextBox.SelectAll();
+            e.Handled = true;
+        }
         else if (e.Key == Windows.System.VirtualKey.Escape)
         {
             CloseFindBar();
@@ -4264,6 +4422,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             ViewModel.BreakUndoBurst();
             PasteTextBox.SelectedText = replacement; // swaps the selected match in place
+            SyncDocumentFromEditor();
+            ViewModel.BreakUndoBurst();
             selStart += replacement.Length;
             text = PasteTextBox.Text ?? string.Empty;
         }
@@ -4292,27 +4452,24 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var query = FindTextBox?.Text ?? string.Empty;
         if (query.Length == 0) return;
         var replacement = ReplaceTextBox?.Text ?? string.Empty;
-        var text = PasteTextBox.Text ?? string.Empty;
-        var cmp = FindComparison;
-
-        var sb = new System.Text.StringBuilder(text.Length);
-        var idx = 0;
-        var count = 0;
-        while (true)
-        {
-            var found = text.IndexOf(query, idx, cmp);
-            if (found < 0) { sb.Append(text, idx, text.Length - idx); break; }
-            sb.Append(text, idx, found - idx);
-            sb.Append(replacement);
-            idx = found + query.Length;
-            count++;
-        }
+        var (newText, count, caret) = MarkSmith.Services.TextSearch.ReplaceAll(
+            PasteTextBox.Text ?? string.Empty, query, replacement, FindComparison, PasteTextBox.SelectionStart);
 
         if (count > 0)
         {
+            // Setting Text resets the caret to the top and the editor scrolls there; keep the
+            // caret (moved through the edit) and the scroll position where the user was.
+            var sv = FindEditorScrollViewer();
+            var offset = sv?.VerticalOffset ?? 0;
             ViewModel.BreakUndoBurst(); // Replace All must undo as its own step
-            PasteTextBox.Text = sb.ToString();
+            PasteTextBox.Text = newText;
+            SyncDocumentFromEditor();
             ViewModel.BreakUndoBurst();
+            PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
+            UpdateCursorPosition();
+            if (sv is not null)
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                    () => sv.ChangeView(null, offset, null, disableAnimation: true));
             ViewModel.StatusText = $"Replaced {count} occurrence{(count == 1 ? "" : "s")} of \u201C{query}\u201D. Ctrl+Z undoes it.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }

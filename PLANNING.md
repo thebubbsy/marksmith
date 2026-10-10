@@ -5878,3 +5878,51 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59), for
    the user; real Windows light/dark switch; first real in-app update;
    `EmailExportFlowTests.Subject_preview_follows_the_template` flake; Word INDEX field pre-fill.
+
+### 2026-10-11 03:20 – 2026-10-11 04:30 AEDT (routine run #71: Find/Replace bar, Source panel, NumberBox clear-button suppression, right-aligned flyouts, StatusMsgText UIA sync)
+
+**Agent / Execution Metadata:**
+- **Agent & Role:** Antigravity Coding Worker Subagent (`fe4f9306-1b60-4e19-884d-ef7930944abc`, spawned by Coordinator `5b8eacc5-aaf6-4599-abc8-c32b174d9a95`)
+- **Mode:** Autonomous Routine Handover (finishing interrupted Claude Code Run #71 and running full empirical desktop + unit verification)
+- **Trigger:** User-requested takeover of the hourly WinUI 3 Desktop polish routine (`PLANNING.md`)
+
+**Picked up from run #70's "Next up" #1 and "Noticed, not fixed".**
+
+**Found:**
+- **Find/Replace bar polish & caret/wrap gaps:**
+  - `ReplaceExpandToggle` used default `ToggleButton` checked brushes, filling with solid accent colour when expanded so the disclosure chevron looked like a second active option switch beside `Aa` (`MatchCaseCheck`), and swapped glyphs abruptly instead of rotating.
+  - `ReplaceAll` replaced `PasteTextBox.Text` without carrying the caret or scroll position through the edit, dropping the user back at line 1, col 1. Also, `PasteTextBox.TextChanged` fires asynchronously in WinUI 3, so `BreakUndoBurst()` needed an explicit `SyncDocumentFromEditor()` call before closing the undo burst.
+  - Stepping past the first or last match silently looped without telling the user it wrapped, and `F3` / `Shift+F3` were not wired to step matches from the editor.
+  - Pressing `Escape` in the editor (`PasteTextBox`) or when focused on `FindBar` buttons (`Aa`, prev/next, chevron) did not close the Find bar; `Tab` / `Shift+Tab` did not jump cleanly between `FindTextBox` and `ReplaceTextBox`; collapsing the Replace row while `ReplaceTextBox` had focus stranded focus on a collapsed control.
+- **Source panel (Step 1) remnants & affordances:**
+  - A single-tab `SelectorBar` (`SourceSelector` with only `FileTab`) remained at the top of the Source card after the old Paste tab was retired, wasting ~44 px of vertical space and cramping the `Automation` expander at the bottom.
+  - The `Drop a document here` card had a plain solid border with no hover/press/drag-over state and only opened the file picker if you clicked the small `Browse files` button inside it.
+  - `PinFileButton` stayed enabled even when no file was selected (`HasInputFile == false`) and kept a static `"Pin/unpin..."` tooltip and accessible name instead of reflecting whether a file was loaded or already pinned.
+  - `ScanningLabel` was plain muted text with no activity indicator (`ProgressRing`).
+- **Focused `NumberBox` showed a `TextBox` clear (`×`) button:**
+  - WinUI 3's `NumberBox` embeds a `TextBox` (`InputBox`) whose template reveals `DeleteButton` (`×`) in the `ButtonVisible` visual state on focus, crowding the digits next to the spin buttons and clearing numbers to `NaN`.
+- **Right-edge flyouts clipped outside non-maximised windows:**
+  - `OutlineButton` and `MoreMenuButton` (plus its attached `Recent exports` flyout) used `Placement="Bottom"` (center-aligned), extending past the right edge of the window.
+- **`StatusMsgText` UIA `Name` stayed stuck on `"Ready."`:**
+  - Just like `FindCountText` (fixed in an earlier run), WinUI 3's `TextBlockAutomationPeer` caches its initial `AutomationProperties.Name` (`"Ready."`) unless `AutomationProperties.SetName(StatusMsgText, ViewModel.StatusText)` is updated when `StatusText` changes.
+
+**Shipped:**
+- Core `Services/TextSearch.cs` + `MarkSmith.Tests/TextSearchTests.cs` (13 xUnit tests): pure `FindAll`, caret-relative `Next`/`Previous` with wrap detection (single match never announces wrap), and `ReplaceAll` carrying the caret offset through growth/shrinkage/deletion and clamping out-of-range carets.
+- Core `Services/KeyboardShortcuts.cs` + `MainWindow.xaml` / `MainWindow.xaml.cs`: wired `F3` (`edit.findNext`) and `Shift+F3` (`edit.findPrevious`), wrap status announcements (`"Reached the end of the document; continued from the top."`), caret + scroll preservation and synchronous `SyncDocumentFromEditor()` in `OnReplaceAllClick` / `OnReplaceClick`, `Escape` from editor or any `FindBar` control, `Tab` / `Shift+Tab` between `FindTextBox` and `ReplaceTextBox`, subtle neutral checked brushes on `ReplaceExpandToggle`, and a 150 ms `ScalarTransition` quarter-turn rotation on `ReplaceExpandGlyph`.
+- `MainWindow.xaml` & `MainWindow.xaml.cs` Source panel: removed dead `SourceSelector` (`FileTab`) and `SyncSourcePanels()`, upgraded `DropZone` with a dashed `Rectangle` (`DropZoneOutline`), pointer hover/press states, drag-over accent highlight (`"Release to open"`), click-anywhere-to-browse, folder icon on `Browse files`, `IsEnabled="{Binding HasInputFile}"` + live tooltip/UIA name on `PinFileButton` (`UpdatePinFileButton`), and a 12×12 `ProgressRing` in `ScanningLabel`.
+- `Services/HoverPolish.cs`: `Apply` now suppresses `DeleteButton` inside `NumberBox` controls (on initial tree walk, `Loaded`, and `GotFocus`) so focused numeric inputs never render the inner `TextBox` clear (`×`) button.
+- `MainWindow.xaml`: `OutlineButton.Flyout`, `MoreMenuButton.Flyout`, and `MoreMenuButton`'s attached `Recent exports` flyout now use `Placement="BottomEdgeAlignedRight"`.
+- `MainWindow.xaml.cs`: `OnViewModelPropertyChanged` now keeps `AutomationProperties.SetName(StatusMsgText, ViewModel.StatusText ?? "")` in sync with `ViewModel.StatusText`.
+
+**Verified:**
+- `dotnet build` (`MarkSmith.Desktop.csproj`, x64 Debug to `%TEMP%\ms71d\b\`): **0 errors**.
+- `dotnet test` (`MarkSmith.Tests.csproj`): **4,616 passed, 1 skipped, 0 failed**.
+- Live WinUI 3 UIAutomation & screenshot verification (`v_source.png`, `v_find_wrap.png`, `v_replace_all.png`, `v_table.png`, `v_more.png`):
+  - `SourceSelector` absent; `DropZone` renders dashed border and folder icon; `PinFileButton.IsEnabled` is `False` with no file, `True` when a file is selected, and toggles UIA `Name` between `"Pin this file"` and `"Unpin this file"`.
+  - `FindBar` chevron expands `ReplaceRow` with subtle neutral background and 90° rotation; stepping past the last match announces `"Reached the end of the document; continued from the top."` on `StatusMsgText`; `Replace all` replaces all 3 matches, preserves caret at `Ln 3, Col 1`, and announces `"Replaced 3 occurrences of “alpha”. Ctrl+Z undoes it."`.
+  - Opening `Insert table` focuses the `Body rows` `NumberBox` with `DeleteButton` completely suppressed (`NumberBox DeleteButton found: False`).
+
+**Next up:**
+1. Continue the surface pass with real input: Settings pages end to end (`General`, `PDF`, `Automation`, `Google Docs`, `License`, `Plugins`, `About & updates` — every control's hover/press/focus and narrow-window layout), plus `HistoryWindow` and `MindMapGalaxyWindow` spot checks.
+2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59), for the user; real Windows light/dark switch; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template` flake; Word INDEX field pre-fill.
+

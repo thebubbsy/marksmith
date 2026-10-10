@@ -99,6 +99,8 @@ public static class KeyboardShortcuts
         new("edit.redo", EditingSection, "Redo", new[] { Ctrl("Y"), CtrlShift("Z") }, EditorOnly: true),
         new("edit.find", EditingSection, "Find in the document", new[] { Ctrl("F") }),
         new("edit.replace", EditingSection, "Find and replace", new[] { Ctrl("H") }),
+        new("edit.findNext", EditingSection, "Next match of the last search", new[] { Bare("F3") }),
+        new("edit.findPrevious", EditingSection, "Previous match of the last search", new[] { new KeyChord("Shift", "F3") }),
         new("edit.duplicateLine", EditingSection, "Duplicate the current line", new[] { Ctrl("D") }),
         new("edit.moveLineUp", EditingSection, "Move the current line up", new[] { Alt("Up") }),
         new("edit.moveLineDown", EditingSection, "Move the current line down", new[] { Alt("Down") }),
