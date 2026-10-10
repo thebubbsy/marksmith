@@ -5728,3 +5728,7 @@ slides all clean.
 2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run
    #59), for the user; real Windows light/dark switch; first real in-app update;
    `EmailExportFlowTests.Subject_preview_follows_the_template` flake; Word INDEX field pre-fill.
+
+**Release (same run):** tagged **v3.26.0** on `b350558` after CI passed on `427e4c0`. Release workflow built
+the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
+`MarksmithBaseVersion` is now **3.27.0**.
