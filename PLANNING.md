@@ -6277,3 +6277,5 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 1. Carried over: Polish pass on `MermaidStudioWindow` and `SmartArtDesignStudioWindow` canvas context menus and inspector keyboard shortcuts.
 2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59); real Windows light/dark switch; first real in-app update.
 
+**Release (same run):** tagged **v3.30.0** on `21de7ba7` after CI passed (`38093221449`). Release workflow (`38093399729`) built the x64/arm64 installers and portable zips (5 assets including `checksums.txt`); user-facing notes covering Runs #72–#76 (Shape Studio, SmartArt Studio & Document Galaxy context menus and shortcuts; Settings, Suite Hub & Welcome Tour; Insert dialogs, Command Palette & Word INDEX field pre-fill) were prepended above the workflow body with `---`. `MarksmithBaseVersion` is now **3.31.0**.
+
