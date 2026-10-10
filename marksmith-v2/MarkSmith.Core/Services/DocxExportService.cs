@@ -60,7 +60,7 @@ public sealed partial class DocxExportService
         .UseAlertBlocks().UseCalloutTitles()
         .UseMathematics()
         .UseEmojiAndSmiley(enableSmileys: false) // :rocket: -> emoji chars in Word too (same as the HTML pipeline)
-        .Build();
+        .UsePlainAbbreviations().Build();
 
     // See MarkdownHtmlService.PipelineNoEmoji — same rationale: no-emoji mode must not let
     // shortcode conversion reintroduce emoji after EmojiStripper already ran.
@@ -69,7 +69,7 @@ public sealed partial class DocxExportService
         .UseYamlFrontMatter()
         .UseAlertBlocks().UseCalloutTitles()
         .UseMathematics()
-        .Build();
+        .UsePlainAbbreviations().Build();
 
     // Shared AppServices.Themes singleton instead of a private instance — keeps a single catalog
     // (and its cached All snapshot) across every exporter rather than 3 divergent copies.

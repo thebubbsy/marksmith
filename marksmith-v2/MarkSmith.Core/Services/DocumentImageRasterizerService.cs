@@ -23,7 +23,7 @@ public class DocumentImageRasterizerService
         .UseAdvancedExtensions()
         .UseEmojiAndSmiley()
         .UseMathematics()
-        .Build();
+        .UsePlainAbbreviations().Build();
 
     public async Task<byte[]> RenderPngAsync(string markdown, AppSettings settings, ThemeDefinition theme, ImageRenderOptions options)
     {

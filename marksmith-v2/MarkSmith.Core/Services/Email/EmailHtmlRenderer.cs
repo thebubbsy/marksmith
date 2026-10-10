@@ -63,10 +63,10 @@ public sealed class EmailHtmlRenderer
 
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics()
-        .UseEmojiAndSmiley(enableSmileys: false).Build();
+        .UseEmojiAndSmiley(enableSmileys: false).UsePlainAbbreviations().Build();
 
     private static readonly MarkdownPipeline PipelineNoEmoji = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics().Build();
+        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics().UsePlainAbbreviations().Build();
 
     private static readonly Dictionary<string, (string Color, string Tint, string Label)> AlertStyles = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -786,10 +786,17 @@ public sealed class EmailHtmlRenderer
         var name = m.Groups[2].Value.ToLowerInvariant();
         if (name == "br") { if (!closing) sb.Append("<br />"); return; }
         if (!InlineTagsKept.Contains(name)) return;
-        if (name == "mark") name = "span";
-        sb.Append(closing ? $"</{name}>" : name == "kbd"
-            ? $"<{name} style=\"font-family:{MonoStack};font-size:90%;border:1px solid #d0d7de;padding:0 3px;\">"
-            : $"<{name}>");
+        // A CriticMarkup substitution is <del>old</del><ins>new</ins>: without a gap it read "oldnew".
+        if (name == "ins" && !closing && sb.Length > 6 && sb.ToString(sb.Length - 6, 6) == "</del>") sb.Append(' ');
+        if (name == "mark") name = "span"; // <mark> (CriticMarkup {==highlight==}) styled like ==text==
+        sb.Append(closing ? $"</{name}>" : name switch
+        {
+            "kbd" => $"<{name} style=\"font-family:{MonoStack};font-size:90%;border:1px solid #d0d7de;padding:0 3px;\">",
+            "span" when tag.StartsWith("<mark", StringComparison.OrdinalIgnoreCase) => "<span style=\"background-color:#fff3a3;\">",
+            "del" or "s" => $"<{name} style=\"text-decoration:line-through;\">",
+            "ins" or "u" => $"<{name} style=\"text-decoration:underline;\">",
+            _ => $"<{name}>",
+        });
     }
 
     private void WriteImage(StringBuilder sb, LinkInline link)

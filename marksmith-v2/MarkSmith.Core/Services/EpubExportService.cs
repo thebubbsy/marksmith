@@ -13,7 +13,12 @@ public sealed class EpubExportService
 {
     public const string Extension = "epub";
 
+    // :rocket: -> the emoji, as the preview, Word, email and slides do (a book printed ":rocket:").
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics()
+        .UseEmojiAndSmiley(enableSmileys: false).Build();
+
+    private static readonly MarkdownPipeline PipelineNoEmoji = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics().Build();
 
     // Shared AppServices.Themes singleton instead of a private instance (see DocxExportService).
@@ -46,7 +51,7 @@ public sealed class EpubExportService
         var theme = Themes.GetOrDefault(settings.Theme);
         var blockPictures = new List<EpubDirectives.Picture>();
         markdown = EpubDirectives.Lift(markdown, theme, out var coverPage, blockPictures);
-        var doc = XhtmlWriter.Parse(Markdown.ToHtml(markdown, Pipeline));
+        var doc = XhtmlWriter.Parse(Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline));
 
         var bookTitle = NonEmpty(meta?.Title)
                         ?? NonEmpty(frontMatter, "title")
@@ -592,6 +597,10 @@ public sealed class EpubExportService
         li.task-list-item input { margin-right: .5em; }
         .footnotes { font-size: .85em; margin-top: 2em; }
         a.footnote-ref { text-decoration: none; }
+        kbd { font-family: "Cascadia Mono", Consolas, monospace; font-size: .85em; padding: .05em .4em; border: 1px solid {{t.Border}}; border-bottom-width: 2px; border-radius: 4px; background: {{t.Code}}; }
+        mark { background: #fff3a3; color: #1f2328; padding: 0 .15em; }
+        del + ins { margin-left: .3em; }
+        abbr[title] { text-decoration: underline dotted; }
         details > summary { font-weight: bold; }
         section.titlepage { text-align: center; margin-top: 30%; page-break-after: always; break-after: page; }
         section.titlepage h1.title { font-size: 2.2em; margin-bottom: .6em; }

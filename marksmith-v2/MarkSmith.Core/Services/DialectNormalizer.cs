@@ -45,6 +45,9 @@ public static class DialectNormalizer
     private static readonly Regex CriticHl  = new(@"\{==((?:(?!==\}).)+)==\}", RegexOptions.Compiled);
     private static readonly Regex CriticComment = new(@"\{>>(?<comment>(?:(?!<<\}).)*)<<\}", RegexOptions.Compiled);
     private static readonly Regex ReviewerComment = new(@"\^\[(?!(?:index|\^))\s*(?<author>[^:\]\n]+?)(?:\s*\((?<date>[^\)]+)\))?:\s*(?:[""“](?<comment>(?:[^""”\\]|\\.)*?)[""”]|(?<comment>[^\]\n]+))\s*\]", RegexOptions.Compiled);
+    // Pandoc inline footnote `^[text]` (one level of nested brackets, for links). Runs after the
+    // reviewer-comment and index forms, which share the `^[` opener.
+    private static readonly Regex InlineFootnote = new(@"\^\[(?<text>[^\[\]\n]*(?:\[[^\[\]\n]*\][^\[\]\n]*)*)\]", RegexOptions.Compiled);
     private static readonly Regex IndexAnchor = new(@"\^\[index:\s*(?:[""“](?<entry>(?:[^""”\\]|\\.)*?)[""”]|(?<entry>[^\]\n]+))\s*\]", RegexOptions.Compiled);
     private static readonly Regex DropdownControl = new(@"\[dropdown:\s*(?<options>[^\]]+)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex DateControl = new(@"\[date(?::\s*(?<date>[^\]]+))?\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -75,6 +78,7 @@ public static class DialectNormalizer
 
         bool inTabsBlock = false;
         bool afterDefinitionList = false;
+        var inlineNotes = new List<string>();
 
         for (int i = 0; i < lines.Length; i++)
         {
@@ -243,6 +247,16 @@ public static class DialectNormalizer
                 return $"<span class=\"ms-index-anchor\" data-index=\"{System.Net.WebUtility.HtmlEncode(entry)}\"></span>";
             }, protectHtml: false);
 
+            // ---- Pandoc inline footnotes: `^[text]` -> `[^ms-inline-N]`, the note written at the end ----
+            line = ReplaceOutsideInlineCode(line, InlineFootnote, m =>
+            {
+                var text = m.Groups["text"].Value.Trim();
+                if (text.Length == 0) return m.Value;
+                var label = $"ms-inline-{inlineNotes.Count + 1}";
+                inlineNotes.Add($"[^{label}]: {text}");
+                return $"[^{label}]";
+            });
+
             // ---- Fillable Form Controls (SDT): [dropdown: ...], [date: ...], [text: ...] ----
             line = ReplaceOutsideInlineCode(line, DropdownControl, m =>
             {
@@ -305,6 +319,15 @@ public static class DialectNormalizer
                         output.Add("");
                 }
             }
+        }
+
+        // Inline footnotes' definitions, after everything else (not inside an unclosed fence).
+        if (inlineNotes.Count > 0 && !inCode)
+        {
+            while (output.Count > 0 && output[^1].Trim().Length == 0) output.RemoveAt(output.Count - 1);
+            output.Add("");
+            if (afterDefinitionList) { output.Add("<!-- -->"); output.Add(""); }
+            output.AddRange(inlineNotes);
         }
 
         // ---- clean up orphaned grid borders (+---+) under pipe tables ----

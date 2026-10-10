@@ -20,7 +20,7 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .UseMathematics()
-        .Build();
+        .UsePlainAbbreviations().Build();
 
     private static readonly RandomNumberGenerator Rng = RandomNumberGenerator.Create();
 

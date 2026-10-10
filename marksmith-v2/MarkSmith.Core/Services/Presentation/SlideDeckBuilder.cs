@@ -52,10 +52,10 @@ public static class SlideDeckBuilder
 {
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics()
-        .UseEmojiAndSmiley(enableSmileys: false).Build();
+        .UseEmojiAndSmiley(enableSmileys: false).UsePlainAbbreviations().Build();
 
     private static readonly MarkdownPipeline PipelineNoEmoji = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics().Build();
+        .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseCalloutTitles().UseMathematics().UsePlainAbbreviations().Build();
 
     internal static readonly Dictionary<string, (string Color, string Label)> AlertStyles = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -77,6 +77,9 @@ public static class SlideDeckBuilder
         public readonly List<SlideBlock> Flow = new();
     }
 
+    private static readonly System.Text.RegularExpressions.Regex CommentAnchor = new(
+        @"<span class=""ms-comment-anchor""[^>]*><sup[^>]*>.*?</sup></span>", System.Text.RegularExpressions.RegexOptions.Compiled);
+
     public static PptxDeck Build(string markdown, SlideDeckOptions? options = null)
     {
         options ??= new SlideDeckOptions();
@@ -84,6 +87,11 @@ public static class SlideDeckBuilder
         // Callouts first (`:::tip Title`, `> [!faq]`), as every other format does: without it a
         // slide printed ":::tip Pro tip" as text.
         markdown = AdmonitionNormalizer.Apply(markdown ?? "", foldable: false);
+        // Then the dialects every other format reads (CriticMarkup, ==highlights==, [[wiki links]],
+        // ^[inline notes]); slides printed them as raw syntax. A reviewer's comment badge has no
+        // margin to live in on a slide, so it's dropped.
+        markdown = DialectNormalizer.Apply(markdown);
+        markdown = CommentAnchor.Replace(markdown, "");
         markdown = SlideDirectives.Lift(markdown, out var cover, lifted);
         var doc = Markdown.Parse(markdown, options.NoEmoji ? PipelineNoEmoji : Pipeline);
         var ctx = new Ctx(options, doc, lifted);

@@ -34,7 +34,7 @@ public static class TocExtractorService
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .UseEmojiAndSmiley(enableSmileys: false)
-        .Build();
+        .UsePlainAbbreviations().Build();
 
     /// <summary>Extracts H1–H6 headings in document order; empty when there is no content.</summary>
     public static IReadOnlyList<TocEntry> Extract(string? markdown)

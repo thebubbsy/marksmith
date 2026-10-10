@@ -22,7 +22,7 @@ public static partial class DocumentExcerptService
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .UseEmojiAndSmiley(enableSmileys: false)
-        .Build();
+        .UsePlainAbbreviations().Build();
 
     // A sentence ends at . ! or ? followed by whitespace. Splitting on the lookbehind keeps the
     // terminator attached to its sentence. Deliberately simple — abbreviation edge cases (e.g.

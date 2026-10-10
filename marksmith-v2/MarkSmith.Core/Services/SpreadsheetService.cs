@@ -519,7 +519,7 @@ public static class SpreadsheetService
     private static readonly MarkdownPipeline ExtractPipeline = new MarkdownPipelineBuilder()
         .UsePipeTables()
         .UseEmphasisExtras()
-        .Build();
+        .UsePlainAbbreviations().Build();
 
     /// <summary>
     /// Extracts all pipe tables from a Markdown document, with their source line positions and the

@@ -1939,6 +1939,12 @@ public sealed partial class MarkdownHtmlService
             }
             img { max-width: 100%; }
             .footnotes { margin-top: 30px; padding-top: 12px; border-top: 1px solid {{theme.Border}}; font-size: 0.9em; }
+            /* Markdig opens the notes with its own <hr />: with the border above that drew two rules. */
+            .footnotes > hr { display: none; }
+            .footnotes li > p { margin: 0 0 6px 0; }
+            /* An underline under a superscript number (and under the ↩) hangs below the text line. */
+            a.footnote-ref, a.footnote-back-ref { text-decoration: none; }
+            a.footnote-back-ref { margin-left: 4px; }
             /* --- Capability-Aware Preview CSS --- */
             /* If the output format is DOCX and Mermaid ShapeForge mode is off, non-supported items could be dimmed here, but for now we rely on the backend. */
             #mk-lens { position: fixed; inset: 0; z-index: 99; display: none; background: {{theme.Background}}f2; cursor: grab; overflow: hidden; user-select: none; -webkit-user-select: none; }
