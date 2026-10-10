@@ -594,6 +594,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string target = _undoStack[^1];
         _undoStack.RemoveAt(_undoStack.Count - 1);
         ApplyHistory(target);
+        StatusMessage = "Undid outline edit · Ctrl+Y to redo";
     }
 
     [RelayCommand]
@@ -604,6 +605,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string target = _redoStack[^1];
         _redoStack.RemoveAt(_redoStack.Count - 1);
         ApplyHistory(target);
+        StatusMessage = "Redid outline edit · Ctrl+Z to undo";
     }
 
     /// <summary>Adds a child under the given node (or the selection; or a new root when the
@@ -619,6 +621,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         Select(node);
         BeginRename(node);
         SyncTreeToMarkdown();
+        StatusMessage = parent == null ? "Added first item · Ctrl+Z to undo" : $"Added child under '{parent.Text}' · Ctrl+Z to undo";
     }
 
     [RelayCommand]
@@ -634,6 +637,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         Select(sibling);
         BeginRename(sibling);
         SyncTreeToMarkdown();
+        StatusMessage = $"Added sibling after '{node.Text}' · Ctrl+Z to undo";
     }
 
     [RelayCommand]
@@ -641,6 +645,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         var node = target ?? SelectedNode;
         if (node == null) return;
+        string name = node.Text;
         PushUndo();
         var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
         int idx = siblings.IndexOf(node);
@@ -651,6 +656,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         else next = node.Parent;
         Select(next);
         SyncTreeToMarkdown();
+        StatusMessage = $"Deleted '{name}' · Ctrl+Z to undo";
     }
 
     [RelayCommand]
@@ -665,6 +671,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         siblings.Move(idx, idx - 1);
         Select(node);
         SyncTreeToMarkdown();
+        StatusMessage = $"Moved '{node.Text}' up";
     }
 
     [RelayCommand]
@@ -679,6 +686,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         siblings.Move(idx, idx + 1);
         Select(node);
         SyncTreeToMarkdown();
+        StatusMessage = $"Moved '{node.Text}' down";
     }
 
     /// <summary>Outdents: moves the node up one level, becoming a sibling of its parent.</summary>
@@ -700,6 +708,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         parentSiblings.Insert(parentIdx + 1, node);
         Select(node);
         SyncTreeToMarkdown();
+        StatusMessage = $"Promoted '{node.Text}' out one level";
     }
 
     /// <summary>Indents: moves the node under its previous sibling.</summary>
@@ -718,6 +727,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         node.Parent = prev;
         Select(node);
         SyncTreeToMarkdown();
+        StatusMessage = $"Demoted '{node.Text}' in one level";
     }
 
     /// <summary>Keys the outline answers to while it has keyboard focus.</summary>

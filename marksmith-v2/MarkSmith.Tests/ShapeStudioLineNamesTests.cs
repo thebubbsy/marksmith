@@ -127,4 +127,37 @@ public class ShapeStudioLineNamesTests
 
         Assert.Equal(2, vm.Shapes.Single().StrokeWidthPt);
     }
+
+    [Fact]
+    public void ApplyPreset_sets_status_message_with_shape_count_and_undo_hint()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        Assert.NotEmpty(vm.AllPresets);
+        var preset = vm.AllPresets[0];
+
+        vm.ApplyPreset(preset);
+
+        Assert.Contains($"Applied preset '{preset.Name}'", vm.StatusMessage);
+        Assert.Contains($"{vm.Shapes.Count} shapes", vm.StatusMessage);
+        Assert.Contains("Ctrl+Z to undo", vm.StatusMessage);
+    }
+
+    [Fact]
+    public async Task RemoveSelected_updates_status_message_and_can_be_undone()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        var s1 = vm.AddShapeAt("rect", 10, 10);
+        var s2 = vm.AddShapeAt("ellipse", 100, 100);
+
+        vm.SelectAll();
+        Assert.Equal(2, vm.SelectionCount);
+
+        await vm.RemoveSelectedAsync();
+
+        Assert.Empty(vm.Shapes);
+        Assert.Contains("Deleted 2 shapes", vm.StatusMessage);
+
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(2, vm.Shapes.Count);
+    }
 }

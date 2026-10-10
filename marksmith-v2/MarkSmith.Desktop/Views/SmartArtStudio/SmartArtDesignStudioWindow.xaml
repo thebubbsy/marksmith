@@ -92,7 +92,7 @@
                                        HorizontalAlignment="Right" VerticalAlignment="Center" />
                         </Grid>
                         <AutoSuggestBox x:Name="LayoutSearch" AutomationProperties.Name="Search layouts" PlaceholderText="Search layouts"
-                                        QueryIcon="Find" TextChanged="OnLayoutSearchTextChanged" />
+                                        QueryIcon="Find" TextChanged="OnLayoutSearchTextChanged" KeyDown="OnLayoutSearchKeyDown" />
                         <ComboBox AutomationProperties.Name="Layout type" HorizontalAlignment="Stretch"
                                   ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory, Mode=TwoWay}" />
                     </StackPanel>
@@ -282,7 +282,7 @@
         <!-- Status -->
         <Grid Grid.Row="2" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" Padding="14,7"
               BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
-            <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
         </Grid>
     </Grid>
 </Window>

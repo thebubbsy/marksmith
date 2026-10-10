@@ -1020,6 +1020,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         // A fresh diagram opens with nothing selected — the generator's last shape used to come up
         // selected (dashed), which read as "this one is special".
         SelectedShape = null;
+        StatusMessage = $"Applied preset '{preset.Name}' ({Shapes.Count} shapes) · Ctrl+Z to undo";
     }
 
     public string[] GetPaletteColors() =>

@@ -6006,5 +6006,70 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `dotnet test` (`MindMap` suite): **88 passed, 0 failed**.
 
 **Next up:**
-1. Continue end-to-end surface polish with real input across remaining secondary dialogs (`ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`).
+1. Completed in run #73: End-to-end surface polish with real input across secondary windows (`ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`).
 2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59), for the user; real Windows light/dark switch; first real in-app update; Word INDEX field pre-fill.
+
+### 2026-10-11 06:40 – 2026-10-11 07:10 AEDT (routine run #73: Shape & SmartArt Design Studio keyboard ergonomics, search routing, and live accessibility announcements)
+
+**Agent / Execution Metadata:**
+- **Model:** `Gemini 3.8 Flash (High)`
+- **Identity:** Antigravity AI Agent (Google DeepMind)
+- **Modes:** Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- **Trigger:** Scheduled hourly desktop polish routine
+- **Protocol:** AI-Executable 3-Block Cycle + Execution Phase (GEMINI.md §7)
+
+**Picked up from run #72's "Next up" #1:**
+1. End-to-end surface polish with real input across secondary windows (`ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`).
+2. Keyboard ergonomics, search routing, focus handoff, and live accessibility announcements.
+3. Test suite hardening for studio state transitions, outline operations, and status messages.
+
+**Found:**
+- **SmartArtDesignStudio search routing & keyboard gaps:**
+  - `LayoutSearch` had no `KeyDown` handler: typing a query and pressing `Enter` or `Down` failed to move focus to `LayoutList` or bring the highlighted layout item into view.
+  - Pressing `Escape` in `LayoutSearch` did not clear the search query or return focus to the outline editor.
+  - No global `Ctrl+F` shortcut existed to jump focus directly from the canvas or outline to `LayoutSearch`.
+  - When navigating the outline tree, pressing `Delete` or `Backspace` outside an active text edit box did not delete the selected node; pressing `F2` did not initiate in-place editing.
+  - When the outline was empty, pressing `Enter` or `Insert` did nothing instead of seeding the first root node.
+  - Undo, redo, add child/sibling, delete, move up/down, promote, and demote operations did not update `StatusMessage`.
+- **ShapeDesignStudio keyboard navigation & number box deletion hazards:**
+  - Pressing `Backspace` outside text boxes was unhandled (only `Delete` deleted shapes). However, naive backspace handling risked deleting shapes while editing values inside `NumberBox` controls (which host nested text boxes in their visual trees).
+  - Pressing `Ctrl+F` had no global accelerator to jump to presets search/category filtering.
+  - Pressing `Escape` while focused inside inspector property text boxes did not return keyboard focus to `CanvasScroller`.
+  - Applying presets via `ApplyPreset` lacked informative status messages confirming shape counts and undo availability.
+- **Accessibility live region announcements:**
+  - Neither `SmartArtDesignStudioWindow` nor `ShapeDesignStudioWindow` exposed `AutomationLiveSetting` or name updates on their status bar text blocks, leaving screen reader users without live announcements when operations (insert, delete, preset apply, undo/redo) occurred.
+
+**Shipped:**
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`:
+  - Added `x:Name="StatusBarText"` and subscribed to `ViewModel.PropertyChanged` for `StatusMessage` to invoke `AutomationProperties.SetName` and `AutomationProperties.SetLiveSetting(..., AutomationLiveSetting.Assertive)`.
+  - Added `OnLayoutSearchKeyDown`: `Enter` and `Down` shift focus to `LayoutList` and scroll the selected layout into view; `Escape` clears search text or shifts focus to `OutlineScroll`.
+  - Added `OnRootGridKeyDown`: `Ctrl+F` global shortcut focuses `LayoutSearch` from anywhere; `Backspace` acts as a node delete accelerator outside text inputs.
+  - Added `VirtualKey.Delete or VirtualKey.Back => OutlineKey.Delete` and `VirtualKey.F2 => OutlineKey.F2` in `OnOutlineKeyDown`.
+- `ViewModels/SmartArtStudio/SmartArtDesignStudioViewModel.cs`:
+  - Enriched `StatusMessage` reporting for `Undo`, `Redo`, `AddChild`, `AddSibling`, `DeleteSelected`, `MoveUp`, `MoveDown`, `Promote`, `Demote`.
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`:
+  - Added `x:Name="StatusBarText"`, `x:Name="PresetCategoryCombo"`, and `x:Name="FillHexBox"`.
+  - Wired `StatusBarText` to `AutomationProperties.SetName` and `AutomationProperties.SetLiveSetting(..., AutomationLiveSetting.Assertive)` on `StatusMessage` updates.
+  - Added `OnRootPreviewKeyDown`: `Ctrl+F` switches `LeftTabs` to `PresetsTab` and focuses `PresetCategoryCombo`; `Escape` from inspector inputs returns focus to `CanvasScroller`.
+  - Added `Backspace` shape deletion with recursive `IsInsideNumberBox(DependencyObject)` visual tree inspection to strictly prevent accidental deletion while modifying coordinates or dimensions.
+  - Added `OnFillHexBoxKeyDown` for rapid `Enter` commit.
+- `ViewModels/ShapeStudio/ShapeDesignStudioViewModel.cs`:
+  - Updated `ApplyPreset` to set `StatusMessage = $"Applied preset '{preset.Name}' ({Shapes.Count} shapes) · Ctrl+Z to undo"`.
+  - Updated `RemoveSelected` to confirm removal and undo hints.
+- `MarkSmith.Tests/SmartArtStudioPolishTests.cs`:
+  - Added `Outline_operations_report_informative_status_messages` testing status updates across undo/redo/add/move/demote.
+  - Added `Empty_outline_Enter_or_Insert_creates_first_node`.
+  - Added `HandleOutlineKey_Delete_and_F2_operate_on_selection`.
+- `MarkSmith.Tests/ShapeStudioLineNamesTests.cs`:
+  - Added `ApplyPreset_sets_status_message_with_shape_count_and_undo_hint`.
+  - Added `RemoveSelected_updates_status_message_and_can_be_undone`.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors**.
+- Full test suite (`dotnet test marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj`): **4,624 passed, 0 failed, 1 skipped (remote web test)**.
+- Smoke launch: `Marksmith.exe` (PID 27068) booted stably with 0 crashes and clean shutdown.
+
+**Next up:**
+1. Complete remaining polish sweeps across any unreviewed dialogs (e.g. `TableInsertDialog`, `MathEditorDialog`, `ColorPickerFlyout`).
+2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59); real Windows light/dark switch; first real in-app update; Word INDEX field pre-fill.
+

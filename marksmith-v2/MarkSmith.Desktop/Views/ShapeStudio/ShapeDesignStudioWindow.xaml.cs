@@ -318,14 +318,33 @@ namespace MarkSmith.Views.ShapeStudio
         // ---- keyboard ----
         // Del delete · Ctrl+D duplicate · Ctrl+A select all · Ctrl+Z / Ctrl+Y undo/redo · Esc cancels the
         // armed tool, then the selection · arrows nudge 1 px (Shift: 10 px) while the canvas has focus.
-        // Text fields keep their own keys.
+        // Text fields keep their own keys, but Ctrl+F and Escape route globally.
         private void OnRootPreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
             var focused = FocusManager.GetFocusedElement(this.RootGrid.XamlRoot);
-            if (focused is TextBox or PasswordBox or AutoSuggestBox) return;
-
             bool ctrl = IsDown(VirtualKey.Control);
             bool shift = IsDown(VirtualKey.Shift);
+
+            // Ctrl+F jumps to presets tab from anywhere
+            if (ctrl && e.Key == VirtualKey.F)
+            {
+                LeftTabs.SelectedItem = PresetsTab;
+                PresetCategoryCombo?.Focus(FocusState.Programmatic);
+                ViewModel.StatusMessage = "Preset gallery focused — choose a category or diagram preset.";
+                e.Handled = true;
+                return;
+            }
+
+            // Escape in any text box unfocuses and returns to the canvas
+            if (e.Key == VirtualKey.Escape && focused is TextBox)
+            {
+                CanvasScroller.Focus(FocusState.Programmatic);
+                e.Handled = true;
+                return;
+            }
+
+            if (focused is TextBox or PasswordBox or AutoSuggestBox) return;
+            if (focused is DependencyObject d && IsInsideNumberBox(d)) return;
 
             switch (e.Key)
             {
@@ -362,7 +381,7 @@ namespace MarkSmith.Views.ShapeStudio
                     ViewModel.DuplicateSelectedCommand.Execute(null);
                     e.Handled = true;
                     return;
-                case VirtualKey.Delete when ViewModel.HasSelection:
+                case (VirtualKey.Delete or VirtualKey.Back) when ViewModel.HasSelection:
                     ViewModel.RemoveSelectedCommand.Execute(null);
                     e.Handled = true;
                     return;
@@ -392,6 +411,25 @@ namespace MarkSmith.Views.ShapeStudio
         private static bool IsDown(VirtualKey key) =>
             Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(key)
                 .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        private static bool IsInsideNumberBox(DependencyObject? obj)
+        {
+            while (obj != null)
+            {
+                if (obj is NumberBox) return true;
+                obj = VisualTreeHelper.GetParent(obj);
+            }
+            return false;
+        }
+
+        private void OnFillHexBoxKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key is VirtualKey.Enter or VirtualKey.Escape)
+            {
+                CanvasScroller.Focus(FocusState.Programmatic);
+                e.Handled = true;
+            }
+        }
 
         // Inspector edits (type, position, size, fill, rotation, label) get one undo step per shape:
         // the canvas is recorded the first time focus enters the inspector for a given selection.
@@ -432,6 +470,13 @@ namespace MarkSmith.Views.ShapeStudio
                     {
                         // Put down without placing (tab switch): don't leave the instruction behind.
                         ViewModel.StatusMessage = "Ready.";
+                    }
+                    return;
+                case nameof(ShapeDesignStudioViewModel.StatusMessage):
+                    if (StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
+                    {
+                        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
+                        Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(StatusBarText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
                     }
                     return;
                 case nameof(ShapeDesignStudioViewModel.PreviewPng):

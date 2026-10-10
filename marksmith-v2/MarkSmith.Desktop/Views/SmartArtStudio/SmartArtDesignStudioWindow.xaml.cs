@@ -39,6 +39,18 @@ namespace MarkSmith.Views.SmartArtStudio
 
             ViewModel.PreviewHtmlChanged += (s, e) => RefreshWebView();
             ViewModel.InsertToDocumentRequested += (s, block) => InsertToDocumentRequested?.Invoke(this, block);
+            ViewModel.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(ViewModel.StatusMessage) && StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
+                {
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(StatusBarText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
+                }
+                else if (e.PropertyName == nameof(ViewModel.SelectedLayout) && ViewModel.SelectedLayout is { } layout)
+                {
+                    LayoutList.ScrollIntoView(layout, ScrollIntoViewAlignment.Leading);
+                }
+            };
             this.Activated += OnWindowActivated;
             // Transparent page so the preview card's theme brush shows through in Light and Dark
             // (the rendered SmartArt is a self-contained light card either way).
@@ -87,6 +99,34 @@ namespace MarkSmith.Views.SmartArtStudio
         private void OnLayoutSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
         {
             ViewModel.SearchQuery = sender.Text;
+        }
+
+        private void OnLayoutSearchKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key is VirtualKey.Down or VirtualKey.Enter)
+            {
+                if (LayoutList.Items.Count > 0)
+                {
+                    if (LayoutList.SelectedIndex < 0) LayoutList.SelectedIndex = 0;
+                    LayoutList.Focus(FocusState.Keyboard);
+                    if (ViewModel.SelectedLayout is { } layout)
+                        LayoutList.ScrollIntoView(layout, ScrollIntoViewAlignment.Leading);
+                    e.Handled = true;
+                }
+            }
+            else if (e.Key == VirtualKey.Escape)
+            {
+                if (!string.IsNullOrEmpty(LayoutSearch.Text))
+                {
+                    LayoutSearch.Text = string.Empty;
+                    e.Handled = true;
+                }
+                else
+                {
+                    OutlineScroll.Focus(FocusState.Keyboard);
+                    e.Handled = true;
+                }
+            }
         }
 
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)
@@ -180,12 +220,14 @@ namespace MarkSmith.Views.SmartArtStudio
                 VirtualKey.Tab => SmartArtDesignStudioViewModel.OutlineKey.Tab,
                 VirtualKey.Enter => SmartArtDesignStudioViewModel.OutlineKey.Enter,
                 VirtualKey.Insert => SmartArtDesignStudioViewModel.OutlineKey.Insert,
+                VirtualKey.Delete or VirtualKey.Back => SmartArtDesignStudioViewModel.OutlineKey.Delete,
+                VirtualKey.F2 => SmartArtDesignStudioViewModel.OutlineKey.F2,
                 _ => null,
             };
             if (key is not { } k) return;
             if (!ViewModel.HandleOutlineKey(k, shift: Down(VirtualKey.Shift), alt: Down(VirtualKey.Menu))) return;
             e.Handled = true;
-            if (k is SmartArtDesignStudioViewModel.OutlineKey.Enter or SmartArtDesignStudioViewModel.OutlineKey.Insert)
+            if (k is SmartArtDesignStudioViewModel.OutlineKey.Enter or SmartArtDesignStudioViewModel.OutlineKey.Insert or SmartArtDesignStudioViewModel.OutlineKey.F2)
                 BeginRenameAndFocus(ViewModel.SelectedNode);
         }
 
@@ -290,17 +332,25 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnRenameLostFocus(object sender, RoutedEventArgs e) => ViewModel.CommitRename();
 
-        // Window-level shortcuts: Delete = delete node, F2 = rename, Ctrl+Z/Y = undo/redo.
+        // Window-level shortcuts: Delete/Backspace = delete node, F2 = rename, Ctrl+Z/Y = undo/redo, Ctrl+F = focus layout search.
         // TextBoxes (rename box, Markdown Data) keep their native keys — focus guard.
         private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)
         {
-            if ((sender as UIElement)?.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox) return;
             var ctrl = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
                         & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
 
+            if (ctrl && e.Key == VirtualKey.F)
+            {
+                LayoutSearch.Focus(FocusState.Programmatic);
+                e.Handled = true;
+                return;
+            }
+
+            if ((sender as UIElement)?.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox) return;
+
             if (ctrl && e.Key == VirtualKey.Z) { ViewModel.UndoCommand.Execute(null); e.Handled = true; }
             else if (ctrl && e.Key == VirtualKey.Y) { ViewModel.RedoCommand.Execute(null); e.Handled = true; }
-            else if (e.Key == VirtualKey.Delete) { ViewModel.DeleteSelectedCommand.Execute(null); e.Handled = true; }
+            else if (e.Key is VirtualKey.Delete or VirtualKey.Back) { ViewModel.DeleteSelectedCommand.Execute(null); e.Handled = true; }
             else if (e.Key == VirtualKey.F2) { BeginRenameAndFocus(); e.Handled = true; }
         }
     }

@@ -197,4 +197,69 @@ public class SmartArtStudioPolishTests
         Assert.Contains("Basic Process", vm.StatusMessage);
         Assert.DoesNotContain("Added  to", vm.StatusMessage);
     }
+
+    [Fact]
+    public void Outline_operations_report_informative_status_messages()
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        Assert.NotEmpty(vm.OutlineRows);
+        var initialCount = vm.OutlineRows.Count;
+
+        vm.Select(vm.OutlineRows[0]);
+        vm.AddChild();
+        Assert.Contains("Added child under", vm.StatusMessage);
+        Assert.Contains("Ctrl+Z to undo", vm.StatusMessage);
+
+        vm.AddSibling();
+        Assert.Contains("Added sibling after", vm.StatusMessage);
+
+        var added = vm.SelectedNode;
+        Assert.NotNull(added);
+        vm.DeleteSelected();
+        Assert.Contains("Deleted 'New Node'", vm.StatusMessage);
+
+        vm.Undo();
+        Assert.Contains("Undid outline edit", vm.StatusMessage);
+
+        vm.Redo();
+        Assert.Contains("Redid outline edit", vm.StatusMessage);
+    }
+
+    [Fact]
+    public void Empty_outline_Enter_or_Insert_creates_first_node()
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        // Clear all nodes
+        while (vm.RootNodes.Count > 0)
+        {
+            vm.DeleteSelected(vm.RootNodes[0]);
+        }
+        Assert.True(vm.IsOutlineEmpty);
+        Assert.Empty(vm.OutlineRows);
+
+        bool handled = vm.HandleOutlineKey(SmartArtDesignStudioViewModel.OutlineKey.Enter);
+        Assert.True(handled);
+        Assert.False(vm.IsOutlineEmpty);
+        Assert.Single(vm.OutlineRows);
+        Assert.Contains("Added first item", vm.StatusMessage);
+    }
+
+    [Fact]
+    public void HandleOutlineKey_Delete_and_F2_operate_on_selection()
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        var leafNode = vm.OutlineRows.First(r => r.Children.Count == 0);
+        vm.Select(leafNode);
+
+        bool renameHandled = vm.HandleOutlineKey(SmartArtDesignStudioViewModel.OutlineKey.F2);
+        Assert.True(renameHandled);
+        Assert.True(leafNode.IsEditing);
+        vm.CancelRename();
+        Assert.False(leafNode.IsEditing);
+
+        int countBefore = vm.OutlineRows.Count;
+        bool deleteHandled = vm.HandleOutlineKey(SmartArtDesignStudioViewModel.OutlineKey.Delete);
+        Assert.True(deleteHandled);
+        Assert.Equal(countBefore - 1, vm.OutlineRows.Count);
+    }
 }

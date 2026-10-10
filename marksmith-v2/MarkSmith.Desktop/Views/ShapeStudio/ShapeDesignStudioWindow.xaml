@@ -146,7 +146,7 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <TextBlock Text="One click builds a finished diagram you can then edit shape by shape." Style="{StaticResource PaneCaption}" />
-                        <ComboBox Grid.Row="1" AutomationProperties.Name="Preset category" ItemsSource="{Binding PresetCategories}"
+                        <ComboBox Grid.Row="1" x:Name="PresetCategoryCombo" AutomationProperties.Name="Preset category" ItemsSource="{Binding PresetCategories}"
                                   SelectedItem="{Binding SelectedPresetCategory, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                         <ListView Grid.Row="2" x:Name="PresetList" ItemsSource="{Binding FilteredPresets}" SelectionMode="None"
                                   IsItemClickEnabled="True" ItemClick="OnPresetItemClick" Margin="-12,0,-12,0" Padding="4,0"
@@ -618,8 +618,9 @@
                                         </Flyout>
                                     </Button.Flyout>
                                 </Button>
-                                <TextBox Grid.Column="1" AutomationProperties.Name="Fill colour" PlaceholderText="RRGGBB" FontFamily="Consolas"
+                                <TextBox x:Name="FillHexBox" Grid.Column="1" AutomationProperties.Name="Fill colour" PlaceholderText="RRGGBB" FontFamily="Consolas"
                                          ToolTipService.ToolTip="Fill colour as a 6-digit hex value"
+                                         KeyDown="OnFillHexBoxKeyDown"
                                          Text="{Binding SelectedShape.Fill, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxLength="7" />
                             </Grid>
 
@@ -705,7 +706,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
             <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
             <!-- Zoom: Ctrl+scroll and pinch always worked but nothing showed the level or offered
                  a way back. Presets now open fitted to the canvas. -->
