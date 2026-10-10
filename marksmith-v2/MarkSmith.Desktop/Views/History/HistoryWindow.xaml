@@ -50,7 +50,7 @@
                 <TextBox AutomationProperties.Name="Search versions" x:Name="SearchBox" Grid.Column="1"
                          Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                          PlaceholderText="Search labels, kinds, days… (Ctrl+F)" MaxWidth="280" MinWidth="160"
-                         HorizontalAlignment="Stretch" IsSpellCheckEnabled="False"
+                         HorizontalAlignment="Stretch" IsSpellCheckEnabled="False" KeyDown="OnSearchBoxKeyDown"
                          CornerRadius="6" VerticalAlignment="Center" Margin="0,0,4,0"
                          ToolTipService.ToolTip="Filter the timeline by label, kind (Auto-Save, Checkpoint, Export · PDF…), weekday or time" />
 

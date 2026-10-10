@@ -15,7 +15,9 @@
         <Style x:Key="SettingsToggleStyle" TargetType="ToggleSwitch" BasedOn="{StaticResource OptionToggleStyle}" />
 
         <Style x:Key="SettingsComboStyle" TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}">
-            <Setter Property="Width" Value="220" />
+            <Setter Property="MaxWidth" Value="220" />
+            <Setter Property="MinWidth" Value="140" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
         </Style>
 
         <Style x:Key="SettingsPageTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtitleTextBlockStyle}">
@@ -242,7 +244,7 @@
                                                Description="Text repeated at the top and bottom of every page. Tokens: {title}, {page}, {pages}, {date}.">
                             <controls:SettingsCard.Details>
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <StackPanel Spacing="10" VerticalAlignment="Center">
+                                    <StackPanel Spacing="10" VerticalAlignment="Center" MinWidth="180">
                                         <TextBox Header="Header" AutomationProperties.Name="PDF header template"
                                                  Text="{Binding PdfHeaderTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  PlaceholderText="e.g. {title} — {date}" IsSpellCheckEnabled="False" />
@@ -374,7 +376,11 @@
                                         <Button Grid.Column="1" Click="OnRescanCloud" VerticalAlignment="Bottom"
                                                 ToolTipService.ToolTip="Look for cloud sync folders on this PC again"
                                                 AutomationProperties.Name="Rescan for cloud drives">
-                                            <FontIcon Glyph="&#xE72C;" FontSize="14" />
+                                            <FontIcon x:Name="RescanCloudIcon" Glyph="&#xE72C;" FontSize="14" RenderTransformOrigin="0.5,0.5">
+                                                <FontIcon.RenderTransform>
+                                                    <RotateTransform x:Name="RescanCloudRotate" Angle="0" />
+                                                </FontIcon.RenderTransform>
+                                            </FontIcon>
                                         </Button>
                                     </Grid>
                                     <TextBox Header="Subfolder" AutomationProperties.Name="Cloud subfolder"
@@ -515,7 +521,8 @@
                         <TextBlock Text="License" Style="{StaticResource SettingsPageTitleStyle}" />
                         <controls:SettingsCard x:Name="EditionCard" Glyph="&#xE734;" Header="{Binding EditionStatus}"
                                                Description="Pro adds Word and PowerPoint export (with editable equations), batch conversion and hands-free automation, and takes the MarkSmith footer off your exports. PDF, web page, EPUB, Markdown and email stay free.">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <ProgressRing x:Name="DeactivateRing" IsActive="False" Width="16" Height="16" Visibility="Collapsed" />
                                 <Button x:Name="DeactivateButton" Content="Remove license" Click="OnDeactivateLicense" Visibility="Collapsed"
                                         ToolTipService.ToolTip="Deactivate this PC — the key can then be used on another machine" />
                                 <Button x:Name="BuyButton" Click="OnBuyPro"
@@ -531,13 +538,16 @@
                             </StackPanel>
                         </controls:SettingsCard>
                         <controls:SettingsCard x:Name="KeyEntryRow" Glyph="&#xE8D7;" Header="License key"
-                                               Description="Paste the key from your purchase email.">
+                                                Description="Paste the key from your purchase email.">
                             <controls:SettingsCard.Details>
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                     <TextBox AutomationProperties.Name="License key" x:Name="KeyBox" PlaceholderText="XXXX-XXXX-XXXX-XXXX"
                                              IsSpellCheckEnabled="False" TextChanged="OnKeyBoxTextChanged" KeyDown="OnKeyBoxKeyDown" />
-                                    <Button x:Name="ActivateButton" Grid.Column="1" Content="Activate" Click="OnActivateLicense" IsEnabled="False"
-                                            ToolTipService.ToolTip="Check the key and unlock Pro" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <ProgressRing x:Name="LicenseActionRing" IsActive="False" Width="16" Height="16" Visibility="Collapsed" />
+                                        <Button x:Name="ActivateButton" Content="Activate" Click="OnActivateLicense" IsEnabled="False"
+                                                ToolTipService.ToolTip="Check the key and unlock Pro" />
+                                    </StackPanel>
                                 </Grid>
                             </controls:SettingsCard.Details>
                         </controls:SettingsCard>
@@ -555,21 +565,39 @@
                              (manifest-driven — see MarkSmith.Core/Plugins). -->
                         <StackPanel x:Name="PluginsPanel" Spacing="4" />
                         <Border x:Name="PluginsEmptyState" Style="{StaticResource PipelineCardStyle}" CornerRadius="8" Visibility="Collapsed">
-                            <StackPanel Padding="16,24" Spacing="6" HorizontalAlignment="Center">
+                            <StackPanel Padding="16,24" Spacing="8" HorizontalAlignment="Center">
                                 <FontIcon Glyph="&#xEA86;" FontSize="24" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock Text="No plugins available" FontWeight="SemiBold" HorizontalAlignment="Center" />
                                 <TextBlock Text="Drop a plugin folder into %LOCALAPPDATA%\MarkSmith\Plugins and reopen Settings."
                                            Style="{StaticResource SettingsHintStyle}" TextAlignment="Center" />
+                                <Button Click="OnOpenPluginsFolderClick" HorizontalAlignment="Center" Margin="0,4,0,0"
+                                        ToolTipService.ToolTip="Open %LOCALAPPDATA%\MarkSmith\Plugins in File Explorer"
+                                        AutomationProperties.Name="Open plugins folder">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE8B7;" FontSize="13" />
+                                        <TextBlock Text="Open plugins folder" />
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
                         </Border>
                         <InfoBar x:Name="PluginWarningsBar" IsOpen="False" Severity="Warning" IsClosable="True"
                                  Title="Some plugin folders were skipped" Margin="0,4,0,0" />
-                        <HyperlinkButton NavigateUri="https://github.com/thebubbsy/MarkSmith-plugins" Margin="-12,8,0,0">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="Browse more plugins &amp; write your own" />
-                                <FontIcon Glyph="&#xE8A7;" FontSize="12" />
-                            </StackPanel>
-                        </HyperlinkButton>
+                        <StackPanel Orientation="Horizontal" Spacing="16" Margin="-12,8,0,0">
+                            <HyperlinkButton NavigateUri="https://github.com/thebubbsy/MarkSmith-plugins">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="Browse more plugins &amp; write your own" />
+                                    <FontIcon Glyph="&#xE8A7;" FontSize="12" />
+                                </StackPanel>
+                            </HyperlinkButton>
+                            <Button Click="OnOpenPluginsFolderClick" Background="Transparent" BorderThickness="0" Padding="8,4"
+                                    ToolTipService.ToolTip="Open %LOCALAPPDATA%\MarkSmith\Plugins in File Explorer"
+                                    AutomationProperties.Name="Open plugins folder">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE838;" FontSize="13" />
+                                    <TextBlock Text="Open plugins folder" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
 

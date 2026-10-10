@@ -44,8 +44,8 @@ public sealed partial class SettingsView : UserControl
     /// </summary>
     public void FitTo(Windows.Foundation.Size window)
     {
-        Root.Width = Math.Clamp(window.Width - 140, 640, 820);
-        Root.Height = Math.Clamp(window.Height - 220, 360, 600);
+        Root.Width = Math.Clamp(window.Width - 140, 580, 820);
+        Root.Height = Math.Clamp(window.Height - 200, 360, 640);
     }
 
     /// <summary>
@@ -158,12 +158,22 @@ public sealed partial class SettingsView : UserControl
     {
         ActivateButton.IsEnabled = false;
         KeyBox.IsEnabled = false;
-        var (ok, message) = await App.License.ActivateAsync(KeyBox.Text.Trim());
-        ShowLicenseStatus(ok, message);
-        KeyBox.IsEnabled = true;
-        if (ok) KeyBox.Text = "";
-        RefreshLicenseUi();
-        ActivateButton.IsEnabled = !string.IsNullOrWhiteSpace(KeyBox.Text);
+        LicenseActionRing.Visibility = Visibility.Visible;
+        LicenseActionRing.IsActive = true;
+        try
+        {
+            var (ok, message) = await App.License.ActivateAsync(KeyBox.Text.Trim());
+            ShowLicenseStatus(ok, message);
+            if (ok) KeyBox.Text = "";
+            RefreshLicenseUi();
+        }
+        finally
+        {
+            LicenseActionRing.IsActive = false;
+            LicenseActionRing.Visibility = Visibility.Collapsed;
+            KeyBox.IsEnabled = true;
+            ActivateButton.IsEnabled = !string.IsNullOrWhiteSpace(KeyBox.Text);
+        }
     }
 
     private async void OnBuyPro(object sender, RoutedEventArgs e)
@@ -183,10 +193,20 @@ public sealed partial class SettingsView : UserControl
         // Forgetting the key locally while the seat stays claimed is how a customer with a
         // 3-machine key runs out of machines they never used.
         DeactivateButton.IsEnabled = false;
-        var (ok, message) = await App.License.DeactivateAsync();
-        ShowLicenseStatus(ok, message);
-        RefreshLicenseUi();
-        DeactivateButton.IsEnabled = true;
+        DeactivateRing.Visibility = Visibility.Visible;
+        DeactivateRing.IsActive = true;
+        try
+        {
+            var (ok, message) = await App.License.DeactivateAsync();
+            ShowLicenseStatus(ok, message);
+            RefreshLicenseUi();
+        }
+        finally
+        {
+            DeactivateRing.IsActive = false;
+            DeactivateRing.Visibility = Visibility.Collapsed;
+            DeactivateButton.IsEnabled = true;
+        }
     }
 
     // Keep the License page live whenever the state changes (trial started/consumed, key
@@ -199,7 +219,28 @@ public sealed partial class SettingsView : UserControl
     }
 
     // Cloud Storage Sync (Task 9): re-detect the local cloud-drive sync folders and refresh the picker.
-    private void OnRescanCloud(object sender, RoutedEventArgs e) => App.ViewModel.RefreshCloudProviders();
+    private void OnRescanCloud(object sender, RoutedEventArgs e)
+    {
+        AnimateRescanCloud();
+        App.ViewModel.RefreshCloudProviders();
+    }
+
+    private void AnimateRescanCloud()
+    {
+        if (RescanCloudRotate is null) return;
+        var anim = new DoubleAnimation
+        {
+            From = 0,
+            To = 360,
+            Duration = new Duration(TimeSpan.FromMilliseconds(400)),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        var sb = new Storyboard();
+        Storyboard.SetTarget(anim, RescanCloudRotate);
+        Storyboard.SetTargetProperty(anim, "Angle");
+        sb.Children.Add(anim);
+        sb.Begin();
+    }
 
     private async void OnCheckForUpdates(object sender, RoutedEventArgs e)
     {
@@ -557,6 +598,22 @@ public sealed partial class SettingsView : UserControl
             // Reported inline rather than in a ContentDialog: Settings is itself a ContentDialog,
             // and WinUI can't open a second one on top of it.
             App.ViewModel.HouseStyleStatus = $"Couldn't read that template: {ex.Message}";
+        }
+    }
+
+    private async void OnOpenPluginsFolderClick(object sender, RoutedEventArgs e)
+    {
+        var folder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "Plugins");
+        System.IO.Directory.CreateDirectory(folder);
+        try
+        {
+            var storageFolder = await Windows.Storage.StorageFolder.GetFolderFromPathAsync(folder);
+            await Windows.System.Launcher.LaunchFolderAsync(storageFolder);
+        }
+        catch
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", folder) { UseShellExecute = true }); }
+            catch { }
         }
     }
 }

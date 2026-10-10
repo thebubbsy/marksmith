@@ -267,6 +267,8 @@ public sealed partial class HistoryWindow : Window
         }
         NoticeBar.Severity = _vm.NoticeIsError ? InfoBarSeverity.Error : InfoBarSeverity.Success;
         NoticeBar.Message = _vm.Notice;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(NoticeBar, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(NoticeBar, _vm.Notice);
         NoticeBar.IsOpen = true;
         // Confirmations clear themselves; errors stay until dismissed.
         if (!_vm.NoticeIsError) _noticeTimer.Start();
@@ -524,10 +526,36 @@ public sealed partial class HistoryWindow : Window
             e.Handled = true;
             OnTakeSnapshotClick(this, new RoutedEventArgs());
         }
-        else if (e.Key == VirtualKey.Escape && inTextBox && !string.IsNullOrEmpty(_vm.SearchQuery))
+        else if (e.Key == VirtualKey.Escape)
         {
-            _vm.SearchQuery = "";
-            e.Handled = true;
+            if (inTextBox && ReferenceEquals(e.OriginalSource, SearchBox))
+            {
+                if (!string.IsNullOrEmpty(_vm.SearchQuery))
+                {
+                    _vm.SearchQuery = "";
+                    SearchBox.Text = "";
+                }
+                else
+                {
+                    if (_vm.Selected is { } sel && FindVersionButton(TimelineScroll, sel) is { } btn)
+                        btn.Focus(FocusState.Programmatic);
+                    else
+                        TimelineScroll.Focus(FocusState.Programmatic);
+                }
+                e.Handled = true;
+            }
+            else if (inTextBox && !string.IsNullOrEmpty(_vm.SearchQuery))
+            {
+                _vm.SearchQuery = "";
+                e.Handled = true;
+            }
+            else if (_vm.IsStarredOnlyFilter || !string.IsNullOrEmpty(_vm.SearchQuery))
+            {
+                _vm.SearchQuery = "";
+                SearchBox.Text = "";
+                _vm.IsStarredOnlyFilter = false;
+                e.Handled = true;
+            }
         }
         else if (!inTextBox && e.Key == VirtualKey.F2 && _vm.Selected is { } toRename)
         {
@@ -538,6 +566,23 @@ public sealed partial class HistoryWindow : Window
         {
             e.Handled = true;
             _ = DeleteAsync(toDelete);
+        }
+    }
+
+    private void OnSearchBoxKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Enter)
+        {
+            e.Handled = true;
+            if (_vm.Selected is { } sel && FindVersionButton(TimelineScroll, sel) is { } btn)
+            {
+                btn.Focus(FocusState.Programmatic);
+                btn.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.3 });
+            }
+            else
+            {
+                TimelineScroll.Focus(FocusState.Programmatic);
+            }
         }
     }
 }

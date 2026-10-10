@@ -143,11 +143,12 @@ public class EmailExportFlowTests
     }
 
     [Fact]
-    public void Subject_preview_follows_the_template()
+    public async Task Subject_preview_follows_the_template()
     {
         var (vm, dir) = FileBackedVm();
         try
         {
+            await vm.LastFileReadTask;
             vm.EmailSubjectTemplate = "Weekly: {title}";
             Assert.Equal("Subject: Weekly: Report", vm.EmailSubjectPreview);
         }

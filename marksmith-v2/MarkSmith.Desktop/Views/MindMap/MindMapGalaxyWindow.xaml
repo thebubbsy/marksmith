@@ -79,6 +79,7 @@
                         <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search the map" Width="240"
                                         QueryIcon="Find" AutomationProperties.Name="Search the map"
                                         TextChanged="OnSearchTextChanged" QuerySubmitted="OnSearchQuerySubmitted"
+                                        KeyDown="OnSearchBoxKeyDown"
                                         ToolTipService.ToolTip="Ctrl+F · Enter or F3 jumps to the next match, Shift+F3 to the previous one" />
                         <TextBlock Text="{Binding SearchMatchText}" VerticalAlignment="Center" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    Visibility="{Binding HasSearchQuery, Converter={StaticResource BoolToVis}}" />

@@ -1467,10 +1467,16 @@ namespace MarkSmith.Views.MindMap
 
         private async void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
         {
-            // Never steal a keystroke that belongs to a text box in the inspector.
+            // Never steal a keystroke that belongs to a text box in the inspector,
+            // except Ctrl+F which should always jump to the SearchBox.
             var focused = FocusManager.GetFocusedElement(this.Content.XamlRoot);
             if (focused is TextBox or AutoSuggestBox)
             {
+                if (IsCtrlDown() && e.Key == Windows.System.VirtualKey.F)
+                {
+                    SearchBox.Focus(FocusState.Programmatic);
+                    e.Handled = true;
+                }
                 return;
             }
 
@@ -2160,6 +2166,22 @@ namespace MarkSmith.Views.MindMap
         {
             ViewModel.SearchQuery = sender.Text?.Trim() ?? "";
             ViewModel.FocusNextMatch();
+        }
+
+        private void OnSearchBoxKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Escape)
+            {
+                SearchBox.Text = "";
+                ViewModel.SearchQuery = "";
+                e.Handled = true;
+                GalaxyCanvas.Focus(FocusState.Programmatic);
+            }
+            else if (e.Key == Windows.System.VirtualKey.F3)
+            {
+                e.Handled = true;
+                ViewModel.FocusNextMatch(!IsShiftDown());
+            }
         }
 
         private void OnTagPillClick(object sender, RoutedEventArgs e)

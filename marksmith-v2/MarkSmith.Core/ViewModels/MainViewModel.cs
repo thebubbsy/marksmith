@@ -469,16 +469,20 @@ private readonly MarkdownExportService _mdExport = new();
         if (!string.IsNullOrWhiteSpace(value) && File.Exists(value))
         {
             var syncContext = SynchronizationContext.Current;
-            _ = ReadInputFileAsync(value, token, syncContext);
+            LastFileReadTask = ReadInputFileAsync(value, token, syncContext);
         }
         else
         {
+            LastFileReadTask = Task.CompletedTask;
             _editorUndo.SetDocument(value);
             _cachedFileMarkdown = string.Empty;
             IsEditingOpenFile = false;
             OnPropertyChanged(nameof(CurrentMarkdown));
         }
     }
+
+    /// <summary>Task tracking the background file read started by <see cref="InputFilePath"/> changes.</summary>
+    public Task LastFileReadTask { get; private set; } = Task.CompletedTask;
 
     // What the open file was converted from ("Word", "PDF", "HTML", "Email", an importer plugin's
     // name), or null when it is Markdown/text. A converted source is never written back to:

@@ -263,11 +263,12 @@ public class PdfCompressorServiceTests
     {
         // A deterministic noisy bitmap (random data compresses like real photos, unlike flat colors)
         // encoded as JPEG, then embedded as a full-page image XObject.
-        using var bitmap = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(width, height));
+        var info = new SkiaSharp.SKImageInfo(width, height, SkiaSharp.SKColorType.Rgba8888);
+        using var bitmap = new SkiaSharp.SKBitmap(info);
         var rng = new Random(42);
-        for (int y = 0; y < height; y++)
-            for (int x = 0; x < width; x++)
-                bitmap.SetPixel(x, y, new SkiaSharp.SKColor((byte)rng.Next(256), (byte)rng.Next(256), (byte)rng.Next(256)));
+        var buffer = new byte[width * height * 4];
+        rng.NextBytes(buffer);
+        System.Runtime.InteropServices.Marshal.Copy(buffer, 0, bitmap.GetPixels(), buffer.Length);
         using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 92);
         var jpeg = data.ToArray();
@@ -276,19 +277,28 @@ public class PdfCompressorServiceTests
         // unambiguous and keeps the JPEG alive for the whole document save.
         var dir = Path.Combine(Path.GetTempPath(), "marksmith-tests", "pdf-d6");
         Directory.CreateDirectory(dir);
-        var file = Path.Combine(dir, $"img-{width}x{height}.jpg");
+        var file = Path.Combine(dir, $"img-{width}x{height}-{Guid.NewGuid():N}.jpg");
         File.WriteAllBytes(file, jpeg);
-        using var ximg = PdfSharp.Drawing.XImage.FromFile(file);
-
-        var doc = new PdfDocument();
-        var page = doc.AddPage();
-        page.Width = width / 2;
-        page.Height = height / 2;
-        using var gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(page);
-        gfx.DrawImage(ximg, 0, 0, page.Width, page.Height);
-
         var ms = new MemoryStream();
-        doc.Save(ms, false);
+        try
+        {
+            using (var ximg = PdfSharp.Drawing.XImage.FromFile(file))
+            {
+                var doc = new PdfDocument();
+                var page = doc.AddPage();
+                page.Width = width / 2;
+                page.Height = height / 2;
+                using var gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(page);
+                gfx.DrawImage(ximg, 0, 0, page.Width, page.Height);
+
+                doc.Save(ms, false);
+            }
+        }
+        finally
+        {
+            try { File.Delete(file); } catch { }
+        }
+
         ms.Position = 0;
         return ms;
     }

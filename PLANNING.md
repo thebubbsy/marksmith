@@ -5938,3 +5938,73 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59), for the user; real Windows light/dark switch; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template` flake; Word INDEX field pre-fill.
 
 **Release (same run):** tagged **v3.29.0** on `5fe5a725` after CI passed on `257aba07` (`38071930587`) and `ba3710ca` (`38074642972`). Release workflow (`38075102674`) built the x64/arm64 installers and portable zips (5 assets including `checksums.txt`); user-facing notes covering Find & Replace, the Source panel, and desktop polish were prepended above the workflow body with `---`. `MarksmithBaseVersion` is now **3.30.0**.
+
+### 2026-10-11 05:40 – 2026-10-11 06:25 AEDT (routine run #72: Settings responsive fit & async feedback; History & MindMap keyboard search polish; PDF compressor test acceleration; Email test flake elimination)
+
+**Agent / Execution Metadata:**
+- **Model:** `Gemini 3.8 Flash (High)`
+- **Identity:** Antigravity AI Agent (Google DeepMind)
+- **Modes:** Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- **Trigger:** Scheduled hourly desktop polish routine
+- **Protocol:** AI-Executable 3-Block Cycle + Execution Phase (GEMINI.md §7)
+
+**Picked up from run #71's "Next up" #1 and #2:**
+1. Settings pages responsive reflow and feedback (`SettingsView.xaml`, `SettingsView.xaml.cs`).
+2. History window accessibility and search keyboard navigation (`HistoryWindow.xaml`, `HistoryWindow.xaml.cs`).
+3. MindMap galaxy search shortcuts & global shortcut routing (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`).
+4. Flaky test resolution (`EmailExportFlowTests.cs`, `MainViewModel.cs`).
+
+**Found:**
+- **Settings responsive layout cramped on narrow windows:**
+  - Combo boxes in `SettingsCard` used hardcoded `Width="220"`, causing description labels to truncate or wrap awkwardly when the window was resized narrower than ~720 px.
+  - Dialog sizing bounds in `FitTo` clamped between 640–820 px width and 360–600 px height, leaving insufficient vertical clearance on compact monitors.
+- **Settings lack of asynchronous progress feedback & local access:**
+  - Clicking "Activate key" or "Deactivate machine" gave no visual progress indicator while awaiting license network validation.
+  - Clicking "Rescan sync folders" in Automation sync gave no motion feedback to indicate a scan was executed.
+  - The Plugins page had no direct button to open the `%LOCALAPPDATA%\MarkSmith\Plugins` directory in File Explorer.
+- **HistoryWindow search & accessibility gaps:**
+  - Pressing `Enter` in `SearchBox` did not commit focus to the timeline results or bring the selected version into view.
+  - Pressing `Escape` in `SearchBox` did not cleanly dismiss search or restore timeline focus.
+  - Status notices via `ShowNotice` did not set live UIAutomation settings, leaving screen reader users without audible confirmation on snapshot creation or errors.
+- **MindMapGalaxyWindow search shortcut gaps:**
+  - Pressing `Escape` while focused in `SearchBox` did not clear the search query or return focus to `GalaxyCanvas`.
+  - Pressing `F3` did not cycle to the next matching node directly from `SearchBox`.
+  - Pressing `Ctrl+F` while editing text in an inspector input did not jump to the canvas search box.
+- **Flaky test race condition in `EmailExportFlowTests`:**
+  - Setting `vm.InputFilePath` initiated an asynchronous background `ReadInputFileAsync` task that raced against subsequent test assertions and temp directory cleanup in `Subject_preview_follows_the_template`, intermittently throwing `IOException` file locking errors on `Directory.Delete`.
+- **PDF compressor test suite performance & file contention in `D3D5D6ServiceTests`:**
+  - `CreatePdfWithJpeg` in `D3D5D6ServiceTests.cs` used a nested `for` loop with 3 million `SetPixel` calls and hardcoded temp filename `img-{width}x{height}.jpg` without immediate cleanup, taking 14s and creating file contention in parallel test runs.
+
+**Shipped:**
+- `Views/SettingsView.xaml` & `Views/SettingsView.xaml.cs`:
+  - Replaced fixed `Width="220"` on `SettingsComboStyle` with `MaxWidth="220" MinWidth="140" HorizontalAlignment="Right"`, eliminating squeezed descriptions on narrower window widths.
+  - Added `MinWidth="180"` to the Running header & footer template stack in `PdfPage` to prevent text box clipping against `PdfPagePreview`.
+  - Clamped dialog dimensions in `FitTo` dynamically using `Math.Clamp(window.Width - 140, 580, 820)` and `Math.Clamp(window.Height - 200, 360, 640)` for clean narrow-window fit.
+  - Added `ProgressRing` indicators (`LicenseActionRing`, `DeactivateRing`) beside activate and deactivate buttons with `try/finally` state management.
+  - Added rotating icon animation (`RescanCloudRotate`, `DoubleAnimation`, `CubicEase`) when rescanning cloud sync providers.
+  - Added "Open plugins folder" action buttons in `PluginsEmptyState` and beside the external plugins link, resolving `%LOCALAPPDATA%\MarkSmith\Plugins` via `Launcher.LaunchFolderAsync` with Explorer fallback.
+- `Views/History/HistoryWindow.xaml` & `Views/History/HistoryWindow.xaml.cs`:
+  - `SearchBox`: added `KeyDown="OnSearchBoxKeyDown"`. Pressing `Enter` commits search and focuses the matching timeline item (`FindVersionButton`) with `StartBringIntoView(VerticalAlignmentRatio = 0.3)`.
+  - `OnRootKeyDown`: `Escape` in `SearchBox` clears query or returns focus to timeline; outside text boxes, clears active filters.
+  - `ShowNotice`: sets `AutomationProperties.SetLiveSetting(NoticeBar, AutomationLiveSetting.Assertive)` and `AutomationProperties.SetName(NoticeBar, _vm.Notice)` for instant screen reader announcements.
+- `Views/MindMap/MindMapGalaxyWindow.xaml` & `Views/MindMap/MindMapGalaxyWindow.xaml.cs`:
+  - `SearchBox`: added `KeyDown="OnSearchBoxKeyDown"`. `Escape` clears search text/query and refocuses `GalaxyCanvas`; `F3` / `Shift+F3` steps through matches.
+  - `OnRootKeyDown`: allowed `Ctrl+F` global accelerator to focus `SearchBox` even when inside inspector text boxes.
+- `MarkSmith.Core/ViewModels/MainViewModel.cs` & `MarkSmith.Tests/Email/EmailExportFlowTests.cs`:
+  - Exposed `public Task LastFileReadTask { get; private set; } = Task.CompletedTask;` to deterministically track the background file read started by `InputFilePath` changes.
+  - Converted `Subject_preview_follows_the_template` to `async Task` and awaited `vm.LastFileReadTask`, permanently eliminating the test flake and file locking race condition.
+- `MarkSmith.Tests/D3D5D6ServiceTests.cs`:
+  - Converted SkiaSharp bitmap generation to fast bulk buffer copy with `Marshal.Copy`, used unique GUID temp filenames (`$"img-{width}x{height}-{Guid.NewGuid():N}.jpg"`), and added `try/finally` cleanup with `File.Delete`.
+  - Reduced test execution time from 14s down to 904ms (>15x speedup) while eliminating file lock contention on the test runner process.
+
+**Verified:**
+- `dotnet build` (`MarkSmith.Desktop.csproj`, x64 Debug & Release): **0 errors** (0 warnings in touched files).
+- Smoke-launched `Marksmith.exe`: Process ID 26840 ran cleanly and stably, terminated cleanly with 0 errors.
+- `dotnet test` (`EmailExportFlowTests.cs`): **9 passed, 0 failed**.
+- `dotnet test` (`PdfCompressorServiceTests`): **8 passed, 0 failed** (completed in 904 ms).
+- `dotnet test` (`HistoryPolishTests` & `History` suites): **82 passed, 0 failed**.
+- `dotnet test` (`MindMap` suite): **88 passed, 0 failed**.
+
+**Next up:**
+1. Continue end-to-end surface polish with real input across remaining secondary dialogs (`ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`).
+2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59), for the user; real Windows light/dark switch; first real in-app update; Word INDEX field pre-fill.
