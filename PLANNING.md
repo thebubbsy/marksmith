@@ -5069,3 +5069,99 @@ coloured from `Application.Current.Resources` shows up as a light-theme colour o
 **Release (same run):** tagged **v3.18.0** on `79e5c38` after CI passed on it. Release workflow built
 the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
 `MarksmithBaseVersion` is now **3.19.0** (`befe882`).
+
+### 2026-10-10 10:55–11:45 AEST (routine run #59: PDF export, done properly)
+
+**Pick.** No other run was live (list_sessions: nothing running). Run #58's "Next up" items need a
+person (a real Windows theme switch) or are small (studio windows and the flip hook), so this run
+took a big surface no run had covered: **what a PDF export actually looks like on paper**. PDF is
+the primary export on the Free plan, and earlier runs had audited the export *flow* (run #16) and
+Settings > PDF (run #53), but nobody had looked at the pages.
+
+**How it was tested.** A scratch instance (`MARKSMITH_CONFIG_DIR`, `ApiPort` 47959) exported test
+documents through `/api/convert` (the same `PdfExportService` the UI uses; **the API's JSON is
+camelCase and case-sensitive**: PascalCase override keys are silently ignored). A small .NET app on
+`Windows.Data.Pdf` rendered every page to PNG (**`PdfPage.Size` is in DIPs, not points**), plus a
+contact-sheet script; PdfPig (from the build output) checked text and real page heights. Quick
+Chromium CSS experiments ran through `msedge --headless=new --print-to-pdf` (Edge 154, the same
+engine as WebView2). Finally a real Generate PDF from the UI, rendered the same way. Test
+documents: a 6-page report (tables, a 22-row table, Mermaid, a long C# block, a page break) and a
+features doc (cover page, contents, watermark, callouts, maths, an image, code in a table, ASCII art,
+task list, footnote).
+
+**What was wrong:**
+- Pages weren't a real paper size: the A4 lock still printed 8.33 × 11.78 in (the stored width,
+  800, survives under the lock).
+- Page 2 onwards began at the paper's very edge (zero margins; the padding existed only at the
+  document's start and end). Same in Ctrl+P.
+- Long code lines were **cut off** at the page edge (screen `white-space: pre` + overflow).
+- Tables squeezed short columns letter by letter ("Severit|y", "1|0") because of
+  `overflow-wrap: anywhere` on every cell.
+- Headings could be stranded at a page's foot; rows, diagrams, callouts split; folded callouts
+  (`> [!tip]-`) printed closed, hiding their text.
+- With page numbers or a header on, a stylesheet `@page { margin: 0 !important }` beat the export's
+  band margins, so **the header printed over the text**; bands were white stripes on dark themes;
+  `{title}` printed the file name (`mdpdfm_api_<guid>` for API exports, `2026-10-10 Title (pdf)` with
+  a name template); `{date}` printed a time as well, unlike the Settings preview.
+- Single continuous page: height was a guess (+100 px of blank), and a long document made a
+  276-inch page, past PDF's 200-inch limit (Acrobat crops or refuses it).
+- Cover page: the contents box printed *above* the cover; the cover spilled onto page 2; then a
+  blank page (two forced breaks back to back).
+- `:::watermark "DRAFT"` printed `:::WATERMARK "DRAFT" OPACITY=…` as the watermark whenever a blank
+  line preceded it: the block regex's leading `\s*` swallowed blank lines, so the "first line"
+  the parser read was empty. Same bug in all four `:::` lifters in MarkdownHtmlService.
+- "Page border" ("a frame around every page") did nothing in PDFs at all.
+- Preview page markers were fixed 1123 px apart and the preview's furniture (markers, overflow
+  banner) had no print rule, so whether they printed was a timer race.
+
+**Shipped:**
+- `PdfExportService`: `PaperSize` (A4 lock → 8.27 × 11.69 in; off → width in Letter proportions),
+  `PageWidthPx` (794 under the lock whatever is stored; used by the preview canvas, the VM and the
+  continuous page), `PageInsetIn` 0.6 in repeated on every page via `box-decoration-break: clone`
+  on `#canvas` (zero side margins, so the theme colour still runs edge to edge), `BandHeightIn` +
+  `InsetUnderBand`, `PageLook` (page colours/font read from the rendered page), bands that fill
+  their margin in the page's colour (`#header,#footer` padding reset) at 12px, `DocumentTitle`
+  (front matter/first heading, then file name) for `{title}` and the PDF Title, `{date}` filled in
+  as the reader's short date, `MeasurePrintHeightScript` (copies every `@media print` rule into a
+  screen sheet at paper width, then measures) and `ContinuousPageHeightIn` (≤ 200 in, long content
+  shared evenly). All closed `<details>` are opened before printing. `@page` is injected as the only
+  authority (the static rule lost `!important`).
+- MarkdownHtmlService print rules: code wraps (`pre-wrap`, ASCII/text fences excluded, split blocks
+  clone their border), `break-after: avoid` on headings, orphans/widows 3, `break-inside: avoid`
+  on rows/images/svg/figures/Mermaid/plugin diagrams/KaTeX/callouts, repeated `thead`, markers and
+  overflow banner hidden. Static print canvas padding is 0.6 in + clone, so Ctrl+P gets margins too.
+  Table cells `overflow-wrap: break-word`; only `a`/`code` in cells break anywhere.
+- Cover: `AfterCoverPage` puts the AI-source badge and contents after a leading cover
+  (`<!--/cover-page-->` end marker); print min-height `var(--ms-cover-min-height)` (set by the export
+  to the page area less the insets), the preview's `.page-break` after it hidden in print, no forced
+  break on a continuous page.
+- `:::` lifters trim both ends before reading the directive line.
+- Page border: `.ms-page-frame` (fixed at 0.3 in on every printed page, inset 22 px on the preview
+  sheet); shell cache key now includes the A4 lock.
+- Preview markers: page height and inset from `PaperSize`/`PageInsetIn`, pill says "Page N".
+- Tests: `PdfPaperTests` (23); `PreviewShellCacheTests` A4-lock test; band date test updated.
+
+**Verified:**
+- Full suite: 4439 passed, 1 skipped, 0 failed. Desktop build green (scratch OutDir `%TEMP%\ms59d\b`).
+- Rendered pages (light, GitHub Dark, Dracula, Nordic; paginated, with bands, continuous, 5×-long
+  continuous, cover + contents + watermark + border): all of the above fixed. Real Generate PDF from
+  the UI (GitHub Dark, border on) → 6 true-A4 pages, dark to the edges, frame on each page; the file
+  went to `OneDrive\Documents` and was moved out to the scratchpad afterwards.
+
+**Noticed, not fixed:**
+- "Single continuous page" is **on by default**, so a new user's first PDF is one 58-inch page that
+  prints badly. That's a product decision (the option says what it does), but worth the user's call.
+- Preview page markers are approximate: the PDF keeps a heading with its table and the preview
+  can't know where those breaks land.
+- Dates in narrow table columns still wrap at the hyphen ("2026-07-" / "02").
+- `Ctrl+P` (system print dialog) wasn't driven: it would open a real dialog. Its CSS is the same
+  stylesheet as the export's, less the injected `@page` and bands.
+
+**Next up:**
+1. Word export, done properly: the same page-by-page treatment for .docx (Word COM is blocked by
+   the first-run dialog, so render through LibreOffice if present, or validate with
+   OpenXmlValidator and inspect document.xml), especially tables, code and covers.
+2. The continuous-page default (above), for the user to decide.
+3. Carried over: a real Windows light/dark switch with a person present; Diagram Studio/Galaxy and
+   the flip hook; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
+   flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
