@@ -638,6 +638,7 @@ public sealed class StreamingDocxExportService
                 {
                     DocxExportService.RenderBlock(block, blockContainer, ctx, listLevel: -1);
                 }
+                DocxExportService.FitDrawings(blockContainer, ctx.Settings);
 
                 var elements = blockContainer.ChildElements.Select(e => (OpenXmlElement)e.CloneNode(true)).ToList();
 

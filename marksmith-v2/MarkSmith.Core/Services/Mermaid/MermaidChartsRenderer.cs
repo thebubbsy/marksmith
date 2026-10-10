@@ -84,29 +84,26 @@ public sealed class MermaidChartsRenderer : IMermaidRenderer
             : r.ToString("0.####", CultureInfo.InvariantCulture);
     }
 
-    // -------- palette: 8 distinct fills rotated in hue from theme.Heading / theme.Primary
+    // -------- palette: 8 distinct fills, starting at the theme's accent and stepping round the
+    // colour wheel by the golden angle, so neighbouring slices never look alike. (It used to rotate
+    // from theme.Heading, which is near-black on most themes: every slice came out a muddy brown.)
 
-    private static string[] BuildPalette(ThemeDefinition theme)
+    internal static string[] BuildPalette(ThemeDefinition theme)
     {
+        var (r, g, b) = ParseHex(theme.Primary);
+        var (h0, s0, _) = RgbToHsl(r, g, b);
+        if (s0 < 0.25) h0 = 212; // a grey accent has no hue to start from: start at blue
+        var dark = !ThemeDefinition.IsLight(theme.Background);
         var palette = new string[8];
         for (int i = 0; i < 8; i++)
         {
-            string baseHex = (i % 2 == 0) ? theme.Heading : theme.Primary;
-            palette[i] = RotateHue(baseHex, (i / 2) * 52.0 + (i % 2) * 14.0);
+            var h = (h0 + i * 137.508) % 360.0;
+            // Alternate the lightness a little too, for slices that print in greyscale.
+            var l = (dark ? 0.62 : 0.50) + (i % 2 == 0 ? 0 : 0.08);
+            var (nr, ng, nb) = HslToRgb(h, 0.62, l);
+            palette[i] = $"#{nr:X2}{ng:X2}{nb:X2}";
         }
         return palette;
-    }
-
-    private static string RotateHue(string hex, double degrees)
-    {
-        var (r, g, b) = ParseHex(hex);
-        var (h, s, l) = RgbToHsl(r, g, b);
-        if (s < 0.18) s = 0.45;              // grays cannot rotate — give them chroma first
-        l = Math.Clamp(l, 0.28, 0.72);       // keep fills legible on white/dark
-        h = (h + degrees) % 360.0;
-        if (h < 0) h += 360.0;
-        var (nr, ng, nb) = HslToRgb(h, s, l);
-        return $"#{nr:X2}{ng:X2}{nb:X2}";
     }
 
     private static (int r, int g, int b) ParseHex(string? hex)

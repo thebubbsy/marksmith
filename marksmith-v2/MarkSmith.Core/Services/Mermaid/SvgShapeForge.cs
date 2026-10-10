@@ -356,8 +356,11 @@ public static class SvgShapeForge
 
     private static bool Dashed(XElement el)
     {
+        // "0", "0 0" and "0px" are all solid; only a pattern with a real dash length is dashed.
         var v = Attr(el, "stroke-dasharray");
-        return !string.IsNullOrEmpty(v) && v != "none" && v != "0";
+        if (string.IsNullOrEmpty(v) || v == "none") return false;
+        return Regex.Matches(v, @"[\d.]+").Any(m =>
+            double.TryParse(m.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var n) && n > 0);
     }
 
     private static bool SamePoint(double[] a, double[] b) =>

@@ -353,6 +353,7 @@ public sealed partial class DocxExportService
                 {
                     var blockContainer = new W.Body();
                     RenderBlock(block, blockContainer, ctx, listLevel: -1);
+                    FitDrawings(blockContainer, settings);
 
                     if (!firstParagraphFound && cleanupNotes is { Count: > 0 })
                     {
@@ -524,6 +525,7 @@ public sealed partial class DocxExportService
         AddText(divider, $"Added {DateTime.Now:d MMM yyyy, HH:mm}", new Fmt { Color = ctx.HeadingHex });
         tmp.Append(divider);
         foreach (var block in doc) RenderBlock(block, tmp, ctx, listLevel: -1);
+        FitDrawings(tmp, ctx.Settings);
 
         var sectPr = body.Elements<W.SectionProperties>().LastOrDefault();
         foreach (var el in tmp.ChildElements.ToList())
@@ -1384,7 +1386,7 @@ public sealed partial class DocxExportService
 
         // Size the frame in points (SVG px ≈ pt at 96dpi → *0.75), capped to the text column width.
         double ptW = Math.Max(40, svgW * 0.75), ptH = Math.Max(20, svgH * 0.75);
-        if (ptW > 460) { ptH *= 460 / ptW; ptW = 460; }
+        if (ptW > MaxPicturePt(ctx)) { ptH *= MaxPicturePt(ctx) / ptW; ptW = MaxPicturePt(ctx); }
         long cx = (long)(ptW * 12700), cy = (long)(ptH * 12700);
         var id = ctx.NextDrawingId++;
 
@@ -1465,7 +1467,7 @@ public sealed partial class DocxExportService
 
         var (pxW, pxH) = PngDimensions(png);
         double ptW = Math.Max(40, pxW * 0.375), ptH = Math.Max(20, pxH * 0.375); // 2x render → 72/96/2
-        if (ptW > 460) { ptH *= 460 / ptW; ptW = 460; }
+        if (ptW > MaxPicturePt(ctx)) { ptH *= MaxPicturePt(ctx) / ptW; ptW = MaxPicturePt(ctx); }
         long cx = (long)(ptW * 12700), cy = (long)(ptH * 12700);
         var id = ctx.NextDrawingId++;
 
@@ -2198,6 +2200,10 @@ public sealed partial class DocxExportService
             var firstOfColumn = target.ChildElements.Count;
             foreach (var block in innerDoc)
                 RenderBlock(block, target, ctx, listLevel: -1);
+            // A picture fits its column, not the page (columns are 0.5" apart).
+            var columnWidth = (TextWidthTwips(ctx.Settings) - 720 * (count - 1)) / count;
+            foreach (var el in target.ChildElements.Skip(firstOfColumn).ToList())
+                FitDrawings(el, ctx.Settings, columnWidth);
             // Every column starts flush at the top, so the columns line up: Word keeps a heading's
             // space-before after a column break but drops it after the section break.
             var top = target.ChildElements.Count > firstOfColumn ? target.ChildElements[firstOfColumn] as W.Paragraph : null;
@@ -3449,16 +3455,17 @@ public sealed partial class DocxExportService
             string? svgString = null;
             if (isSvg)
             {
-                try { svgString = System.Text.Encoding.UTF8.GetString(rawBytes); } catch { }
+                try { svgString = System.Text.Encoding.UTF8.GetString(rawBytes).TrimStart('\uFEFF'); } catch { }
             }
             else if (rawBytes.Length > 4)
             {
-                var head = System.Text.Encoding.UTF8.GetString(rawBytes, 0, Math.Min(rawBytes.Length, 120)).TrimStart();
+                // A UTF-8 byte-order mark (Notepad, PowerShell) comes before the markup; skip it.
+                var head = System.Text.Encoding.UTF8.GetString(rawBytes, 0, Math.Min(rawBytes.Length, 120)).TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
                 if (head.StartsWith("<svg", StringComparison.OrdinalIgnoreCase) ||
                     (head.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase) && head.Contains("<svg")))
                 {
                     isSvg = true;
-                    svgString = System.Text.Encoding.UTF8.GetString(rawBytes);
+                    svgString = System.Text.Encoding.UTF8.GetString(rawBytes).TrimStart('\uFEFF');
                 }
             }
 
@@ -3477,7 +3484,7 @@ public sealed partial class DocxExportService
                     var svgRel = ctx.MainPart.GetIdOfPart(svgPart);
 
                     double svgPtW = hintW ?? Math.Max(40, svgW * 0.75), svgPtH = Math.Max(20, svgH * 0.75 * (hintW is { } sHw ? sHw / (svgW > 0 ? svgW : 1) : 1));
-                    if (svgPtW > 460) { svgPtH *= 460 / svgPtW; svgPtW = 460; }
+                    if (svgPtW > MaxPicturePt(ctx)) { svgPtH *= MaxPicturePt(ctx) / svgPtW; svgPtW = MaxPicturePt(ctx); }
                     long svgCx = (long)(svgPtW * 12700), svgCy = (long)(svgPtH * 12700);
                     var svgId = ctx.NextDrawingId++;
                     var svgAltEsc = System.Security.SecurityElement.Escape(alt) ?? "";
@@ -3543,7 +3550,7 @@ public sealed partial class DocxExportService
             var relId = ctx.MainPart.GetIdOfPart(part);
 
             double ptW = hintW ?? pxW * 0.75, ptH = pxH * 0.75 * (hintW is { } hw ? hw / pxW : 1);
-            if (ptW > 460) { ptH *= 460 / ptW; ptW = 460; }
+            if (ptW > MaxPicturePt(ctx)) { ptH *= MaxPicturePt(ctx) / ptW; ptW = MaxPicturePt(ctx); }
             long cx = (long)(ptW * 12700), cy = (long)(Math.Max(8, ptH) * 12700);
             var id = ctx.NextDrawingId++;
             var altEsc = System.Security.SecurityElement.Escape(alt) ?? "";
@@ -3795,10 +3802,14 @@ public sealed partial class DocxExportService
                 new W.RightMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa }));
 
         int maxCols = tableNode.MaxColumns;
+        // A nested table lives inside a cell; only a top-level one knows its width for certain.
+        var topLevel = target is not W.TableCell;
         int htmlPrintableWidth = TextWidthTwips(ctx.Settings);
-        var htmlMaxColLens = new int[maxCols];
-        for (int c = 0; c < maxCols; c++) htmlMaxColLens[c] = 6;
 
+        // Same browser-style solver as Markdown tables (each column its longest word, the rest by
+        // how much text it holds). The old proportional split gave every column at least 1000
+        // twips on top of its share, so a wide table ran past the right margin.
+        var columnTexts = Enumerable.Range(0, maxCols).Select(_ => new List<string>()).ToArray();
         foreach (var row in tableNode.Rows)
         {
             int colIdx = 0;
@@ -3807,39 +3818,16 @@ public sealed partial class DocxExportService
                 if (colIdx >= maxCols) break;
                 if (!cell.IsRowSpanContinuation && cell.ColSpan == 1)
                 {
-                    int len = 0;
-                    foreach (var blk in cell.Blocks)
-                    {
-                        if (blk is HtmlParagraphBlock pb)
-                        {
-                            foreach (var inl in pb.Inlines)
-                            {
-                                if (inl is HtmlTextInline ti && !string.IsNullOrEmpty(ti.Text))
-                                    len += ti.Text.Length;
-                            }
-                        }
-                    }
-                    if (len > 0)
-                        htmlMaxColLens[colIdx] = Math.Max(htmlMaxColLens[colIdx], Math.Min(len, 60));
+                    var text = string.Concat(cell.Blocks.OfType<HtmlParagraphBlock>()
+                        .SelectMany(pb => pb.Inlines).OfType<HtmlTextInline>().Select(ti => ti.Text));
+                    columnTexts[colIdx].Add(text);
                 }
                 colIdx += Math.Max(1, cell.ColSpan);
             }
         }
-
-        int htmlTotalWeights = htmlMaxColLens.Sum();
-        var htmlColWidths = new int[maxCols];
-        int htmlAllocated = 0;
-        for (int c = 0; c < maxCols; c++)
-        {
-            if (c == maxCols - 1)
-                htmlColWidths[c] = Math.Max(1000, htmlPrintableWidth - htmlAllocated);
-            else
-            {
-                int w = (int)((double)htmlMaxColLens[c] / (htmlTotalWeights > 0 ? htmlTotalWeights : 1) * htmlPrintableWidth);
-                htmlColWidths[c] = Math.Max(1000, w);
-                htmlAllocated += htmlColWidths[c];
-            }
-        }
+        var htmlColWidths = SolveColumnWidths(columnTexts.Select(ColumnTextStats).ToList(), htmlPrintableWidth);
+        if (topLevel)
+            tblPr.TableLayout = new W.TableLayout { Type = W.TableLayoutValues.Fixed };
 
         var wTable = new W.Table(
             tblPr,
@@ -3893,6 +3881,7 @@ public sealed partial class DocxExportService
 
                 wCell.Append(tcPr);
                 RenderHtmlTableCellContent(cell, wCell, row.IsHeader || cell.IsHeader, ctx);
+                TightenCellSpacing(wCell);
                 wRow.Append(wCell);
                 colIdx += span;
             }
@@ -3900,7 +3889,27 @@ public sealed partial class DocxExportService
             wTable.Append(wRow);
         }
 
+        KeepTableTogether(wTable);
         target.Append(wTable);
+        if (topLevel) target.Append(SpacerParagraph());
+    }
+
+    // Rows whose paragraphs keep with the next row stay on one page. A short table moves to the
+    // next page whole rather than leaving one row behind; a long one may break, but its header
+    // never sits alone at a page foot and its last row never starts a page by itself.
+    internal const int KeepTogetherMaxRows = 12;
+
+    internal static void KeepTableTogether(W.Table table)
+    {
+        var rows = table.Elements<W.TableRow>().ToList();
+        if (rows.Count < 2) return;
+        IEnumerable<int> keep = rows.Count <= KeepTogetherMaxRows
+            ? Enumerable.Range(0, rows.Count - 1)
+            : new[] { 0, 1, rows.Count - 2 };
+        foreach (var i in keep.Distinct())
+            foreach (var cell in rows[i].Elements<W.TableCell>())
+                foreach (var p in cell.Elements<W.Paragraph>())
+                    (p.ParagraphProperties ?? p.PrependChild(new W.ParagraphProperties())).KeepNext = new W.KeepNext();
     }
 
     private static void RenderHtmlTableCellContent(HtmlTableCellNode cell, W.TableCell wCell, bool isHeader, Ctx ctx)
@@ -4060,8 +4069,13 @@ public sealed partial class DocxExportService
         }
 
         // Column widths that fit between the margins (A4's are narrower than Letter's).
+        // A column holding a picture asks for as much room as a long line of text, so the picture
+        // isn't squeezed to the width of its alt text (it is fitted to the cell afterwards).
+        bool HasPicture(int c) => rowList.Any(r => c < r.Count && r[c] is MdTableCell cell &&
+            cell.Descendants<LinkInline>().Any(l => l.IsImage));
         var colWidths = SolveColumnWidths(Enumerable.Range(0, colCount)
-            .Select(c => ColumnTextStats(Enumerable.Range(0, rowCount).Select(r => cellTexts[r, c]))).ToList(),
+            .Select(c => HasPicture(c) ? (70, 22)
+                : ColumnTextStats(Enumerable.Range(0, rowCount).Select(r => cellTexts[r, c]))).ToList(),
             TextWidthTwips(ctx.Settings));
 
         var wTable = new W.Table(
@@ -4195,6 +4209,7 @@ public sealed partial class DocxExportService
             wTable.Append(wRow);
         }
 
+        KeepTableTogether(wTable);
         target.Append(wTable);
         target.Append(SpacerParagraph());
     }
@@ -4240,7 +4255,9 @@ public sealed partial class DocxExportService
     {
         var n = cols.Count;
         if (n == 0) return Array.Empty<int>();
-        var min = cols.Select(c => Math.Min(c.LongestWord, 22) * ColumnCharTwips + ColumnPaddingTwips).ToArray();
+        // A word gets a fifth more than the average glyph: header cells are bold and a short word
+        // like "Owner" is mostly wide letters, so the plain average broke it as "Owne / r".
+        var min = cols.Select(c => Math.Min(c.LongestWord, 22) * ColumnCharTwips * 6 / 5 + ColumnPaddingTwips).ToArray();
         var want = cols.Select((c, i) => Math.Max(min[i], Math.Min(c.TextLen, 70) * ColumnCharTwips + ColumnPaddingTwips)).ToArray();
         double minSum = min.Sum(), wantSum = want.Sum();
         var widths = new double[n];
@@ -5609,6 +5626,97 @@ public sealed partial class DocxExportService
         if (landscape && size.Height?.Value is { } h && h > w) w = (int)h;
         var text = w - (layout?.MarginLeft ?? 1440) - (layout?.MarginRight ?? 1440);
         return Math.Max(2880, text);
+    }
+
+    // Widest a picture is drawn before FitDrawings fits it to its frame: the text column, in points.
+    private static double MaxPicturePt(Ctx ctx) => TextWidthTwips(ctx.Settings) / 20.0;
+
+    // Height between the top and bottom margins, in twips.
+    internal static int TextHeightTwips(AppSettings settings)
+    {
+        var layout = settings.BrandLayout;
+        var (size, _) = PageGeometry(settings);
+        var landscape = layout?.Orientation?.StartsWith("landscape", StringComparison.OrdinalIgnoreCase) == true;
+        var w = (int)(size.Width?.Value ?? 12240u);
+        var h = (int)(size.Height?.Value ?? 15840u);
+        if (landscape && h > w) h = w;
+        return Math.Max(2880, h - (layout?.MarginTop ?? 1440) - (layout?.MarginBottom ?? 1440));
+    }
+
+    // Room a picture keeps for the heading above it: a picture taller than this pushed its
+    // heading onto a page of its own, then ran off the bottom of the next one.
+    private const int PictureHeadroomTwips = 1440;
+
+    /// <summary>
+    /// Shrinks every inline picture and diagram under <paramref name="scope"/> to the frame it
+    /// lands in: the text column (or <paramref name="frameWidthTwips"/>, e.g. one of a
+    /// :::columns block's columns), narrowed by every table cell around it (less the cell's side
+    /// margins) and by its paragraph's indent; never taller than a page less room for a heading.
+    /// The aspect ratio is kept, and a shape group scales as one (its child coordinates stay put).
+    /// Pictures that already fit are left alone, so running it again is harmless.
+    /// </summary>
+    internal static void FitDrawings(OpenXmlElement scope, AppSettings settings, int? frameWidthTwips = null)
+    {
+        const long EmuPerTwip = 635;
+        var frame = frameWidthTwips ?? TextWidthTwips(settings);
+        var maxCy = Math.Max(1440, TextHeightTwips(settings) - PictureHeadroomTwips) * EmuPerTwip;
+        foreach (var inline in scope.Descendants<DW.Inline>().ToList())
+        {
+            if (inline.Extent is not { Cx: { } cxv, Cy: { } cyv }) continue;
+            long cx = cxv.Value, cy = cyv.Value;
+            var maxCx = Math.Max(720, AvailableWidthTwips(inline, frame)) * EmuPerTwip;
+            if (cx <= 0 || cy <= 0 || (cx <= maxCx && cy <= maxCy)) continue;
+
+            var s = Math.Min((double)maxCx / cx, (double)maxCy / cy);
+            inline.Extent.Cx = (long)(cx * s);
+            inline.Extent.Cy = (long)(cy * s);
+            // The picture's (or group's) own frame: the first a:ext in the graphic.
+            if (inline.Descendants<A.Extents>().FirstOrDefault() is { Cx: { } ecx, Cy: { } ecy } ext)
+            {
+                ext.Cx = (long)(ecx.Value * s);
+                ext.Cy = (long)(ecy.Value * s);
+            }
+        }
+    }
+
+    // Width a drawing really has: the frame, less its paragraph's indent and every enclosing
+    // table cell's width (each cell less its side margins).
+    private static int AvailableWidthTwips(OpenXmlElement drawing, int frame)
+    {
+        var avail = frame;
+        if (drawing.Ancestors<W.Paragraph>().FirstOrDefault()?.ParagraphProperties is { } pPr)
+        {
+            var ind = pPr.Indentation;
+            var left = Twips(ind?.Left?.Value ?? ind?.Start?.Value);
+            if (left == 0 && pPr.NumberingProperties?.NumberingLevelReference?.Val?.Value is { } lvl)
+                left = 720 * (lvl + 1);
+            avail -= left + Twips(ind?.Right?.Value ?? ind?.End?.Value);
+        }
+        foreach (var cell in drawing.Ancestors<W.TableCell>())
+        {
+            var tcPr = cell.TableCellProperties;
+            int? width = tcPr?.TableCellWidth is { } tcW && int.TryParse(tcW.Width?.Value, out var wv)
+                ? tcW.Type?.Value == W.TableWidthUnitValues.Pct ? frame * wv / 5000 : wv
+                : null;
+            if (width is null) continue;
+            var defaults = cell.Ancestors<W.Table>().FirstOrDefault()?.GetFirstChild<W.TableProperties>()?.TableCellMarginDefault;
+            var mar = tcPr?.TableCellMargin;
+            // Word's default cell margin is 108 twips a side.
+            var margins = (Side(mar, "left", "start") ?? Side(defaults, "left", "start") ?? 108)
+                        + (Side(mar, "right", "end") ?? Side(defaults, "right", "end") ?? 108);
+            avail = Math.Min(avail, width.Value - margins);
+        }
+        return avail;
+
+        static int Twips(string? v) => int.TryParse(v, out var t) ? Math.Max(0, t) : 0;
+
+        // A side of tcMar / tblCellMar, by name: the SDK has more than one class for each.
+        static int? Side(OpenXmlElement? margins, string name, string alt)
+        {
+            var el = margins?.ChildElements.FirstOrDefault(c => c.LocalName == name || c.LocalName == alt);
+            var w = el?.GetAttributes().FirstOrDefault(a => a.LocalName == "w").Value;
+            return int.TryParse(w, out var t) ? t : null;
+        }
     }
 
     // "Page X of Y": with a cover, Y counts the body's pages only (the cover is unnumbered).

@@ -173,13 +173,16 @@ public sealed class MermaidHarvestService
               const ts = [...n.querySelectorAll("tspan")].map(t => t.textContent).filter(s => s && s.trim());
               return (ts.length ? ts.join("\n") : (n.textContent||"")).trim();
             }
+            // Mermaid styles SOLID edges with "stroke-dasharray: 0" (computed "0px"), so only a
+            // pattern with a real dash length counts as dashed.
+            function dashOf(v) { return !!v && v !== "none" && v.split(/[ ,]+/).some(n => parseFloat(n) > 0); }
             function harvest(svgEl) {
               const nodes = [...svgEl.querySelectorAll("g.node, g.cluster")].map(n => {
                 const rb = rootBox(n);
                 return { Id: n.id.replace(/^flowchart-/,"").replace(/-\d+$/,""), Cx: +(rb.x + rb.w / 2).toFixed(1), Cy: +(rb.y + rb.h / 2).toFixed(1), W: +rb.w.toFixed(1), H: +rb.h.toFixed(1), Kind: kindOf(n), Label: lines(n) };
               });
               const edges = [...svgEl.querySelectorAll("path.flowchart-link, .edgePath path")].map(p => {
-                const dashed = (p.getAttribute("class")||"").includes("dashed") || getComputedStyle(p).strokeDasharray !== "none";
+                const dashed = (p.getAttribute("class")||"").includes("dashed") || dashOf(getComputedStyle(p).strokeDasharray);
                 const m = p.getCTM ? p.getCTM() : null;
                 const map = pt => m ? [pt.x*m.a + pt.y*m.c + m.e, pt.x*m.b + pt.y*m.d + m.f] : [pt.x, pt.y];
                 let pts = [];
@@ -282,6 +285,9 @@ public sealed class MermaidHarvestService
                 secondaryColor: "{{theme.Secondary}}", tertiaryColor: "{{theme.Background}}" },
               flowchart: { useMaxWidth: false, htmlLabels: true },
               state: { useMaxWidth: false }, securityLevel: "strict" });
+            // Mermaid styles SOLID edges with "stroke-dasharray: 0" (computed "0px"), so only a
+            // pattern with a real dash length counts as dashed.
+            function dashOf(v) { return !!v && v !== "none" && v.split(/[ ,]+/).some(n => parseFloat(n) > 0); }
             function harvest(svgEl) {
               const nodes = [], edges = [], texts = [];
               const M = el => el.getCTM ? el.getCTM() : null, box = el => { try { return el.getBBox(); } catch(e) { return null; } }, cs = el => getComputedStyle(el);
@@ -297,7 +303,7 @@ public sealed class MermaidHarvestService
                 } else if (tag === "path" || tag === "line" || tag === "polyline") {
                   const m = M(el), map = pt => m ? [pt.x*m.a+pt.y*m.c+m.e, pt.x*m.b+pt.y*m.d+m.f] : [pt.x, pt.y]; let pts = [];
                   try { const L = el.getTotalLength(); const N = Math.max(2, Math.min(30, Math.round(L/16))); for (let k=0;k<=N;k++){ const [x,y] = map(el.getPointAtLength(L*k/N)); pts.push([+x.toFixed(1),+y.toFixed(1)]); } } catch(e){}
-                  const dashed = (cs(el).strokeDasharray || "none") !== "none";
+                  const dashed = dashOf(cs(el).strokeDasharray);
                   if (pts.length >= 2) edges.push({ Points: pts, Stroke: stroke, Dashed: dashed });
                 }
               });
