@@ -5564,3 +5564,7 @@ blocks.md in Edge, PDF export page with the KPI row and the bar chart.
 3. Carried over: continuous-page PDF default (run #59), for the user; real Windows light/dark switch
    with a person present; first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
    flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
+
+**Release (same run):** tagged **v3.24.0** on `8c07592` after CI passed on it. Release workflow built
+the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
+`MarksmithBaseVersion` is now **3.25.0**.
