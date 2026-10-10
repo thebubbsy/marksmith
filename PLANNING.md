@@ -5568,3 +5568,95 @@ blocks.md in Edge, PDF export page with the KPI row and the bar chart.
 **Release (same run):** tagged **v3.24.0** on `8c07592` after CI passed on it. Release workflow built
 the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
 `MarksmithBaseVersion` is now **3.25.0**.
+
+### 2026-10-10 19:00–20:15 AEDT (routine run #66: every `:::` block in the preview, PDF and Word)
+
+**Pick.** Run #65's "Next up" #2: sweep the preview's own `:::` renderers by rendering the PDF export.
+It grew into Word as well once Word turned out to share half the bugs. No other run was live; the tree
+only held the `EverythingHttpPlugin/*` edits that aren't this routine's (left alone, not committed).
+
+**How it was tested.** Scratch Desktop build to `%TEMP%\ms66d\b`, instance on `ApiPort` 47966 (rig
+copied from run #65's scratchpad: `gx.ps1`, `cycle.ps1`, plus new `pdf.ps1` = `/api/convert` pdf → PyMuPDF
+pages, and `docx.ps1` = `/api/convert` docx → Word COM PDF → pages). `sweep.md` holds one of every
+block (drop cap, kanban, parallel, callouts, quoted-CSV datagrid, formula table, tabs, three columns,
+references with citations, embed, multi-level index, line numbers with two paragraphs, AI context),
+rendered on GitHub Light and Dracula, plus run #63's `blocks.md`. **Playwright (msedge channel) is
+installed**: `cdp.py` compares the app's PDF height measurement with a print-media-emulated one and
+prints at each height. That's how the PDF overflow was pinned down.
+
+**What was wrong.**
+- Data grid: quoted CSV cells were split on their commas ("$1,240,000" became three columns).
+- Formula tables: `=B2*C2` was never evaluated, and `TryParseNumber` stripped every non-digit, so
+  the formula text itself read as 22 (and a "Q1" label as 1). The total row said 55, not 22.
+- References: a second "Bibliography" heading under the author's "## References", `[@key]` citations
+  left raw in the text, and "[@id]" printed in each entry.
+- Index: `Storage:Relational:PostgreSQL` showed as "Relational:PostgreSQL" under Storage.
+- `:::line-numbers`: numbered paragraphs (one number for three lines) and ignored count-by.
+- **Continuous-page PDF spilled onto a second page** whenever the document had tabs.
+  `MeasurePrintHeightScript` copied the print rules into a `<style>` in `<head>`, *before* the tabs'
+  own in-body `<style>`. At equal specificity the screen rules won, so the measure kept the tab strip
+  and left out the print panel titles: 77 px short.
+- Word: **every export with an `:::ai-context` block failed** ("Only one instance of the type is
+  allowed for this parent"): `RenderAiContext` created the settings part, then `AddSettings` added a second.
+- Word: XE index anchors were empty `<w:fldSimple>`s. Word scrambled their paragraph (sentences in
+  reverse, styled as a heading) and hung on open when the doc also had an INDEX field.
+- Word: inactive tab headings carried `w15:defaultCollapsed`, and Word prints and saves to PDF without
+  a collapsed heading's content, so every tab but the first vanished on paper.
+- Word: a `:::line-numbers` block with a blank line inside was read by `AdvancedFeaturePipeline` as the
+  one-line whole-document form (the closer search stopped at the blank line), so Word numbered every
+  line of the document and printed the passage as ordinary paragraphs.
+- Word: bibliography was a "[2 sources — update fields to render bibliography]" placeholder; data
+  grid had no borders or padding ("12%Avery").
+- `/api/convert` with an unknown format (`html`) silently returned the default format (a PDF).
+
+**Shipped (`b68ee10`):**
+- `ContainerBlockParsers.SplitDelimited` (quoted CSV/TSV) and `LooksNumeric`, now the one datagrid
+  parser for the preview, Word (`RenderDatagrid`) and slides (`SlideDirectives.Datagrid`). Word grid:
+  explicit borders and cell margins, contrast-picked header ink, right-aligned number columns.
+- `TableFormulaEvaluator`: strict `TryParseNumber` (digits, separators, %, brackets, currency signs
+  only); arithmetic formulas (`=B2*C2`, `=(B2+C2)/2 \# 0.00`) with Word field code `=B2*C2`;
+  `EvaluateAll` evaluates in dependency order (a cycle reads its cells as empty) and is used by both the
+  preview and `DocxExportService`'s table writer. Row 0 is the header, so A1 refs match Word and Excel.
+- References: `LiftContainerBlocks` collects labels and `LinkCitations` turns `[@a]` / `[@a; @b]` into
+  "(Knuth, 1984)" links to `#ref-…` (surname from "First Last" or "Last, First"; two authors "A & B",
+  more "A et al."); unknown keys stay as written. `CiteReferencesAsText` does the plain-text version
+  for Word and tags an already-headed block `titled="true"`. Word's feature renderers draw into a fresh
+  body and can't see the heading above, so the tag is how it knows. Word bibliography: BIBLIOGRAPHY field
+  whose result is the formatted entries (hanging indent).
+- Index: nested `IndexNode` tree, one indent per level; no "Index" title under the author's heading.
+- `LineNumberedRows`: one row per written line, number on every count-by'th, blank line = uncounted
+  gap, each line's Markdown rendered inline, emitted as one raw HTML block.
+- `MeasurePrintHeightScript` appends its style to `body` (last in the document). Verified with
+  Playwright: screen measure 3945 = print-emulated 3945, one page.
+- Word: AI-context variables collected on `Ctx.AiContextVariables` and written by `AddSettings` in the
+  one `w:docVars` (with the cover page's); XE as complex fields; no collapsed tabs; `ctx.LineNumbers`
+  only for the empty whole-document form; `AdvancedFeaturePipeline` single-line directive rule now
+  matches the preview regexes (block if the next line is content, then runs to `:::` across blank lines).
+- `/api/convert`: 400 "Unsupported format …" for a format that isn't pdf/docx/pptx/epub/eml/msg.
+- Tests: `PreviewBlockSweepTests` (24 incl. theory rows); updated `NativeTabsTests`,
+  `NativeTabsEmpiricalChallengerTests`, `AdvancedLayoutsTests` (tabs no longer collapse),
+  `ConcordanceIndexTests`, `AdversarialMilestone2Tests` (XE as instrText), `PdfPaperTests`.
+
+**Verified:** full suite **4546 passed, 1 skipped, 0 failed**. Desktop build green. Final renders:
+sweep PDF on GitHub Light and Dracula (one page each), `blocks.md` PDF (one page), sweep through Word
+(3 pages: grid, formulas 10/12/22, all three tabs, bibliography entries, "(Knuth, 1984)", clean index
+paragraph, numbering confined to the block).
+
+**Noticed, not fixed:**
+- Callout titles: `:::tip Pro tip` renders "Tip" as the label and **Pro tip** as bold body text
+  (AdmonitionNormalizer writes the title as a bold first line, which Word reads too). Replacing the
+  label would need a marker the sanitizer keeps; worth doing with the Word side in one go.
+- Word's INDEX field is empty until fields update (Word with a person present updates on open; a
+  headless COM open doesn't). Pre-filling its result with the terms would read better in viewers.
+- Word line numbers count Word's wrapped lines while the preview numbers written lines, so the two can
+  show different numbers for the same passage.
+- The preview's index block draws a rule above its title even when the author's heading is right above.
+- In Word the AI-context panel keeps an emoji header ("🤖 AI Context"); the preview has none.
+
+**Next up:**
+1. Callout custom titles in the preview and Word (above), then a sweep of the inline features the same
+   way (footnotes, wiki links, highlights/track changes, math), rendered through PDF and Word.
+2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59),
+   for the user; real Windows light/dark switch; first real in-app update;
+   `EmailExportFlowTests.Subject_preview_follows_the_template` flake; real-mouse hover check of
+   OptionRow; Load unpacked of the bundled extension.
