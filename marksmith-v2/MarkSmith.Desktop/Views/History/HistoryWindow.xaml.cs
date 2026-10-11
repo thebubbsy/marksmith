@@ -313,8 +313,11 @@ public sealed partial class HistoryWindow : Window
         openInEditor.Click += async (_, _) =>
         {
             if (_main is null || !File.Exists(fullPath)) return;
+            if (string.Equals(_main.InputFilePath, fullPath, StringComparison.OrdinalIgnoreCase))
+                _main.InputFilePath = string.Empty;
             _main.InputFilePath = fullPath;
             _main.UsePasteSource = false;
+            await _main.LastFileReadTask;
             await _vm.ShowFileAsync(fullPath);
             _vm.ShowNotice($"Opened {file.FileName} in the editor.");
         };
@@ -444,11 +447,11 @@ public sealed partial class HistoryWindow : Window
             Icon = new FontIcon { Glyph = "\uE943" },
             KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
         };
-        copyPatch.Click += (_, _) =>
+        copyPatch.Click += async (_, _) =>
         {
             if (!ReferenceEquals(_vm.Selected, item))
                 _vm.SelectVersionCommand.Execute(item);
-            CopyDiffPatch(item);
+            await CopyDiffPatchAsync(item);
         };
         menu.Items.Add(copyPatch);
 
@@ -499,11 +502,11 @@ public sealed partial class HistoryWindow : Window
         catch { }
     }
 
-    private void CopyDiffPatch(VersionItemViewModel? item = null)
+    private async Task CopyDiffPatchAsync(VersionItemViewModel? item = null)
     {
         var target = item ?? _vm.Selected;
         if (target is null) return;
-        var patch = _vm.BuildUnifiedDiffPatch();
+        var patch = await _vm.BuildUnifiedDiffPatchAsync(target);
         if (string.IsNullOrWhiteSpace(patch))
         {
             _vm.ShowNotice("No line changes in this version to copy as a diff patch.", isError: true);
@@ -574,6 +577,7 @@ public sealed partial class HistoryWindow : Window
         var result = await ShowDialogAsync(dialog);
         if (result == ContentDialogResult.Primary || enterSubmitted)
             await _vm.RenameVersionCommand.ExecuteAsync((item, input.Text));
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, FocusSelectedVersionButton);
     }
 
     private async Task DeleteAsync(VersionItemViewModel item)
@@ -593,6 +597,7 @@ public sealed partial class HistoryWindow : Window
         };
         if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary)
             await _vm.DeleteVersionCommand.ExecuteAsync(item);
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, FocusSelectedVersionButton);
     }
 
     private async void OnRestoreClick(object sender, RoutedEventArgs e) => await ConfirmAndRestoreAsync();
@@ -625,6 +630,7 @@ public sealed partial class HistoryWindow : Window
         if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary &&
             _vm.RestoreCommand.CanExecute(null))
             await _vm.RestoreCommand.ExecuteAsync(null);
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, FocusSelectedVersionButton);
     }
 
     private void OnUnifiedToggleClick(object sender, RoutedEventArgs e) => SetMode(HistoryDiffMode.Unified);
@@ -689,6 +695,7 @@ public sealed partial class HistoryWindow : Window
         var result = await ShowDialogAsync(dialog);
         if (result == ContentDialogResult.Primary || enterSubmitted)
             await _vm.TakeSnapshotCommand.ExecuteAsync(input.Text);
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, FocusSelectedVersionButton);
     }
 
     private void FocusSelectedVersionButton()
@@ -698,6 +705,15 @@ public sealed partial class HistoryWindow : Window
             btn.Focus(FocusState.Programmatic);
             btn.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.35 });
         }
+    }
+
+    private static bool IsDescendantOf(DependencyObject? node, DependencyObject ancestor)
+    {
+        for (var cur = node; cur is not null; cur = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(cur))
+        {
+            if (ReferenceEquals(cur, ancestor)) return true;
+        }
+        return false;
     }
 
     private void OnRootPreviewKeyDown(object sender, KeyRoutedEventArgs e)
@@ -717,7 +733,7 @@ public sealed partial class HistoryWindow : Window
             return;
         }
 
-        // If keyboard focus is on a Document button in Pane 1, Up/Down navigates documents.
+        // If keyboard focus is on a Document button in Pane 1, Up/Down/Home/End navigates documents within Pane 1.
         if (e.OriginalSource is FrameworkElement { DataContext: FileSummaryViewModel currentFile })
         {
             int idx = _vm.Files.IndexOf(currentFile);
@@ -728,18 +744,42 @@ public sealed partial class HistoryWindow : Window
                 _ = _vm.SelectFileCommand.ExecuteAsync(next);
                 if (FindVersionButton(FilesScroll, next) is { } nextBtn)
                     nextBtn.Focus(FocusState.Programmatic);
-                return;
             }
-            if (e.Key == VirtualKey.Up && idx > 0)
+            else if (e.Key == VirtualKey.Up && idx > 0)
             {
                 e.Handled = true;
                 var prev = _vm.Files[idx - 1];
                 _ = _vm.SelectFileCommand.ExecuteAsync(prev);
                 if (FindVersionButton(FilesScroll, prev) is { } prevBtn)
                     prevBtn.Focus(FocusState.Programmatic);
-                return;
             }
+            else if (e.Key == VirtualKey.Home && idx > 0 && _vm.Files.Count > 0)
+            {
+                e.Handled = true;
+                var first = _vm.Files[0];
+                _ = _vm.SelectFileCommand.ExecuteAsync(first);
+                if (FindVersionButton(FilesScroll, first) is { } firstBtn)
+                    firstBtn.Focus(FocusState.Programmatic);
+            }
+            else if (e.Key == VirtualKey.End && idx >= 0 && idx + 1 < _vm.Files.Count)
+            {
+                e.Handled = true;
+                var last = _vm.Files[^1];
+                _ = _vm.SelectFileCommand.ExecuteAsync(last);
+                if (FindVersionButton(FilesScroll, last) is { } lastBtn)
+                    lastBtn.Focus(FocusState.Programmatic);
+            }
+            else if (e.Key is VirtualKey.Up or VirtualKey.Down or VirtualKey.Home or VirtualKey.End)
+            {
+                e.Handled = true;
+            }
+            return;
         }
+
+        // Allow native scrolling when focus is inside Pane 3's diff ScrollViewers.
+        var srcDep = e.OriginalSource as DependencyObject;
+        if (IsDescendantOf(srcDep, UnifiedScroll) || IsDescendantOf(srcDep, SplitScroll))
+            return;
 
         if (e.Key == VirtualKey.Down && _vm.SelectNextVersion())
         {
@@ -804,7 +844,7 @@ public sealed partial class HistoryWindow : Window
         else if (isCtrl && isShift && e.Key == VirtualKey.C && !inTextBox && _vm.Selected is { } patchTarget)
         {
             e.Handled = true;
-            CopyDiffPatch(patchTarget);
+            _ = CopyDiffPatchAsync(patchTarget);
         }
         else if (isCtrl && !isShift && e.Key == VirtualKey.C && !inTextBox && _vm.Selected is { } copyTarget)
         {
@@ -836,9 +876,8 @@ public sealed partial class HistoryWindow : Window
             }
             else if (_vm.IsStarredOnlyFilter || !string.IsNullOrEmpty(_vm.SearchQuery))
             {
-                _vm.SearchQuery = "";
+                _vm.ClearFiltersCommand.Execute(null);
                 SearchBox.Text = "";
-                _vm.IsStarredOnlyFilter = false;
                 e.Handled = true;
             }
         }
@@ -847,11 +886,19 @@ public sealed partial class HistoryWindow : Window
             e.Handled = true;
             _ = _vm.ToggleStarCommand.ExecuteAsync(toStar);
         }
-        else if (!inTextBox && ((isShift && e.Key == VirtualKey.F10) || e.Key == VirtualKey.Application) && _vm.Selected is { } menuTarget)
+        else if (!inTextBox && ((isShift && e.Key == VirtualKey.F10) || e.Key == VirtualKey.Application))
         {
-            e.Handled = true;
-            var anchor = (FrameworkElement?)FindVersionButton(TimelineScroll, menuTarget) ?? TimelineScroll;
-            BuildVersionMenu(menuTarget).ShowAt(anchor, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight });
+            if (e.OriginalSource is FrameworkElement { DataContext: FileSummaryViewModel fileTarget } fileFe)
+            {
+                e.Handled = true;
+                BuildFileMenu(fileTarget).ShowAt(fileFe, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight });
+            }
+            else if (_vm.Selected is { } menuTarget)
+            {
+                e.Handled = true;
+                var anchor = (FrameworkElement?)FindVersionButton(TimelineScroll, menuTarget) ?? TimelineScroll;
+                BuildVersionMenu(menuTarget).ShowAt(anchor, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight });
+            }
         }
         else if (!inTextBox && e.Key == VirtualKey.F2 && _vm.Selected is { } toRename)
         {

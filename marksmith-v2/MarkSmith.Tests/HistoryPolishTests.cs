@@ -444,11 +444,21 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal("Milestone", vm.Selected!.Label);
         Assert.True(vm.Selected.IsSelected);
 
-        // Search filter that hides everything clears selection; clearing filters restores selection
+        // Search filter that hides everything clears selection and diff rows; clearing filters restores selection
+        await WaitForAsync(() => vm.UnifiedDiffRows.Count > 0);
         vm.SearchQuery = "nonexistent-query";
         Assert.Null(vm.Selected);
+        Assert.False(vm.ShowUnifiedRows);
+        Assert.False(vm.ShowSplitRows);
+        Assert.True(vm.ShowDiffPlaceholder);
+        Assert.Empty(vm.UnifiedDiffRows);
+        Assert.Empty(vm.DiffRows);
+        Assert.Equal("", vm.SelectedHeader);
+        Assert.Equal("", vm.DiffStats);
 
         vm.ClearFiltersCommand.Execute(null);
+        Assert.False(vm.IsStarredOnlyFilter);
+        Assert.Equal("", vm.SearchQuery);
         Assert.NotNull(vm.Selected);
         Assert.Equal("Recent draft", vm.Selected!.Label);
     }
@@ -458,9 +468,11 @@ public class HistoryPolishTests : IDisposable
     {
         var service = NewService();
         const string file = @"C:\docs\patch.md";
-        await service.CaptureAsync(file, "# Title\nOld line", "opened");
+        await service.CaptureAsync(file, "# Title\nOld line", "opened", "Initial");
         await Task.Delay(15);
-        await service.CaptureAsync(file, "# Title\nNew line", "autosave");
+        await service.CaptureAsync(file, "# Title\nMiddle line", "autosave", "Middle");
+        await Task.Delay(15);
+        await service.CaptureAsync(file, "# Title\nNew line", "snapshot", "Latest", isStarred: true);
 
         var vm = NewVm(service, file);
         await vm.LoadCommand.ExecuteAsync(null);
@@ -469,10 +481,25 @@ public class HistoryPolishTests : IDisposable
         var md = await vm.GetVersionContentAsync();
         Assert.Equal("# Title\nNew line", md);
 
-        var patch = vm.BuildUnifiedDiffPatch();
+        var patch = await vm.BuildUnifiedDiffPatchAsync();
         Assert.Contains("--- a/patch.md", patch);
         Assert.Contains("+++ b/patch.md", patch);
-        Assert.Contains("- Old line", patch);
+        Assert.Contains("- Middle line", patch);
         Assert.Contains("+ New line", patch);
+
+        // Requesting a patch for an unselected older version computes that version's diff instead of copying Selected's rows.
+        var middleItem = vm.VisibleVersions.Single(v => v.Label == "Middle");
+        var middlePatch = await vm.BuildUnifiedDiffPatchAsync(middleItem);
+        Assert.Contains("- Old line", middlePatch);
+        Assert.Contains("+ Middle line", middlePatch);
+        Assert.DoesNotContain("New line", middlePatch);
+
+        // Selecting a version and immediately requesting its patch before RefreshDiffAsync completes still computes the right diff.
+        var initialItem = vm.VisibleVersions.Single(v => v.Label == "Initial");
+        vm.SelectVersion(initialItem);
+        var initialPatch = await vm.BuildUnifiedDiffPatchAsync(initialItem);
+        Assert.Contains("+ # Title", initialPatch);
+        Assert.Contains("+ Old line", initialPatch);
+        Assert.DoesNotContain("Middle line", initialPatch);
     }
 }

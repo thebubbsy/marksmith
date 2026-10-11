@@ -229,7 +229,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RestoreCommand))]
-    [NotifyPropertyChangedFor(nameof(HasSelection), nameof(ShowDiffPlaceholder))]
+    [NotifyPropertyChangedFor(nameof(HasSelection), nameof(ShowDiffPlaceholder), nameof(ShowNoChanges), nameof(ShowUnifiedRows), nameof(ShowSplitRows), nameof(HasDiffStats))]
     private VersionItemViewModel? _selected;
 
     public bool HasSelection => Selected is not null;
@@ -281,8 +281,8 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasDiffStats))]
     private string _diffStats = "";
 
-    // Line counts describe the diff, so the pill hides while the rendered preview is showing.
-    public bool HasDiffStats => !string.IsNullOrEmpty(DiffStats) && !ShowPreview;
+    // Line counts describe the diff, so the pill hides while the rendered preview is showing or nothing is selected.
+    public bool HasDiffStats => !string.IsNullOrEmpty(DiffStats) && !ShowPreview && Selected is not null;
 
     [ObservableProperty]
     private string _diffHeader = "";
@@ -294,8 +294,8 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     private bool _isUnchanged;
 
     public bool ShowNoChanges => IsUnchanged && !ShowPreview && Selected is not null;
-    public bool ShowUnifiedRows => ShowUnifiedDiff && !IsUnchanged;
-    public bool ShowSplitRows => ShowSplitDiff && !IsUnchanged;
+    public bool ShowUnifiedRows => ShowUnifiedDiff && !IsUnchanged && Selected is not null;
+    public bool ShowSplitRows => ShowSplitDiff && !IsUnchanged && Selected is not null;
     public bool ShowDiffPlaceholder => Selected is null && !ShowPreview;
 
     /// <summary>A one-line confirmation or error shown in the window's InfoBar.</summary>
@@ -436,21 +436,31 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         }
     }
 
-    private void ClearTimeline()
+    private string _loadedDiffVersionId = "";
+    private bool _suppressFilter;
+
+    private void ClearSelectionDiffState()
     {
-        _allVersions = new List<VersionEntry>();
-        Bands.Clear();
+        _loadedDiffVersionId = "";
         DiffRows.Clear();
         UnifiedDiffRows.Clear();
-        Selected = null;
-        HasVersions = false;
-        FilterHidesAll = false;
         IsUnchanged = false;
         SelectedHeader = "";
         _compareTitle = "Select a version to see its changes";
         _compareHeader = "";
         ApplyHeading();
         DiffStats = "";
+        PreviewHtml = "";
+    }
+
+    private void ClearTimeline()
+    {
+        _allVersions = new List<VersionEntry>();
+        Bands.Clear();
+        Selected = null;
+        HasVersions = false;
+        FilterHidesAll = false;
+        ClearSelectionDiffState();
     }
 
     private async Task LoadTimelineAsync(string filePath, string displayName, string? keepSelectedId = null)
@@ -496,6 +506,8 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
     private void ApplyTimelineFilter(bool autoSelectFirst = true)
     {
+        if (_suppressFilter) return;
+
         // Rows are rebuilt on every filter change, so carry the selection across by id. Before,
         // typing in the search box dropped the selection highlight while the diff pane kept
         // showing that version, and starring "the selected version" then targeted a dead row.
@@ -569,7 +581,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             }
             else
             {
-                Selected = null;
+                SelectVersion(null);
             }
         }
     }
@@ -577,23 +589,37 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     [RelayCommand]
     private void ClearFilters()
     {
-        IsStarredOnlyFilter = false;
-        SearchQuery = "";
+        _suppressFilter = true;
+        try
+        {
+            IsStarredOnlyFilter = false;
+            SearchQuery = "";
+        }
+        finally
+        {
+            _suppressFilter = false;
+        }
+        ApplyTimelineFilter();
     }
 
     [RelayCommand]
-    public void SelectVersion(VersionItemViewModel item)
+    public void SelectVersion(VersionItemViewModel? item)
     {
+        var token = ++_selectionToken;
         if (Selected is not null) Selected.IsSelected = false;
         Selected = item;
         if (item is not null)
         {
+            _loadedDiffVersionId = "";
             item.IsSelected = true;
             var t = item.Entry.CreatedAt.LocalDateTime;
             SelectedHeader = t.ToString("dddd, d MMMM yyyy") + " · " + t.ToString("HH:mm");
-            var token = ++_selectionToken;
             _ = RefreshDiffAsync(item, token);
             _ = RefreshPreviewAsync(item, token);
+        }
+        else
+        {
+            ClearSelectionDiffState();
         }
     }
 
@@ -677,13 +703,15 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     }
 
     /// <summary>Formats the currently loaded unified diff rows as a portable unified diff patch.</summary>
-    public string BuildUnifiedDiffPatch()
+    public string BuildUnifiedDiffPatch(VersionItemViewModel? item = null, IReadOnlyList<LineDiff.UnifiedRow>? rows = null)
     {
-        if (Selected is null || UnifiedDiffRows.Count == 0) return string.Empty;
+        var target = item ?? Selected;
+        var sourceRows = rows ?? UnifiedDiffRows;
+        if (target is null || sourceRows.Count == 0) return string.Empty;
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"--- a/{FileName}");
-        sb.AppendLine($"+++ b/{FileName} ({Selected.TimestampLabel} · {Selected.SourceLabel})");
-        foreach (var row in UnifiedDiffRows)
+        sb.AppendLine($"+++ b/{FileName} ({target.TimestampLabel} · {target.SourceLabel})");
+        foreach (var row in sourceRows)
         {
             if (row.IsGap)
             {
@@ -697,6 +725,32 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             }
         }
         return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>Computes and formats the unified diff patch for <paramref name="item"/> (or <see cref="Selected"/>),
+    /// ensuring an unselected version or an in-flight diff never copies a stale version's diff rows.</summary>
+    public async Task<string> BuildUnifiedDiffPatchAsync(VersionItemViewModel? item = null)
+    {
+        var target = item ?? Selected;
+        if (target is null) return string.Empty;
+        if (Selected?.Id == target.Id && _loadedDiffVersionId == target.Id)
+        {
+            return BuildUnifiedDiffPatch(target, UnifiedDiffRows);
+        }
+
+        var selectedContent = await _history.GetContentAsync(target.Id) ?? "";
+        var idx = _allVersions.FindIndex(v => v.Id == target.Id);
+        bool hasPrevious = idx >= 0 && idx + 1 < _allVersions.Count;
+        var prevContent = hasPrevious
+            ? await _history.GetContentAsync(_allVersions[idx + 1].Id) ?? ""
+            : "";
+
+        var lines = hasPrevious
+            ? await Task.Run(() => LineDiff.Diff(prevContent, selectedContent))
+            : LineDiff.AllAdded(selectedContent);
+        var segments = LineDiff.Collapse(lines);
+        var unifiedRows = BuildUnifiedRows(segments);
+        return BuildUnifiedDiffPatch(target, unifiedRows);
     }
 
     [RelayCommand]
@@ -754,6 +808,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
         if (wasSelected) Selected = null;
         ApplyTimelineFilter();
+        if (!wasSelected && Selected is not null) SelectVersion(Selected);
         RefreshSelectedFileCount();
         ShowNotice("Version deleted.");
     }
@@ -791,8 +846,16 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         var name = string.IsNullOrWhiteSpace(label) ? "Checkpoint" : label.Trim();
         if (await _history.CaptureAsync(_currentFile, text, "snapshot", name, isStarred: true))
         {
-            SearchQuery = "";
-            IsStarredOnlyFilter = false;
+            _suppressFilter = true;
+            try
+            {
+                SearchQuery = "";
+                IsStarredOnlyFilter = false;
+            }
+            finally
+            {
+                _suppressFilter = false;
+            }
             await ReloadFilesAsync(_currentFile);
             ShowNotice($"Checkpoint “{name}” saved.");
             return;
@@ -804,8 +867,16 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         if (latest is null) return;
         await _history.SetLabelAsync(latest.Id, name);
         if (!latest.IsStarred) await _history.ToggleStarAsync(latest.Id);
-        SearchQuery = "";
-        IsStarredOnlyFilter = false;
+        _suppressFilter = true;
+        try
+        {
+            SearchQuery = "";
+            IsStarredOnlyFilter = false;
+        }
+        finally
+        {
+            _suppressFilter = false;
+        }
         await LoadTimelineAsync(_currentFile, FileName, latest.Id);
         ShowNotice($"No changes since the latest version, so it was starred and named “{name}”.");
     }
@@ -837,6 +908,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             UnifiedDiffRows.Clear();
             foreach (var row in BuildSplitRows(segments)) DiffRows.Add(row);
             foreach (var u in BuildUnifiedRows(segments)) UnifiedDiffRows.Add(u);
+            _loadedDiffVersionId = item.Id;
 
             int added = lines.Count(l => l.Kind == LineDiff.Kind.Added);
             int removed = lines.Count(l => l.Kind == LineDiff.Kind.Removed);
