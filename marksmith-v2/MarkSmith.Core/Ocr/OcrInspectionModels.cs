@@ -153,17 +153,23 @@ public sealed class OcrInspectionSession
     public OcrInspectionPage AddOrUpdatePage(OcrPagePreview preview, OcrPageTrace trace)
     {
         var existing = Pages.FirstOrDefault(p => p.PageNumber == preview.PageNumber);
+        byte[] image = preview.Image.Length > 0 ? preview.Image : (existing?.Image ?? Array.Empty<byte>());
+        int imgW = preview.ImageWidth > 0 ? preview.ImageWidth : (existing?.ImageWidth ?? 960);
+        int imgH = preview.ImageHeight > 0 ? preview.ImageHeight : (existing?.ImageHeight ?? 1320);
+        int pageCount = preview.PageCount > 0 ? preview.PageCount : (existing?.PageCount ?? Math.Max(1, Pages.Count + 1));
+        string engine = !string.IsNullOrWhiteSpace(preview.Engine) ? preview.Engine : (existing?.Engine ?? "MarkSmith OCR");
+
         if (existing is not null) Pages.Remove(existing);
 
         var page = new OcrInspectionPage
         {
             PageNumber = preview.PageNumber,
-            PageIndex = preview.PageIndex,
-            PageCount = preview.PageCount,
-            Image = preview.Image,
-            ImageWidth = preview.ImageWidth,
-            ImageHeight = preview.ImageHeight,
-            Engine = preview.Engine,
+            PageIndex = preview.PageIndex >= 0 ? preview.PageIndex : Math.Max(0, preview.PageNumber - 1),
+            PageCount = pageCount,
+            Image = image,
+            ImageWidth = imgW,
+            ImageHeight = imgH,
+            Engine = engine,
             Elapsed = trace.Elapsed,
             OriginalPageMarkdown = trace.Markdown,
         };

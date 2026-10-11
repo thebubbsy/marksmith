@@ -50,24 +50,32 @@ public static class PdfMarkdownImporter
 
         for (int n = 1; n <= doc.NumberOfPages; n++)
         {
-            var page = doc.GetPage(n);
-            options.Progress?.Report($"Reading page {n} of {doc.NumberOfPages}…");
-            var content = new PageContent { Number = n, Height = page.Height, Width = page.Width };
-            var letters = page.Letters;
-            int usable = letters.Count(l => IsReal(l.Value));
-            if (letters.Count > 0 && usable >= Math.Max(3, letters.Count * 0.7))
+            try
             {
-                ReadTextPage(page, content);
+                var page = doc.GetPage(n);
+                options.Progress?.Report($"Reading page {n} of {doc.NumberOfPages}…");
+                var content = new PageContent { Number = n, Height = page.Height, Width = page.Width };
+                var letters = page.Letters;
+                int usable = letters.Count(l => IsReal(l.Value));
+                if (letters.Count > 0 && usable >= Math.Max(3, letters.Count * 0.7))
+                {
+                    ReadTextPage(page, content);
+                }
+                else if (letters.Count > 0 || page.GetImages().Any() || page.Paths.Count() > 200)
+                {
+                    // Text with no character map, a scan, or text drawn as outlines: read it by OCR.
+                    content.NeedsOcr = true;
+                }
+                // Otherwise the page is blank or holds only a few vector shapes: nothing to read.
+                if (!content.NeedsOcr && options.MediaDirectory is not null)
+                    pictures += SavePictures(page, content, options, pictures);
+                pages.Add(content);
             }
-            else if (letters.Count > 0 || page.GetImages().Any() || page.ExperimentalAccess.Paths.Count() > 200)
+            catch (Exception ex)
             {
-                // Text with no character map, a scan, or text drawn as outlines: read it by OCR.
-                content.NeedsOcr = true;
+                notes.Add($"Page {n} structure reading encountered an issue: {ex.Message}");
+                pages.Add(new PageContent { Number = n, Height = 792, Width = 612, NeedsOcr = true });
             }
-            // Otherwise the page is blank or holds only a few vector shapes: nothing to read.
-            if (!content.NeedsOcr && options.MediaDirectory is not null)
-                pictures += SavePictures(page, content, options, pictures);
-            pages.Add(content);
         }
 
         RemoveRunningHeadersAndFooters(pages);
@@ -88,18 +96,26 @@ public static class PdfMarkdownImporter
             {
                 if (activeObserver is not null)
                 {
-                    using var rendered = SafeRenderPage(options.RenderPage, p.Number);
-                    var (preview, trace) = OcrTrace.RenderDigitalPagePreview(
-                        p.Number,
-                        idx,
-                        activePages.Count,
-                        "MarkSmith PDF Reader",
-                        p.TracedBlocks,
-                        p.TracedWords,
-                        rendered,
-                        TimeSpan.FromMilliseconds(35));
-                    OcrTrace.NotifyStarted(options.OcrObserver, preview);
-                    OcrTrace.NotifyRead(options.OcrObserver, trace);
+                    try
+                    {
+                        using var rendered = SafeRenderPage(options.RenderPage, p.Number);
+                        var (preview, trace) = OcrTrace.RenderDigitalPagePreview(
+                            p.Number,
+                            idx,
+                            activePages.Count,
+                            "MarkSmith PDF Reader",
+                            p.TracedBlocks,
+                            p.TracedWords,
+                            rendered,
+                            TimeSpan.FromMilliseconds(35));
+                        OcrTrace.NotifyStarted(options.OcrObserver, preview);
+                        OcrTrace.NotifyRead(options.OcrObserver, trace);
+                    }
+                    catch (Exception ex)
+                    {
+                        notes.Add($"Page {p.Number} digital preview failed: {ex.Message}");
+                        OcrTrace.NotifyFailed(options.OcrObserver, p.Number, ex.Message);
+                    }
                 }
                 continue;
             }
@@ -117,7 +133,7 @@ public static class PdfMarkdownImporter
                 var page = doc.GetPage(p.Number);
                 using var rawScan = ScanImage(page);
                 bool preferRendered = options.RenderPage is not null &&
-                    (rawScan is null || !OcrTrace.HasReadablePageContrast(rawScan) || page.Letters.Count > 0 || page.ExperimentalAccess.Paths.Count() > 200);
+                    (rawScan is null || !OcrTrace.HasReadablePageContrast(rawScan) || page.Letters.Count > 0 || page.Paths.Count() > 200);
                 if (preferRendered)
                     scan = SafeRenderPage(options.RenderPage, p.Number) ?? rawScan?.Copy();
                 else
@@ -191,6 +207,7 @@ public static class PdfMarkdownImporter
             {
                 // One bad page (an engine error, a broken image) costs that page, not the import.
                 notes.Add($"Page {p.Number} couldn't be read: {ex.Message}");
+                OcrTrace.NotifyFailed(options.OcrObserver, p.Number, ex.Message);
             }
             finally { scan?.Dispose(); }
         }
@@ -465,7 +482,7 @@ public static class PdfMarkdownImporter
                         var trimmed = table.Trim();
                         p.ComposedBlocks.Add(trimmed);
                         var box = tableLines.TryGetValue(b, out var tLines) ? LinesToNormRect(tLines, p) : new OcrNormRect(0.08f, 0.2f, 0.84f, 0.14f);
-                        p.TracedBlocks.Add(new OcrTraceBlock(OcrBlockKind.Paragraph, trimmed, box));
+                        p.TracedBlocks.Add(new OcrTraceBlock(OcrBlockKind.Table, trimmed, box));
                     }
                     continue;
                 }
@@ -507,6 +524,10 @@ public static class PdfMarkdownImporter
     {
         if (trimmed.StartsWith('#')) return OcrBlockKind.Heading;
         if (trimmed.StartsWith("- ", StringComparison.Ordinal) || Regex.IsMatch(trimmed, @"^\d+\.\s")) return OcrBlockKind.List;
+        if (trimmed.StartsWith('|') && trimmed.EndsWith('|')) return OcrBlockKind.Table;
+        if (trimmed.StartsWith("```mermaid", StringComparison.OrdinalIgnoreCase)) return OcrBlockKind.Diagram;
+        if (trimmed.StartsWith(":::shapes", StringComparison.OrdinalIgnoreCase)) return OcrBlockKind.ShapeMosaic;
+        if (trimmed.StartsWith("![", StringComparison.Ordinal) && trimmed.EndsWith(')')) return OcrBlockKind.Picture;
         return OcrBlockKind.Paragraph;
     }
 

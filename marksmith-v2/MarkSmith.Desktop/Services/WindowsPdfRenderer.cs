@@ -44,16 +44,33 @@ public static class WindowsPdfRenderer
             using var page = doc.GetPage((uint)(pageNumber - 1));
             using var stream = new InMemoryRandomAccessStream();
             // Page size is in device-independent pixels (1/96 inch).
+            double targetW = page.Size.Width * Dpi / 96.0;
+            double targetH = page.Size.Height * Dpi / 96.0;
+            const double maxDimension = 3600.0;
+            if (targetW > maxDimension || targetH > maxDimension)
+            {
+                double downscale = maxDimension / Math.Max(targetW, targetH);
+                targetW *= downscale;
+                targetH *= downscale;
+            }
+
             var options = new PdfPageRenderOptions
             {
-                DestinationWidth = (uint)Math.Round(page.Size.Width * Dpi / 96),
-                DestinationHeight = (uint)Math.Round(page.Size.Height * Dpi / 96),
+                DestinationWidth = (uint)Math.Clamp(Math.Round(targetW), 1, 4096),
+                DestinationHeight = (uint)Math.Clamp(Math.Round(targetH), 1, 4096),
                 BackgroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255),
             };
             page.RenderToStreamAsync(stream, options).AsTask().GetAwaiter().GetResult();
             stream.Seek(0);
             using var net = stream.AsStreamForRead();
-            return SKBitmap.Decode(net);
+            var decoded = SKBitmap.Decode(net);
+            if (decoded is null) return null;
+            if (decoded.ColorType != SKColorType.Bgra8888)
+            {
+                using var copy = decoded;
+                return copy.Copy(SKColorType.Bgra8888);
+            }
+            return decoded;
         }
         catch
         {

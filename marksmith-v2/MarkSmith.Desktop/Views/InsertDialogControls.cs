@@ -145,7 +145,7 @@ public abstract class InsertDialogBody : UserControl
         var problem = Problem;
         _problem.Text = problem ?? "";
         _problem.Visibility = problem is null ? Visibility.Collapsed : Visibility.Visible;
-        _problem.Foreground = (Brush)Application.Current.Resources[_opened ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush"];
+        _problem.Foreground = ThemeBrush.For(_problem, _opened ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush");
         
         if (_opened && problem != _lastAnnouncedProblem)
         {

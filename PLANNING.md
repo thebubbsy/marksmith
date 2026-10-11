@@ -6514,3 +6514,52 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Full test suite (`MarkSmith.Tests.csproj`): **4,738 passed, 0 failed** (1 skipped pre-existing remote network test).
 - OCR test suite (`OcrExperienceAndVisualsTests`, `OcrInspectionStudioTests`): **64 passed, 0 failed**.
 
+### 2026-10-12 (Fix: Harden PDF & Document Import Against Stowed Dispatch Exceptions and Stride Errors)
+
+**Incident Investigation:**
+- Following the introduction of `OcrInspectionStudioWindow`, user reported a fatal crash when importing a Service Agreement document (`00P7F000006aiR2UAI_Groom, J ELPE service agreement.pdf`).
+- Windows Event Log confirmed process termination with exception `0xc000027b` (`STATUS_FAIL_FAST_EXCEPTION`) originating from `CoreMessagingXP.dll` (`RoFailFastWithErrorContext`).
+- Crash dump analysis (`Marksmith.exe.22148.dmp`) revealed a stowed exception `0x80004003` (`E_POINTER` / `NullReferenceException`) on UI thread `0x513C` while worker thread `0x5010` was executing `OcrGeometry.ToGray` / `MarkSmithOcrProvider.Recognize`.
+- **Root causes identified:**
+  1. **Thread Access Violation:** Background worker thread invoked `OcrInspectionStudioWindow.PageRead`, which directly accessed WinUI UI property `EngineBadgeText.Text`.
+  2. **Theme Resource Lookup Failure (`0x80004003`):** `OcrInspectionStudioWindow.xaml.cs` used `(Brush)Application.Current.Resources["..."]` to look up theme brushes (`SystemFillColorSuccessBrush`, `SubtleFillColorSecondaryBrush`, `TextFillColorSecondaryBrush`, etc.). In WinUI 3, theme brushes live in `ThemeDictionaries`; direct key indexing causes `IMap.Lookup` failure projected as `E_POINTER`.
+  3. **Unhandled Async Dispatch Exception:** Unhandled exceptions inside `DispatcherQueue.TryEnqueue` lambdas escaped directly into the CoreMessagingXP message loop, triggering unhandled fail-fast (`0xc000027b`).
+  4. **Bitmap Stride Mismatch in `OcrGeometry.ToGray`:** Stride was assumed to equal `width * 4`, failing to respect `bmp.RowBytes` row alignment on native-rendered or odd-dimensioned bitmaps.
+  5. **Missing Non-Fatal Error Resilience:** Rendering or decoding errors on individual pages were not caught gracefully, halting the entire import pipeline.
+
+**Shipped:**
+- `MarkSmith.Core/Ocr/OcrGeometry.cs`:
+  - Rewrote `ToGray` to be row-stride aware using `bmp.RowBytes` with explicit span bounds checking.
+  - Auto-converts non-Bgra8888 bitmaps safely before luminance calculation.
+- `MarkSmith.Core/Ocr/OcrTrace.cs`:
+  - Made `Preview(...)` null-safe for `SKImage.FromBitmap` and `.Encode()`.
+  - Added `PageFailed(int pageNumber, string errorMessage)` to `IOcrObserver` and implemented `OcrTrace.NotifyFailed`.
+- `MarkSmith.Core/Services/Import/PdfMarkdownImporter.cs`:
+  - Wrapped page iteration, text extraction, digital preview rendering, and OCR execution in defensive `try/catch` blocks.
+  - Forwarded page failure notifications to `options.OcrObserver`.
+  - Replaced obsolete `Page.ExperimentalAccess.Paths` with `Page.Paths`.
+- `MarkSmith.Desktop/Services/WindowsPdfRenderer.cs`:
+  - Added dimension clamping (`maxDimension = 3600`) and safe color-type conversion to avoid native memory exhaustion and stride bugs.
+- `MarkSmith.Desktop/Views/Ocr/OcrInspectionStudioWindow.xaml.cs`:
+  - Converted `_pagePreviews` to a thread-safe `ConcurrentDictionary`.
+  - Introduced thread-safe `_currentEngineName` so background worker threads never touch `EngineBadgeText.Text`.
+  - Wrapped all `DispatcherQueue.TryEnqueue` callbacks in `try/catch` to guarantee exceptions never escape into `CoreMessagingXP.dll`.
+  - Replaced all direct `Application.Current.Resources[...]` lookups with safe `ThemeBrush.Get(key, RootGrid.ActualTheme)`.
+  - Implemented `ReportPageError(int pageNumber, string errorMessage)` to surface non-fatal warnings in the studio status banner without closing the window.
+- `MarkSmith.Desktop/MainWindow.xaml.cs`:
+  - Wrapped PDF and document import in guaranteed cleanup (`studio.Close()`, `WindowsPdfRenderer.Release()`).
+  - Added `PageFailed` forwarding and wrapped `TryEnqueue` callbacks in `AmbientStudioOcrObserver`.
+- `MarkSmith.Desktop/Views/InsertDialogControls.cs`:
+  - Replaced `Application.Current.Resources[...]` brush indexing with `ThemeBrush.For`.
+- `MarkSmith.Tests/Ocr/PdfImportTests.cs`:
+  - Added test verifying target Service Agreement PDF parses safely without throwing.
+  - Added test verifying `OcrGeometry.ToGray` handles non-standard strides, 1x1 dimensions, and color formats.
+  - Added test verifying `IOcrObserver.PageFailed` notification dispatch.
+
+**Verified:**
+- `dotnet build MarkSmith.Desktop/MarkSmith.Desktop.csproj`: **0 errors**.
+- `dotnet build MarkSmith.Tests/MarkSmith.Tests.csproj`: **0 errors**.
+- Test suite (`dotnet test --filter "FullyQualifiedName~Pdf|FullyQualifiedName~Ocr"`): **170 passed, 0 failed**.
+- Target PDF (`00P7F000006aiR2UAI_Groom, J ELPE service agreement.pdf`): Successfully verified through test suite without crash.
+
+

@@ -209,6 +209,64 @@ public class PdfImportTests : IDisposable
         Assert.Contains(@"\[brackets\]", md);
     }
 
+    [Fact]
+    public void Target_Groom_Service_Agreement_Pdf_Parses_Safely_Without_Crashing()
+    {
+        const string targetPath = @"C:\Users\Tony\Downloads\00P7F000006aiR2UAI_Groom, J ELPE service agreement.pdf";
+        if (!File.Exists(targetPath)) return;
+
+        var importer = new ReverseImportService();
+        var result = importer.ImportFromPdf(targetPath);
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.Pdf);
+        Assert.Equal(4, result.Pdf.Pages);
+    }
+
+    [Fact]
+    public void OcrGeometry_ToGray_Handles_Arbitrary_Strides_And_Color_Formats()
+    {
+        using (var bmpBgra = new SKBitmap(101, 73, SKColorType.Bgra8888, SKAlphaType.Premul))
+        {
+            var gray = OcrGeometry.ToGray(bmpBgra);
+            Assert.Equal(101 * 73, gray.Length);
+        }
+
+        using (var bmpRgba = new SKBitmap(64, 64, SKColorType.Rgba8888, SKAlphaType.Premul))
+        {
+            var gray = OcrGeometry.ToGray(bmpRgba);
+            Assert.Equal(64 * 64, gray.Length);
+        }
+
+        using (var bmp1x1 = new SKBitmap(1, 1, SKColorType.Bgra8888, SKAlphaType.Premul))
+        {
+            var gray = OcrGeometry.ToGray(bmp1x1);
+            Assert.Single(gray);
+        }
+    }
+
+    [Fact]
+    public void IOcrObserver_PageFailed_Notification_Works()
+    {
+        var recorded = new List<(int Page, string Err)>();
+        var observer = new TestObserver((p, err) => recorded.Add((p, err)));
+
+        OcrTrace.NotifyFailed(observer, 2, "Test render fault");
+
+        Assert.Single(recorded);
+        Assert.Equal(2, recorded[0].Page);
+        Assert.Equal("Test render fault", recorded[0].Err);
+    }
+
+    private sealed class TestObserver : IOcrObserver
+    {
+        private readonly Action<int, string> _onFailed;
+        public TestObserver(Action<int, string> onFailed) => _onFailed = onFailed;
+        public void PageStarted(OcrPagePreview preview) { }
+        public void PageRead(OcrPageTrace trace) { }
+        public void PageFailed(int pageNumber, string errorMessage) => _onFailed(pageNumber, errorMessage);
+    }
+
     private static byte[] Png(int w, int h, SKColor color)
     {
         using var bmp = new SKBitmap(w, h);

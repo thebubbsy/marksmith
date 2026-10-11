@@ -76,6 +76,9 @@ public interface IOcrObserver
 
     /// <summary>The engine has finished the page.</summary>
     void PageRead(OcrPageTrace trace);
+
+    /// <summary>The page encountered an error during import or OCR.</summary>
+    void PageFailed(int pageNumber, string errorMessage) { }
 }
 
 /// <summary>
@@ -161,22 +164,36 @@ public static class OcrTrace
     public const int PreviewMaxEdge = 1100;
 
     /// <summary>A JPEG of the page, no larger than <see cref="PreviewMaxEdge"/> on its long side.</summary>
-    public static OcrPagePreview Preview(SKBitmap page, int pageNumber, int pageIndex, int pageCount, string engine)
+    public static OcrPagePreview Preview(SKBitmap? page, int pageNumber, int pageIndex, int pageCount, string engine)
     {
-        int w = Math.Max(1, page.Width), h = Math.Max(1, page.Height);
-        double scale = Math.Min(1.0, PreviewMaxEdge / (double)Math.Max(w, h));
-        int pw = Math.Max(1, (int)Math.Round(w * scale)), ph = Math.Max(1, (int)Math.Round(h * scale));
-        if (pw == w && ph == h && page.ColorType == SKColorType.Bgra8888 && page.AlphaType == SKAlphaType.Opaque)
+        if (page is null || page.Width <= 0 || page.Height <= 0)
         {
-            using var directImage = SKImage.FromBitmap(page);
-            using var directData = directImage.Encode(SKEncodedImageFormat.Jpeg, 84);
-            return new OcrPagePreview(pageNumber, pageIndex, pageCount, directData.ToArray(), w, h, engine);
+            return new OcrPagePreview(pageNumber, pageIndex, pageCount, Array.Empty<byte>(), 960, 1320, engine ?? "MarkSmith OCR");
         }
-        // Resize always draws onto opaque white BGRA: grey or transparent scans encode cleanly.
-        using var small = OcrGeometry.Resize(page, pw, ph);
-        using var image = SKImage.FromBitmap(small);
-        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 84);
-        return new OcrPagePreview(pageNumber, pageIndex, pageCount, data.ToArray(), w, h, engine);
+
+        try
+        {
+            int w = Math.Max(1, page.Width), h = Math.Max(1, page.Height);
+            double scale = Math.Min(1.0, PreviewMaxEdge / (double)Math.Max(w, h));
+            int pw = Math.Max(1, (int)Math.Round(w * scale)), ph = Math.Max(1, (int)Math.Round(h * scale));
+            if (pw == w && ph == h && page.ColorType == SKColorType.Bgra8888 && page.AlphaType == SKAlphaType.Opaque)
+            {
+                using var directImage = SKImage.FromBitmap(page);
+                using var directData = directImage?.Encode(SKEncodedImageFormat.Jpeg, 84);
+                byte[] bytes = directData?.ToArray() ?? Array.Empty<byte>();
+                return new OcrPagePreview(pageNumber, pageIndex, pageCount, bytes, w, h, engine);
+            }
+            // Resize always draws onto opaque white BGRA: grey or transparent scans encode cleanly.
+            using var small = OcrGeometry.Resize(page, pw, ph);
+            using var image = SKImage.FromBitmap(small);
+            using var data = image?.Encode(SKEncodedImageFormat.Jpeg, 84);
+            byte[] encoded = data?.ToArray() ?? Array.Empty<byte>();
+            return new OcrPagePreview(pageNumber, pageIndex, pageCount, encoded, w, h, engine);
+        }
+        catch
+        {
+            return new OcrPagePreview(pageNumber, pageIndex, pageCount, Array.Empty<byte>(), page.Width, page.Height, engine ?? "MarkSmith OCR");
+        }
     }
 
     /// <summary>True when <paramref name="bmp"/> has readable luminance/color variation (i.e. is not a solid uniform color rectangle).</summary>
@@ -277,6 +294,15 @@ public static class OcrTrace
         if (target is null) return;
         try { target.PageRead(trace); }
         catch (Exception ex) { Debug.WriteLine($"OCR observer (read trace) failed: {ex.Message}"); }
+    }
+
+    /// <summary>Tells the observer a page encountered an error; never throws.</summary>
+    public static void NotifyFailed(IOcrObserver? observer, int pageNumber, string errorMessage)
+    {
+        var target = observer ?? DefaultObserver;
+        if (target is null) return;
+        try { target.PageFailed(pageNumber, errorMessage); }
+        catch (Exception ex) { Debug.WriteLine($"OCR observer (failed) error: {ex.Message}"); }
     }
 
     /// <summary>

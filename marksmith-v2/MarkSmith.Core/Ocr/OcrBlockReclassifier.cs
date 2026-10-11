@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using MarkSmith.Core.Composer;
 
 namespace MarkSmith.Ocr;
 
@@ -69,6 +70,12 @@ public static class OcrBlockReclassifier
                 {
                     return alt;
                 }
+                if (words is { Count: > 0 })
+                {
+                    var tokens = words.Select(w => w.Text.Trim()).Where(t => t.Length > 0);
+                    return string.Join(" ", tokens);
+                }
+                return string.Empty;
             }
 
             // Strip container fence :::shapes ... :::
@@ -76,7 +83,14 @@ public static class OcrBlockReclassifier
             if (containerMatch.Success)
             {
                 string body = containerMatch.Groups[1].Value;
-                // If it contains # mermaid: ...
+                try
+                {
+                    var shapes = ShapeMarkdownCodec.Parse(body);
+                    var shapeLabels = shapes.Where(s => !string.IsNullOrWhiteSpace(s.Text)).Select(s => s.Text!.Trim()).ToList();
+                    if (shapeLabels.Count > 0) return string.Join(" ", shapeLabels);
+                }
+                catch { }
+
                 var lines = body.Split('\n').Select(l => l.Trim()).Where(l => !string.IsNullOrEmpty(l)).ToList();
                 var textParts = new List<string>();
                 foreach (var line in lines)
@@ -179,12 +193,15 @@ public static class OcrBlockReclassifier
         float w = Math.Clamp(box.Width, 0.10f, 0.90f);
         float h = Math.Clamp(box.Height, 0.08f, 0.60f);
 
-        var sb = new StringBuilder();
-        sb.AppendLine(":::shapes compact=true");
-        sb.AppendLine($"# Shape Mosaic generated from Page {pageNumber} Element {blockIndex + 1}");
-
-        // Generate vector shape tiles covering the box area
-        sb.AppendLine($"rect {x:F2},{y:F2},{w:F2},{h:F2} fill=#1E40AF stroke=#3B82F6");
+        var baseShape = new ComposedShape
+        {
+            Prst = "rect",
+            X = x,
+            Y = y,
+            W = w,
+            H = h,
+            Fill = "1E40AF"
+        };
 
         float innerX = x + w * 0.08f;
         float innerY = y + h * 0.12f;
@@ -195,7 +212,22 @@ public static class OcrBlockReclassifier
         if (label.Length > 36) label = label.Substring(0, 33) + "…";
         label = label.Replace("\"", "'");
 
-        sb.AppendLine($"roundRect {innerX:F2},{innerY:F2},{innerW:F2},{innerH:F2} fill=#2563EB stroke=#60A5FA text=\"{label}\"");
+        var innerShape = new ComposedShape
+        {
+            Prst = "roundRect",
+            X = innerX,
+            Y = innerY,
+            W = innerW,
+            H = innerH,
+            Fill = "2563EB",
+            Text = label
+        };
+
+        var sb = new StringBuilder();
+        sb.AppendLine(":::shapes compact=true");
+        sb.AppendLine($"# Shape Mosaic generated from Page {pageNumber} Element {blockIndex + 1}");
+        sb.AppendLine(ShapeMarkdownCodec.Format(baseShape));
+        sb.AppendLine(ShapeMarkdownCodec.Format(innerShape));
         sb.Append(":::");
         return sb.ToString();
     }

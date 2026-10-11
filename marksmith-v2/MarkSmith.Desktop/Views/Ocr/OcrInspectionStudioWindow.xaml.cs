@@ -36,13 +36,18 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     private readonly TaskCompletionSource<OcrInspectionResult> _decisionTcs = new();
     private readonly Dictionary<OcrInspectionElement, Border> _canvasElementFrames = new();
     private readonly Dictionary<OcrInspectionElement, Border> _inspectorCards = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, OcrPagePreview> _pagePreviews = new();
 
     private CancellationTokenSource? _idleLaserCts;
+    private CancellationTokenSource? _playbackCts;
     private OcrInspectionElement? _selectedElement;
     private int _imagePixelWidth = 960;
     private int _imagePixelHeight = 1320;
     private bool _isReviewMode = false;
     private bool _markdownScopeIsDocument = false;
+    private bool _isUpdatingSelection = false;
+    private int _expectedPageCount = 1;
+    private volatile string _currentEngineName = "MarkSmith OCR";
 
     public OcrInspectionSession Session => _session;
     public bool IsReviewMode => _isReviewMode;
@@ -67,6 +72,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         this.Closed += (_, _) =>
         {
+            _playbackCts?.Cancel();
             _idleLaserCts?.Cancel();
             _decisionTcs.TrySetResult(new OcrInspectionResult(
                 Imported: false,
@@ -118,60 +124,100 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
     public void PageStarted(OcrPagePreview preview)
     {
-        this.DispatcherQueue.TryEnqueue(async () =>
+        _pagePreviews[preview.PageNumber] = preview;
+        if (preview.PageCount > _expectedPageCount)
         {
-            EngineBadgeText.Text = string.IsNullOrWhiteSpace(preview.Engine) ? "MarkSmith OCR" : preview.Engine;
-            _imagePixelWidth = Math.Max(1, preview.ImageWidth);
-            _imagePixelHeight = Math.Max(1, preview.ImageHeight);
-            CanvasMetricsText.Text = $"{_imagePixelWidth} × {_imagePixelHeight} px";
+            _expectedPageCount = preview.PageCount;
+        }
+        if (!string.IsNullOrWhiteSpace(preview.Engine))
+        {
+            _currentEngineName = preview.Engine;
+        }
 
-            string pageLabel = preview.PageCount > 1
-                ? $"Page {preview.PageIndex + 1} of {preview.PageCount}"
-                : $"Page {preview.PageNumber}";
-            PageIndicatorText.Text = pageLabel;
+        var dq = this.DispatcherQueue;
+        if (dq is null) return;
 
-            StatusBannerText.Text = $"Scanning & Decomposing {pageLabel} with {EngineBadgeText.Text}…";
-            WordStreamText.Text = $"Calibrating page geometry & deskew angle…";
-            StageProgressBar.IsIndeterminate = false;
-            StageProgressBar.Value = 35;
-
-            UpdatePageSheetDimensions();
-            if (preview.Image.Length > 0)
+        dq.TryEnqueue(async () =>
+        {
+            try
             {
-                await LoadPreviewBitmapAsync(preview.Image);
-            }
+                EngineBadgeText.Text = _currentEngineName;
+                _imagePixelWidth = Math.Max(1, preview.ImageWidth);
+                _imagePixelHeight = Math.Max(1, preview.ImageHeight);
+                CanvasMetricsText.Text = $"{_imagePixelWidth} × {_imagePixelHeight} px";
 
-            StartLaserSweep();
+                string pageLabel = _expectedPageCount > 1
+                    ? $"Page {preview.PageIndex + 1} of {_expectedPageCount}"
+                    : $"Page {preview.PageNumber}";
+                PageIndicatorText.Text = pageLabel;
+
+                StatusBannerText.Text = $"Scanning & Decomposing {pageLabel} with {_currentEngineName}…";
+                WordStreamText.Text = $"Calibrating page geometry & deskew angle…";
+                StageProgressBar.IsIndeterminate = false;
+                StageProgressBar.Value = 25;
+
+                UpdatePageSheetDimensions();
+                if (preview.Image.Length > 0)
+                {
+                    await LoadPreviewBitmapAsync(preview.Image);
+                }
+
+                StartLaserSweep();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"OcrInspectionStudio PageStarted dispatch error: {ex}");
+            }
         });
     }
 
     public void PageRead(OcrPageTrace trace)
     {
-        this.DispatcherQueue.TryEnqueue(() =>
+        if (!_pagePreviews.TryGetValue(trace.PageNumber, out var preview))
         {
-            var preview = new OcrPagePreview(
+            preview = new OcrPagePreview(
                 trace.PageNumber,
                 trace.PageNumber - 1,
-                Math.Max(1, _session.Pages.Count + 1),
+                _expectedPageCount,
                 Array.Empty<byte>(),
                 _imagePixelWidth,
                 _imagePixelHeight,
-                EngineBadgeText.Text);
+                _currentEngineName);
+        }
 
-            var page = _session.AddOrUpdatePage(preview, trace);
-            RenderCurrentPage();
-            UpdateSessionTelemetry();
+        var page = _session.AddOrUpdatePage(preview, trace);
 
-            WordStreamText.Text = $"Assembled {trace.Words.Count} words into {trace.Blocks.Count} blocks.";
-            StageProgressBar.Value = 100;
+        var dq = this.DispatcherQueue;
+        if (dq is null) return;
 
-            EnterReviewMode();
+        dq.TryEnqueue(async () =>
+        {
+            try
+            {
+                _idleLaserCts?.Cancel();
+                _playbackCts?.Cancel();
+                _playbackCts = new CancellationTokenSource();
+                var token = _playbackCts.Token;
+
+                await AnimateSinglePageBreakdownAsync(page, token);
+
+                if (_session.Pages.Count >= _expectedPageCount && _expectedPageCount > 0)
+                {
+                    EnterReviewMode();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"OcrInspectionStudio PageRead dispatch error: {ex}");
+            }
         });
     }
 
+    public void PageFailed(int pageNumber, string errorMessage) => ReportPageError(pageNumber, errorMessage);
+
     /// <summary>
     /// Ingests a synthesized or digital document import sequence, playing the reading breakdown
-    /// and transitioning directly into the interactive review mode (never auto-closing).
+    /// page by page without skipping, and transitioning directly into the interactive review mode (never auto-closing).
     /// </summary>
     public async Task PlayImportExperience(string markdown, string sourceLabel)
     {
@@ -179,25 +225,170 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         var pages = OcrTrace.SynthesizePagesFromMarkdown(markdown, sourceLabel);
         if (pages.Count == 0) return;
 
+        _expectedPageCount = pages.Count;
+        _pagePreviews.Clear();
+
         foreach (var (preview, trace) in pages)
         {
+            _pagePreviews[preview.PageNumber] = preview;
             _session.AddOrUpdatePage(preview, trace);
         }
 
-        _session.CurrentPageIndex = 0;
-        var firstPage = _session.CurrentPage;
-        if (firstPage is not null && firstPage.Image.Length > 0)
+        _playbackCts?.Cancel();
+        _playbackCts = new CancellationTokenSource();
+        var token = _playbackCts.Token;
+
+        // Animate breakdown page by page without skipping!
+        for (int p = 0; p < _session.Pages.Count && !token.IsCancellationRequested; p++)
         {
-            _imagePixelWidth = firstPage.ImageWidth;
-            _imagePixelHeight = firstPage.ImageHeight;
-            CanvasMetricsText.Text = $"{_imagePixelWidth} × {_imagePixelHeight} px";
-            UpdatePageSheetDimensions();
-            await LoadPreviewBitmapAsync(firstPage.Image);
+            var page = _session.Pages[p];
+            string pageLabel = _session.Pages.Count > 1
+                ? $"Page {page.PageNumber} of {_session.Pages.Count}"
+                : $"Page {page.PageNumber}";
+            StatusBannerText.Text = $"Analyzing & Decomposing {pageLabel} with {sourceLabel}…";
+            StageProgressBar.Value = Math.Round((p + 0.5) / _session.Pages.Count * 100);
+
+            await AnimateSinglePageBreakdownAsync(page, token);
+
+            if (_session.Pages.Count > 1 && p < _session.Pages.Count - 1)
+            {
+                try { await Task.Delay(140, token); } catch (OperationCanceledException) { break; }
+            }
         }
 
+        _session.CurrentPageIndex = 0;
         RenderCurrentPage();
-        UpdateSessionTelemetry();
         EnterReviewMode();
+    }
+
+    private async Task AnimateSinglePageBreakdownAsync(OcrInspectionPage page, CancellationToken token)
+    {
+        try
+        {
+            _session.GoToPage(page.PageIndex);
+            UpdatePageFlickingState();
+
+            if (page.Image.Length > 0)
+            {
+                _imagePixelWidth = page.ImageWidth;
+                _imagePixelHeight = page.ImageHeight;
+                CanvasMetricsText.Text = $"{_imagePixelWidth} × {_imagePixelHeight} px";
+                UpdatePageSheetDimensions();
+                await LoadPreviewBitmapAsync(page.Image);
+            }
+            else
+            {
+                DocumentImage.Source = null;
+            }
+
+            ElementsCanvas.Children.Clear();
+            ElementCardsPanel.Children.Clear();
+            _canvasElementFrames.Clear();
+            _inspectorCards.Clear();
+
+            // 1. Scan laser sweep
+            LaserBeam.Visibility = Visibility.Visible;
+            double ch = PageSheetGrid.Height > 0 ? PageSheetGrid.Height : 520;
+            const int sweepSteps = 6;
+            for (int s = 0; s <= sweepSteps && !token.IsCancellationRequested; s++)
+            {
+                float frac = 0.08f + (0.84f * (s / (float)sweepSteps));
+                LaserTransform.Y = Math.Clamp(frac * ch, 0, Math.Max(0, ch - 4));
+                try { await Task.Delay(20, token); } catch (OperationCanceledException) { return; }
+            }
+
+            // 2. Progressive element cutouts & inspector cards
+            int elemCount = page.Elements.Count;
+            for (int i = 0; i < elemCount && !token.IsCancellationRequested; i++)
+            {
+                var elem = page.Elements[i];
+                var frame = CreateCanvasElementFrame(elem);
+                _canvasElementFrames[elem] = frame;
+                AddPositionedOverlay(frame, elem.Box);
+
+                var card = CreateInspectorCard(elem);
+                _inspectorCards[elem] = card;
+                ElementCardsPanel.Children.Add(card);
+
+                LaserTransform.Y = Math.Clamp(elem.Box.Bottom * ch, 0, Math.Max(0, ch - 4));
+                WordStreamText.Text = $"Located #{elem.Id} ({elem.KindDisplayName}) with {elem.WordCount} words…";
+                HeaderElementsCountText.Text = _session.TotalElements.ToString();
+
+                if (elemCount <= 12)
+                {
+                    try { await Task.Delay(30, token); } catch (OperationCanceledException) { return; }
+                }
+            }
+
+            // 3. Word token stream
+            if (page.Words.Count > 0 && !token.IsCancellationRequested)
+            {
+                string wordsSample = string.Join(" ", page.Words.Take(8).Select(w => w.Text));
+                WordStreamText.Text = $"Streaming words: {wordsSample}…";
+                WordCountBadgeText.Text = $"{page.Words.Count} words";
+                try { await Task.Delay(40, token); } catch (OperationCanceledException) { return; }
+            }
+
+            UpdateLiveMarkdownPreview();
+            UpdateSessionTelemetry();
+            WordStreamText.Text = $"Assembled {page.Words.Count} words into {page.Elements.Count} blocks.";
+            StageProgressBar.Value = 100;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"AnimateSinglePageBreakdownAsync error: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Explicitly completes the scanning/import sequence and transitions into interactive review mode.
+    /// Can be invoked by document importers once all pages are finished.
+    /// </summary>
+    public void CompleteScanning()
+    {
+        var dq = this.DispatcherQueue;
+        if (dq is null) return;
+        dq.TryEnqueue(() =>
+        {
+            try
+            {
+                if (!_isReviewMode)
+                {
+                    _session.CurrentPageIndex = 0;
+                    RenderCurrentPage();
+                    EnterReviewMode();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"CompleteScanning error: {ex}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Surfaces a non-fatal page-level warning or extraction failure in the Inspection Studio without closing it.
+    /// </summary>
+    public void ReportPageError(int pageNumber, string errorMessage)
+    {
+        var dq = this.DispatcherQueue;
+        if (dq is null) return;
+        dq.TryEnqueue(() =>
+        {
+            try
+            {
+                StatusBannerIcon.Glyph = "\uE783"; // Warning triangle
+                StatusBannerIcon.Foreground = ThemeBrush.Get("SystemFillColorCautionBrush", RootGrid.ActualTheme);
+                StatusBannerText.Text = $"Page {pageNumber}: {errorMessage}";
+                StatusSubtext.Text = "MarkSmith continued importing the rest of the document. You can inspect available pages and review before applying.";
+                FooterStatusText.Text = $"Page {pageNumber} issue: {errorMessage}";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ReportPageError error: {ex}");
+            }
+        });
     }
 
     // ---- Review Mode & Interactive State --------------------------------------------------------
@@ -205,17 +396,18 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     private void EnterReviewMode()
     {
         _isReviewMode = true;
+        _playbackCts?.Cancel();
         _idleLaserCts?.Cancel();
         LaserBeam.Visibility = Visibility.Collapsed;
 
         StatusBannerIcon.Glyph = "\uE73E"; // Checkmark
-        StatusBannerIcon.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
+        StatusBannerIcon.Foreground = ThemeBrush.Get("SystemFillColorSuccessBrush", RootGrid.ActualTheme);
         StatusBannerText.Text = "✓ Document Scan Complete — Inspect Detected Elements & Choose Import Settings";
         StatusSubtext.Text = "Flick through pages to inspect detected elements. Click any element to reclassify it between Picture, Mosaic, Diagram, Table, Key-Value, or Text. Hit 'Import into MarkSmith' to apply.";
 
         UpdatePageFlickingState();
         UpdateLiveMarkdownPreview();
-        FooterStatusText.Text = "Inspection Studio ready — Review detected elements before applying import.";
+        FooterStatusText.Text = "Inspection Studio active — Never auto-closes. Review detected elements before applying import.";
     }
 
     private void UpdatePageFlickingState()
@@ -347,7 +539,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Text = $"{elem.WordCount} words",
             FontSize = 10.5,
             FontFamily = MonoFont,
-            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            Foreground = ThemeBrush.Get("TextFillColorSecondaryBrush", RootGrid.ActualTheme),
             VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(metricsText, 1);
@@ -404,7 +596,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Text = previewSnippet,
             FontSize = 10.5,
             FontFamily = MonoFont,
-            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            Foreground = ThemeBrush.Get("TextFillColorSecondaryBrush", RootGrid.ActualTheme),
             TextTrimming = TextTrimming.CharacterEllipsis,
             MaxLines = 2,
         });
@@ -413,8 +605,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         {
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 7, 8, 7),
-            Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
-            BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
+            Background = ThemeBrush.Get("SubtleFillColorSecondaryBrush", RootGrid.ActualTheme),
+            BorderBrush = ThemeBrush.Get("ControlStrokeColorDefaultBrush", RootGrid.ActualTheme),
             BorderThickness = new Thickness(1),
             Child = cardStack,
         };
@@ -448,22 +640,30 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         {
             bool isTarget = ReferenceEquals(el, elem);
             card.BorderBrush = isTarget
-                ? (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"]
-                : (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"];
+                ? ThemeBrush.Get("AccentFillColorDefaultBrush", RootGrid.ActualTheme)
+                : ThemeBrush.Get("ControlStrokeColorDefaultBrush", RootGrid.ActualTheme);
             card.BorderThickness = new Thickness(isTarget ? 2 : 1);
         }
 
         SelectedElementBadgeText.Text = $"Element #{elem.Id} ({elem.KindDisplayName})";
 
         // Sync QuickReclassifyComboBox
-        for (int i = 0; i < QuickReclassifyComboBox.Items.Count; i++)
+        _isUpdatingSelection = true;
+        try
         {
-            if (QuickReclassifyComboBox.Items[i] is ComboBoxItem item &&
-                string.Equals(item.Tag?.ToString(), elem.Kind.ToString(), StringComparison.OrdinalIgnoreCase))
+            for (int i = 0; i < QuickReclassifyComboBox.Items.Count; i++)
             {
-                QuickReclassifyComboBox.SelectedIndex = i;
-                break;
+                if (QuickReclassifyComboBox.Items[i] is ComboBoxItem item &&
+                    string.Equals(item.Tag?.ToString(), elem.Kind.ToString(), StringComparison.OrdinalIgnoreCase))
+                {
+                    QuickReclassifyComboBox.SelectedIndex = i;
+                    break;
+                }
             }
+        }
+        finally
+        {
+            _isUpdatingSelection = false;
         }
     }
 
@@ -649,7 +849,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
     private void OnQuickReclassifySelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_selectedElement is null) return;
+        if (_isUpdatingSelection || _selectedElement is null) return;
         if (QuickReclassifyComboBox.SelectedItem is ComboBoxItem item &&
             Enum.TryParse<OcrBlockKind>(item.Tag?.ToString(), out var newKind) &&
             newKind != _selectedElement.Kind)

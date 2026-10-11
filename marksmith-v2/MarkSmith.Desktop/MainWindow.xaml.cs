@@ -6893,61 +6893,72 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 // Word/PDF keep their own result: the tier and the "edited after export" warning.
                 var studio = new Views.Ocr.OcrInspectionStudioWindow();
                 studio.Activate();
-                var importer = new Services.ReverseImportService();
-                ViewModel.StatusText = $"Importing {name}…";
-                var result = ext == ".pdf"
-                    ? await importer.ImportFromPdfAsync(filePath, new Services.Import.PdfImportOptions
+                try
+                {
+                    var importer = new Services.ReverseImportService();
+                    ViewModel.StatusText = $"Importing {name}…";
+                    var result = ext == ".pdf"
+                        ? await importer.ImportFromPdfAsync(filePath, new Services.Import.PdfImportOptions
+                        {
+                            MediaDirectory = Plugins.PluginFileReader.MediaDirFor(filePath),
+                            MediaLink = Plugins.PluginFileReader.MediaLinkFor(filePath, Plugins.PluginFileReader.MediaDirFor(filePath)),
+                            RenderPage = n => Services.WindowsPdfRenderer.Render(filePath, n),
+                            // Scanned pages take a moment each: say which one is being read.
+                            Progress = new Progress<string>(s => ViewModel.StatusText = s),
+                            OcrObserver = studio,
+                        })
+                        : await importer.ImportFromDocxAsync(filePath);
+                    Services.WindowsPdfRenderer.Release();
+
+                    if (string.IsNullOrWhiteSpace(result.Markdown))
                     {
-                        MediaDirectory = Plugins.PluginFileReader.MediaDirFor(filePath),
-                        MediaLink = Plugins.PluginFileReader.MediaLinkFor(filePath, Plugins.PluginFileReader.MediaDirFor(filePath)),
-                        RenderPage = n => Services.WindowsPdfRenderer.Render(filePath, n),
-                        // Scanned pages take a moment each: say which one is being read.
-                        Progress = new Progress<string>(s => ViewModel.StatusText = s),
-                        OcrObserver = studio,
-                    })
-                    : await importer.ImportFromDocxAsync(filePath);
-                Services.WindowsPdfRenderer.Release();
+                        studio.Close();
+                        ViewModel.StatusText = result.Warning ?? "No content could be extracted from that document.";
+                        ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                        return;
+                    }
 
-                if (string.IsNullOrWhiteSpace(result.Markdown))
-                {
-                    studio.Close();
-                    ViewModel.StatusText = result.Warning ?? "No content could be extracted from that document.";
-                    ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                    var sourceLabel = ext == ".pdf" ? "MarkSmith PDF Importer" : "MarkSmith Word (.docx) Importer";
+                    if (studio.Session.Pages.Count == 0)
+                    {
+                        await studio.PlayImportExperience(result.Markdown, sourceLabel);
+                    }
+
+                    var decision = await studio.WaitForDecisionAsync();
+                    if (!decision.Imported)
+                    {
+                        ViewModel.StatusText = "Import cancelled.";
+                        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+                        return;
+                    }
+
+                    ViewModel.DetachFromOpenFile();
+                    ViewModel.PastedMarkdown = decision.Markdown;
+                    ViewModel.UsePasteSource = true;
+                    ViewModel.StatusText = result.Tier == Services.ImportTier.EmbeddedSource
+                        ? $"Imported {name} (its original MarkSmith source)"
+                        : $"Imported {name}";
+                    if (result.Pdf is { } pdf)
+                    {
+                        ViewModel.StatusText += $" · {pdf.Pages} page{(pdf.Pages == 1 ? "" : "s")}";
+                        if (pdf.Pictures > 0) ViewModel.StatusText += $", {pdf.Pictures} picture{(pdf.Pictures == 1 ? "" : "s")}";
+                    }
+                    if (!result.IsStale && !string.IsNullOrWhiteSpace(result.Warning)) ViewModel.StatusText += " · " + result.Warning;
+                    ViewModel.StatusSeverity = result.IsStale || result.Pdf?.Notes.Count > 0
+                        ? Models.StatusSeverity.Warning
+                        : Models.StatusSeverity.Success;
+                    if (result.IsStale && !string.IsNullOrWhiteSpace(result.Warning))
+                        ViewModel.StatusText += " — edited after export; source may lag the visible content";
                     return;
                 }
-
-                var sourceLabel = ext == ".pdf" ? "MarkSmith PDF Importer" : "MarkSmith Word (.docx) Importer";
-                if (studio.Session.Pages.Count == 0)
+                catch (Exception ex)
                 {
-                    await studio.PlayImportExperience(result.Markdown, sourceLabel);
-                }
-
-                var decision = await studio.WaitForDecisionAsync();
-                if (!decision.Imported)
-                {
-                    ViewModel.StatusText = "Import cancelled.";
-                    ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+                    try { studio.Close(); } catch { }
+                    Services.WindowsPdfRenderer.Release();
+                    ViewModel.StatusText = $"Could not import {name}: {ex.Message}";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Error;
                     return;
                 }
-
-                ViewModel.DetachFromOpenFile();
-                ViewModel.PastedMarkdown = decision.Markdown;
-                ViewModel.UsePasteSource = true;
-                ViewModel.StatusText = result.Tier == Services.ImportTier.EmbeddedSource
-                    ? $"Imported {name} (its original MarkSmith source)"
-                    : $"Imported {name}";
-                if (result.Pdf is { } pdf)
-                {
-                    ViewModel.StatusText += $" · {pdf.Pages} page{(pdf.Pages == 1 ? "" : "s")}";
-                    if (pdf.Pictures > 0) ViewModel.StatusText += $", {pdf.Pictures} picture{(pdf.Pictures == 1 ? "" : "s")}";
-                }
-                if (!result.IsStale && !string.IsNullOrWhiteSpace(result.Warning)) ViewModel.StatusText += " · " + result.Warning;
-                ViewModel.StatusSeverity = result.IsStale || result.Pdf?.Notes.Count > 0
-                    ? Models.StatusSeverity.Warning
-                    : Models.StatusSeverity.Success;
-                if (result.IsStale && !string.IsNullOrWhiteSpace(result.Warning))
-                    ViewModel.StatusText += " — edited after export; source may lag the visible content";
-                return;
             }
 
             var studioPlugin = new Views.Ocr.OcrInspectionStudioWindow();
@@ -7321,16 +7332,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             _window.DispatcherQueue.TryEnqueue(() =>
             {
-                lock (_lock)
+                try
                 {
-                    if (_studio is null)
+                    lock (_lock)
                     {
-                        _studio = new Views.Ocr.OcrInspectionStudioWindow();
-                        _studio.Activate();
-                        _ = AwaitAndApplyStudioDecisionAsync(_studio);
+                        if (_studio is null)
+                        {
+                            _studio = new Views.Ocr.OcrInspectionStudioWindow();
+                            _studio.Activate();
+                            _ = AwaitAndApplyStudioDecisionAsync(_studio);
+                        }
                     }
+                    _studio.PageStarted(preview);
                 }
-                _studio.PageStarted(preview);
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"AmbientStudioOcrObserver PageStarted dispatch error: {ex}");
+                }
             });
         }
 
@@ -7338,9 +7356,34 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             _window.DispatcherQueue.TryEnqueue(() =>
             {
-                lock (_lock)
+                try
                 {
-                    _studio?.PageRead(trace);
+                    lock (_lock)
+                    {
+                        _studio?.PageRead(trace);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"AmbientStudioOcrObserver PageRead dispatch error: {ex}");
+                }
+            });
+        }
+
+        public void PageFailed(int pageNumber, string errorMessage)
+        {
+            _window.DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    lock (_lock)
+                    {
+                        _studio?.PageFailed(pageNumber, errorMessage);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"AmbientStudioOcrObserver PageFailed dispatch error: {ex}");
                 }
             });
         }

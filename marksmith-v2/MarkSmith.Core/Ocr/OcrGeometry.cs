@@ -33,15 +33,29 @@ public static class OcrGeometry
     {
         using var src = bitmap.ColorType == SKColorType.Bgra8888 ? null : bitmap.Copy(SKColorType.Bgra8888);
         var bmp = src ?? bitmap;
-        int w = bmp.Width, h = bmp.Height;
+        int w = Math.Max(1, bmp.Width), h = Math.Max(1, bmp.Height);
         var gray = new byte[w * h];
         var span = bmp.GetPixelSpan();
-        for (int i = 0, p = 0; i < gray.Length; i++, p += 4)
+        int rowBytes = bmp.RowBytes;
+        for (int y = 0; y < h; y++)
         {
-            // BGRA; alpha composited over white so transparent PNGs read as paper.
-            int a = span[p + 3];
-            int lum = (span[p] * 29 + span[p + 1] * 150 + span[p + 2] * 77) >> 8;
-            gray[i] = (byte)((lum * a + 255 * (255 - a)) / 255);
+            int rowOffset = y * rowBytes;
+            int grayOffset = y * w;
+            for (int x = 0; x < w; x++)
+            {
+                int p = rowOffset + (x * 4);
+                if (p + 3 < span.Length)
+                {
+                    // BGRA; alpha composited over white so transparent PNGs read as paper.
+                    int a = span[p + 3];
+                    int lum = (span[p] * 29 + span[p + 1] * 150 + span[p + 2] * 77) >> 8;
+                    gray[grayOffset + x] = (byte)((lum * a + 255 * (255 - a)) / 255);
+                }
+                else
+                {
+                    gray[grayOffset + x] = 255;
+                }
+            }
         }
         return gray;
     }
