@@ -165,6 +165,119 @@ public sealed class SettingsPolishTests
         Assert.All(cards, c => Assert.Contains("Description=", c));
     }
 
+    [Fact]
+    public void SettingsCard_and_OptionRow_define_Normal_PointerOver_Pressed_and_Disabled_visual_states()
+    {
+        var cardXaml = File.ReadAllText(Path.Combine(DesktopDir(), "Controls", "SettingsCard.xaml"));
+        var rowXaml = File.ReadAllText(Path.Combine(DesktopDir(), "Controls", "OptionRow.xaml"));
+        foreach (var xaml in new[] { cardXaml, rowXaml })
+        {
+            Assert.Contains("x:Name=\"Normal\"", xaml);
+            Assert.Contains("x:Name=\"PointerOver\"", xaml);
+            Assert.Contains("x:Name=\"Pressed\"", xaml);
+            Assert.Contains("x:Name=\"Disabled\"", xaml);
+        }
+
+        var cardCode = File.ReadAllText(Path.Combine(DesktopDir(), "Controls", "SettingsCard.xaml.cs"));
+        var rowCode = File.ReadAllText(Path.Combine(DesktopDir(), "Controls", "OptionRow.xaml.cs"));
+        Assert.Contains("_pointerPressed ? \"Pressed\"", cardCode);
+        Assert.Contains("_pointerPressed ? \"Pressed\"", rowCode);
+    }
+
+    [Fact]
+    public void SettingsCard_and_OptionRow_support_tapping_to_focus_or_open_ComboBox_NumberBox_and_Details_inputs()
+    {
+        var cardCode = File.ReadAllText(Path.Combine(DesktopDir(), "Controls", "SettingsCard.xaml.cs"));
+        var rowCode = File.ReadAllText(Path.Combine(DesktopDir(), "Controls", "OptionRow.xaml.cs"));
+
+        Assert.Contains("Action is ComboBox { IsEnabled: true } combo", cardCode);
+        Assert.Contains("combo.IsDropDownOpen = !combo.IsDropDownOpen;", cardCode);
+        Assert.Contains("Action is NumberBox { IsEnabled: true } numberBox", cardCode);
+        Assert.Contains("FindFirstInput(Details as DependencyObject)", cardCode);
+        Assert.Contains("AutomationProperties.SetHelpText(this, Description ?? \"\");", cardCode);
+
+        Assert.Contains("case ComboBox { IsEnabled: true } combo:", rowCode);
+        Assert.Contains("case NumberBox { IsEnabled: true } numberBox:", rowCode);
+        Assert.Contains("FindFirstInput(Details as DependencyObject)", rowCode);
+        Assert.Contains("AutomationProperties.SetHelpText(this, Description ?? \"\");", rowCode);
+    }
+
+    [Fact]
+    public void SettingsCard_wraps_wide_actions_below_header_on_narrow_widths()
+    {
+        var cardCode = File.ReadAllText(Path.Combine(DesktopDir(), "Controls", "SettingsCard.xaml.cs"));
+        Assert.Contains("private void UpdateActionPlacement(double width)", cardCode);
+        Assert.Contains("var compactSwitch = Action is null or ToggleSwitch or CheckBox;", cardCode);
+        Assert.Contains("Grid.SetRow(ActionPart, 1);", cardCode);
+        Assert.Contains("Grid.SetRow(ActionPart, 0);", cardCode);
+    }
+
+    [Fact]
+    public void SettingsView_supports_keyboard_page_cycling_and_direct_page_shortcuts()
+    {
+        var code = SettingsCode();
+        Assert.Contains("private void StepNavPage(int delta)", code);
+        Assert.Contains("if (ctrl && e.Key == Windows.System.VirtualKey.Tab)", code);
+        Assert.Contains("Windows.System.VirtualKey.PageDown or Windows.System.VirtualKey.PageUp", code);
+        Assert.Contains(">= Windows.System.VirtualKey.Number1 and <= Windows.System.VirtualKey.Number7", code);
+        Assert.Contains("else if (PluginWarningsBar.IsOpen)", code);
+        Assert.Contains("OnPdfUserPasswordKeyDown", code);
+        Assert.Contains("OnGoogleClientIdKeyDown", code);
+        Assert.Contains("OnGoogleSecretKeyDown", code);
+        Assert.Contains("OnHouseStyleReplyKeyDown", code);
+    }
+
+    [Fact]
+    public void SettingsView_adapts_layout_on_narrow_windows()
+    {
+        var code = SettingsCode();
+        Assert.Contains("private void ApplyResponsiveLayout(double width)", code);
+        Assert.Contains("NavigationViewPaneDisplayMode.LeftCompact", code);
+        Assert.Contains("Grid.SetRow(PdfPagePreviewPanel, 1);", code);
+        Assert.Contains("Grid.SetRow(AboutCheckPanel, 1);", code);
+    }
+
+    [Fact]
+    public void Every_interactive_control_and_nav_item_in_SettingsView_has_an_accessible_name()
+    {
+        var xaml = SettingsXaml();
+        foreach (var tag in new[] { "General", "Pdf", "Automation", "Google", "License", "Plugins", "About" })
+        {
+            var navItem = Regex.Match(xaml, $"<NavigationViewItem[^>]*Tag=\"{tag}\"[^>]*>", RegexOptions.Singleline);
+            Assert.True(navItem.Success, $"missing NavigationViewItem for {tag}");
+            Assert.Contains("AutomationProperties.Name=", navItem.Value);
+            Assert.Contains("ToolTipService.ToolTip=", navItem.Value);
+        }
+
+        foreach (var controlTag in new[] { "ToggleSwitch", "ComboBox", "TextBox", "PasswordBox", "NumberBox", "CheckBox", "HyperlinkButton" })
+        {
+            var matches = Regex.Matches(xaml, $"<{controlTag}\\s[^>]*>", RegexOptions.Singleline)
+                .Select(m => m.Value)
+                .ToList();
+            Assert.NotEmpty(matches);
+            foreach (var m in matches)
+            {
+                // DownloadLink has Content="Open the releases page" which names itself in UIA
+                if (m.Contains("x:Name=\"DownloadLink\"")) continue;
+                Assert.True(m.Contains("AutomationProperties.Name="), $"{controlTag} missing AutomationProperties.Name: {m}");
+            }
+        }
+    }
+
+    [Fact]
+    public void SettingsView_syncs_live_accessibility_names_and_restores_focus_after_async_actions()
+    {
+        var code = SettingsCode();
+        Assert.Contains("RenderGeneralDynamicNames()", code);
+        Assert.Contains("RenderApiStatus()", code);
+        Assert.Contains("RenderHouseStyleStatus()", code);
+        Assert.Contains("CloudRescanStatusText", code);
+        Assert.Contains("if (!HoverPolish.AnimationsEnabled)", code);
+        Assert.Contains("CheckRing.Visibility = Visibility.Visible;", code);
+        Assert.Contains("CheckRing.Visibility = Visibility.Collapsed;", code);
+        Assert.Contains("CheckButton.Focus(FocusState.Programmatic);", code);
+    }
+
     private static string CardOpeningTag(string header)
     {
         var match = Regex.Match(SettingsXaml(),
@@ -175,6 +288,9 @@ public sealed class SettingsPolishTests
 
     private static string SettingsXaml() =>
         File.ReadAllText(Path.Combine(DesktopDir(), "Views", "SettingsView.xaml"));
+
+    private static string SettingsCode() =>
+        File.ReadAllText(Path.Combine(DesktopDir(), "Views", "SettingsView.xaml.cs"));
 
     private static string DesktopDir([CallerFilePath] string here = "") =>
         Path.Combine(Path.GetDirectoryName(here)!, "..", "MarkSmith.Desktop");

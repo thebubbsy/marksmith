@@ -31,11 +31,15 @@ public sealed partial class SettingsView : UserControl
         // after it (the PDF page preview, Google's status, a download in About, license changes).
         App.License.Changed += OnLicenseChanged;
         App.ViewModel.PropertyChanged += OnUpdateStateChanged;
+        RenderGeneralDynamicNames();
         RenderAboutUpdate();
         RenderPdfBands();
+        RenderApiStatus();
+        RenderHouseStyleStatus();
         RenderGoogleState();
         GoogleSecretBox.Password = App.ViewModel.GoogleClientSecret; // masked; pre-fill for convenience
         Nav.SelectedItem = Nav.MenuItems[0];
+        ApplyResponsiveLayout(Root.Width);
         AddHandler(KeyDownEvent, new KeyEventHandler(OnSettingsKeyDown), true);
         HoverPolish.Track(this);
     }
@@ -54,7 +58,55 @@ public sealed partial class SettingsView : UserControl
                 LicenseStatusBar.IsOpen = false;
                 e.Handled = true;
             }
+            else if (PluginWarningsBar.IsOpen)
+            {
+                PluginWarningsBar.IsOpen = false;
+                e.Handled = true;
+            }
+            return;
         }
+
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Menu)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        if (ctrl && e.Key == Windows.System.VirtualKey.Tab)
+        {
+            StepNavPage(shift ? -1 : 1);
+            e.Handled = true;
+            return;
+        }
+
+        if (ctrl && !shift && e.Key is Windows.System.VirtualKey.PageDown or Windows.System.VirtualKey.PageUp)
+        {
+            StepNavPage(e.Key == Windows.System.VirtualKey.PageDown ? 1 : -1);
+            e.Handled = true;
+            return;
+        }
+
+        if ((ctrl || alt) && !shift && e.Key is >= Windows.System.VirtualKey.Number1 and <= Windows.System.VirtualKey.Number7)
+        {
+            var idx = (int)e.Key - (int)Windows.System.VirtualKey.Number1;
+            var items = Nav.MenuItems.OfType<NavigationViewItem>().ToList();
+            if (idx >= 0 && idx < items.Count)
+            {
+                Nav.SelectedItem = items[idx];
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void StepNavPage(int delta)
+    {
+        var items = Nav.MenuItems.OfType<NavigationViewItem>().ToList();
+        if (items.Count == 0) return;
+        var current = Nav.SelectedItem is NavigationViewItem selected ? items.IndexOf(selected) : 0;
+        if (current < 0) current = 0;
+        var next = (current + delta + items.Count) % items.Count;
+        Nav.SelectedItem = items[next];
     }
 
     /// <summary>
@@ -64,8 +116,68 @@ public sealed partial class SettingsView : UserControl
     /// </summary>
     public void FitTo(Windows.Foundation.Size window)
     {
-        Root.Width = Math.Clamp(window.Width - 140, 580, 820);
-        Root.Height = Math.Clamp(window.Height - 200, 360, 640);
+        Root.Width = Math.Clamp(window.Width - 100, 480, 820);
+        Root.Height = Math.Clamp(window.Height - 180, 360, 640);
+        ApplyResponsiveLayout(Root.Width);
+    }
+
+    private void OnRootSizeChanged(object sender, SizeChangedEventArgs e) =>
+        ApplyResponsiveLayout(e.NewSize.Width);
+
+    private void ApplyResponsiveLayout(double width)
+    {
+        if (width <= 0) return;
+
+        // Collapse the left navigation rail to icons on narrow windows so cards keep comfortable room.
+        if (Nav is not null)
+        {
+            Nav.PaneDisplayMode = width < 620
+                ? NavigationViewPaneDisplayMode.LeftCompact
+                : NavigationViewPaneDisplayMode.Left;
+            Nav.OpenPaneLength = width < 720 ? 164 : 188;
+        }
+
+        // Stack the PDF page preview below the header/footer inputs when narrow.
+        if (PdfPagePreviewPanel is not null)
+        {
+            if (width < 640)
+            {
+                Grid.SetRow(PdfPagePreviewPanel, 1);
+                Grid.SetColumn(PdfPagePreviewPanel, 0);
+                Grid.SetColumnSpan(PdfPagePreviewPanel, 2);
+                PdfPagePreviewPanel.Margin = new Thickness(0, 12, 0, 0);
+                PdfPagePreviewPanel.HorizontalAlignment = HorizontalAlignment.Left;
+            }
+            else
+            {
+                Grid.SetRow(PdfPagePreviewPanel, 0);
+                Grid.SetColumn(PdfPagePreviewPanel, 1);
+                Grid.SetColumnSpan(PdfPagePreviewPanel, 1);
+                PdfPagePreviewPanel.Margin = new Thickness(0);
+                PdfPagePreviewPanel.HorizontalAlignment = HorizontalAlignment.Center;
+            }
+        }
+
+        // Wrap "Check for updates" beneath the MarkSmith version summary on narrow widths.
+        if (AboutCheckPanel is not null)
+        {
+            if (width < 600)
+            {
+                Grid.SetRow(AboutCheckPanel, 1);
+                Grid.SetColumn(AboutCheckPanel, 1);
+                Grid.SetColumnSpan(AboutCheckPanel, 2);
+                AboutCheckPanel.Margin = new Thickness(0, 10, 0, 0);
+                AboutCheckPanel.HorizontalAlignment = HorizontalAlignment.Left;
+            }
+            else
+            {
+                Grid.SetRow(AboutCheckPanel, 0);
+                Grid.SetColumn(AboutCheckPanel, 2);
+                Grid.SetColumnSpan(AboutCheckPanel, 1);
+                AboutCheckPanel.Margin = new Thickness(0);
+                AboutCheckPanel.HorizontalAlignment = HorizontalAlignment.Right;
+            }
+        }
     }
 
     /// <summary>
@@ -101,6 +213,8 @@ public sealed partial class SettingsView : UserControl
         };
         foreach (var page in Pages.Children.OfType<ScrollViewer>())
             page.Visibility = ReferenceEquals(page, target) ? Visibility.Visible : Visibility.Collapsed;
+        target.ChangeView(null, 0, null, disableAnimation: true);
+        HoverPolish.Apply(target);
         PlayPageEntrance(target);
     }
 
@@ -108,6 +222,13 @@ public sealed partial class SettingsView : UserControl
     // switching pages reads as navigation rather than a hard content swap.
     private static void PlayPageEntrance(UIElement page)
     {
+        if (!HoverPolish.AnimationsEnabled)
+        {
+            page.Opacity = 1;
+            page.RenderTransform = null;
+            return;
+        }
+
         var shift = new TranslateTransform { Y = 12 };
         page.RenderTransform = shift;
         page.Opacity = 0;
@@ -153,6 +274,30 @@ public sealed partial class SettingsView : UserControl
         OnActivateLicense(sender, e);
     }
 
+    private void OnPdfUserPasswordKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Enter) return;
+        e.Handled = true;
+        PdfOwnerPasswordBox?.Focus(FocusState.Programmatic);
+    }
+
+    private void OnGoogleClientIdKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Enter) return;
+        e.Handled = true;
+        GoogleSecretBox?.Focus(FocusState.Programmatic);
+    }
+
+    private void OnGoogleSecretKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Enter) return;
+        if (GoogleSignInButton is { Visibility: Visibility.Visible, IsEnabled: true })
+        {
+            e.Handled = true;
+            GoogleSignInButton.Focus(FocusState.Programmatic);
+        }
+    }
+
     private void OnGoogleSecretChanged(object sender, RoutedEventArgs e)
     {
         if (DataContext is MarkSmith.ViewModels.MainViewModel vm)
@@ -189,9 +334,10 @@ public sealed partial class SettingsView : UserControl
         KeyBox.IsEnabled = false;
         LicenseActionRing.Visibility = Visibility.Visible;
         LicenseActionRing.IsActive = true;
+        var ok = false;
         try
         {
-            var (ok, message) = await App.License.ActivateAsync(KeyBox.Text.Trim());
+            (ok, var message) = await App.License.ActivateAsync(KeyBox.Text.Trim());
             ShowLicenseStatus(ok, message);
             if (ok) KeyBox.Text = "";
             RefreshLicenseUi();
@@ -202,6 +348,10 @@ public sealed partial class SettingsView : UserControl
             LicenseActionRing.Visibility = Visibility.Collapsed;
             KeyBox.IsEnabled = true;
             ActivateButton.IsEnabled = !string.IsNullOrWhiteSpace(KeyBox.Text);
+            if (ok && DeactivateButton.Visibility == Visibility.Visible)
+                DeactivateButton.Focus(FocusState.Programmatic);
+            else if (KeyEntryRow.Visibility == Visibility.Visible)
+                KeyBox.Focus(FocusState.Programmatic);
         }
     }
 
@@ -235,6 +385,10 @@ public sealed partial class SettingsView : UserControl
             DeactivateRing.IsActive = false;
             DeactivateRing.Visibility = Visibility.Collapsed;
             DeactivateButton.IsEnabled = true;
+            if (KeyEntryRow.Visibility == Visibility.Visible)
+                KeyBox.Focus(FocusState.Programmatic);
+            else if (DeactivateButton.Visibility == Visibility.Visible)
+                DeactivateButton.Focus(FocusState.Programmatic);
         }
     }
 
@@ -252,11 +406,26 @@ public sealed partial class SettingsView : UserControl
     {
         AnimateRescanCloud();
         App.ViewModel.RefreshCloudProviders();
+        if (CloudRescanStatusText is not null)
+        {
+            var count = App.ViewModel.CloudProviders.Count;
+            var localCount = Math.Max(0, count - 1); // WebDAV is always present alongside local sync folders
+            var summary = localCount switch
+            {
+                0 => "No local cloud sync folders found on this PC (WebDAV is available).",
+                1 => "Found 1 local cloud sync folder on this PC.",
+                _ => $"Found {localCount} local cloud sync folders on this PC.",
+            };
+            CloudRescanStatusText.Text = summary;
+            CloudRescanStatusText.Visibility = Visibility.Visible;
+            AutomationProperties.SetName(CloudRescanStatusText, summary);
+            AutomationProperties.SetLiveSetting(CloudRescanStatusText, AutomationLiveSetting.Polite);
+        }
     }
 
     private void AnimateRescanCloud()
     {
-        if (RescanCloudRotate is null) return;
+        if (RescanCloudRotate is null || !HoverPolish.AnimationsEnabled) return;
         var anim = new DoubleAnimation
         {
             From = 0,
@@ -274,13 +443,16 @@ public sealed partial class SettingsView : UserControl
     private async void OnCheckForUpdates(object sender, RoutedEventArgs e)
     {
         CheckButton.IsEnabled = false;
+        CheckRing.Visibility = Visibility.Visible;
         CheckRing.IsActive = true;
         UpdateStatusBar.IsOpen = false;
 
         var result = await App.ViewModel.CheckForUpdatesNowAsync();
 
         CheckRing.IsActive = false;
+        CheckRing.Visibility = Visibility.Collapsed;
         CheckButton.IsEnabled = true;
+        CheckButton.Focus(FocusState.Programmatic);
         // Something to install (or already on its way): the update state says it all.
         if (App.ViewModel.UpdatePhase != ViewModels.UpdatePhase.None && result.UpdateAvailable)
         {
@@ -307,17 +479,60 @@ public sealed partial class SettingsView : UserControl
     {
         switch (e.PropertyName)
         {
+            case nameof(App.ViewModel.FileNamePreview):
+            case nameof(App.ViewModel.OcrEngineDescription):
+                DispatcherQueue.TryEnqueue(RenderGeneralDynamicNames);
+                break;
             case nameof(App.ViewModel.UpdatePhase):
                 DispatcherQueue.TryEnqueue(RenderAboutUpdate);
                 break;
             case nameof(App.ViewModel.PdfBandsPreview):
                 DispatcherQueue.TryEnqueue(RenderPdfBands);
                 break;
+            case nameof(App.ViewModel.ApiStatusText):
+            case nameof(App.ViewModel.ApiStatusIsError):
+                DispatcherQueue.TryEnqueue(RenderApiStatus);
+                break;
+            case nameof(App.ViewModel.HouseStyleStatus):
+                DispatcherQueue.TryEnqueue(RenderHouseStyleStatus);
+                break;
             case nameof(App.ViewModel.GoogleSignInPhase):
             case nameof(App.ViewModel.GoogleDeviceCode):
+            case nameof(App.ViewModel.GoogleAuthStatus):
                 DispatcherQueue.TryEnqueue(RenderGoogleState);
                 break;
         }
+    }
+
+    private void RenderGeneralDynamicNames()
+    {
+        var vm = App.ViewModel;
+        if (FileNamePreviewText is not null)
+        {
+            var preview = vm.FileNamePreview ?? "";
+            AutomationProperties.SetName(FileNamePreviewText,
+                string.IsNullOrEmpty(preview) ? "Example file name" : $"Example file name: {preview}");
+        }
+        if (OcrEngineDescriptionText is not null)
+        {
+            AutomationProperties.SetName(OcrEngineDescriptionText, vm.OcrEngineDescription ?? "");
+        }
+    }
+
+    private void RenderApiStatus()
+    {
+        var vm = App.ViewModel;
+        var text = vm.ApiStatusText ?? "";
+        if (ApiStatusNormalText is not null)
+            AutomationProperties.SetName(ApiStatusNormalText, text);
+        if (ApiStatusErrorText is not null)
+            AutomationProperties.SetName(ApiStatusErrorText, text);
+    }
+
+    private void RenderHouseStyleStatus()
+    {
+        if (HouseStyleStatusText is not null)
+            AutomationProperties.SetName(HouseStyleStatusText, App.ViewModel.HouseStyleStatus ?? "");
     }
 
     // ---- PDF page preview ----
@@ -356,8 +571,12 @@ public sealed partial class SettingsView : UserControl
             ViewModels.GoogleSignInPhase.NotConfigured => InfoBarSeverity.Warning,
             _ => InfoBarSeverity.Informational,
         };
+        AutomationProperties.SetName(GoogleStatusBar, vm.GoogleAuthStatus ?? "");
+        AutomationProperties.SetLiveSetting(GoogleStatusBar, AutomationLiveSetting.Polite);
         var hasCode = !string.IsNullOrEmpty(vm.GoogleDeviceCode);
         GoogleCodeText.Text = vm.GoogleDeviceCode;
+        AutomationProperties.SetName(GoogleCodeText,
+            hasCode ? $"Google sign-in code: {vm.GoogleDeviceCode}" : "Google sign-in code");
         GoogleCodePanel.Visibility = hasCode ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -419,6 +638,8 @@ public sealed partial class SettingsView : UserControl
         if (App.Plugins.LoadWarnings.Count > 0)
         {
             PluginWarningsBar.Message = string.Join("\n", App.Plugins.LoadWarnings);
+            AutomationProperties.SetName(PluginWarningsBar, $"{PluginWarningsBar.Title}: {PluginWarningsBar.Message}");
+            AutomationProperties.SetLiveSetting(PluginWarningsBar, AutomationLiveSetting.Polite);
             PluginWarningsBar.IsOpen = true;
         }
     }
@@ -439,10 +660,12 @@ public sealed partial class SettingsView : UserControl
 
         // Collapsed while empty so a not-yet-installed card doesn't carry a blank line of spacing.
         var status = new TextBlock { Style = caption, IsTextSelectionEnabled = true, Visibility = Visibility.Collapsed };
+        AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
         void SetStatus(string message, bool failed = false)
         {
             status.Text = message;
             status.Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible;
+            AutomationProperties.SetName(status, string.IsNullOrEmpty(message) ? "" : $"{plugin.Name}: {message}");
             // A failure in the error colour; everything else in the caption grey.
             if (failed) ThemeBrush.Set(status, TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
             else { ThemeBrush.Clear(status, TextBlock.ForegroundProperty); status.ClearValue(TextBlock.ForegroundProperty); }
@@ -467,8 +690,10 @@ public sealed partial class SettingsView : UserControl
             MinWidth = 84,
         };
         AutomationProperties.SetName(installButton, $"Install {plugin.Name}");
+        ToolTipService.SetToolTip(installButton, $"Download and install {plugin.Name}");
         var removeButton = new Button { Content = "Remove", MinWidth = 84 };
         AutomationProperties.SetName(removeButton, $"Remove {plugin.Name}");
+        ToolTipService.SetToolTip(removeButton, $"Remove {plugin.Name} from this PC");
 
         void Refresh()
         {
@@ -518,8 +743,14 @@ public sealed partial class SettingsView : UserControl
             {
                 SetStatus("Installed");
                 ShowTick(tick);
+                if (removeButton.Visibility == Visibility.Visible)
+                    removeButton.Focus(FocusState.Programmatic);
                 // A new engine can change what the current document renders — refresh the preview.
                 PluginsChanged?.Invoke();
+            }
+            else if (installButton.Visibility == Visibility.Visible)
+            {
+                installButton.Focus(FocusState.Programmatic);
             }
         };
 
@@ -536,6 +767,8 @@ public sealed partial class SettingsView : UserControl
                 SetStatus($"Remove failed: {ex.Message}", failed: true);
             }
             Refresh();
+            if (installButton.Visibility == Visibility.Visible)
+                installButton.Focus(FocusState.Programmatic);
             PluginsChanged?.Invoke();
         };
 
@@ -567,6 +800,14 @@ public sealed partial class SettingsView : UserControl
     // composition-independent animations, so this stays smooth without EnableDependentAnimation.
     private static void ShowTick(FontIcon icon)
     {
+        if (!HoverPolish.AnimationsEnabled)
+        {
+            icon.RenderTransform = null;
+            icon.Opacity = 1;
+            icon.Visibility = Visibility.Visible;
+            return;
+        }
+
         var scale = new ScaleTransform { ScaleX = 0.4, ScaleY = 0.4 };
         icon.RenderTransform = scale;
         icon.Visibility = Visibility.Visible;
@@ -603,6 +844,17 @@ public sealed partial class SettingsView : UserControl
 
     private void OnHouseStyleReplyChanged(object sender, TextChangedEventArgs e) =>
         ApplyThemeButton.IsEnabled = !string.IsNullOrWhiteSpace(HouseStyleReplyBox.Text);
+
+    private void OnHouseStyleReplyKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (ctrl && e.Key == Windows.System.VirtualKey.Enter && ApplyThemeButton.IsEnabled)
+        {
+            e.Handled = true;
+            OnApplyHouseStyleJsonClick(sender, e);
+        }
+    }
 
     private void OnCopyHouseStylePromptClick(object sender, RoutedEventArgs e) =>
         CopyWithTick(App.ViewModel.HouseStylePrompt, CopyPromptIcon);

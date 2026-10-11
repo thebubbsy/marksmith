@@ -19,6 +19,11 @@
                         <Setter Target="HeaderRow.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
                     </VisualState.Setters>
                 </VisualState>
+                <VisualState x:Name="Pressed">
+                    <VisualState.Setters>
+                        <Setter Target="HeaderRow.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
                 <VisualState x:Name="Disabled">
                     <VisualState.Setters>
                         <Setter Target="HeaderPart.Foreground" Value="{ThemeResource TextFillColorDisabledBrush}" />

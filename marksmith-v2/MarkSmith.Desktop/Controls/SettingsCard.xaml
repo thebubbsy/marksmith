@@ -23,6 +23,11 @@
                         <Setter Target="CardBorder.Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" />
                     </VisualState.Setters>
                 </VisualState>
+                <VisualState x:Name="Pressed">
+                    <VisualState.Setters>
+                        <Setter Target="CardBorder.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
                 <VisualState x:Name="Disabled">
                     <VisualState.Setters>
                         <Setter Target="IconPart.Foreground" Value="{ThemeResource TextFillColorDisabledBrush}" />
@@ -32,7 +37,7 @@
                 </VisualState>
             </VisualStateGroup>
         </VisualStateManager.VisualStateGroups>
-        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+        <Grid x:Name="CardGrid" ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto">
             <FontIcon x:Name="IconPart" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                       Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
             <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
@@ -42,7 +47,7 @@
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </StackPanel>
             <ContentPresenter x:Name="ActionPart" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" />
-            <ContentPresenter x:Name="DetailsPart" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,12,0,0" />
+            <ContentPresenter x:Name="DetailsPart" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,12,0,0" />
         </Grid>
     </Border>
 </UserControl>

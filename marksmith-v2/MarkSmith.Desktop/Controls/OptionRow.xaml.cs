@@ -37,14 +37,17 @@ public sealed partial class OptionRow : UserControl
     private long _detailsVisibilityToken;
     private UIElement? _watchedDetails;
     private bool _pointerOver;
+    private bool _pointerPressed;
 
     public OptionRow()
     {
         InitializeComponent();
         HeaderRow.PointerEntered += (_, _) => { _pointerOver = true; UpdateState(); };
-        HeaderRow.PointerExited += (_, _) => { _pointerOver = false; UpdateState(); };
-        HeaderRow.PointerCanceled += (_, _) => { _pointerOver = false; UpdateState(); };
-        HeaderRow.PointerCaptureLost += (_, _) => { _pointerOver = false; UpdateState(); };
+        HeaderRow.PointerExited += (_, _) => { _pointerOver = false; _pointerPressed = false; UpdateState(); };
+        HeaderRow.PointerCanceled += (_, _) => { _pointerOver = false; _pointerPressed = false; UpdateState(); };
+        HeaderRow.PointerCaptureLost += (_, _) => { _pointerOver = false; _pointerPressed = false; UpdateState(); };
+        HeaderRow.PointerPressed += OnHeaderPointerPressed;
+        HeaderRow.PointerReleased += (_, _) => { _pointerPressed = false; UpdateState(); };
         HeaderRow.Tapped += OnHeaderTapped;
         // IsEnabled already reaches the control inside; this greys the row's own text to match.
         IsEnabledChanged += (_, _) => UpdateState();
@@ -52,14 +55,23 @@ public sealed partial class OptionRow : UserControl
         Sync();
     }
 
+    private void OnHeaderPointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (!IsEnabled) return;
+        if (e.OriginalSource is DependencyObject source && (IsInside(source, ActionPart) || IsInside(source, DetailsPart)))
+            return;
+        _pointerPressed = true;
+        UpdateState();
+    }
+
     private void UpdateState(bool useTransitions = true)
     {
-        var state = !IsEnabled ? "Disabled" : _pointerOver ? "PointerOver" : "Normal";
+        var state = !IsEnabled ? "Disabled" : _pointerPressed ? "Pressed" : _pointerOver ? "PointerOver" : "Normal";
         VisualStateManager.GoToState(this, state, useTransitions);
     }
 
-    // Clicking an option's title or description flips its switch or check box, as clicking a check box's
-    // label does: the whole highlighted line is the target, not just the control at its end.
+    // Clicking an option's title or description flips its switch or check box, opens its combo box,
+    // or focuses its input: the whole highlighted line is the target, not just the control at its end.
     private void OnHeaderTapped(object sender, TappedRoutedEventArgs e)
     {
         if (!IsEnabled) return;
@@ -74,7 +86,43 @@ public sealed partial class OptionRow : UserControl
                 check.IsChecked = !(check.IsChecked ?? false);
                 e.Handled = true;
                 break;
+            case ComboBox { IsEnabled: true } combo:
+                combo.Focus(FocusState.Programmatic);
+                combo.IsDropDownOpen = !combo.IsDropDownOpen;
+                e.Handled = true;
+                break;
+            case NumberBox { IsEnabled: true } numberBox:
+                numberBox.Focus(FocusState.Programmatic);
+                e.Handled = true;
+                break;
+            case null when FindFirstInput(Details as DependencyObject) is Control { IsEnabled: true } detailsInput:
+                detailsInput.Focus(FocusState.Programmatic);
+                if (detailsInput is ComboBox detailsCombo)
+                    detailsCombo.IsDropDownOpen = !detailsCombo.IsDropDownOpen;
+                e.Handled = true;
+                break;
         }
+    }
+
+    private static Control? FindFirstInput(DependencyObject? root)
+    {
+        if (root is null) return null;
+        if (root is ComboBox or TextBox or PasswordBox or NumberBox)
+            return (Control)root;
+        if (root is Panel panel)
+        {
+            foreach (var child in panel.Children)
+                if (FindFirstInput(child) is { } found) return found;
+        }
+        else if (root is Border border)
+        {
+            return FindFirstInput(border.Child);
+        }
+        else if (root is ContentControl cc)
+        {
+            return FindFirstInput(cc.Content as DependencyObject);
+        }
+        return null;
     }
 
     private static bool IsInside(DependencyObject element, DependencyObject ancestor)
@@ -109,15 +157,41 @@ public sealed partial class OptionRow : UserControl
         // The control inside carries the option's name for screen readers when it has none of
         // its own: a bare ToggleSwitch or ComboBox in a row would otherwise be announced unnamed.
         AutomationProperties.SetName(this, Header ?? "");
+        AutomationProperties.SetHelpText(this, Description ?? "");
         NameUnnamed(Action as DependencyObject);
         NameUnnamed(Details as DependencyObject);
     }
 
     private void NameUnnamed(DependencyObject? control)
     {
-        if (control is not Control || string.IsNullOrEmpty(Header)) return;
-        if (string.IsNullOrEmpty(AutomationProperties.GetName(control)))
-            AutomationProperties.SetName(control, Header);
+        if (control is null || string.IsNullOrEmpty(Header)) return;
+        if (control is Control c)
+        {
+            var inlineHeader = c switch
+            {
+                TextBox tb => tb.Header as string,
+                PasswordBox pb => pb.Header as string,
+                ComboBox cb => cb.Header as string,
+                NumberBox nb => nb.Header as string,
+                CheckBox chk => chk.Content as string,
+                _ => null,
+            };
+            if (string.IsNullOrEmpty(AutomationProperties.GetName(c)))
+                AutomationProperties.SetName(c, !string.IsNullOrEmpty(inlineHeader) ? inlineHeader : Header);
+            if (!string.IsNullOrEmpty(Description) && string.IsNullOrEmpty(AutomationProperties.GetHelpText(c)))
+                AutomationProperties.SetHelpText(c, Description);
+            return;
+        }
+
+        if (control is Panel panel)
+        {
+            foreach (var child in panel.Children)
+                NameUnnamed(child);
+        }
+        else if (control is Border border)
+        {
+            NameUnnamed(border.Child);
+        }
     }
 
     private void SyncDetails()
