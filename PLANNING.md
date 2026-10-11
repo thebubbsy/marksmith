@@ -6383,3 +6383,5 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 **Next up:**
 1. Audit `SuiteHubWindow` and `ExportHistory` flyout keyboard navigation and context menu parity.
 2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59); real Windows light/dark switch; first real in-app update.
+
+**Release (same run):** tagged **v3.31.0** on `a4563ef3` after CI passed (`38106391479`). Release workflow (`38106584379`) built the x64/arm64 installers and portable zips (5 assets including `checksums.txt`); user-facing notes covering Runs #77–#79 (OCR & Document Import 4-stage visual breakdown overlay, Version History keyboard navigation & diff patch copy, and Mermaid & SmartArt Studio keyboard/context-menu polish) were prepended above the workflow body with `---`. `MarksmithBaseVersion` is now **3.32.0**.
