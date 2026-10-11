@@ -81,7 +81,7 @@
                         Style="{ThemeResource AccentButtonStyle}" IsEnabled="{Binding HasSelection}"
                         FontWeight="SemiBold" VerticalAlignment="Center"
                         AutomationProperties.Name="Restore to editor"
-                        ToolTipService.ToolTip="Put the selected version's text back in the editor (Ctrl+Z in the editor undoes it)">
+                        ToolTipService.ToolTip="Put the selected version's text back in the editor (Ctrl+Enter · Ctrl+Z in the editor undoes it)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE7A7;" FontSize="13" />
                         <TextBlock Text="Restore to Editor" FontSize="12" />
@@ -136,14 +136,14 @@
                         <Button Content="Try again" Command="{Binding LoadCommand}" Padding="12,5" />
                     </StackPanel>
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer x:Name="FilesScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding Files}" Margin="0,3,0,6">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <!-- A real Button (not a tappable Border) so rows get the hover tint, keyboard
                                          focus and Enter/Space. Tag opts out of the scale lift: zooming a whole
                                          list row reads as jitter; the tint is the hover cue here. -->
-                                    <Button Tag="NoHoverPolish" Click="OnFileClick"
+                                    <Button Tag="NoHoverPolish" Click="OnFileClick" ContextRequested="OnFileContextRequested"
                                             Background="{ThemeResource SubtleFillColorTransparentBrush}"
                                             BorderThickness="0" CornerRadius="6" Padding="0" Margin="6,2,6,2"
                                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
@@ -224,8 +224,9 @@
                                        Visibility="{Binding ShowNoVersions, Converter={StaticResource BoolToVis}}"
                                        Margin="8,16" />
                             <StackPanel Spacing="10" Margin="8,16" Visibility="{Binding ShowNoMatches, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="{Binding NoMatchesText}" TextWrapping="Wrap" FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock x:Name="NoMatchesTextBlock" Text="{Binding NoMatchesText}" TextWrapping="Wrap" FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           AutomationProperties.LiveSetting="Polite" />
                                 <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" Padding="12,5" />
                             </StackPanel>
                             <ItemsControl ItemsSource="{Binding Bands}"
@@ -298,7 +299,7 @@
                                                                 <!-- More actions (also on right-click / Shift+F10 anywhere on the row) -->
                                                                 <Button Grid.Row="0" Grid.Column="4" Background="Transparent" BorderThickness="0" Padding="6"
                                                                         services:HoverPolish.ApplyOnLoad="True" VerticalAlignment="Center"
-                                                                        Click="OnVersionMoreClick" ToolTipService.ToolTip="More: rename, restore, delete"
+                                                                        Click="OnVersionMoreClick" ToolTipService.ToolTip="More: rename, star, copy, restore, delete"
                                                                         AutomationProperties.Name="More actions for this version">
                                                                     <FontIcon Glyph="&#xE712;" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                                                 </Button>
@@ -358,18 +359,25 @@
                                         </Style>
                                     </StackPanel.Resources>
                                     <ToggleButton x:Name="UnifiedToggle" Content="Unified" IsChecked="True"
-                                                  Click="OnUnifiedToggleClick" ToolTipService.ToolTip="Changes inline: removed lines, then the lines that replaced them" />
+                                                  Click="OnUnifiedToggleClick"
+                                                  AutomationProperties.Name="Unified diff view"
+                                                  ToolTipService.ToolTip="Changes inline: removed lines, then the lines that replaced them (Ctrl+1)" />
                                     <ToggleButton x:Name="SplitToggle" Content="Side by side"
-                                                  Click="OnSplitToggleClick" ToolTipService.ToolTip="The version before on the left, this version on the right" />
+                                                  Click="OnSplitToggleClick"
+                                                  AutomationProperties.Name="Side by side diff view"
+                                                  ToolTipService.ToolTip="The version before on the left, this version on the right (Ctrl+2)" />
                                     <ToggleButton x:Name="PreviewToggle" Content="Preview"
-                                                  Click="OnPreviewToggleClick" ToolTipService.ToolTip="This version rendered as a document" />
+                                                  Click="OnPreviewToggleClick"
+                                                  AutomationProperties.Name="Rendered document preview"
+                                                  ToolTipService.ToolTip="This version rendered as a document (Ctrl+3)" />
                                 </StackPanel>
                             </Border>
 
                             <!-- Diff Summary Info -->
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">
-                                <TextBlock Text="{Binding DiffTitle}" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="DiffTitleText" Text="{Binding DiffTitle}" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis"
+                                           AutomationProperties.LiveSetting="Polite" />
                                 <TextBlock Text="{Binding DiffHeader}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                            TextTrimming="CharacterEllipsis" />
                             </StackPanel>

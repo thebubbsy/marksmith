@@ -262,4 +262,30 @@ public class SmartArtStudioPolishTests
         Assert.True(deleteHandled);
         Assert.Equal(countBefore - 1, vm.OutlineRows.Count);
     }
+
+    [Fact]
+    public void DuplicateSelected_And_TryBuildSmartArtBlock_RoundTrip_Subtree_And_Block()
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        vm.Preload("- Discovery\n  - User interviews\n- Delivery", "process1");
+
+        var firstRoot = vm.RootNodes[0];
+        vm.Select(firstRoot);
+        Assert.False(vm.CanMoveUp);
+        Assert.True(vm.CanMoveDown);
+        Assert.False(vm.CanPromote);
+        Assert.False(vm.CanDemote);
+
+        vm.DuplicateSelected();
+        Assert.Equal(3, vm.RootNodes.Count);
+        Assert.Equal("Discovery", vm.RootNodes[1].Text);
+        Assert.Single(vm.RootNodes[1].Children);
+        Assert.Equal("User interviews", vm.RootNodes[1].Children[0].Text);
+
+        Assert.True(vm.TryBuildSmartArtBlock(out string block, out string layoutName, out string error));
+        Assert.Empty(error);
+        Assert.Equal("Basic Process", layoutName);
+        Assert.Contains(":::smartart type=\"process1\"", block);
+        Assert.Contains("- Discovery", block);
+    }
 }

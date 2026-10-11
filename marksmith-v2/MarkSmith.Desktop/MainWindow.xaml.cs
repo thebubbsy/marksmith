@@ -1183,10 +1183,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             replaces.Visibility = existing is null ? Visibility.Collapsed : Visibility.Visible;
             dialog.PrimaryButtonText = existing is null ? "Save" : "Replace";
         }
+        bool enterSubmitted = false;
+        box.KeyDown += (_, ke) =>
+        {
+            if (ke.Key == Windows.System.VirtualKey.Enter && dialog.IsPrimaryButtonEnabled)
+            {
+                ke.Handled = true;
+                enterSubmitted = true;
+                dialog.Hide();
+            }
+        };
         box.TextChanged += (_, _) => Validate();
         box.Loaded += (_, _) => { box.Focus(FocusState.Programmatic); box.SelectAll(); };
         Validate();
-        if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text))
+        var presetResult = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
+        if ((presetResult == ContentDialogResult.Primary || enterSubmitted) && !string.IsNullOrWhiteSpace(box.Text))
             ViewModel.SavePreset(box.Text); // sets the status line and selects the new preset
     }
 
@@ -1215,6 +1226,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             PlaceholderText = "Theme name",
             Text = editingCustom ? baseTheme.Name : $"My {baseTheme.Name}",
         };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(nameBox, "Theme name");
 
         (string Label, string Hint, string Hex)[] elements =
         {
@@ -1288,6 +1300,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             DefaultButton = ContentDialogButton.Primary,
         };
 
+        bool themeEnterSubmitted = false;
+        nameBox.KeyDown += (_, ke) =>
+        {
+            if (ke.Key == Windows.System.VirtualKey.Enter)
+            {
+                ke.Handled = true;
+                themeEnterSubmitted = true;
+                dialog.Hide();
+            }
+        };
+
         var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
 
         if (result == ContentDialogResult.Secondary && editingCustom)
@@ -1296,7 +1319,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             RefreshThemeNames(select: App.Themes.All[0].Name);
             return;
         }
-        if (result != ContentDialogResult.Primary) return;
+        if (result != ContentDialogResult.Primary && !themeEnterSubmitted) return;
 
         var name = (nameBox.Text ?? "").Trim();
         if (name.Length == 0) name = "My theme";
@@ -2281,14 +2304,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    private void OnInputFileTextBoxKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    private async void OnInputFileTextBoxKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter && InputFileTextBox is not null)
         {
             var candidate = (InputFileTextBox.Text ?? string.Empty).Trim().Trim('"');
             if (InputFileTextBox.Text != candidate) InputFileTextBox.Text = candidate;
-            ViewModel.InputFilePath = candidate;
             e.Handled = true;
+            if (!string.IsNullOrEmpty(candidate) && File.Exists(candidate))
+            {
+                await OpenOrImportDocumentAsync(candidate, collapseLeftPane: false);
+            }
+            else
+            {
+                ViewModel.InputFilePath = candidate;
+            }
         }
     }
 
@@ -3862,11 +3892,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         foreach (var path in ViewModel.RecentFiles.ToList())
         {
             var p = path;
-            cmds.Add(new($"Open recent: {System.IO.Path.GetFileName(p)}", "Recent", () =>
+            cmds.Add(new($"Open recent: {System.IO.Path.GetFileName(p)}", "Recent", async () =>
             {
-                ViewModel.InputFilePath = p;
-                ViewModel.UsePasteSource = false;
-                return Task.CompletedTask;
+                if (System.IO.File.Exists(p))
+                {
+                    await OpenOrImportDocumentAsync(p, collapseLeftPane: true);
+                }
+                else
+                {
+                    ViewModel.InputFilePath = p;
+                    ViewModel.UsePasteSource = false;
+                }
             }));
         }
 
@@ -6789,6 +6825,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     return;
                 }
 
+                OcrExperiencePopup.BeginImportSession();
                 await OcrExperiencePopup.PlayImportExperienceAndFadeToEditorAsync(
                     tableMd,
                     $"MarkSmith {ext.TrimStart('.').ToUpperInvariant()} Spreadsheet Importer",
@@ -6978,6 +7015,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
             var markdown = Services.SpreadsheetService.ToMarkdownTable(model);
             var sheetLabel = $"MarkSmith {ext.TrimStart('.').ToUpperInvariant()} Spreadsheet Importer";
+            OcrExperiencePopup.BeginImportSession();
             await OcrExperiencePopup.PlayImportExperienceAndFadeToEditorAsync(markdown, sheetLabel, () =>
             {
                 InsertBlock(markdown);
@@ -7163,12 +7201,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             _mindMapGalaxyWindow = new Views.MindMap.MindMapGalaxyWindow();
             _mindMapGalaxyWindow.Closed += (s, args) => _mindMapGalaxyWindow = null;
-            _mindMapGalaxyWindow.OpenDocumentRequested += (s, filePath) =>
+            _mindMapGalaxyWindow.OpenDocumentRequested += async (s, filePath) =>
             {
                 if (!string.IsNullOrEmpty(filePath) && System.IO.File.Exists(filePath))
                 {
-                    ViewModel.InputFilePath = filePath;
-                    ViewModel.UsePasteSource = false;
+                    await OpenOrImportDocumentAsync(filePath, collapseLeftPane: true);
                     ViewModel.StatusText = $"Opened {System.IO.Path.GetFileName(filePath)} from Document Galaxy.";
                     ViewModel.StatusSeverity = Models.StatusSeverity.Success;
                 }

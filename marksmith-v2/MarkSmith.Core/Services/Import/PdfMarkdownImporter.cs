@@ -96,10 +96,13 @@ public static class PdfMarkdownImporter
                     }
                     options.Progress?.Report($"Reading scanned page {p.Number} with {engine.EngineName}…");
                     var straight = OcrPreprocess.Deskew(scan, out _);
+                    bool notifiedStart = false;
+                    bool notifiedRead = false;
+                    var clock = System.Diagnostics.Stopwatch.StartNew();
                     try
                     {
                         OcrTrace.NotifyStarted(options.OcrObserver, straight, p.Number, idx, scanned.Count, engine.EngineName);
-                        var clock = System.Diagnostics.Stopwatch.StartNew();
+                        notifiedStart = true;
                         var recognized = engine.RecognizeAsync(straight).GetAwaiter().GetResult();
                         var extracted = OcrVisualElements.ExtractPage(straight, recognized, new OcrVisualOptions
                         {
@@ -110,9 +113,18 @@ public static class PdfMarkdownImporter
                         });
                         pictures += extracted.PicturesSaved;
                         OcrTrace.NotifyRead(options.OcrObserver, p.Number, recognized, clock.Elapsed, extracted.Blocks);
+                        notifiedRead = true;
                         p.OcrMarkdown = extracted.Markdown;
                     }
-                    finally { if (!ReferenceEquals(straight, scan)) straight.Dispose(); }
+                    finally
+                    {
+                        if (notifiedStart && !notifiedRead)
+                        {
+                            var emptyPage = new OcrPageResult(Array.Empty<OcrLine>(), straight.Width, straight.Height);
+                            OcrTrace.NotifyRead(options.OcrObserver, p.Number, emptyPage, clock.Elapsed, Array.Empty<OcrMarkdownBlock>());
+                        }
+                        if (!ReferenceEquals(straight, scan)) straight.Dispose();
+                    }
                     ocrPages++;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)

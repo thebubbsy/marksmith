@@ -68,6 +68,9 @@ public readonly record struct OcrPlaybackSchedule(
     int FinalSheetHoldMs,
     int FadeOutMs)
 {
+    /// <summary>Maximum number of pages in a multi-page scanned document that play the full 4-stage visual breakdown before remaining pages fold directly into the final sheet.</summary>
+    public const int MaxAnimatedPages = 2;
+
     public int Stage2TotalMs => Stage2Steps * Stage2StepDelayMs + Stage2HoldMs;
     public int Stage3TotalMs => Stage3Steps * Stage3StepDelayMs + Stage3HoldMs;
     public int Stage4TotalMs => Stage4Steps * Stage4StepDelayMs + Stage4HoldMs;

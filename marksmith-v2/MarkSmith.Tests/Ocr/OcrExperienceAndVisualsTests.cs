@@ -343,6 +343,15 @@ public class OcrExperienceAndVisualsTests
         Assert.Equal(1080, page2Small.Stage4TotalMs);
     }
 
+    [Fact]
+    public void OcrPlaybackSchedule_Caps_Full_Animation_At_MaxAnimatedPages()
+    {
+        Assert.Equal(2, OcrPlaybackSchedule.MaxAnimatedPages);
+        var p0 = OcrPlaybackSchedule.ForPage(blockCount: 6, wordCount: 120, pageIndex: 0, pageCount: 10, stage1ElapsedMs: 200);
+        var p1 = OcrPlaybackSchedule.ForPage(blockCount: 6, wordCount: 120, pageIndex: 1, pageCount: 10, stage1ElapsedMs: 0);
+        Assert.True(p0.TotalPageMs + p1.TotalPageMs + p0.FinalSheetHoldMs + p0.FadeOutMs < 11000);
+    }
+
     private sealed class RecordingObserver : IOcrObserver
     {
         public List<OcrPagePreview> Started { get; } = new();

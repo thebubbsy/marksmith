@@ -64,7 +64,9 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
     private int _totalBlocks;
     private readonly List<string> _assembledPages = new();
     private readonly List<(FrameworkElement Element, OcrNormRect Box)> _positionedOverlays = new();
+    private readonly List<(Line Line, float NormY)> _cutLines = new();
     private readonly List<Border> _blockFrames = new();
+    private float _lastLaserNormY;
 
     /// <summary>Raised after the overlay finishes fading out to the editor.</summary>
     public event Action? Completed;
@@ -449,6 +451,31 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
                 if (nextItem is not { } item) break;
 
                 _idleLaserCts?.Cancel();
+
+                if (item.Preview.PageIndex >= OcrPlaybackSchedule.MaxAnimatedPages)
+                {
+                    int blocks = item.Trace.Blocks.Count;
+                    int visuals = item.Trace.Blocks.Count(b => b.Kind is OcrBlockKind.Picture or OcrBlockKind.Diagram or OcrBlockKind.ShapeMosaic);
+                    int words = item.Trace.Words.Count;
+                    _totalElements += blocks;
+                    _totalVisuals += visuals;
+                    _totalWords += words;
+                    _totalBlocks += blocks;
+
+                    ElementsCountText.Text = _totalElements.ToString();
+                    VisualsCountText.Text = _totalVisuals.ToString();
+                    WordsCountText.Text = _totalWords.ToString();
+                    BlocksCountText.Text = _totalBlocks.ToString();
+                    PagePillText.Text = item.Preview.PageCount > 1
+                        ? $"Page {item.Preview.PageIndex + 1} of {item.Preview.PageCount}"
+                        : $"Page {item.Preview.PageNumber}";
+
+                    if (!string.IsNullOrWhiteSpace(item.Trace.Markdown))
+                    {
+                        _assembledPages.Add(item.Trace.Markdown);
+                    }
+                    continue;
+                }
 
                 int elapsedStage1 = item.Preview.PageIndex == 0
                     ? (int)_stage0Stopwatch.ElapsedMilliseconds
@@ -853,10 +880,12 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
 
         if (!token.IsCancellationRequested)
         {
-            RootGrid.Opacity = 0.65;
-            await Task.Delay(55);
-            RootGrid.Opacity = 0.30;
-            await Task.Delay(55);
+            RootGrid.Opacity = 0.72;
+            await Task.Delay(60);
+            RootGrid.Opacity = 0.42;
+            await Task.Delay(60);
+            RootGrid.Opacity = 0.14;
+            await Task.Delay(60);
         }
 
         Visibility = Visibility.Collapsed;
@@ -915,6 +944,17 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         {
             PositionOnCanvas(element, box, fittedW, fittedH);
         }
+
+        foreach (var (line, normY) in _cutLines)
+        {
+            double y = Math.Clamp(normY * fittedH, 0, fittedH);
+            line.X1 = 6;
+            line.X2 = Math.Max(12, fittedW - 6);
+            line.Y1 = y;
+            line.Y2 = y;
+        }
+
+        PositionLaserAtNormalizedY(_lastLaserNormY);
     }
 
     private void AddPositionedOverlay(FrameworkElement element, OcrNormRect box)
@@ -954,6 +994,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
             StrokeThickness = 1,
             StrokeDashArray = new DoubleCollection { 4, 3 },
         };
+        _cutLines.Add((line, normalizedY));
         ScanOverlayCanvas.Children.Add(line);
     }
 
@@ -1211,13 +1252,15 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
 
     private void PositionLaserAtNormalizedY(float normY)
     {
+        _lastLaserNormY = Math.Clamp(normY, 0f, 1f);
         double h = ScanOverlayCanvas.Height > 0 ? ScanOverlayCanvas.Height : Math.Max(60, PageViewportGrid.ActualHeight);
-        LaserTransform.Y = Math.Clamp(normY * h, 0, Math.Max(0, h - 3));
+        LaserTransform.Y = Math.Clamp(_lastLaserNormY * h, 0, Math.Max(0, h - 3));
     }
 
     private void ClearCanvasOverlays()
     {
         _positionedOverlays.Clear();
+        _cutLines.Clear();
         _blockFrames.Clear();
         ScanOverlayCanvas.Children.Clear();
     }

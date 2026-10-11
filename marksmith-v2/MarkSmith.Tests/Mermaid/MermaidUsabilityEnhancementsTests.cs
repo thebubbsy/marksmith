@@ -195,4 +195,40 @@ public class MermaidUsabilityEnhancementsTests
         Assert.Equal("Right", connector.SourceAnchor);
         Assert.Equal("Left", connector.TargetAnchor);
     }
+
+    [Fact]
+    public void ZOrder_Commands_Reorder_Nodes_And_Update_CanBringForward_CanSendBackward()
+    {
+        var vm = new MermaidStudioViewModel();
+        vm.Nodes.Clear();
+
+        var n1 = new DiagramNodeViewModel { Id = "N1", LabelText = "One" };
+        var n2 = new DiagramNodeViewModel { Id = "N2", LabelText = "Two" };
+        var n3 = new DiagramNodeViewModel { Id = "N3", LabelText = "Three" };
+        vm.Nodes.Add(n1);
+        vm.Nodes.Add(n2);
+        vm.Nodes.Add(n3);
+
+        vm.SelectNode(n1, false);
+        Assert.True(vm.CanBringForward());
+        Assert.False(vm.CanSendBackward());
+
+        vm.BringForwardCommand.Execute(null);
+        Assert.Equal(new[] { "N2", "N1", "N3" }, vm.Nodes.OrderBy(n => n.ZIndex).Select(n => n.Id).ToArray());
+        Assert.True(vm.CanBringForward());
+        Assert.True(vm.CanSendBackward());
+
+        vm.BringToFrontCommand.Execute(null);
+        Assert.Equal(new[] { "N2", "N3", "N1" }, vm.Nodes.OrderBy(n => n.ZIndex).Select(n => n.Id).ToArray());
+        Assert.False(vm.CanBringForward());
+        Assert.True(vm.CanSendBackward());
+
+        vm.SendBackwardCommand.Execute(null);
+        Assert.Equal(new[] { "N2", "N1", "N3" }, vm.Nodes.OrderBy(n => n.ZIndex).Select(n => n.Id).ToArray());
+
+        vm.SendToBackCommand.Execute(null);
+        Assert.Equal(new[] { "N1", "N2", "N3" }, vm.Nodes.OrderBy(n => n.ZIndex).Select(n => n.Id).ToArray());
+        Assert.True(vm.CanBringForward());
+        Assert.False(vm.CanSendBackward());
+    }
 }

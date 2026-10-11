@@ -86,6 +86,7 @@ public sealed partial class HistoryWindow : Window
         _ = _vm.LoadCommand.ExecuteAsync(null);
 
         _noticeTimer.Tick += (_, _) => { _noticeTimer.Stop(); NoticeBar.IsOpen = false; };
+        RootGrid.PreviewKeyDown += OnRootPreviewKeyDown;
         RootGrid.KeyDown += OnRootKeyDown;
         HoverPolish.Track(RootGrid);
 
@@ -286,6 +287,93 @@ public sealed partial class HistoryWindow : Window
             _ = _vm.SelectFileCommand.ExecuteAsync(file);
     }
 
+    private void OnFileContextRequested(UIElement sender, ContextRequestedEventArgs args)
+    {
+        if (sender is not FrameworkElement { DataContext: FileSummaryViewModel file } fe) return;
+        args.Handled = true;
+        var menu = BuildFileMenu(file);
+        if (args.TryGetPosition(fe, out var point))
+            menu.ShowAt(fe, new FlyoutShowOptions { Position = point });
+        else
+            menu.ShowAt(fe);
+    }
+
+    private MenuFlyout BuildFileMenu(FileSummaryViewModel file)
+    {
+        var menu = new MenuFlyout();
+        string fullPath = file.Summary.FilePath;
+        bool onDisk = !file.IsScratch && File.Exists(fullPath);
+
+        var openInEditor = new MenuFlyoutItem
+        {
+            Text = "Open in editor",
+            Icon = new FontIcon { Glyph = "\uE8E5" },
+            IsEnabled = _main is not null && onDisk,
+        };
+        openInEditor.Click += async (_, _) =>
+        {
+            if (_main is null || !File.Exists(fullPath)) return;
+            _main.InputFilePath = fullPath;
+            _main.UsePasteSource = false;
+            await _vm.ShowFileAsync(fullPath);
+            _vm.ShowNotice($"Opened {file.FileName} in the editor.");
+        };
+        menu.Items.Add(openInEditor);
+
+        var checkpoint = new MenuFlyoutItem
+        {
+            Text = "Take checkpoint…",
+            Icon = new FontIcon { Glyph = "\uE74E" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+S",
+        };
+        checkpoint.Click += async (_, _) =>
+        {
+            if (!ReferenceEquals(_vm.SelectedFile, file))
+                await _vm.SelectFileCommand.ExecuteAsync(file);
+            OnTakeSnapshotClick(this, new RoutedEventArgs());
+        };
+        menu.Items.Add(checkpoint);
+
+        if (!file.IsScratch)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var showInExplorer = new MenuFlyoutItem
+            {
+                Text = "Show in File Explorer",
+                Icon = new FontIcon { Glyph = "\uEC50" },
+                IsEnabled = onDisk,
+            };
+            showInExplorer.Click += (_, _) =>
+            {
+                if (!File.Exists(fullPath)) return;
+                try { System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{fullPath}\""); }
+                catch { }
+            };
+            menu.Items.Add(showInExplorer);
+
+            var copyPath = new MenuFlyoutItem
+            {
+                Text = "Copy file path",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+            };
+            copyPath.Click += (_, _) =>
+            {
+                try
+                {
+                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    dp.SetText(file.Detail);
+                    ClipboardWriter.Set(dp);
+                    _vm.ShowNotice("Copied file path to clipboard.");
+                }
+                catch { }
+            };
+            menu.Items.Add(copyPath);
+        }
+
+        return menu;
+    }
+
     private void OnVersionClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: VersionItemViewModel item })
@@ -336,11 +424,40 @@ public sealed partial class HistoryWindow : Window
         {
             Text = item.IsStarred ? "Remove star" : "Star",
             Icon = new FontIcon { Glyph = item.IsStarred ? "" : "" },
+            KeyboardAcceleratorTextOverride = "S",
         };
         star.Click += (_, _) => _ = _vm.ToggleStarCommand.ExecuteAsync(item);
         menu.Items.Add(star);
 
-        var restore = new MenuFlyoutItem { Text = "Restore to editor…", Icon = new FontIcon { Glyph = "" } };
+        var copyMd = new MenuFlyoutItem
+        {
+            Text = "Copy version Markdown",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            KeyboardAcceleratorTextOverride = "Ctrl+C",
+        };
+        copyMd.Click += async (_, _) => await CopyVersionMarkdownAsync(item);
+        menu.Items.Add(copyMd);
+
+        var copyPatch = new MenuFlyoutItem
+        {
+            Text = "Copy diff patch",
+            Icon = new FontIcon { Glyph = "\uE943" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
+        };
+        copyPatch.Click += (_, _) =>
+        {
+            if (!ReferenceEquals(_vm.Selected, item))
+                _vm.SelectVersionCommand.Execute(item);
+            CopyDiffPatch(item);
+        };
+        menu.Items.Add(copyPatch);
+
+        var restore = new MenuFlyoutItem
+        {
+            Text = "Restore to editor…",
+            Icon = new FontIcon { Glyph = "" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
+        };
         restore.Click += async (_, _) =>
         {
             _vm.SelectVersionCommand.Execute(item);
@@ -360,6 +477,46 @@ public sealed partial class HistoryWindow : Window
         menu.Items.Add(delete);
 
         return menu;
+    }
+
+    private async Task CopyVersionMarkdownAsync(VersionItemViewModel? item = null)
+    {
+        var target = item ?? _vm.Selected;
+        if (target is null) return;
+        var text = await _vm.GetVersionContentAsync(target);
+        if (string.IsNullOrEmpty(text))
+        {
+            _vm.ShowNotice("Couldn't copy that version's text: no content stored.", isError: true);
+            return;
+        }
+        try
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(text);
+            ClipboardWriter.Set(dp);
+            _vm.ShowNotice($"Copied the {target.TimestampLabel} version's Markdown to the clipboard.");
+        }
+        catch { }
+    }
+
+    private void CopyDiffPatch(VersionItemViewModel? item = null)
+    {
+        var target = item ?? _vm.Selected;
+        if (target is null) return;
+        var patch = _vm.BuildUnifiedDiffPatch();
+        if (string.IsNullOrWhiteSpace(patch))
+        {
+            _vm.ShowNotice("No line changes in this version to copy as a diff patch.", isError: true);
+            return;
+        }
+        try
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(patch);
+            ClipboardWriter.Set(dp);
+            _vm.ShowNotice($"Copied unified diff patch ({target.TimestampLabel}) to the clipboard.");
+        }
+        catch { }
     }
 
     private async Task<ContentDialogResult> ShowDialogAsync(ContentDialog dialog)
@@ -385,6 +542,7 @@ public sealed partial class HistoryWindow : Window
             MaxLength = 80,
             Margin = new Thickness(0, 8, 0, 0),
         };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(input, "Version label");
         input.Loaded += (_, _) => { input.Focus(FocusState.Programmatic); input.SelectAll(); };
         var dialog = new ContentDialog
         {
@@ -403,7 +561,18 @@ public sealed partial class HistoryWindow : Window
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
-        if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary)
+        bool enterSubmitted = false;
+        input.KeyDown += (_, ke) =>
+        {
+            if (ke.Key == VirtualKey.Enter)
+            {
+                ke.Handled = true;
+                enterSubmitted = true;
+                dialog.Hide();
+            }
+        };
+        var result = await ShowDialogAsync(dialog);
+        if (result == ContentDialogResult.Primary || enterSubmitted)
             await _vm.RenameVersionCommand.ExecuteAsync((item, input.Text));
     }
 
@@ -483,6 +652,7 @@ public sealed partial class HistoryWindow : Window
         }
 
         var input = new TextBox { PlaceholderText = "e.g. Cleaned up the Mermaid diagram", MaxLength = 80, Margin = new Thickness(0, 8, 0, 0) };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(input, "Checkpoint label");
         input.Loaded += (_, _) => input.Focus(FocusState.Programmatic);
         var dialog = new ContentDialog
         {
@@ -505,12 +675,97 @@ public sealed partial class HistoryWindow : Window
             DefaultButton = ContentDialogButton.Primary
         };
 
-        if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary)
+        bool enterSubmitted = false;
+        input.KeyDown += (_, ke) =>
+        {
+            if (ke.Key == VirtualKey.Enter)
+            {
+                ke.Handled = true;
+                enterSubmitted = true;
+                dialog.Hide();
+            }
+        };
+
+        var result = await ShowDialogAsync(dialog);
+        if (result == ContentDialogResult.Primary || enterSubmitted)
             await _vm.TakeSnapshotCommand.ExecuteAsync(input.Text);
+    }
+
+    private void FocusSelectedVersionButton()
+    {
+        if (_vm.Selected is { } sel && FindVersionButton(TimelineScroll, sel) is { } btn)
+        {
+            btn.Focus(FocusState.Programmatic);
+            btn.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.35 });
+        }
+    }
+
+    private void OnRootPreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (_dialogOpen) return;
+        var isCtrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var isShift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (isCtrl || isShift) return;
+
+        if (e.OriginalSource is TextBox)
+        {
+            if (ReferenceEquals(e.OriginalSource, SearchBox) && e.Key == VirtualKey.Down && _vm.ShowTimeline)
+            {
+                e.Handled = true;
+                FocusSelectedVersionButton();
+            }
+            return;
+        }
+
+        // If keyboard focus is on a Document button in Pane 1, Up/Down navigates documents.
+        if (e.OriginalSource is FrameworkElement { DataContext: FileSummaryViewModel currentFile })
+        {
+            int idx = _vm.Files.IndexOf(currentFile);
+            if (e.Key == VirtualKey.Down && idx >= 0 && idx + 1 < _vm.Files.Count)
+            {
+                e.Handled = true;
+                var next = _vm.Files[idx + 1];
+                _ = _vm.SelectFileCommand.ExecuteAsync(next);
+                if (FindVersionButton(FilesScroll, next) is { } nextBtn)
+                    nextBtn.Focus(FocusState.Programmatic);
+                return;
+            }
+            if (e.Key == VirtualKey.Up && idx > 0)
+            {
+                e.Handled = true;
+                var prev = _vm.Files[idx - 1];
+                _ = _vm.SelectFileCommand.ExecuteAsync(prev);
+                if (FindVersionButton(FilesScroll, prev) is { } prevBtn)
+                    prevBtn.Focus(FocusState.Programmatic);
+                return;
+            }
+        }
+
+        if (e.Key == VirtualKey.Down && _vm.SelectNextVersion())
+        {
+            e.Handled = true;
+            FocusSelectedVersionButton();
+        }
+        else if (e.Key == VirtualKey.Up && _vm.SelectPreviousVersion())
+        {
+            e.Handled = true;
+            FocusSelectedVersionButton();
+        }
+        else if (e.Key == VirtualKey.Home && _vm.SelectFirstVersion())
+        {
+            e.Handled = true;
+            FocusSelectedVersionButton();
+        }
+        else if (e.Key == VirtualKey.End && _vm.SelectLastVersion())
+        {
+            e.Handled = true;
+            FocusSelectedVersionButton();
+        }
     }
 
     private void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (_dialogOpen) return;
         var isCtrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         var isShift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         bool inTextBox = e.OriginalSource is TextBox;
@@ -525,6 +780,36 @@ public sealed partial class HistoryWindow : Window
             // Advertised on the Take Checkpoint button's tooltip.
             e.Handled = true;
             OnTakeSnapshotClick(this, new RoutedEventArgs());
+        }
+        else if (isCtrl && !isShift && e.Key == VirtualKey.Enter && !inTextBox && _vm.HasSelection)
+        {
+            e.Handled = true;
+            _ = ConfirmAndRestoreAsync();
+        }
+        else if (isCtrl && !isShift && e.Key == VirtualKey.Number1)
+        {
+            e.Handled = true;
+            SetMode(HistoryDiffMode.Unified);
+        }
+        else if (isCtrl && !isShift && e.Key == VirtualKey.Number2)
+        {
+            e.Handled = true;
+            SetMode(HistoryDiffMode.Split);
+        }
+        else if (isCtrl && !isShift && e.Key == VirtualKey.Number3)
+        {
+            e.Handled = true;
+            SetMode(HistoryDiffMode.Preview);
+        }
+        else if (isCtrl && isShift && e.Key == VirtualKey.C && !inTextBox && _vm.Selected is { } patchTarget)
+        {
+            e.Handled = true;
+            CopyDiffPatch(patchTarget);
+        }
+        else if (isCtrl && !isShift && e.Key == VirtualKey.C && !inTextBox && _vm.Selected is { } copyTarget)
+        {
+            e.Handled = true;
+            _ = CopyVersionMarkdownAsync(copyTarget);
         }
         else if (e.Key == VirtualKey.Escape)
         {
@@ -557,6 +842,17 @@ public sealed partial class HistoryWindow : Window
                 e.Handled = true;
             }
         }
+        else if (!inTextBox && !isCtrl && e.Key == VirtualKey.S && _vm.Selected is { } toStar)
+        {
+            e.Handled = true;
+            _ = _vm.ToggleStarCommand.ExecuteAsync(toStar);
+        }
+        else if (!inTextBox && ((isShift && e.Key == VirtualKey.F10) || e.Key == VirtualKey.Application) && _vm.Selected is { } menuTarget)
+        {
+            e.Handled = true;
+            var anchor = (FrameworkElement?)FindVersionButton(TimelineScroll, menuTarget) ?? TimelineScroll;
+            BuildVersionMenu(menuTarget).ShowAt(anchor, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight });
+        }
         else if (!inTextBox && e.Key == VirtualKey.F2 && _vm.Selected is { } toRename)
         {
             e.Handled = true;
@@ -571,7 +867,7 @@ public sealed partial class HistoryWindow : Window
 
     private void OnSearchBoxKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Key == VirtualKey.Enter)
+        if (e.Key is VirtualKey.Enter or VirtualKey.Down)
         {
             e.Handled = true;
             if (_vm.Selected is { } sel && FindVersionButton(TimelineScroll, sel) is { } btn)

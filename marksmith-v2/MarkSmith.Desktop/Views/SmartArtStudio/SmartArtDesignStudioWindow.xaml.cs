@@ -610,7 +610,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
                 dp.SetText(md);
-                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+                Services.ClipboardWriter.Set(dp);
                 ViewModel.StatusMessage = "Copied outline bullets to clipboard.";
             }
             catch { }
@@ -627,7 +627,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
                 dp.SetText(block.Trim());
-                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+                Services.ClipboardWriter.Set(dp);
                 ViewModel.StatusMessage = $"Copied {name} SmartArt Markdown block to clipboard.";
             }
             catch { }

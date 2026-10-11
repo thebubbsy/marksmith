@@ -473,7 +473,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             HasVersions = versions.Count > 0;
             if (versions.Count == 0) return;
 
-            ApplyTimelineFilter();
+            ApplyTimelineFilter(autoSelectFirst: false);
 
             var keep = keepSelectedId is null ? null : FindItem(keepSelectedId);
             if (keep is not null) SelectVersion(keep);
@@ -490,12 +490,17 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     private VersionItemViewModel? FindItem(string id) =>
         Bands.SelectMany(b => b.Items).FirstOrDefault(i => i.Id == id);
 
-    private void ApplyTimelineFilter()
+    /// <summary>All currently visible version rows across all time bands in chronological order (newest first).</summary>
+    public IReadOnlyList<VersionItemViewModel> VisibleVersions =>
+        Bands.SelectMany(b => b.Items).ToList();
+
+    private void ApplyTimelineFilter(bool autoSelectFirst = true)
     {
         // Rows are rebuilt on every filter change, so carry the selection across by id. Before,
         // typing in the search box dropped the selection highlight while the diff pane kept
         // showing that version, and starring "the selected version" then targeted a dead row.
         var selectedId = Selected?.Id;
+        bool keptSelection = false;
         Bands.Clear();
         if (_allVersions.Count == 0)
         {
@@ -538,6 +543,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             {
                 item.IsSelected = true;
                 Selected = item;
+                keptSelection = true;
             }
             list.Add(item);
         }
@@ -554,6 +560,18 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             : filterStarred
                 ? $"No starred versions match “{q}”."
                 : $"No versions match “{q}”.";
+
+        if (autoSelectFirst && !keptSelection)
+        {
+            if (Bands.Count > 0 && Bands[0].Items.Count > 0)
+            {
+                SelectVersion(Bands[0].Items[0]);
+            }
+            else
+            {
+                Selected = null;
+            }
+        }
     }
 
     [RelayCommand]
@@ -577,6 +595,108 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             _ = RefreshDiffAsync(item, token);
             _ = RefreshPreviewAsync(item, token);
         }
+    }
+
+    /// <summary>Moves selection to the next (older) visible version in the timeline.</summary>
+    public bool SelectNextVersion()
+    {
+        var items = VisibleVersions;
+        if (items.Count == 0) return false;
+        if (Selected is null)
+        {
+            SelectVersion(items[0]);
+            return true;
+        }
+        int idx = -1;
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (items[i].Id == Selected.Id) { idx = i; break; }
+        }
+        if (idx < 0)
+        {
+            SelectVersion(items[0]);
+            return true;
+        }
+        if (idx + 1 >= items.Count) return false;
+        SelectVersion(items[idx + 1]);
+        return true;
+    }
+
+    /// <summary>Moves selection to the previous (newer) visible version in the timeline.</summary>
+    public bool SelectPreviousVersion()
+    {
+        var items = VisibleVersions;
+        if (items.Count == 0) return false;
+        if (Selected is null)
+        {
+            SelectVersion(items[0]);
+            return true;
+        }
+        int idx = -1;
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (items[i].Id == Selected.Id) { idx = i; break; }
+        }
+        if (idx < 0)
+        {
+            SelectVersion(items[0]);
+            return true;
+        }
+        if (idx - 1 < 0) return false;
+        SelectVersion(items[idx - 1]);
+        return true;
+    }
+
+    /// <summary>Selects the newest visible version in the timeline.</summary>
+    public bool SelectFirstVersion()
+    {
+        var items = VisibleVersions;
+        if (items.Count == 0) return false;
+        if (Selected?.Id == items[0].Id) return false;
+        SelectVersion(items[0]);
+        return true;
+    }
+
+    /// <summary>Selects the oldest visible version in the timeline.</summary>
+    public bool SelectLastVersion()
+    {
+        var items = VisibleVersions;
+        if (items.Count == 0) return false;
+        var last = items[^1];
+        if (Selected?.Id == last.Id) return false;
+        SelectVersion(last);
+        return true;
+    }
+
+    /// <summary>Reads the full stored Markdown text of <paramref name="item"/> (or <see cref="Selected"/>).</summary>
+    public async Task<string?> GetVersionContentAsync(VersionItemViewModel? item = null)
+    {
+        var target = item ?? Selected;
+        if (target is null) return null;
+        return await _history.GetContentAsync(target.Id);
+    }
+
+    /// <summary>Formats the currently loaded unified diff rows as a portable unified diff patch.</summary>
+    public string BuildUnifiedDiffPatch()
+    {
+        if (Selected is null || UnifiedDiffRows.Count == 0) return string.Empty;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"--- a/{FileName}");
+        sb.AppendLine($"+++ b/{FileName} ({Selected.TimestampLabel} · {Selected.SourceLabel})");
+        foreach (var row in UnifiedDiffRows)
+        {
+            if (row.IsGap)
+            {
+                sb.AppendLine($"@@ {row.Text} @@");
+            }
+            else
+            {
+                string prefix = string.IsNullOrEmpty(row.Prefix) ? "  " : row.Prefix;
+                if (!prefix.EndsWith(' ')) prefix += " ";
+                sb.Append(prefix).AppendLine(row.Text);
+            }
+        }
+        return sb.ToString().TrimEnd();
     }
 
     [RelayCommand]
@@ -634,8 +754,6 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
         if (wasSelected) Selected = null;
         ApplyTimelineFilter();
-        if (wasSelected && Bands.Count > 0 && Bands[0].Items.Count > 0)
-            SelectVersion(Bands[0].Items[0]);
         RefreshSelectedFileCount();
         ShowNotice("Version deleted.");
     }

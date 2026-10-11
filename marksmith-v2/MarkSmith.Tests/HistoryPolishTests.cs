@@ -390,4 +390,89 @@ public class HistoryPolishTests : IDisposable
         await bad.RestoreCommand.ExecuteAsync(null);
         Assert.True(bad.NoticeIsError);
     }
+
+    [Fact]
+    public async Task TimelineNavigation_MovesAcrossVisibleVersions_AndClampsAtBounds()
+    {
+        var service = NewService();
+        const string file = @"C:\docs\nav.md";
+        await service.CaptureAsync(file, "v1", "opened", "First");
+        await Task.Delay(15);
+        await service.CaptureAsync(file, "v2", "autosave", "Second");
+        await Task.Delay(15);
+        await service.CaptureAsync(file, "v3", "snapshot", "Third", isStarred: true);
+
+        var vm = NewVm(service, file);
+        await vm.LoadCommand.ExecuteAsync(null);
+
+        Assert.Equal("Third", vm.Selected!.Label);
+        Assert.False(vm.SelectPreviousVersion()); // already at newest
+
+        Assert.True(vm.SelectNextVersion());
+        Assert.Equal("Second", vm.Selected!.Label);
+        Assert.True(vm.Selected.IsSelected);
+
+        Assert.True(vm.SelectNextVersion());
+        Assert.Equal("First", vm.Selected!.Label);
+        Assert.False(vm.SelectNextVersion()); // already at oldest
+
+        Assert.True(vm.SelectFirstVersion());
+        Assert.Equal("Third", vm.Selected!.Label);
+        Assert.False(vm.SelectFirstVersion());
+
+        Assert.True(vm.SelectLastVersion());
+        Assert.Equal("First", vm.Selected!.Label);
+        Assert.False(vm.SelectLastVersion());
+    }
+
+    [Fact]
+    public async Task Filtering_WhenPreviousSelectionIsHidden_AutoSelectsFirstVisibleVersion()
+    {
+        var service = NewService();
+        const string file = @"C:\docs\autoselect.md";
+        await service.CaptureAsync(file, "v1", "snapshot", "Milestone", isStarred: true);
+        await Task.Delay(15);
+        await service.CaptureAsync(file, "v2", "autosave", "Recent draft", isStarred: false);
+
+        var vm = NewVm(service, file);
+        await vm.LoadCommand.ExecuteAsync(null);
+        Assert.Equal("Recent draft", vm.Selected!.Label);
+
+        // Starred filter hides "Recent draft", so "Milestone" becomes selected automatically
+        vm.IsStarredOnlyFilter = true;
+        Assert.NotNull(vm.Selected);
+        Assert.Equal("Milestone", vm.Selected!.Label);
+        Assert.True(vm.Selected.IsSelected);
+
+        // Search filter that hides everything clears selection; clearing filters restores selection
+        vm.SearchQuery = "nonexistent-query";
+        Assert.Null(vm.Selected);
+
+        vm.ClearFiltersCommand.Execute(null);
+        Assert.NotNull(vm.Selected);
+        Assert.Equal("Recent draft", vm.Selected!.Label);
+    }
+
+    [Fact]
+    public async Task GetVersionContent_And_BuildUnifiedDiffPatch_ReturnStoredMarkdownAndUnifiedPatch()
+    {
+        var service = NewService();
+        const string file = @"C:\docs\patch.md";
+        await service.CaptureAsync(file, "# Title\nOld line", "opened");
+        await Task.Delay(15);
+        await service.CaptureAsync(file, "# Title\nNew line", "autosave");
+
+        var vm = NewVm(service, file);
+        await vm.LoadCommand.ExecuteAsync(null);
+        await WaitForAsync(() => vm.UnifiedDiffRows.Count > 0);
+
+        var md = await vm.GetVersionContentAsync();
+        Assert.Equal("# Title\nNew line", md);
+
+        var patch = vm.BuildUnifiedDiffPatch();
+        Assert.Contains("--- a/patch.md", patch);
+        Assert.Contains("+++ b/patch.md", patch);
+        Assert.Contains("- Old line", patch);
+        Assert.Contains("+ New line", patch);
+    }
 }
