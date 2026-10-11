@@ -523,7 +523,7 @@
                     </ScrollViewer>
 
                     <!-- 3. Rendered preview -->
-                    <Border Grid.Row="1" Visibility="{Binding ShowPreview, Converter={StaticResource BoolToVis}}">
+                    <Border Grid.Row="1" Visibility="{Binding ShowPreviewPane, Converter={StaticResource BoolToVis}}">
                         <controls:WebView2 x:Name="PreviewWeb" />
                     </Border>
                 </Grid>

@@ -229,7 +229,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RestoreCommand))]
-    [NotifyPropertyChangedFor(nameof(HasSelection), nameof(ShowDiffPlaceholder), nameof(ShowNoChanges), nameof(ShowUnifiedRows), nameof(ShowSplitRows), nameof(HasDiffStats))]
+    [NotifyPropertyChangedFor(nameof(HasSelection), nameof(ShowDiffPlaceholder), nameof(ShowNoChanges), nameof(ShowUnifiedRows), nameof(ShowSplitRows), nameof(ShowPreviewPane), nameof(HasDiffStats))]
     private VersionItemViewModel? _selected;
 
     public bool HasSelection => Selected is not null;
@@ -271,7 +271,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     private bool _showSplitDiff = false;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowDiffPlaceholder), nameof(HasDiffStats))]
+    [NotifyPropertyChangedFor(nameof(ShowDiffPlaceholder), nameof(ShowPreviewPane), nameof(HasDiffStats))]
     private bool _showPreview = false;
 
     [ObservableProperty]
@@ -296,7 +296,8 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     public bool ShowNoChanges => IsUnchanged && !ShowPreview && Selected is not null;
     public bool ShowUnifiedRows => ShowUnifiedDiff && !IsUnchanged && Selected is not null;
     public bool ShowSplitRows => ShowSplitDiff && !IsUnchanged && Selected is not null;
-    public bool ShowDiffPlaceholder => Selected is null && !ShowPreview;
+    public bool ShowPreviewPane => ShowPreview && Selected is not null;
+    public bool ShowDiffPlaceholder => Selected is null;
 
     /// <summary>A one-line confirmation or error shown in the window's InfoBar.</summary>
     [ObservableProperty]
@@ -389,10 +390,16 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         }
     }
 
+    private int _reloadFilesToken;
+    private int _timelineLoadToken;
+
     private async Task ReloadFilesAsync(string preferredPath, string? keepSelectedId = null)
     {
-        Files.Clear();
+        var reloadToken = ++_reloadFilesToken;
         var overview = await _history.GetOverviewAsync();
+        if (reloadToken != _reloadFilesToken) return;
+
+        Files.Clear();
         foreach (var summary in overview)
             Files.Add(new FileSummaryViewModel(summary));
         HasFiles = Files.Count > 0;
@@ -455,6 +462,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
     private void ClearTimeline()
     {
+        ++_selectionToken;
         _allVersions = new List<VersionEntry>();
         Bands.Clear();
         Selected = null;
@@ -465,7 +473,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
     private async Task LoadTimelineAsync(string filePath, string displayName, string? keepSelectedId = null)
     {
-        _selectionToken++;
+        var loadToken = ++_timelineLoadToken;
         _currentFile = filePath;
         FileName = displayName;
         ClearTimeline();
@@ -478,7 +486,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         try
         {
             var versions = await _history.GetVersionsAsync(filePath);
-            if (filePath != _currentFile) return;
+            if (loadToken != _timelineLoadToken || filePath != _currentFile) return;
             _allVersions = versions;
             HasVersions = versions.Count > 0;
             if (versions.Count == 0) return;
@@ -492,8 +500,11 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            // Keep the hub alive if one file's history is unreadable, but say so.
-            ShowNotice($"Couldn't read the history of {displayName}: {ex.Message}", isError: true);
+            if (loadToken == _timelineLoadToken)
+            {
+                // Keep the hub alive if one file's history is unreadable, but say so.
+                ShowNotice($"Couldn't read the history of {displayName}: {ex.Message}", isError: true);
+            }
         }
     }
 
@@ -614,6 +625,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             item.IsSelected = true;
             var t = item.Entry.CreatedAt.LocalDateTime;
             SelectedHeader = t.ToString("dddd, d MMMM yyyy") + " · " + t.ToString("HH:mm");
+            ApplyHeading();
             _ = RefreshDiffAsync(item, token);
             _ = RefreshPreviewAsync(item, token);
         }
@@ -724,7 +736,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
                 sb.Append(prefix).AppendLine(row.Text);
             }
         }
-        return sb.ToString().TrimEnd();
+        return sb.ToString().TrimEnd('\r', '\n');
     }
 
     /// <summary>Computes and formats the unified diff patch for <paramref name="item"/> (or <see cref="Selected"/>),
@@ -738,7 +750,8 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             return BuildUnifiedDiffPatch(target, UnifiedDiffRows);
         }
 
-        var selectedContent = await _history.GetContentAsync(target.Id) ?? "";
+        var selectedContent = await _history.GetContentAsync(target.Id);
+        if (selectedContent is null) return string.Empty;
         var idx = _allVersions.FindIndex(v => v.Id == target.Id);
         bool hasPrevious = idx >= 0 && idx + 1 < _allVersions.Count;
         var prevContent = hasPrevious
@@ -778,6 +791,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             target.Label = label;
             var idx = _allVersions.FindIndex(v => v.Id == target.Id);
             if (idx >= 0) _allVersions[idx] = _allVersions[idx] with { Label = label.Length == 0 ? null : label };
+            if (!string.IsNullOrWhiteSpace(SearchQuery)) ApplyTimelineFilter();
         }
         else
         {
@@ -790,6 +804,13 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     {
         var target = item ?? Selected;
         if (target == null) return;
+        var visibleBefore = VisibleVersions;
+        int deletedVisibleIdx = -1;
+        for (int i = 0; i < visibleBefore.Count; i++)
+        {
+            if (visibleBefore[i].Id == target.Id) { deletedVisibleIdx = i; break; }
+        }
+
         if (!await _history.DeleteVersionAsync(target.Id))
         {
             ShowNotice("Couldn't delete that version. It may already be gone.", isError: true);
@@ -806,19 +827,41 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             return;
         }
 
-        if (wasSelected) Selected = null;
-        ApplyTimelineFilter();
-        if (!wasSelected && Selected is not null) SelectVersion(Selected);
+        if (wasSelected)
+        {
+            Selected = null;
+            ApplyTimelineFilter(autoSelectFirst: false);
+            var visibleAfter = VisibleVersions;
+            if (visibleAfter.Count > 0)
+            {
+                int nextIdx = deletedVisibleIdx >= 0 ? Math.Clamp(deletedVisibleIdx, 0, visibleAfter.Count - 1) : 0;
+                SelectVersion(visibleAfter[nextIdx]);
+            }
+            else
+            {
+                SelectVersion(null);
+            }
+        }
+        else
+        {
+            ApplyTimelineFilter();
+            if (Selected is not null) SelectVersion(Selected);
+        }
         RefreshSelectedFileCount();
         ShowNotice("Version deleted.");
     }
 
     private void RefreshSelectedFileCount()
     {
-        if (SelectedFile is null) return;
+        if (SelectedFile is null || _allVersions.Count == 0) return;
         var i = Files.IndexOf(SelectedFile);
         if (i < 0) return;
-        var s = SelectedFile.Summary with { VersionCount = _allVersions.Count };
+        var s = SelectedFile.Summary with
+        {
+            VersionCount = _allVersions.Count,
+            LastModified = _allVersions[0].CreatedAt,
+            LatestSource = _allVersions[0].Source,
+        };
         var replacement = new FileSummaryViewModel(s) { IsSelected = true };
         Files[i] = replacement;
         SelectedFile = replacement;

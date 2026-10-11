@@ -111,11 +111,11 @@ public class HistoryPolishTests : IDisposable
     }
 
     [Fact]
-    public void FirstCapture_CountsLinesSplitByBareCarriageReturns()
+    public async Task FirstCapture_CountsLinesSplitByBareCarriageReturns()
     {
         var service = NewService();
-        service.CaptureAsync(@"C:\docs\cr.md", "a\rb\rc\rd").GetAwaiter().GetResult();
-        var v = service.GetVersionsAsync(@"C:\docs\cr.md").GetAwaiter().GetResult().Single();
+        await service.CaptureAsync(@"C:\docs\cr.md", "a\rb\rc\rd");
+        var v = (await service.GetVersionsAsync(@"C:\docs\cr.md")).Single();
         Assert.Equal(4, v.LinesAdded); // was 1: the old count split on '\n' only
     }
 
@@ -444,12 +444,15 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal("Milestone", vm.Selected!.Label);
         Assert.True(vm.Selected.IsSelected);
 
-        // Search filter that hides everything clears selection and diff rows; clearing filters restores selection
+        // Search filter that hides everything clears selection and diff rows (and hides PreviewWeb in Preview mode); clearing filters restores selection
         await WaitForAsync(() => vm.UnifiedDiffRows.Count > 0);
+        vm.SetDiffMode(HistoryDiffMode.Preview);
+        Assert.True(vm.ShowPreviewPane);
         vm.SearchQuery = "nonexistent-query";
         Assert.Null(vm.Selected);
         Assert.False(vm.ShowUnifiedRows);
         Assert.False(vm.ShowSplitRows);
+        Assert.False(vm.ShowPreviewPane);
         Assert.True(vm.ShowDiffPlaceholder);
         Assert.Empty(vm.UnifiedDiffRows);
         Assert.Empty(vm.DiffRows);
@@ -460,7 +463,10 @@ public class HistoryPolishTests : IDisposable
         Assert.False(vm.IsStarredOnlyFilter);
         Assert.Equal("", vm.SearchQuery);
         Assert.NotNull(vm.Selected);
+        Assert.True(vm.ShowPreviewPane);
+        Assert.False(vm.ShowDiffPlaceholder);
         Assert.Equal("Recent draft", vm.Selected!.Label);
+        Assert.Equal("This version as a document", vm.DiffTitle);
     }
 
     [Fact]
@@ -472,20 +478,20 @@ public class HistoryPolishTests : IDisposable
         await Task.Delay(15);
         await service.CaptureAsync(file, "# Title\nMiddle line", "autosave", "Middle");
         await Task.Delay(15);
-        await service.CaptureAsync(file, "# Title\nNew line", "snapshot", "Latest", isStarred: true);
+        await service.CaptureAsync(file, "# Title\nNew line  ", "snapshot", "Latest", isStarred: true);
 
         var vm = NewVm(service, file);
         await vm.LoadCommand.ExecuteAsync(null);
         await WaitForAsync(() => vm.UnifiedDiffRows.Count > 0);
 
         var md = await vm.GetVersionContentAsync();
-        Assert.Equal("# Title\nNew line", md);
+        Assert.Equal("# Title\nNew line  ", md);
 
         var patch = await vm.BuildUnifiedDiffPatchAsync();
         Assert.Contains("--- a/patch.md", patch);
         Assert.Contains("+++ b/patch.md", patch);
         Assert.Contains("- Middle line", patch);
-        Assert.Contains("+ New line", patch);
+        Assert.EndsWith("+ New line  ", patch);
 
         // Requesting a patch for an unselected older version computes that version's diff instead of copying Selected's rows.
         var middleItem = vm.VisibleVersions.Single(v => v.Label == "Middle");
@@ -501,5 +507,50 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("+ # Title", initialPatch);
         Assert.Contains("+ Old line", initialPatch);
         Assert.DoesNotContain("Middle line", initialPatch);
+    }
+
+    [Fact]
+    public async Task RenameUnderActiveSearch_ReappliesFilter_And_DeleteSelectsAdjacentAndUpdatesMetadata()
+    {
+        var service = NewService();
+        const string file = @"C:\docs\edit_ops.md";
+        await service.CaptureAsync(file, "v1", "opened", "First");
+        await Task.Delay(15);
+        await service.CaptureAsync(file, "v2", "autosave", "Draft two");
+        await Task.Delay(15);
+        await service.CaptureAsync(file, "v3", "autosave", "Draft three");
+        await Task.Delay(15);
+        await service.CaptureAsync(file, "v4", "snapshot", "Final milestone", isStarred: true);
+
+        var vm = NewVm(service, file);
+        await vm.LoadCommand.ExecuteAsync(null);
+
+        // 1. Renaming a version while SearchQuery is active immediately re-filters the timeline
+        vm.SearchQuery = "Draft";
+        Assert.Equal(2, vm.VisibleVersions.Count);
+        var draftThree = vm.VisibleVersions.Single(v => v.Label == "Draft three");
+        await vm.RenameVersionCommand.ExecuteAsync((draftThree, "Polished three"));
+        Assert.Single(vm.VisibleVersions);
+        Assert.Equal("Draft two", vm.Selected!.Label);
+
+        vm.ClearFiltersCommand.Execute(null);
+        Assert.Equal(4, vm.VisibleVersions.Count);
+
+        // 2. Deleting a selected middle version selects the adjacent version at the same index rather than jumping to index 0
+        var middle = vm.VisibleVersions[2]; // "Draft two"
+        vm.SelectVersion(middle);
+        await vm.DeleteVersionCommand.ExecuteAsync(middle);
+        Assert.Equal("First", vm.Selected!.Label);
+
+        // 3. Deleting the newest version updates SelectedFile.Summary.LastModified and LatestSource
+        var newest = vm.VisibleVersions[0]; // "Final milestone"
+        var secondNewest = vm.VisibleVersions[1]; // "Polished three"
+        await vm.DeleteVersionCommand.ExecuteAsync(newest);
+        Assert.Equal(secondNewest.Entry.CreatedAt, vm.SelectedFile!.Summary.LastModified);
+        Assert.Equal(secondNewest.Entry.Source, vm.SelectedFile.Summary.LatestSource);
+
+        // 4. Overlapping LoadAsync and ShowFileAsync calls never duplicate Files
+        await Task.WhenAll(vm.LoadAsync(), vm.ShowFileAsync(file));
+        Assert.Single(vm.Files);
     }
 }

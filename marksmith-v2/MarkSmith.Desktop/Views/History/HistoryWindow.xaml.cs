@@ -248,7 +248,12 @@ public sealed partial class HistoryWindow : Window
 
     private void RenderPreview()
     {
-        if (!_webViewReady || !_vm.ShowPreview || string.IsNullOrEmpty(_vm.PreviewHtml)) return;
+        if (string.IsNullOrEmpty(_vm.PreviewHtml))
+        {
+            _renderedHtml = null;
+            return;
+        }
+        if (!_webViewReady || !_vm.ShowPreview) return;
         if (ReferenceEquals(_renderedHtml, _vm.PreviewHtml)) return;
         try
         {
@@ -707,6 +712,15 @@ public sealed partial class HistoryWindow : Window
         }
     }
 
+    private void FocusFileButton(FileSummaryViewModel file)
+    {
+        if (FindVersionButton(FilesScroll, file) is { } btn)
+        {
+            btn.Focus(FocusState.Programmatic);
+            btn.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.35 });
+        }
+    }
+
     private static bool IsDescendantOf(DependencyObject? node, DependencyObject ancestor)
     {
         for (var cur = node; cur is not null; cur = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(cur))
@@ -742,32 +756,28 @@ public sealed partial class HistoryWindow : Window
                 e.Handled = true;
                 var next = _vm.Files[idx + 1];
                 _ = _vm.SelectFileCommand.ExecuteAsync(next);
-                if (FindVersionButton(FilesScroll, next) is { } nextBtn)
-                    nextBtn.Focus(FocusState.Programmatic);
+                FocusFileButton(next);
             }
             else if (e.Key == VirtualKey.Up && idx > 0)
             {
                 e.Handled = true;
                 var prev = _vm.Files[idx - 1];
                 _ = _vm.SelectFileCommand.ExecuteAsync(prev);
-                if (FindVersionButton(FilesScroll, prev) is { } prevBtn)
-                    prevBtn.Focus(FocusState.Programmatic);
+                FocusFileButton(prev);
             }
             else if (e.Key == VirtualKey.Home && idx > 0 && _vm.Files.Count > 0)
             {
                 e.Handled = true;
                 var first = _vm.Files[0];
                 _ = _vm.SelectFileCommand.ExecuteAsync(first);
-                if (FindVersionButton(FilesScroll, first) is { } firstBtn)
-                    firstBtn.Focus(FocusState.Programmatic);
+                FocusFileButton(first);
             }
             else if (e.Key == VirtualKey.End && idx >= 0 && idx + 1 < _vm.Files.Count)
             {
                 e.Handled = true;
                 var last = _vm.Files[^1];
                 _ = _vm.SelectFileCommand.ExecuteAsync(last);
-                if (FindVersionButton(FilesScroll, last) is { } lastBtn)
-                    lastBtn.Focus(FocusState.Programmatic);
+                FocusFileButton(last);
             }
             else if (e.Key is VirtualKey.Up or VirtualKey.Down or VirtualKey.Home or VirtualKey.End)
             {
@@ -809,6 +819,9 @@ public sealed partial class HistoryWindow : Window
         var isCtrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         var isShift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         bool inTextBox = e.OriginalSource is TextBox;
+        bool inFileList = e.OriginalSource is FrameworkElement { DataContext: FileSummaryViewModel };
+        var focusedVersion = (e.OriginalSource as FrameworkElement)?.DataContext as VersionItemViewModel;
+
         if (isCtrl && e.Key == VirtualKey.F)
         {
             SearchBox.Focus(FocusState.Programmatic);
@@ -841,12 +854,12 @@ public sealed partial class HistoryWindow : Window
             e.Handled = true;
             SetMode(HistoryDiffMode.Preview);
         }
-        else if (isCtrl && isShift && e.Key == VirtualKey.C && !inTextBox && _vm.Selected is { } patchTarget)
+        else if (isCtrl && isShift && e.Key == VirtualKey.C && !inTextBox && (focusedVersion ?? _vm.Selected) is { } patchTarget)
         {
             e.Handled = true;
             _ = CopyDiffPatchAsync(patchTarget);
         }
-        else if (isCtrl && !isShift && e.Key == VirtualKey.C && !inTextBox && _vm.Selected is { } copyTarget)
+        else if (isCtrl && !isShift && e.Key == VirtualKey.C && !inTextBox && (focusedVersion ?? _vm.Selected) is { } copyTarget)
         {
             e.Handled = true;
             _ = CopyVersionMarkdownAsync(copyTarget);
@@ -878,10 +891,11 @@ public sealed partial class HistoryWindow : Window
             {
                 _vm.ClearFiltersCommand.Execute(null);
                 SearchBox.Text = "";
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, FocusSelectedVersionButton);
                 e.Handled = true;
             }
         }
-        else if (!inTextBox && !isCtrl && e.Key == VirtualKey.S && _vm.Selected is { } toStar)
+        else if (!inTextBox && !inFileList && !isCtrl && e.Key == VirtualKey.S && (focusedVersion ?? _vm.Selected) is { } toStar)
         {
             e.Handled = true;
             _ = _vm.ToggleStarCommand.ExecuteAsync(toStar);
@@ -893,19 +907,19 @@ public sealed partial class HistoryWindow : Window
                 e.Handled = true;
                 BuildFileMenu(fileTarget).ShowAt(fileFe, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight });
             }
-            else if (_vm.Selected is { } menuTarget)
+            else if ((focusedVersion ?? _vm.Selected) is { } menuTarget)
             {
                 e.Handled = true;
                 var anchor = (FrameworkElement?)FindVersionButton(TimelineScroll, menuTarget) ?? TimelineScroll;
                 BuildVersionMenu(menuTarget).ShowAt(anchor, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight });
             }
         }
-        else if (!inTextBox && e.Key == VirtualKey.F2 && _vm.Selected is { } toRename)
+        else if (!inTextBox && !inFileList && e.Key == VirtualKey.F2 && (focusedVersion ?? _vm.Selected) is { } toRename)
         {
             e.Handled = true;
             _ = RenameAsync(toRename);
         }
-        else if (!inTextBox && e.Key == VirtualKey.Delete && _vm.Selected is { } toDelete)
+        else if (!inTextBox && !inFileList && e.Key == VirtualKey.Delete && (focusedVersion ?? _vm.Selected) is { } toDelete)
         {
             e.Handled = true;
             _ = DeleteAsync(toDelete);
