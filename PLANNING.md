@@ -6440,3 +6440,48 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
   - Confirmed `SuiteHubView` focus-within accent border on `HeaderCardBorder`, `Settings folder` button, and `Copy address` button on `Web companion`.
   - Confirmed `CommandPalette` single `×` `ClearSearchButton`, immediate `AutomationProperties.Name` on `Results` upon open (`"Commands — Export PDF, Export, Ctrl+E"`) and upon filter (`"Commands — Open Suite Hub, Studio"`), `"Show all commands"` `ResetSearchButton` in `NoMatches`, and clean query reset (`''`) via UIA `InvokePattern`.
 
+### 2026-10-11 16:35 – 2026-10-11 17:13 AEDT (routine run #80 — Agent 2: SettingsView 7-page accessibility & keyboard navigation, SettingsCard & OptionRow interactive states, and narrow-window responsive layout)
+
+**Agent / Execution Metadata:**
+- **Model:** `Gemini 3.8 Flash (High)`
+- **Identity:** Antigravity AI Agent (Google DeepMind)
+- **Modes:** `/boost` (Delegation Routine — Parallel 5-Agent Swarm, Agent 2)
+- **Trigger:** Specific user request (`"spawn at least 5 more agents"`)
+- **Agents Used:** `Parent Orchestrator` (`4407db69-be6a-4961-911d-3aed740dcbbd`) + `Coding Worker Subagent 2 — Settings Pages & Custom Controls` (`c137b8af-211e-4143-9f5c-b49f3b07cc09`, running `Gemini 3.8 Flash (High)`)
+
+**Found:**
+1. **`SettingsCard` & `OptionRow` interactive states, tap-to-focus, and narrow-width wrapping (`SettingsCard.xaml(.cs)`, `OptionRow.xaml(.cs)`):**
+   - Both custom controls defined `Normal`, `PointerOver`, and `Disabled` visual states in `CommonStates`, but lacked a `Pressed` state (`SubtleFillColorTertiaryBrush`), giving no visual press feedback when clicking a card or option row.
+   - Tapping the row body only toggled `ToggleSwitch` and `CheckBox` actions; clicking a `SettingsCard` or `OptionRow` whose action was a `ComboBox` or `NumberBox` (or a details input card with no `Action`) did not focus or open the control.
+   - Neither control propagated `Description` to `AutomationProperties.HelpText` on the control and its primary input, nor recursively named nested controls inside `Details` panels from their inline `Header`/`Content` or the card `Header`.
+   - On narrow widths (`< 420px`), `SettingsCard` kept wide `ComboBox`, `NumberBox`, `Button`, and multi-button `Panel` actions in `Grid.Column="2"` on the same row as the title and description, squeezing text instead of wrapping the action to `Grid.Row="1"` below the description.
+2. **`SettingsView` 7-page keyboard navigation, accessible names, live announcements & layout (`SettingsView.xaml(.cs)`):**
+   - `SettingsView` lacked keyboard page-switching shortcuts (`Ctrl+Tab` / `Ctrl+Shift+Tab`, `Ctrl+PageDown` / `Ctrl+PageUp`, `Ctrl+1`–`Ctrl+7`, `Alt+1`–`Alt+7`), `Escape` dismissal for `PluginWarningsBar`, `Enter` field-to-field advance on the `PDF` password and `Google Docs` OAuth inputs, and `Ctrl+Enter` to apply a pasted AI theme reply.
+   - Several interactive controls across the 7 pages (including `NavigationViewItem`s, `PasswordBox`es, `CheckBox`es, `Expander`s, and `HyperlinkButton`s) lacked explicit `AutomationProperties.Name` attributes in `SettingsView.xaml`.
+   - Dynamic status indicators (`ApiStatusDot`, `GoogleStateBadgeText`, `EditionBadge`, `FilenamePreviewText`, `CloudSummaryText`, `OcrEngineDescription`, `HouseStyleStatusText`, `UpdateStatusText`, and `BuildPluginCard` status badges) did not synchronize `AutomationProperties.Name` or `AutomationLiveSetting.Polite`, and clicking `RescanBtn` ("Check again") on `Google Docs` gave no text or screen-reader confirmation (`CloudRescanStatusText`).
+   - On `AboutPage`, `CheckRing` (`ProgressRing`) stayed `Visibility.Visible` with `Width="16"` and `Spacing="12"` when `IsActive="False"`, leaving an empty 28px gap to the left of `Check for updates`.
+   - Async operations (`OnStartTrial`, `OnActivateKey`, `OnRestoreLicense`, `OnDeactivateLicense`, `OnCheckForUpdates`, and plugin install/update/remove) disabled and re-enabled or rebuilt buttons without restoring keyboard focus (`HoverPolish.RestoreFocus`), and `PlayPageEntrance` / `AnimateRescanCloud` / `ShowTick` did not check `HoverPolish.AnimationsEnabled`.
+   - At narrow widths (`< 640px`), `Nav` remained expanded (`PaneDisplayMode="Left"`), `PdfPagePreviewPanel` stayed beside the header/footer `TextBox`es (`Column=1`), and `AboutCheckPanel` stayed beside the version summary instead of stacking cleanly.
+
+**Shipped:**
+- `MarkSmith.Desktop/Controls/SettingsCard.xaml` & `SettingsCard.xaml.cs`:
+  - Added `Pressed` visual state (`SubtleFillColorTertiaryBrush`) and pointer-press tracking on the card body (`!IsInside(e.OriginalSource, ActionPart)` and `!IsInside(e.OriginalSource, DetailsPart)`).
+  - Extended `OnCardTapped` to focus/open `ComboBox`, focus `NumberBox`, or focus the first interactive input inside `DetailsPart` (`FindFirstInput`), while preserving `ToggleSwitch` and `CheckBox` toggling.
+  - Added `UpdateActionPlacement(double width)` to wrap non-toggle/checkbox `Action` controls below the description (`Grid.Row="1", Grid.Column="1", Grid.ColumnSpan="2"`) when card width `< 420px`.
+  - Propagated `Description` to `AutomationProperties.HelpText` and recursively named unnamed child controls inside `Action` and `Details`.
+- `MarkSmith.Desktop/Controls/OptionRow.xaml` & `OptionRow.xaml.cs`:
+  - Added `Pressed` visual state (`SubtleFillColorTertiaryBrush`), extended `OnHeaderTapped` to focus/open `ComboBox`, focus `NumberBox`, or focus the first input inside `Details`, and propagated `Description` to `AutomationProperties.HelpText` + recursive child naming.
+- `MarkSmith.Desktop/Views/SettingsView.xaml` & `SettingsView.xaml.cs`:
+  - Added explicit `AutomationProperties.Name` across all interactive controls and `ToolTipService.ToolTip` (`Ctrl+1`–`Ctrl+7`) on all 7 `NavigationViewItem`s.
+  - Wired `OnSettingsKeyDown` (`Ctrl+Tab` / `Ctrl+Shift+Tab`, `Ctrl+PageDown` / `Ctrl+PageUp`, `Ctrl+1`–`Ctrl+7`, `Alt+1`–`Alt+7`, and `Escape` dismissal for `PluginWarningsBar`), `OnPdfUserPasswordKeyDown`, `OnGoogleClientIdKeyDown`, `OnGoogleSecretKeyDown`, and `OnHouseStyleReplyKeyDown` (`Ctrl+Enter`).
+  - Added `ApplyResponsiveLayout(double width)` (`Nav.PaneDisplayMode = LeftCompact` at `< 620px`, `PdfPagePreviewPanel` stacking to `Row=1, Column=0` at `< 640px`, and `AboutCheckPanel` stacking to `Row=1, Column=1` at `< 600px`).
+  - Added `RenderGeneralDynamicNames`, `CloudRescanStatusText` feedback on `OnRescanCloud`, live UIA names & `AutomationLiveSetting.Polite` across status badges and `BuildPluginCard`, collapsed `CheckRing` when idle, restored keyboard focus after async license/update/plugin operations, and guarded entrance/rotation/tick animations with `HoverPolish.AnimationsEnabled`.
+- `MarkSmith.Tests/SettingsPolishTests.cs`:
+  - Added 7 new unit tests (23 total in `SettingsPolishTests`) verifying `SettingsCard` and `OptionRow` `Pressed` visual states, tap-to-focus/open, narrow-width action wrapping, `SettingsView` keyboard page-switching shortcuts, responsive layout adaptation, 100% `AutomationProperties.Name` coverage across all interactive controls in `SettingsView.xaml`, and live UIA status synchronization.
+
+**Verified:**
+- Isolated `dotnet build` of `MarkSmith.Desktop.csproj` (`-c Debug -p:Platform=x64 -p:OutDir="$env:TEMP\ms_ag2\b\"`): **0 errors, 0 warnings in touched files**.
+- Unit test suite (`SettingsPolishTests`, `SidePanelPolishTests`, `SuiteAndTourPolishTests`): **69 passed, 0 failed**.
+- Live WinUI 3 UIAutomation + `PrintWindow` screenshot verification (`settings_1_general.png` through `settings_7_about.png`) using isolated `MARKSMITH_CONFIG_DIR="$env:TEMP\ms_ag2\cfg"`:
+  - Verified all 7 Settings pages (`General`, `PDF`, `Automation`, `Google Docs`, `License`, `Plugins`, `About & updates`) open and switch cleanly via UIA, `CheckRing` collapses when idle so `Check for updates` sits flush on the `About & updates` hero card, and the test process (`PID 15856`) terminated cleanly.
+
