@@ -203,13 +203,13 @@
                                             CornerRadius="4"
                                             Background="#FFFFFF"
                                             BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                                        <Grid x:Name="PageSheetGrid" Clip="{x:Null}">
+                                        <Grid x:Name="PageSheetGrid" Width="360" Height="495" Clip="{x:Null}">
                                             <Image x:Name="DocumentImage" Stretch="Fill" />
                                             <!-- Direct Canvas wrapper for XY-cut guides, element frames, and word boxes -->
-                                            <Canvas x:Name="ScanOverlayCanvas" IsHitTestVisible="False" />
+                                            <Canvas x:Name="ScanOverlayCanvas" Width="360" Height="495" IsHitTestVisible="False" />
                                             <!-- Direct Canvas wrapper for the sweeping scan line -->
-                                            <Canvas x:Name="LaserCanvas" IsHitTestVisible="False">
-                                                <Border x:Name="LaserBeam" Height="3" Width="100"
+                                            <Canvas x:Name="LaserCanvas" Width="360" Height="495" IsHitTestVisible="False">
+                                                <Border x:Name="LaserBeam" Height="3" Width="360"
                                                         Visibility="Collapsed" CornerRadius="1.5"
                                                         Background="#D91A8CFF">
                                                     <Border.RenderTransform>

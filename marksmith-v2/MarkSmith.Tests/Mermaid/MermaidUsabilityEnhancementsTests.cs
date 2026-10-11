@@ -231,4 +231,195 @@ public class MermaidUsabilityEnhancementsTests
         Assert.True(vm.CanBringForward());
         Assert.False(vm.CanSendBackward());
     }
+
+    [Fact]
+    public void HoverGlowOpacity_Reflects_Hovered_Only_When_Unselected()
+    {
+        var node = new DiagramNodeViewModel { Id = "N1" };
+        var changedProps = new List<string>();
+        node.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != null) changedProps.Add(e.PropertyName);
+        };
+
+        Assert.Equal(0.0, node.HoverGlowOpacity);
+
+        node.IsHovered = true;
+        Assert.Equal(1.0, node.HoverGlowOpacity);
+        Assert.Contains(nameof(DiagramNodeViewModel.HoverGlowOpacity), changedProps);
+
+        node.IsSelected = true;
+        Assert.Equal(0.0, node.HoverGlowOpacity);
+
+        node.IsSelected = false;
+        Assert.Equal(1.0, node.HoverGlowOpacity);
+
+        node.IsHovered = false;
+        Assert.Equal(0.0, node.HoverGlowOpacity);
+    }
+
+    [Fact]
+    public void ReadableStrokeOnCanvas_Lifts_Dark_MonochromePrint_Strokes_On_Dark_Canvas_Without_Mutating_Export_Colors()
+    {
+        var vm = new MermaidStudioViewModel();
+        vm.LoadFromMermaidCode("flowchart TD\n A --> B");
+        Assert.NotEmpty(vm.Nodes);
+        Assert.NotEmpty(vm.Connectors);
+
+        vm.ActivePalette = "Monochrome Print";
+
+        var node = vm.Nodes.First();
+        var conn = vm.Connectors.First();
+
+        // Export / Mermaid init directive colors stay true to Monochrome Print
+        Assert.Equal("#1F2937", node.StrokeColor);
+        Assert.Equal("#111827", conn.StrokeColor);
+
+        // Dark-canvas display strokes are automatically lifted to high-contrast light slate
+        Assert.Equal("#FFFFFF", node.CanvasStrokeColor);
+        Assert.Equal("#FFFFFF", conn.DisplayStroke);
+
+        // Selecting the connector highlights it in accent blue and restores readable stroke on deselect
+        conn.IsSelected = true;
+        Assert.Equal("#4CC9F0", conn.DisplayStroke);
+        conn.IsSelected = false;
+        Assert.Equal("#FFFFFF", conn.DisplayStroke);
+    }
+
+    [Fact]
+    public void CycleSelection_Walks_Forward_And_Backward_With_WrapAround_And_Handles_Empty_Canvas()
+    {
+        var vm = new MermaidStudioViewModel();
+        vm.Nodes.Clear();
+        Assert.Null(vm.CycleSelection());
+
+        var n1 = new DiagramNodeViewModel { Id = "A", LabelText = "Alpha", ZIndex = 0 };
+        var n2 = new DiagramNodeViewModel { Id = "B", LabelText = "Beta", ZIndex = 1 };
+        var n3 = new DiagramNodeViewModel { Id = "C", LabelText = "Gamma", ZIndex = 2 };
+        vm.Nodes.Add(n1);
+        vm.Nodes.Add(n2);
+        vm.Nodes.Add(n3);
+
+        Assert.Same(n1, vm.CycleSelection(reverse: false));
+        Assert.Same(n1, vm.SelectedNode);
+        Assert.Contains("Alpha", vm.StatusText);
+
+        Assert.Same(n2, vm.CycleSelection(reverse: false));
+        Assert.Same(n2, vm.SelectedNode);
+
+        Assert.Same(n3, vm.CycleSelection(reverse: false));
+        Assert.Same(n3, vm.SelectedNode);
+
+        // Wrap around forward to first node
+        Assert.Same(n1, vm.CycleSelection(reverse: false));
+        Assert.Same(n1, vm.SelectedNode);
+
+        // Wrap around backward to last node
+        Assert.Same(n3, vm.CycleSelection(reverse: true));
+        Assert.Same(n3, vm.SelectedNode);
+    }
+
+    [Fact]
+    public void ReverseConnector_Swaps_Endpoints_And_Anchors_As_Single_Undo_Step()
+    {
+        var vm = new MermaidStudioViewModel();
+        vm.Nodes.Clear();
+        vm.Connectors.Clear();
+
+        var a = new DiagramNodeViewModel { Id = "A", LabelText = "Start", X = 100, Y = 100 };
+        var b = new DiagramNodeViewModel { Id = "B", LabelText = "End", X = 360, Y = 100 };
+        vm.Nodes.Add(a);
+        vm.Nodes.Add(b);
+        vm.AddConnector("A", "Right", "B", "Left");
+
+        var conn = vm.Connectors.Single();
+        vm.SelectedConnector = conn;
+
+        vm.ReverseConnectorCommand.Execute(null);
+
+        conn = vm.Connectors.Single();
+        Assert.Equal("B", conn.SourceNodeId);
+        Assert.Equal("A", conn.TargetNodeId);
+        Assert.Equal("Left", conn.SourceAnchor);
+        Assert.Equal("Right", conn.TargetAnchor);
+        Assert.Contains("Reversed connector", vm.StatusText);
+
+        // Single Undo restores original direction
+        vm.Undo();
+        conn = vm.Connectors.Single();
+        Assert.Equal("A", conn.SourceNodeId);
+        Assert.Equal("B", conn.TargetNodeId);
+        Assert.Equal("Right", conn.SourceAnchor);
+        Assert.Equal("Left", conn.TargetAnchor);
+    }
+
+    [Fact]
+    public void ChangeSelectedNodesShape_Updates_MultiSelection_In_Single_Undo_Step()
+    {
+        var vm = new MermaidStudioViewModel();
+        vm.Nodes.Clear();
+        vm.Connectors.Clear();
+
+        var n1 = new DiagramNodeViewModel { Id = "N1", LabelText = "Check 1", Shape = "RoundedRectangle" };
+        var n2 = new DiagramNodeViewModel { Id = "N2", LabelText = "Check 2", Shape = "Rectangle" };
+        vm.Nodes.Add(n1);
+        vm.Nodes.Add(n2);
+
+        vm.SelectNode(n1, false);
+        vm.SelectNode(n2, true);
+
+        vm.ChangeSelectedNodesShape("Rhombus");
+
+        Assert.All(vm.Nodes, n =>
+        {
+            Assert.Equal("Rhombus", n.Shape);
+        });
+        var code = vm.GenerateMermaidCode();
+        Assert.Contains("{\"Check 1\"}", code);
+        Assert.Contains("{\"Check 2\"}", code);
+
+        // A single Undo must revert both nodes back to their original shapes
+        vm.Undo();
+        Assert.Equal("RoundedRectangle", vm.Nodes.First(n => n.Id == "N1").Shape);
+        Assert.Equal("Rectangle", vm.Nodes.First(n => n.Id == "N2").Shape);
+    }
+
+    [Fact]
+    public void FitSelectedNodesToLabel_Resizes_Long_Labels_And_Preserves_PseudoState_Size()
+    {
+        var vm = new MermaidStudioViewModel();
+        vm.Nodes.Clear();
+        vm.Connectors.Clear();
+
+        var regular = new DiagramNodeViewModel
+        {
+            Id = "N1",
+            LabelText = "Internationalisation & Regional Compliance Verification",
+            Shape = "RoundedRectangle",
+            Width = 100,
+            Height = 44
+        };
+        var startDot = new DiagramNodeViewModel
+        {
+            Id = "S1",
+            LabelText = "[*]",
+            Shape = "Start",
+            Width = 28,
+            Height = 28
+        };
+        vm.Nodes.Add(regular);
+        vm.Nodes.Add(startDot);
+
+        vm.SelectNode(regular, false);
+        vm.SelectNode(startDot, true);
+
+        vm.FitSelectedNodesToLabelCommand.Execute(null);
+
+        Assert.True(regular.Width > 100);
+        Assert.Equal(28, startDot.Width);
+        Assert.Equal(28, startDot.Height);
+
+        vm.Undo();
+        Assert.Equal(100, vm.Nodes.First(n => n.Id == "N1").Width);
+    }
 }

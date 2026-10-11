@@ -138,7 +138,7 @@
                         <DataTemplate x:DataType="vm:DiagramNodeViewModel">
                             <Line X1="{Binding LifelineX}" X2="{Binding LifelineX}"
                                   Y1="{Binding LifelineTop}" Y2="{Binding LifelineBottom}"
-                                  Stroke="{Binding StrokeColor}"
+                                  Stroke="{Binding CanvasStrokeColor}"
                                   StrokeThickness="1.5"
                                   StrokeDashArray="5,4"
                                   Opacity="0.75"
@@ -325,13 +325,18 @@
                                         IsHitTestVisible="False"
                                         Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}" />
 
-                                <!-- Hover Glow Border (subtle lift on pointer-over) -->
+                                <!-- Hover Glow Border (smooth scalar fade on pointer-over) -->
                                 <Border BorderBrush="#664CC9F0"
+                                        Background="#0D4CC9F0"
                                         BorderThickness="1.5"
                                         CornerRadius="12"
                                         Margin="-4"
                                         IsHitTestVisible="False"
-                                        Visibility="{Binding IsHovered, Converter={StaticResource BoolToVisConverter}}" />
+                                        Opacity="{Binding HoverGlowOpacity}">
+                                    <Border.OpacityTransition>
+                                        <ScalarTransition Duration="0:0:0.12" />
+                                    </Border.OpacityTransition>
+                                </Border>
 
                                 <!-- Shapes Area -->
                                 <Grid>
@@ -417,17 +422,17 @@
 
                                     <!-- State diagram [*]: UML start dot / end bullseye -->
                                     <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Start'}">
-                                        <Ellipse Fill="{Binding StrokeColor}" />
+                                        <Ellipse Fill="{Binding CanvasStrokeColor}" />
                                     </Grid>
                                     <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='End'}">
-                                        <Ellipse Stroke="{Binding StrokeColor}" StrokeThickness="2" />
-                                        <Ellipse Fill="{Binding StrokeColor}" Margin="6" />
+                                        <Ellipse Stroke="{Binding CanvasStrokeColor}" StrokeThickness="2" />
+                                        <Ellipse Fill="{Binding CanvasStrokeColor}" Margin="6" />
                                     </Grid>
 
                                     <!-- Actor Shape -->
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                                 Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Actor'}">
-                                        <FontIcon Glyph="&#xE77B;" FontSize="26" Foreground="{Binding StrokeColor}" />
+                                        <FontIcon Glyph="&#xE77B;" FontSize="26" Foreground="{Binding CanvasStrokeColor}" />
                                         <TextBlock Text="{Binding LabelText}"
                                                    Foreground="#EDF2F4"
                                                    FontWeight="SemiBold"
@@ -481,21 +486,25 @@
                                      corners — the standard diagram-editor convention. -->
                                 <Grid Width="16" Height="16" Background="Transparent" Tag="ResizeNW"
                                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-8,-8,0,0"
+                                      PointerEntered="OnResizeHandlePointerEntered" PointerExited="OnResizeHandlePointerExited"
                                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}">
                                     <Rectangle Width="9" Height="9" Fill="#EDF2F4" Stroke="#4CC9F0" StrokeThickness="1.5" IsHitTestVisible="False" />
                                 </Grid>
                                 <Grid Width="16" Height="16" Background="Transparent" Tag="ResizeNE"
                                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-8,-8,0"
+                                      PointerEntered="OnResizeHandlePointerEntered" PointerExited="OnResizeHandlePointerExited"
                                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}">
                                     <Rectangle Width="9" Height="9" Fill="#EDF2F4" Stroke="#4CC9F0" StrokeThickness="1.5" IsHitTestVisible="False" />
                                 </Grid>
                                 <Grid Width="16" Height="16" Background="Transparent" Tag="ResizeSW"
                                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-8,0,0,-8"
+                                      PointerEntered="OnResizeHandlePointerEntered" PointerExited="OnResizeHandlePointerExited"
                                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}">
                                     <Rectangle Width="9" Height="9" Fill="#EDF2F4" Stroke="#4CC9F0" StrokeThickness="1.5" IsHitTestVisible="False" />
                                 </Grid>
                                 <Grid Width="16" Height="16" Background="Transparent" Tag="ResizeSE"
                                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-8,-8"
+                                      PointerEntered="OnResizeHandlePointerEntered" PointerExited="OnResizeHandlePointerExited"
                                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}">
                                     <Rectangle Width="9" Height="9" Fill="#EDF2F4" Stroke="#4CC9F0" StrokeThickness="1.5" IsHitTestVisible="False" />
                                 </Grid>
@@ -592,6 +601,7 @@
                              CornerRadius="6"
                              LostFocus="OnInlineEditLostFocus"
                              PreviewKeyDown="OnInlineEditKeyDown"
+                             AutomationProperties.Name="Inline label editor"
                              ToolTipService.ToolTip="Enter to save · Shift+Enter for a new line · Esc to cancel">
                         <TextBox.Resources>
                             <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#2B2D42" />
@@ -603,6 +613,27 @@
                             <SolidColorBrush x:Key="TextControlSelectionHighlightColor" Color="#4CC9F0" />
                         </TextBox.Resources>
                     </TextBox>
+                    <!-- Explicit Commit (✔️) / Cancel (❌) action affordances positioned relative to InPlaceEditorCanvas -->
+                    <StackPanel x:Name="InlineEditActionBar" Orientation="Horizontal" Spacing="4">
+                        <Button x:Name="InlineEditCommitButton"
+                                Width="24" Height="24" Padding="0" CornerRadius="4"
+                                IsTabStop="False"
+                                Background="#1E3A2F" Foreground="#34D399" BorderBrush="#10B981" BorderThickness="1"
+                                Click="OnInlineEditCommitClick"
+                                ToolTipService.ToolTip="Commit label (Enter)"
+                                AutomationProperties.Name="Commit label">
+                            <FontIcon Glyph="&#xE73E;" FontSize="11" />
+                        </Button>
+                        <Button x:Name="InlineEditCancelButton"
+                                Width="24" Height="24" Padding="0" CornerRadius="4"
+                                IsTabStop="False"
+                                Background="#3B1F2B" Foreground="#F87171" BorderBrush="#EF4444" BorderThickness="1"
+                                Click="OnInlineEditCancelClick"
+                                ToolTipService.ToolTip="Cancel editing (Esc)"
+                                AutomationProperties.Name="Cancel editing">
+                            <FontIcon Glyph="&#xE711;" FontSize="11" />
+                        </Button>
+                    </StackPanel>
                 </Canvas>
 
             </Grid>

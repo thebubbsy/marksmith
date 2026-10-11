@@ -536,9 +536,11 @@ public sealed partial class MermaidCanvasControl : UserControl
                     break;
                 case Grid { Tag: "ResizeNW" or "ResizeSE" } nwse:
                     SetCursor(nwse, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast);
+                    ConfigureResizeCorner(nwse);
                     break;
                 case Grid { Tag: "ResizeNE" or "ResizeSW" } nesw:
                     SetCursor(nesw, Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest);
+                    ConfigureResizeCorner(nesw);
                     break;
                 case Grid { Tag: "Top" or "Right" or "Bottom" or "Left" } anchor when anchor.Children.Count == 1 && anchor.Children[0] is Ellipse dot:
                     SetCursor(anchor, Microsoft.UI.Input.InputSystemCursorShape.Cross);
@@ -549,6 +551,33 @@ public sealed partial class MermaidCanvasControl : UserControl
                     anchor.PointerExited += (_, _) => dot.Scale = System.Numerics.Vector3.One;
                     break;
             }
+        }
+    }
+
+    private static void ConfigureResizeCorner(Grid handle)
+    {
+        if (handle.Children.Count == 1 && handle.Children[0] is Microsoft.UI.Xaml.Shapes.Rectangle sq)
+        {
+            sq.CenterPoint = new System.Numerics.Vector3(4.5f, 4.5f, 0);
+            sq.ScaleTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(120) };
+        }
+    }
+
+    private void OnResizeHandlePointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Grid { Children.Count: 1 } handle && handle.Children[0] is Microsoft.UI.Xaml.Shapes.Rectangle sq)
+        {
+            sq.Scale = new System.Numerics.Vector3(1.3f, 1.3f, 1f);
+            sq.Fill = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x4C, 0xC9, 0xF0));
+        }
+    }
+
+    private void OnResizeHandlePointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Grid { Children.Count: 1 } handle && handle.Children[0] is Microsoft.UI.Xaml.Shapes.Rectangle sq)
+        {
+            sq.Scale = System.Numerics.Vector3.One;
+            sq.Fill = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0xED, 0xF2, 0xF4));
         }
     }
 
@@ -1215,10 +1244,16 @@ public sealed partial class MermaidCanvasControl : UserControl
         // Position the TextBox, not its host: InPlaceEditorCanvas sits in a Grid, where
         // Canvas.Left/Top do nothing, so the editor always opened at the canvas's top-left corner
         // instead of over the node being renamed. Centred on the node when it's the wider one.
-        InlineEditTextBox.Width = Math.Max(node.Width, 140);
-        InlineEditTextBox.Height = Math.Max(node.Height, 60);
-        Canvas.SetLeft(InlineEditTextBox, node.X + (node.Width - InlineEditTextBox.Width) / 2);
-        Canvas.SetTop(InlineEditTextBox, node.Y + (node.Height - InlineEditTextBox.Height) / 2);
+        double boxW = Math.Max(node.Width, 140);
+        double boxH = Math.Max(node.Height, 60);
+        double left = node.X + (node.Width - boxW) / 2;
+        double top = node.Y + (node.Height - boxH) / 2;
+        InlineEditTextBox.Width = boxW;
+        InlineEditTextBox.Height = boxH;
+        Canvas.SetLeft(InlineEditTextBox, left);
+        Canvas.SetTop(InlineEditTextBox, top);
+        Canvas.SetLeft(InlineEditActionBar, left + boxW - 52);
+        Canvas.SetTop(InlineEditActionBar, top + boxH + 4);
         InlineEditTextBox.Text = node.LabelText;
         // A multi-line TextBox ignores VerticalContentAlignment; pad the label down to the middle.
         var lineCount = Math.Max(1, (node.LabelText ?? "").Split('\r', '\n').Count(l => l.Length > 0));
@@ -1234,10 +1269,14 @@ public sealed partial class MermaidCanvasControl : UserControl
         _editingConnector = conn;
         _editingNode = null;
 
+        double left = conn.MidpointX - 60;
+        double top = conn.MidpointY - 17;
         InlineEditTextBox.Width = 120;
         InlineEditTextBox.Height = 35;
-        Canvas.SetLeft(InlineEditTextBox, conn.MidpointX - 60);
-        Canvas.SetTop(InlineEditTextBox, conn.MidpointY - 17);
+        Canvas.SetLeft(InlineEditTextBox, left);
+        Canvas.SetTop(InlineEditTextBox, top);
+        Canvas.SetLeft(InlineEditActionBar, left + 120 - 52);
+        Canvas.SetTop(InlineEditActionBar, top + 35 + 4);
         InlineEditTextBox.Text = conn.Label ?? string.Empty;
         InlineEditTextBox.Padding = new Thickness(6, 6, 6, 4);
 
@@ -1255,7 +1294,7 @@ public sealed partial class MermaidCanvasControl : UserControl
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         if (e.Key == Windows.System.VirtualKey.Enter && !shift)
         {
-            CommitInPlaceEdit();
+            CommitInPlaceEdit(returnFocusToCanvas: true);
             e.Handled = true;
         }
         else if (e.Key == Windows.System.VirtualKey.Escape)
@@ -1265,12 +1304,22 @@ public sealed partial class MermaidCanvasControl : UserControl
         }
     }
 
-    private void OnInlineEditLostFocus(object sender, RoutedEventArgs e)
+    private void OnInlineEditCommitClick(object sender, RoutedEventArgs e)
     {
-        CommitInPlaceEdit();
+        CommitInPlaceEdit(returnFocusToCanvas: true);
     }
 
-    private void CommitInPlaceEdit()
+    private void OnInlineEditCancelClick(object sender, RoutedEventArgs e)
+    {
+        CancelInPlaceEdit();
+    }
+
+    private void OnInlineEditLostFocus(object sender, RoutedEventArgs e)
+    {
+        CommitInPlaceEdit(returnFocusToCanvas: false);
+    }
+
+    private void CommitInPlaceEdit(bool returnFocusToCanvas = false)
     {
         if (_editingNode != null)
         {
@@ -1283,6 +1332,8 @@ public sealed partial class MermaidCanvasControl : UserControl
                 _editingNode.LabelText = newText;
                 _editingNode.RecalculateBoundsForText();
                 ViewModel?.UpdateConnectedConnectors(_editingNode);
+                if (ViewModel is { } vm)
+                    vm.StatusText = $"Renamed shape to '{MermaidStudioViewModel.DisplayName(_editingNode)}'.";
             }
             _editingNode = null;
         }
@@ -1294,11 +1345,16 @@ public sealed partial class MermaidCanvasControl : UserControl
                 ViewModel?.SnapshotForUndo();
                 using var _ = ViewModel?.SuspendEditTracking();
                 _editingConnector.Label = newText;
+                if (ViewModel is { } vm)
+                    vm.StatusText = string.IsNullOrWhiteSpace(newText)
+                        ? "Cleared connector label."
+                        : $"Set connector label to '{newText}'.";
             }
             _editingConnector = null;
         }
 
         InPlaceEditorCanvas.Visibility = Visibility.Collapsed;
+        if (returnFocusToCanvas) FocusCanvas();
     }
 
     private void CancelInPlaceEdit()
@@ -1306,6 +1362,8 @@ public sealed partial class MermaidCanvasControl : UserControl
         _editingNode = null;
         _editingConnector = null;
         InPlaceEditorCanvas.Visibility = Visibility.Collapsed;
+        if (ViewModel is { } vm) vm.StatusText = "Cancelled label edit.";
+        FocusCanvas();
     }
 
     #endregion
@@ -1360,6 +1418,28 @@ public sealed partial class MermaidCanvasControl : UserControl
             var rename = MenuItem("Rename", 0xE8AC, (s, e) => StartNodeInPlaceEdit(node), "F2");
             rename.IsEnabled = !many;
             flyout.Items.Add(rename);
+
+            var fitLabel = MenuItem("Fit Size to Label", 0xE740, (s, e) => vm.FitSelectedNodesToLabel(node));
+            fitLabel.IsEnabled = many || !node.IsPseudoState;
+            flyout.Items.Add(fitLabel);
+
+            if (!many && node.CanQuickAdd)
+            {
+                var connectSub = new Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem
+                {
+                    Text = "Add Connected Shape",
+                    Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE710" }
+                };
+                connectSub.Items.Add(MenuItem("Above", 0xE70E, (s, e) => StartNodeInPlaceEdit(vm.QuickAddNode(node, "Top"))));
+                connectSub.Items.Add(MenuItem("To the Right", 0xE76C, (s, e) => StartNodeInPlaceEdit(vm.QuickAddNode(node, "Right"))));
+                connectSub.Items.Add(MenuItem("Below", 0xE70D, (s, e) => StartNodeInPlaceEdit(vm.QuickAddNode(node, "Bottom"))));
+                connectSub.Items.Add(MenuItem("To the Left", 0xE76B, (s, e) => StartNodeInPlaceEdit(vm.QuickAddNode(node, "Left"))));
+                flyout.Items.Add(connectSub);
+            }
+
+            if (BuildChangeShapeSubmenu(vm, node) is { } shapeSub)
+                flyout.Items.Add(shapeSub);
+
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
             flyout.Items.Add(MenuItem("Duplicate", 0xE7C4, (s, e) => vm.DuplicateSelected(), "Ctrl+D"));
             flyout.Items.Add(MenuItem("Copy", 0xE8C8, (s, e) => vm.CopySelected(), "Ctrl+C"));
@@ -1414,6 +1494,17 @@ public sealed partial class MermaidCanvasControl : UserControl
             vm.SelectedNode = null;
 
             flyout.Items.Add(MenuItem(string.IsNullOrEmpty(conn.Label) ? "Add Label" : "Edit Label", 0xE8AC, (s, e) => StartConnectorInPlaceEdit(conn), "F2"));
+            flyout.Items.Add(MenuItem("Reverse Direction", 0xE8AB, (s, e) => vm.ReverseConnector(conn)));
+
+            AppendConnectorStyleSubmenus(flyout, vm, conn);
+
+            if (vm.IsSequenceDiagram)
+            {
+                flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+                flyout.Items.Add(MenuItem("Move Message Up", 0xE74A, (s, e) => vm.MoveSelectedMessage(-1), "↑"));
+                flyout.Items.Add(MenuItem("Move Message Down", 0xE74B, (s, e) => vm.MoveSelectedMessage(1), "↓"));
+            }
+
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
             flyout.Items.Add(MenuItem("Delete Connector", 0xE74D, (s, e) => vm.DeleteSelected(), "Del"));
         }
@@ -1422,6 +1513,12 @@ public sealed partial class MermaidCanvasControl : UserControl
             // Empty canvas.
             flyout.Items.Add(MenuItem("Add Shape Here", 0xE710, (s, e) => AddNodeAt(canvasPos), "Double-click"));
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+            var undo = MenuItem("Undo", 0xE7A7, (s, e) => vm.Undo(), "Ctrl+Z");
+            undo.IsEnabled = vm.CanUndo;
+            flyout.Items.Add(undo);
+            var redo = MenuItem("Redo", 0xE7A6, (s, e) => vm.Redo(), "Ctrl+Y");
+            redo.IsEnabled = vm.CanRedo;
+            flyout.Items.Add(redo);
             var paste = MenuItem("Paste", 0xE77F, (s, e) => vm.PasteClipboard(), "Ctrl+V");
             paste.IsEnabled = vm.CanPaste;
             flyout.Items.Add(paste);
@@ -1449,6 +1546,246 @@ public sealed partial class MermaidCanvasControl : UserControl
             Position = canvasPos
         };
         flyout.ShowAt(InfiniteCanvasGrid, anchor);
+    }
+
+    private static Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem? BuildChangeShapeSubmenu(MermaidStudioViewModel vm, DiagramNodeViewModel node)
+    {
+        (string Code, string Label)[] shapes = vm.SelectedDiagramType switch
+        {
+            MarkSmith.Mermaid.Ast.MermaidDiagramType.Flowchart => new[]
+            {
+                ("Rectangle", "Rectangle Box"),
+                ("RoundedRectangle", "Rounded Rectangle"),
+                ("Stadium", "Stadium (Pill)"),
+                ("Subroutine", "Subroutine"),
+                ("CylindricalDatabase", "Database Cylinder"),
+                ("Circle", "Circle"),
+                ("Rhombus", "Decision Rhombus"),
+                ("Hexagon", "Hexagon"),
+            },
+            MarkSmith.Mermaid.Ast.MermaidDiagramType.Sequence => new[]
+            {
+                ("Participant", "Participant Box"),
+                ("Actor", "Actor Figure"),
+            },
+            MarkSmith.Mermaid.Ast.MermaidDiagramType.Class => new[]
+            {
+                ("ClassBox", "Class Box"),
+                ("Interface", "Interface"),
+            },
+            MarkSmith.Mermaid.Ast.MermaidDiagramType.State => new[]
+            {
+                ("NormalState", "State Box"),
+                ("ChoiceState", "Choice Diamond"),
+                ("Start", "Start Point [*]"),
+                ("End", "End Point [*]"),
+            },
+            MarkSmith.Mermaid.Ast.MermaidDiagramType.Gantt => new[]
+            {
+                ("TaskBar", "Task Bar"),
+                ("Milestone", "Milestone"),
+            },
+            MarkSmith.Mermaid.Ast.MermaidDiagramType.Mindmap => new[]
+            {
+                ("RootNode", "Central Theme"),
+                ("BranchNode", "Branch Topic"),
+            },
+            _ => Array.Empty<(string, string)>()
+        };
+
+        if (shapes.Length == 0) return null;
+
+        var sub = new Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem
+        {
+            Text = "Change Shape",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uF158" }
+        };
+
+        foreach (var (code, label) in shapes)
+        {
+            var item = new Microsoft.UI.Xaml.Controls.ToggleMenuFlyoutItem
+            {
+                Text = label,
+                IsChecked = string.Equals(node.Shape, code, StringComparison.OrdinalIgnoreCase)
+            };
+            var captured = code;
+            item.Click += (_, _) => vm.ChangeSelectedNodesShape(captured, node);
+            sub.Items.Add(item);
+        }
+
+        return sub;
+    }
+
+    private static void AppendConnectorStyleSubmenus(Microsoft.UI.Xaml.Controls.MenuFlyout flyout, MermaidStudioViewModel vm, DiagramConnectorViewModel conn)
+    {
+        if (vm.SelectedDiagramType == MarkSmith.Mermaid.Ast.MermaidDiagramType.Sequence)
+        {
+            var msgSub = new Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem
+            {
+                Text = "Message Type",
+                Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE8AB" }
+            };
+            (string Code, string Label)[] msgTypes =
+            {
+                ("SolidArrow", "Solid Arrow (->>)"),
+                ("DottedArrow", "Dotted Reply (-->>)"),
+                ("SolidLine", "Solid No Arrow (->)"),
+                ("DottedLine", "Dotted No Arrow (-->)"),
+                ("SolidCross", "Lost Message (-x)"),
+                ("DottedCross", "Dotted Cross (--x)"),
+                ("SolidOpen", "Async Arrow (-))"),
+                ("DottedOpen", "Dotted Async (--))"),
+            };
+            foreach (var (code, label) in msgTypes)
+            {
+                var item = new Microsoft.UI.Xaml.Controls.ToggleMenuFlyoutItem
+                {
+                    Text = label,
+                    IsChecked = string.Equals(conn.LineStyle, code, StringComparison.OrdinalIgnoreCase)
+                };
+                var captured = code;
+                var capturedLabel = label;
+                item.Click += (_, _) =>
+                {
+                    vm.SnapshotForUndo();
+                    using var _ = vm.SuspendEditTracking();
+                    conn.LineStyle = captured;
+                    vm.StatusText = $"Message type set to {capturedLabel}.";
+                };
+                msgSub.Items.Add(item);
+            }
+            flyout.Items.Add(msgSub);
+        }
+        else if (vm.SelectedDiagramType == MarkSmith.Mermaid.Ast.MermaidDiagramType.Class)
+        {
+            var relSub = new Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem
+            {
+                Text = "Relationship Type",
+                Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE8AB" }
+            };
+            (string Code, string Label)[] relTypes =
+            {
+                ("Inheritance", "Inheritance (--|>)"),
+                ("Composition", "Composition (--*)"),
+                ("Aggregation", "Aggregation (--o)"),
+                ("Association", "Association (-->)"),
+                ("Dependency", "Dependency (..>)"),
+                ("Realization", "Realization (..|>)"),
+            };
+            foreach (var (code, label) in relTypes)
+            {
+                var item = new Microsoft.UI.Xaml.Controls.ToggleMenuFlyoutItem
+                {
+                    Text = label,
+                    IsChecked = string.Equals(conn.EndHead, code, StringComparison.OrdinalIgnoreCase)
+                };
+                var captured = code;
+                var capturedLabel = label;
+                item.Click += (_, _) =>
+                {
+                    vm.SnapshotForUndo();
+                    using var _ = vm.SuspendEditTracking();
+                    conn.EndHead = captured;
+                    vm.StatusText = $"Relationship type set to {capturedLabel}.";
+                };
+                relSub.Items.Add(item);
+            }
+            flyout.Items.Add(relSub);
+        }
+        else if (vm.SelectedDiagramType == MarkSmith.Mermaid.Ast.MermaidDiagramType.Er)
+        {
+            var erSub = new Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem
+            {
+                Text = "Relationship Line",
+                Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE8AB" }
+            };
+            (string Code, string Label)[] erStyles =
+            {
+                ("Solid", "Identifying (Solid)"),
+                ("Dashed", "Non-identifying (Dashed)"),
+            };
+            foreach (var (code, label) in erStyles)
+            {
+                var item = new Microsoft.UI.Xaml.Controls.ToggleMenuFlyoutItem
+                {
+                    Text = label,
+                    IsChecked = string.Equals(conn.LineStyle, code, StringComparison.OrdinalIgnoreCase)
+                };
+                var captured = code;
+                var capturedLabel = label;
+                item.Click += (_, _) =>
+                {
+                    vm.SnapshotForUndo();
+                    using var _ = vm.SuspendEditTracking();
+                    conn.LineStyle = captured;
+                    vm.StatusText = $"Relationship line set to {capturedLabel}.";
+                };
+                erSub.Items.Add(item);
+            }
+            flyout.Items.Add(erSub);
+        }
+        else
+        {
+            var lineSub = new Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem
+            {
+                Text = "Line Style",
+                Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE70F" }
+            };
+            foreach (var (code, label) in new[] { ("Solid", "Solid (---)"), ("Dotted", "Dotted (-.-)"), ("Thick", "Thick (===)") })
+            {
+                var item = new Microsoft.UI.Xaml.Controls.ToggleMenuFlyoutItem
+                {
+                    Text = label,
+                    IsChecked = string.Equals(conn.LineStyle, code, StringComparison.OrdinalIgnoreCase)
+                };
+                var captured = code;
+                var capturedLabel = label;
+                item.Click += (_, _) =>
+                {
+                    vm.SnapshotForUndo();
+                    using var _ = vm.SuspendEditTracking();
+                    conn.LineStyle = captured;
+                    vm.StatusText = $"Line style set to {capturedLabel}.";
+                };
+                lineSub.Items.Add(item);
+            }
+            flyout.Items.Add(lineSub);
+
+            var headSub = new Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem
+            {
+                Text = "Arrow Head",
+                Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE8AB" }
+            };
+            foreach (var (start, end, label) in new[]
+            {
+                ("None", "Normal", "Arrow (-->)"),
+                ("None", "None", "No Arrow (---)"),
+                ("None", "Circle", "Circle (--o)"),
+                ("None", "Cross", "Cross (--x)"),
+                ("Normal", "Normal", "Bi-directional (<-->)"),
+            })
+            {
+                var item = new Microsoft.UI.Xaml.Controls.ToggleMenuFlyoutItem
+                {
+                    Text = label,
+                    IsChecked = string.Equals(conn.StartHead, start, StringComparison.OrdinalIgnoreCase) &&
+                                string.Equals(conn.EndHead, end, StringComparison.OrdinalIgnoreCase)
+                };
+                var capStart = start;
+                var capEnd = end;
+                var capLabel = label;
+                item.Click += (_, _) =>
+                {
+                    vm.SnapshotForUndo();
+                    using var _ = vm.SuspendEditTracking();
+                    conn.StartHead = capStart;
+                    conn.EndHead = capEnd;
+                    vm.StatusText = $"Arrow head set to {capLabel}.";
+                };
+                headSub.Items.Add(item);
+            }
+            flyout.Items.Add(headSub);
+        }
     }
 
     // The shortcut goes in the menu's right-hand column (KeyboardAcceleratorTextOverride), not in

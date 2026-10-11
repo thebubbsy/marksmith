@@ -195,4 +195,116 @@ public class ShapeStudioCanvasEditingTests
         vm.RotateClockwise();
         Assert.Equal(180, box.Rotation);
     }
+
+    [Fact]
+    public void Rotation_handle_position_and_pointer_angle_computation_support_free_and_15_degree_snap()
+    {
+        // At 0°, top-center of (100, 100, 200, 100) is (200, 100) and the rotation handle sits 24 px above at (200, 76).
+        var (hx0, hy0) = ShapeDesignStudioViewModel.RotationHandlePosition(100, 100, 200, 100, 0);
+        Assert.Equal(200.0, hx0, 4);
+        Assert.Equal(76.0, hy0, 4);
+
+        // At 90° clockwise around center (200, 150), local (0, -74) rotates to world (274, 150).
+        var (hx90, hy90) = ShapeDesignStudioViewModel.RotationHandlePosition(100, 100, 200, 100, 90);
+        Assert.Equal(274.0, hx90, 4);
+        Assert.Equal(150.0, hy90, 4);
+
+        // Pointer straight above center -> 0°, right -> 90°, below -> 180°, left -> -90°.
+        Assert.Equal(0, ShapeDesignStudioViewModel.ComputeRotationAngle(200, 150, 200, 50, snapTo15: false));
+        Assert.Equal(90, ShapeDesignStudioViewModel.ComputeRotationAngle(200, 150, 300, 150, snapTo15: false));
+        Assert.Equal(180, ShapeDesignStudioViewModel.ComputeRotationAngle(200, 150, 200, 250, snapTo15: false));
+        Assert.Equal(-90, ShapeDesignStudioViewModel.ComputeRotationAngle(200, 150, 100, 150, snapTo15: false));
+
+        // 37° clockwise from top: free angle is 37°, snapped to 15° increments is 30°.
+        double rad37 = 37.0 * System.Math.PI / 180.0;
+        double px = 200 + 100 * System.Math.Sin(rad37);
+        double py = 150 - 100 * System.Math.Cos(rad37);
+        Assert.Equal(37, ShapeDesignStudioViewModel.ComputeRotationAngle(200, 150, px, py, snapTo15: false));
+        Assert.Equal(30, ShapeDesignStudioViewModel.ComputeRotationAngle(200, 150, px, py, snapTo15: true));
+
+        // Degenerate cursor right on center returns 0°.
+        Assert.Equal(0, ShapeDesignStudioViewModel.ComputeRotationAngle(200, 150, 200, 150, snapTo15: false));
+    }
+
+    [Fact]
+    public void Resize_handle_descriptions_and_live_status_reflect_rotation()
+    {
+        Assert.Equal("Resize from the bottom-right", ShapeDesignStudioViewModel.DescribeResizeHandle(Edges.Right | Edges.Bottom, 0));
+        Assert.Equal("Resize from the bottom-right (rotated 45°)", ShapeDesignStudioViewModel.DescribeResizeHandle(Edges.Right | Edges.Bottom, 45));
+
+        var box = new ShapeCanvasItemViewModel { Prst = "rect", Width = 240, Height = 120, Rotation = 0 };
+        Assert.Equal("Rectangle: 240 × 120", ShapeDesignStudioViewModel.FormatResizeStatus(box, completed: false));
+        box.Rotation = -30;
+        Assert.Equal("Resized rectangle to 240 × 120 · -30°", ShapeDesignStudioViewModel.FormatResizeStatus(box, completed: true));
+    }
+
+    [Fact]
+    public void Rotated_bounds_and_marquee_selection_use_rotated_envelope()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        // Wide bar centered at (200, 220): unrotated x=[100..300], y=[200..240].
+        var bar = vm.AddShapeAt("rect", 100, 200, 200, 40, text: "Bar");
+        bar.Rotation = 90;
+        vm.SelectedShape = null;
+
+        // Rotated 90° around (200, 220), its envelope spans Left=180, Top=120, Right=220, Bottom=320.
+        var bounds = ShapeDesignStudioViewModel.RotatedBounds(bar);
+        Assert.Equal(180.0, bounds.Left, 4);
+        Assert.Equal(120.0, bounds.Top, 4);
+        Assert.Equal(220.0, bounds.Right, 4);
+        Assert.Equal(320.0, bounds.Bottom, 4);
+
+        // A marquee near the top of the rotated bar (x=185..215, y=125..145) hits the rotated envelope.
+        int hitCount = vm.SelectInRect(185, 125, 215, 145, additive: false);
+        Assert.Equal(1, hitCount);
+        Assert.Same(bar, vm.SelectedShape);
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task Step_rotation_and_reset_rotation_record_undo_and_wrap_angles()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        var box = vm.AddShapeAt("roundrect", 50, 50, 120, 80, text: "Node");
+        vm.SelectedShape = box;
+
+        vm.RotateSelectionBy(15);
+        Assert.Equal(15, box.Rotation);
+
+        vm.RotateSelectionBy(-45);
+        Assert.Equal(-30, box.Rotation);
+
+        vm.ResetRotation();
+        Assert.Equal(0, box.Rotation);
+
+        await vm.UndoAsync();
+        Assert.Equal(-30, vm.Shapes.Single().Rotation);
+    }
+
+    [Fact]
+    public void Hex_colour_input_preserves_intermediate_typing_and_normalizes_on_commit()
+    {
+        var shape = new ShapeCanvasItemViewModel { Prst = "rect", Fill = "0078D4" };
+        Assert.Equal("Pick fill colour", shape.ColourPickerLabel);
+        Assert.Equal("Fill colour", shape.ColourHexLabel);
+
+        // Typing partial keystrokes in the hex box must not clobber Fill back to 0078D4.
+        shape.Fill = "1";
+        Assert.Equal("1", shape.Fill);
+
+        shape.Fill = "1B1";
+        Assert.Equal("1B1", shape.Fill);
+
+        // Completing a 6-digit hex that matches the dark canvas background (#1B1B1F) is contrast-guarded.
+        shape.Fill = "1B1B1F";
+        Assert.NotEqual("1B1B1F", shape.Fill);
+
+        // Commit helper expands 3-digit shorthand and strips leading '#'.
+        Assert.Equal("FF8800", ShapeCanvasItemViewModel.NormalizeHexInput("#f80", "0078D4"));
+        Assert.Equal("107C41", ShapeCanvasItemViewModel.NormalizeHexInput("invalid", "107C41"));
+
+        var line = new ShapeCanvasItemViewModel { Prst = "line", Fill = "0078D4" };
+        Assert.Equal("Pick line colour", line.ColourPickerLabel);
+        Assert.Equal("Line colour", line.ColourHexLabel);
+    }
 }
+

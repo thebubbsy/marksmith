@@ -43,19 +43,23 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
 
     private readonly DispatcherQueue _dispatcher;
     private readonly object _sync = new();
+    private readonly Queue<OcrPagePreview> _pendingPreviews = new();
     private readonly Queue<(OcrPagePreview Preview, OcrPageTrace Trace)> _readyPages = new();
     private readonly Stopwatch _stage0Stopwatch = new();
-    private OcrPagePreview? _pendingPreview;
     private CancellationTokenSource? _sessionCts;
     private CancellationTokenSource? _idleLaserCts;
     private Task? _stage0Task;
     private Task? _playbackTask;
+    private Border? _stage0PlaceholderCard;
     private bool _sessionActive;
     private bool _stage0ShownForCurrentSession;
     private bool _explicitCompletionAwaited;
+    private bool _importerFinished;
     private bool _finalSheetShown;
     private int _pagesStarted;
     private int _pagesRead;
+    private int _pagesWithBlocks;
+    private int _expectedTotalPages;
     private int _imagePixelWidth = 1;
     private int _imagePixelHeight = 1;
     private int _totalElements;
@@ -104,16 +108,20 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         {
             _sessionActive = true;
             _explicitCompletionAwaited = explicitAwait;
+            _importerFinished = false;
             _finalSheetShown = false;
             _pagesStarted = 0;
             _pagesRead = 0;
+            _pagesWithBlocks = 0;
+            _expectedTotalPages = 0;
             _sessionCts?.Cancel();
             _idleLaserCts?.Cancel();
             _sessionCts = new CancellationTokenSource();
             _playbackTask = null;
             _stage0Task = null;
+            _stage0PlaceholderCard = null;
             _stage0ShownForCurrentSession = false;
-            _pendingPreview = null;
+            _pendingPreviews.Clear();
             _readyPages.Clear();
             _assembledPages.Clear();
             _totalElements = 0;
@@ -133,33 +141,55 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
     public void PageStarted(OcrPagePreview preview)
     {
         CancellationToken token;
-        bool shouldShowStage0Now = false;
+        TaskCompletionSource<bool>? stage0Tcs = null;
         lock (_sync)
         {
             token = EnsureActiveSessionLocked(explicitAwait: _explicitCompletionAwaited);
             _pagesStarted++;
-            _pendingPreview = preview;
+            _expectedTotalPages = Math.Max(_expectedTotalPages, Math.Max(1, preview.PageCount));
+            _pendingPreviews.Enqueue(preview);
             if (!_stage0ShownForCurrentSession)
             {
                 _stage0ShownForCurrentSession = true;
-                shouldShowStage0Now = true;
+                stage0Tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _stage0Task = stage0Tcs.Task;
             }
         }
 
-        if (!shouldShowStage0Now) return;
+        if (stage0Tcs is null) return;
 
         if (_dispatcher.HasThreadAccess)
         {
-            if (!token.IsCancellationRequested)
-                _stage0Task = ShowPageScanningStageAsync(preview, token);
+            _ = RunStage0WithCompletionAsync(preview, token, stage0Tcs);
         }
         else
         {
-            _dispatcher.TryEnqueue(() =>
+            if (!_dispatcher.TryEnqueue(() => _ = RunStage0WithCompletionAsync(preview, token, stage0Tcs)))
             {
-                if (token.IsCancellationRequested) return;
-                _stage0Task = ShowPageScanningStageAsync(preview, token);
-            });
+                stage0Tcs.TrySetResult(false);
+            }
+        }
+    }
+
+    private async Task RunStage0WithCompletionAsync(
+        OcrPagePreview preview,
+        CancellationToken token,
+        TaskCompletionSource<bool> tcs)
+    {
+        try
+        {
+            if (!token.IsCancellationRequested)
+            {
+                await ShowPageScanningStageAsync(preview, token);
+            }
+        }
+        catch
+        {
+            // Ignore cancellation or UI errors during Stage 0 setup.
+        }
+        finally
+        {
+            tcs.TrySetResult(true);
         }
     }
 
@@ -172,8 +202,13 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
             if (!_sessionActive || _sessionCts is null) return;
             token = _sessionCts.Token;
             _pagesRead++;
-            preview = _pendingPreview ?? new OcrPagePreview(
-                trace.PageNumber, 0, 1, Array.Empty<byte>(), 1000, 1400, "MarkSmith OCR");
+            if (trace.Blocks.Count > 0)
+            {
+                _pagesWithBlocks++;
+            }
+            preview = _pendingPreviews.Count > 0
+                ? _pendingPreviews.Dequeue()
+                : new OcrPagePreview(trace.PageNumber, Math.Max(0, _pagesRead - 1), Math.Max(1, _expectedTotalPages), Array.Empty<byte>(), 1000, 1400, "MarkSmith OCR");
             _readyPages.Enqueue((preview, trace));
         }
 
@@ -201,9 +236,9 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
 
     /// <summary>
     /// Plays the 4-stage visual breakdown and Markdown assembly animation for any imported document.
-    /// If real OCR pages were already traced during this import, finishes playing those pages;
-    /// otherwise synthesizes a document page preview and pixel-aligned word/element trace from
-    /// <paramref name="markdown"/> so every import gets a consistent, smooth visual experience.
+    /// If real OCR/PDF pages were already traced during this import, finishes playing all those pages;
+    /// otherwise synthesizes multi-page document previews and pixel-aligned word/element traces from
+    /// <paramref name="markdown"/> so every import gets a page-by-page visual breakdown.
     /// </summary>
     public async Task PlayImportExperienceAndFadeToEditorAsync(
         string markdown,
@@ -214,8 +249,8 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         bool needSynthesize = false;
         lock (_sync)
         {
-            bool hasRealOcrPages = _sessionActive && (_pagesStarted > 0 || _readyPages.Count > 0 || _pendingPreview is not null || _stage0ShownForCurrentSession);
-            if (!hasRealOcrPages && !string.IsNullOrWhiteSpace(markdown))
+            bool hasTracedContentPages = _sessionActive && (_pagesWithBlocks > 0 || _readyPages.Any(r => r.Trace.Blocks.Count > 0));
+            if (!hasTracedContentPages && !string.IsNullOrWhiteSpace(markdown))
             {
                 _sessionActive = false;
                 EnsureActiveSessionLocked(explicitAwait: true);
@@ -224,14 +259,22 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
             else if (_sessionActive)
             {
                 _explicitCompletionAwaited = true;
+                _importerFinished = true;
             }
         }
 
         if (needSynthesize)
         {
-            var (preview, trace) = await Task.Run(() => OcrTrace.SynthesizeFromMarkdown(markdown, sourceLabel, elapsed));
-            PageStarted(preview);
-            PageRead(trace);
+            var synthesizedPages = await Task.Run(() => OcrTrace.SynthesizePagesFromMarkdown(markdown, sourceLabel, elapsed));
+            foreach (var (preview, trace) in synthesizedPages)
+            {
+                PageStarted(preview);
+                PageRead(trace);
+            }
+            lock (_sync)
+            {
+                _importerFinished = true;
+            }
         }
 
         await FinishAndFadeToEditorAsync(applyToEditor);
@@ -252,6 +295,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
                 return;
             }
             _explicitCompletionAwaited = true;
+            _importerFinished = true;
             token = _sessionCts?.Token ?? CancellationToken.None;
         }
 
@@ -315,13 +359,17 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         {
             _sessionActive = false;
             _explicitCompletionAwaited = false;
+            _importerFinished = false;
             _stage0ShownForCurrentSession = false;
             _finalSheetShown = false;
             _pagesStarted = 0;
             _pagesRead = 0;
-            _pendingPreview = null;
+            _pagesWithBlocks = 0;
+            _expectedTotalPages = 0;
+            _pendingPreviews.Clear();
             _playbackTask = null;
             _stage0Task = null;
+            _stage0PlaceholderCard = null;
             _sessionCts?.Cancel();
             _idleLaserCts?.Cancel();
             _readyPages.Clear();
@@ -365,12 +413,22 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         ScanDimensionsText.Text = $"{preview.ImageWidth} × {preview.ImageHeight} px";
 
         SetActiveStep(1);
-        SetStatus($"Scanning & deskewing page {preview.PageNumber} with {EngineBadgeText.Text}…", 10);
+        SetStatus(preview.PageCount > 1
+            ? $"Scanning page {preview.PageIndex + 1} of {preview.PageCount} with {EngineBadgeText.Text}…"
+            : $"Scanning & deskewing page {preview.PageNumber} with {EngineBadgeText.Text}…", 10);
         WordStreamText.Text = "Calibrating page geometry & binarising glyphs…";
         WordRateText.Text = "";
-        BlocksProgressText.Text = "Analysing page structure…";
+        BlocksProgressText.Text = preview.PageCount > 1
+            ? $"Page 1 of {preview.PageCount} · Analysing layout…"
+            : "Analysing page structure…";
 
         ClearCanvasOverlays();
+
+        if (MarkdownBlocksPanel.Children.Count == 0)
+        {
+            _stage0PlaceholderCard = CreateInitialScanStatusCard(preview);
+            MarkdownBlocksPanel.Children.Add(_stage0PlaceholderCard);
+        }
 
         if (preview.Image.Length > 0)
         {
@@ -380,7 +438,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
             FitPageSheet();
         }
 
-        // Sweep the scan line calmly at ~30fps while background OCR is still running.
+        // Sweep the scan line calmly downward while background OCR is running.
         _ = RunIdleLaserSweepAsync(_idleLaserCts.Token);
     }
 
@@ -407,10 +465,11 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         int step = 0;
         while (!token.IsCancellationRequested)
         {
-            double phase = (Math.Sin(step * 0.16) + 1.0) * 0.5;
-            PositionLaserAtNormalizedY((float)phase);
+            // Smooth top-to-bottom progression instead of an up-and-down sine-wave bounce.
+            float phase = 0.06f + (0.78f * ((step % 45) / 45f));
+            PositionLaserAtNormalizedY(phase);
             step++;
-            try { await Task.Delay(33, token); }
+            try { await Task.Delay(35, token); }
             catch (OperationCanceledException) { break; }
         }
     }
@@ -431,7 +490,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
                 }
 
                 (OcrPagePreview Preview, OcrPageTrace Trace)? nextItem = null;
-                for (int wait = 0; wait < 100 && !token.IsCancellationRequested; wait++)
+                for (int wait = 0; wait < 250 && !token.IsCancellationRequested; wait++)
                 {
                     lock (_sync)
                     {
@@ -440,43 +499,29 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
                             nextItem = _readyPages.Dequeue();
                             break;
                         }
-                        if (_pagesRead >= _pagesStarted)
+                        int targetPages = Math.Max(_pagesStarted, _expectedTotalPages);
+                        bool allPagesRead = targetPages > 0 && _pagesRead >= targetPages;
+                        if (allPagesRead && (_importerFinished || !_explicitCompletionAwaited))
                         {
                             break;
                         }
                     }
-                    await Task.Delay(50, token);
+                    await Task.Delay(40, token);
                 }
 
                 if (nextItem is not { } item) break;
 
                 _idleLaserCts?.Cancel();
 
-                if (item.Preview.PageIndex >= OcrPlaybackSchedule.MaxAnimatedPages)
+                if (Visibility != Visibility.Visible)
                 {
-                    int blocks = item.Trace.Blocks.Count;
-                    int visuals = item.Trace.Blocks.Count(b => b.Kind is OcrBlockKind.Picture or OcrBlockKind.Diagram or OcrBlockKind.ShapeMosaic);
-                    int words = item.Trace.Words.Count;
-                    _totalElements += blocks;
-                    _totalVisuals += visuals;
-                    _totalWords += words;
-                    _totalBlocks += blocks;
-
-                    ElementsCountText.Text = _totalElements.ToString();
-                    VisualsCountText.Text = _totalVisuals.ToString();
-                    WordsCountText.Text = _totalWords.ToString();
-                    BlocksCountText.Text = _totalBlocks.ToString();
-                    PagePillText.Text = item.Preview.PageCount > 1
-                        ? $"Page {item.Preview.PageIndex + 1} of {item.Preview.PageCount}"
-                        : $"Page {item.Preview.PageNumber}";
-
-                    if (!string.IsNullOrWhiteSpace(item.Trace.Markdown))
-                    {
-                        _assembledPages.Add(item.Trace.Markdown);
-                    }
-                    continue;
+                    RootGrid.Opacity = 1;
+                    MarkdownScrollViewer.Visibility = Visibility.Visible;
+                    FinalMarkdownSheetBorder.Visibility = Visibility.Collapsed;
+                    Visibility = Visibility.Visible;
                 }
 
+                int totalPageCount = Math.Max(item.Preview.PageCount, _expectedTotalPages);
                 int elapsedStage1 = item.Preview.PageIndex == 0
                     ? (int)_stage0Stopwatch.ElapsedMilliseconds
                     : 0;
@@ -484,43 +529,60 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
                     item.Trace.Blocks.Count,
                     item.Trace.Words.Count,
                     item.Preview.PageIndex,
-                    item.Preview.PageCount,
+                    totalPageCount,
                     elapsedStage1);
 
-                if (item.Preview.PageIndex > 0 && item.Preview.Image.Length > 0)
+                // Always load the page preview image and fit the sheet for EVERY page (Page 1 .. Page N)
+                if (item.Preview.Image.Length > 0)
                 {
                     _imagePixelWidth = Math.Max(1, item.Preview.ImageWidth);
                     _imagePixelHeight = Math.Max(1, item.Preview.ImageHeight);
                     await LoadPreviewBitmapAsync(item.Preview.Image);
-                    FitPageSheet();
                 }
+                FitPageSheet();
 
                 EngineBadgeText.Text = string.IsNullOrWhiteSpace(item.Preview.Engine) ? "MarkSmith OCR" : item.Preview.Engine;
-                PagePillText.Text = item.Preview.PageCount > 1
-                    ? $"Page {item.Preview.PageIndex + 1} of {item.Preview.PageCount}"
+                PagePillText.Text = totalPageCount > 1
+                    ? $"Page {item.Preview.PageIndex + 1} of {totalPageCount}"
                     : $"Page {item.Preview.PageNumber}";
                 ScanDimensionsText.Text = $"{item.Preview.ImageWidth} × {item.Preview.ImageHeight} px";
-                ElapsedText.Text = $"Engine read: {item.Trace.Elapsed.TotalMilliseconds:F0} ms";
+                ElapsedText.Text = $"Page {item.Preview.PageIndex + 1}/{Math.Max(1, totalPageCount)} · {item.Trace.Elapsed.TotalMilliseconds:F0} ms";
 
                 ClearCanvasOverlays();
                 if (item.Preview.PageIndex == 0)
                 {
-                    MarkdownBlocksPanel.Children.Clear();
                     MarkdownScrollViewer.Visibility = Visibility.Visible;
                     FinalMarkdownSheetBorder.Visibility = Visibility.Collapsed;
                 }
 
+                if (_stage0PlaceholderCard is not null)
+                {
+                    MarkdownBlocksPanel.Children.Remove(_stage0PlaceholderCard);
+                    _stage0PlaceholderCard = null;
+                }
+
+                if (totalPageCount > 1)
+                {
+                    var pageBanner = CreatePageSeparatorBanner(
+                        item.Preview.PageIndex + 1,
+                        totalPageCount,
+                        item.Trace.Blocks.Count,
+                        item.Trace.Words.Count);
+                    MarkdownBlocksPanel.Children.Add(pageBanner);
+                    MarkdownScrollViewer.ChangeView(null, 99999.0, null, disableAnimation: true);
+                }
+
                 // Stage 1: Complete the full top-to-bottom scan & deskew pass over a consistent duration
-                await PlayStage1ScanSweepAsync(item.Preview, schedule, token);
+                await PlayStage1ScanSweepAsync(item.Preview, totalPageCount, schedule, token);
 
                 // Stage 2: Break apart the document & find structural elements
-                await PlayAct1BreakApartElementsAsync(item.Trace, schedule, token);
+                await PlayAct1BreakApartElementsAsync(item.Preview, totalPageCount, item.Trace, schedule, token);
 
                 // Stage 3: Word stream & glyph recognition across the page
-                await PlayAct2SpeedOfLightWordsAsync(item.Trace, schedule, token);
+                await PlayAct2SpeedOfLightWordsAsync(item.Preview, totalPageCount, item.Trace, schedule, token);
 
                 // Stage 4: Piece together blocks of text in reading order into Markdown
-                await PlayAct3PieceTogetherBlocksAsync(item.Trace, schedule, token);
+                await PlayAct3PieceTogetherBlocksAsync(item.Preview, totalPageCount, item.Trace, schedule, token);
 
                 if (!string.IsNullOrWhiteSpace(item.Trace.Markdown))
                 {
@@ -532,7 +594,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
             bool showFinal = false;
             lock (_sync)
             {
-                if (!token.IsCancellationRequested && !_finalSheetShown && _assembledPages.Count > 0 && _readyPages.Count == 0 && _pagesRead >= _pagesStarted)
+                if (!token.IsCancellationRequested && !_finalSheetShown && _assembledPages.Count > 0 && _readyPages.Count == 0 && _pagesRead >= Math.Max(_pagesStarted, _expectedTotalPages))
                 {
                     _finalSheetShown = true;
                     showFinal = true;
@@ -563,13 +625,15 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
 
     private async Task PlayStage1ScanSweepAsync(
         OcrPagePreview preview,
+        int totalPageCount,
         OcrPlaybackSchedule schedule,
         CancellationToken token)
     {
         SetActiveStep(1);
-        SetStatus($"Scanning & deskewing page {preview.PageNumber} with {EngineBadgeText.Text}…", 14);
-        WordStreamText.Text = "Calibrating page geometry, deskew angle & optical contrast…";
-        BlocksProgressText.Text = "Analysing page structure…";
+        string pagePrefix = totalPageCount > 1 ? $"Page {preview.PageIndex + 1} of {totalPageCount} · " : "";
+        SetStatus($"{pagePrefix}Scanning & deskewing page {preview.PageNumber} with {EngineBadgeText.Text}…", 14);
+        WordStreamText.Text = $"{pagePrefix}Calibrating page geometry, deskew angle & optical contrast…";
+        BlocksProgressText.Text = $"{pagePrefix}Analysing page structure…";
 
         LaserBeam.Visibility = Visibility.Visible;
         const int sweepSteps = 10;
@@ -587,16 +651,19 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
     // ---- Stage 2: Breaking Apart the Document & Finding the Elements ----------------------------
 
     private async Task PlayAct1BreakApartElementsAsync(
+        OcrPagePreview preview,
+        int totalPageCount,
         OcrPageTrace trace,
         OcrPlaybackSchedule schedule,
         CancellationToken token)
     {
         SetActiveStep(2);
         int blockCount = trace.Blocks.Count;
+        string pagePrefix = totalPageCount > 1 ? $"Page {preview.PageIndex + 1} of {totalPageCount} · " : "";
         SetStatus(blockCount == 0
-            ? "Scanning page regions…"
-            : $"Breaking apart document — locating {blockCount} structural element{(blockCount == 1 ? "" : "s")}…", 26);
-        WordStreamText.Text = "XY-cut layout segmentation: splitting columns, headings, lists & paragraphs…";
+            ? $"{pagePrefix}Scanning page regions…"
+            : $"{pagePrefix}Breaking apart page — locating {blockCount} structural element{(blockCount == 1 ? "" : "s")}…", 26);
+        WordStreamText.Text = $"{pagePrefix}XY-cut layout segmentation: splitting columns, headings, lists & paragraphs…";
 
         LaserBeam.Visibility = Visibility.Visible;
         _blockFrames.Clear();
@@ -646,12 +713,12 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
 
             WordStreamText.Text = lastBlock.Kind switch
             {
-                OcrBlockKind.Diagram => "⬡ Flowchart diagram detected → routing to Mermaid AST + ShapeForge Word Shapes…",
-                OcrBlockKind.ShapeMosaic => "❖ Graphic region detected → composing multi-shape Word mosaic via ShapeForge…",
-                OcrBlockKind.Picture => "🖼 Photograph detected → cropping & linking PNG to document media…",
-                OcrBlockKind.Heading => $"Located heading region #{endIdx} of {blockCount}…",
-                OcrBlockKind.List => $"Located list structure #{endIdx} of {blockCount}…",
-                _ => $"Segmented layout element {endIdx} of {blockCount}…",
+                OcrBlockKind.Diagram => $"{pagePrefix}⬡ Flowchart diagram detected → routing to Mermaid AST + ShapeForge Word Shapes…",
+                OcrBlockKind.ShapeMosaic => $"{pagePrefix}❖ Graphic region detected → composing multi-shape Word mosaic via ShapeForge…",
+                OcrBlockKind.Picture => $"{pagePrefix}🖼 Photograph detected → cropping & linking PNG to document media…",
+                OcrBlockKind.Heading => $"{pagePrefix}Located heading region #{endIdx} of {blockCount}…",
+                OcrBlockKind.List => $"{pagePrefix}Located list structure #{endIdx} of {blockCount}…",
+                _ => $"{pagePrefix}Segmented layout element {endIdx} of {blockCount}…",
             };
             StageProgressBar.Value = 20 + (22.0 * (step + 1) / steps);
 
@@ -667,15 +734,18 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
     // ---- Stage 3: Word Stream & Glyph Recognition -----------------------------------------------
 
     private async Task PlayAct2SpeedOfLightWordsAsync(
+        OcrPagePreview preview,
+        int totalPageCount,
         OcrPageTrace trace,
         OcrPlaybackSchedule schedule,
         CancellationToken token)
     {
         SetActiveStep(3);
         int wordCount = trace.Words.Count;
+        string pagePrefix = totalPageCount > 1 ? $"Page {preview.PageIndex + 1} of {totalPageCount} · " : "";
         SetStatus(wordCount == 0
-            ? "Analysing glyph stream…"
-            : $"Recognising all {wordCount} words across the page…", 48);
+            ? $"{pagePrefix}Analysing glyph stream…"
+            : $"{pagePrefix}Recognising all {wordCount} words across page {preview.PageNumber}…", 48);
 
         // Cap rendered word-box overlays at 56 lightweight Rectangles so the Canvas never lags.
         const int maxWordRectangles = 56;
@@ -730,7 +800,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
             }
             else
             {
-                WordStreamText.Text = "Scanning visual geometry & shape primitives…";
+                WordStreamText.Text = $"{pagePrefix}Scanning visual geometry & shape primitives…";
             }
 
             double elapsedSec = Math.Max(0.08, sw.Elapsed.TotalSeconds);
@@ -760,19 +830,22 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
     // ---- Stage 4: Piecing Together the Blocks of Text in Order into Markdown --------------------
 
     private async Task PlayAct3PieceTogetherBlocksAsync(
+        OcrPagePreview preview,
+        int totalPageCount,
         OcrPageTrace trace,
         OcrPlaybackSchedule schedule,
         CancellationToken token)
     {
         SetActiveStep(4);
         int blockCount = trace.Blocks.Count;
+        string pagePrefix = totalPageCount > 1 ? $"Page {preview.PageIndex + 1} of {totalPageCount} · " : "";
         SetStatus(blockCount == 0
-            ? "Formatting page as Markdown…"
-            : $"Piecing together {blockCount} block{(blockCount == 1 ? "" : "s")} in reading order into Markdown…", 72);
+            ? $"{pagePrefix}Formatting page as Markdown…"
+            : $"{pagePrefix}Piecing together {blockCount} block{(blockCount == 1 ? "" : "s")} in reading order into Markdown…", 72);
 
         if (blockCount == 0)
         {
-            BlocksProgressText.Text = "No text blocks on this page";
+            BlocksProgressText.Text = $"{pagePrefix}Page formatted";
             await Task.Delay(schedule.Stage4TotalMs, token);
             return;
         }
@@ -815,7 +888,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
             MarkdownScrollViewer.ChangeView(null, 99999.0, null, disableAnimation: true);
 
             BlocksCountText.Text = _totalBlocks.ToString();
-            BlocksProgressText.Text = $"{endIdx} / {blockCount} blocks pieced";
+            BlocksProgressText.Text = $"{pagePrefix}{endIdx} / {blockCount} blocks pieced";
             StageProgressBar.Value = 68 + (26.0 * (step + 1) / steps);
             prevEndIdx = endIdx;
 
@@ -845,13 +918,15 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         string visualsNote = _totalVisuals > 0
             ? $", {_totalVisuals} visual/shape element{(_totalVisuals == 1 ? "" : "s")}"
             : "";
-        FinalBannerText.Text = $"✓ {_totalBlocks} block{(_totalBlocks == 1 ? "" : "s")} ({_totalWords} words{visualsNote}) assembled in Markdown — opening in editor…";
+        int pagesCount = Math.Max(1, _assembledPages.Count);
+        string pagesLabel = pagesCount > 1 ? $"{pagesCount} pages · " : "";
+        FinalBannerText.Text = $"✓ {pagesLabel}{_totalBlocks} block{(_totalBlocks == 1 ? "" : "s")} ({_totalWords} words{visualsNote}) assembled in Markdown — opening in editor…";
 
         MarkdownScrollViewer.Visibility = Visibility.Collapsed;
         FinalMarkdownSheetBorder.Visibility = Visibility.Visible;
 
-        SetStatus("Page assembled in Markdown — handing off to the editor…", 100);
-        WordStreamText.Text = $"Complete · {_totalWords} words{visualsNote} pieced into {_totalBlocks} Markdown block{(_totalBlocks == 1 ? "" : "s")}";
+        SetStatus($"All {pagesCount} page{(pagesCount == 1 ? "" : "s")} assembled in Markdown — handing off to the editor…", 100);
+        WordStreamText.Text = $"Complete · {pagesLabel}{_totalWords} words{visualsNote} pieced into {_totalBlocks} Markdown block{(_totalBlocks == 1 ? "" : "s")}";
         BlocksProgressText.Text = "✓ Assembled in .md";
 
         await Task.Delay(950, token);
@@ -897,13 +972,17 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         {
             _sessionActive = false;
             _explicitCompletionAwaited = false;
+            _importerFinished = false;
             _stage0ShownForCurrentSession = false;
             _finalSheetShown = false;
             _pagesStarted = 0;
             _pagesRead = 0;
-            _pendingPreview = null;
+            _pagesWithBlocks = 0;
+            _expectedTotalPages = 0;
+            _pendingPreviews.Clear();
             _playbackTask = null;
             _stage0Task = null;
+            _stage0PlaceholderCard = null;
             _readyPages.Clear();
         }
 
@@ -918,7 +997,11 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
     {
         double availW = PageViewportGrid.ActualWidth;
         double availH = PageViewportGrid.ActualHeight;
-        if (availW <= 16 || availH <= 16) return;
+        if (availW <= 16 || availH <= 16)
+        {
+            availW = 420;
+            availH = 480;
+        }
 
         double aspect = _imagePixelWidth / (double)Math.Max(1, _imagePixelHeight);
         double fittedW = availW;
@@ -955,6 +1038,101 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         }
 
         PositionLaserAtNormalizedY(_lastLaserNormY);
+    }
+
+    private Border CreateInitialScanStatusCard(OcrPagePreview preview)
+    {
+        bool isLight = ActualTheme == ElementTheme.Light;
+        var accent = isLight ? Color.FromArgb(255, 0, 104, 201) : Color.FromArgb(255, 71, 163, 255);
+        var cardBg = isLight ? Color.FromArgb(255, 249, 249, 249) : Color.FromArgb(255, 43, 43, 43);
+        var cardStroke = isLight ? Color.FromArgb(255, 224, 224, 224) : Color.FromArgb(255, 64, 64, 64);
+        var primaryFg = isLight ? Color.FromArgb(255, 27, 27, 27) : Color.FromArgb(255, 243, 243, 243);
+        var secondaryFg = isLight ? Color.FromArgb(255, 92, 92, 92) : Color.FromArgb(255, 166, 166, 166);
+
+        var stack = new StackPanel { Spacing = 6 };
+        stack.Children.Add(new TextBlock
+        {
+            Text = preview.PageCount > 1
+                ? $"PAGE {preview.PageIndex + 1} OF {preview.PageCount} · INITIALISING READER"
+                : $"PAGE {preview.PageNumber} · INITIALISING READER",
+            FontSize = 10.5,
+            FontFamily = MonoFont,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(accent),
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = $"Deskewing page sheet ({preview.ImageWidth} × {preview.ImageHeight} px) and running XY-cut layout segmentation to break apart headings, paragraphs, lists, tables, and visual diagrams…",
+            FontSize = 11.5,
+            FontFamily = MonoFont,
+            Foreground = new SolidColorBrush(primaryFg),
+            TextWrapping = TextWrapping.Wrap,
+            LineHeight = 18,
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = $"Active engine: {(string.IsNullOrWhiteSpace(preview.Engine) ? "MarkSmith OCR" : preview.Engine)}",
+            FontSize = 10.5,
+            FontFamily = MonoFont,
+            Foreground = new SolidColorBrush(secondaryFg),
+        });
+
+        return new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 10, 12, 10),
+            Background = new SolidColorBrush(cardBg),
+            BorderBrush = new SolidColorBrush(cardStroke),
+            BorderThickness = new Thickness(1),
+            Child = stack,
+        };
+    }
+
+    private Border CreatePageSeparatorBanner(int pageIndexOneBased, int totalPages, int blockCount, int wordCount)
+    {
+        bool isLight = ActualTheme == ElementTheme.Light;
+        var accent = isLight ? Color.FromArgb(255, 0, 104, 201) : Color.FromArgb(255, 71, 163, 255);
+        var bg = isLight ? Color.FromArgb(24, 0, 104, 201) : Color.FromArgb(32, 71, 163, 255);
+        var stroke = isLight ? Color.FromArgb(90, 0, 104, 201) : Color.FromArgb(110, 71, 163, 255);
+        var secondaryFg = isLight ? Color.FromArgb(255, 72, 72, 72) : Color.FromArgb(255, 190, 190, 190);
+
+        var row = new Grid { ColumnSpacing = 8 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var leftText = new TextBlock
+        {
+            Text = $"📄 PAGE {pageIndexOneBased} OF {totalPages}",
+            FontSize = 11,
+            FontFamily = MonoFont,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(accent),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var rightText = new TextBlock
+        {
+            Text = $"{blockCount} block{(blockCount == 1 ? "" : "s")} · {wordCount} word{(wordCount == 1 ? "" : "s")}",
+            FontSize = 10.5,
+            FontFamily = MonoFont,
+            Foreground = new SolidColorBrush(secondaryFg),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(rightText, 1);
+
+        row.Children.Add(leftText);
+        row.Children.Add(rightText);
+
+        return new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 5, 10, 5),
+            Margin = new Thickness(0, pageIndexOneBased > 1 ? 6 : 0, 0, 0),
+            Background = new SolidColorBrush(bg),
+            BorderBrush = new SolidColorBrush(stroke),
+            BorderThickness = new Thickness(1),
+            Child = row,
+        };
     }
 
     private void AddPositionedOverlay(FrameworkElement element, OcrNormRect box)

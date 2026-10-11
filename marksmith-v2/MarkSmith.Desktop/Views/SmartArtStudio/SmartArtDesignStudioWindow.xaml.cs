@@ -41,19 +41,37 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.InsertToDocumentRequested += (s, block) => InsertToDocumentRequested?.Invoke(this, block);
             if (StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
             {
-                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
-                Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(StatusBarText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+                AnnounceLiveRegion(StatusBarText, ViewModel.StatusMessage, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite, raiseEvent: false);
+            }
+            if (LayoutCountLabel != null && !string.IsNullOrEmpty(ViewModel.LayoutCountText))
+            {
+                AnnounceLiveRegion(LayoutCountLabel, ViewModel.LayoutCountText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite, raiseEvent: false);
             }
             ViewModel.PropertyChanged += (s, e) =>
             {
                 if (e.PropertyName == nameof(ViewModel.StatusMessage) && StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
                 {
-                    Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
-                    Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(StatusBarText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
+                    AnnounceLiveRegion(StatusBarText, ViewModel.StatusMessage, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
+                }
+                else if (e.PropertyName == nameof(ViewModel.LayoutCountText) && LayoutCountLabel != null)
+                {
+                    AnnounceLiveRegion(LayoutCountLabel, ViewModel.LayoutCountText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+                }
+                else if (e.PropertyName == nameof(ViewModel.HasNoLayoutMatches) && ViewModel.HasNoLayoutMatches && NoMatchesTitleText != null)
+                {
+                    AnnounceLiveRegion(NoMatchesTitleText, "No layouts match", Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+                }
+                else if (e.PropertyName == nameof(ViewModel.PreviewHint) && ViewModel.HasPreviewHint && PreviewHintBar != null)
+                {
+                    AnnounceLiveRegion(PreviewHintBar, ViewModel.PreviewHint, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
                 }
                 else if (e.PropertyName == nameof(ViewModel.SelectedLayout) && ViewModel.SelectedLayout is { } layout)
                 {
                     LayoutList.ScrollIntoView(layout, ScrollIntoViewAlignment.Leading);
+                }
+                else if (e.PropertyName == nameof(ViewModel.SelectedNode))
+                {
+                    ScrollSelectedOutlineRowIntoView();
                 }
             };
             this.Activated += OnWindowActivated;
@@ -61,12 +79,44 @@ namespace MarkSmith.Views.SmartArtStudio
             // (the rendered SmartArt is a self-contained light card either way).
             PreviewWebView.DefaultBackgroundColor = Microsoft.UI.Colors.Transparent;
             HoverPolish.Track(this.RootGrid);
+            this.RootGrid.ActualThemeChanged += (_, _) => RefreshWebView();
             // Open in the layout search (typing filters at once), not on the first title-bar button.
             this.RootGrid.Loaded += (_, _) =>
             {
                 LayoutSearch.Focus(FocusState.Programmatic);
                 if (ViewModel.SelectedLayout is { } layout) LayoutList.ScrollIntoView(layout, ScrollIntoViewAlignment.Leading);
             };
+        }
+
+        private static void AnnounceLiveRegion(
+            FrameworkElement? element,
+            string? text,
+            Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting setting,
+            bool raiseEvent = true)
+        {
+            if (element == null || string.IsNullOrWhiteSpace(text)) return;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(element, text);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(element, setting);
+            if (!raiseEvent) return;
+            var peer = Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(element)
+                       ?? Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.CreatePeerForElement(element);
+            peer?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
+        }
+
+        private void ScrollSelectedOutlineRowIntoView()
+        {
+            if (ViewModel.SelectedNode is not { } selected) return;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                foreach (var border in FindVisualChildren<Border>(OutlineScroll))
+                {
+                    if (ReferenceEquals(border.DataContext, selected))
+                    {
+                        border.StartBringIntoView();
+                        break;
+                    }
+                }
+            });
         }
 
         // Sized in DIPs (AppWindow sizes are physical pixels, so the default opened cramped on a
@@ -143,6 +193,67 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnLayoutListKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            bool shiftDown = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
+                              & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+
+            if (e.Key == VirtualKey.Enter)
+            {
+                if (ViewModel.SelectedNode == null && ViewModel.OutlineRows.Count > 0)
+                {
+                    ViewModel.Select(ViewModel.OutlineRows[0]);
+                }
+                OutlineScroll.Focus(FocusState.Keyboard);
+                e.Handled = true;
+            }
+            else if (e.Key == VirtualKey.Escape)
+            {
+                LayoutSearch.Focus(FocusState.Keyboard);
+                e.Handled = true;
+            }
+            else if (e.Key == VirtualKey.Application || (e.Key == VirtualKey.F10 && shiftDown))
+            {
+                if (ViewModel.SelectedLayout is { } item)
+                {
+                    ShowLayoutContextMenu(item, LayoutList, new Windows.Foundation.Point(48, 36));
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private void OnLayoutTilePointerEntered(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is Grid g && g.Children.FirstOrDefault() is Border thumb)
+            {
+                thumb.Scale = new System.Numerics.Vector3(1.05f, 1.05f, 1f);
+            }
+        }
+
+        private void OnLayoutTilePointerExited(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is Grid g && g.Children.FirstOrDefault() is Border thumb)
+            {
+                thumb.Scale = new System.Numerics.Vector3(1f, 1f, 1f);
+            }
+        }
+
+        private void OnLayoutTilePointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is Grid g && g.Children.FirstOrDefault() is Border thumb)
+            {
+                thumb.Scale = new System.Numerics.Vector3(0.96f, 0.96f, 1f);
+            }
+        }
+
+        private void OnLayoutTilePointerReleased(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is Grid g && g.Children.FirstOrDefault() is Border thumb)
+            {
+                thumb.Scale = new System.Numerics.Vector3(1.05f, 1.05f, 1f);
+            }
+        }
+
         private void OnMarkdownTextBoxKeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (e.Key == VirtualKey.Escape)
@@ -170,7 +281,8 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             if (_isWebViewReady && PreviewWebView.CoreWebView2 != null)
             {
-                string html = BuildWrapperHtml(ViewModel.PreviewHtml);
+                bool isDark = RootGrid.ActualTheme == ElementTheme.Dark;
+                string html = BuildWrapperHtml(ViewModel.PreviewHtml, isDark);
                 PreviewWebView.CoreWebView2.NavigateToString(html);
             }
         }
@@ -179,14 +291,17 @@ namespace MarkSmith.Views.SmartArtStudio
         // a "Layout: …" caption. In the studio the card fills the pane and the drawing scales to fit
         // it either way (the SVG's default xMidYMid meet), and the caption is dropped because the
         // pane header names the layout already.
-        private static string BuildWrapperHtml(string body)
+        private static string BuildWrapperHtml(string body, bool isDarkTheme = false)
         {
+            string cardBg = isDarkTheme ? "#F8FAFC" : "#FFFFFF";
+            string cardBorder = isDarkTheme ? "rgba(148,163,184,0.38)" : "rgba(15,23,42,0.10)";
+            string cardShadow = isDarkTheme ? "0 4px 16px rgba(0,0,0,0.28)" : "0 2px 8px rgba(15,23,42,0.05)";
             return $@"<!DOCTYPE html>
 <html><head><meta charset=""utf-8""/>
 <style>
   html,body{{height:100%;margin:0}}
   body{{padding:16px;box-sizing:border-box;background:transparent;display:flex}}
-  .smartart-container{{width:100%!important;max-width:none!important;height:100%!important;display:flex;flex-direction:column;padding:12px;box-sizing:border-box}}
+  .smartart-container{{width:100%!important;max-width:none!important;height:100%!important;display:flex;flex-direction:column;padding:12px;box-sizing:border-box;background:{cardBg}!important;border:1px solid {cardBorder}!important;border-radius:8px!important;box-shadow:{cardShadow}!important}}
   .smartart-container > .smartart-caption{{display:none}}
   .smartart-container > svg{{flex:1;min-height:0;width:100%!important;height:100%!important}}
 </style></head>
@@ -248,6 +363,8 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 VirtualKey.Up => SmartArtDesignStudioViewModel.OutlineKey.Up,
                 VirtualKey.Down => SmartArtDesignStudioViewModel.OutlineKey.Down,
+                VirtualKey.Left => SmartArtDesignStudioViewModel.OutlineKey.Left,
+                VirtualKey.Right => SmartArtDesignStudioViewModel.OutlineKey.Right,
                 VirtualKey.Home => SmartArtDesignStudioViewModel.OutlineKey.Home,
                 VirtualKey.End => SmartArtDesignStudioViewModel.OutlineKey.End,
                 VirtualKey.Tab => SmartArtDesignStudioViewModel.OutlineKey.Tab,
@@ -316,6 +433,18 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             if ((sender as FrameworkElement)?.DataContext is StudioNodeViewModel node)
                 ViewModel.DeleteSelectedCommand.Execute(node);
+        }
+
+        private void OnRowCommitRenameClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.CommitRename();
+            OutlineScroll.Focus(FocusState.Keyboard);
+        }
+
+        private void OnRowCancelRenameClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.CancelRename();
+            OutlineScroll.Focus(FocusState.Keyboard);
         }
 
         private void OnRenameClick(object sender, RoutedEventArgs e)
@@ -541,6 +670,12 @@ namespace MarkSmith.Views.SmartArtStudio
             item ??= ViewModel.SelectedLayout;
             if (item == null) return;
 
+            ShowLayoutContextMenu(item, LayoutList, e.GetPosition(LayoutList));
+            e.Handled = true;
+        }
+
+        private void ShowLayoutContextMenu(StudioLayoutItem item, UIElement target, Windows.Foundation.Point position)
+        {
             ViewModel.SelectedLayout = item;
             var menu = new MenuFlyout();
 
@@ -598,9 +733,51 @@ namespace MarkSmith.Views.SmartArtStudio
             insertItem.Click += (_, _) => ViewModel.InsertIntoDocumentCommand.Execute(null);
             menu.Items.Add(insertItem);
 
-            menu.ShowAt(LayoutList, e.GetPosition(LayoutList));
+            menu.ShowAt(target, position);
+        }
+
+        private void OnPreviewPaneRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (sender is not UIElement target) return;
+            var menu = new MenuFlyout();
+
+            var copyBlockItem = new MenuFlyoutItem
+            {
+                Text = "Copy SmartArt Markdown block",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyBlockItem.Click += (_, _) => CopySmartArtBlock();
+            menu.Items.Add(copyBlockItem);
+
+            var copyOutlineItem = new MenuFlyoutItem
+            {
+                Text = "Copy outline as Markdown",
+                Icon = new FontIcon { Glyph = "\uE8FD" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyOutlineItem.Click += (_, _) => CopyOutlineMarkdown();
+            menu.Items.Add(copyOutlineItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var insertItem = new MenuFlyoutItem
+            {
+                Text = "Insert into document",
+                Icon = new FontIcon { Glyph = "\uE8A5" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Enter",
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            insertItem.Click += (_, _) => ViewModel.InsertIntoDocumentCommand.Execute(null);
+            menu.Items.Add(insertItem);
+
+            menu.ShowAt(target, e.GetPosition(target));
             e.Handled = true;
         }
+
+        private void OnCopyOutlineMarkdownClick(object sender, RoutedEventArgs e) => CopyOutlineMarkdown();
+
+        private void OnCopySmartArtBlockClick(object sender, RoutedEventArgs e) => CopySmartArtBlock();
 
         private void CopyOutlineMarkdown()
         {

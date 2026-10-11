@@ -7,12 +7,15 @@ using SkiaSharp;
 namespace MarkSmith.Ocr;
 
 /// <summary>What a block of OCR Markdown is.</summary>
-public enum OcrBlockKind { Heading, Paragraph, List, Picture, Diagram, ShapeMosaic }
+public enum OcrBlockKind { Heading, Paragraph, List, Picture, Diagram, ShapeMosaic, Table, KeyValue }
 
 /// <summary>One Markdown block read off a page, and the OCR lines or visual bounds it was built
 /// from (in page pixels), so a viewer can show where on the page each block came from.</summary>
 public sealed record OcrMarkdownBlock(string Markdown, OcrBlockKind Kind, IReadOnlyList<OcrLine> Lines, SKRect? ExplicitBounds = null)
 {
+    public OcrMarkdownBlock(OcrBlockKind kind, string markdown, OcrNormRect normBounds, int imageWidth = 1000, int imageHeight = 1000)
+        : this(markdown, kind, Array.Empty<OcrLine>(), new SKRect(normBounds.X * imageWidth, normBounds.Y * imageHeight, normBounds.Right * imageWidth, normBounds.Bottom * imageHeight)) { }
+
     /// <summary>The area of the page the block covers (explicit visual bounds or word bounds).</summary>
     public SKRect Bounds
     {

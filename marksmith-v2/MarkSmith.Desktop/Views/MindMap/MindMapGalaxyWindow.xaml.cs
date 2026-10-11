@@ -45,6 +45,10 @@ namespace MarkSmith.Views.MindMap
         public MindMapGalaxyWindow(MindMapStudioViewModel? viewModel = null)
         {
             this.InitializeComponent();
+            var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
+            if (System.IO.File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
+            SizeForDisplay();
+
             ViewModel = viewModel ?? new MindMapStudioViewModel();
             this.RootGrid.DataContext = ViewModel;
 
@@ -53,6 +57,7 @@ namespace MarkSmith.Views.MindMap
             this.ExtendsContentIntoTitleBar = true;
             this.SetTitleBar(AppTitleBar);
             TitleBarInsets.Reserve(this, AppTitleBar);
+            CaptionButtons.Follow(this, AppTitleBar);
 
             ViewModel.CanvasRedrawRequested += (s, e) => RequestRedraw();
             ViewModel.OpenDocumentRequested += (s, path) => OpenDocumentRequested?.Invoke(this, path);
@@ -70,6 +75,33 @@ namespace MarkSmith.Views.MindMap
             // Closing used to throw away every unsaved change without a word.
             AppWindow.Closing += OnAppWindowClosing;
 
+            SyncAccessibleStatusLabels();
+        }
+
+        private void SizeForDisplay()
+        {
+            try
+            {
+                var scale = GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0;
+                if (scale <= 0) scale = 1;
+                var work = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(AppWindow.Id,
+                    Microsoft.UI.Windowing.DisplayAreaFallback.Primary).WorkArea;
+                AppWindow.Resize(new Windows.Graphics.SizeInt32(
+                    Math.Min((int)(1440 * scale), work.Width), Math.Min((int)(880 * scale), work.Height)));
+                if (AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+                {
+                    presenter.PreferredMinimumWidth = Math.Min((int)(1100 * scale), work.Width);
+                    presenter.PreferredMinimumHeight = Math.Min((int)(620 * scale), work.Height);
+                }
+            }
+            catch { /* best effort: default size still works */ }
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        private void SyncAccessibleStatusLabels()
+        {
             if (StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
             {
                 AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
@@ -77,6 +109,12 @@ namespace MarkSmith.Views.MindMap
             }
             if (SearchMatchLabel != null)
                 AutomationProperties.SetName(SearchMatchLabel, ViewModel.SearchMatchText ?? "");
+            if (InsightsSummaryText != null)
+                AutomationProperties.SetName(InsightsSummaryText, ViewModel.InsightsSummary ?? "");
+            if (NodesCountText != null)
+                AutomationProperties.SetName(NodesCountText, ViewModel.NodesCountText ?? "");
+            if (LinksCountText != null)
+                AutomationProperties.SetName(LinksCountText, ViewModel.LinksCountText ?? "");
         }
 
         private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -98,15 +136,11 @@ namespace MarkSmith.Views.MindMap
                     PlacePreviewCard();
                     break;
                 case nameof(MindMapStudioViewModel.StatusMessage):
-                    if (StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
-                    {
-                        AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
-                        AutomationProperties.SetLiveSetting(StatusBarText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
-                    }
-                    break;
                 case nameof(MindMapStudioViewModel.SearchMatchText):
-                    if (SearchMatchLabel != null)
-                        AutomationProperties.SetName(SearchMatchLabel, ViewModel.SearchMatchText ?? "");
+                case nameof(MindMapStudioViewModel.InsightsSummary):
+                case nameof(MindMapStudioViewModel.NodesCountText):
+                case nameof(MindMapStudioViewModel.LinksCountText):
+                    SyncAccessibleStatusLabels();
                     break;
             }
         }
@@ -391,6 +425,11 @@ namespace MarkSmith.Views.MindMap
             public SolidColorBrush MutedInk = null!;
             public SolidColorBrush TrackFill = null!;
             public SolidColorBrush ConnectionInk = null!;
+            public SolidColorBrush ProgressFillBrush = null!;
+            public SolidColorBrush ProgressInk = null!;
+            public SolidColorBrush VersionFill = null!;
+            public SolidColorBrush VersionInk = null!;
+            public SolidColorBrush MissingInk = null!;
         }
 
         private sealed class EdgeVisual
@@ -410,6 +449,8 @@ namespace MarkSmith.Views.MindMap
 
             public Border? Label;
             public TextBlock? LabelText;
+            public ScaleTransform? LabelLift;
+            public bool LabelLifted;
             /// <summary>Cached so a drag repositions the pill without re-measuring text.</summary>
             public Size LabelSize;
 
@@ -529,7 +570,12 @@ namespace MarkSmith.Views.MindMap
                 BadgeInk = new SolidColorBrush(Colors.White),
                 MutedInk = new SolidColorBrush(_palette.Muted),
                 TrackFill = new SolidColorBrush(_palette.Track),
-                ConnectionInk = new SolidColorBrush(_palette.Muted)
+                ConnectionInk = new SolidColorBrush(_palette.Muted),
+                ProgressFillBrush = new SolidColorBrush(_palette.ProgressFill),
+                ProgressInk = new SolidColorBrush(_palette.ProgressInk),
+                VersionFill = new SolidColorBrush(_palette.VersionFill),
+                VersionInk = new SolidColorBrush(_palette.VersionInk),
+                MissingInk = new SolidColorBrush(_palette.MissingInk)
             };
 
             v.Lift = new ScaleTransform { ScaleX = 1, ScaleY = 1 };
@@ -544,7 +590,8 @@ namespace MarkSmith.Views.MindMap
                 RenderTransform = v.Lift,
                 RenderTransformOrigin = new Point(0.5, 0.5)
             };
-            AutomationProperties.SetName(v.Root, node.Title);
+            AutomationProperties.SetName(v.Root, node.AccessibleSummary);
+            ToolTipService.SetToolTip(v.Root, node.AccessibleSummary);
             SetCursor(v.Root, Microsoft.UI.Input.InputSystemCursorShape.Hand);
 
             v.Detail = new Grid();
@@ -604,7 +651,7 @@ namespace MarkSmith.Views.MindMap
             {
                 Height = 4,
                 CornerRadius = new CornerRadius(2),
-                Background = new SolidColorBrush(ColorFromHex("#34D399")),
+                Background = v.ProgressFillBrush,
                 HorizontalAlignment = HorizontalAlignment.Left
             };
             v.ProgressTrack = new Border
@@ -622,7 +669,7 @@ namespace MarkSmith.Views.MindMap
             {
                 FontSize = 9,
                 FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-                Foreground = new SolidColorBrush(ColorFromHex("#34D399")),
+                Foreground = v.ProgressInk,
                 VerticalAlignment = VerticalAlignment.Center
             };
             v.Bottom.Children.Add(v.ProgressText);
@@ -632,14 +679,14 @@ namespace MarkSmith.Views.MindMap
 
             // Card glyphs come from Segoe Fluent Icons, like every other icon in the app; these
             // three were emoji (🔗 ⏱️ ⚠), which drew in colour at a different size and baseline.
-            (v.ConnectionText, v.ConnectionCount) = GlyphLabel("", 9, v.ConnectionInk);
+            (v.ConnectionText, v.ConnectionCount) = GlyphLabel("\uE71B", 9, v.ConnectionInk);
             v.Bottom.Children.Add(v.ConnectionText);
 
-            (v.VersionText, v.VersionCount) = GlyphLabel("", 9, new SolidColorBrush(ColorFromHex("#38BDF8")));
+            (v.VersionText, v.VersionCount) = GlyphLabel("\uE81C", 9, v.VersionInk);
             v.VersionText.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
             v.VersionHost = new Border
             {
-                Background = new SolidColorBrush(ColorFromHex("#1C2D42")),
+                Background = v.VersionFill,
                 CornerRadius = new CornerRadius(3),
                 Padding = new Thickness(4, 1, 4, 1),
                 VerticalAlignment = VerticalAlignment.Center,
@@ -650,10 +697,10 @@ namespace MarkSmith.Views.MindMap
 
             v.MissingMark = new TextBlock
             {
-                Text = "",
+                Text = "\uE7BA",
                 FontFamily = GlyphFontFamily,
                 FontSize = 10,
-                Foreground = new SolidColorBrush(ColorFromHex("#F87171")),
+                Foreground = v.MissingInk,
                 VerticalAlignment = VerticalAlignment.Center
             };
             ToolTipService.SetToolTip(v.MissingMark, "The linked file isn't there any more");
@@ -725,6 +772,7 @@ namespace MarkSmith.Views.MindMap
             e.ArrowBackward.Points.Add(new Point());
             EdgeLayer.Children.Add(e.ArrowBackward);
 
+            e.LabelLift = new ScaleTransform { ScaleX = 1, ScaleY = 1 };
             e.LabelText = new TextBlock { FontSize = 10, Foreground = new SolidColorBrush(_palette.Text) };
             e.Label = new Border
             {
@@ -733,6 +781,8 @@ namespace MarkSmith.Views.MindMap
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(6, 2, 6, 2),
+                RenderTransform = e.LabelLift,
+                RenderTransformOrigin = new Point(0.5, 0.5),
                 Child = e.LabelText
             };
             // The label is the most obvious thing to click on a link, but it ignored the pointer:
@@ -915,7 +965,7 @@ namespace MarkSmith.Views.MindMap
                 Color borderColor;
                 double borderThickness;
                 if (node.IsSelected) { borderColor = _palette.SelectionInk; borderThickness = 2.6; }
-                else if (node.IsHighlighted) { borderColor = ColorFromHex("#22D3EE"); borderThickness = 2.4; }
+                else if (node.IsHighlighted) { borderColor = _palette.HighlightBorder; borderThickness = 2.4; }
                 else if (node.IsNeighbor) { borderColor = accent; borderThickness = 2.2; }
                 else { borderColor = accent; borderThickness = node.IsHub ? 2.2 : 1.4; }
 
@@ -934,13 +984,23 @@ namespace MarkSmith.Views.MindMap
                 v.Root.Opacity = node.IsDimmed ? (hovered ? 0.6 : 0.22) : 1.0;
                 Canvas.SetZIndex(v.Root, node.IsSelected ? 2 : hovered ? 1 : 0);
                 SetLift(v, hovered);
-                if (AutomationProperties.GetName(v.Root) != node.Title) AutomationProperties.SetName(v.Root, node.Title);
+                string summary = node.AccessibleSummary;
+                if (AutomationProperties.GetName(v.Root) != summary)
+                {
+                    AutomationProperties.SetName(v.Root, summary);
+                    ToolTipService.SetToolTip(v.Root, summary);
+                }
 
                 v.TitleInk.Color = _palette.Text;
                 v.MutedInk.Color = _palette.Muted;
                 v.TrackFill.Color = _palette.Track;
                 v.BadgeFill.Color = accent;
                 v.BadgeInk.Color = ReadableOn(accent);
+                v.ProgressFillBrush.Color = _palette.ProgressFill;
+                v.ProgressInk.Color = _palette.ProgressInk;
+                v.VersionFill.Color = _palette.VersionFill;
+                v.VersionInk.Color = _palette.VersionInk;
+                v.MissingInk.Color = _palette.MissingInk;
 
                 v.Icon.Text = node.Icon ?? "📄";
                 v.Title.Text = node.Title;
@@ -980,8 +1040,8 @@ namespace MarkSmith.Views.MindMap
 
             foreach (var e in _edgeVisuals.Values)
             {
-                bool faded = _nodeIndex.TryGetValue(e.SourceId, out var s) && _nodeIndex.TryGetValue(e.TargetId, out var t)
-                             && s.IsDimmed && t.IsDimmed;
+                bool hasEndpoints = _nodeIndex.TryGetValue(e.SourceId, out var s) & _nodeIndex.TryGetValue(e.TargetId, out var t);
+                bool faded = hasEndpoints && s!.IsDimmed && t!.IsDimmed;
 
                 if (e.Link == null)
                 {
@@ -1014,8 +1074,22 @@ namespace MarkSmith.Views.MindMap
                     e.LabelText.FontStyle = link.IsInferred ? Windows.UI.Text.FontStyle.Italic : Windows.UI.Text.FontStyle.Normal;
                     ((SolidColorBrush)e.LabelText.Foreground).Color = _palette.Text;
                     ((SolidColorBrush)e.Label.Background).Color = _palette.CardBackground;
-                    ((SolidColorBrush)e.Label.BorderBrush).Color = ColorFromHex(link.ColorHex);
-                    e.Label.Opacity = link.IsInferred ? 0.8 : 1.0;
+                    ((SolidColorBrush)e.Label.BorderBrush).Color = link.IsSelected ? _palette.SelectionInk : ColorFromHex(link.ColorHex);
+                    e.Label.BorderThickness = new Thickness(link.IsSelected || linkHovered ? 1.6 : 1.0);
+                    e.Label.Opacity = link.IsInferred && !link.IsSelected && !linkHovered ? 0.85 : 1.0;
+
+                    string linkDesc = link.DescribeEndpoints(s?.Title, t?.Title);
+                    if (AutomationProperties.GetName(e.Label) != linkDesc)
+                    {
+                        AutomationProperties.SetName(e.Label, linkDesc);
+                        ToolTipService.SetToolTip(e.Label, linkDesc);
+                    }
+                    if (e.Hit != null && AutomationProperties.GetName(e.Hit) != linkDesc)
+                    {
+                        AutomationProperties.SetName(e.Hit, linkDesc);
+                        ToolTipService.SetToolTip(e.Hit, linkDesc);
+                    }
+                    SetLabelLift(e, linkHovered || link.IsSelected);
 
                     if (textChanged || e.LabelSize.Width <= 0)
                     {
@@ -1108,12 +1182,22 @@ namespace MarkSmith.Views.MindMap
         {
             if (v.Lifted == lifted) return;
             v.Lifted = lifted;
-            double to = lifted ? 1.035 : 1.0;
+            AnimateScale(v.Lift, lifted ? 1.035 : 1.0);
+        }
 
+        private static void SetLabelLift(EdgeVisual e, bool lifted)
+        {
+            if (e.LabelLift == null || e.LabelLifted == lifted) return;
+            e.LabelLifted = lifted;
+            AnimateScale(e.LabelLift, lifted ? 1.05 : 1.0);
+        }
+
+        private static void AnimateScale(ScaleTransform transform, double to)
+        {
             if (!HoverPolish.AnimationsEnabled)
             {
-                v.Lift.ScaleX = to;
-                v.Lift.ScaleY = to;
+                transform.ScaleX = to;
+                transform.ScaleY = to;
                 return;
             }
 
@@ -1123,7 +1207,7 @@ namespace MarkSmith.Views.MindMap
             foreach (var property in new[] { nameof(ScaleTransform.ScaleX), nameof(ScaleTransform.ScaleY) })
             {
                 var anim = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation { To = to, Duration = duration, EasingFunction = ease };
-                Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(anim, v.Lift);
+                Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(anim, transform);
                 Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(anim, property);
                 sb.Children.Add(anim);
             }
@@ -1576,6 +1660,7 @@ namespace MarkSmith.Views.MindMap
 
         private static bool IsCtrlDown() => IsDown(Windows.System.VirtualKey.Control);
         private static bool IsShiftDown() => IsDown(Windows.System.VirtualKey.Shift);
+        private static bool IsAltDown() => IsDown(Windows.System.VirtualKey.Menu);
 
         private async void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
         {
@@ -1593,16 +1678,22 @@ namespace MarkSmith.Views.MindMap
             }
 
             bool ctrl = IsCtrlDown();
+            bool shift = IsShiftDown();
+            bool alt = IsAltDown();
 
-            // Tab / Enter / Delete / Backspace edit the galaxy only while the canvas itself has
-            // focus (clicking a node or the canvas focuses it). Anywhere else they keep their normal
-            // meaning — Tab moves between toolbar buttons instead of spawning a child node.
+            // Tab / Enter / Delete / Backspace / Arrows edit or navigate the galaxy only while the
+            // canvas itself has focus (clicking a node or the canvas focuses it). Anywhere else they
+            // keep their normal meaning — Tab moves between toolbar buttons instead of spawning a child node.
             bool canvasFocused = focused is null || ReferenceEquals(focused, GalaxyCanvas);
 
             switch (e.Key)
             {
                 case Windows.System.VirtualKey.F when ctrl:
                     SearchBox.Focus(FocusState.Programmatic);
+                    e.Handled = true;
+                    return;
+                case Windows.System.VirtualKey.Z when ctrl && shift:
+                    ViewModel.RedoCommand.Execute(null);
                     e.Handled = true;
                     return;
                 case Windows.System.VirtualKey.Z when ctrl:
@@ -1630,6 +1721,11 @@ namespace MarkSmith.Views.MindMap
                     FitToWindow();
                     e.Handled = true;
                     return;
+                case Windows.System.VirtualKey.Number1 when ctrl:
+                case Windows.System.VirtualKey.NumberPad1 when ctrl:
+                    OnZoomResetClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
                 // Ctrl+= / Ctrl++ and Ctrl+- (main row 0xBB/0xBD, plus the numpad keys), matching the
                 // zoom buttons' tooltips.
                 case (Windows.System.VirtualKey)0xBB when ctrl:
@@ -1647,16 +1743,44 @@ namespace MarkSmith.Views.MindMap
                     ViewModel.DeleteSelectionCommand.Execute(null);
                     e.Handled = true;
                     return;
-                case Windows.System.VirtualKey.Tab when canvasFocused && !ctrl:
+                case Windows.System.VirtualKey.Tab when canvasFocused && !ctrl && !alt:
+                case Windows.System.VirtualKey.N when canvasFocused && !ctrl && !alt:
                     ViewModel.AddChildNodeCommand.Execute(null);
                     e.Handled = true;
                     return;
-                case Windows.System.VirtualKey.Enter when canvasFocused:
+                case Windows.System.VirtualKey.Enter when canvasFocused && !ctrl && !alt:
                     ViewModel.AddSiblingNodeCommand.Execute(null);
                     e.Handled = true;
                     return;
+                case Windows.System.VirtualKey.Home when canvasFocused && !ctrl && !alt:
+                    if (ViewModel.SelectRootNode() is { } rootNode)
+                    {
+                        ViewModel.CenterOn(rootNode);
+                        RequestRedraw();
+                    }
+                    e.Handled = true;
+                    return;
+                case Windows.System.VirtualKey.Left when canvasFocused && !ctrl:
+                case Windows.System.VirtualKey.Right when canvasFocused && !ctrl:
+                case Windows.System.VirtualKey.Up when canvasFocused && !ctrl:
+                case Windows.System.VirtualKey.Down when canvasFocused && !ctrl:
+                    double dirX = e.Key == Windows.System.VirtualKey.Left ? -1 : e.Key == Windows.System.VirtualKey.Right ? 1 : 0;
+                    double dirY = e.Key == Windows.System.VirtualKey.Up ? -1 : e.Key == Windows.System.VirtualKey.Down ? 1 : 0;
+                    if (alt)
+                    {
+                        double step = shift ? 40.0 : 10.0;
+                        if (ViewModel.NudgeSelectedNode(dirX * step, dirY * step))
+                            RequestRedraw(RedrawScope.Geometry | RedrawScope.Appearance);
+                    }
+                    else
+                    {
+                        if (ViewModel.NavigateDirection(dirX, dirY) is { } nextNode)
+                            RequestRedraw(RedrawScope.Appearance);
+                    }
+                    e.Handled = true;
+                    return;
                 case Windows.System.VirtualKey.F3:
-                    ViewModel.FocusNextMatch(!IsShiftDown());
+                    ViewModel.FocusNextMatch(!shift);
                     e.Handled = true;
                     return;
                 case Windows.System.VirtualKey.F2 when canvasFocused && ViewModel.SelectedNode != null:
@@ -1671,7 +1795,7 @@ namespace MarkSmith.Views.MindMap
                     e.Handled = true;
                     return;
                 case Windows.System.VirtualKey.Application when canvasFocused:
-                case Windows.System.VirtualKey.F10 when canvasFocused && IsShiftDown():
+                case Windows.System.VirtualKey.F10 when canvasFocused && shift:
                     if (ViewModel.SelectedNode is { } selNode && _nodeVisuals.TryGetValue(selNode.Id, out var vis) && vis.Root.ContextFlyout is MenuFlyout nodeFlyout)
                     {
                         nodeFlyout.ShowAt(vis.Root, new Point(vis.Root.ActualWidth / 2, vis.Root.ActualHeight / 2));
@@ -2284,6 +2408,7 @@ namespace MarkSmith.Views.MindMap
             {
                 if (e.Link == null) e.Stroke.Color = ColorFromHex(_palette.HierarchyLine);
             }
+            UpdateTagPills();
             RequestRedraw();
         }
 
@@ -2348,7 +2473,6 @@ namespace MarkSmith.Views.MindMap
         private void UpdateTagPills()
         {
             string? active = ViewModel.SelectedTagFilter;
-            var res = Application.Current.Resources;
             foreach (var b in _tagPills)
             {
                 bool on = b == AllTagsPill
@@ -2358,12 +2482,14 @@ namespace MarkSmith.Views.MindMap
                 // canvas theme; app-level brushes would stay dark-theme on a light canvas.
                 if (on)
                 {
-                    b.Background = (Brush)res["AccentFillColorDefaultBrush"];
-                    b.Foreground = (Brush)res["TextOnAccentFillColorPrimaryBrush"];
+                    ThemeBrush.Set(b, Control.BackgroundProperty, "AccentFillColorDefaultBrush");
+                    ThemeBrush.Set(b, Control.ForegroundProperty, "TextOnAccentFillColorPrimaryBrush");
                     b.BorderThickness = new Thickness(0);
                 }
                 else
                 {
+                    ThemeBrush.Clear(b, Control.BackgroundProperty);
+                    ThemeBrush.Clear(b, Control.ForegroundProperty);
                     b.ClearValue(Control.BackgroundProperty);
                     b.ClearValue(Control.ForegroundProperty);
                     b.ClearValue(Control.BorderThicknessProperty);
@@ -2571,36 +2697,51 @@ namespace MarkSmith.Views.MindMap
             /// light cards).</summary>
             public Color Track { get; init; } = ColorFromHex("#33FFFFFF");
 
+            public Color ProgressFill { get; init; } = ColorFromHex("#34D399");
+            public Color ProgressInk { get; init; } = ColorFromHex("#34D399");
+            public Color VersionFill { get; init; } = ColorFromHex("#1C2D42");
+            public Color VersionInk { get; init; } = ColorFromHex("#7DD3FC");
+            public Color MissingInk { get; init; } = ColorFromHex("#FCA5A5");
+            public Color HighlightBorder { get; init; } = ColorFromHex("#22D3EE");
+
             /// <summary>A light canvas. The overlays on it (tour banner, tag bar, legend, preview
             /// card) switch to the light theme with it, or their dark-theme text is white on white.</summary>
             public bool IsLight { get; init; }
 
-            public static readonly GalaxyPalette MidnightGalaxy = new(
-                ColorFromHex("#12131C"), ColorFromHex("#1C1C28"), ColorFromHex("#F1F1F8"),
-                ColorFromHex("#9A9AB0"), "#5A6478", ColorFromHex("#E0161722"));
+            public static readonly GalaxyPalette MidnightGalaxy = ForName(MindMapStudioViewModel.DefaultThemeName);
 
-            public static GalaxyPalette ForName(string? name) => name switch
+            public static GalaxyPalette ForName(string? name)
             {
-                "Clean White" => new GalaxyPalette(
-                    ColorFromHex("#F8FAFC"), ColorFromHex("#FFFFFF"), ColorFromHex("#111827"),
-                    ColorFromHex("#64748B"), "#94A3B8", ColorFromHex("#E0F1F5FA"))
+                var spec = MindMapStudioViewModel.GetThemePalette(name);
+                bool isLight = string.Equals(name, "Clean White", StringComparison.Ordinal);
+                Color minimapBg = name switch
                 {
-                    SelectionInk = ColorFromHex("#0F172A"),
-                    HubInk = ColorFromHex("#B45309"),
-                    Track = ColorFromHex("#1F0F172A"),
-                    IsLight = true
-                },
-                "Nordic Slate" => new GalaxyPalette(
-                    ColorFromHex("#1E293B"), ColorFromHex("#273549"), ColorFromHex("#E2E8F0"),
-                    ColorFromHex("#94A3B8"), "#64748B", ColorFromHex("#E0172033")),
-                "Obsidian Dark" => new GalaxyPalette(
-                    ColorFromHex("#0B0C10"), ColorFromHex("#15171F"), ColorFromHex("#E8E8F0"),
-                    ColorFromHex("#8A8AA0"), "#4A5266", ColorFromHex("#E00B0C10")),
-                "Cyberpunk Neon" => new GalaxyPalette(
-                    ColorFromHex("#0A0118"), ColorFromHex("#180A2E"), ColorFromHex("#F0E7FF"),
-                    ColorFromHex("#A78BFA"), "#7C4DFF", ColorFromHex("#E0140A28")),
-                _ => MidnightGalaxy
-            };
+                    "Clean White" => ColorFromHex("#E0F1F5FA"),
+                    "Nordic Slate" => ColorFromHex("#E0172033"),
+                    "Obsidian Dark" => ColorFromHex("#E00B0C10"),
+                    "Cyberpunk Neon" => ColorFromHex("#E0140A28"),
+                    _ => ColorFromHex("#E0161722")
+                };
+                return new GalaxyPalette(
+                    ColorFromHex(spec.Bg),
+                    ColorFromHex(spec.Card),
+                    ColorFromHex(spec.Ink),
+                    ColorFromHex(spec.SubInk),
+                    spec.Edge,
+                    minimapBg)
+                {
+                    SelectionInk = isLight ? ColorFromHex("#0F172A") : Colors.White,
+                    HubInk = isLight ? ColorFromHex("#B45309") : ColorFromHex("#FBBF24"),
+                    Track = isLight ? ColorFromHex("#1F0F172A") : ColorFromHex("#33FFFFFF"),
+                    ProgressFill = ColorFromHex(spec.ProgressFill),
+                    ProgressInk = ColorFromHex(spec.ProgressInk),
+                    VersionFill = ColorFromHex(spec.VersionFill),
+                    VersionInk = ColorFromHex(spec.VersionInk),
+                    MissingInk = ColorFromHex(spec.MissingInk),
+                    HighlightBorder = ColorFromHex(spec.HighlightBorder),
+                    IsLight = isLight
+                };
+            }
         }
     }
 }

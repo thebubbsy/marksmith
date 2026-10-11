@@ -74,7 +74,13 @@
                             PointerEntered="OnRowPointerEntered"
                             PointerExited="OnRowPointerExited"
                             PointerCanceled="OnRowPointerExited"
-                            ToolTipService.ToolTip="Click to add to the middle of the canvas, or drag it where you want it">
+                            PointerPressed="OnRowPointerPressed"
+                            PointerReleased="OnRowPointerReleased"
+                            RightTapped="OnRowRightTapped"
+                            ToolTipService.ToolTip="Click to add to the middle of the canvas, right-click for options, or drag where you want it">
+                        <Border.BackgroundTransition>
+                            <BrushTransition Duration="0:0:0.12" />
+                        </Border.BackgroundTransition>
                         <Grid ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -101,7 +107,8 @@
         <StackPanel x:Name="NoMatchesPanel" Grid.Row="2" Spacing="6" Margin="4,24,4,0" Visibility="Collapsed"
                     HorizontalAlignment="Center" VerticalAlignment="Top">
             <FontIcon Glyph="&#xE721;" FontSize="22" Foreground="#8D99AE" />
-            <TextBlock x:Name="NoMatchesText" FontSize="12" Foreground="#8D99AE" TextAlignment="Center" TextWrapping="Wrap" />
+            <TextBlock x:Name="NoMatchesText" FontSize="12" Foreground="#8D99AE" TextAlignment="Center" TextWrapping="Wrap"
+                       AutomationProperties.LiveSetting="Assertive" />
             <HyperlinkButton x:Name="ClearSearchButton" Content="Show all shapes" Click="OnClearSearchClick"
                              HorizontalAlignment="Center" FontSize="12" />
         </StackPanel>

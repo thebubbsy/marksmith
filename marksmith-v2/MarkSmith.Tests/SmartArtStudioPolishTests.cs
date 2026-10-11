@@ -288,4 +288,64 @@ public class SmartArtStudioPolishTests
         Assert.Contains(":::smartart type=\"process1\"", block);
         Assert.Contains("- Discovery", block);
     }
+
+    [Fact]
+    public void HandleOutlineKey_AltLeft_And_AltRight_Promote_And_Demote_And_Report_Boundary_Status()
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        vm.Preload("- Plan\n- Build\n- Ship", "process1");
+
+        var first = vm.OutlineRows.First(r => r.Text == "Plan");
+        vm.Select(first);
+
+        // Boundary feedback at top level / first sibling
+        vm.Promote();
+        Assert.Contains("already at the top level", vm.StatusMessage);
+
+        vm.Demote();
+        Assert.Contains("no previous sibling to nest under", vm.StatusMessage);
+
+        vm.MoveUp();
+        Assert.Contains("already the first sibling", vm.StatusMessage);
+
+        var last = vm.OutlineRows.First(r => r.Text == "Ship");
+        vm.Select(last);
+        vm.MoveDown();
+        Assert.Contains("already the last sibling", vm.StatusMessage);
+
+        // Alt+Right demotes "Build" under "Plan", Alt+Left promotes it back
+        var second = vm.OutlineRows.First(r => r.Text == "Build");
+        vm.Select(second);
+        Assert.True(vm.HandleOutlineKey(SmartArtDesignStudioViewModel.OutlineKey.Right, alt: true));
+        Assert.Equal(1, vm.SelectedNode!.Depth);
+        Assert.Contains("Demoted 'Build'", vm.StatusMessage);
+
+        Assert.True(vm.HandleOutlineKey(SmartArtDesignStudioViewModel.OutlineKey.Left, alt: true));
+        Assert.Equal(0, vm.SelectedNode!.Depth);
+        Assert.Contains("Promoted 'Build'", vm.StatusMessage);
+    }
+
+    [Fact]
+    public void HandleOutlineKey_Navigation_Updates_Status_With_Node_And_Level_And_CommitRename_Reports_Status()
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        vm.Preload("- Executive\n  - Engineering\n- Operations", "orgChart1");
+
+        Assert.Contains("3 items", vm.OutlineSummaryText);
+        Assert.Contains("Organization Chart", vm.OutlineSummaryText);
+
+        Assert.True(vm.HandleOutlineKey(SmartArtDesignStudioViewModel.OutlineKey.Home));
+        Assert.Equal("Executive · level 1", vm.StatusMessage);
+
+        Assert.True(vm.HandleOutlineKey(SmartArtDesignStudioViewModel.OutlineKey.Down));
+        Assert.Equal("Engineering · level 2", vm.StatusMessage);
+
+        Assert.True(vm.HandleOutlineKey(SmartArtDesignStudioViewModel.OutlineKey.End));
+        Assert.Equal("Operations · level 1", vm.StatusMessage);
+
+        vm.BeginRename(vm.SelectedNode);
+        vm.SelectedNode!.Text = "Global Operations";
+        vm.CommitRename();
+        Assert.Contains("Renamed to 'Global Operations'", vm.StatusMessage);
+    }
 }

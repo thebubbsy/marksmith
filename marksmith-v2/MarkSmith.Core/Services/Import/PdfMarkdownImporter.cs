@@ -70,75 +70,140 @@ public static class PdfMarkdownImporter
             pages.Add(content);
         }
 
-        // OCR the pages that need it, with the engine Settings picked. Each page's picture is
-        // decoded (or rendered) only when its turn comes and freed straight after: a 200-page
-        // scan held in memory at once runs to gigabytes.
+        RemoveRunningHeadersAndFooters(pages);
+        PrepareDigitalPages(pages);
+
+        // Process every active page in reading order (1 .. N) so the reading animation shows
+        // Page 1 of N, Page 2 of N, ..., Page N of N across digital, scanned, and hybrid PDFs.
+        var activePages = pages.Where(p => p.NeedsOcr || p.ComposedBlocks.Count > 0).ToList();
+        var activeObserver = options.OcrObserver ?? OcrTrace.DefaultObserver;
         int ocrPages = 0;
         string? engineName = null;
-        if (pages.Any(p => p.NeedsOcr))
+        IOcrProvider? engine = null;
+
+        for (int idx = 0; idx < activePages.Count; idx++)
         {
-            var engine = OcrEngines.Create(options.OcrEngine ?? AppServices.Settings.Current.OcrEngine, out bool fellBack);
-            engineName = engine.EngineName;
-            if (fellBack) notes.Add($"The chosen OCR engine isn't available here, so {engine.EngineName} read the scanned pages.");
-            var scanned = pages.Where(p => p.NeedsOcr).ToList();
-            for (int idx = 0; idx < scanned.Count; idx++)
+            var p = activePages[idx];
+            if (!p.NeedsOcr)
             {
-                var p = scanned[idx];
-                SKBitmap? scan = null;
+                if (activeObserver is not null)
+                {
+                    using var rendered = SafeRenderPage(options.RenderPage, p.Number);
+                    var (preview, trace) = OcrTrace.RenderDigitalPagePreview(
+                        p.Number,
+                        idx,
+                        activePages.Count,
+                        "MarkSmith PDF Reader",
+                        p.TracedBlocks,
+                        p.TracedWords,
+                        rendered,
+                        TimeSpan.FromMilliseconds(35));
+                    OcrTrace.NotifyStarted(options.OcrObserver, preview);
+                    OcrTrace.NotifyRead(options.OcrObserver, trace);
+                }
+                continue;
+            }
+
+            if (engine is null)
+            {
+                engine = OcrEngines.Create(options.OcrEngine ?? AppServices.Settings.Current.OcrEngine, out bool fellBack);
+                engineName = engine.EngineName;
+                if (fellBack) notes.Add($"The chosen OCR engine isn't available here, so {engine.EngineName} read the scanned pages.");
+            }
+
+            SKBitmap? scan = null;
+            try
+            {
+                var page = doc.GetPage(p.Number);
+                using var rawScan = ScanImage(page);
+                bool preferRendered = options.RenderPage is not null &&
+                    (rawScan is null || !OcrTrace.HasReadablePageContrast(rawScan) || page.Letters.Count > 0 || page.ExperimentalAccess.Paths.Count() > 200);
+                if (preferRendered)
+                    scan = SafeRenderPage(options.RenderPage, p.Number) ?? rawScan?.Copy();
+                else
+                    scan = rawScan?.Copy() ?? SafeRenderPage(options.RenderPage, p.Number);
+
+                if (scan is null)
+                {
+                    notes.Add($"Page {p.Number} has no readable text and couldn't be turned into a picture to read.");
+                    continue;
+                }
+                options.Progress?.Report($"Reading scanned page {p.Number} with {engine.EngineName}…");
+                var straight = OcrPreprocess.Deskew(scan, out _);
+                bool notifiedStart = false;
+                bool notifiedRead = false;
+                var clock = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
-                    var page = doc.GetPage(p.Number);
-                    scan = ScanImage(page) ?? options.RenderPage?.Invoke(p.Number);
-                    if (scan is null)
+                    OcrTrace.NotifyStarted(options.OcrObserver, straight, p.Number, idx, activePages.Count, engine.EngineName);
+                    notifiedStart = true;
+                    var recognized = engine.RecognizeAsync(straight).GetAwaiter().GetResult();
+                    if (recognized.Lines.Count == 0 && !preferRendered && options.RenderPage is not null)
                     {
-                        notes.Add($"Page {p.Number} has no readable text and couldn't be turned into a picture to read.");
-                        continue;
-                    }
-                    options.Progress?.Report($"Reading scanned page {p.Number} with {engine.EngineName}…");
-                    var straight = OcrPreprocess.Deskew(scan, out _);
-                    bool notifiedStart = false;
-                    bool notifiedRead = false;
-                    var clock = System.Diagnostics.Stopwatch.StartNew();
-                    try
-                    {
-                        OcrTrace.NotifyStarted(options.OcrObserver, straight, p.Number, idx, scanned.Count, engine.EngineName);
-                        notifiedStart = true;
-                        var recognized = engine.RecognizeAsync(straight).GetAwaiter().GetResult();
-                        var extracted = OcrVisualElements.ExtractPage(straight, recognized, new OcrVisualOptions
+                        using var fallbackRender = SafeRenderPage(options.RenderPage, p.Number);
+                        if (fallbackRender is not null && OcrTrace.HasReadablePageContrast(fallbackRender))
                         {
-                            PageNumber = p.Number,
-                            MediaDirectory = options.MediaDirectory,
-                            MediaLink = options.MediaLink,
-                            StartingPictureCount = pictures,
-                        });
-                        pictures += extracted.PicturesSaved;
-                        OcrTrace.NotifyRead(options.OcrObserver, p.Number, recognized, clock.Elapsed, extracted.Blocks);
-                        notifiedRead = true;
-                        p.OcrMarkdown = extracted.Markdown;
-                    }
-                    finally
-                    {
-                        if (notifiedStart && !notifiedRead)
-                        {
-                            var emptyPage = new OcrPageResult(Array.Empty<OcrLine>(), straight.Width, straight.Height);
-                            OcrTrace.NotifyRead(options.OcrObserver, p.Number, emptyPage, clock.Elapsed, Array.Empty<OcrMarkdownBlock>());
+                            var altStraight = OcrPreprocess.Deskew(fallbackRender, out _);
+                            try
+                            {
+                                var altRec = engine.RecognizeAsync(altStraight).GetAwaiter().GetResult();
+                                if (altRec.Lines.Count > 0)
+                                {
+                                    if (!ReferenceEquals(straight, scan)) straight.Dispose();
+                                    straight = altStraight.Copy();
+                                    recognized = altRec;
+                                }
+                            }
+                            finally
+                            {
+                                if (!ReferenceEquals(altStraight, fallbackRender)) altStraight.Dispose();
+                            }
                         }
-                        if (!ReferenceEquals(straight, scan)) straight.Dispose();
                     }
-                    ocrPages++;
+
+                    var extracted = OcrVisualElements.ExtractPage(straight, recognized, new OcrVisualOptions
+                    {
+                        PageNumber = p.Number,
+                        MediaDirectory = options.MediaDirectory,
+                        MediaLink = options.MediaLink,
+                        StartingPictureCount = pictures,
+                    });
+                    pictures += extracted.PicturesSaved;
+                    IReadOnlyList<OcrMarkdownBlock> tracedBlocks = extracted.Blocks.Count > 0
+                        ? extracted.Blocks
+                        : new[] { new OcrMarkdownBlock(OcrBlockKind.Picture, $"![Page {p.Number} Visual Graphic](page-{p.Number})", new OcrNormRect(0.08f, 0.12f, 0.84f, 0.76f)) };
+                    OcrTrace.NotifyRead(options.OcrObserver, p.Number, recognized, clock.Elapsed, tracedBlocks);
+                    notifiedRead = true;
+                    p.OcrMarkdown = extracted.Markdown;
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                finally
                 {
-                    // One bad page (an engine error, a broken image) costs that page, not the import.
-                    notes.Add($"Page {p.Number} couldn't be read: {ex.Message}");
+                    if (notifiedStart && !notifiedRead)
+                    {
+                        var emptyPage = new OcrPageResult(Array.Empty<OcrLine>(), straight.Width, straight.Height);
+                        OcrTrace.NotifyRead(options.OcrObserver, p.Number, emptyPage, clock.Elapsed, Array.Empty<OcrMarkdownBlock>());
+                    }
+                    if (!ReferenceEquals(straight, scan)) straight.Dispose();
                 }
-                finally { scan?.Dispose(); }
+                ocrPages++;
             }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // One bad page (an engine error, a broken image) costs that page, not the import.
+                notes.Add($"Page {p.Number} couldn't be read: {ex.Message}");
+            }
+            finally { scan?.Dispose(); }
         }
 
-        RemoveRunningHeadersAndFooters(pages);
         var markdown = Compose(pages);
         return new PdfImportReport(markdown, pages.Count, ocrPages, engineName, pictures, notes);
+    }
+
+    private static SKBitmap? SafeRenderPage(Func<int, SKBitmap?>? renderPage, int pageNumber)
+    {
+        if (renderPage is null) return null;
+        try { return renderPage(pageNumber); }
+        catch { return null; }
     }
 
     // ---- text pages ----
@@ -152,6 +217,9 @@ public static class PdfMarkdownImporter
         public List<BlockContent> Blocks = new();
         /// <summary>Where body text starts on this page (the left margin of the text column).</summary>
         public double BodyLeft;
+        public List<string> ComposedBlocks = new();
+        public List<OcrTraceBlock> TracedBlocks = new();
+        public List<OcrTraceWord> TracedWords = new();
     }
 
     private sealed class BlockContent
@@ -159,6 +227,7 @@ public static class PdfMarkdownImporter
         public List<LineContent> Lines = new();
         public double Top;      // PDF units from the bottom; larger = higher on the page
         public string? Picture; // a picture placed here instead of text
+        public UglyToad.PdfPig.Core.PdfRectangle? PictureBounds;
     }
 
     private sealed class LineContent
@@ -169,7 +238,7 @@ public static class PdfMarkdownImporter
         public string Text => string.Join(" ", Words.Select(w => w.Text));
     }
 
-    private sealed record WordContent(string Text, bool Bold, bool Italic, bool Mono, string? Link, double Left);
+    private sealed record WordContent(string Text, bool Bold, bool Italic, bool Mono, string? Link, double Left, UglyToad.PdfPig.Core.PdfRectangle Box);
 
     private static void ReadTextPage(Page page, PageContent content)
     {
@@ -199,7 +268,7 @@ public static class PdfMarkdownImporter
                         Bold: Regex.IsMatch(font, "bold|black|heavy|semibold|demi"),
                         Italic: Regex.IsMatch(font, "italic|oblique"),
                         Mono: Regex.IsMatch(font, "mono|courier|consol|menlo|code") || monoFonts.Contains(w.FontName ?? ""),
-                        Link: link, Left: w.BoundingBox.Left));
+                        Link: link, Left: w.BoundingBox.Left, Box: w.BoundingBox));
                 }
                 if (lc.Words.Count > 0) bc.Lines.Add(lc);
             }
@@ -292,7 +361,12 @@ public static class PdfMarkdownImporter
             using (var f = File.Create(Path.Combine(options.MediaDirectory!, name)))
                 bmp.Encode(SKEncodedImageFormat.Png, 100).SaveTo(f);
             var link = (options.MediaLink ?? Path.GetFileName(options.MediaDirectory!)) + "/" + name;
-            content.Blocks.Add(new BlockContent { Top = img.Bounds.Top, Picture = $"![Picture from page {page.Number}]({link.Replace(" ", "%20")})" });
+            content.Blocks.Add(new BlockContent
+            {
+                Top = img.Bounds.Top,
+                Picture = $"![Picture from page {page.Number}]({link.Replace(" ", "%20")})",
+                PictureBounds = img.Bounds,
+            });
             saved++;
         }
         // Pictures go where they sit on the page, between the text blocks above and below them.
@@ -313,7 +387,7 @@ public static class PdfMarkdownImporter
     {
         var textPages = pages.Where(p => !p.NeedsOcr && p.Blocks.Count > 0).ToList();
         string Key(string s) => Regex.Replace(s.ToLowerInvariant(), @"\d+", "#").Trim();
-        bool InMargin(LineContent l, PageContent p) => l.Top > p.Height * 0.92 || l.Bottom < p.Height * 0.08;
+        bool InMargin(LineContent l, PageContent p) => (l.Top > p.Height * 0.94 || l.Bottom < p.Height * 0.06) && l.Size < 15;
         var counts = new Dictionary<string, int>();
         foreach (var p in textPages)
             foreach (var key in p.Blocks.SelectMany(b => b.Lines).Where(l => InMargin(l, p)).Select(l => Key(l.Text)).Distinct())
@@ -334,7 +408,7 @@ public static class PdfMarkdownImporter
     private static readonly Regex Bullet = new(@"^([•●▪◦‣∙·\-–*])\s+", RegexOptions.Compiled);
     private static readonly Regex Numbered = new(@"^(\(?\d{1,3}[.)]|\(?[a-z][.)])\s+", RegexOptions.Compiled);
 
-    private static string Compose(List<PageContent> pages)
+    private static void PrepareDigitalPages(List<PageContent> pages)
     {
         var lines = pages.SelectMany(p => p.Blocks).SelectMany(b => b.Lines).Where(l => !l.Drop).ToList();
         // Body size: the size most of the text is set in, by character count.
@@ -355,17 +429,12 @@ public static class PdfMarkdownImporter
             .Select(t => Math.Round(t.b.Lines.Average(l => l.Size) * 2) / 2)
             .Where(sz => sz >= body * 1.15).Distinct().OrderByDescending(sz => sz).ToList();
 
-        var sb = new StringBuilder();
-        foreach (var p in pages)
+        foreach (var p in pages.Where(p => !p.NeedsOcr))
         {
-            if (p.NeedsOcr)
-            {
-                if (!string.IsNullOrWhiteSpace(p.OcrMarkdown)) Append(sb, p.OcrMarkdown!);
-                continue;
-            }
             // Tables first (their cells can be in a code font, and must not be merged as code), then
             // code blocks among the rest, then everything in order.
             var tableAt = new Dictionary<BlockContent, string>();
+            var tableLines = new Dictionary<BlockContent, List<LineContent>>();
             var inTable = new HashSet<BlockContent>();
             for (int i = 0; i < p.Blocks.Count; i++)
             {
@@ -377,19 +446,109 @@ public static class PdfMarkdownImporter
                 else if (b.Picture is null && b.Lines.Count(l => !l.Drop) == 1 && TryTable(p.Blocks, i + 1, b.Lines.First(l => !l.Drop), out table, out used)) used++;
                 else continue;
                 tableAt[b] = table;
-                for (int k = i; k < i + used; k++) inTable.Add(p.Blocks[k]);
+                var cellLines = new List<LineContent>();
+                for (int k = i; k < i + used; k++)
+                {
+                    inTable.Add(p.Blocks[k]);
+                    cellLines.AddRange(p.Blocks[k].Lines.Where(l => !l.Drop));
+                }
+                tableLines[b] = cellLines;
                 i += used - 1;
             }
             MergeCodeBlocks(p.Blocks, inTable);
             foreach (var b in p.Blocks)
             {
-                if (tableAt.TryGetValue(b, out var table)) { Append(sb, table); continue; }
+                if (tableAt.TryGetValue(b, out var table))
+                {
+                    if (!string.IsNullOrWhiteSpace(table))
+                    {
+                        var trimmed = table.Trim();
+                        p.ComposedBlocks.Add(trimmed);
+                        var box = tableLines.TryGetValue(b, out var tLines) ? LinesToNormRect(tLines, p) : new OcrNormRect(0.08f, 0.2f, 0.84f, 0.14f);
+                        p.TracedBlocks.Add(new OcrTraceBlock(OcrBlockKind.Paragraph, trimmed, box));
+                    }
+                    continue;
+                }
                 if (inTable.Contains(b)) continue;
-                if (b.Picture is not null) { Append(sb, b.Picture); continue; }
+                if (b.Picture is not null)
+                {
+                    var trimmed = b.Picture.Trim();
+                    p.ComposedBlocks.Add(trimmed);
+                    var box = b.PictureBounds is { } pb ? ToNormRect(pb, p) : new OcrNormRect(0.10f, 0.25f, 0.80f, 0.28f);
+                    p.TracedBlocks.Add(new OcrTraceBlock(OcrBlockKind.Picture, trimmed, box));
+                    continue;
+                }
                 var kept = b.Lines.Where(l => !l.Drop).ToList();
                 if (kept.Count == 0) continue;
-                Append(sb, BlockMarkdown(kept, body, headingSizes, p));
+                var md = BlockMarkdown(kept, body, headingSizes, p);
+                if (!string.IsNullOrWhiteSpace(md))
+                {
+                    var trimmed = md.Trim();
+                    p.ComposedBlocks.Add(trimmed);
+                    p.TracedBlocks.Add(new OcrTraceBlock(ClassifyDigitalBlock(trimmed), trimmed, LinesToNormRect(kept, p)));
+                }
             }
+
+            foreach (var b in p.Blocks.Where(b => b.Picture is null))
+            {
+                foreach (var l in b.Lines.Where(l => !l.Drop))
+                {
+                    foreach (var w in l.Words)
+                    {
+                        if (!string.IsNullOrWhiteSpace(w.Text))
+                            p.TracedWords.Add(new OcrTraceWord(w.Text, ToNormRect(w.Box, p)));
+                    }
+                }
+            }
+        }
+    }
+
+    private static OcrBlockKind ClassifyDigitalBlock(string trimmed)
+    {
+        if (trimmed.StartsWith('#')) return OcrBlockKind.Heading;
+        if (trimmed.StartsWith("- ", StringComparison.Ordinal) || Regex.IsMatch(trimmed, @"^\d+\.\s")) return OcrBlockKind.List;
+        return OcrBlockKind.Paragraph;
+    }
+
+    private static OcrNormRect ToNormRect(UglyToad.PdfPig.Core.PdfRectangle r, PageContent p)
+    {
+        double pw = Math.Max(1.0, p.Width);
+        double ph = Math.Max(1.0, p.Height);
+        double left = Math.Min(r.Left, r.Right);
+        double right = Math.Max(r.Left, r.Right);
+        double bottom = Math.Min(r.Bottom, r.Top);
+        double top = Math.Max(r.Bottom, r.Top);
+        float x = (float)Math.Clamp(left / pw, 0.0, 0.99);
+        float y = (float)Math.Clamp((ph - top) / ph, 0.0, 0.99);
+        float w = (float)Math.Clamp((right - left) / pw, 0.008, 1.0 - x);
+        float h = (float)Math.Clamp((top - bottom) / ph, 0.008, 1.0 - y);
+        return new OcrNormRect(x, y, w, h);
+    }
+
+    private static OcrNormRect LinesToNormRect(IReadOnlyList<LineContent> lines, PageContent p)
+    {
+        var words = lines.SelectMany(l => l.Words).ToList();
+        if (words.Count == 0)
+            return new OcrNormRect(0.08f, 0.1f, 0.84f, 0.05f);
+        double left = words.Min(w => Math.Min(w.Box.Left, w.Box.Right));
+        double right = words.Max(w => Math.Max(w.Box.Left, w.Box.Right));
+        double bottom = words.Min(w => Math.Min(w.Box.Bottom, w.Box.Top));
+        double top = words.Max(w => Math.Max(w.Box.Bottom, w.Box.Top));
+        return ToNormRect(new UglyToad.PdfPig.Core.PdfRectangle(left, bottom, right, top), p);
+    }
+
+    private static string Compose(List<PageContent> pages)
+    {
+        var sb = new StringBuilder();
+        foreach (var p in pages)
+        {
+            if (p.NeedsOcr)
+            {
+                if (!string.IsNullOrWhiteSpace(p.OcrMarkdown)) Append(sb, p.OcrMarkdown!);
+                continue;
+            }
+            foreach (var chunk in p.ComposedBlocks)
+                Append(sb, chunk);
         }
         return sb.ToString().Trim() + "\n";
     }

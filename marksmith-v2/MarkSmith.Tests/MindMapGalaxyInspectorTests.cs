@@ -414,5 +414,133 @@ namespace MarkSmith.Tests
             vm.Undo();
             Assert.Equal(beforeCount, vm.Nodes.Count);
         }
+
+        [Fact]
+        public void SelectRootNode_and_NavigateDirection_move_across_spatial_neighbors_and_skip_dimmed_nodes()
+        {
+            var vm = new MindMapStudioViewModel();
+            var doc = new MindMapDocument { Title = "NavTest", RootNodeId = "r" };
+            var root = new MindMapNode { Id = "r", Title = "Root", X = 0, Y = 0 };
+            var east = new MindMapNode { Id = "e", Title = "East", X = 220, Y = 10, ParentId = "r" };
+            var southEast = new MindMapNode { Id = "se", Title = "SouthEast", X = 220, Y = 220, ParentId = "e" };
+            var dimmedFarEast = new MindMapNode { Id = "dim", Title = "Dimmed", X = 110, Y = 0, ParentId = "r" };
+            doc.Nodes.AddRange(new[] { root, east, southEast, dimmedFarEast });
+            doc.Links.Add(new MindMapLink { SourceNodeId = "r", TargetNodeId = "e" });
+            doc.Links.Add(new MindMapLink { SourceNodeId = "e", TargetNodeId = "se" });
+            vm.LoadDocument(doc);
+
+            var dimVm = vm.Nodes.Single(n => n.Id == "dim");
+            dimVm.IsDimmed = true;
+
+            var pickedRoot = vm.SelectRootNode();
+            Assert.NotNull(pickedRoot);
+            Assert.Equal("r", pickedRoot!.Id);
+
+            // Moving right from Root skips the closer dimmed node and lands on East.
+            var movedEast = vm.NavigateDirection(1, 0);
+            Assert.NotNull(movedEast);
+            Assert.Equal("e", movedEast!.Id);
+
+            // Moving down from East lands on SouthEast.
+            var movedSouth = vm.NavigateDirection(0, 1);
+            Assert.NotNull(movedSouth);
+            Assert.Equal("se", movedSouth!.Id);
+
+            // Moving up from SouthEast returns to East.
+            var movedUp = vm.NavigateDirection(0, -1);
+            Assert.NotNull(movedUp);
+            Assert.Equal("e", movedUp!.Id);
+        }
+
+        [Fact]
+        public void NudgeSelectedNode_coalesces_consecutive_arrow_steps_into_single_undo_entry()
+        {
+            var vm = CleanStudio();
+            var node = vm.Nodes.First();
+            vm.SelectedNode = node;
+            double startX = node.X;
+            double startY = node.Y;
+
+            Assert.True(vm.NudgeSelectedNode(16, 0));
+            Assert.True(vm.NudgeSelectedNode(16, 0));
+            Assert.True(vm.NudgeSelectedNode(0, -16));
+
+            Assert.Equal(startX + 32, node.X, 3);
+            Assert.Equal(startY - 16, node.Y, 3);
+            Assert.True(vm.IsDirty);
+
+            // All three nudges undo in a single step.
+            vm.Undo();
+            Assert.Equal(startX, vm.Nodes.First(n => n.Id == node.Id).X, 3);
+            Assert.Equal(startY, vm.Nodes.First(n => n.Id == node.Id).Y, 3);
+        }
+
+        [Fact]
+        public void All_five_galaxy_themes_meet_WCAG_AA_contrast_thresholds()
+        {
+            var vm = new MindMapStudioViewModel();
+            foreach (string theme in vm.AvailableThemes)
+            {
+                var p = MindMapStudioViewModel.GetThemePalette(theme);
+                Assert.True(
+                    MarkSmith.Services.ContrastGuard.GetContrastRatio(p.Ink, p.Card) >= 4.5,
+                    $"Theme '{theme}' Ink #{p.Ink} on Card #{p.Card} failed WCAG AA 4.5:1");
+                Assert.True(
+                    MarkSmith.Services.ContrastGuard.GetContrastRatio(p.SubInk, p.Card) >= 4.5,
+                    $"Theme '{theme}' SubInk #{p.SubInk} on Card #{p.Card} failed WCAG AA 4.5:1");
+                Assert.True(
+                    MarkSmith.Services.ContrastGuard.GetContrastRatio(p.ProgressInk, p.Card) >= 4.5,
+                    $"Theme '{theme}' ProgressInk #{p.ProgressInk} on Card #{p.Card} failed WCAG AA 4.5:1");
+                Assert.True(
+                    MarkSmith.Services.ContrastGuard.GetContrastRatio(p.MissingInk, p.Card) >= 4.5,
+                    $"Theme '{theme}' MissingInk #{p.MissingInk} on Card #{p.Card} failed WCAG AA 4.5:1");
+                Assert.True(
+                    MarkSmith.Services.ContrastGuard.GetContrastRatio(p.VersionInk, p.VersionFill) >= 4.5,
+                    $"Theme '{theme}' VersionInk #{p.VersionInk} on VersionFill #{p.VersionFill} failed WCAG AA 4.5:1");
+                Assert.True(
+                    MarkSmith.Services.ContrastGuard.GetContrastRatio(p.HighlightBorder, p.Card) >= 3.0,
+                    $"Theme '{theme}' HighlightBorder #{p.HighlightBorder} on Card #{p.Card} failed 3.0:1 UI contrast");
+            }
+        }
+
+        [Fact]
+        public void Node_and_link_accessible_summaries_describe_endpoints_direction_and_status()
+        {
+            var node = new MindMapNodeViewModel(new MindMapNode
+            {
+                Title = "System Architecture",
+                FileExtension = ".md",
+                FilePath = @"C:\nonexistent_galaxy_path\arch.md",
+                Progress = 75,
+                Tags = new System.Collections.Generic.List<string> { "core", "v2" }
+            })
+            {
+                ConnectionCount = 3,
+                IsFileMissing = true
+            };
+
+            string summary = node.AccessibleSummary;
+            Assert.Contains("System Architecture", summary);
+            Assert.Contains("MD", summary);
+            Assert.Contains("missing on disk", summary);
+            Assert.Contains("75% complete", summary);
+            Assert.Contains("3 connections", summary);
+            Assert.Contains("core", summary);
+
+            var link = new MindMapLinkViewModel(new MindMapLink
+            {
+                SourceNodeId = "a",
+                TargetNodeId = "b",
+                Label = "depends on",
+                Direction = MindMapLinkDirection.Bidirectional
+            });
+            Assert.Equal("↔", link.DirectionArrow);
+            string desc = link.DescribeEndpoints("Service A", "Service B");
+            Assert.Contains("Service A", desc);
+            Assert.Contains("Service B", desc);
+            Assert.Contains("depends on", desc);
+            Assert.Contains("↔", desc);
+        }
     }
 }
+

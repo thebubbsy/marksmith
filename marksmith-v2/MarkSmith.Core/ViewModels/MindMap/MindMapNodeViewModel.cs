@@ -195,17 +195,58 @@ namespace MarkSmith.ViewModels.MindMap
         }
         public bool IsHub => ConnectionCount >= 4;
 
+        /// <summary>Screen-reader and assistive-technology summary combining title, format badge,
+        /// linked file status, completion progress, connection count, and top tags.</summary>
+        public string AccessibleSummary
+        {
+            get
+            {
+                string title = string.IsNullOrWhiteSpace(Title) ? "Untitled" : Title.Trim();
+                var parts = new System.Collections.Generic.List<string> { $"{title} ({FormatBadge})" };
+                if (HasFile)
+                {
+                    parts.Add(IsFileMissing ? $"file {FileName} (missing on disk)" : $"file {FileName}");
+                }
+                if (HasProgress)
+                {
+                    parts.Add($"{Progress}% complete");
+                }
+                if (ConnectionCount > 0)
+                {
+                    parts.Add($"{ConnectionCount} {(ConnectionCount == 1 ? "connection" : "connections")}");
+                }
+                if (HasTags)
+                {
+                    parts.Add($"tags {string.Join(", ", Tags.Take(3))}");
+                }
+                return string.Join(", ", parts);
+            }
+        }
+
+        partial void OnTitleChanged(string value) => OnPropertyChanged(nameof(AccessibleSummary));
+
+        partial void OnIsFileMissingChanged(bool value) => OnPropertyChanged(nameof(AccessibleSummary));
+
         partial void OnProgressChanged(int value)
         {
             OnPropertyChanged(nameof(ProgressText));
             OnPropertyChanged(nameof(HasProgress));
+            OnPropertyChanged(nameof(AccessibleSummary));
         }
 
         // FormatBadge is what the canvas draws in the corner of every card; without these it kept
         // showing the format the node had when the window opened.
-        partial void OnFileExtensionChanged(string? value) => OnPropertyChanged(nameof(FormatBadge));
+        partial void OnFileExtensionChanged(string? value)
+        {
+            OnPropertyChanged(nameof(FormatBadge));
+            OnPropertyChanged(nameof(AccessibleSummary));
+        }
 
-        partial void OnNodeTypeChanged(MindMapNodeType value) => OnPropertyChanged(nameof(FormatBadge));
+        partial void OnNodeTypeChanged(MindMapNodeType value)
+        {
+            OnPropertyChanged(nameof(FormatBadge));
+            OnPropertyChanged(nameof(AccessibleSummary));
+        }
 
         partial void OnFilePathChanged(string? value)
         {
@@ -224,9 +265,14 @@ namespace MarkSmith.ViewModels.MindMap
                     FileExtension = name[dot..].ToLowerInvariant();
                 }
             }
+            OnPropertyChanged(nameof(AccessibleSummary));
         }
 
-        partial void OnConnectionCountChanged(int value) => OnPropertyChanged(nameof(IsHub));
+        partial void OnConnectionCountChanged(int value)
+        {
+            OnPropertyChanged(nameof(IsHub));
+            OnPropertyChanged(nameof(AccessibleSummary));
+        }
 
         public MindMapNodeViewModel(MindMapNode model)
         {
@@ -254,6 +300,7 @@ namespace MarkSmith.ViewModels.MindMap
             {
                 OnPropertyChanged(nameof(HasTags));
                 OnPropertyChanged(nameof(TagSummary));
+                OnPropertyChanged(nameof(AccessibleSummary));
             };
         }
 

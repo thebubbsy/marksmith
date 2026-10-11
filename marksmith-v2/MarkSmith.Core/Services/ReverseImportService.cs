@@ -126,7 +126,7 @@ public sealed class ReverseImportService : IReverseImportService
             MediaLink = Plugins.PluginFileReader.MediaLinkFor(pdfPath, mediaDir),
             RenderPage = PdfPageRenderer is null ? null : n => PdfPageRenderer(pdfPath, n),
         };
-        using var stream = File.OpenRead(pdfPath);
+        using var stream = new MemoryStream(File.ReadAllBytes(pdfPath), writable: false);
         return ImportFromPdf(stream, options);
     }
 

@@ -26,15 +26,95 @@ public sealed partial class NodePaletteControl : UserControl
     private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush RowHoverBorder = new(Windows.UI.Color.FromArgb(255, 0x4C, 0xC9, 0xF0));
     private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush RowRestFill = new(Windows.UI.Color.FromArgb(255, 0x2B, 0x2D, 0x42));
     private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush RowHoverFill = new(Windows.UI.Color.FromArgb(255, 0x33, 0x36, 0x50));
+    private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush PlusRestBrush = new(Windows.UI.Color.FromArgb(255, 0x8D, 0x99, 0xAE));
 
     private void OnRowPointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
-        if (sender is Microsoft.UI.Xaml.Controls.Border row) { row.BorderBrush = RowHoverBorder; row.Background = RowHoverFill; }
+        if (sender is Microsoft.UI.Xaml.Controls.Border row)
+        {
+            row.BorderBrush = RowHoverBorder;
+            row.Background = RowHoverFill;
+            row.ScaleTransition ??= new Microsoft.UI.Xaml.Vector3Transition { Duration = TimeSpan.FromMilliseconds(120) };
+            row.CenterPoint = new System.Numerics.Vector3((float)row.ActualWidth / 2f, (float)row.ActualHeight / 2f, 0);
+            row.Scale = new System.Numerics.Vector3(1.02f, 1.02f, 1f);
+            if (row.Child is Grid g && g.Children.OfType<FontIcon>().FirstOrDefault() is { } plus)
+                plus.Foreground = RowHoverBorder;
+        }
+    }
+
+    private void OnRowPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is Microsoft.UI.Xaml.Controls.Border row)
+        {
+            row.ScaleTransition ??= new Microsoft.UI.Xaml.Vector3Transition { Duration = TimeSpan.FromMilliseconds(90) };
+            row.CenterPoint = new System.Numerics.Vector3((float)row.ActualWidth / 2f, (float)row.ActualHeight / 2f, 0);
+            row.Scale = new System.Numerics.Vector3(0.98f, 0.98f, 1f);
+        }
+    }
+
+    private void OnRowPointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is Microsoft.UI.Xaml.Controls.Border row)
+            row.Scale = new System.Numerics.Vector3(1.02f, 1.02f, 1f);
     }
 
     private void OnRowPointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
-        if (sender is Microsoft.UI.Xaml.Controls.Border row) { row.BorderBrush = RowRestBorder; row.Background = RowRestFill; }
+        if (sender is Microsoft.UI.Xaml.Controls.Border row)
+        {
+            row.BorderBrush = RowRestBorder;
+            row.Background = RowRestFill;
+            row.Scale = System.Numerics.Vector3.One;
+            if (row.Child is Grid g && g.Children.OfType<FontIcon>().FirstOrDefault() is { } plus)
+                plus.Foreground = PlusRestBrush;
+        }
+    }
+
+    private void OnRowRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (sender is Microsoft.UI.Xaml.FrameworkElement { DataContext: ViewModels.Mermaid.MermaidPaletteItem item } fe)
+        {
+            ShowPaletteItemContextMenu(fe, item, e.GetPosition(fe));
+            e.Handled = true;
+        }
+    }
+
+    private void ShowPaletteItemContextMenu(Microsoft.UI.Xaml.FrameworkElement target, ViewModels.Mermaid.MermaidPaletteItem item, Windows.Foundation.Point? position = null)
+    {
+        var flyout = new MenuFlyout();
+
+        var addItem = new MenuFlyoutItem
+        {
+            Text = $"Add {item.DisplayName}",
+            Icon = new FontIcon { Glyph = "\uE710" },
+            KeyboardAcceleratorTextOverride = "Enter"
+        };
+        addItem.Click += (_, _) => ShapeRequested?.Invoke(this, item);
+        flyout.Items.Add(addItem);
+
+        if (DataContext is ViewModels.Mermaid.MermaidStudioViewModel { SelectedNode: { CanQuickAdd: true } selected } vm)
+        {
+            var connectItem = new MenuFlyoutItem
+            {
+                Text = $"Connect to '{ViewModels.Mermaid.MermaidStudioViewModel.DisplayName(selected)}'",
+                Icon = new FontIcon { Glyph = "\uE8AB" }
+            };
+            connectItem.Click += (_, _) =>
+            {
+                var added = vm.QuickAddNode(selected, "Right");
+                added.Shape = item.ShapeType;
+                added.Category = item.Category;
+                added.LabelText = item.DefaultText;
+                if (added.IsPseudoState) added.Width = added.Height = 28;
+                vm.UpdateConnectedConnectors(added);
+            };
+            flyout.Items.Add(connectItem);
+        }
+
+        if (position is { } pt)
+            flyout.ShowAt(target, new FlyoutShowOptions { Position = pt });
+        else
+            flyout.ShowAt(target);
     }
 
     private void OnPaletteItemClick(object sender, ItemClickEventArgs e)
@@ -133,6 +213,28 @@ public sealed partial class NodePaletteControl : UserControl
         {
             SearchTextBox.Focus(Microsoft.UI.Xaml.FocusState.Keyboard);
             e.Handled = true;
+            return;
+        }
+
+        var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
+        {
+            if (e.OriginalSource is Microsoft.UI.Xaml.FrameworkElement { DataContext: ViewModels.Mermaid.MermaidPaletteItem ctxItem } fe)
+            {
+                ShowPaletteItemContextMenu(fe, ctxItem);
+                e.Handled = true;
+            }
+            return;
+        }
+
+        if (e.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)
+        {
+            if (e.OriginalSource is Microsoft.UI.Xaml.FrameworkElement { DataContext: ViewModels.Mermaid.MermaidPaletteItem item })
+            {
+                ShapeRequested?.Invoke(this, item);
+                e.Handled = true;
+            }
         }
     }
 
@@ -191,6 +293,8 @@ public sealed partial class NodePaletteControl : UserControl
                     : selectedCat == "All" ? $"No shapes match “{rawQuery}”." : $"No {selectedCat} shapes match “{rawQuery}”.";
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(NoMatchesText, NoMatchesText.Text);
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(NoMatchesText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
+                Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(NoMatchesText)
+                    ?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
             }
         }
     }

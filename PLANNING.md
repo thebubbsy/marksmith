@@ -6485,3 +6485,32 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Live WinUI 3 UIAutomation + `PrintWindow` screenshot verification (`settings_1_general.png` through `settings_7_about.png`) using isolated `MARKSMITH_CONFIG_DIR="$env:TEMP\ms_ag2\cfg"`:
   - Verified all 7 Settings pages (`General`, `PDF`, `Automation`, `Google Docs`, `License`, `Plugins`, `About & updates`) open and switch cleanly via UIA, `CheckRing` collapses when idle so `Check for updates` sits flush on the `About & updates` hero card, and the test process (`PID 15856`) terminated cleanly.
 
+### 2026-10-12 (OCR Inspection Studio Standalone Window & Element Reclassification Engine)
+
+**Shipped:**
+- `MarkSmith.Core/Ocr/OcrBlockReclassifier.cs`:
+  - Bidirectional element reclassification engine converting between `Picture`, `ShapeMosaic`, `Diagram`, `Table`, `KeyValue`, `Heading`, `List`, and `Paragraph`.
+  - Intelligently generates Mermaid diagram flowcharts from text/flow lines, Markdown tables from tab/pipe/column delimiters, key-value bold colon structures, headings with `#` depth, bullet lists, and preserves original image/mosaic asset paths for lossless resets.
+- `MarkSmith.Core/Ocr/OcrInspectionModels.cs`:
+  - Core data model tracking `OcrInspectionElement`, `OcrInspectionPage`, `OcrInspectionSession`, and `OcrInspectionResult`.
+  - Multi-page navigation state (`CanPreviousPage`, `CanNextPage`, `PreviousPage()`, `NextPage()`), page-level and document-level Markdown aggregation, and reclassification telemetry.
+- `MarkSmith.Desktop/Views/Ocr/OcrInspectionStudioWindow.xaml(.cs)`:
+  - Standalone, user-controllable review studio window with standard WinUI 3 window chrome (title bar caption buttons, min/max/close, resizable, DPI-aware initial sizing).
+  - Permanent interactive review mode: **NEVER auto-closes or auto-fades away** after document scanning completes.
+  - Prominent Call-to-Action (CTA) ribbon with `Import into MarkSmith` (Accent button, `Ctrl+Enter`) and `Cancel & Discard` (`Esc`) buttons.
+  - 3-Pane stage:
+    1. **Left Canvas Pane**: Document page preview image with interactive element bounding boxes, kind-specific color palette badges, and sweeping scan laser during active scan.
+    2. **Middle Inspector Pane**: Scrollable element cards with word counts, quick reclassify ComboBoxes, and Reset button.
+    3. **Right Preview Pane**: Live real-time Markdown preview updating instantly upon reclassification, with Current Page vs Full Document view toggle.
+  - Title bar page flicking controls: Previous Page / Next Page buttons, keyboard navigation (`Left`/`Right`, `PageUp`/`PageDown`), and page indicator badge.
+- `MarkSmith.Desktop/MainWindow.xaml.cs`:
+  - Routed all document import paths (`.pdf`, `.docx`, `.xlsx`, `.csv`, images, and plugins in `OpenFileAsync`, `ImportScannedImageToEditorAsync`, `OpenOrImportDocumentAsync`, and `OnInsertSpreadsheetClick`) to instantiate `OcrInspectionStudioWindow`, await `studio.WaitForDecisionAsync()`, and only commit Markdown to the editor upon explicit user confirmation.
+  - Added `AmbientStudioOcrObserver` wiring `OcrTrace.DefaultObserver` to dispatch and manage `OcrInspectionStudioWindow` for any ambient OCR operations.
+- `MarkSmith.Tests/Ocr/OcrInspectionStudioTests.cs`:
+  - 5 exhaustive unit tests covering bidirectional reclassification, Markdown generation, round-tripping, multi-page flicking, and document aggregation.
+
+**Verified:**
+- `dotnet build MarkSmith.Desktop/MarkSmith.Desktop.csproj`: **0 errors**.
+- Full test suite (`MarkSmith.Tests.csproj`): **4,738 passed, 0 failed** (1 skipped pre-existing remote network test).
+- OCR test suite (`OcrExperienceAndVisualsTests`, `OcrInspectionStudioTests`): **64 passed, 0 failed**.
+

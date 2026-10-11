@@ -19,20 +19,49 @@ public sealed record OcrPagePreview(
     byte[] Image, int ImageWidth, int ImageHeight, string Engine);
 
 /// <summary>A recognised word: its text, where it sits on the page, and which block it ended up in.</summary>
-public sealed record OcrTraceWord(string Text, OcrNormRect Box, int Block);
+public sealed record OcrTraceWord(string Text, OcrNormRect Box, int Block = 0);
 
 /// <summary>A Markdown block assembled from the page, in reading order, with the page area it came from.</summary>
-public sealed record OcrTraceBlock(int Index, OcrBlockKind Kind, string Markdown, OcrNormRect Box, int WordCount);
+public sealed record OcrTraceBlock(int Index, OcrBlockKind Kind, string Markdown, OcrNormRect Box, int WordCount = 0)
+{
+    public OcrTraceBlock(OcrBlockKind kind, string markdown, OcrNormRect box, int index = 0, int wordCount = 0)
+        : this(index, kind, markdown, box, wordCount) { }
+}
 
 /// <summary>Everything the engine found on one page, in reading order.</summary>
 public sealed record OcrPageTrace(
     int PageNumber, IReadOnlyList<OcrTraceWord> Words, IReadOnlyList<OcrTraceBlock> Blocks,
-    string Markdown, TimeSpan Elapsed)
+    string Markdown, TimeSpan Elapsed, IReadOnlyList<float>? CutLines = null)
 {
+    public IReadOnlyList<float> CutLines { get; init; } = CutLines ?? ComputeCutLines(Blocks);
     public int HeadingCount => Blocks.Count(b => b.Kind == OcrBlockKind.Heading);
     public int ListCount => Blocks.Count(b => b.Kind == OcrBlockKind.List);
     public int PictureCount => Blocks.Count(b => b.Kind == OcrBlockKind.Picture);
     public int DiagramCount => Blocks.Count(b => b.Kind is OcrBlockKind.Diagram or OcrBlockKind.ShapeMosaic);
+
+    private static IReadOnlyList<float> ComputeCutLines(IReadOnlyList<OcrTraceBlock> blocks)
+    {
+        var list = new List<float>();
+        if (blocks == null || blocks.Count == 0) return list;
+        for (int i = 0; i < blocks.Count - 1; i++)
+        {
+            var curr = blocks[i];
+            var next = blocks[i + 1];
+            if (next.Box.Y > curr.Box.Bottom + 0.005f)
+            {
+                list.Add((curr.Box.Bottom + next.Box.Y) * 0.5f);
+            }
+            else if (next.Box.Y >= curr.Box.Y)
+            {
+                list.Add(next.Box.Y);
+            }
+        }
+        if (list.Count == 0 && blocks.Count > 0)
+        {
+            list.Add(blocks[0].Box.Y);
+        }
+        return list;
+    }
 }
 
 /// <summary>
@@ -86,10 +115,13 @@ public readonly record struct OcrPlaybackSchedule(
     {
         double timeScale = pageCount <= 1
             ? 1.0
-            : (pageIndex == 0 ? 0.85 : 0.60);
+            : (pageIndex == 0
+                ? 0.85
+                : (pageCount <= 3 ? 0.60 : Math.Clamp(2.2 / pageCount, 0.40, 0.60)));
 
-        int stage1Target = (int)Math.Round(1150 * timeScale);
-        int stage1Remaining = Math.Clamp(stage1Target - Math.Max(0, stage1ElapsedMs), 450, stage1Target);
+        int stage1Target = Math.Max(300, (int)Math.Round(1150 * timeScale));
+        int stage1Floor = Math.Min(450, stage1Target);
+        int stage1Remaining = Math.Clamp(stage1Target - Math.Max(0, stage1ElapsedMs), stage1Floor, stage1Target);
 
         int stage2Target = (int)Math.Round(1600 * timeScale);
         int stage2Steps = Math.Clamp(blockCount, 1, 8);
@@ -147,6 +179,27 @@ public static class OcrTrace
         return new OcrPagePreview(pageNumber, pageIndex, pageCount, data.ToArray(), w, h, engine);
     }
 
+    /// <summary>True when <paramref name="bmp"/> has readable luminance/color variation (i.e. is not a solid uniform color rectangle).</summary>
+    public static bool HasReadablePageContrast(SKBitmap? bmp)
+    {
+        if (bmp is null || bmp.Width < 16 || bmp.Height < 16) return false;
+        int minLum = 255, maxLum = 0;
+        int stepX = Math.Max(1, bmp.Width / 64);
+        int stepY = Math.Max(1, bmp.Height / 64);
+        for (int y = stepY; y < bmp.Height - stepY; y += stepY)
+        {
+            for (int x = stepX; x < bmp.Width - stepX; x += stepX)
+            {
+                var c = bmp.GetPixel(x, y);
+                int lum = (c.Red * 77 + c.Green * 150 + c.Blue * 29) >> 8;
+                if (lum < minLum) minLum = lum;
+                if (lum > maxLum) maxLum = lum;
+                if (maxLum - minLum >= 24) return true;
+            }
+        }
+        return false;
+    }
+
     /// <summary>The page's words and Markdown blocks in reading order, boxes as page fractions.</summary>
     public static OcrPageTrace Build(
         int pageNumber,
@@ -194,6 +247,15 @@ public static class OcrTrace
         catch (Exception ex) { Debug.WriteLine($"OCR observer (start) failed: {ex.Message}"); }
     }
 
+    /// <summary>Tells the observer a pre-built page preview is starting; never throws.</summary>
+    public static void NotifyStarted(IOcrObserver? observer, OcrPagePreview preview)
+    {
+        var target = observer ?? DefaultObserver;
+        if (target is null) return;
+        try { target.PageStarted(preview); }
+        catch (Exception ex) { Debug.WriteLine($"OCR observer (start preview) failed: {ex.Message}"); }
+    }
+
     /// <summary>Tells the observer a page is read; never throws.</summary>
     public static void NotifyRead(
         IOcrObserver? observer,
@@ -208,6 +270,100 @@ public static class OcrTrace
         catch (Exception ex) { Debug.WriteLine($"OCR observer (read) failed: {ex.Message}"); }
     }
 
+    /// <summary>Tells the observer a pre-built page trace is read; never throws.</summary>
+    public static void NotifyRead(IOcrObserver? observer, OcrPageTrace trace)
+    {
+        var target = observer ?? DefaultObserver;
+        if (target is null) return;
+        try { target.PageRead(trace); }
+        catch (Exception ex) { Debug.WriteLine($"OCR observer (read trace) failed: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// Renders or encodes a page preview for a digital PDF page: uses <paramref name="renderedBitmap"/> when
+    /// available and legible, or synthesizes a coordinate-aligned white page sheet from <paramref name="blocks"/>
+    /// and <paramref name="words"/> so the user always sees the page's real layout.
+    /// </summary>
+    public static (OcrPagePreview Preview, OcrPageTrace Trace) RenderDigitalPagePreview(
+        int pageNumber,
+        int pageIndex,
+        int pageCount,
+        string engineLabel,
+        IReadOnlyList<OcrTraceBlock> blocks,
+        IReadOnlyList<OcrTraceWord> words,
+        SKBitmap? renderedBitmap = null,
+        TimeSpan? elapsed = null)
+    {
+        OcrPagePreview preview;
+        if (renderedBitmap is not null && HasReadablePageContrast(renderedBitmap))
+        {
+            preview = Preview(renderedBitmap, pageNumber, pageIndex, pageCount, engineLabel);
+        }
+        else
+        {
+            const int pageW = 960;
+            const int pageH = 1320;
+            using var bmp = new SKBitmap(pageW, pageH, SKColorType.Bgra8888, SKAlphaType.Opaque);
+            using var canvas = new SKCanvas(bmp);
+            canvas.Clear(new SKColor(252, 253, 255));
+
+            using var borderPaint = new SKPaint { Color = new SKColor(226, 232, 240), Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
+            canvas.DrawRect(new SKRect(20, 20, pageW - 20, pageH - 20), borderPaint);
+
+            using var typefaceSans = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Normal) ?? SKTypeface.Default;
+            using var typefaceBold = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold) ?? SKTypeface.Default;
+            using var headerPaint = new SKPaint { Color = new SKColor(148, 163, 184), IsAntialias = true, Typeface = typefaceSans, TextSize = 13f };
+            string title = string.IsNullOrWhiteSpace(engineLabel) ? "MarkSmith PDF Reader" : engineLabel;
+            canvas.DrawText($"{title} · Page {pageNumber} of {Math.Max(1, pageCount)}", 68f, 48f, headerPaint);
+            canvas.DrawLine(68f, 58f, pageW - 68f, 58f, borderPaint);
+
+            if (words.Count > 0)
+            {
+                var headingBlocks = blocks.Where(b => b.Kind == OcrBlockKind.Heading).Select(b => b.Index).ToHashSet();
+                foreach (var w in words)
+                {
+                    bool isH = headingBlocks.Contains(w.Block);
+                    float px = Math.Clamp(w.Box.X * pageW, 36f, pageW - 48f);
+                    float py = Math.Clamp(w.Box.Y * pageH, 66f, pageH - 36f);
+                    float ph = Math.Clamp(w.Box.Height * pageH, 12f, 34f);
+                    using var tp = new SKPaint
+                    {
+                        Color = isH ? new SKColor(15, 23, 42) : new SKColor(51, 65, 85),
+                        IsAntialias = true,
+                        Typeface = isH ? typefaceBold : typefaceSans,
+                        TextSize = isH ? Math.Max(18f, ph * 0.85f) : Math.Clamp(ph * 0.78f, 13f, 17f),
+                    };
+                    canvas.DrawText(w.Text, px, py + tp.TextSize, tp);
+                }
+            }
+
+            foreach (var b in blocks)
+            {
+                if (b.Kind == OcrBlockKind.Picture)
+                {
+                    var r = new SKRect(b.Box.X * pageW, b.Box.Y * pageH, b.Box.Right * pageW, b.Box.Bottom * pageH);
+                    DrawSynthesizedPicture(canvas, r, b.Markdown, typefaceSans);
+                }
+                else if (b.Kind == OcrBlockKind.Diagram)
+                {
+                    var r = new SKRect(b.Box.X * pageW, b.Box.Y * pageH, b.Box.Right * pageW, b.Box.Bottom * pageH);
+                    DrawSynthesizedDiagram(canvas, r, b.Markdown, b.Index, new List<OcrTraceWord>(), (x, y, w, h) => default, typefaceBold);
+                }
+                else if (b.Kind == OcrBlockKind.ShapeMosaic)
+                {
+                    var r = new SKRect(b.Box.X * pageW, b.Box.Y * pageH, b.Box.Right * pageW, b.Box.Bottom * pageH);
+                    DrawSynthesizedMosaic(canvas, r);
+                }
+            }
+
+            preview = Preview(bmp, pageNumber, pageIndex, pageCount, engineLabel);
+        }
+
+        string pageMarkdown = string.Join("\n\n", blocks.Select(b => b.Markdown)).Trim();
+        var trace = new OcrPageTrace(pageNumber, words, blocks, pageMarkdown, elapsed ?? TimeSpan.FromMilliseconds(35));
+        return (preview, trace);
+    }
+
     /// <summary>
     /// Synthesizes a realistic document page preview (<see cref="OcrPagePreview"/>) and pixel-aligned
     /// word/element trace (<see cref="OcrPageTrace"/>) from any imported Markdown document (Word, PDF,
@@ -217,6 +373,21 @@ public static class OcrTrace
         string markdown,
         string engineLabel,
         TimeSpan? elapsed = null)
+    {
+        var pages = SynthesizePagesFromMarkdown(markdown, engineLabel, elapsed, maxPages: 1);
+        return pages[0];
+    }
+
+    /// <summary>
+    /// Synthesizes a multi-page sequence of document page previews and pixel-aligned word/element traces
+    /// from any imported Markdown document so multi-page imports flash up page after page and break down
+    /// each and every page in reading order.
+    /// </summary>
+    public static IReadOnlyList<(OcrPagePreview Preview, OcrPageTrace Trace)> SynthesizePagesFromMarkdown(
+        string markdown,
+        string engineLabel,
+        TimeSpan? elapsed = null,
+        int maxPages = 12)
     {
         const int pageW = 960;
         const int pageH = 1320;
@@ -231,131 +402,197 @@ public static class OcrTrace
         }
 
         var parsedBlocks = ParseMarkdownBlocks(markdown);
-        var words = new List<OcrTraceWord>();
-        var tracedBlocks = new List<OcrTraceBlock>(parsedBlocks.Count);
+        if (parsedBlocks.Count == 0 && !string.IsNullOrWhiteSpace(markdown))
+        {
+            parsedBlocks.Add((OcrBlockKind.Paragraph, markdown.Trim()));
+        }
 
-        using var bmp = new SKBitmap(pageW, pageH, SKColorType.Bgra8888, SKAlphaType.Opaque);
-        using var canvas = new SKCanvas(bmp);
-        canvas.Clear(new SKColor(252, 253, 255));
+        // Partition blocks into realistic pages based on vertical height and block count per page.
+        var pageChunks = new List<List<(OcrBlockKind Kind, string Markdown)>>();
+        if (maxPages <= 1 || parsedBlocks.Count <= 6)
+        {
+            pageChunks.Add(parsedBlocks.Take(24).ToList());
+        }
+        else
+        {
+            var currentChunk = new List<(OcrBlockKind Kind, string Markdown)>();
+            float estY = 82f;
+            foreach (var item in parsedBlocks)
+            {
+                float estH = EstimateSynthesizedBlockHeight(item.Kind, item.Markdown);
+                bool pageFull = currentChunk.Count >= 6 || (currentChunk.Count > 0 && estY + estH > pageH - 110f);
+                if (pageFull && pageChunks.Count + 1 < maxPages)
+                {
+                    pageChunks.Add(currentChunk);
+                    currentChunk = new List<(OcrBlockKind Kind, string Markdown)>();
+                    estY = 82f;
+                }
+                currentChunk.Add(item);
+                estY += estH;
+                if (currentChunk.Count >= 18) break;
+            }
+            if (currentChunk.Count > 0)
+            {
+                pageChunks.Add(currentChunk);
+            }
+        }
 
-        // Subtle document page frame and header rule
-        using var borderPaint = new SKPaint { Color = new SKColor(226, 232, 240), Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
-        canvas.DrawRect(new SKRect(20, 20, pageW - 20, pageH - 20), borderPaint);
+        if (pageChunks.Count == 0)
+        {
+            pageChunks.Add(new List<(OcrBlockKind, string)>());
+        }
+
+        int totalPages = pageChunks.Count;
+        var results = new List<(OcrPagePreview Preview, OcrPageTrace Trace)>(totalPages);
+        var perPageElapsed = TimeSpan.FromMilliseconds(
+            Math.Max(12, (elapsed ?? TimeSpan.FromMilliseconds(42)).TotalMilliseconds / Math.Max(1, totalPages)));
 
         using var typefaceSans = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Normal) ?? SKTypeface.Default;
         using var typefaceBold = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold) ?? SKTypeface.Default;
-        using var headerPaint = new SKPaint { Color = new SKColor(148, 163, 184), IsAntialias = true, Typeface = typefaceSans, TextSize = 13f };
-        canvas.DrawText(string.IsNullOrWhiteSpace(engineLabel) ? "MarkSmith Document Import" : engineLabel, marginX, 48f, headerPaint);
-        canvas.DrawLine(marginX, 58f, pageW - marginX, 58f, borderPaint);
 
-        float curY = 82f;
-        int maxBlocksToTrace = Math.Min(parsedBlocks.Count, 24);
-
-        for (int i = 0; i < maxBlocksToTrace; i++)
+        for (int pIdx = 0; pIdx < totalPages; pIdx++)
         {
-            var (kind, rawBlock) = parsedBlocks[i];
-            int wordsBefore = words.Count;
-            float blockTop = Math.Min(curY, pageH - 80f);
-            float blockLeft = marginX;
-            float blockRight = marginX + 180f;
+            int pageNum = pIdx + 1;
+            var chunk = pageChunks[pIdx];
+            var words = new List<OcrTraceWord>();
+            var tracedBlocks = new List<OcrTraceBlock>(chunk.Count);
 
-            if (curY < pageH - 90f)
+            using var bmp = new SKBitmap(pageW, pageH, SKColorType.Bgra8888, SKAlphaType.Opaque);
+            using var canvas = new SKCanvas(bmp);
+            canvas.Clear(new SKColor(252, 253, 255));
+
+            // Subtle document page frame and header rule
+            using var borderPaint = new SKPaint { Color = new SKColor(226, 232, 240), Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
+            canvas.DrawRect(new SKRect(20, 20, pageW - 20, pageH - 20), borderPaint);
+
+            using var headerPaint = new SKPaint { Color = new SKColor(148, 163, 184), IsAntialias = true, Typeface = typefaceSans, TextSize = 13f };
+            string headerTitle = string.IsNullOrWhiteSpace(engineLabel) ? "MarkSmith Document Import" : engineLabel;
+            if (totalPages > 1)
+                headerTitle = $"{headerTitle} · Page {pageNum} of {totalPages}";
+            canvas.DrawText(headerTitle, marginX, 48f, headerPaint);
+            canvas.DrawLine(marginX, 58f, pageW - marginX, 58f, borderPaint);
+
+            float curY = 82f;
+            int maxBlocksToTrace = Math.Min(chunk.Count, 24);
+
+            for (int i = 0; i < maxBlocksToTrace; i++)
             {
-                if (kind == OcrBlockKind.Diagram)
+                var (kind, rawBlock) = chunk[i];
+                int wordsBefore = words.Count;
+                float blockTop = Math.Min(curY, pageH - 80f);
+                float blockLeft = marginX;
+                float blockRight = marginX + 180f;
+
+                if (curY < pageH - 90f)
                 {
-                    float boxH = 112f;
-                    var rect = new SKRect(marginX, curY, marginX + contentW, Math.Min(pageH - 36f, curY + boxH));
-                    DrawSynthesizedDiagram(canvas, rect, rawBlock, i, words, Norm, typefaceBold);
-                    blockLeft = rect.Left;
-                    blockRight = rect.Right;
-                    curY = rect.Bottom + 22f;
-                }
-                else if (kind == OcrBlockKind.ShapeMosaic)
-                {
-                    float boxH = 104f;
-                    var rect = new SKRect(marginX, curY, marginX + contentW, Math.Min(pageH - 36f, curY + boxH));
-                    DrawSynthesizedMosaic(canvas, rect);
-                    blockLeft = rect.Left;
-                    blockRight = rect.Right;
-                    curY = rect.Bottom + 22f;
-                }
-                else if (kind == OcrBlockKind.Picture)
-                {
-                    float boxH = 96f;
-                    var rect = new SKRect(marginX, curY, marginX + contentW * 0.72f, Math.Min(pageH - 36f, curY + boxH));
-                    DrawSynthesizedPicture(canvas, rect, rawBlock, typefaceSans);
-                    blockLeft = rect.Left;
-                    blockRight = rect.Right;
-                    curY = rect.Bottom + 22f;
+                    if (kind == OcrBlockKind.Diagram)
+                    {
+                        float boxH = 112f;
+                        var rect = new SKRect(marginX, curY, marginX + contentW, Math.Min(pageH - 36f, curY + boxH));
+                        DrawSynthesizedDiagram(canvas, rect, rawBlock, i, words, Norm, typefaceBold);
+                        blockLeft = rect.Left;
+                        blockRight = rect.Right;
+                        curY = rect.Bottom + 22f;
+                    }
+                    else if (kind == OcrBlockKind.ShapeMosaic)
+                    {
+                        float boxH = 104f;
+                        var rect = new SKRect(marginX, curY, marginX + contentW, Math.Min(pageH - 36f, curY + boxH));
+                        DrawSynthesizedMosaic(canvas, rect);
+                        blockLeft = rect.Left;
+                        blockRight = rect.Right;
+                        curY = rect.Bottom + 22f;
+                    }
+                    else if (kind == OcrBlockKind.Picture)
+                    {
+                        float boxH = 96f;
+                        var rect = new SKRect(marginX, curY, marginX + contentW * 0.72f, Math.Min(pageH - 36f, curY + boxH));
+                        DrawSynthesizedPicture(canvas, rect, rawBlock, typefaceSans);
+                        blockLeft = rect.Left;
+                        blockRight = rect.Right;
+                        curY = rect.Bottom + 22f;
+                    }
+                    else
+                    {
+                        bool isHeading = kind == OcrBlockKind.Heading;
+                        bool isList = kind == OcrBlockKind.List;
+                        float fontSize = isHeading ? (rawBlock.StartsWith("# ") ? 26f : 21f) : 16.5f;
+                        float lineH = fontSize * 1.42f;
+                        using var textPaint = new SKPaint
+                        {
+                            Color = isHeading ? new SKColor(15, 23, 42) : new SKColor(51, 65, 85),
+                            IsAntialias = true,
+                            Typeface = isHeading ? typefaceBold : typefaceSans,
+                            TextSize = fontSize,
+                        };
+
+                        var linesToDraw = PrepareDisplayLines(rawBlock, kind);
+                        int maxLines = isHeading ? 2 : 5;
+                        foreach (var lineText in linesToDraw.Take(maxLines))
+                        {
+                            if (curY + lineH > pageH - 40f) break;
+                            float x = marginX + (isList ? 18f : 0f);
+                            if (isList)
+                            {
+                                using var bulletPaint = new SKPaint { Color = new SKColor(16, 185, 129), IsAntialias = true, Style = SKPaintStyle.Fill };
+                                canvas.DrawCircle(marginX + 6f, curY + fontSize * 0.65f, 3.5f, bulletPaint);
+                            }
+
+                            var tokens = lineText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                            foreach (var tok in tokens)
+                            {
+                                float wWidth = Math.Max(14f, textPaint.MeasureText(tok));
+                                if (x + wWidth > marginX + contentW && x > marginX + 24f)
+                                {
+                                    curY += lineH;
+                                    x = marginX + (isList ? 18f : 0f);
+                                    if (curY + lineH > pageH - 40f) break;
+                                }
+                                canvas.DrawText(tok, x, curY + fontSize, textPaint);
+                                words.Add(new OcrTraceWord(tok, Norm(x, curY + 2f, wWidth, fontSize + 4f), i));
+                                if (x + wWidth > blockRight) blockRight = x + wWidth;
+                                x += wWidth + fontSize * 0.34f;
+                            }
+                            curY += lineH;
+                        }
+                        curY += isHeading ? 14f : 16f;
+                    }
                 }
                 else
                 {
-                    bool isHeading = kind == OcrBlockKind.Heading;
-                    bool isList = kind == OcrBlockKind.List;
-                    float fontSize = isHeading ? (rawBlock.StartsWith("# ") ? 26f : 21f) : 16.5f;
-                    float lineH = fontSize * 1.42f;
-                    using var textPaint = new SKPaint
+                    // Off-sheet blocks still contribute their words and block cards to the trace.
+                    foreach (var tok in ExtractPlainWords(rawBlock).Take(24))
                     {
-                        Color = isHeading ? new SKColor(15, 23, 42) : new SKColor(51, 65, 85),
-                        IsAntialias = true,
-                        Typeface = isHeading ? typefaceBold : typefaceSans,
-                        TextSize = fontSize,
-                    };
-
-                    var linesToDraw = PrepareDisplayLines(rawBlock, kind);
-                    int maxLines = isHeading ? 2 : 5;
-                    foreach (var lineText in linesToDraw.Take(maxLines))
-                    {
-                        if (curY + lineH > pageH - 40f) break;
-                        float x = marginX + (isList ? 18f : 0f);
-                        if (isList)
-                        {
-                            using var bulletPaint = new SKPaint { Color = new SKColor(16, 185, 129), IsAntialias = true, Style = SKPaintStyle.Fill };
-                            canvas.DrawCircle(marginX + 6f, curY + fontSize * 0.65f, 3.5f, bulletPaint);
-                        }
-
-                        var tokens = lineText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                        foreach (var tok in tokens)
-                        {
-                            float wWidth = Math.Max(14f, textPaint.MeasureText(tok));
-                            if (x + wWidth > marginX + contentW && x > marginX + 24f)
-                            {
-                                curY += lineH;
-                                x = marginX + (isList ? 18f : 0f);
-                                if (curY + lineH > pageH - 40f) break;
-                            }
-                            canvas.DrawText(tok, x, curY + fontSize, textPaint);
-                            words.Add(new OcrTraceWord(tok, Norm(x, curY + 2f, wWidth, fontSize + 4f), i));
-                            if (x + wWidth > blockRight) blockRight = x + wWidth;
-                            x += wWidth + fontSize * 0.34f;
-                        }
-                        curY += lineH;
+                        words.Add(new OcrTraceWord(tok, Norm(marginX + 12f, pageH - 64f, 48f, 18f), i));
                     }
-                    curY += isHeading ? 14f : 16f;
                 }
-            }
-            else
-            {
-                // Off-sheet blocks still contribute their words and block cards to the trace.
-                foreach (var tok in ExtractPlainWords(rawBlock).Take(24))
-                {
-                    words.Add(new OcrTraceWord(tok, Norm(marginX + 12f, pageH - 64f, 48f, 18f), i));
-                }
+
+                float blockBottom = Math.Clamp(Math.Max(blockTop + 24f, curY - 14f), blockTop + 20f, pageH - 28f);
+                var blockBox = Norm(blockLeft, blockTop, Math.Max(120f, blockRight - blockLeft), blockBottom - blockTop);
+                tracedBlocks.Add(new OcrTraceBlock(i, kind, rawBlock, blockBox, words.Count - wordsBefore));
             }
 
-            float blockBottom = Math.Clamp(Math.Max(blockTop + 24f, curY - 14f), blockTop + 20f, pageH - 28f);
-            var blockBox = Norm(blockLeft, blockTop, Math.Max(120f, blockRight - blockLeft), blockBottom - blockTop);
-            tracedBlocks.Add(new OcrTraceBlock(i, kind, rawBlock, blockBox, words.Count - wordsBefore));
+            string pageMarkdown = totalPages == 1
+                ? markdown.Trim()
+                : string.Join("\n\n", chunk.Select(c => c.Markdown)).Trim();
+            var preview = Preview(bmp, pageNum, pIdx, totalPages, engineLabel);
+            var trace = new OcrPageTrace(pageNum, words, tracedBlocks, pageMarkdown, perPageElapsed);
+            results.Add((preview, trace));
         }
 
-        var preview = Preview(bmp, 1, 0, 1, engineLabel);
-        var trace = new OcrPageTrace(
-            1,
-            words,
-            tracedBlocks,
-            markdown.Trim(),
-            elapsed ?? TimeSpan.FromMilliseconds(42));
-        return (preview, trace);
+        return results;
+    }
+
+    private static float EstimateSynthesizedBlockHeight(OcrBlockKind kind, string rawBlock)
+    {
+        return kind switch
+        {
+            OcrBlockKind.Diagram => 134f,
+            OcrBlockKind.ShapeMosaic => 126f,
+            OcrBlockKind.Picture => 118f,
+            OcrBlockKind.Heading => 62f,
+            _ => Math.Clamp(PrepareDisplayLines(rawBlock, kind).Count, 1, 5) * 32f + 24f,
+        };
     }
 
     private static List<(OcrBlockKind Kind, string Markdown)> ParseMarkdownBlocks(string markdown)

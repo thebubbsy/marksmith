@@ -93,15 +93,63 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     /// <summary>The inspector's colour row: "Fill" for shapes, "Colour" for lines.</summary>
     public string ColourLabel => IsLine ? "Colour" : "Fill";
 
+    /// <summary>Accessible name and tooltip for the swatch button in the inspector.</summary>
+    public string ColourPickerLabel => IsLine ? "Pick line colour" : "Pick fill colour";
+
+    /// <summary>Accessible name for the hex input box in the inspector.</summary>
+    public string ColourHexLabel => IsLine ? "Line colour" : "Fill colour";
+
+    /// <summary>Tooltip for the hex input box in the inspector.</summary>
+    public string ColourHexToolTip => IsLine
+        ? "Line colour as a 6-digit hex value (e.g. FF8C00)"
+        : "Fill colour as a 6-digit hex value (e.g. 0078D4)";
+
+    /// <summary>True when <paramref name="raw"/> is a complete 6-digit hexadecimal colour string
+    /// (with or without a leading '#').</summary>
+    public static bool IsSixDigitHex(string? raw, out string cleanUpper)
+    {
+        cleanUpper = "";
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+        string s = raw.Trim().TrimStart('#');
+        if (s.Length != 6) return false;
+        for (int i = 0; i < 6; i++)
+        {
+            char c = s[i];
+            bool isHex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+            if (!isHex) return false;
+        }
+        cleanUpper = s.ToUpperInvariant();
+        return true;
+    }
+
+    /// <summary>Normalises user-entered hex colour strings (accepts optional '#', 3-digit shorthand
+    /// like "F80" → "FF8800", or 6-digit hex) and applies the studio contrast guard; falls back to
+    /// <paramref name="fallbackHex"/> when the input is not a valid hex colour.</summary>
+    public static string NormalizeHexInput(string? raw, string fallbackHex = "0078D4")
+    {
+        if (!string.IsNullOrWhiteSpace(raw))
+        {
+            string s = raw.Trim().TrimStart('#');
+            if (s.Length == 3)
+                s = string.Concat(s[0], s[0], s[1], s[1], s[2], s[2]);
+            if (IsSixDigitHex(s, out string clean))
+                return Services.ContrastGuard.EnsureVisibleFill(clean, ShapeDesignStudioViewModel.CanvasBackgroundHex);
+        }
+        return IsSixDigitHex(fallbackHex, out string fb)
+            ? Services.ContrastGuard.EnsureVisibleFill(fb, ShapeDesignStudioViewModel.CanvasBackgroundHex)
+            : "0078D4";
+    }
+
     partial void OnFillChanged(string value)
     {
         // HARD RULE (ContrastGuard.EnsureVisibleFill): a shape fill must NEVER blend into the
         // studio canvas (#1B1B1F) — if the user picks (or a theme supplies) a fill that is the
         // same colour as the background, the rule pushes it to a visible shade so the shape is
-        // always distinguishable. Reentrancy-safe: sets the backing field, not the property.
-        if (!string.IsNullOrWhiteSpace(value))
+        // always distinguishable. Only guard once a complete 6-digit hex value is present so
+        // intermediate keystrokes in the hex box are not overwritten with the fallback blue.
+        if (IsSixDigitHex(value, out string clean))
         {
-            string guarded = Services.ContrastGuard.EnsureVisibleFill(value, ShapeDesignStudioViewModel.CanvasBackgroundHex);
+            string guarded = Services.ContrastGuard.EnsureVisibleFill(clean, ShapeDesignStudioViewModel.CanvasBackgroundHex);
 #pragma warning disable MVVMTK0034
             if (guarded != value) _fill = guarded;
 #pragma warning restore MVVMTK0034
@@ -122,12 +170,18 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
         OnPropertyChanged(nameof(PathPoints));
         OnPropertyChanged(nameof(IsLine));
         OnPropertyChanged(nameof(ColourLabel));
+        OnPropertyChanged(nameof(ColourPickerLabel));
+        OnPropertyChanged(nameof(ColourHexLabel));
+        OnPropertyChanged(nameof(ColourHexToolTip));
     }
 
     partial void OnPrstChanged(string value)
     {
         OnPropertyChanged(nameof(IsLine));
         OnPropertyChanged(nameof(ColourLabel));
+        OnPropertyChanged(nameof(ColourPickerLabel));
+        OnPropertyChanged(nameof(ColourHexLabel));
+        OnPropertyChanged(nameof(ColourHexToolTip));
         OnPropertyChanged(nameof(DisplayName));
         OnPropertyChanged(nameof(ListTitle));
         OnPropertyChanged(nameof(ListSubtitle));
@@ -764,6 +818,96 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return (int)Math.Round(axis / 45) % 4;
     }
 
+    /// <summary>Length in canvas pixels of the stem extending from the top-middle resize handle
+    /// to the circular rotation grip.</summary>
+    public const double RotationHandleStemLength = 24.0;
+
+    /// <summary>Where the circular rotation grip sits on the canvas for a shape turned by
+    /// <paramref name="rotation"/> degrees about its centre.</summary>
+    public static (double X, double Y) RotationHandlePosition(double x, double y, double w, double h, double rotation, double stemLength = RotationHandleStemLength)
+    {
+        var (topX, topY) = HandlePosition(x, y, w, h, rotation, ResizeEdges.Top);
+        double rad = rotation * Math.PI / 180.0;
+        return (topX + stemLength * Math.Sin(rad), topY - stemLength * Math.Cos(rad));
+    }
+
+    /// <summary>Wraps any degree angle into the inspector's (-180, 180] range.</summary>
+    public static int WrapRotationAngle(int deg)
+    {
+        int next = ((deg % 360) + 360) % 360;
+        if (next > 180) next -= 360;
+        return next;
+    }
+
+    /// <summary>Angle in degrees (-180, 180] from a shape's centre to the pointer, with 0° straight up
+    /// and clockwise positive. When <paramref name="snapTo15"/> is true (Shift held), snaps to the
+    /// nearest 15° increment.</summary>
+    public static int ComputeRotationAngle(double centerX, double centerY, double pointerX, double pointerY, bool snapTo15 = false)
+    {
+        double dx = pointerX - centerX;
+        double dy = pointerY - centerY;
+        if (Math.Abs(dx) < 0.001 && Math.Abs(dy) < 0.001) return 0;
+        double deg = Math.Atan2(dy, dx) * 180.0 / Math.PI + 90.0;
+        int rounded = snapTo15
+            ? (int)Math.Round(deg / 15.0) * 15
+            : (int)Math.Round(deg);
+        return WrapRotationAngle(rounded);
+    }
+
+    /// <summary>Short direction name for a resize handle in the shape's local frame.</summary>
+    public static string HandleDirectionName(ResizeEdges edges) => edges switch
+    {
+        ResizeEdges.Left | ResizeEdges.Top => "top-left",
+        ResizeEdges.Top => "top",
+        ResizeEdges.Right | ResizeEdges.Top => "top-right",
+        ResizeEdges.Right => "right",
+        ResizeEdges.Right | ResizeEdges.Bottom => "bottom-right",
+        ResizeEdges.Bottom => "bottom",
+        ResizeEdges.Left | ResizeEdges.Bottom => "bottom-left",
+        ResizeEdges.Left => "left",
+        _ => "edge",
+    };
+
+    /// <summary>Accessible name for a resize handle, noting the shape's rotation angle when turned.</summary>
+    public static string DescribeResizeHandle(ResizeEdges edges, int rotation = 0)
+    {
+        string dir = HandleDirectionName(edges);
+        int norm = WrapRotationAngle(rotation);
+        return norm == 0
+            ? $"Resize from the {dir}"
+            : $"Resize from the {dir} (rotated {norm}°)";
+    }
+
+    /// <summary>Status-bar feedback during or after a resize gesture, including rotation angle when turned.</summary>
+    public static string FormatResizeStatus(ShapeCanvasItemViewModel shape, bool completed = false)
+    {
+        int norm = WrapRotationAngle(shape.Rotation);
+        string angleSuffix = norm == 0 ? "" : $" · {norm}°";
+        return completed
+            ? $"Resized {shape.DisplayName.ToLowerInvariant()} to {shape.Width:F0} × {shape.Height:F0}{angleSuffix}"
+            : $"{shape.DisplayName}: {shape.Width:F0} × {shape.Height:F0}{angleSuffix}";
+    }
+
+    /// <summary>Axis-aligned bounding box of <paramref name="s"/> on the canvas, accounting for its
+    /// rotation around its centre (or its routed points when it is a connector line).</summary>
+    public static (double Left, double Top, double Right, double Bottom) RotatedBounds(ShapeCanvasItemViewModel s)
+    {
+        if (s.PathPoints is { Count: >= 2 })
+        {
+            var pts = ConnectorPoints(s);
+            return (pts.Min(p => p.X), pts.Min(p => p.Y), pts.Max(p => p.X), pts.Max(p => p.Y));
+        }
+        double turn = ((s.Rotation % 360) + 360) % 360;
+        if (turn == 0 || turn == 180)
+            return (s.X, s.Y, s.X + s.Width, s.Y + s.Height);
+        double rad = turn * Math.PI / 180.0;
+        double cos = Math.Abs(Math.Cos(rad)), sin = Math.Abs(Math.Sin(rad));
+        double rw = s.Width * cos + s.Height * sin;
+        double rh = s.Width * sin + s.Height * cos;
+        double cx = s.X + s.Width / 2.0, cy = s.Y + s.Height / 2.0;
+        return (cx - rw / 2.0, cy - rh / 2.0, cx + rw / 2.0, cy + rh / 2.0);
+    }
+
     /// <summary>Applies a handle drag to <paramref name="shape"/> from its starting rectangle,
     /// in the shape's own frame when it is turned.</summary>
     // ---- connector ends ----
@@ -850,6 +994,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     public void ResizeShape(ShapeCanvasItemViewModel shape, (double X, double Y, double W, double H) start,
         ResizeEdges edges, double dx, double dy, bool keepAspect)
     {
+        if (IsDense) return;
         var r = ResizeRotatedRect(start.X, start.Y, start.W, start.H, shape.Rotation, edges, dx, dy, keepAspect);
         shape.X = r.X;
         shape.Y = r.Y;
@@ -865,7 +1010,11 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     public int SelectInRect(double x, double y, double w, double h, bool additive)
     {
         if (IsDense) return 0;
-        var hits = Shapes.Where(s => s.X < x + w && s.X + s.Width > x && s.Y < y + h && s.Y + s.Height > y).ToList();
+        var hits = Shapes.Where(s =>
+        {
+            var b = RotatedBounds(s);
+            return b.Left < x + w && b.Right > x && b.Top < y + h && b.Bottom > y;
+        }).ToList();
         _additiveSelect = true;
         try
         {
@@ -1394,9 +1543,33 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(HasSelection))]
     public void RotateCounterClockwise() => RotateSelectionBy(-90);
 
-    private void RotateSelectionBy(int deltaDegrees)
+    /// <summary>Resets every selected non-line shape's rotation back to 0°.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    public void ResetRotation()
     {
         if (IsDense) return;
+        var selected = SelectedItems.Where(s => s.PathPoints is not { Count: >= 2 }).ToList();
+        if (selected.Count == 0)
+        {
+            StatusMessage = "Connector lines are routed by their endpoints — drag an endpoint to turn a line.";
+            return;
+        }
+        if (selected.All(s => s.Rotation == 0))
+        {
+            StatusMessage = "Rotation is already 0°.";
+            return;
+        }
+        RecordUndo();
+        foreach (var s in selected) s.Rotation = 0;
+        StatusMessage = selected.Count == 1
+            ? $"Reset {selected[0].DisplayName.ToLowerInvariant()} rotation to 0°"
+            : $"Reset {selected.Count} shapes to 0°";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RotateSelectionBy(int deltaDegrees)
+    {
+        if (IsDense || deltaDegrees == 0) return;
         var selected = SelectedItems.Where(s => s.PathPoints is not { Count: >= 2 }).ToList();
         if (selected.Count == 0)
         {
@@ -1406,13 +1579,12 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         RecordUndo();
         foreach (var s in selected)
         {
-            int next = ((s.Rotation + deltaDegrees) % 360 + 360) % 360;
-            if (next > 180) next -= 360;
-            s.Rotation = next;
+            s.Rotation = WrapRotationAngle(s.Rotation + deltaDegrees);
         }
+        string deltaLabel = deltaDegrees > 0 ? $"+{deltaDegrees}°" : $"−{Math.Abs(deltaDegrees)}°";
         StatusMessage = selected.Count == 1
             ? $"Rotated {selected[0].DisplayName.ToLowerInvariant()} to {selected[0].Rotation}°"
-            : $"Rotated {selected.Count} shapes by {(deltaDegrees > 0 ? "+90°" : "−90°")}";
+            : $"Rotated {selected.Count} shapes by {deltaLabel}";
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
 

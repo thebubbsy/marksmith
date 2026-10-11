@@ -370,6 +370,12 @@
                             <Button Style="{StaticResource ToolIconButton}" Command="{Binding SendToBackCommand}" AutomationProperties.Name="Send to back" ToolTipService.ToolTip="Send to back (Ctrl+Shift+[)">
                                 <FontIcon Glyph="&#xE74B;" FontSize="14" />
                             </Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding RotateCounterClockwiseCommand}" AutomationProperties.Name="Rotate 90 degrees left" ToolTipService.ToolTip="Rotate 90° counter-clockwise (Alt+Shift+Left)">
+                                <FontIcon Glyph="&#xE7A7;" FontSize="14" RenderTransformOrigin="0.5,0.5" />
+                            </Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding RotateClockwiseCommand}" AutomationProperties.Name="Rotate 90 degrees right" ToolTipService.ToolTip="Rotate 90° clockwise (Alt+Shift+Right)">
+                                <FontIcon Glyph="&#xE7AD;" FontSize="14" />
+                            </Button>
                             <AppBarSeparator Margin="0" Padding="0" />
                             <Button Style="{StaticResource ToolIconButton}" Command="{Binding DuplicateSelectedCommand}" AutomationProperties.Name="Duplicate" ToolTipService.ToolTip="Duplicate the selection (Ctrl+D)">
                                 <FontIcon Glyph="&#xE8C8;" FontSize="14" />
@@ -611,23 +617,41 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Button x:Name="FillSwatchButton" Width="32" Height="32" Padding="3" AutomationProperties.Name="Pick fill colour"
-                                        ToolTipService.ToolTip="Pick a fill colour">
+                                <Button x:Name="FillSwatchButton" Width="32" Height="32" Padding="3"
+                                        AutomationProperties.Name="{Binding SelectedShape.ColourPickerLabel, FallbackValue='Pick fill colour'}"
+                                        ToolTipService.ToolTip="{Binding SelectedShape.ColourPickerLabel, FallbackValue='Pick fill colour'}">
                                     <Border Width="24" Height="24" CornerRadius="4"
+                                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
                                             Background="{Binding SelectedShape.Fill, Converter={StaticResource FillBrushConverter}}" />
                                     <Button.Flyout>
                                         <Flyout x:Name="FillFlyout" Opening="OnFillFlyoutOpening">
-                                            <StackPanel Spacing="10">
+                                            <StackPanel Spacing="10" MinWidth="260">
+                                                <Grid>
+                                                    <TextBlock x:Name="FillFlyoutTitle" Text="Fill colour" FontSize="12" FontWeight="SemiBold"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock x:Name="FillFlyoutHexText" Text="#0078D4" FontSize="11.5" FontFamily="Consolas"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                </Grid>
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Text="Scheme &amp; quick swatches" FontSize="11"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                    <StackPanel x:Name="FillFlyoutSwatches" Orientation="Horizontal" Spacing="6" />
+                                                </StackPanel>
                                                 <ColorPicker x:Name="FillPicker" ColorSpectrumShape="Ring" IsAlphaEnabled="False" IsMoreButtonVisible="False"
-                                                             IsColorSliderVisible="True" IsColorChannelTextInputVisible="False" IsHexInputVisible="True" />
-                                                <Button Content="Use this colour" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Right" Click="OnFillPickerApply" />
+                                                             IsColorSliderVisible="True" IsColorChannelTextInputVisible="False" IsHexInputVisible="True"
+                                                             ColorChanged="OnFillPickerColorChanged" />
+                                                <Button Content="Use this colour" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Click="OnFillPickerApply"
+                                                        AutomationProperties.Name="Use this colour" />
                                             </StackPanel>
                                         </Flyout>
                                     </Button.Flyout>
                                 </Button>
-                                <TextBox x:Name="FillHexBox" Grid.Column="1" AutomationProperties.Name="Fill colour" PlaceholderText="RRGGBB" FontFamily="Consolas"
-                                         ToolTipService.ToolTip="Fill colour as a 6-digit hex value"
-                                         KeyDown="OnFillHexBoxKeyDown"
+                                <TextBox x:Name="FillHexBox" Grid.Column="1"
+                                         AutomationProperties.Name="{Binding SelectedShape.ColourHexLabel, FallbackValue='Fill colour'}"
+                                         PlaceholderText="RRGGBB" FontFamily="Consolas" CharacterCasing="Upper"
+                                         ToolTipService.ToolTip="{Binding SelectedShape.ColourHexToolTip, FallbackValue='Fill colour as a 6-digit hex value'}"
+                                         KeyDown="OnFillHexBoxKeyDown" LostFocus="OnFillHexBoxLostFocus"
                                          Text="{Binding SelectedShape.Fill, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxLength="7" />
                             </Grid>
 
@@ -647,17 +671,23 @@
                             </Grid>
 
                             <TextBlock Grid.Row="5" Text="Rotation" Style="{StaticResource InspectorLabel}" />
-                            <Grid Grid.Row="5" Grid.Column="1" ColumnSpacing="8">
+                            <Grid Grid.Row="5" Grid.Column="1" ColumnSpacing="6">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="40" />
+                                    <ColumnDefinition Width="38" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <Slider Minimum="-180" Maximum="180" StepFrequency="1" AutomationProperties.Name="Rotation" VerticalAlignment="Center"
+                                        ToolTipService.ToolTip="Rotation angle (−180° to 180° · Alt+Left / Alt+Right steps by 15°)"
                                         Value="{Binding SelectedShape.Rotation, Mode=TwoWay}" />
                                 <TextBlock Grid.Column="1" VerticalAlignment="Center" TextAlignment="Right" FontSize="12"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}">
                                     <Run Text="{Binding SelectedShape.Rotation}" /><Run Text="°" />
                                 </TextBlock>
+                                <Button x:Name="ResetRotationButton" Grid.Column="2" Content="0°" Padding="6,2" FontSize="11"
+                                        Command="{Binding ResetRotationCommand}"
+                                        ToolTipService.ToolTip="Reset rotation to 0°"
+                                        AutomationProperties.Name="Reset rotation to 0 degrees" />
                             </Grid>
 
                             <TextBlock Grid.Row="6" Text="Label" Style="{StaticResource InspectorLabel}" VerticalAlignment="Top" Margin="0,6,0,0" />
@@ -715,7 +745,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+            <TextBlock x:Name="SelectionSummaryText" Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
             <!-- Zoom: Ctrl+scroll and pinch always worked but nothing showed the level or offered
                  a way back. Presets now open fitted to the canvas. -->
             <DropDownButton x:Name="ZoomButton" Grid.Column="2" Padding="8,0" Height="24" MinWidth="70" FontSize="12"

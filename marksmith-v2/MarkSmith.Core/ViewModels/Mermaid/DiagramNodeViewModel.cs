@@ -90,6 +90,7 @@ public partial class DiagramNodeViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowAnchors))]
     [NotifyPropertyChangedFor(nameof(QuickAddOpacity))]
+    [NotifyPropertyChangedFor(nameof(HoverGlowOpacity))]
     private bool _isSelected;
 
     /// <summary>True while the pointer hovers the node — drives the hover glow and reveals
@@ -97,6 +98,7 @@ public partial class DiagramNodeViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowAnchors))]
     [NotifyPropertyChangedFor(nameof(QuickAddOpacity))]
+    [NotifyPropertyChangedFor(nameof(HoverGlowOpacity))]
     private bool _isHovered;
 
     /// <summary>True while a connector is being drawn and this node is the prospective drop
@@ -109,6 +111,9 @@ public partial class DiagramNodeViewModel : ObservableObject
 
     /// <summary>The quick-add arrows fade in with the anchors.</summary>
     public double QuickAddOpacity => ShowAnchors ? 1 : 0;
+
+    /// <summary>Smooth opacity for the node hover ring (fades in on hover when not already selected).</summary>
+    public double HoverGlowOpacity => IsHovered && !IsSelected ? 1.0 : 0.0;
 
     /// <summary>A 28 px start/end dot is too small to carry four arrows around it.</summary>
     public bool CanQuickAdd => !IsPseudoState;
@@ -134,7 +139,24 @@ public partial class DiagramNodeViewModel : ObservableObject
     }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanvasStrokeColor))]
     private string _strokeColor = "#8D99AE";
+
+    /// <summary>
+    /// Stroke colour guaranteed to read against the studio's dark canvas (<c>#1E1E2E</c>) for
+    /// unboxed elements (sequence lifelines, Actor glyphs, Start/End dots, and connectors).
+    /// Presets like Monochrome Print set <see cref="StrokeColor"/> to dark slate (<c>#1F2937</c>)
+    /// for white-filled boxes, which has 1.18:1 contrast on the dark canvas unless lifted.
+    /// </summary>
+    public string CanvasStrokeColor => ReadableStrokeOnCanvas(StrokeColor);
+
+    public static string ReadableStrokeOnCanvas(string strokeHex, string canvasHex = "#1E1E2E")
+    {
+        if (string.IsNullOrWhiteSpace(strokeHex)) return "#8D99AE";
+        if (ContrastGuard.GetContrastRatio(strokeHex, canvasHex) >= 3.5) return strokeHex;
+        string lifted = "#" + ContrastGuard.EnsureVisibleFill(strokeHex, canvasHex.TrimStart('#'));
+        return ContrastGuard.GetContrastRatio(lifted, canvasHex) >= 3.5 ? lifted : "#CBD5E1";
+    }
 
     [ObservableProperty]
     private double _strokeWidth = 2.0;
@@ -209,7 +231,7 @@ public partial class DiagramNodeViewModel : ObservableObject
 
     public void RecalculateBoundsForText()
     {
-        if (string.IsNullOrWhiteSpace(LabelText)) return;
+        if (string.IsNullOrWhiteSpace(LabelText) || IsPseudoState) return;
         // Approximate width & height based on text length and lines
         var lines = MarkSmith.Mermaid.Generator.MermaidCodeGenerator.Lines(LabelText);
         int maxLineLen = lines.Max(l => l.Length);

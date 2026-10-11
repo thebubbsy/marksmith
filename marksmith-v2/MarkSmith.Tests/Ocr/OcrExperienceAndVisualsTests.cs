@@ -5,7 +5,11 @@ using System.Linq;
 using MarkSmith.Core.Composer;
 using MarkSmith.Ocr;
 using MarkSmith.Services;
+using MarkSmith.Services.Import;
 using SkiaSharp;
+using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Fonts.Standard14Fonts;
+using UglyToad.PdfPig.Writer;
 using Xunit;
 
 namespace MarkSmith.Core.Tests.Ocr;
@@ -350,6 +354,123 @@ public class OcrExperienceAndVisualsTests
         var p0 = OcrPlaybackSchedule.ForPage(blockCount: 6, wordCount: 120, pageIndex: 0, pageCount: 10, stage1ElapsedMs: 200);
         var p1 = OcrPlaybackSchedule.ForPage(blockCount: 6, wordCount: 120, pageIndex: 1, pageCount: 10, stage1ElapsedMs: 0);
         Assert.True(p0.TotalPageMs + p1.TotalPageMs + p0.FinalSheetHoldMs + p0.FadeOutMs < 11000);
+    }
+
+    [Fact]
+    public void OcrTrace_SynthesizePagesFromMarkdown_Breaks_MultiPage_Documents_Into_Page_After_Page_Traces()
+    {
+        const string markdown = """
+            # Executive Summary
+
+            This multi-page document breaks down each section page after page with real visual sheet previews.
+
+            - First strategic priority for the fiscal year
+            - Second strategic priority for customer retention
+            - Third strategic priority for platform reliability
+
+            | Quarter | Revenue | Growth |
+            | --- | --- | --- |
+            | Q1 | $14.2M | +18% |
+            | Q2 | $16.8M | +22% |
+
+            ![System Architecture Overview](media/arch.png)
+
+            ---
+
+            # Technical Architecture
+
+            The platform ingests documents and breaks apart every page into structural elements and words.
+
+            - XY-cut layout segmentation
+            - Bounding box word extraction
+            - Reading-order Markdown synthesis
+
+            ```mermaid
+            flowchart LR
+                A[PDF Input] --> B[Page Breakdown]
+                B --> C[Markdown Output]
+            ```
+
+            ---
+
+            # Operational Rollout
+
+            Deployment proceeds across three regional clusters with automated verification gates.
+
+            1. Stage 1 regional canary verification
+            2. Stage 2 production traffic migration
+            3. Stage 3 post-deployment telemetry audit
+            """;
+
+        var pages = OcrTrace.SynthesizePagesFromMarkdown(markdown, "MarkSmith PDF Importer");
+
+        Assert.True(pages.Count >= 3);
+        for (int i = 0; i < pages.Count; i++)
+        {
+            var (preview, trace) = pages[i];
+            Assert.Equal(i + 1, preview.PageNumber);
+            Assert.Equal(i, preview.PageIndex);
+            Assert.Equal(pages.Count, preview.PageCount);
+            Assert.True(preview.Image.Length > 500);
+
+            using var bmp = SKBitmap.Decode(preview.Image);
+            Assert.NotNull(bmp);
+            Assert.True(OcrTrace.HasReadablePageContrast(bmp));
+
+            Assert.Equal(i + 1, trace.PageNumber);
+            Assert.NotEmpty(trace.Blocks);
+            Assert.NotEmpty(trace.Words);
+            Assert.NotEmpty(trace.CutLines);
+        }
+    }
+
+    [Fact]
+    public void PdfMarkdownImporter_Emits_PageStarted_And_PageRead_For_Every_Page_In_MultiPage_Pdf()
+    {
+        var builder = new PdfDocumentBuilder();
+        var bold = builder.AddStandard14Font(Standard14Font.HelveticaBold);
+        var regular = builder.AddStandard14Font(Standard14Font.Helvetica);
+
+        for (int pageNum = 1; pageNum <= 3; pageNum++)
+        {
+            var page = builder.AddPage(595, 842);
+            page.AddText($"Chapter {pageNum}: Architecture Breakdown", 20, new PdfPoint(60, 770), bold);
+            page.AddText($"Page {pageNum} explains how the document reader flashes up every page in order.", 11, new PdfPoint(60, 730), regular);
+            page.AddText($"• First finding on page {pageNum}", 11, new PdfPoint(60, 700), regular);
+            page.AddText($"• Second finding on page {pageNum}", 11, new PdfPoint(60, 682), regular);
+        }
+
+        byte[] pdfBytes = builder.Build();
+        var observer = new RecordingObserver();
+
+        var report = PdfMarkdownImporter.Import(
+            new MemoryStream(pdfBytes),
+            new PdfImportOptions { OcrObserver = observer });
+
+        Assert.Equal(3, report.Pages);
+        Assert.Equal(3, observer.Started.Count);
+        Assert.Equal(3, observer.Read.Count);
+
+        for (int i = 0; i < 3; i++)
+        {
+            var preview = observer.Started[i];
+            var trace = observer.Read[i];
+
+            Assert.Equal(i + 1, preview.PageNumber);
+            Assert.Equal(i, preview.PageIndex);
+            Assert.Equal(3, preview.PageCount);
+            Assert.True(preview.Image.Length > 500);
+
+            using var bmp = SKBitmap.Decode(preview.Image);
+            Assert.NotNull(bmp);
+            Assert.True(OcrTrace.HasReadablePageContrast(bmp));
+
+            Assert.Equal(i + 1, trace.PageNumber);
+            Assert.NotEmpty(trace.Blocks);
+            Assert.NotEmpty(trace.Words);
+            Assert.NotEmpty(trace.CutLines);
+            Assert.Contains($"Chapter {i + 1}", trace.Markdown);
+        }
     }
 
     private sealed class RecordingObserver : IOcrObserver

@@ -596,8 +596,14 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             Walk(root);
         }
         OnPropertyChanged(nameof(IsOutlineEmpty));
+        OnPropertyChanged(nameof(OutlineSummaryText));
         InsertIntoDocumentCommand.NotifyCanExecuteChanged();
     }
+
+    /// <summary>Concise summary of the current outline item count and selected layout.</summary>
+    public string OutlineSummaryText => OutlineRows.Count == 1
+        ? $"1 item · {(string.IsNullOrWhiteSpace(PreviewTitle) ? (SelectedLayout?.DisplayName ?? "SmartArt") : PreviewTitle)}"
+        : $"{OutlineRows.Count} items · {(string.IsNullOrWhiteSpace(PreviewTitle) ? (SelectedLayout?.DisplayName ?? "SmartArt") : PreviewTitle)}";
 
     /// <summary>Writes the designed tree back to Markdown (the canonical form). MarkdownText
     /// change re-runs RebuildTree + UpdatePreview, keeping everything in sync.</summary>
@@ -766,7 +772,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (node == null) return;
         var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
         int idx = siblings.IndexOf(node);
-        if (idx <= 0) return;
+        if (idx <= 0)
+        {
+            StatusMessage = $"'{node.Text}' is already the first sibling";
+            return;
+        }
         PushUndo();
         siblings.Move(idx, idx - 1);
         Select(node);
@@ -782,7 +792,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (node == null) return;
         var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
         int idx = siblings.IndexOf(node);
-        if (idx < 0 || idx >= siblings.Count - 1) return;
+        if (idx < 0 || idx >= siblings.Count - 1)
+        {
+            StatusMessage = $"'{node.Text}' is already the last sibling";
+            return;
+        }
         PushUndo();
         siblings.Move(idx, idx + 1);
         Select(node);
@@ -796,7 +810,12 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         if (_editingNode != null) CommitRename();
         var node = SelectedNode;
-        if (node == null || node.Parent == null) return;
+        if (node == null) return;
+        if (node.Parent == null)
+        {
+            StatusMessage = $"'{node.Text}' is already at the top level";
+            return;
+        }
         PushUndo();
         var oldParent = node.Parent;
         var grandparent = oldParent.Parent;
@@ -822,7 +841,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (node == null) return;
         var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
         int idx = siblings.IndexOf(node);
-        if (idx <= 0) return;
+        if (idx <= 0)
+        {
+            StatusMessage = $"'{node.Text}' has no previous sibling to nest under";
+            return;
+        }
         PushUndo();
         var prev = siblings[idx - 1];
         siblings.RemoveAt(idx);
@@ -834,15 +857,15 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     }
 
     /// <summary>Keys the outline answers to while it has keyboard focus.</summary>
-    public enum OutlineKey { Up, Down, Home, End, Tab, Enter, Insert, Delete, F2 }
+    public enum OutlineKey { Up, Down, Home, End, Tab, Enter, Insert, Delete, F2, Left, Right }
 
     /// <summary>
     /// The outline's keyboard model, so the whole tree can be built without the mouse (it used to
     /// answer only Delete and F2):
     /// ↑/↓ and Home/End move the selection; Alt+↑/↓ move the item among its siblings;
-    /// Tab / Shift+Tab indent and outdent; Enter adds a sibling and Insert a child (both open for
-    /// typing); Delete deletes; F2 renames. Returns whether the key did something, so the window
-    /// lets an unused key (Tab with nothing selected) carry on to focus navigation.
+    /// Tab / Shift+Tab (or Alt+Right / Alt+Left) indent and outdent; Enter adds a sibling and Insert
+    /// a child (both open for typing); Delete deletes; F2 renames. Returns whether the key did
+    /// something, so the window lets an unused key (Tab with nothing selected) carry on to focus navigation.
     /// </summary>
     public bool HandleOutlineKey(OutlineKey key, bool shift = false, bool alt = false)
     {
@@ -863,17 +886,33 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
                 if (node is null) return false;
                 MoveDown();
                 return true;
+            case OutlineKey.Left when alt:
+                if (node is null) return false;
+                Promote();
+                return true;
+            case OutlineKey.Right when alt:
+                if (node is null) return false;
+                Demote();
+                return true;
             case OutlineKey.Up:
                 Select(OutlineRows[row <= 0 ? 0 : row - 1]);
+                if (SelectedNode is { } upNode)
+                    StatusMessage = $"{upNode.Text} · level {upNode.Depth + 1}";
                 return true;
             case OutlineKey.Down:
                 Select(OutlineRows[row < 0 ? 0 : Math.Min(OutlineRows.Count - 1, row + 1)]);
+                if (SelectedNode is { } downNode)
+                    StatusMessage = $"{downNode.Text} · level {downNode.Depth + 1}";
                 return true;
             case OutlineKey.Home:
                 Select(OutlineRows[0]);
+                if (SelectedNode is { } homeNode)
+                    StatusMessage = $"{homeNode.Text} · level {homeNode.Depth + 1}";
                 return true;
             case OutlineKey.End:
                 Select(OutlineRows[^1]);
+                if (SelectedNode is { } endNode)
+                    StatusMessage = $"{endNode.Text} · level {endNode.Depth + 1}";
                 return true;
             case OutlineKey.Tab:
                 if (node is null) return false;
@@ -924,8 +963,10 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (wasEditing && editing != null &&
             !string.Equals(before, editing.Text, StringComparison.Ordinal))
         {
+            string renamedTo = editing.Text;
             PushUndo();
             SyncTreeToMarkdown();
+            StatusMessage = $"Renamed to '{renamedTo}' · Ctrl+Z to undo";
         }
     }
 
@@ -956,6 +997,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             PreviewHtml = HtmlPreviewRenderer.RenderHtml(ast, alias, title);
             PreviewTitle = title;
             PreviewHint = SingleShapeHint(ast, alias, title);
+            OnPropertyChanged(nameof(OutlineSummaryText));
             PreviewHtmlChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)

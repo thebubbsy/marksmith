@@ -39,9 +39,13 @@ namespace MarkSmith.Views.ShapeStudio
         private bool _marqueeAdditive;
         private Point _marqueeStart;
 
-        // Resize handles
+        // Resize & rotation handles
         private ShapeCanvasItemViewModel? _adornedShape;
         private readonly List<(Microsoft.UI.Xaml.Shapes.Rectangle Handle, ShapeDesignStudioViewModel.ResizeEdges Edges)> _handles = new();
+        private Microsoft.UI.Xaml.Shapes.Line? _rotateStem;
+        private Microsoft.UI.Xaml.Shapes.Ellipse? _rotateHandle;
+        private bool _rotating;
+        private bool _rotated;
         private ShapeDesignStudioViewModel.ResizeEdges _resizeEdges;
         private (double X, double Y, double W, double H) _resizeFrom;
         private Point _resizeStart;
@@ -85,9 +89,16 @@ namespace MarkSmith.Views.ShapeStudio
             SetCursor(MainCanvas, Microsoft.UI.Input.InputSystemCursorShape.Arrow);
             if (StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
+            if (SelectionSummaryText != null)
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SelectionSummaryText, ViewModel.SelectionSummary ?? "");
             // Open with the canvas focused (no focus ring) so Ctrl+Z / Del work at once and the
             // first title-bar button doesn't come up wearing a keyboard-focus rectangle.
             this.RootGrid.Loaded += (_, _) => CanvasScroller.Focus(FocusState.Programmatic);
+            this.RootGrid.ActualThemeChanged += (_, _) =>
+            {
+                foreach (var (s, p) in _shapePaths)
+                    ApplyShapeVisual(p, s, ReferenceEquals(s, _hoverShape));
+            };
         }
 
         // Sized in DIPs (AppWindow sizes are physical pixels, so the default opened cramped on a
@@ -146,8 +157,8 @@ namespace MarkSmith.Views.ShapeStudio
                 CanvasScroller.ChangeView(0, 0, 1f);
                 return;
             }
-            double right = ViewModel.Shapes.Max(s => s.X + s.Width) + 24;
-            double bottom = ViewModel.Shapes.Max(s => s.Y + s.Height) + 24;
+            double right = ViewModel.Shapes.Max(s => ShapeDesignStudioViewModel.RotatedBounds(s).Right) + 24;
+            double bottom = ViewModel.Shapes.Max(s => ShapeDesignStudioViewModel.RotatedBounds(s).Bottom) + 24;
             double zoom = Math.Clamp(Math.Min(vw / right, vh / bottom), CanvasScroller.MinZoomFactor, 1.0);
             CanvasScroller.ChangeView(0, 0, (float)zoom);
         }
@@ -302,7 +313,16 @@ namespace MarkSmith.Views.ShapeStudio
                 var choice = PaletteList.SelectedItem as PaletteChoice;
                 foreach (var b in (choice?.Swatches ?? new List<SolidColorBrush>()).Take(4))
                 {
-                    PaletteButtonSwatches.Children.Add(new Border { Width = 8, Height = 14, CornerRadius = new CornerRadius(2), Background = b });
+                    var swatch = new Border
+                    {
+                        Width = 8,
+                        Height = 14,
+                        CornerRadius = new CornerRadius(2),
+                        Background = b,
+                        BorderThickness = new Thickness(1)
+                    };
+                    ThemeBrush.Set(swatch, Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+                    PaletteButtonSwatches.Children.Add(swatch);
                 }
             }
             finally { _syncingPalette = false; }
@@ -428,6 +448,22 @@ namespace MarkSmith.Views.ShapeStudio
                     return;
             }
 
+            if (IsDown(VirtualKey.Menu) && ViewModel.HasSelection &&
+                e.Key is VirtualKey.Left or VirtualKey.Right or VirtualKey.Number0 or VirtualKey.NumberPad0)
+            {
+                if (e.Key is VirtualKey.Number0 or VirtualKey.NumberPad0)
+                {
+                    ViewModel.ResetRotation();
+                }
+                else
+                {
+                    int delta = (shift ? 90 : 15) * (e.Key == VirtualKey.Left ? -1 : 1);
+                    ViewModel.RotateSelectionBy(delta);
+                }
+                e.Handled = true;
+                return;
+            }
+
             if (ReferenceEquals(focused, CanvasScroller) && ViewModel.HasSelection &&
                 e.Key is VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down)
             {
@@ -454,14 +490,25 @@ namespace MarkSmith.Views.ShapeStudio
             return false;
         }
 
+        private void CommitFillHexBox()
+        {
+            if (ViewModel.SelectedShape is not { } shape || FillHexBox is null) return;
+            string normalized = ShapeCanvasItemViewModel.NormalizeHexInput(FillHexBox.Text, shape.Fill);
+            shape.Fill = normalized;
+            if (FillHexBox.Text != shape.Fill) FillHexBox.Text = shape.Fill;
+        }
+
         private void OnFillHexBoxKeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (e.Key is VirtualKey.Enter or VirtualKey.Escape)
             {
+                CommitFillHexBox();
                 CanvasScroller.Focus(FocusState.Programmatic);
                 e.Handled = true;
             }
         }
+
+        private void OnFillHexBoxLostFocus(object sender, RoutedEventArgs e) => CommitFillHexBox();
 
         // Inspector edits (type, position, size, fill, rotation, label) get one undo step per shape:
         // the canvas is recorded the first time focus enters the inspector for a given selection.
@@ -485,6 +532,10 @@ namespace MarkSmith.Views.ShapeStudio
                 case nameof(ShapeDesignStudioViewModel.SelectionCount):
                 case nameof(ShapeDesignStudioViewModel.IsDense):
                     UpdateAdorner();
+                    return;
+                case nameof(ShapeDesignStudioViewModel.SelectionSummary):
+                    if (SelectionSummaryText != null)
+                        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SelectionSummaryText, ViewModel.SelectionSummary ?? "");
                     return;
                 case nameof(ShapeDesignStudioViewModel.SelectedPaletteName):
                     SyncPaletteUi();
@@ -765,8 +816,10 @@ namespace MarkSmith.Views.ShapeStudio
             if (!isLine)
             {
                 flyout.Items.Add(new MenuFlyoutSeparator());
-                flyout.Items.Add(ShapeMenuItem("Rotate 90° clockwise", "\uE7AD", () => ViewModel.RotateClockwiseCommand.Execute(null)));
-                flyout.Items.Add(ShapeMenuItem("Rotate 90° counter-clockwise", "\uE80C", () => ViewModel.RotateCounterClockwiseCommand.Execute(null)));
+                flyout.Items.Add(ShapeMenuItem("Rotate 90° clockwise", "\uE7AD", () => ViewModel.RotateClockwiseCommand.Execute(null), "Alt+Shift+Right"));
+                flyout.Items.Add(ShapeMenuItem("Rotate 90° counter-clockwise", "\uE80C", () => ViewModel.RotateCounterClockwiseCommand.Execute(null), "Alt+Shift+Left"));
+                flyout.Items.Add(ShapeMenuItem("Reset rotation (0°)", "\uE777", () => ViewModel.ResetRotationCommand.Execute(null), "Alt+0",
+                    enabled: ShapeDesignStudioViewModel.WrapRotationAngle(ViewModel.SelectedShape.Rotation) != 0));
             }
 
             if (ViewModel.CanAlign)
@@ -1076,32 +1129,41 @@ namespace MarkSmith.Views.ShapeStudio
             });
         }
 
-        // ---- resize handles ----
-        // One unrotated, unlocked shape gets a frame with eight handles; dragging one resizes the
-        // shape from the opposite edge (Shift keeps the proportions on a corner), and the label
-        // refits as it goes. Rotated shapes and connectors are still sized from the inspector.
+        // ---- resize & rotation handles ----
+        // One unlocked shape gets a frame with eight resize handles plus a top rotation stem and
+        // handle; dragging a resize handle resizes the shape in its rotated local frame (Shift keeps
+        // proportions on a corner), and dragging the rotation handle turns the shape around its
+        // centre (Shift snaps to 15° steps, double-clicking resets to 0°).
 
         private const double HandleSize = 9;
 
         private void BuildResizeHandles()
         {
+            _rotateStem = new Microsoft.UI.Xaml.Shapes.Line
+            {
+                Stroke = new SolidColorBrush(AccentColor(0xFF)),
+                StrokeThickness = 1.25,
+                IsHitTestVisible = false,
+            };
+            SelectionAdorner.Children.Add(_rotateStem);
+
             var E = ShapeDesignStudioViewModel.ResizeEdges.None;
             var L = ShapeDesignStudioViewModel.ResizeEdges.Left;
             var T = ShapeDesignStudioViewModel.ResizeEdges.Top;
             var R = ShapeDesignStudioViewModel.ResizeEdges.Right;
             var B = ShapeDesignStudioViewModel.ResizeEdges.Bottom;
-            var specs = new (ShapeDesignStudioViewModel.ResizeEdges Edges, Microsoft.UI.Input.InputSystemCursorShape Cursor, string Name)[]
+            var specs = new (ShapeDesignStudioViewModel.ResizeEdges Edges, Microsoft.UI.Input.InputSystemCursorShape Cursor)[]
             {
-                (L | T, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast, "top-left"),
-                (T | E, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth, "top"),
-                (R | T, Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest, "top-right"),
-                (R | E, Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast, "right"),
-                (R | B, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast, "bottom-right"),
-                (B | E, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth, "bottom"),
-                (L | B, Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest, "bottom-left"),
-                (L | E, Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast, "left"),
+                (L | T, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast),
+                (T | E, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth),
+                (R | T, Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest),
+                (R | E, Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast),
+                (R | B, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast),
+                (B | E, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth),
+                (L | B, Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest),
+                (L | E, Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast),
             };
-            foreach (var (edges, cursor, name) in specs)
+            foreach (var (edges, cursor) in specs)
             {
                 var h = new Microsoft.UI.Xaml.Shapes.Rectangle
                 {
@@ -1110,9 +1172,12 @@ namespace MarkSmith.Views.ShapeStudio
                     Stroke = new SolidColorBrush(AccentColor(0xFF)),
                     StrokeThickness = 1.25,
                 };
-                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(h, $"Resize from the {name}");
-                ToolTipService.SetToolTip(h, edges.HasFlag(L) || edges.HasFlag(R) ? (edges.HasFlag(T) || edges.HasFlag(B) ? "Drag to resize · Shift keeps the proportions" : "Drag to change the width") : "Drag to change the height");
+                string label = ShapeDesignStudioViewModel.DescribeResizeHandle(edges, 0);
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(h, label);
+                ToolTipService.SetToolTip(h, label);
                 SetCursor(h, cursor);
+                h.PointerEntered += (_, _) => h.Fill = new SolidColorBrush(AccentColor(0x38));
+                h.PointerExited += (_, _) => h.Fill = new SolidColorBrush(Microsoft.UI.Colors.White);
                 h.PointerPressed += OnHandlePointerPressed;
                 h.PointerMoved += OnHandlePointerMoved;
                 h.PointerReleased += OnHandlePointerReleased;
@@ -1120,6 +1185,26 @@ namespace MarkSmith.Views.ShapeStudio
                 SelectionAdorner.Children.Add(h);
                 _handles.Add((h, edges));
             }
+
+            _rotateHandle = new Microsoft.UI.Xaml.Shapes.Ellipse
+            {
+                Width = HandleSize + 2,
+                Height = HandleSize + 2,
+                Fill = new SolidColorBrush(Microsoft.UI.Colors.White),
+                Stroke = new SolidColorBrush(AccentColor(0xFF)),
+                StrokeThickness = 1.5,
+            };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_rotateHandle, "Rotate shape (0°) · Drag to turn, Shift snaps to 15°, double-click resets to 0°");
+            ToolTipService.SetToolTip(_rotateHandle, "Drag to rotate · Shift snaps to 15° · Double-click resets to 0°");
+            SetCursor(_rotateHandle, Microsoft.UI.Input.InputSystemCursorShape.Hand);
+            _rotateHandle.PointerEntered += (_, _) => _rotateHandle.Fill = new SolidColorBrush(AccentColor(0x38));
+            _rotateHandle.PointerExited += (_, _) => _rotateHandle.Fill = new SolidColorBrush(Microsoft.UI.Colors.White);
+            _rotateHandle.PointerPressed += OnRotateHandlePointerPressed;
+            _rotateHandle.PointerMoved += OnRotateHandlePointerMoved;
+            _rotateHandle.PointerReleased += OnRotateHandlePointerReleased;
+            _rotateHandle.DoubleTapped += OnRotateHandleDoubleTapped;
+            _rotateHandle.PointerCaptureLost += (_, _) => _rotating = false;
+            SelectionAdorner.Children.Add(_rotateHandle);
         }
 
         private void TrackAdornedShape(ShapeCanvasItemViewModel? shape)
@@ -1171,6 +1256,9 @@ namespace MarkSmith.Views.ShapeStudio
                     2 => Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth,
                     _ => Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest,
                 });
+                string handleDesc = ShapeDesignStudioViewModel.DescribeResizeHandle(edges, s.Rotation);
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(h, handleDesc);
+                ToolTipService.SetToolTip(h, handleDesc);
                 h.StrokeThickness = 1.25 / z;
                 // Edge handles hide on a shape too small to tell them from the corners.
                 bool edge = edges is ShapeDesignStudioViewModel.ResizeEdges.Left or ShapeDesignStudioViewModel.ResizeEdges.Right
@@ -1178,6 +1266,31 @@ namespace MarkSmith.Views.ShapeStudio
                 h.Visibility = edge ? Visibility.Collapsed : Visibility.Visible;
                 Canvas.SetLeft(h, x - half);
                 Canvas.SetTop(h, y - half);
+            }
+
+            if (_rotateStem is not null && _rotateHandle is not null)
+            {
+                _rotateStem.Visibility = Visibility.Visible;
+                _rotateHandle.Visibility = Visibility.Visible;
+                var (topX, topY) = ShapeDesignStudioViewModel.HandlePosition(
+                    s.X, s.Y, s.Width, s.Height, s.Rotation, ShapeDesignStudioViewModel.ResizeEdges.Top);
+                var (rotX, rotY) = ShapeDesignStudioViewModel.RotationHandlePosition(
+                    s.X, s.Y, s.Width, s.Height, s.Rotation, ShapeDesignStudioViewModel.RotationHandleStemLength / z);
+                _rotateStem.X1 = topX;
+                _rotateStem.Y1 = topY;
+                _rotateStem.X2 = rotX;
+                _rotateStem.Y2 = rotY;
+                _rotateStem.StrokeThickness = 1.25 / z;
+
+                double rotSize = (HandleSize + 2) / z;
+                _rotateHandle.Width = _rotateHandle.Height = rotSize;
+                _rotateHandle.StrokeThickness = 1.5 / z;
+                Canvas.SetLeft(_rotateHandle, rotX - rotSize / 2);
+                Canvas.SetTop(_rotateHandle, rotY - rotSize / 2);
+                int normAngle = ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation);
+                string rotTip = $"Rotate shape ({normAngle}°) · Drag to turn, Shift snaps to 15°, double-click resets to 0°";
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_rotateHandle, rotTip);
+                ToolTipService.SetToolTip(_rotateHandle, rotTip);
             }
         }
 
@@ -1205,7 +1318,7 @@ namespace MarkSmith.Views.ShapeStudio
                 ViewModel.RecordUndo();
             }
             ViewModel.ResizeShape(s, _resizeFrom, _resizeEdges, dx, dy, keepAspect: IsDown(VirtualKey.Shift));
-            ViewModel.StatusMessage = $"{s.DisplayName}: {s.Width:F0} × {s.Height:F0}";
+            ViewModel.StatusMessage = ShapeDesignStudioViewModel.FormatResizeStatus(s, completed: false);
             e.Handled = true;
         }
 
@@ -1214,9 +1327,57 @@ namespace MarkSmith.Views.ShapeStudio
             if (_resizeEdges == ShapeDesignStudioViewModel.ResizeEdges.None) return;
             if (sender is UIElement h) h.ReleasePointerCapture(e.Pointer);
             if (_resized && _adornedShape is { } s)
-                ViewModel.StatusMessage = $"Resized {s.DisplayName.ToLowerInvariant()} to {s.Width:F0} × {s.Height:F0} · Ctrl+Z to undo";
+                ViewModel.StatusMessage = ShapeDesignStudioViewModel.FormatResizeStatus(s, completed: true);
             _resizeEdges = ShapeDesignStudioViewModel.ResizeEdges.None;
             e.Handled = true;
+        }
+
+        private void OnRotateHandlePointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is not Microsoft.UI.Xaml.Shapes.Ellipse h || _adornedShape is null) return;
+            CanvasScroller.Focus(FocusState.Pointer);
+            _rotating = true;
+            _rotated = false;
+            h.CapturePointer(e.Pointer);
+            e.Handled = true;
+        }
+
+        private void OnRotateHandlePointerMoved(object sender, PointerRoutedEventArgs e)
+        {
+            if (!_rotating || _adornedShape is not { } s) return;
+            var cur = e.GetCurrentPoint(MainCanvas).Position;
+            double cx = s.X + s.Width / 2.0, cy = s.Y + s.Height / 2.0;
+            bool snap = IsDown(VirtualKey.Shift);
+            int nextAngle = ShapeDesignStudioViewModel.ComputeRotationAngle(cx, cy, cur.X, cur.Y, snapTo15: snap);
+            if (!_rotated)
+            {
+                if (nextAngle == ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation)) return;
+                _rotated = true;
+                ViewModel.RecordUndo();
+            }
+            s.Rotation = nextAngle;
+            ViewModel.StatusMessage = $"Rotating {s.DisplayName.ToLowerInvariant()}: {nextAngle}°{(snap ? " (15° snap)" : "")}";
+            e.Handled = true;
+        }
+
+        private void OnRotateHandlePointerReleased(object sender, PointerRoutedEventArgs e)
+        {
+            if (!_rotating) return;
+            if (sender is UIElement h) h.ReleasePointerCapture(e.Pointer);
+            if (_rotated && _adornedShape is { } s)
+                ViewModel.StatusMessage = $"Rotated {s.DisplayName.ToLowerInvariant()} to {ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation)}° · Ctrl+Z to undo";
+            _rotating = false;
+            e.Handled = true;
+        }
+
+        private void OnRotateHandleDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            _rotating = false;
+            if (_adornedShape is not null)
+            {
+                ViewModel.ResetRotation();
+                e.Handled = true;
+            }
         }
 
         // ---- connector ends ----
@@ -1265,6 +1426,8 @@ namespace MarkSmith.Views.ShapeStudio
                 };
                 ToolTipService.SetToolTip(h, "Drag to re-route · it snaps to a shape's side or centre (Alt: no snap)");
                 SetCursor(h, Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
+                h.PointerEntered += (_, _) => h.Fill = new SolidColorBrush(AccentColor(0x38));
+                h.PointerExited += (_, _) => h.Fill = new SolidColorBrush(Microsoft.UI.Colors.White);
                 h.PointerPressed += OnPointHandlePressed;
                 h.PointerMoved += OnPointHandleMoved;
                 h.PointerReleased += OnPointHandleReleased;
@@ -1355,10 +1518,12 @@ namespace MarkSmith.Views.ShapeStudio
             return Windows.UI.Color.FromArgb(alpha, c.R, c.G, c.B);
         }
 
-        // ---- inspector: fill colour picker ----
+        // ---- inspector: fill / line colour picker ----
 
         private void OnFillFlyoutOpening(object? sender, object e)
         {
+            bool isLine = ViewModel.SelectedShape?.IsLine == true;
+            FillFlyoutTitle.Text = isLine ? "Line colour" : "Fill colour";
             var hex = (ViewModel.SelectedShape?.Fill ?? "0078D4").TrimStart('#');
             if (hex.Length == 6)
             {
@@ -1366,8 +1531,55 @@ namespace MarkSmith.Views.ShapeStudio
                 {
                     FillPicker.Color = Windows.UI.Color.FromArgb(255,
                         Convert.ToByte(hex[..2], 16), Convert.ToByte(hex[2..4], 16), Convert.ToByte(hex[4..6], 16));
+                    FillFlyoutHexText.Text = $"#{hex.ToUpperInvariant()}";
                 }
                 catch { }
+            }
+            RebuildFillFlyoutSwatches(hex);
+        }
+
+        private void OnFillPickerColorChanged(ColorPicker sender, ColorChangedEventArgs args)
+        {
+            var c = args.NewColor;
+            if (FillFlyoutHexText is not null)
+                FillFlyoutHexText.Text = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+        }
+
+        private void RebuildFillFlyoutSwatches(string activeHex)
+        {
+            if (FillFlyoutSwatches is null) return;
+            FillFlyoutSwatches.Children.Clear();
+            foreach (string rawHex in ViewModel.GetPaletteColors())
+            {
+                string hex = rawHex.TrimStart('#').ToUpperInvariant();
+                bool active = string.Equals(hex, activeHex, StringComparison.OrdinalIgnoreCase);
+                var btn = new Button
+                {
+                    Width = 26,
+                    Height = 22,
+                    Padding = new Thickness(0),
+                    CornerRadius = new CornerRadius(4),
+                    Background = BrushFromHex(hex),
+                    BorderThickness = new Thickness(active ? 2 : 1),
+                };
+                if (active)
+                    btn.BorderBrush = new SolidColorBrush(AccentColor(0xFF));
+                else
+                    ThemeBrush.Set(btn, Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+                ToolTipService.SetToolTip(btn, $"#{hex} ({ViewModel.SelectedPaletteName})");
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(btn, $"Apply palette colour #{hex}");
+                string capturedHex = hex;
+                btn.Click += (_, _) =>
+                {
+                    if (ViewModel.SelectedShape is { } s)
+                    {
+                        ViewModel.RecordUndo();
+                        s.Fill = capturedHex;
+                        ViewModel.StatusMessage = $"{(s.IsLine ? "Line" : "Fill")} colour #{s.Fill}";
+                        FillFlyout.Hide();
+                    }
+                };
+                FillFlyoutSwatches.Children.Add(btn);
             }
         }
 
@@ -1378,6 +1590,7 @@ namespace MarkSmith.Views.ShapeStudio
                 var c = FillPicker.Color;
                 ViewModel.RecordUndo();
                 shape.Fill = $"{c.R:X2}{c.G:X2}{c.B:X2}";
+                ViewModel.StatusMessage = $"{(shape.IsLine ? "Line" : "Fill")} colour #{shape.Fill}";
             }
             FillFlyout.Hide();
         }

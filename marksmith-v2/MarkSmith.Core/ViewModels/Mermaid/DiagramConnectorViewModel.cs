@@ -137,7 +137,7 @@ public partial class DiagramConnectorViewModel : ObservableObject
         var look = MarkSmith.Core.Mermaid.Routing.ConnectorAppearance.Resolve(LineStyle, StartHead, EndHead);
         IsDashed = look.Dashed;
         DisplayStrokeWidth = StrokeWidth * look.WidthScale;
-        DisplayStroke = IsSelected ? SelectionColor : StrokeColor;
+        DisplayStroke = IsSelected ? SelectionColor : DiagramNodeViewModel.ReadableStrokeOnCanvas(StrokeColor, CanvasColor);
         HaloOpacity = IsSelected ? 0.4 : IsHovered ? 0.22 : 0;
 
         (StartMarkerData, StartMarkerFill) = Marker(look.Start, _startTip, -_startDirX, -_startDirY);

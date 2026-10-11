@@ -2027,6 +2027,113 @@ public partial class MermaidStudioViewModel : ObservableObject
         SelectedConnector = null;
     }
 
+    /// <summary>
+    /// Cycles single-node selection forward (Tab) or backward (Shift+Tab) through canvas nodes
+    /// and announces the newly focused shape in <see cref="StatusText"/>.
+    /// </summary>
+    public DiagramNodeViewModel? CycleSelection(bool reverse = false)
+    {
+        if (Nodes.Count == 0)
+        {
+            StatusText = "No shapes on the canvas to select.";
+            return null;
+        }
+
+        int currentIdx = SelectedNode is not null ? Nodes.IndexOf(SelectedNode) : -1;
+        int nextIdx;
+        if (currentIdx < 0)
+            nextIdx = reverse ? Nodes.Count - 1 : 0;
+        else
+            nextIdx = (currentIdx + (reverse ? -1 : 1) + Nodes.Count) % Nodes.Count;
+
+        var next = Nodes[nextIdx];
+        SelectNode(next, false);
+        StatusText = $"Selected '{DisplayName(next)}' ({nextIdx + 1} of {Nodes.Count}).";
+        return next;
+    }
+
+    /// <summary>
+    /// Reverses the direction of a connector (swapping SourceNodeId/TargetNodeId and anchors)
+    /// as a single undo step and recomputes its geometry.
+    /// </summary>
+    [RelayCommand]
+    public void ReverseConnector(DiagramConnectorViewModel? target = null)
+    {
+        var conn = target ?? SelectedConnector;
+        if (conn is null)
+        {
+            StatusText = "Select a connector to reverse.";
+            return;
+        }
+
+        SnapshotForUndo();
+        using var _ = SuspendEditTracking();
+        (conn.SourceNodeId, conn.TargetNodeId) = (conn.TargetNodeId, conn.SourceNodeId);
+        (conn.SourceAnchor, conn.TargetAnchor) = (conn.TargetAnchor, conn.SourceAnchor);
+        UpdateConnectorGeometry(conn);
+        StatusText = $"Reversed connector: '{DisplayNameOf(conn.SourceNodeId)}' → '{DisplayNameOf(conn.TargetNodeId)}'.";
+    }
+
+    /// <summary>
+    /// Changes the shape of all selected nodes (or <paramref name="fallbackTarget"/>) in one undo step.
+    /// </summary>
+    public void ChangeSelectedNodesShape(string shape, DiagramNodeViewModel? fallbackTarget = null)
+    {
+        if (string.IsNullOrWhiteSpace(shape)) return;
+        var targets = SelectedNodes.Count > 0
+            ? SelectedNodes.ToList()
+            : (fallbackTarget ?? SelectedNode) is { } single ? new List<DiagramNodeViewModel> { single } : new List<DiagramNodeViewModel>();
+        if (targets.Count == 0 || targets.All(n => string.Equals(n.Shape, shape, StringComparison.OrdinalIgnoreCase))) return;
+
+        SnapshotForUndo();
+        using var _ = SuspendEditTracking();
+        foreach (var n in targets)
+        {
+            bool wasPseudo = n.IsPseudoState;
+            n.Shape = shape;
+            if (n.IsPseudoState)
+            {
+                n.Width = 28;
+                n.Height = 28;
+            }
+            else if (wasPseudo)
+            {
+                n.Width = Math.Max(n.Width, 120);
+                n.Height = Math.Max(n.Height, 50);
+            }
+            UpdateConnectedConnectors(n);
+        }
+        StatusText = targets.Count == 1
+            ? $"Changed '{DisplayName(targets[0])}' shape to {shape}."
+            : $"Changed {targets.Count} shapes to {shape}.";
+    }
+
+    /// <summary>
+    /// Resizes all selected nodes (or <paramref name="fallbackTarget"/>) to fit their label text in one undo step.
+    /// </summary>
+    [RelayCommand]
+    public void FitSelectedNodesToLabel(DiagramNodeViewModel? fallbackTarget = null)
+    {
+        var targets = SelectedNodes.Count > 0
+            ? SelectedNodes.Where(n => !n.IsPseudoState).ToList()
+            : (fallbackTarget ?? SelectedNode) is { IsPseudoState: false } single ? new List<DiagramNodeViewModel> { single } : new List<DiagramNodeViewModel>();
+        if (targets.Count == 0)
+        {
+            StatusText = "Select a shape with a label to fit.";
+            return;
+        }
+
+        SnapshotForUndo();
+        foreach (var n in targets)
+        {
+            n.RecalculateBoundsForText();
+            UpdateConnectedConnectors(n);
+        }
+        StatusText = targets.Count == 1
+            ? $"Fitted '{DisplayName(targets[0])}' to its label."
+            : $"Fitted {targets.Count} shapes to their labels.";
+    }
+
     #endregion
 
     #region Nudge (arrow keys)

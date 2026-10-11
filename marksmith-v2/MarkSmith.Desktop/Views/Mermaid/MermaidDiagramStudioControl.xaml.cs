@@ -116,8 +116,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
                 if (StatusBarText != null && !string.IsNullOrEmpty(vm.StatusText))
                 {
-                    Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusBarText, vm.StatusText);
-                    Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(StatusBarText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+                    AnnounceLiveRegion(StatusBarText, vm.StatusText);
                 }
 
                 // Every whole-diagram load (template, another block) lands fitted in view, and so
@@ -141,6 +140,19 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         HoverPolish.Track(this);
         Loaded += (_, _) => DimDisabledToolbarButtons(StudioToolbar);
+    }
+
+    private static void AnnounceLiveRegion(FrameworkElement? element, string? text, bool assertive = false)
+    {
+        if (element is null || string.IsNullOrWhiteSpace(text)) return;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(element, text);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(
+            element,
+            assertive
+                ? Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive
+                : Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+        Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(element)
+            ?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
     }
 
     // Toolbar icons carry explicit colours (cyan, red for Delete), which the Button's disabled
@@ -207,6 +219,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             CodeStatusText.Text = ok
                 ? $"Synced to canvas · {ViewModel.Nodes.Count} nodes, {ViewModel.Connectors.Count} edges"
                 : "⚠ Mermaid syntax error — fix the highlighted code";
+            AnnounceLiveRegion(CodeStatusText, CodeStatusText.Text, assertive: !ok);
             RefreshPreview();
             return;
         }
@@ -384,6 +397,18 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private bool IsEditingText() =>
         XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox;
 
+    private bool IsFocusWithinCanvas()
+    {
+        if (XamlRoot is not { } root) return false;
+        if (FocusManager.GetFocusedElement(root) is not DependencyObject focused) return false;
+        if (focused is TextBox) return false;
+        for (var cur = focused; cur is not null; cur = cur is UIElement ? VisualTreeHelper.GetParent(cur) : null)
+        {
+            if (ReferenceEquals(cur, CanvasContainer)) return true;
+        }
+        return false;
+    }
+
     private void OnPalettePresetClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null || sender is not FrameworkElement { Tag: string name }) return;
@@ -459,6 +484,38 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private void OnDeleteSelectedClick(object sender, RoutedEventArgs e)
     {
         ViewModel?.DeleteSelected();
+    }
+
+    private void OnReverseConnectorClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null) return;
+        ViewModel.ReverseConnector();
+        if (ViewModel.SelectedConnector is not null) UpdateConnectorInspector(ViewModel);
+    }
+
+    private void OnFitNodeToLabelClick(object sender, RoutedEventArgs e)
+    {
+        ViewModel?.FitSelectedNodesToLabel();
+    }
+
+    private void OnInspectorInputKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (e.Key == Windows.System.VirtualKey.Escape || (e.Key == Windows.System.VirtualKey.Enter && ctrl))
+        {
+            _canvas.FocusCanvas();
+            e.Handled = true;
+        }
+    }
+
+    private void OnInspectorSingleLineKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key is Windows.System.VirtualKey.Escape or Windows.System.VirtualKey.Enter)
+        {
+            _canvas.FocusCanvas();
+            e.Handled = true;
+        }
     }
 
     // ---- Align & Distribute flyout handlers ----------------------------------------------
@@ -552,6 +609,31 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         args.Handled = true;
     }
 
+    private void OnFocusInspectorAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (ViewModel is null) return;
+        if (ViewModel.SelectedNode is not null && NodeInspectorPanel.Visibility == Visibility.Visible)
+        {
+            NodeLabelTextBox.Focus(FocusState.Programmatic);
+            NodeLabelTextBox.SelectAll();
+            args.Handled = true;
+        }
+        else if (ViewModel.SelectedConnector is not null && ConnectorInspectorPanel.Visibility == Visibility.Visible)
+        {
+            ConnectorLabelTextBox.Focus(FocusState.Programmatic);
+            ConnectorLabelTextBox.SelectAll();
+            args.Handled = true;
+        }
+    }
+
+    private void OnTabCycleAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (!IsFocusWithinCanvas() || ViewModel is null || ViewModel.Nodes.Count == 0) return;
+        bool reverse = sender.Modifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift);
+        ViewModel.CycleSelection(reverse);
+        args.Handled = true;
+    }
+
     private void OnContextMenuAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         if (IsEditingText()) return;
@@ -614,6 +696,12 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             case nameof(MermaidStudioViewModel.ZoomFactor):
                 _canvas.SetZoomFactor(ViewModel.ZoomFactor);
                 break;
+            case nameof(MermaidStudioViewModel.StatusText):
+                AnnounceLiveRegion(StatusBarText, ViewModel.StatusText);
+                break;
+            case nameof(MermaidStudioViewModel.ActivePalette):
+                HighlightActivePalette();
+                break;
             case nameof(MermaidStudioViewModel.Nodes):
             case nameof(MermaidStudioViewModel.Connectors):
             case nameof(MermaidStudioViewModel.SelectedNodes):
@@ -664,6 +752,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         if (selectedNodes > 1) parts.Add($"{selectedNodes} selected");
         parts.Add(vm.IsGridSnapEnabled ? "Snap to 10 px grid" : "Snap off");
         CanvasSummaryText.Text = string.Join("  ·  ", parts);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CanvasSummaryText, CanvasSummaryText.Text);
     }
 
     // Show the connector vocabulary of the current diagram type (flowchart line + head, sequence

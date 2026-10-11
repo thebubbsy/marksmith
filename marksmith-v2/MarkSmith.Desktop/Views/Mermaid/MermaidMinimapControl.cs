@@ -66,14 +66,24 @@ public sealed class MermaidMinimapControl : UserControl
         _mapCanvas.PointerMoved += OnMapPointerMoved;
         _mapCanvas.PointerReleased += OnMapPointerReleased;
 
-        Content = new Border
+        var restBorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x2B, 0x2D, 0x42));
+        var hoverBorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xAA, 0x4C, 0xC9, 0xF0));
+        var border = new Border
         {
             Child = _mapCanvas,
             CornerRadius = new CornerRadius(8),
-            BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x2B, 0x2D, 0x42)),
+            BorderBrush = restBorderBrush,
             BorderThickness = new Thickness(1),
+            BackgroundTransition = new BrushTransition { Duration = TimeSpan.FromMilliseconds(140) },
         };
-        ToolTipService.SetToolTip(Content, "Overview — click or drag to move around the diagram");
+        border.PointerEntered += (_, _) => border.BorderBrush = hoverBorderBrush;
+        border.PointerExited += (_, _) => border.BorderBrush = restBorderBrush;
+        Content = border;
+        ToolTipService.SetToolTip(border, "Overview — click or drag to move around the diagram");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(this, "Diagram overview minimap");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(this, "Click or drag to pan the diagram viewport");
+        try { ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Hand); }
+        catch { /* cursor is cosmetic */ }
 
         Loaded += (_, _) => StartRefreshTimer();
         Unloaded += (_, _) => StopRefreshTimer();

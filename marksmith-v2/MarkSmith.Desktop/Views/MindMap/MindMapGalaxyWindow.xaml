@@ -96,19 +96,22 @@
                 <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto"
                               VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left" VerticalAlignment="Center">
-                        <Button Command="{Binding AddChildNodeCommand}" Style="{StaticResource GalaxyToolButton}" ToolTipService.ToolTip="Add a node under the selected one (Tab)">
+                        <Button Command="{Binding AddChildNodeCommand}" Style="{StaticResource GalaxyToolButton}"
+                                ToolTipService.ToolTip="Add a node under the selected one (Tab)" AutomationProperties.Name="Add child">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE710;" FontSize="12" />
                                 <TextBlock Text="Add child" FontSize="12" />
                             </StackPanel>
                         </Button>
-                        <Button Command="{Binding AddSiblingNodeCommand}" Style="{StaticResource GalaxyToolButton}" ToolTipService.ToolTip="Add a node beside the selected one (Enter)">
+                        <Button Command="{Binding AddSiblingNodeCommand}" Style="{StaticResource GalaxyToolButton}"
+                                ToolTipService.ToolTip="Add a node beside the selected one (Enter)" AutomationProperties.Name="Add sibling">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE710;" FontSize="12" />
                                 <TextBlock Text="Add sibling" FontSize="12" />
                             </StackPanel>
                         </Button>
-                        <Button Click="OnConnectSelectedClick" Style="{StaticResource GalaxyToolButton}" ToolTipService.ToolTip="Link the selected node to another one and say why (Ctrl+L)">
+                        <Button Click="OnConnectSelectedClick" Style="{StaticResource GalaxyToolButton}"
+                                ToolTipService.ToolTip="Link the selected node to another one and say why (Ctrl+L)" AutomationProperties.Name="Link">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE71B;" FontSize="12" />
                                 <TextBlock Text="Link" FontSize="12" />
@@ -132,7 +135,8 @@
 
                         <AppBarSeparator />
 
-                        <DropDownButton Padding="10,5" MinHeight="32" ToolTipService.ToolTip="Rearrange every node automatically">
+                        <DropDownButton Padding="10,5" MinHeight="32" ToolTipService.ToolTip="Rearrange every node automatically"
+                                        AutomationProperties.Name="Arrange">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xECA5;" FontSize="12" />
                                 <TextBlock Text="Arrange" FontSize="12" />
@@ -161,7 +165,8 @@
                         <!-- A real toggle: its checked state is the "on" indicator, instead of a
                              hand-drawn "ON" pill squeezed beside the icon. -->
                         <ToggleButton IsChecked="{Binding IsFocusModeEnabled, Mode=TwoWay}" Padding="10,5" MinHeight="32"
-                                      ToolTipService.ToolTip="Focus: fade everything the selected node isn't connected to (F)">
+                                      ToolTipService.ToolTip="Focus: fade everything the selected node isn't connected to (F)"
+                                      AutomationProperties.Name="Focus">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE890;" FontSize="12" />
                                 <TextBlock Text="Focus" FontSize="12" />
@@ -170,14 +175,17 @@
 
                         <AppBarSeparator />
 
-                        <Button Click="OnImportFolderClick" Style="{StaticResource GalaxyToolButton}" ToolTipService.ToolTip="Map a folder: every document in it becomes a node, linked by what they share">
+                        <Button Click="OnImportFolderClick" Style="{StaticResource GalaxyToolButton}"
+                                ToolTipService.ToolTip="Map a folder: every document in it becomes a node, linked by what they share"
+                                AutomationProperties.Name="Import folder">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE8B7;" FontSize="12" />
                                 <TextBlock Text="Import folder" FontSize="12" />
                             </StackPanel>
                         </Button>
 
-                        <DropDownButton Padding="10,5" MinHeight="32" ToolTipService.ToolTip="Export or copy the map">
+                        <DropDownButton Padding="10,5" MinHeight="32" ToolTipService.ToolTip="Export or copy the map"
+                                        AutomationProperties.Name="Export">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xEDE1;" FontSize="12" />
                                 <TextBlock Text="Export" FontSize="12" />
@@ -202,7 +210,8 @@
                             </DropDownButton.Flyout>
                         </DropDownButton>
 
-                        <Button Click="OnSaveClick" Style="{StaticResource GalaxyToolButton}" ToolTipService.ToolTip="Save the map (Ctrl+S)">
+                        <Button Click="OnSaveClick" Style="{StaticResource GalaxyToolButton}"
+                                ToolTipService.ToolTip="Save the map (Ctrl+S)" AutomationProperties.Name="Save">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE74E;" FontSize="12" />
                                 <TextBlock Text="Save" FontSize="12" />
@@ -227,6 +236,7 @@
                      coordinates, so panning and zooming move a single transform instead of
                      rebuilding every card. -->
                 <Canvas x:Name="GalaxyCanvas" Background="Transparent"
+                        IsTabStop="True" UseSystemFocusVisuals="False"
                         AutomationProperties.Name="Map canvas"
                         PointerPressed="OnCanvasPointerPressed"
                         PointerMoved="OnCanvasPointerMoved"
@@ -256,13 +266,16 @@
                         <TextBlock Text="Add a first node and grow the map from it, or import a folder and MarkSmith will link every document in it for you."
                                    FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,6,0,0">
-                            <Button Command="{Binding AddRootNodeCommand}" Style="{StaticResource AccentButtonStyle}" Padding="12,6">
+                            <Button Command="{Binding AddRootNodeCommand}" Style="{StaticResource AccentButtonStyle}" Padding="12,6"
+                                    AutomationProperties.Name="Add first node">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE710;" FontSize="12" />
                                     <TextBlock Text="Add first node" FontSize="12" />
                                 </StackPanel>
                             </Button>
-                            <Button Click="OnImportFolderClick" Padding="12,6" ToolTipService.ToolTip="Map a folder: every document in it becomes a node">
+                            <Button Click="OnImportFolderClick" Padding="12,6"
+                                    ToolTipService.ToolTip="Map a folder: every document in it becomes a node"
+                                    AutomationProperties.Name="Import folder">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE8B7;" FontSize="12" />
                                     <TextBlock Text="Import folder" FontSize="12" />
@@ -292,14 +305,16 @@
                                            FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                <Button Click="OnImportFolderClick" Style="{StaticResource AccentButtonStyle}" FontSize="12" Padding="10,5">
+                                <Button Click="OnImportFolderClick" Style="{StaticResource AccentButtonStyle}" FontSize="12" Padding="10,5"
+                                        AutomationProperties.Name="Import folder">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <FontIcon Glyph="&#xE8B7;" FontSize="12" />
                                         <TextBlock Text="Import folder" FontSize="12" />
                                     </StackPanel>
                                 </Button>
                                 <Button Command="{Binding ClearTutorialCommand}" FontSize="12" Padding="10,5"
-                                        ToolTipService.ToolTip="Remove the tour's nodes. Anything you added stays.">
+                                        ToolTipService.ToolTip="Remove the tour's nodes. Anything you added stays."
+                                        AutomationProperties.Name="Clear the tour">
                                     <TextBlock Text="Clear the tour" FontSize="12" />
                                 </Button>
                             </StackPanel>
@@ -335,8 +350,8 @@
                     </Border>
                 </StackPanel>
 
-                <!-- CONNECTION LEGEND (bottom-centre) -->
-                <Border x:Name="ConnectionLegend" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18"
+                <!-- CONNECTION LEGEND (bottom-centre, offset clear of the bottom-left minimap) -->
+                <Border x:Name="ConnectionLegend" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="216,0,24,18"
                         Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="12,6"
                         IsHitTestVisible="False">
                     <StackPanel Orientation="Horizontal" Spacing="14">
@@ -352,7 +367,7 @@
                             <Line X1="0" Y1="0" X2="16" Y2="0" StrokeThickness="1.6" Stroke="{ThemeResource TextFillColorSecondaryBrush}" StrokeDashArray="2,1.6" VerticalAlignment="Center" />
                             <TextBlock Text="Found on import" FontSize="11" FontStyle="Italic" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
-                        <TextBlock Text="Drag to move · Double-click to open · Right-click for more" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <TextBlock Text="Drag or Alt+Arrows to move · Arrows to navigate · Double-click to open" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                     </StackPanel>
                 </Border>
 
@@ -415,14 +430,14 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{Binding PreviewFilePath}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                             <Button Grid.Column="1" Click="OnPreviewVersionHistoryClick" IsEnabled="{Binding PreviewHasFile}" FontSize="12" Padding="10,4"
-                                    ToolTipService.ToolTip="Earlier versions of this document">
+                                    ToolTipService.ToolTip="Earlier versions of this document" AutomationProperties.Name="Version history">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE81C;" FontSize="12" />
                                     <TextBlock Text="History" FontSize="12" />
                                 </StackPanel>
                             </Button>
                             <Button Grid.Column="2" Click="OnOpenInEditorClick" IsEnabled="{Binding PreviewHasFile}" Style="{StaticResource AccentButtonStyle}" FontSize="12" Padding="10,4"
-                                    ToolTipService.ToolTip="Open this document in the editor">
+                                    ToolTipService.ToolTip="Open this document in the editor" AutomationProperties.Name="Open in editor">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <TextBlock Text="Open" FontSize="12" />
                                     <FontIcon Glyph="&#xE8A7;" FontSize="12" />
@@ -441,9 +456,10 @@
                         <!-- MAP OVERVIEW -->
                         <StackPanel Spacing="8">
                             <TextBlock Text="Map overview" Style="{StaticResource InspectorHeading}" />
-                            <TextBlock Text="{Binding InsightsSummary}" Style="{StaticResource InspectorCaption}" />
+                            <TextBlock x:Name="InsightsSummaryText" Text="{Binding InsightsSummary}" Style="{StaticResource InspectorCaption}" />
                             <Button Click="OnShowInsightsClick" HorizontalAlignment="Stretch" Padding="10,5"
-                                    ToolTipService.ToolTip="Counts, the most connected documents, formats, tags and anything not linked yet">
+                                    ToolTipService.ToolTip="Counts, the most connected documents, formats, tags and anything not linked yet"
+                                    AutomationProperties.Name="Map report">
                                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                     <FontIcon Glyph="&#xE9D9;" FontSize="12" />
                                     <TextBlock Text="Map report" FontSize="12" />
@@ -531,7 +547,8 @@
                                                     HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
                                                     Loaded="OnSwatchLoaded" Unloaded="OnSwatchUnloaded">
                                                 <!-- Content must stretch: with the default centred alignment this unsized swatch measured 0x0 and every button rendered empty. -->
-                                                <Border CornerRadius="11" Background="{Binding Converter={StaticResource FillBrushConverter}}" />
+                                                <Border CornerRadius="11" Background="{Binding Converter={StaticResource FillBrushConverter}}"
+                                                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1" />
                                             </Button>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -556,14 +573,16 @@
 
                             <StackPanel Spacing="6">
                                 <Button Click="OnOpenSelectedDocumentClick" IsEnabled="{Binding HasFile}" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}" Padding="10,6"
-                                        ToolTipService.ToolTip="Open the linked file in the editor (double-click the node)">
+                                        ToolTipService.ToolTip="Open the linked file in the editor (double-click the node)"
+                                        AutomationProperties.Name="Open in editor">
                                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                         <FontIcon Glyph="&#xE8A7;" FontSize="12" />
                                         <TextBlock Text="Open in editor" FontSize="12" />
                                     </StackPanel>
                                 </Button>
                                 <Button Click="OnOpenVersionHistoryClick" IsEnabled="{Binding HasFile}" HorizontalAlignment="Stretch" Padding="10,6"
-                                        ToolTipService.ToolTip="Every saved version of the linked file, with what changed">
+                                        ToolTipService.ToolTip="Every saved version of the linked file, with what changed"
+                                        AutomationProperties.Name="Version history">
                                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                         <FontIcon Glyph="&#xE81C;" FontSize="12" />
                                         <TextBlock Text="Version history" FontSize="12" />
@@ -596,14 +615,16 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Button Click="OnReverseLinkClick" HorizontalAlignment="Stretch" Padding="10,6"
-                                        ToolTipService.ToolTip="Flip which way the arrow points">
+                                        ToolTipService.ToolTip="Flip which way the arrow points"
+                                        AutomationProperties.Name="Reverse link">
                                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                         <FontIcon Glyph="&#xE8AB;" FontSize="12" />
                                         <TextBlock Text="Reverse" FontSize="12" />
                                     </StackPanel>
                                 </Button>
                                 <Button Grid.Column="1" Command="{Binding DeleteSelectionCommand}" HorizontalAlignment="Stretch" Padding="10,6"
-                                        ToolTipService.ToolTip="Delete this link (Delete). The two nodes stay.">
+                                        ToolTipService.ToolTip="Delete this link (Delete). The two nodes stay."
+                                        AutomationProperties.Name="Delete link">
                                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                         <FontIcon Glyph="&#xE74D;" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
                                         <TextBlock Text="Delete link" FontSize="12" />
@@ -627,9 +648,9 @@
                 <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding NodesCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    <TextBlock x:Name="NodesCountText" Text="{Binding NodesCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                     <TextBlock Text="·" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                    <TextBlock Text="{Binding LinksCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    <TextBlock x:Name="LinksCountText" Text="{Binding LinksCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                 </StackPanel>
             </Grid>
         </Border>

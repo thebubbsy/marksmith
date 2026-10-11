@@ -1573,5 +1573,145 @@ namespace MarkSmith.ViewModels.MindMap
             foreach (var n in Nodes) n.SyncToModel();
             foreach (var l in Links) l.SyncToModel();
         }
+
+        // ---- Keyboard canvas navigation & nudging ----
+
+        /// <summary>Selects the document's root node (or first visible node when the root is dimmed).</summary>
+        public MindMapNodeViewModel? SelectRootNode()
+        {
+            var root = Nodes.FirstOrDefault(n => n.Id == Document.RootNodeId && !n.IsDimmed)
+                       ?? Nodes.FirstOrDefault(n => string.IsNullOrEmpty(n.ParentId) && !n.IsDimmed)
+                       ?? Nodes.FirstOrDefault(n => !n.IsDimmed)
+                       ?? Nodes.FirstOrDefault();
+            if (root == null) return null;
+            SelectedLink = null;
+            SelectedNode = root;
+            StatusMessage = $"Selected '{root.Title}' ({root.FormatBadge}).";
+            return root;
+        }
+
+        /// <summary>Moves selection from the current node to the nearest non-dimmed node in the
+        /// requested canvas direction <c>(dirX, dirY)</c>, favouring connected neighbours on ties.</summary>
+        public MindMapNodeViewModel? NavigateDirection(double dirX, double dirY)
+        {
+            double len = Math.Sqrt(dirX * dirX + dirY * dirY);
+            if (len < 1e-6) return null;
+            dirX /= len;
+            dirY /= len;
+
+            if (SelectedNode == null)
+            {
+                return SelectRootNode();
+            }
+
+            var from = SelectedNode;
+            double fx = from.X + from.Width / 2.0;
+            double fy = from.Y + from.Height / 2.0;
+
+            MindMapNodeViewModel? best = null;
+            double bestScore = double.MaxValue;
+
+            foreach (var candidate in Nodes)
+            {
+                if (candidate.Id == from.Id || candidate.IsDimmed) continue;
+                double cx = candidate.X + candidate.Width / 2.0;
+                double cy = candidate.Y + candidate.Height / 2.0;
+                double vx = cx - fx;
+                double vy = cy - fy;
+
+                double forward = vx * dirX + vy * dirY;
+                if (forward <= 4.0) continue;
+
+                double lateral = Math.Abs(-vx * dirY + vy * dirX);
+                if (lateral > forward * 2.25) continue;
+
+                double score = forward + lateral * 1.85;
+                bool connected = candidate.ParentId == from.Id
+                                 || from.ParentId == candidate.Id
+                                 || Links.Any(l =>
+                                     (l.SourceNodeId == from.Id && l.TargetNodeId == candidate.Id) ||
+                                     (l.SourceNodeId == candidate.Id && l.TargetNodeId == from.Id));
+                if (connected) score *= 0.85;
+
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    best = candidate;
+                }
+            }
+
+            if (best != null)
+            {
+                SelectedLink = null;
+                SelectedNode = best;
+                StatusMessage = $"Selected '{best.Title}' ({best.FormatBadge}).";
+            }
+            return best;
+        }
+
+        /// <summary>Nudges the selected node by <c>(dx, dy)</c> pixels on the canvas, coalescing
+        /// consecutive keyboard nudges of the same node into a single undo entry.</summary>
+        public bool NudgeSelectedNode(double dx, double dy)
+        {
+            if (SelectedNode == null || (Math.Abs(dx) < 1e-6 && Math.Abs(dy) < 1e-6)) return false;
+
+            string editKey = $"nudge:{SelectedNode.Id}";
+            if (_openEditKey != editKey)
+            {
+                PushUndo($"Move '{SelectedNode.Title}'");
+                _openEditKey = editKey;
+            }
+
+            using (SuspendEditTracking())
+            {
+                SelectedNode.X = Math.Round(SelectedNode.X + dx);
+                SelectedNode.Y = Math.Round(SelectedNode.Y + dy);
+                SelectedNode.SyncToModel();
+            }
+
+            MarkDirty($"Moved '{SelectedNode.Title}' to ({SelectedNode.X:F0}, {SelectedNode.Y:F0}).");
+            CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
+
+        // ---- Theme palette specification (shared with MindMapGalaxyWindow & contrast tests) ----
+
+        public readonly record struct ThemePaletteSpec(
+            string Bg,
+            string Card,
+            string Border,
+            string Ink,
+            string SubInk,
+            string Edge,
+            string ProgressFill,
+            string ProgressInk,
+            string VersionFill,
+            string VersionInk,
+            string MissingInk,
+            string HighlightBorder);
+
+        public static ThemePaletteSpec GetThemePalette(string? name) => name switch
+        {
+            "Clean White" => new(
+                Bg: "#F8FAFC", Card: "#FFFFFF", Border: "#CBD5E1", Ink: "#111827", SubInk: "#475569", Edge: "#64748B",
+                ProgressFill: "#059669", ProgressInk: "#047857", VersionFill: "#E0F2FE", VersionInk: "#0369A1",
+                MissingInk: "#B91C1C", HighlightBorder: "#0284C7"),
+            "Nordic Slate" => new(
+                Bg: "#1E293B", Card: "#273549", Border: "#475569", Ink: "#E2E8F0", SubInk: "#94A3B8", Edge: "#64748B",
+                ProgressFill: "#34D399", ProgressInk: "#34D399", VersionFill: "#1C2D42", VersionInk: "#7DD3FC",
+                MissingInk: "#FCA5A5", HighlightBorder: "#22D3EE"),
+            "Obsidian Dark" => new(
+                Bg: "#0B0C10", Card: "#15171F", Border: "#2D3343", Ink: "#E8E8F0", SubInk: "#9494AD", Edge: "#4A5266",
+                ProgressFill: "#34D399", ProgressInk: "#34D399", VersionFill: "#1C2D42", VersionInk: "#7DD3FC",
+                MissingInk: "#FCA5A5", HighlightBorder: "#22D3EE"),
+            "Cyberpunk Neon" => new(
+                Bg: "#0A0118", Card: "#180A2E", Border: "#4C2882", Ink: "#F0E7FF", SubInk: "#C4B5FD", Edge: "#7C4DFF",
+                ProgressFill: "#34D399", ProgressInk: "#34D399", VersionFill: "#1C2D42", VersionInk: "#7DD3FC",
+                MissingInk: "#FCA5A5", HighlightBorder: "#22D3EE"),
+            _ => new(
+                Bg: "#12131C", Card: "#1C1C28", Border: "#2E3248", Ink: "#F1F1F8", SubInk: "#9A9AB0", Edge: "#5A6478",
+                ProgressFill: "#34D399", ProgressInk: "#34D399", VersionFill: "#1C2D42", VersionInk: "#7DD3FC",
+                MissingInk: "#FCA5A5", HighlightBorder: "#22D3EE")
+        };
     }
 }

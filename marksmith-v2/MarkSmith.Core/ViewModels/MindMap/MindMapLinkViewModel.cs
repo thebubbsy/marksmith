@@ -49,6 +49,25 @@ namespace MarkSmith.ViewModels.MindMap
         /// otherwise why the linker thinks these two belong together.</summary>
         public string DisplayLabel => string.IsNullOrWhiteSpace(Label) ? KindDescription : Label!.Trim();
 
+        public string DirectionArrow => Direction switch
+        {
+            MindMapLinkDirection.SourceToTarget => "→",
+            MindMapLinkDirection.TargetToSource => "←",
+            MindMapLinkDirection.Bidirectional => "↔",
+            _ => "—"
+        };
+
+        /// <summary>Formats a human-readable endpoint description for tooltips and screen readers.</summary>
+        public string DescribeEndpoints(string? sourceTitle, string? targetTitle)
+        {
+            string src = string.IsNullOrWhiteSpace(sourceTitle) ? SourceNodeId : sourceTitle!.Trim();
+            string dst = string.IsNullOrWhiteSpace(targetTitle) ? TargetNodeId : targetTitle!.Trim();
+            string rel = DisplayLabel;
+            return string.IsNullOrWhiteSpace(rel)
+                ? $"{src} {DirectionArrow} {dst}"
+                : $"{src} {DirectionArrow} {dst} ({rel})";
+        }
+
         partial void OnKindChanged(MindMapLinkKind value)
         {
             OnPropertyChanged(nameof(IsInferred));
@@ -57,6 +76,8 @@ namespace MarkSmith.ViewModels.MindMap
         }
 
         partial void OnLabelChanged(string? value) => OnPropertyChanged(nameof(DisplayLabel));
+
+        partial void OnDirectionChanged(MindMapLinkDirection value) => OnPropertyChanged(nameof(DirectionArrow));
 
         public MindMapLinkViewModel(MindMapLink model)
         {
