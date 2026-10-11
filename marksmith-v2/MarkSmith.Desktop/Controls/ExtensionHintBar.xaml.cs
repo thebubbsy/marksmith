@@ -76,8 +76,10 @@ namespace MarkSmith.Controls
                 .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
             var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
                 .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Menu)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
-            if (e.Key == Windows.System.VirtualKey.Application || (shift && !ctrl && e.Key == Windows.System.VirtualKey.F10))
+            if (e.Key == Windows.System.VirtualKey.Application || (shift && !ctrl && !alt && e.Key == Windows.System.VirtualKey.F10))
             {
                 ShowHintContextMenu(null);
                 e.Handled = true;
@@ -92,14 +94,16 @@ namespace MarkSmith.Controls
             }
 
             var focused = XamlRoot is null ? null : FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
-            if (!ctrl && !shift && focused is not null)
+            if (!ctrl && !shift && !alt && focused is not null)
             {
-                if (e.Key == Windows.System.VirtualKey.Right && IsInside(focused, GetExtensionButton))
+                if ((e.Key == Windows.System.VirtualKey.Right || e.Key == Windows.System.VirtualKey.Up)
+                    && IsInside(focused, GetExtensionButton))
                 {
                     DismissButton.Focus(FocusState.Keyboard);
                     e.Handled = true;
                 }
-                else if (e.Key == Windows.System.VirtualKey.Left && IsInside(focused, DismissButton))
+                else if ((e.Key == Windows.System.VirtualKey.Left || e.Key == Windows.System.VirtualKey.Down)
+                         && IsInside(focused, DismissButton))
                 {
                     GetExtensionButton.Focus(FocusState.Keyboard);
                     e.Handled = true;

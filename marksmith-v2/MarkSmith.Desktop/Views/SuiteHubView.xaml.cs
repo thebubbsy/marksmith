@@ -148,8 +148,8 @@ public sealed partial class SuiteHubView : UserControl
         {
             return direction switch
             {
-                "Up" => currentCard > 0 ? currentCard - 1 : -1,
-                "Down" => currentCard < 6 ? currentCard + 1 : -1,
+                "Up" or "Left" => currentCard > 0 ? currentCard - 1 : -1,
+                "Down" or "Right" => currentCard < 6 ? currentCard + 1 : -1,
                 _ => -1,
             };
         }
@@ -157,7 +157,9 @@ public sealed partial class SuiteHubView : UserControl
         return (currentCard, direction) switch
         {
             (0, "Down") => 2,
+            (0, "Right") => 1,
             (1, "Up") => 0,
+            (1, "Left") => 0,
             (2, "Up") => 0,
             (1, "Right") => 2,
             (2, "Left") => 1,
@@ -214,18 +216,18 @@ public sealed partial class SuiteHubView : UserControl
 
             Control? target = e.Key switch
             {
-                VirtualKey.Number1 => Card1DiagramButton,
-                VirtualKey.Number2 => Card2CopySetupButton,
-                VirtualKey.Number3 => TurnOnApiButton.Visibility == Visibility.Visible ? TurnOnApiButton : CopyApiUrlButton,
-                VirtualKey.Number4 => Card4CopyCommandButton,
-                VirtualKey.Number5 => Card5ExpressButton,
-                VirtualKey.Number6 => Card6GalaxyButton,
+                VirtualKey.Number1 or VirtualKey.NumberPad1 => Card1DiagramButton,
+                VirtualKey.Number2 or VirtualKey.NumberPad2 => Card2CopySetupButton,
+                VirtualKey.Number3 or VirtualKey.NumberPad3 => TurnOnApiButton.Visibility == Visibility.Visible ? TurnOnApiButton : CopyApiUrlButton,
+                VirtualKey.Number4 or VirtualKey.NumberPad4 => Card4CopyCommandButton,
+                VirtualKey.Number5 or VirtualKey.NumberPad5 => Card5ExpressButton,
+                VirtualKey.Number6 or VirtualKey.NumberPad6 => Card6GalaxyButton,
                 _ => null
             };
 
             if (target is not null)
             {
-                FocusAndBringIntoView(target);
+                FocusAndBringIntoView(target, FocusState.Keyboard);
                 e.Handled = true;
                 return;
             }
@@ -317,7 +319,7 @@ public sealed partial class SuiteHubView : UserControl
 
         var focusedButton = FocusManager.GetFocusedElement(XamlRoot) as Button;
         var buttons = GetCardButtons(cardIndex);
-        var btnIdx = focusedButton is not null ? buttons.ToList().IndexOf(focusedButton) : 0;
+        var btnIdx = focusedButton is not null ? Math.Max(0, buttons.ToList().IndexOf(focusedButton)) : 0;
 
         if (key == VirtualKey.Left)
         {
@@ -471,6 +473,9 @@ public sealed partial class SuiteHubView : UserControl
     private async void OnTurnOnApiClick(object sender, RoutedEventArgs e)
     {
         if (_turnOnApi is null) return;
+        var hadFocus = XamlRoot is not null &&
+                       FocusManager.GetFocusedElement(XamlRoot) is DependencyObject f &&
+                       IsInside(f, Card3Border);
         TurnOnApiButton.IsEnabled = false;
         try
         {
@@ -483,6 +488,12 @@ public sealed partial class SuiteHubView : UserControl
         finally
         {
             TurnOnApiButton.IsEnabled = true;
+            if (hadFocus)
+            {
+                var nextTarget = TurnOnApiButton.Visibility == Visibility.Visible ? TurnOnApiButton : CopyApiUrlButton;
+                FocusAndBringIntoView(nextTarget, FocusState.Programmatic);
+                RefreshCardVisual(Card3Border);
+            }
         }
     }
 

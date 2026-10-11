@@ -154,10 +154,12 @@ public sealed partial class WelcomeTour : UserControl
         // dropping it on the dialog.
         if (last && _index != previous)
             (SampleCard.IsEnabled ? SampleCard : BlankCard).Focus(FocusState.Programmatic);
-        // A welcome-slide card had focus and its page just collapsed. Left alone, focus fell to
-        // the page dots, where the arrow keys only move a focus ring between dots and the tour
-        // stopped turning. Next is where the keyboard user is headed anyway.
-        else if (_index != previous && focused is not null && IsInside(focused, _pages[previous]))
+        // A welcome-slide card (or BackButton when returning to Page 0) had focus and just
+        // collapsed. Left alone, focus fell to the page dots, where the arrow keys only move a
+        // focus ring between dots and the tour stopped turning. Next is where the keyboard user is
+        // headed anyway.
+        else if (_index != previous && focused is not null &&
+                 (IsInside(focused, _pages[previous]) || (_index == 0 && IsInside(focused, BackButton))))
             NextButton.Focus(FocusState.Programmatic);
     }
 

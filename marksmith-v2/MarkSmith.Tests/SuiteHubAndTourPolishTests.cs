@@ -131,63 +131,70 @@ public class SuiteHubAndTourPolishTests
         return Path.Combine(new[] { dir!.FullName, "MarkSmith.Desktop" }.Concat(parts).ToArray());
     }
 
-    private static int GetGridNeighborCardLogic(int currentIndex, string key, bool twoColumn, int count = 7)
+    private static int GetGridNeighborCardLogic(int currentCard, string direction, bool singleColumn)
     {
-        if (currentIndex < 0 || currentIndex >= count) return -1;
-        if (!twoColumn)
+        if (currentCard < 0 || currentCard > 6) return -1;
+        if (singleColumn)
         {
-            return key switch
+            return direction switch
             {
-                "Down" or "Right" => Math.Min(count - 1, currentIndex + 1),
-                "Up" or "Left" => Math.Max(0, currentIndex - 1),
-                _ => currentIndex,
+                "Up" or "Left" => currentCard > 0 ? currentCard - 1 : -1,
+                "Down" or "Right" => currentCard < 6 ? currentCard + 1 : -1,
+                _ => -1,
             };
         }
 
-        if (currentIndex == 0)
+        return (currentCard, direction) switch
         {
-            return key switch
-            {
-                "Down" or "Right" => count > 1 ? 1 : 0,
-                _ => 0,
-            };
-        }
-
-        var pairIndex = currentIndex - 1;
-        var row = pairIndex / 2;
-        var col = pairIndex % 2;
-
-        return key switch
-        {
-            "Left" => col == 1 ? currentIndex - 1 : currentIndex,
-            "Right" => col == 0 && currentIndex + 1 < count ? currentIndex + 1 : currentIndex,
-            "Up" => row == 0 ? 0 : currentIndex - 2,
-            "Down" => currentIndex + 2 < count ? currentIndex + 2 : currentIndex,
-            _ => currentIndex,
+            (0, "Down") => 2,
+            (0, "Right") => 1,
+            (1, "Up") => 0,
+            (1, "Left") => 0,
+            (2, "Up") => 0,
+            (1, "Right") => 2,
+            (2, "Left") => 1,
+            (1, "Down") => 3,
+            (2, "Down") => 4,
+            (3, "Up") => 1,
+            (4, "Up") => 2,
+            (3, "Right") => 4,
+            (4, "Left") => 3,
+            (3, "Down") => 5,
+            (4, "Down") => 6,
+            (5, "Up") => 3,
+            (6, "Up") => 4,
+            (5, "Right") => 6,
+            (6, "Left") => 5,
+            _ => -1,
         };
     }
 
     [Theory]
-    [InlineData(0, "Down", true, 1)]
-    [InlineData(0, "Up", true, 0)]
-    [InlineData(1, "Right", true, 2)]
-    [InlineData(1, "Left", true, 1)]
-    [InlineData(2, "Left", true, 1)]
-    [InlineData(2, "Right", true, 2)]
-    [InlineData(1, "Up", true, 0)]
-    [InlineData(2, "Up", true, 0)]
-    [InlineData(1, "Down", true, 3)]
-    [InlineData(2, "Down", true, 4)]
-    [InlineData(5, "Down", true, 5)]
-    [InlineData(6, "Down", true, 6)]
-    [InlineData(3, "Down", false, 4)]
-    [InlineData(3, "Up", false, 2)]
-    [InlineData(-1, "Down", true, -1)]
-    [InlineData(99, "Up", true, -1)]
+    [InlineData(0, "Down", false, 2)]
+    [InlineData(0, "Right", false, 1)]
+    [InlineData(0, "Up", false, -1)]
+    [InlineData(1, "Right", false, 2)]
+    [InlineData(1, "Left", false, 0)]
+    [InlineData(2, "Left", false, 1)]
+    [InlineData(2, "Right", false, -1)]
+    [InlineData(1, "Up", false, 0)]
+    [InlineData(2, "Up", false, 0)]
+    [InlineData(1, "Down", false, 3)]
+    [InlineData(2, "Down", false, 4)]
+    [InlineData(5, "Down", false, -1)]
+    [InlineData(6, "Down", false, -1)]
+    [InlineData(3, "Down", true, 4)]
+    [InlineData(3, "Right", true, 4)]
+    [InlineData(3, "Up", true, 2)]
+    [InlineData(3, "Left", true, 2)]
+    [InlineData(0, "Left", true, -1)]
+    [InlineData(6, "Right", true, -1)]
+    [InlineData(-1, "Down", false, -1)]
+    [InlineData(99, "Up", false, -1)]
     public void SuiteHub_2D_grid_neighbor_navigation_handles_two_col_and_single_col_bounds(
-        int currentIndex, string key, bool twoColumn, int expected)
+        int currentCard, string direction, bool singleColumn, int expected)
     {
-        var actual = GetGridNeighborCardLogic(currentIndex, key, twoColumn);
+        var actual = GetGridNeighborCardLogic(currentCard, direction, singleColumn);
         Assert.Equal(expected, actual);
     }
 
@@ -212,6 +219,10 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyExpressUrl", cs);
         Assert.Contains("ExpressUrl = \"http://localhost:5000\"", cs);
         Assert.Contains("VirtualKey.Application", cs);
+        Assert.Contains("VirtualKey.NumberPad1", cs);
+        Assert.Contains("(0, \"Right\") => 1", cs);
+        Assert.Contains("(1, \"Left\") => 0", cs);
+        Assert.Contains("var nextTarget = TurnOnApiButton.Visibility == Visibility.Visible ? TurnOnApiButton : CopyApiUrlButton;", cs);
     }
 
     [Fact]
@@ -233,6 +244,7 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("Jump to step", cs);
         Assert.Contains("AutomationProperties.SetName(NextButton", cs);
         Assert.Contains("AutomationProperties.SetName(BackButton", cs);
+        Assert.Contains("_index == 0 && IsInside(focused, BackButton)", cs);
     }
 
     [Theory]
@@ -266,22 +278,56 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("FormatCountText", cs);
         Assert.Contains("FormatCommandClipboardText", cs);
         Assert.Contains("AutomationProperties.SetName(Results", cs);
+        Assert.Contains("if (_recents.Labels is System.Collections.Generic.IList<string> mutable)", cs.Replace("IList<string>", "System.Collections.Generic.IList<string>"));
+        Assert.Contains("else if (NoMatches.Visibility == Visibility.Visible) OnClearSearchClick", cs);
+        Assert.Contains("ResetSearchButton.Focus(FocusState.Keyboard)", cs);
+    }
+
+    [Fact]
+    public void PaletteRecents_removing_item_from_backing_list_persists_across_subsequent_Push()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"ms-palette-recents-{Guid.NewGuid():N}.json");
+        try
+        {
+            var recents = new PaletteRecents(tempFile);
+            recents.Push("Export PDF");
+            recents.Push("Split view");
+            Assert.Equal(new[] { "Split view", "Export PDF" }, recents.Labels);
+
+            // Simulate CommandPalette.RemoveRecent mutating the backing list + persisting
+            var mutable = Assert.IsAssignableFrom<System.Collections.Generic.IList<string>>(recents.Labels);
+            Assert.True(mutable.Remove("Export PDF"));
+            File.WriteAllText(tempFile, JsonSerializer.Serialize(recents.Labels));
+
+            // Subsequent command execution calls recents.Push(...)
+            recents.Push("Generate Word (.docx)");
+
+            // Reload from disk to verify "Export PDF" was NOT resurrected by Push
+            var reloaded = new PaletteRecents(tempFile);
+            Assert.Equal(new[] { "Generate Word (.docx)", "Split view" }, reloaded.Labels);
+            Assert.DoesNotContain("Export PDF", reloaded.Labels);
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
     }
 
     [Theory]
     [InlineData(0, false, "0 commands")]
+    [InlineData(1, false, "1 command")]
     [InlineData(1, true, "1 match")]
     [InlineData(5, true, "5 matches")]
     [InlineData(12, false, "12 commands")]
-    [InlineData(-2, true, "0 matches")]
+    [InlineData(0, true, "")]
+    [InlineData(-2, true, "")]
     public void CommandPalette_FormatCountText_handles_singular_plural_and_negative_bounds(
-        int count, bool hasQuery, string expected)
+        int count, bool searching, string expected)
     {
-        var text = count <= 0
-            ? (hasQuery ? "0 matches" : "0 commands")
-            : count == 1
-                ? (hasQuery ? "1 match" : "1 command")
-                : hasQuery ? $"{count} matches" : $"{count} commands";
+        var text = !searching
+            ? (count == 1 ? "1 command" : $"{Math.Max(0, count)} commands")
+            : count <= 0 ? ""
+            : count == 1 ? "1 match" : $"{count} matches";
         Assert.Equal(expected, text);
     }
 
@@ -298,6 +344,8 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("RefreshBorderBrush", hintCs);
         Assert.Contains("ShowHintContextMenu", hintCs);
         Assert.Contains("HoverPolish.RestoreFocus", hintCs);
+        Assert.Contains("VirtualKey.Up", hintCs);
+        Assert.Contains("VirtualKey.Down", hintCs);
 
         Assert.Contains("x:Name=\"TipBorder\"", tipXaml);
         Assert.Contains("x:Name=\"GetExtensionButton\"", tipXaml);

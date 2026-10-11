@@ -65,8 +65,8 @@ public sealed partial class CommandPalette : UserControl
     private bool _closing;
 
     public static string FormatCountText(bool searching, int count) =>
-        !searching ? $"{count} commands"
-        : count == 0 ? ""
+        !searching ? (count == 1 ? "1 command" : $"{Math.Max(0, count)} commands")
+        : count <= 0 ? ""
         : count == 1 ? "1 match" : $"{count} matches";
 
     public static string FormatCommandClipboardText(PaletteCommand command) =>
@@ -177,6 +177,7 @@ public sealed partial class CommandPalette : UserControl
         {
             RemovedRecentLabels.Remove(chosen.Label);
             _recents.Push(chosen.Label);
+            if (RemovedRecentLabels.Count > 0) PersistRemainingRecents();
         }
         HoverPolish.RestoreFocus(_root, _focusBefore);
         _result.TrySetResult(chosen);
@@ -201,6 +202,10 @@ public sealed partial class CommandPalette : UserControl
     private void RemoveRecent(string label)
     {
         RemovedRecentLabels.Add(label);
+        if (_recents.Labels is IList<string> mutable)
+        {
+            mutable.Remove(label);
+        }
         PersistRemainingRecents();
         Refresh();
         AnnounceFooterStatus("Removed from Recently used");
@@ -209,6 +214,10 @@ public sealed partial class CommandPalette : UserControl
     private void ClearRecents()
     {
         foreach (var label in _recents.Labels) RemovedRecentLabels.Add(label);
+        if (_recents.Labels is IList<string> mutable)
+        {
+            mutable.Clear();
+        }
         PersistRemainingRecents();
         Refresh();
         AnnounceFooterStatus("Cleared Recently used");
@@ -218,7 +227,13 @@ public sealed partial class CommandPalette : UserControl
     {
         try
         {
-            var path = Path.Combine(AppPaths.ConfigDir, "palette-recent.json");
+            var path = typeof(PaletteRecents)
+                .GetField("_path", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?.GetValue(_recents) as string;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                path = Path.Combine(AppPaths.ConfigDir, "palette-recent.json");
+            }
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, JsonSerializer.Serialize(EffectiveRecentLabels()));
         }
@@ -256,7 +271,18 @@ public sealed partial class CommandPalette : UserControl
             Results.ItemsSource = source.View;
         }
 
-        if (count > 0) Results.SelectedIndex = 0;
+        if (count > 0)
+        {
+            Results.SelectedIndex = 0;
+            if (Results.SelectedItem is PaletteCommand selectedCmd)
+            {
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(Results, $"Commands — {selectedCmd}");
+            }
+        }
+        else
+        {
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(Results, "Commands");
+        }
         Results.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
         NoMatches.Visibility = count > 0 ? Visibility.Collapsed : Visibility.Visible;
         NoMatchesTitle.Text = $"Nothing matches \u201C{query}\u201D";
@@ -460,6 +486,7 @@ public sealed partial class CommandPalette : UserControl
                 break;
             case VirtualKey.Enter:
                 if (Results.SelectedItem is PaletteCommand c) Close(c);
+                else if (NoMatches.Visibility == Visibility.Visible) OnClearSearchClick(this, new RoutedEventArgs());
                 break;
             case VirtualKey.Home when ctrl:
                 Move(-9999);
@@ -480,8 +507,19 @@ public sealed partial class CommandPalette : UserControl
                 Move(-8);
                 break;
             case VirtualKey.Tab:
-                // The list is driven from the search box; tabbing into it only lost the caret.
-                SearchBox.Focus(FocusState.Keyboard);
+                if (NoMatches.Visibility == Visibility.Visible && _root is not null)
+                {
+                    var focused = FocusManager.GetFocusedElement(_root);
+                    if (ReferenceEquals(focused, ResetSearchButton))
+                        SearchBox.Focus(FocusState.Keyboard);
+                    else
+                        ResetSearchButton.Focus(FocusState.Keyboard);
+                }
+                else
+                {
+                    // The list is driven from the search box; tabbing into it only lost the caret.
+                    SearchBox.Focus(FocusState.Keyboard);
+                }
                 break;
             default:
                 return;
