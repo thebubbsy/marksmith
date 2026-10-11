@@ -666,7 +666,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnFirstRunLoaded(object sender, RoutedEventArgs e)
     {
         RootGrid.Loaded -= OnFirstRunLoaded; // one-shot
-        DispatcherQueue.TryEnqueue(() => _ = ShowWelcomeTourAsync());
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            while (OcrExperiencePopup?.HasActiveSession == true || OcrExperiencePopup?.Visibility == Visibility.Visible)
+            {
+                await Task.Delay(150);
+            }
+            await ShowWelcomeTourAsync();
+        });
     }
 
     // Third-launch tip jar nudge (see constructor). One-shot and once ever, gated on the
@@ -2293,14 +2300,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         DropZoneIcon.Opacity = _dropZonePointerOver ? 0.9 : 0.7;
     }
 
-    private void OnInputFileTextBoxTextChanged(object sender, TextChangedEventArgs e)
+    private bool _suppressInputFileTextBoxChanged;
+
+    private async void OnInputFileTextBoxTextChanged(object sender, TextChangedEventArgs e)
     {
-        if (InputFileTextBox is null) return;
+        if (InputFileTextBox is null || _suppressInputFileTextBoxChanged) return;
         var candidate = (InputFileTextBox.Text ?? string.Empty).Trim().Trim('"');
-        if (string.IsNullOrEmpty(candidate) || File.Exists(candidate))
+        if (string.IsNullOrEmpty(candidate))
         {
             if (ViewModel.InputFilePath != candidate)
                 ViewModel.InputFilePath = candidate;
+            return;
+        }
+        if (File.Exists(candidate) && !string.Equals(ViewModel.InputFilePath, candidate, StringComparison.OrdinalIgnoreCase))
+        {
+            await OpenOrImportDocumentAsync(candidate, collapseLeftPane: false);
         }
     }
 
@@ -2445,11 +2459,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             OcrExperiencePopup.BeginImportSession();
         }
 
-        if (string.Equals(ViewModel.InputFilePath, path, StringComparison.OrdinalIgnoreCase))
+        _suppressInputFileTextBoxChanged = true;
+        try
         {
-            ViewModel.InputFilePath = string.Empty;
+            if (string.Equals(ViewModel.InputFilePath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                ViewModel.InputFilePath = string.Empty;
+            }
+            ViewModel.InputFilePath = path;
         }
-        ViewModel.InputFilePath = path;
+        finally
+        {
+            _suppressInputFileTextBoxChanged = false;
+        }
         if (collapseLeftPane) AutoCollapseLeftPane();
         ViewModel.UsePasteSource = false;
 
@@ -2720,12 +2742,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         try { App.Settings.Save(); } catch { /* not worth interrupting a click for */ }
     }
 
-    private void OnMarkdownFileSelected(object sender, SelectionChangedEventArgs e)
+    private async void OnMarkdownFileSelected(object sender, SelectionChangedEventArgs e)
     {
         if (sender is ComboBox { SelectedItem: Services.MarkdownFileEntry entry })
         {
-            ViewModel.LoadRecentCommand.Execute(entry.Path);
-            AutoCollapseLeftPane(); // the panel did its job — tuck it away
+            if (File.Exists(entry.Path))
+            {
+                await OpenOrImportDocumentAsync(entry.Path, collapseLeftPane: true);
+            }
+            else
+            {
+                ViewModel.LoadRecentCommand.Execute(entry.Path);
+                AutoCollapseLeftPane(); // the panel did its job — tuck it away
+            }
         }
     }
 

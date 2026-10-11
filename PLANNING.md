@@ -6328,3 +6328,58 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `MainViewModel`, `Scanner`, and `DocumentConverter` unit tests: **21 passed, 0 failed**.
 - `Mermaid` unit test suite (verifying reconciled Run #77 changes): **345 passed, 0 failed**.
 - Live scratch binary launch (`$env:TEMP\ms_ocr_fix\b\Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR` and synthetic `test_scan.png`): booted and ran with **0 unhandled exceptions** (`no startup-crash.log`), while leaving the user's running instance (`PID 9644`) untouched.
+
+### 2026-10-11 12:35 – 2026-10-11 13:55 AEDT (routine run #79: OCR & Document Import overlay hardening + header/bridge visual fixes, Version History keyboard navigation & diff patch copy, unified document import entry points, and v3.31.0 release)
+
+**Agent / Execution Metadata:**
+- **Model:** `Gemini 3.8 Flash (High)`
+- **Identity:** Antigravity AI Agent (Google DeepMind)
+- **Modes:** `/boost` (Delegation Routine)
+- **Trigger:** Specific user request (`"keep going"`)
+- **Agents Used:** `5 agents total` (`1 Parent Orchestrator` [`1facb65a-0235-4350-829c-00913e9ddac1`] + `1 Lead Coding Worker Subagent` [`fef286d5-8b16-415f-8b41-1a79ca93ed36`] + `3 Specialized Audit Subagents` [`ac6bb327-194d-45e0-9db1-72060081c36f`, `c877c43c-c203-48f7-af6c-7f128268fb98`, `35877b43-0953-425f-b4a4-7b17ed9da5e4`], running `Gemini 3.8 Flash (High)`)
+
+**Found:**
+- **OCR & Document Import Experience Overlay (`OcrExperienceOverlay`, `PdfMarkdownImporter`, `MainWindow`):**
+  - **Header telemetry pill clipping at 1220×800:** Live `PrintWindow` inspection showed that `OcrExperienceOverlay.xaml` Row 0 used `ColumnDefinitions="Auto,*,Auto"`, allowing the 560px unconstrained `SubtitleText` in `Column="0"` (`Auto`) to starve `Column="1"` (`*`) and clip the left edge of the `Elements` pill (`Elements 3` rendered as `3`).
+  - **Stale center transfer bridge across consecutive imports:** `PulseCenterBridge` colored `BridgePulseBorder`, `BridgeIcon`, and `BridgeBlockText` (`#5 → .md`) during Stage 4, and `ClearCanvasOverlays()` never reset them, so Stage 1–3 of a 2nd consecutive import displayed the previous import's `#5 → .md` green badge.
+  - **First-run Welcome Tour collision with CLI document import:** Launching `Marksmith.exe <file>` on a fresh profile triggered `OnFirstRunLoaded` (`ShowWelcomeTourAsync`) immediately over the active `OcrExperienceOverlay` 4-stage visual breakdown.
+  - **Multi-page scanned PDF playback duration & `PdfMarkdownImporter` exception safety:** A 10+ page scanned PDF animated all 4 stages for every page sequentially (~40s+), and if `engine.RecognizeAsync` or `OcrVisualElements.ExtractPage` threw after `OcrTrace.NotifyStarted`, `OcrTrace.NotifyRead` was not called, stalling `RunPlaybackLoopAsync` for up to 5 seconds.
+  - **Deferred layout geometry for cut lines & scan laser:** When `OcrExperienceOverlay` transitioned from `Visibility.Collapsed` to `Visible`, `PageViewportGrid.ActualWidth/Height` could still be `0` during initial Stage 1/2 setup; `_positionedOverlays` were re-projected in `FitPageSheet()` on `SizeChanged`, but `_cutLines` and `_lastLaserNormY` were not.
+  - **Bypassed `OpenOrImportDocumentAsync` entry points:** Entering/pasting a path into `InputFileTextBox`, picking a file from `MarkdownFilesComboBox` (`OnMarkdownFileSelected`), selecting `"Open recent: ..."` in the Command Palette, or opening a non-Markdown document from Document Galaxy (`OpenDocumentRequested`) set `ViewModel.InputFilePath` directly instead of routing through `OpenOrImportDocumentAsync`; spreadsheet imports (`OnImportDocumentClick` and `OnInsertSpreadsheetClick`) did not call `OcrExperiencePopup.BeginImportSession()` before `PlayImportExperienceAndFadeToEditorAsync`.
+- **Version History (`HistoryWindow` & `HistoryWindowViewModel`):**
+  - **Orphaned selection across filters:** When `SearchQuery` or `IsStarredOnlyFilter` hid the currently selected version, `ApplyTimelineFilter()` kept the hidden version selected in the diff/preview pane instead of auto-selecting the first visible version (`Bands[0].Items[0]`) or clearing `Selected` when `FilterHidesAll` was true.
+  - **Keyboard navigation & shortcuts:** `TimelineScroll` (`ScrollViewer`) swallowed `Up`/`Down`/`Home`/`End` keys instead of stepping through visible versions; `HistoryWindow` lacked `Ctrl+Enter` (Restore), `Ctrl+1`/`2`/`3` (Unified / Side-by-side / Preview view toggles), `Ctrl+C` (Copy version Markdown), `Ctrl+Shift+C` (Copy unified diff patch), `S` (Toggle star), and `Shift+F10` / `Application` context menu invocation; `OnRootKeyDown` lacked a `_dialogOpen` guard while Rename or Checkpoint `ContentDialog`s were open.
+  - **Pane 1 document list context menu & single-line dialog `Enter` submission:** Document rows in Pane 1 had no right-click context menu (`Open in editor`, `Take checkpoint…`, `Show in File Explorer`, `Copy file path`), and the single-line `TextBox` in `RenameAsync` and `OnTakeSnapshotClick` (plus `OnSavePresetClick` and `OnCreateThemeClick` in `MainWindow`) did not submit on `Enter`.
+- **SmartArt Design Studio (`SmartArtDesignStudioWindow`):**
+  - `CopyOutlineMarkdown()` and `CopySmartArtBlock()` called raw `Clipboard.SetContent(dp)` instead of `Services.ClipboardWriter.Set(dp)`.
+
+**Shipped:**
+- `MarkSmith.Core/Ocr/OcrTrace.cs`, `MarkSmith.Core/Services/Import/PdfMarkdownImporter.cs`, `MarkSmith.Desktop/Controls/OcrExperienceOverlay.xaml` & `OcrExperienceOverlay.xaml.cs`:
+  - Added `OcrPlaybackSchedule.MaxAnimatedPages = 2` so multi-page scanned PDFs animate the full 4-stage breakdown for the first 2 pages and fold subsequent pages immediately into telemetry counters and assembled Markdown.
+  - Guaranteed `OcrTrace.NotifyRead` in `PdfMarkdownImporter.ImportAsync` via `try`/`finally` with an empty `OcrPageResult` fallback if OCR throws after `NotifyStarted`.
+  - Tracked `_cutLines` and `_lastLaserNormY` in `OcrExperienceOverlay` so `FitPageSheet()` repositions segmentation cut lines and the scan laser when the viewport finishes layout; aligned `FadeOutAndCloseAsync` to `3 × 60ms = 180ms`.
+  - Changed `OcrExperienceOverlay.xaml` Row 0 header to `ColumnDefinitions="*,Auto,Auto"` with a star-sized title/subtitle column and `TextTrimming="CharacterEllipsis"` so all four telemetry pills (`Elements`, `Visuals & Shapes`, `Words`, `Blocks`) never clip at 1220×800; reset `BridgePulseBorder`, `BridgeIcon`, and `BridgeBlockText` (`"→ .md"`) in `ClearCanvasOverlays()`.
+- `MarkSmith.Desktop/MainWindow.xaml.cs`:
+  - Deferred `OnFirstRunLoaded` (`ShowWelcomeTourAsync`) while `OcrExperiencePopup.HasActiveSession` or `Visibility == Visibility.Visible` so the first-run tour never covers an active startup document import.
+  - Routed `OnInputFileTextBoxTextChanged`, `OnInputFileTextBoxKeyDown` (`Enter`), `OnMarkdownFileSelected`, Command Palette `"Open recent: ..."`, and Document Galaxy `OpenDocumentRequested` through `OpenOrImportDocumentAsync` (with `_suppressInputFileTextBoxChanged` re-entrancy guard), and added `OcrExperiencePopup.BeginImportSession()` to `OnImportDocumentClick` and `OnInsertSpreadsheetClick` spreadsheet branches.
+  - Wired `Enter` key submission on single-line `TextBox` inputs in `OnSavePresetClick` and `OnCreateThemeClick` `ContentDialog`s.
+- `MarkSmith.Core/ViewModels/History/HistoryWindowViewModel.cs`, `MarkSmith.Desktop/Views/History/HistoryWindow.xaml` & `HistoryWindow.xaml.cs`:
+  - Updated `ApplyTimelineFilter(bool autoSelectFirst = true)` to auto-select `Bands[0].Items[0]` when a filter hides the previously selected version, clear `Selected = null` when `FilterHidesAll` is true, and restore selection when filters are cleared.
+  - Added `VisibleVersions`, `SelectNextVersion()`, `SelectPreviousVersion()`, `SelectFirstVersion()`, `SelectLastVersion()`, `GetVersionContentAsync()`, and `BuildUnifiedDiffPatch()`.
+  - Wired `PreviewKeyDown` (`Up`/`Down`/`Home`/`End` timeline navigation, `Up`/`Down` Pane 1 file navigation, `Down` from `SearchBox` into timeline), `_dialogOpen` guards, `Ctrl+Enter`, `Ctrl+1`/`2`/`3`, `Ctrl+C`, `Ctrl+Shift+C`, `S`, `Shift+F10`/`Application`, `Copy version Markdown` and `Copy diff patch` in `BuildVersionMenu`, `BuildFileMenu` on Pane 1 document rows, `Enter` submission in `RenameAsync`/`OnTakeSnapshotClick`, and `AutomationLiveSetting.Polite` on `NoMatchesTextBlock` and `DiffTitleText`.
+- `MarkSmith.Desktop/Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`:
+  - Switched `CopyOutlineMarkdown()` and `CopySmartArtBlock()` to `Services.ClipboardWriter.Set(dp)`.
+- `MarkSmith.Tests`:
+  - Added 11 new unit tests across `OcrExperienceAndVisualsTests.cs`, `HistoryPolishTests.cs`, `SmartArtStudioPolishTests.cs`, and `MermaidUsabilityEnhancementsTests.cs` covering `OcrPlaybackSchedule.MaxAnimatedPages`, `HistoryWindowViewModel` filter auto-selection, keyboard version navigation (`SelectNextVersion`/`SelectPreviousVersion`/`SelectFirstVersion`/`SelectLastVersion`), `GetVersionContentAsync` / `BuildUnifiedDiffPatch`, SmartArt `MoveUp`/`MoveDown`/`Promote`/`Demote`/`DuplicateSelected`/`TryBuildSmartArtBlock`, and Mermaid `CanBringForward`/`CanSendBackward` Z-order commands.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -p:Platform=x64`: **0 errors**.
+- Targeted test suites (`OcrExperienceAndVisualsTests`, `HistoryPolishTests`, `HistoryWindowViewModelTests`, `SmartArtStudioPolishTests`, `MermaidUsabilityEnhancementsTests`): **87 passed, 0 failed**.
+- Full test suite (`dotnet test marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj -p:Platform=x64`): **4,669 passed, 0 failed, 1 skipped (remote web test)**.
+- Live WinUI 3 UIAutomation + `PrintWindow` screenshot verification (`ocr_import1_stage2.png`, `ocr_import1_stage4.png`, `after_import1.png`, `ocr_import1_fixed.png`, `ocr_import2_fixed.png`, `history_unified.png`) using isolated `MARKSMITH_CONFIG_DIR`:
+  - Confirmed unobstructed 4-stage `OcrExperienceOverlay` playback across two consecutive HTML document imports (`Quarterly_Review.html` and `Release_Checklist.html`), all four header telemetry pills (`Elements`, `Visuals & Shapes`, `Words`, `Blocks`) unclipped at 1220×800, and the center transfer bridge cleanly reset to `→ .md` on the second consecutive import.
+  - Confirmed `Version History — MarkSmith` window (`history_unified.png`) opens via UIA `InvokePattern` on `Version history`, lists both imported documents in Pane 1 (`Release_Checklist.html` and `Quarterly_Review.html`), and renders the unified diff with `+9` added lines and `Unified` / `Side by side` / `Preview` toggles.
+
+**Next up:**
+1. Audit `SuiteHubWindow` and `ExportHistory` flyout keyboard navigation and context menu parity.
+2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59); real Windows light/dark switch; first real in-app update.

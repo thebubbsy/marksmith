@@ -1263,6 +1263,11 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         _cutLines.Clear();
         _blockFrames.Clear();
         ScanOverlayCanvas.Children.Clear();
+        Services.ThemeBrush.Set(BridgePulseBorder, Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
+        Services.ThemeBrush.Set(BridgePulseBorder, Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
+        Services.ThemeBrush.Set(BridgeIcon, FontIcon.ForegroundProperty, "TextFillColorSecondaryBrush");
+        Services.ThemeBrush.Set(BridgeBlockText, TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        BridgeBlockText.Text = "→ .md";
     }
 
     private void SetActiveStep(int step)

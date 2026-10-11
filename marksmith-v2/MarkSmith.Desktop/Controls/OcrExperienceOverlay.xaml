@@ -23,14 +23,14 @@
 
             <Grid RowDefinitions="Auto,Auto,*,Auto">
                 <!-- Row 0: Top Header with MarkSmith logo, Engine badge, Page counter, Telemetry, and Skip button -->
-                <Grid Grid.Row="0" Padding="20,14,16,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14"
+                <Grid Grid.Row="0" Padding="20,14,16,12" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14"
                       Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                       BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
-                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" VerticalAlignment="Center">
                         <Image Source="ms-appx:///Assets/logo.png" Width="28" Height="28"
                                VerticalAlignment="Center"
                                AutomationProperties.AccessibilityView="Raw" />
-                        <StackPanel Spacing="1" VerticalAlignment="Center">
+                        <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="MarkSmith Document Reader" FontSize="14" FontWeight="SemiBold"
                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
@@ -50,10 +50,11 @@
                                 </Border>
                             </StackPanel>
                             <TextBlock x:Name="SubtitleText"
-                                       Text="Decomposing page geometry, extracting pictures &amp; Mermaid/ShapeForge diagrams, and assembling Markdown"
+                                       Text="Decomposing page geometry, extracting visuals &amp; diagrams, and assembling Markdown"
+                                       TextTrimming="CharacterEllipsis" MaxLines="1"
                                        FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
-                    </StackPanel>
+                    </Grid>
 
                     <!-- Telemetry counters in header -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
