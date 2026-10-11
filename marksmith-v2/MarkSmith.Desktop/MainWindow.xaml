@@ -2077,5 +2077,11 @@
         </Border>
         <!-- Dedicated background WebView2 host for headless exports and diagram harvesting — keeps background compiles from ever flashing or resetting the live preview pane. -->
         <WebView2 x:Name="ExportWebView" Visibility="Collapsed" Width="0" Height="0" />
+
+        <!-- Interactive OCR Experience modal theater: shows the user's scanned document,
+             breaks apart structural elements (headings, lists, paragraphs, pictures, and
+             Mermaid/ShapeForge diagrams), identifies all words at the speed of light,
+             pieces together the blocks in reading order as Markdown, and fades into the editor. -->
+        <localcontrols:OcrExperienceOverlay x:Name="OcrExperiencePopup" Grid.RowSpan="4" Canvas.ZIndex="90" />
     </Grid>
 </Window>

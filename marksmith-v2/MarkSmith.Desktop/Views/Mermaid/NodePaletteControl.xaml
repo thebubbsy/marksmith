@@ -22,9 +22,10 @@
         <StackPanel Grid.Row="0" Spacing="6">
             <TextBlock Text="Shape Palette" FontWeight="SemiBold" FontSize="14" Foreground="#EDF2F4" />
             <TextBox x:Name="SearchTextBox"
-                     PlaceholderText="Search shapes…"
+                     PlaceholderText="Search shapes… (Ctrl+F)"
                      AutomationProperties.Name="Search shapes"
                      TextChanged="OnSearchTextChanged"
+                     KeyDown="OnSearchTextBoxKeyDown"
                      FontSize="12" />
         </StackPanel>
 
@@ -53,10 +54,12 @@
         <!-- Palette Items List -->
         <ListView x:Name="PaletteListView"
                   Grid.Row="2"
+                  AutomationProperties.Name="Shape palette"
                   ItemsSource="{Binding PaletteItems}"
                   SelectionMode="None"
                   IsItemClickEnabled="True"
                   ItemClick="OnPaletteItemClick"
+                  KeyDown="OnPaletteListViewKeyDown"
                   CanDragItems="True"
                   DragItemsStarting="OnPaletteDragItemsStarting">
             <ListView.ItemTemplate>
@@ -67,6 +70,7 @@
                             CornerRadius="6"
                             Padding="10,8"
                             Margin="0,3"
+                            AutomationProperties.Name="{Binding DisplayName}"
                             PointerEntered="OnRowPointerEntered"
                             PointerExited="OnRowPointerExited"
                             PointerCanceled="OnRowPointerExited"

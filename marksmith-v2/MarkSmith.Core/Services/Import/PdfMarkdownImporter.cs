@@ -24,6 +24,8 @@ public sealed class PdfImportOptions
     /// aren't a single scanned picture. The desktop app supplies Windows' own PDF renderer.</summary>
     public Func<int, SKBitmap?>? RenderPage { get; init; }
     public IProgress<string>? Progress { get; init; }
+    /// <summary>Watches each scanned page as OCR reads it (the desktop app's reading animation).</summary>
+    public IOcrObserver? OcrObserver { get; init; }
 }
 
 /// <summary>What an import produced and what it had to do.</summary>
@@ -78,8 +80,10 @@ public static class PdfMarkdownImporter
             var engine = OcrEngines.Create(options.OcrEngine ?? AppServices.Settings.Current.OcrEngine, out bool fellBack);
             engineName = engine.EngineName;
             if (fellBack) notes.Add($"The chosen OCR engine isn't available here, so {engine.EngineName} read the scanned pages.");
-            foreach (var p in pages.Where(p => p.NeedsOcr))
+            var scanned = pages.Where(p => p.NeedsOcr).ToList();
+            for (int idx = 0; idx < scanned.Count; idx++)
             {
+                var p = scanned[idx];
                 SKBitmap? scan = null;
                 try
                 {
@@ -92,7 +96,22 @@ public static class PdfMarkdownImporter
                     }
                     options.Progress?.Report($"Reading scanned page {p.Number} with {engine.EngineName}…");
                     var straight = OcrPreprocess.Deskew(scan, out _);
-                    try { p.OcrMarkdown = OcrMarkdown.FromPage(engine.RecognizeAsync(straight).GetAwaiter().GetResult()); }
+                    try
+                    {
+                        OcrTrace.NotifyStarted(options.OcrObserver, straight, p.Number, idx, scanned.Count, engine.EngineName);
+                        var clock = System.Diagnostics.Stopwatch.StartNew();
+                        var recognized = engine.RecognizeAsync(straight).GetAwaiter().GetResult();
+                        var extracted = OcrVisualElements.ExtractPage(straight, recognized, new OcrVisualOptions
+                        {
+                            PageNumber = p.Number,
+                            MediaDirectory = options.MediaDirectory,
+                            MediaLink = options.MediaLink,
+                            StartingPictureCount = pictures,
+                        });
+                        pictures += extracted.PicturesSaved;
+                        OcrTrace.NotifyRead(options.OcrObserver, p.Number, recognized, clock.Elapsed, extracted.Blocks);
+                        p.OcrMarkdown = extracted.Markdown;
+                    }
                     finally { if (!ReferenceEquals(straight, scan)) straight.Dispose(); }
                     ocrPages++;
                 }

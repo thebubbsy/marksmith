@@ -47,10 +47,15 @@
             <!-- World-class editing shortcuts -->
             <KeyboardAccelerator Key="Delete" Invoked="OnDeleteAcceleratorInvoked" />
             <KeyboardAccelerator Key="Back" Invoked="OnDeleteAcceleratorInvoked" />
+            <KeyboardAccelerator Key="F2" Invoked="OnRenameAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="D" Invoked="OnDuplicateAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="C" Invoked="OnCopyAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="V" Invoked="OnPasteAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="A" Invoked="OnSelectAllAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="OnFindShapesAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="Enter" Invoked="OnSyncAcceleratorInvoked" />
+            <KeyboardAccelerator Key="Application" Invoked="OnContextMenuAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Shift" Key="F10" Invoked="OnContextMenuAcceleratorInvoked" />
             <KeyboardAccelerator Key="Escape" Invoked="OnEscapeAcceleratorInvoked" />
             <!-- Arrow-key nudge (fine) and Shift+arrow (coarse) -->
             <KeyboardAccelerator Key="Left" Invoked="OnNudgeAcceleratorInvoked" />
@@ -223,7 +228,7 @@
                     </Button>
 
                     <!-- The window's one primary action: filled in the studio's cyan accent. -->
-                    <Button Click="OnSyncToMarkdownClick" ToolTipService.ToolTip="Write the diagram back into the document's Mermaid block"
+                    <Button Click="OnSyncToMarkdownClick" ToolTipService.ToolTip="Write the diagram back into the document's Mermaid block (Ctrl+Enter)"
                             Style="{StaticResource AccentButtonStyle}" Foreground="#0D1B2A">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE72C;" FontSize="14" />
@@ -309,7 +314,7 @@
                         <StackPanel x:Name="InspectorEmptyState" Spacing="8" Padding="4,24,4,8" HorizontalAlignment="Center">
                             <FontIcon Glyph="&#xE8B0;" FontSize="28" Foreground="#5A6478" HorizontalAlignment="Center" />
                             <TextBlock Text="Nothing selected" FontSize="13" FontWeight="SemiBold" Foreground="#EDF2F4" HorizontalAlignment="Center" />
-                            <TextBlock Text="Click a node or connector to edit it. Drag from a node's anchor dot to another node to connect them; double-click a node to rename it."
+                            <TextBlock Text="Click a node or connector to edit it. Drag from a node's anchor dot to another node to connect them; double-click or press F2 to rename."
                                        FontSize="12" Foreground="#8D99AE" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="220" />
                         </StackPanel>
 
@@ -349,6 +354,7 @@
 
                                 <Button Grid.Column="0" HorizontalAlignment="Stretch" Padding="8,6"
                                         Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1"
+                                        AutomationProperties.Name="Node fill color"
                                         ToolTipService.ToolTip="Node fill color">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3"
@@ -371,6 +377,7 @@
 
                                 <Button Grid.Column="1" HorizontalAlignment="Stretch" Padding="8,6"
                                         Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1"
+                                        AutomationProperties.Name="Node border color"
                                         ToolTipService.ToolTip="Node border color">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3"
@@ -475,32 +482,32 @@
                             <TextBlock Text="Style presets" Style="{StaticResource InspectorSectionStyle}" />
                             <TextBlock Text="Recolours every node and connector." FontSize="11" Foreground="#8D99AE" TextWrapping="Wrap" />
                             <Button x:Name="PresetCatppuccin" Tag="Catppuccin Slate" Click="OnPalettePresetClick"
-                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                    Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
+                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                     Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3" Fill="#313244" Stroke="#89B4FA" />
                                     <TextBlock Text="Catppuccin Slate" FontSize="12" Foreground="#EDF2F4" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <Button x:Name="PresetNord" Tag="Nord Ocean" Click="OnPalettePresetClick"
-                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                    Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
+                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                     Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3" Fill="#2E3440" Stroke="#88C0D0" />
                                     <TextBlock Text="Nord Ocean" FontSize="12" Foreground="#EDF2F4" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <Button x:Name="PresetEmerald" Tag="Emerald Corporate" Click="OnPalettePresetClick"
-                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                    Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
+                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                     Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3" Fill="#062E23" Stroke="#34D399" />
                                     <TextBlock Text="Emerald Corporate" FontSize="12" Foreground="#EDF2F4" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <Button x:Name="PresetMono" Tag="Monochrome Print" Click="OnPalettePresetClick"
-                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                    Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
+                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                     Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3" Fill="#FFFFFF" Stroke="#1F2937" />
                                     <TextBlock Text="Monochrome Print" FontSize="12" Foreground="#EDF2F4" VerticalAlignment="Center" />
@@ -519,7 +526,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontSize="11" Foreground="#8D99AE" VerticalAlignment="Center" />
+                <TextBlock x:Name="StatusBarText" Grid.Column="0" Text="{Binding StatusText}" FontSize="11" Foreground="#8D99AE" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 <!-- Filled from code: "3 nodes · 2 connectors · Snap on" (bare counts read as noise). -->
                 <TextBlock x:Name="CanvasSummaryText" Grid.Column="1" FontSize="11" Foreground="#8D99AE" VerticalAlignment="Center" />
             </Grid>

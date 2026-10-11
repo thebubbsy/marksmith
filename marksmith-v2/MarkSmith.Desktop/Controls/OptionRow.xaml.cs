@@ -58,14 +58,23 @@ public sealed partial class OptionRow : UserControl
         VisualStateManager.GoToState(this, state, useTransitions);
     }
 
-    // Clicking an option's title or description flips its switch, as clicking a check box's label
-    // does: the whole highlighted line is the target, not just the 40 px switch at its end.
+    // Clicking an option's title or description flips its switch or check box, as clicking a check box's
+    // label does: the whole highlighted line is the target, not just the control at its end.
     private void OnHeaderTapped(object sender, TappedRoutedEventArgs e)
     {
-        if (Action is not ToggleSwitch { IsEnabled: true } toggle || !IsEnabled) return;
-        if (e.OriginalSource is DependencyObject source && IsInside(source, ActionPart)) return; // the switch handles itself
-        toggle.IsOn = !toggle.IsOn;
-        e.Handled = true;
+        if (!IsEnabled) return;
+        if (e.OriginalSource is DependencyObject source && (IsInside(source, ActionPart) || IsInside(source, DetailsPart))) return;
+        switch (Action)
+        {
+            case ToggleSwitch { IsEnabled: true } toggle:
+                toggle.IsOn = !toggle.IsOn;
+                e.Handled = true;
+                break;
+            case CheckBox { IsEnabled: true } check:
+                check.IsChecked = !(check.IsChecked ?? false);
+                e.Handled = true;
+                break;
+        }
     }
 
     private static bool IsInside(DependencyObject element, DependencyObject ancestor)

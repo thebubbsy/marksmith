@@ -11,6 +11,15 @@ public sealed partial class NodePaletteControl : UserControl
     /// <summary>A palette row was clicked: the host adds that shape in view (dragging places it).</summary>
     public event EventHandler<ViewModels.Mermaid.MermaidPaletteItem>? ShapeRequested;
 
+    /// <summary>Raised when the user presses Esc in an already-empty search box to return focus to the canvas.</summary>
+    public event EventHandler? ReturnFocusToCanvasRequested;
+
+    public void FocusSearchBox()
+    {
+        SearchTextBox.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        SearchTextBox.SelectAll();
+    }
+
     // Row hover: the card's own border lights up in the studio cyan (the ListViewItem's hover fill
     // sits behind the card, so on its own a row gave no sign it was clickable).
     private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush RowRestBorder = new(Windows.UI.Color.FromArgb(255, 0x3D, 0x40, 0x5B));
@@ -78,6 +87,53 @@ public sealed partial class NodePaletteControl : UserControl
     {
         SearchTextBox.Text = string.Empty;
         SelectPill(CatAll);
+        SearchTextBox.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+    }
+
+    private void OnSearchTextBoxKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            if (!string.IsNullOrEmpty(SearchTextBox.Text))
+            {
+                SearchTextBox.Text = string.Empty;
+            }
+            else
+            {
+                ReturnFocusToCanvasRequested?.Invoke(this, EventArgs.Empty);
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Down)
+        {
+            if (PaletteListView.Items.Count > 0)
+            {
+                PaletteListView.Focus(Microsoft.UI.Xaml.FocusState.Keyboard);
+                e.Handled = true;
+            }
+        }
+        else if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            if (PaletteListView.Items.Count == 1 && PaletteListView.Items[0] is ViewModels.Mermaid.MermaidPaletteItem single)
+            {
+                ShapeRequested?.Invoke(this, single);
+                e.Handled = true;
+            }
+            else if (PaletteListView.Items.Count > 0)
+            {
+                PaletteListView.Focus(Microsoft.UI.Xaml.FocusState.Keyboard);
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void OnPaletteListViewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            SearchTextBox.Focus(Microsoft.UI.Xaml.FocusState.Keyboard);
+            e.Handled = true;
+        }
     }
 
     private void OnCategoryPillClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
@@ -128,9 +184,14 @@ public sealed partial class NodePaletteControl : UserControl
 
             NoMatchesPanel.Visibility = filtered.Count == 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
             if (filtered.Count == 0)
+            {
+                string rawQuery = SearchTextBox.Text?.Trim() ?? string.Empty;
                 NoMatchesText.Text = string.IsNullOrEmpty(searchText)
                     ? $"No {selectedCat} shapes."
-                    : selectedCat == "All" ? $"No shapes match “{SearchTextBox.Text.Trim()}”." : $"No {selectedCat} shapes match “{SearchTextBox.Text.Trim()}”.";
+                    : selectedCat == "All" ? $"No shapes match “{rawQuery}”." : $"No {selectedCat} shapes match “{rawQuery}”.";
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(NoMatchesText, NoMatchesText.Text);
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(NoMatchesText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
+            }
         }
     }
 

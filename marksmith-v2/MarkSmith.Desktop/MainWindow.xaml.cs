@@ -248,6 +248,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         Services.HoverPolish.FocusFallback = root =>
             root == Content.XamlRoot && PasteTextBox.Visibility == Visibility.Visible ? PasteTextBox : null;
 
+        // Wire the ambient OCR observer so any OCR operation (Import Document, Open File, or
+        // dragging a scanned PDF/image onto the window) launches the live OCR Experience theater.
+        Ocr.OcrTrace.DefaultObserver = OcrExperiencePopup;
+        OcrExperiencePopup.Completed += () =>
+        {
+            if (PasteTextBox.Visibility == Visibility.Visible)
+                PasteTextBox.Focus(FocusState.Programmatic);
+            _previewDebounce?.Stop();
+            _previewDebounce?.Start();
+        };
+
         // Ctrl+, opens Settings (the gear button's tooltip has always advertised it). Added in code
         // because VirtualKey has no named member for the comma key, so XAML can't spell it.
         var settingsAccelerator = new KeyboardAccelerator
@@ -441,6 +452,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         _previewDebounce.Tick += async (_, _) =>
         {
+            if (OcrExperiencePopup.Visibility == Visibility.Visible || OcrExperiencePopup.HasActiveSession)
+            {
+                return;
+            }
             // Outline (Task 17): the TOC depends only on the markdown, so refresh it on the same
             // debounce as the preview — cheap, and keeps the flyout in step with what's rendered.
             ViewModel.RefreshToc();
@@ -2356,16 +2371,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         e.Handled = true;
 
         var items = await e.DataView.GetStorageItemsAsync();
+        var files = items.OfType<StorageFile>().ToList();
+        if (files.Count == 1 && Ocr.OcrImport.IsImage(files[0].Path))
+        {
+            await OpenOrImportDocumentAsync(files[0].Path, collapseLeftPane: false);
+            return;
+        }
         // Markdown, plus everything the importers turn into Markdown (Word, PDF, HTML, email and
         // any importer plugin's formats) — the same list the Open picker offers.
-        var docs = items.OfType<StorageFile>().Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
+        var docs = files.Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
         if (docs.Count == 0) return;
 
-        // Single file: load it into the editor exactly as before.
+        // Single file: load it into the editor and play the import breakdown experience if converted.
         if (docs.Count == 1)
         {
-            ViewModel.InputFilePath = docs[0].Path;
-            ViewModel.UsePasteSource = false;
+            await OpenOrImportDocumentAsync(docs[0].Path, collapseLeftPane: false);
             return;
         }
 
@@ -2378,6 +2398,42 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // and an output that would land on one of them gets " (converted)" instead of replacing it.
     private Task RunMultiFileBatchAsync(List<StorageFile> docs) =>
         ViewModel.BatchConvertFilesAsync(docs.Select(f => f.Path).ToList(), App.Settings.Current.OutputFolder, App.Settings.Current.TargetFormat);
+
+    internal async Task OpenOrImportDocumentAsync(string path, bool collapseLeftPane)
+    {
+        if (Ocr.OcrImport.IsImage(path))
+        {
+            if (collapseLeftPane) AutoCollapseLeftPane();
+            await ImportScannedImageToEditorAsync(path);
+            return;
+        }
+
+        bool isConvertedDoc = !Plugins.PluginFileReader.IsMarkdownFile(path);
+        if (isConvertedDoc)
+        {
+            Plugins.PluginFileReader.InvalidateCache();
+            OcrExperiencePopup.BeginImportSession();
+        }
+
+        if (string.Equals(ViewModel.InputFilePath, path, StringComparison.OrdinalIgnoreCase))
+        {
+            ViewModel.InputFilePath = string.Empty;
+        }
+        ViewModel.InputFilePath = path;
+        if (collapseLeftPane) AutoCollapseLeftPane();
+        ViewModel.UsePasteSource = false;
+
+        await ViewModel.LastFileReadTask;
+        if (isConvertedDoc && !string.IsNullOrWhiteSpace(ViewModel.CurrentMarkdown))
+        {
+            var label = $"MarkSmith {ViewModel.SourceImportKind ?? "Document"} Importer";
+            await OcrExperiencePopup.PlayImportExperienceAndFadeToEditorAsync(ViewModel.CurrentMarkdown, label);
+        }
+        else if (isConvertedDoc)
+        {
+            OcrExperiencePopup.CancelAndHide();
+        }
+    }
 
     private void OnWindowDragOver(object sender, DragEventArgs e)
     {
@@ -2396,14 +2452,18 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
         e.Handled = true;
         var items = await e.DataView.GetStorageItemsAsync();
-        var docs = items.OfType<StorageFile>().Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
+        var files = items.OfType<StorageFile>().ToList();
+        if (files.Count == 1 && Ocr.OcrImport.IsImage(files[0].Path))
+        {
+            await OpenOrImportDocumentAsync(files[0].Path, collapseLeftPane: true);
+            return;
+        }
+        var docs = files.Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
         if (docs.Count == 0) return;
 
         if (docs.Count == 1)
         {
-            ViewModel.InputFilePath = docs[0].Path;
-            AutoCollapseLeftPane();
-            ViewModel.UsePasteSource = false;
+            await OpenOrImportDocumentAsync(docs[0].Path, collapseLeftPane: true);
             return;
         }
 
@@ -2432,9 +2492,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var docs = items.OfType<StorageFile>().Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
         if (docs.Count == 1)
         {
-            ViewModel.InputFilePath = docs[0].Path;
-            AutoCollapseLeftPane();
-            ViewModel.UsePasteSource = false;
+            await OpenOrImportDocumentAsync(docs[0].Path, collapseLeftPane: true);
             return;
         }
         if (docs.Count > 1)
@@ -2516,6 +2574,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var allExts = Plugins.PluginFileReader.NativeExtensions
             .Concat(App.Plugins.AllImporterExtensions)
+            .Concat(Ocr.OcrImport.ImageExtensions.Select(ext => ext.TrimStart('.')))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         var file = await Services.NativeFilePicker.PickOpenFileAsync(
@@ -2529,9 +2588,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             okLabel: "Open", folder: OpenDocumentFolder);
         if (!string.IsNullOrEmpty(file))
         {
-            ViewModel.InputFilePath = file;
-            AutoCollapseLeftPane();
-            ViewModel.UsePasteSource = false;
+            await OpenOrImportDocumentAsync(file, collapseLeftPane: true);
         }
     }
 
@@ -6679,16 +6736,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnImportDocumentClick(object sender, RoutedEventArgs e)
     {
-        var supportedExts = new[] { ".docx", ".pdf", ".eml", ".msg", ".html", ".htm" }.Concat(Ocr.OcrImport.ImageExtensions);
+        var supportedExts = new[] { ".docx", ".pdf", ".eml", ".msg", ".html", ".htm", ".xlsx", ".csv" }.Concat(Ocr.OcrImport.ImageExtensions);
         var filePath = await Services.NativeFilePicker.PickOpenFileAsync(
             this, "Import a document as Markdown", Services.NativeFilePicker.Purpose.Documents,
             new[]
             {
-                Models.FileType.Of("Documents, emails and scans", supportedExts),
+                Models.FileType.Of("Documents, emails, spreadsheets and scans", supportedExts),
                 Models.FileType.Of("Word document", ".docx"),
                 Models.FileType.Of("PDF", ".pdf"),
                 Models.FileType.Of("Email", ".eml", ".msg"),
                 Models.FileType.Of("Web page", ".html", ".htm"),
+                Models.FileType.Of("Spreadsheet", ".xlsx", ".csv"),
                 Models.FileType.Of("Scanned page (read with OCR)", Ocr.OcrImport.ImageExtensions),
             },
             okLabel: "Import");
@@ -6700,25 +6758,54 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var name = Path.GetFileName(filePath);
             if (Ocr.OcrImport.IsImage(filePath))
             {
-                // A picture of a page: read it with the OCR engine Settings picked.
-                ViewModel.StatusText = $"Reading the text in {name}…";
-                var read = await Ocr.OcrImport.ImageToMarkdownAsync(filePath);
-                if (string.IsNullOrWhiteSpace(read.Markdown))
+                await ImportScannedImageToEditorAsync(filePath);
+                return;
+            }
+            if (ext is ".xlsx" or ".csv")
+            {
+                Services.TableModel tableModel;
+                if (ext == ".xlsx")
                 {
-                    ViewModel.StatusText = $"No text found in {name}.";
+                    using var stream = File.OpenRead(filePath);
+                    var sheets = Services.SpreadsheetService.ReadXlsx(stream);
+                    if (sheets.Count == 0)
+                    {
+                        ViewModel.StatusText = "No data found in that workbook.";
+                        ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                        return;
+                    }
+                    tableModel = sheets[0].Model;
+                }
+                else
+                {
+                    tableModel = Services.SpreadsheetService.ParseCsv(await File.ReadAllTextAsync(filePath));
+                }
+
+                var tableMd = Services.SpreadsheetService.ToMarkdownTable(tableModel);
+                if (string.IsNullOrWhiteSpace(tableMd))
+                {
+                    ViewModel.StatusText = "That file didn't contain any tabular data.";
                     ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
                     return;
                 }
-                ViewModel.DetachFromOpenFile();
-                ViewModel.PastedMarkdown = read.Markdown;
-                ViewModel.UsePasteSource = true;
-                ViewModel.StatusText = $"Imported {name} · read with {read.Engine}" + (read.FellBack ? " (the chosen engine isn't available here)" : "");
-                ViewModel.StatusSeverity = read.FellBack ? Models.StatusSeverity.Warning : Models.StatusSeverity.Success;
+
+                await OcrExperiencePopup.PlayImportExperienceAndFadeToEditorAsync(
+                    tableMd,
+                    $"MarkSmith {ext.TrimStart('.').ToUpperInvariant()} Spreadsheet Importer",
+                    () =>
+                    {
+                        ViewModel.DetachFromOpenFile();
+                        ViewModel.PastedMarkdown = tableMd;
+                        ViewModel.UsePasteSource = true;
+                        ViewModel.StatusText = $"Imported {tableModel.Rows.Count + 1} rows × {tableModel.ColumnCount} columns from {name}.";
+                        ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+                    });
                 return;
             }
             if (ext is ".docx" or ".pdf")
             {
                 // Word/PDF keep their own result: the tier and the "edited after export" warning.
+                OcrExperiencePopup.BeginImportSession();
                 var importer = new Services.ReverseImportService();
                 ViewModel.StatusText = $"Importing {name}…";
                 var result = ext == ".pdf"
@@ -6729,56 +6816,93 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                         RenderPage = n => Services.WindowsPdfRenderer.Render(filePath, n),
                         // Scanned pages take a moment each: say which one is being read.
                         Progress = new Progress<string>(s => ViewModel.StatusText = s),
+                        OcrObserver = OcrExperiencePopup,
                     })
                     : await importer.ImportFromDocxAsync(filePath);
                 Services.WindowsPdfRenderer.Release();
 
                 if (string.IsNullOrWhiteSpace(result.Markdown))
                 {
+                    OcrExperiencePopup.CancelAndHide();
                     ViewModel.StatusText = result.Warning ?? "No content could be extracted from that document.";
                     ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
                     return;
                 }
 
-                // Load the extracted Markdown into the editor as a new document.
-                ViewModel.DetachFromOpenFile();
-                ViewModel.PastedMarkdown = result.Markdown;
-                ViewModel.UsePasteSource = true;
-                ViewModel.StatusText = result.Tier == Services.ImportTier.EmbeddedSource
-                    ? $"Imported {name} (its original MarkSmith source)"
-                    : $"Imported {name}";
-                if (result.Pdf is { } pdf)
+                // Play the 4-act visual breakdown theater (using scanned pages if OCR ran, or a
+                // synthesized document page preview if digital PDF / Word) and cross-fade to editor.
+                var sourceLabel = ext == ".pdf" ? "MarkSmith PDF Importer" : "MarkSmith Word (.docx) Importer";
+                await OcrExperiencePopup.PlayImportExperienceAndFadeToEditorAsync(result.Markdown, sourceLabel, () =>
                 {
-                    ViewModel.StatusText += $" · {pdf.Pages} page{(pdf.Pages == 1 ? "" : "s")}";
-                    if (pdf.Pictures > 0) ViewModel.StatusText += $", {pdf.Pictures} picture{(pdf.Pictures == 1 ? "" : "s")}";
-                }
-                if (!result.IsStale && !string.IsNullOrWhiteSpace(result.Warning)) ViewModel.StatusText += " · " + result.Warning;
-                ViewModel.StatusSeverity = result.IsStale || result.Pdf?.Notes.Count > 0
-                    ? Models.StatusSeverity.Warning
-                    : Models.StatusSeverity.Success;
-                if (result.IsStale && !string.IsNullOrWhiteSpace(result.Warning))
-                    ViewModel.StatusText += " — edited after export; source may lag the visible content";
+                    ViewModel.DetachFromOpenFile();
+                    ViewModel.PastedMarkdown = result.Markdown;
+                    ViewModel.UsePasteSource = true;
+                    ViewModel.StatusText = result.Tier == Services.ImportTier.EmbeddedSource
+                        ? $"Imported {name} (its original MarkSmith source)"
+                        : $"Imported {name}";
+                    if (result.Pdf is { } pdf)
+                    {
+                        ViewModel.StatusText += $" · {pdf.Pages} page{(pdf.Pages == 1 ? "" : "s")}";
+                        if (pdf.Pictures > 0) ViewModel.StatusText += $", {pdf.Pictures} picture{(pdf.Pictures == 1 ? "" : "s")}";
+                    }
+                    if (!result.IsStale && !string.IsNullOrWhiteSpace(result.Warning)) ViewModel.StatusText += " · " + result.Warning;
+                    ViewModel.StatusSeverity = result.IsStale || result.Pdf?.Notes.Count > 0
+                        ? Models.StatusSeverity.Warning
+                        : Models.StatusSeverity.Success;
+                    if (result.IsStale && !string.IsNullOrWhiteSpace(result.Warning))
+                        ViewModel.StatusText += " — edited after export; source may lag the visible content";
+                });
                 return;
             }
 
+            OcrExperiencePopup.BeginImportSession();
             var imported = await Plugins.PluginFileReader.ImportAsync(filePath);
             if (string.IsNullOrWhiteSpace(imported.Markdown))
             {
+                OcrExperiencePopup.CancelAndHide();
                 ViewModel.StatusText = $"Nothing to import from {Path.GetFileName(filePath)}: it has no readable content.";
                 ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
                 return;
             }
-            ViewModel.DetachFromOpenFile();
-            ViewModel.PastedMarkdown = imported.Markdown;
-            ViewModel.UsePasteSource = true;
-            ViewModel.StatusText = imported.Summary ?? $"Imported {Path.GetFileName(filePath)}";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+            var pluginLabel = $"MarkSmith {imported.Kind ?? "Document"} Importer";
+            await OcrExperiencePopup.PlayImportExperienceAndFadeToEditorAsync(imported.Markdown, pluginLabel, () =>
+            {
+                ViewModel.DetachFromOpenFile();
+                ViewModel.PastedMarkdown = imported.Markdown;
+                ViewModel.UsePasteSource = true;
+                ViewModel.StatusText = imported.Summary ?? $"Imported {Path.GetFileName(filePath)}";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+            });
         }
         catch (Exception ex)
         {
+            OcrExperiencePopup.CancelAndHide();
             ViewModel.StatusText = $"Import failed: {ex.Message}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
+    }
+
+    private async Task ImportScannedImageToEditorAsync(string filePath)
+    {
+        var name = Path.GetFileName(filePath);
+        ViewModel.StatusText = $"Reading the text in {name}…";
+        OcrExperiencePopup.BeginImportSession();
+        var read = await Ocr.OcrImport.ImageToMarkdownAsync(filePath, observer: OcrExperiencePopup);
+        if (string.IsNullOrWhiteSpace(read.Markdown))
+        {
+            OcrExperiencePopup.CancelAndHide();
+            ViewModel.StatusText = $"No text found in {name}.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            return;
+        }
+        await OcrExperiencePopup.PlayImportExperienceAndFadeToEditorAsync(read.Markdown, read.Engine, () =>
+        {
+            ViewModel.DetachFromOpenFile();
+            ViewModel.PastedMarkdown = read.Markdown;
+            ViewModel.UsePasteSource = true;
+            ViewModel.StatusText = $"Imported {name} · read with {read.Engine}" + (read.FellBack ? " (the chosen engine isn't available here)" : "");
+            ViewModel.StatusSeverity = read.FellBack ? Models.StatusSeverity.Warning : Models.StatusSeverity.Success;
+        });
     }
 
     // ---- D4: Spreadsheet / CSV bidirectional sync ------------------------------------------------
@@ -6853,16 +6977,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
 
             var markdown = Services.SpreadsheetService.ToMarkdownTable(model);
-            InsertBlock(markdown);
-
-            var truncated = model.Rows.Count >= Services.SpreadsheetService.MaxImportRows;
-            ViewModel.StatusText = truncated
-                ? $"Imported {model.Rows.Count} rows (truncated at {Services.SpreadsheetService.MaxImportRows})."
-                : $"Imported {model.Rows.Count + 1} rows × {model.ColumnCount} columns from {Path.GetFileName(filePath)}.";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+            var sheetLabel = $"MarkSmith {ext.TrimStart('.').ToUpperInvariant()} Spreadsheet Importer";
+            await OcrExperiencePopup.PlayImportExperienceAndFadeToEditorAsync(markdown, sheetLabel, () =>
+            {
+                InsertBlock(markdown);
+                var truncated = model.Rows.Count >= Services.SpreadsheetService.MaxImportRows;
+                ViewModel.StatusText = truncated
+                    ? $"Imported {model.Rows.Count} rows (truncated at {Services.SpreadsheetService.MaxImportRows})."
+                    : $"Imported {model.Rows.Count + 1} rows × {model.ColumnCount} columns from {Path.GetFileName(filePath)}.";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+            });
         }
         catch (Exception ex)
         {
+            OcrExperiencePopup.CancelAndHide();
             ViewModel.StatusText = $"Import failed: {ex.Message}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }

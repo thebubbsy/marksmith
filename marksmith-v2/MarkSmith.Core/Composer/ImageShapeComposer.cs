@@ -75,29 +75,44 @@ namespace MarkSmith.Core.Composer
                 return ComposeScanlines(imagePath, opt, grid);
             }
 
-            double imgW, imgH;
-            int gx = grid, gy = 1;
-            SKColor[,]? cells = null;
             try
             {
                 using var src = SKBitmap.Decode(imagePath);
-                if (src == null || src.Width <= 0 || src.Height <= 0) throw new InvalidDataException("decode failed");
+                return Compose(src, opt);
+            }
+            catch
+            {
+                return Compose((SKBitmap?)null, opt);
+            }
+        }
+
+        /// <summary>Composes an in-memory bitmap (such as a graphic cropped from a scanned OCR page)
+        /// into native DrawingML shapes.</summary>
+        public static List<ComposedShape> Compose(SKBitmap? src, ShapeComposerOptions? options = null)
+        {
+            var opt = options ?? new ShapeComposerOptions();
+            int grid = Math.Clamp(opt.Grid, 4, 8192);
+            var shapes = opt.Shapes.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim().ToLower()).Distinct().ToList();
+            if (shapes.Count == 0) shapes.Add("ellipse");
+
+            double imgW, imgH;
+            int gx = grid, gy = 1;
+            SKColor[,]? cells;
+            if (src is not null && src.Width > 0 && src.Height > 0)
+            {
                 imgW = src.Width;
                 imgH = src.Height;
                 gx = grid;
                 gy = (int)Math.Max(1, Math.Round(grid * src.Height / (double)src.Width));
-                // Keep the docx practical: clamp total cells, preserving aspect.
                 while ((long)gx * gy > MaxCells && gx > 4 && gy > 4)
                 {
                     gx = Math.Max(4, (int)(gx * 0.75));
                     gy = (int)Math.Max(1, Math.Round(gx * imgH / imgW));
                 }
                 cells = SampleCells(src, gx, gy);
-                grid = gx;
             }
-            catch
+            else
             {
-                // Unreadable image -> deterministic gradient so composition never throws.
                 imgW = 32; imgH = 32;
                 gy = (int)Math.Max(1, Math.Round(grid * imgH / imgW));
                 cells = GradientCells(grid, gy);

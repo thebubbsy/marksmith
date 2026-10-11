@@ -188,11 +188,8 @@ public class ShapeStudioCanvasEditingTests
         Assert.Equal(0, line.Rotation);
         Assert.Contains("endpoints", vm.StatusMessage);
 
-        // Dense read-only mode (>= 50 shapes) also blocks rotation mutations.
-        while (vm.Shapes.Count < ShapeDesignStudioViewModel.DenseThreshold)
-        {
-            vm.Shapes.Add(new ShapeItemViewModel { Id = $"s{vm.Shapes.Count + 1}", Prst = "rect" });
-        }
+        // Dense read-only mode also blocks rotation mutations.
+        vm.CanvasMode = "dense";
         Assert.True(vm.IsDense);
         vm.SelectedShape = box;
         vm.RotateClockwise();

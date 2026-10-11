@@ -34,6 +34,7 @@ public sealed class MermaidDiagramStudioWindow : Window
         {
             AppWindow.SetIcon(iconPath);
         }
+        SizeForDisplay();
 
         // Enable WASDK Mica backdrop
         SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
@@ -59,6 +60,8 @@ public sealed class MermaidDiagramStudioWindow : Window
         Content = _studioControl;
         
         SetTitleBar(_studioControl.TitleBarElement);
+        if (_studioControl.TitleBarElement is Grid titleBarGrid)
+            MarkSmith.Services.TitleBarInsets.Reserve(this, titleBarGrid);
 
         // Guard against silently throwing away edits: if the diagram has unsynced changes, ask
         // before closing instead of just discarding them.
@@ -73,6 +76,28 @@ public sealed class MermaidDiagramStudioWindow : Window
             _ = ConfirmDiscardAndCloseAsync();
         };
     }
+
+    private void SizeForDisplay()
+    {
+        try
+        {
+            var scale = GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0;
+            if (scale <= 0) scale = 1;
+            var work = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(AppWindow.Id,
+                Microsoft.UI.Windowing.DisplayAreaFallback.Primary).WorkArea;
+            AppWindow.Resize(new Windows.Graphics.SizeInt32(
+                Math.Min((int)(1380 * scale), work.Width), Math.Min((int)(860 * scale), work.Height)));
+            if (AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+            {
+                presenter.PreferredMinimumWidth = Math.Min((int)(1080 * scale), work.Width);
+                presenter.PreferredMinimumHeight = Math.Min((int)(600 * scale), work.Height);
+            }
+        }
+        catch { /* best effort: the default size still works */ }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
 
     private async Task ConfirmDiscardAndCloseAsync()
     {

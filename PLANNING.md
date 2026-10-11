@@ -6280,3 +6280,51 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 
 **Release (same run):** tagged **v3.30.0** on `21de7ba7` after CI passed (`38093221449`). Release workflow (`38093399729`) built the x64/arm64 installers and portable zips (5 assets including `checksums.txt`); user-facing notes covering Runs #72–#76 (Shape Studio, SmartArt Studio & Document Galaxy context menus and shortcuts; Settings, Suite Hub & Welcome Tour; Insert dialogs, Command Palette & Word INDEX field pre-fill) were prepended above the workflow body with `---`. `MarksmithBaseVersion` is now **3.31.0**.
 
+### 2026-10-11 11:50 – 2026-10-11 12:32 AEDT (run #78: OCR / Document Import experience overlay deterministic ~7.3s pacing, repeat-run stale-task fix, UI lag elimination & MainWindow Fluent theme match; plus reconciled run #77 Mermaid & SmartArt Studio polish)
+
+**Agent / Execution Metadata:**
+- **Model:** `Gemini 3.8 Flash (High)`
+- **Identity:** Antigravity AI Agent (Google DeepMind)
+- **Modes:** `/boost` (Delegation Routine)
+- **Trigger:** Specific user request (`"What is going on with the OCR overlay? The first one went for 3-5 seconds and the next one only flashed on the screen for 1s and disappeared! Also I don't want it faster. While it was trying to speed through the animation it lagged the computer hard! And the window color doesn't match the main window."`)
+- **Agents Used:** `2 agents total` (`1 Parent Orchestrator` [`c0aca02f-aa6f-4116-a8bb-561b5a625c1b`] + `1 Coding Worker Subagent` [`e135a49d-7881-421d-863e-cc092e3da77e`], running `Gemini 3.8 Flash (High)`; plus reconciled interrupted Run #77 Worker [`f5249f11-7996-43c0-b445-4278eec53b62`])
+
+**Root causes identified & fixed for the 4 OCR Experience Overlay issues:**
+1. **Repeat-run ~1s flash-away (`_playbackTask` stale reference + `SynchronizationContext.Post` race + `PluginFileReader.Cache`):**
+   - `OcrExperienceOverlay.FadeOutAndCloseAsync()` and `PageStarted()` never reset `_playbackTask = null` when an import finished. On the 2nd import, `PageRead()` enqueued `StartPlaybackIfNeededOnUi` asynchronously via `_dispatcher.TryEnqueue(...)`, while `FinishAndFadeToEditorAsync()` checked `lock (_sync) playback = _playbackTask;` before that callback ran, saw Run #1's already-completed `Task`, skipped Stages 1–4, showed the final banner for 520ms, and closed the overlay after <1s.
+   - `MainViewModel.ReadInputFileAsync` used `syncContext.Post(_ => Apply(), null)` even when already on the UI thread, so when `PluginFileReader.ImportAsync` completed fast, `await ViewModel.LastFileReadTask` returned in `MainWindow.OpenOrImportDocumentAsync` *before* `Apply()` populated `ViewModel.CurrentMarkdown` and `ViewModel.SourceImportKind`.
+   - `PluginFileReader.ImportAsync` cached converted documents by `(path, timestamp, length)`, so re-opening the same scanned PDF skipped `ReverseImportService` and never emitted real PDF page previews on repeat opens.
+   - `MainWindow.OpenOrImportDocumentAsync` set `ViewModel.InputFilePath = path` directly, which was a no-op in `CommunityToolkit.Mvvm` when re-opening the exact same file path twice in a row.
+2. **Inconsistent & overly fast animation pacing across document sizes:**
+   - Stage 2, 3, and 4 durations in `OcrExperienceOverlay` previously varied with `trace.Blocks.Count` and `trace.Words.Count` (`Math.Clamp(blockCount, 1, 14)` and `Math.Clamp(totalWords / 8, 6, 36)`), making short documents finish in ~3.0s while larger ones took ~4.8s, and racing through stages too fast to read.
+   - Introduced deterministic, content-invariant `OcrPlaybackSchedule.ForPage(blockCount, wordCount, pageIndex, pageCount, stage1ElapsedMs)` in `MarkSmith.Core/Ocr/OcrTrace.cs`, guaranteeing an exact **~7,280 ms (~7.3s)** single-page animation (`Stage 1 = 1,150 ms`, `Stage 2 = 1,600 ms`, `Stage 3 = 1,600 ms`, `Stage 4 = 1,800 ms`, `Final Sheet Hold = 950 ms`, `Fade-Out = 180 ms`) regardless of whether a page has 0, 1, 6, or 42 blocks or 0, 2, or 1,250 words.
+3. **Severe UI / computer lag during playback:**
+   - `OcrExperienceOverlay.xaml` had `<ThemeShadow />` with `Translation="0,0,64"` and a `ScaleTransform` on `TheaterCard` over the live `WebView2` preview, forcing DWM 3D shadow re-projection on every child layout invalidation.
+   - `MainWindow._previewDebounce` fired while `OcrExperiencePopup` was open, causing `WebView2` to compile and render HTML/Mermaid in the background right as the overlay animated.
+   - Stage 3 allocated up to 320 `Border` controls with `CornerRadius` and new `SolidColorBrush` instances inside a `16ms` (60fps) loop, mutating all previous borders every tick; Stage 4 called synchronous `MarkdownScrollViewer.UpdateLayout()` on every block step and used `EntranceThemeTransition` on dynamic cards; `LaserBeam` mutated `Canvas.SetTop` (invalidating `Canvas` arrange) instead of `RenderTransform` (`LaserTransform.Y`).
+   - `OcrVisualElements.SampleBitmapToGrid` and `CountDistinctColors` made ~409,600 per-pixel `SKBitmap.GetPixel(x, y)` P/Invoke calls per page instead of reading `page.Pixels` in bulk, and `OcrTrace.EncodePreviewPng` encoded up to `1600px` PNGs with redundant `SKBitmap` copies.
+4. **Window/card colour mismatch with `MainWindow`:**
+   - Replaced all hardcoded deep navy-blue (`#070B14`, `#0F172A`, `#0B1120`, `#1E293B`) and neon cyan (`#38BDF8`) brushes in `OcrExperienceOverlay.xaml` and `OcrExperienceOverlay.xaml.cs` with `MainWindow`'s native WinUI 3 `{ThemeResource ApplicationPageBackgroundThemeBrush}`, `{ThemeResource CardBackgroundFillColorDefaultBrush}`, `{ThemeResource CardBackgroundFillColorSecondaryBrush}`, `{ThemeResource LayerFillColorAltBrush}`, `{ThemeResource CardStrokeColorDefaultBrush}`, `{StaticResource PipelineCardStyle}`, MarkSmith `#1A8CFF` brand accent, and `<Image Source="ms-appx:///Assets/logo.png" />` in the header.
+5. **Reconciled interrupted Run #77 changes (`MermaidDiagramStudio` & `SmartArtDesignStudio`):**
+   - Completed keyboard accelerators (`F2` rename, `Ctrl+F` find shapes, `Ctrl+Enter` sync to document, `Shift+F10` / `Application` context menu) and UIA status announcements across `MermaidDiagramStudioWindow`, `MermaidDiagramStudioControl`, `NodePaletteControl`, and `SmartArtDesignStudioWindow`.
+
+**Shipped:**
+- `MarkSmith.Core/Ocr/OcrTrace.cs` & `OcrVisualElements.cs`:
+  - Added `OcrPlaybackSchedule` and `OcrPlaybackSchedule.ForPage(...)` for content-invariant ~7.3s single-page and ~3.8s follow-up multi-page schedules.
+  - Lowered `PreviewMaxEdge` from `1600` to `1100`, avoided redundant `OcrGeometry.Resize` when already within bounds, and switched `SampleBitmapToGrid` / `CountDistinctColors` to bulk `page.Pixels` array reads.
+- `MarkSmith.Desktop/Controls/OcrExperienceOverlay.xaml` & `OcrExperienceOverlay.xaml.cs`:
+  - Restyled `OcrExperienceOverlay` to match `MainWindow`'s neutral WinUI 3 Fluent dark/light theme and `PipelineCardStyle`, removed `ThemeShadow` (`Translation="0,0,64"`) and `ScaleTransform`, and moved `LaserBeam` vertical motion onto `LaserTransform.Y`.
+  - Added `BeginImportSession()`, `HasActiveSession`, `_pagesStarted`, `_pagesRead`, and `_finalSheetShown`, and reset `_playbackTask = null` and `_stage0Task = null` on close/new session so back-to-back runs never flash away early.
+  - Replaced the 60fps 320-`Border` word loop with a calm 10-step (`~145ms/step`) wave of at most 56 lightweight `Rectangle` shapes using pre-allocated static brushes; capped `MarkdownBlocksPanel` to 8 cards per page without `UpdateLayout()` or `EntranceThemeTransition`; truncated `FinalMarkdownTextBlock` preview to 22 lines / 1,400 chars.
+- `MarkSmith.Core/ViewModels/MainViewModel.cs`, `MarkSmith.Desktop/MainWindow.xaml.cs` & `App.xaml.cs`:
+  - Executed `Apply()` synchronously in `ReadInputFileAsync` when already on the captured `SynchronizationContext`.
+  - Deferred `_previewDebounce` while `OcrExperiencePopup` is active and restarted it on `OcrExperiencePopup.Completed`; invalidated `PluginFileReader` cache and called `BeginImportSession()` in `OpenOrImportDocumentAsync`, `OnImportDocumentClick`, and `ImportScannedImageToEditorAsync`; routed CLI file launches in `App.xaml.cs` through `OpenOrImportDocumentAsync`.
+- `MarkSmith.Tests/Ocr/OcrExperienceAndVisualsTests.cs`:
+  - Added 3 unit tests pinning `OcrPlaybackSchedule.ForPage` content invariance across empty, small, medium, and dense documents, elapsed Stage 1 subtraction with floor clamping, and follow-up multi-page scheduling.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64 -p:OutDir="$env:TEMP\ms_ocr_fix\b\"`: **0 errors** (0 warnings in touched OCR files).
+- OCR unit test suite (`dotnet test --filter "FullyQualifiedName~Ocr"`): **56 passed, 0 failed**.
+- `MainViewModel`, `Scanner`, and `DocumentConverter` unit tests: **21 passed, 0 failed**.
+- `Mermaid` unit test suite (verifying reconciled Run #77 changes): **345 passed, 0 failed**.
+- Live scratch binary launch (`$env:TEMP\ms_ocr_fix\b\Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR` and synthetic `test_scan.png`): booted and ran with **0 unhandled exceptions** (`no startup-crash.log`), while leaving the user's running instance (`PID 9644`) untouched.

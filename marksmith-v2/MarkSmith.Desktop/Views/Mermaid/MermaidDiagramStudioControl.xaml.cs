@@ -18,8 +18,9 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     public event EventHandler<string>? SyncToMarkdownRequested;
 
-    // Kept so the keyboard accelerators (zoom in/out/reset) can drive the canvas directly.
+    // Kept so the keyboard accelerators (zoom in/out/reset, Ctrl+F) can drive the canvas and palette directly.
     private readonly MermaidCanvasControl _canvas;
+    private readonly NodePaletteControl _palette;
 
     // ---- Bidirectional Code <-> Canvas sync (mermaid.live-style) --------------------------
     // True while we are writing CodeEditorTextBox.Text ourselves (canvas -> code push) so the
@@ -50,12 +51,13 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     {
         InitializeComponent();
 
-        var palette = new NodePaletteControl();
-        PaletteContainer.Child = palette;
+        _palette = new NodePaletteControl();
+        PaletteContainer.Child = _palette;
         _canvas = new MermaidCanvasControl();
         CanvasContainer.Child = _canvas;
         // The palette rows said "Add shape to canvas" but only dragging did anything.
-        palette.ShapeRequested += (_, item) => _canvas.AddInView(item);
+        _palette.ShapeRequested += (_, item) => _canvas.AddInView(item);
+        _palette.ReturnFocusToCanvasRequested += (_, _) => _canvas.FocusCanvas();
 
         // Ctrl+= and Ctrl+- on the main keyboard (the XAML pair only covers the numpad keys, so
         // the shortcuts the zoom tooltips name did nothing on a laptop).
@@ -63,6 +65,38 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         {
             var accel = new KeyboardAccelerator { Key = key, Modifiers = Windows.System.VirtualKeyModifiers.Control };
             accel.Invoked += zoomIn ? OnZoomInAcceleratorInvoked : OnZoomOutAcceleratorInvoked;
+            KeyboardAccelerators.Add(accel);
+        }
+
+        // Ctrl+] / Ctrl+[ / Ctrl+Shift+] / Ctrl+Shift+[ z-ordering shortcuts (OEM_6 = 221 ']', OEM_4 = 219 '[').
+        foreach (var (key, shift, forward) in new[]
+        {
+            ((Windows.System.VirtualKey)221, false, true),
+            ((Windows.System.VirtualKey)219, false, false),
+            ((Windows.System.VirtualKey)221, true, true),
+            ((Windows.System.VirtualKey)219, true, false)
+        })
+        {
+            var mods = shift
+                ? Windows.System.VirtualKeyModifiers.Control | Windows.System.VirtualKeyModifiers.Shift
+                : Windows.System.VirtualKeyModifiers.Control;
+            var accel = new KeyboardAccelerator { Key = key, Modifiers = mods };
+            bool isShift = shift, isForward = forward;
+            accel.Invoked += (_, args) =>
+            {
+                if (IsEditingText()) return;
+                if (isForward)
+                {
+                    if (isShift) _canvas.BringToFront();
+                    else _canvas.BringForward();
+                }
+                else
+                {
+                    if (isShift) _canvas.SendToBack();
+                    else _canvas.SendBackward();
+                }
+                args.Handled = true;
+            };
             KeyboardAccelerators.Add(accel);
         }
 
@@ -79,6 +113,12 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             {
                 vm.PropertyChanged += OnViewModelPropertyChanged;
                 WatchCollections(vm);
+
+                if (StatusBarText != null && !string.IsNullOrEmpty(vm.StatusText))
+                {
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusBarText, vm.StatusText);
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(StatusBarText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+                }
 
                 // Every whole-diagram load (template, another block) lands fitted in view, and so
                 // does the diagram the Studio opened with (it was loaded before DataContext).
@@ -489,6 +529,33 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     {
         if (IsEditingText()) return;
         ViewModel?.SelectAll();
+        args.Handled = true;
+    }
+
+    private void OnRenameAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (IsEditingText()) return;
+        if (_canvas.StartSelectedInPlaceEdit()) args.Handled = true;
+    }
+
+    private void OnFindShapesAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (CodeEditorTextBox.FocusState != FocusState.Unfocused) return;
+        if (LeftPanePivot.SelectedIndex != 0) LeftPanePivot.SelectedIndex = 0;
+        _palette.FocusSearchBox();
+        args.Handled = true;
+    }
+
+    private void OnSyncAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        OnSyncToMarkdownClick(this, new RoutedEventArgs());
+        args.Handled = true;
+    }
+
+    private void OnContextMenuAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (IsEditingText()) return;
+        _canvas.ShowContextMenuForSelection();
         args.Handled = true;
     }
 

@@ -2340,6 +2340,81 @@ public partial class MermaidStudioViewModel : ObservableObject
         StatusText = message;
     }
 
+    private List<DiagramNodeViewModel> GetStackOrder() =>
+        Nodes.Select((n, idx) => (Node: n, Index: idx))
+             .OrderBy(x => x.Node.ZIndex)
+             .ThenBy(x => x.Index)
+             .Select(x => x.Node)
+             .ToList();
+
+    public bool CanBringForward(DiagramNodeViewModel? target = null)
+    {
+        var node = target ?? SelectedNode;
+        if (node is null || Nodes.Count <= 1) return false;
+        var ordered = GetStackOrder();
+        int idx = ordered.IndexOf(node);
+        return idx >= 0 && idx < ordered.Count - 1;
+    }
+
+    public bool CanSendBackward(DiagramNodeViewModel? target = null)
+    {
+        var node = target ?? SelectedNode;
+        if (node is null || Nodes.Count <= 1) return false;
+        var ordered = GetStackOrder();
+        int idx = ordered.IndexOf(node);
+        return idx > 0;
+    }
+
+    [RelayCommand]
+    public void BringToFront(DiagramNodeViewModel? target = null)
+    {
+        var node = target ?? SelectedNode;
+        if (node is null || Nodes.Count <= 1) return;
+        var ordered = GetStackOrder();
+        if (!ordered.Remove(node)) return;
+        ordered.Add(node);
+        for (int i = 0; i < ordered.Count; i++) ordered[i].ZIndex = i;
+        StatusText = $"Brought '{DisplayName(node)}' to the front.";
+    }
+
+    [RelayCommand]
+    public void BringForward(DiagramNodeViewModel? target = null)
+    {
+        var node = target ?? SelectedNode;
+        if (node is null || Nodes.Count <= 1) return;
+        var ordered = GetStackOrder();
+        int idx = ordered.IndexOf(node);
+        if (idx < 0 || idx >= ordered.Count - 1) return;
+        (ordered[idx], ordered[idx + 1]) = (ordered[idx + 1], ordered[idx]);
+        for (int i = 0; i < ordered.Count; i++) ordered[i].ZIndex = i;
+        StatusText = $"Brought '{DisplayName(node)}' forward.";
+    }
+
+    [RelayCommand]
+    public void SendBackward(DiagramNodeViewModel? target = null)
+    {
+        var node = target ?? SelectedNode;
+        if (node is null || Nodes.Count <= 1) return;
+        var ordered = GetStackOrder();
+        int idx = ordered.IndexOf(node);
+        if (idx <= 0) return;
+        (ordered[idx], ordered[idx - 1]) = (ordered[idx - 1], ordered[idx]);
+        for (int i = 0; i < ordered.Count; i++) ordered[i].ZIndex = i;
+        StatusText = $"Sent '{DisplayName(node)}' backward.";
+    }
+
+    [RelayCommand]
+    public void SendToBack(DiagramNodeViewModel? target = null)
+    {
+        var node = target ?? SelectedNode;
+        if (node is null || Nodes.Count <= 1) return;
+        var ordered = GetStackOrder();
+        if (!ordered.Remove(node)) return;
+        ordered.Insert(0, node);
+        for (int i = 0; i < ordered.Count; i++) ordered[i].ZIndex = i;
+        StatusText = $"Sent '{DisplayName(node)}' to the back.";
+    }
+
     #endregion
 
     public MermaidDiagramAst CanvasToAst()

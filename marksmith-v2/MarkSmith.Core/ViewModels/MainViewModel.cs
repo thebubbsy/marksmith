@@ -520,7 +520,7 @@ private readonly MarkdownExportService _mdExport = new();
                         StatusSeverity = StatusSeverity.Success;
                     }
                 }
-                if (syncContext != null) syncContext.Post(_ => Apply(), null);
+                if (syncContext != null && SynchronizationContext.Current != syncContext) syncContext.Post(_ => Apply(), null);
                 else Apply();
             }
         }
@@ -539,7 +539,7 @@ private readonly MarkdownExportService _mdExport = new();
                     StatusText = $"Couldn't open {Path.GetFileName(value)}: {ex.Message}";
                     StatusSeverity = StatusSeverity.Error;
                 }
-                if (syncContext != null) syncContext.Post(_ => Fail(), null);
+                if (syncContext != null && SynchronizationContext.Current != syncContext) syncContext.Post(_ => Fail(), null);
                 else Fail();
             }
         }

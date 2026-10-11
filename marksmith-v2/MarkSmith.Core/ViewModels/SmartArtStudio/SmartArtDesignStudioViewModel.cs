@@ -295,11 +295,54 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
                 row.IsSelected = ReferenceEquals(row, value);
             }
             OnPropertyChanged();
-            OnPropertyChanged(nameof(HasSelection));
+            NotifySelectionCapabilities();
         }
     }
 
     public bool HasSelection => SelectedNode is not null;
+
+    public bool CanMoveUp
+    {
+        get
+        {
+            if (SelectedNode is not { } node) return false;
+            var siblings = node.Parent == null ? RootNodes : node.Parent.Children;
+            return siblings.IndexOf(node) > 0;
+        }
+    }
+
+    public bool CanMoveDown
+    {
+        get
+        {
+            if (SelectedNode is not { } node) return false;
+            var siblings = node.Parent == null ? RootNodes : node.Parent.Children;
+            int idx = siblings.IndexOf(node);
+            return idx >= 0 && idx < siblings.Count - 1;
+        }
+    }
+
+    public bool CanPromote => SelectedNode?.Parent is not null;
+
+    public bool CanDemote
+    {
+        get
+        {
+            if (SelectedNode is not { } node) return false;
+            var siblings = node.Parent == null ? RootNodes : node.Parent.Children;
+            return siblings.IndexOf(node) > 0;
+        }
+    }
+
+    private void NotifySelectionCapabilities()
+    {
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(CanMoveUp));
+        OnPropertyChanged(nameof(CanMoveDown));
+        OnPropertyChanged(nameof(CanPromote));
+        OnPropertyChanged(nameof(CanDemote));
+    }
+
     /// <summary>True when every node has been deleted — drives the outline's empty state.</summary>
     public bool IsOutlineEmpty => OutlineRows.Count == 0;
     /// <summary>True when the gallery search filters out every layout.</summary>
@@ -446,7 +489,25 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     // ------------------------------------------------------------------ tree model
 
-    public void Select(StudioNodeViewModel? node) => SelectedNode = node;
+    public void Select(StudioNodeViewModel? node)
+    {
+        if (_editingNode != null && !ReferenceEquals(_editingNode, node))
+        {
+            CommitIfEditing(ref node);
+        }
+        SelectedNode = node;
+    }
+
+    private void CommitIfEditing(ref StudioNodeViewModel? target)
+    {
+        if (_editingNode == null) return;
+        var targetPath = target != null ? PathOf(target) : null;
+        CommitRename();
+        if (targetPath is { Count: > 0 })
+        {
+            target = NodeAtPath(targetPath) ?? target;
+        }
+    }
 
     public void RebuildTree()
     {
@@ -470,8 +531,9 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         RebuildOutline();
         SelectedNode = NodeAtPath(selectedPath);
         var editing = NodeAtPath(editingPath);
+        _editingNode = editing;
         if (editing != null) editing.IsEditing = true;
-        OnPropertyChanged(nameof(HasSelection));
+        NotifySelectionCapabilities();
     }
 
     private List<int> PathOf(StudioNodeViewModel? node)
@@ -589,6 +651,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [RelayCommand]
     public void Undo()
     {
+        if (_editingNode != null) CommitRename();
         if (_undoStack.Count == 0) return;
         _redoStack.Add(MarkdownText ?? "");
         string target = _undoStack[^1];
@@ -600,6 +663,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [RelayCommand]
     public void Redo()
     {
+        if (_editingNode != null) CommitRename();
         if (_redoStack.Count == 0) return;
         _undoStack.Add(MarkdownText ?? "");
         string target = _redoStack[^1];
@@ -613,6 +677,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [RelayCommand]
     public void AddChild(StudioNodeViewModel? target = null)
     {
+        CommitIfEditing(ref target);
         var parent = target ?? SelectedNode;
         PushUndo();
         var node = new StudioNodeViewModel { Text = "New Node", Parent = parent, Depth = (parent?.Depth ?? -1) + 1 };
@@ -627,6 +692,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [RelayCommand]
     public void AddSibling(StudioNodeViewModel? target = null)
     {
+        CommitIfEditing(ref target);
         var node = target ?? SelectedNode;
         if (node == null) { AddChild(null); return; }
         PushUndo();
@@ -640,9 +706,42 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         StatusMessage = $"Added sibling after '{node.Text}' · Ctrl+Z to undo";
     }
 
+    /// <summary>Duplicates the target (or selected) node and all of its children as the next sibling.</summary>
+    [RelayCommand]
+    public void DuplicateSelected(StudioNodeViewModel? target = null)
+    {
+        CommitIfEditing(ref target);
+        var node = target ?? SelectedNode;
+        if (node == null) return;
+        PushUndo();
+        var clone = CloneSubtree(node, node.Parent, node.Depth);
+        var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
+        int idx = siblings.IndexOf(node);
+        siblings.Insert(idx + 1, clone);
+        Select(clone);
+        SyncTreeToMarkdown();
+        StatusMessage = $"Duplicated '{node.Text}' · Ctrl+Z to undo";
+    }
+
+    private static StudioNodeViewModel CloneSubtree(StudioNodeViewModel source, StudioNodeViewModel? parent, int depth)
+    {
+        var copy = new StudioNodeViewModel
+        {
+            Text = source.Text,
+            Parent = parent,
+            Depth = depth
+        };
+        foreach (var child in source.Children)
+        {
+            copy.Children.Add(CloneSubtree(child, copy, depth + 1));
+        }
+        return copy;
+    }
+
     [RelayCommand]
     public void DeleteSelected(StudioNodeViewModel? target = null)
     {
+        CommitIfEditing(ref target);
         var node = target ?? SelectedNode;
         if (node == null) return;
         string name = node.Text;
@@ -662,6 +761,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [RelayCommand]
     public void MoveUp()
     {
+        if (_editingNode != null) CommitRename();
         var node = SelectedNode;
         if (node == null) return;
         var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
@@ -677,6 +777,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [RelayCommand]
     public void MoveDown()
     {
+        if (_editingNode != null) CommitRename();
         var node = SelectedNode;
         if (node == null) return;
         var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
@@ -693,6 +794,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [RelayCommand]
     public void Promote()
     {
+        if (_editingNode != null) CommitRename();
         var node = SelectedNode;
         if (node == null || node.Parent == null) return;
         PushUndo();
@@ -715,6 +817,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [RelayCommand]
     public void Demote()
     {
+        if (_editingNode != null) CommitRename();
         var node = SelectedNode;
         if (node == null) return;
         var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
@@ -799,6 +902,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [RelayCommand]
     public void BeginRename(StudioNodeViewModel? target = null)
     {
+        CommitIfEditing(ref target);
         var node = target ?? SelectedNode;
         if (node == null) return;
         _editSnapshot = node.Text;
@@ -862,36 +966,54 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     private bool CanInsert => !IsOutlineEmpty;
 
-    [RelayCommand(CanExecute = nameof(CanInsert))]
-    public void InsertIntoDocument()
+    public bool TryBuildSmartArtBlock(out string block, out string layoutDisplayName, out string errorMessage)
     {
+        if (_editingNode != null) CommitRename();
+        block = string.Empty;
+        layoutDisplayName = string.Empty;
+        errorMessage = string.Empty;
+
         var ast = MarkdownAstParser.Parse(MarkdownText ?? "");
         string alias = SelectedLayout?.Alias ?? MarkSmith.Core.Glox.SmartArtLayoutSuggester.Suggest(ast) ?? "list";
         var pkg = SmartArtLayoutCatalog.Shared.TryResolve(alias);
         if (pkg == null)
         {
-            StatusMessage = "Insert error: the selected layout is not available.";
-            return;
+            errorMessage = "Insert error: the selected layout is not available.";
+            return false;
         }
 
         string inner = (MarkdownText ?? "").Trim();
         if (string.IsNullOrWhiteSpace(inner))
         {
-            StatusMessage = "Insert error: build a hierarchy first.";
+            errorMessage = "Insert error: build a hierarchy first.";
+            return false;
+        }
+
+        var sb = new StringBuilder();
+        // Leading/trailing blank lines: the preview + DOCX block extractors require the marker to
+        // sit on its own paragraph, so the block stays valid wherever the caret is.
+        sb.AppendLine();
+        sb.AppendLine($":::smartart type=\"{alias}\"");
+        sb.AppendLine(inner);
+        sb.AppendLine(":::");
+        block = sb.ToString();
+        layoutDisplayName = SelectedLayout?.DisplayName
+            ?? (string.IsNullOrWhiteSpace(pkg.Title) ? StudioLayoutItem.Humanize(alias) : pkg.Title);
+        return true;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanInsert))]
+    public void InsertIntoDocument()
+    {
+        if (!TryBuildSmartArtBlock(out string block, out string name, out string err))
+        {
+            StatusMessage = err;
             return;
         }
 
-        var block = new StringBuilder();
-        // Leading/trailing blank lines: the preview + DOCX block extractors require the marker to
-        // sit on its own paragraph, so the block stays valid wherever the caret is.
-        block.AppendLine();
-        block.AppendLine($":::smartart type=\"{alias}\"");
-        block.AppendLine(inner);
-        block.AppendLine(":::");
-        InsertToDocumentRequested?.Invoke(this, block.ToString());
+        InsertToDocumentRequested?.Invoke(this, block);
         MarkKept();
         // Built-in packages have an empty title ("✓ Added  to the document"); use the gallery's name.
-        string name = SelectedLayout?.DisplayName ?? (string.IsNullOrWhiteSpace(pkg.Title) ? StudioLayoutItem.Humanize(alias) : pkg.Title);
         StatusMessage = $"✓ Added {name} to the document — preview & export it there.";
     }
 

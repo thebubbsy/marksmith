@@ -128,7 +128,7 @@ public partial class App : Application
 
             if (cliArgs != null && cliArgs.Length > 1 && System.IO.File.Exists(cliArgs[1]))
             {
-                ViewModel.InputFilePath = System.IO.Path.GetFullPath(cliArgs[1]);
+                _ = window.OpenOrImportDocumentAsync(System.IO.Path.GetFullPath(cliArgs[1]), collapseLeftPane: false);
             }
         }
         catch (Exception ex)

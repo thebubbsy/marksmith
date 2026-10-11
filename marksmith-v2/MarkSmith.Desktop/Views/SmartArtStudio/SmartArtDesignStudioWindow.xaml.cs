@@ -39,6 +39,11 @@ namespace MarkSmith.Views.SmartArtStudio
 
             ViewModel.PreviewHtmlChanged += (s, e) => RefreshWebView();
             ViewModel.InsertToDocumentRequested += (s, block) => InsertToDocumentRequested?.Invoke(this, block);
+            if (StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
+            {
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(StatusBarText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+            }
             ViewModel.PropertyChanged += (s, e) =>
             {
                 if (e.PropertyName == nameof(ViewModel.StatusMessage) && StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
@@ -129,6 +134,25 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnLayoutCategoryComboKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == VirtualKey.Escape && !LayoutCategoryCombo.IsDropDownOpen)
+            {
+                OutlineScroll.Focus(FocusState.Keyboard);
+                e.Handled = true;
+            }
+        }
+
+        private void OnMarkdownTextBoxKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == VirtualKey.Escape)
+            {
+                EditorTabs.SelectedItem = OutlineTab;
+                OutlineScroll.Focus(FocusState.Keyboard);
+                e.Handled = true;
+            }
+        }
+
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)
         {
             this.Activated -= OnWindowActivated;
@@ -211,6 +235,15 @@ namespace MarkSmith.Views.SmartArtStudio
             if (OutlineScroll.XamlRoot is not { } root || !ReferenceEquals(FocusManager.GetFocusedElement(root), OutlineScroll)) return;
             bool Down(VirtualKey k) => (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(k)
                                         & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+            if (e.Key == VirtualKey.Application || (e.Key == VirtualKey.F10 && Down(VirtualKey.Shift)))
+            {
+                if (ViewModel.SelectedNode is { } selected)
+                    ShowRowContextMenu(selected, OutlineScroll, new Windows.Foundation.Point(48, 36));
+                else
+                    ShowOutlineAreaContextMenu(OutlineScroll, new Windows.Foundation.Point(48, 36));
+                e.Handled = true;
+                return;
+            }
             SmartArtDesignStudioViewModel.OutlineKey? key = e.Key switch
             {
                 VirtualKey.Up => SmartArtDesignStudioViewModel.OutlineKey.Up,
@@ -218,7 +251,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 VirtualKey.Home => SmartArtDesignStudioViewModel.OutlineKey.Home,
                 VirtualKey.End => SmartArtDesignStudioViewModel.OutlineKey.End,
                 VirtualKey.Tab => SmartArtDesignStudioViewModel.OutlineKey.Tab,
-                VirtualKey.Enter => SmartArtDesignStudioViewModel.OutlineKey.Enter,
+                VirtualKey.Enter when !Down(VirtualKey.Control) => SmartArtDesignStudioViewModel.OutlineKey.Enter,
                 VirtualKey.Insert => SmartArtDesignStudioViewModel.OutlineKey.Insert,
                 VirtualKey.Delete or VirtualKey.Back => SmartArtDesignStudioViewModel.OutlineKey.Delete,
                 VirtualKey.F2 => SmartArtDesignStudioViewModel.OutlineKey.F2,
@@ -265,10 +298,18 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnToolbarAddNodeClick(object sender, RoutedEventArgs e)
+        {
+            FocusRenameBox();
+        }
+
         private void OnRowAddChildClick(object sender, RoutedEventArgs e)
         {
             if ((sender as FrameworkElement)?.DataContext is StudioNodeViewModel node)
+            {
                 ViewModel.AddChildCommand.Execute(node);
+                FocusRenameBox();
+            }
         }
 
         private void OnRowDeleteClick(object sender, RoutedEventArgs e)
@@ -332,7 +373,268 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnRenameLostFocus(object sender, RoutedEventArgs e) => ViewModel.CommitRename();
 
-        // Window-level shortcuts: Delete/Backspace = delete node, F2 = rename, Ctrl+Z/Y = undo/redo, Ctrl+F = focus layout search.
+        // ------------------------------------------------------------------ context menus
+
+        private void OnRowRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is StudioNodeViewModel node)
+            {
+                ViewModel.Select(node);
+                OutlineScroll.Focus(FocusState.Pointer);
+                ShowRowContextMenu(node, fe, e.GetPosition(fe));
+                e.Handled = true;
+            }
+        }
+
+        private void OnOutlineAreaRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (e.Handled) return;
+            ShowOutlineAreaContextMenu(OutlineScroll, e.GetPosition(OutlineScroll));
+            e.Handled = true;
+        }
+
+        private void ShowRowContextMenu(StudioNodeViewModel node, UIElement target, Windows.Foundation.Point position)
+        {
+            var menu = new MenuFlyout();
+
+            var renameItem = new MenuFlyoutItem
+            {
+                Text = "Rename",
+                Icon = new FontIcon { Glyph = "\uE70F" },
+                KeyboardAcceleratorTextOverride = "F2"
+            };
+            renameItem.Click += (_, _) => BeginRenameAndFocus(node);
+            menu.Items.Add(renameItem);
+
+            var duplicateItem = new MenuFlyoutItem
+            {
+                Text = "Duplicate",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                KeyboardAcceleratorTextOverride = "Ctrl+D"
+            };
+            duplicateItem.Click += (_, _) => ViewModel.DuplicateSelected(node);
+            menu.Items.Add(duplicateItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var addChildItem = new MenuFlyoutItem
+            {
+                Text = "Add child",
+                Icon = new FontIcon { Glyph = "\uE710" },
+                KeyboardAcceleratorTextOverride = "Insert"
+            };
+            addChildItem.Click += (_, _) => { ViewModel.AddChild(node); FocusRenameBox(); };
+            menu.Items.Add(addChildItem);
+
+            var addSiblingItem = new MenuFlyoutItem
+            {
+                Text = "Add sibling",
+                Icon = new FontIcon { Glyph = "\uE710" },
+                KeyboardAcceleratorTextOverride = "Enter"
+            };
+            addSiblingItem.Click += (_, _) => { ViewModel.AddSibling(node); FocusRenameBox(); };
+            menu.Items.Add(addSiblingItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var moveUpItem = new MenuFlyoutItem
+            {
+                Text = "Move up",
+                Icon = new FontIcon { Glyph = "\uE74A" },
+                KeyboardAcceleratorTextOverride = "Alt+Up",
+                IsEnabled = ViewModel.CanMoveUp
+            };
+            moveUpItem.Click += (_, _) => ViewModel.MoveUp();
+            menu.Items.Add(moveUpItem);
+
+            var moveDownItem = new MenuFlyoutItem
+            {
+                Text = "Move down",
+                Icon = new FontIcon { Glyph = "\uE74B" },
+                KeyboardAcceleratorTextOverride = "Alt+Down",
+                IsEnabled = ViewModel.CanMoveDown
+            };
+            moveDownItem.Click += (_, _) => ViewModel.MoveDown();
+            menu.Items.Add(moveDownItem);
+
+            var promoteItem = new MenuFlyoutItem
+            {
+                Text = "Promote",
+                Icon = new FontIcon { Glyph = "\uE76B" },
+                KeyboardAcceleratorTextOverride = "Shift+Tab",
+                IsEnabled = ViewModel.CanPromote
+            };
+            promoteItem.Click += (_, _) => ViewModel.Promote();
+            menu.Items.Add(promoteItem);
+
+            var demoteItem = new MenuFlyoutItem
+            {
+                Text = "Demote",
+                Icon = new FontIcon { Glyph = "\uE76C" },
+                KeyboardAcceleratorTextOverride = "Tab",
+                IsEnabled = ViewModel.CanDemote
+            };
+            demoteItem.Click += (_, _) => ViewModel.Demote();
+            menu.Items.Add(demoteItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var deleteItem = new MenuFlyoutItem
+            {
+                Text = "Delete",
+                Icon = new FontIcon { Glyph = "\uE74D" },
+                KeyboardAcceleratorTextOverride = "Del"
+            };
+            deleteItem.Click += (_, _) => ViewModel.DeleteSelected(node);
+            menu.Items.Add(deleteItem);
+
+            menu.ShowAt(target, position);
+        }
+
+        private void ShowOutlineAreaContextMenu(UIElement target, Windows.Foundation.Point position)
+        {
+            var menu = new MenuFlyout();
+
+            var addRootItem = new MenuFlyoutItem
+            {
+                Text = ViewModel.IsOutlineEmpty ? "Add first item" : "Add root item",
+                Icon = new FontIcon { Glyph = "\uE710" },
+                KeyboardAcceleratorTextOverride = "Insert"
+            };
+            addRootItem.Click += (_, _) => { ViewModel.AddChild(null); FocusRenameBox(); };
+            menu.Items.Add(addRootItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyOutlineItem = new MenuFlyoutItem
+            {
+                Text = "Copy outline as Markdown",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyOutlineItem.Click += (_, _) => CopyOutlineMarkdown();
+            menu.Items.Add(copyOutlineItem);
+
+            var copyBlockItem = new MenuFlyoutItem
+            {
+                Text = "Copy SmartArt Markdown block",
+                Icon = new FontIcon { Glyph = "\uE943" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyBlockItem.Click += (_, _) => CopySmartArtBlock();
+            menu.Items.Add(copyBlockItem);
+
+            menu.ShowAt(target, position);
+        }
+
+        private void OnLayoutListRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            StudioLayoutItem? item = null;
+            for (var d = e.OriginalSource as DependencyObject; d != null && !ReferenceEquals(d, LayoutList); d = VisualTreeHelper.GetParent(d))
+            {
+                if (d is FrameworkElement { DataContext: StudioLayoutItem candidate })
+                {
+                    item = candidate;
+                    break;
+                }
+            }
+            item ??= ViewModel.SelectedLayout;
+            if (item == null) return;
+
+            ViewModel.SelectedLayout = item;
+            var menu = new MenuFlyout();
+
+            var useItem = new MenuFlyoutItem
+            {
+                Text = $"Use \"{item.DisplayName}\"",
+                Icon = new FontIcon { Glyph = "\uE73E" }
+            };
+            useItem.Click += (_, _) =>
+            {
+                ViewModel.SelectedLayout = item;
+                OutlineScroll.Focus(FocusState.Keyboard);
+            };
+            menu.Items.Add(useItem);
+
+            if (!string.Equals(ViewModel.SelectedCategory, item.Category, StringComparison.Ordinal))
+            {
+                var filterCatItem = new MenuFlyoutItem
+                {
+                    Text = $"Filter to {item.Category}",
+                    Icon = new FontIcon { Glyph = "\uE71C" }
+                };
+                filterCatItem.Click += (_, _) => ViewModel.SelectedCategory = item.Category;
+                menu.Items.Add(filterCatItem);
+            }
+            else if (!string.Equals(ViewModel.SelectedCategory, "All", StringComparison.Ordinal))
+            {
+                var showAllItem = new MenuFlyoutItem
+                {
+                    Text = "Show all categories",
+                    Icon = new FontIcon { Glyph = "\uE71C" }
+                };
+                showAllItem.Click += (_, _) => ViewModel.SelectedCategory = "All";
+                menu.Items.Add(showAllItem);
+            }
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyBlockItem = new MenuFlyoutItem
+            {
+                Text = "Copy SmartArt Markdown block",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyBlockItem.Click += (_, _) => CopySmartArtBlock();
+            menu.Items.Add(copyBlockItem);
+
+            var insertItem = new MenuFlyoutItem
+            {
+                Text = "Insert into document",
+                Icon = new FontIcon { Glyph = "\uE8A5" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Enter",
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            insertItem.Click += (_, _) => ViewModel.InsertIntoDocumentCommand.Execute(null);
+            menu.Items.Add(insertItem);
+
+            menu.ShowAt(LayoutList, e.GetPosition(LayoutList));
+            e.Handled = true;
+        }
+
+        private void CopyOutlineMarkdown()
+        {
+            string md = (ViewModel.MarkdownText ?? "").Trim();
+            if (string.IsNullOrEmpty(md)) return;
+            try
+            {
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText(md);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+                ViewModel.StatusMessage = "Copied outline bullets to clipboard.";
+            }
+            catch { }
+        }
+
+        private void CopySmartArtBlock()
+        {
+            if (!ViewModel.TryBuildSmartArtBlock(out string block, out string name, out string err))
+            {
+                ViewModel.StatusMessage = err;
+                return;
+            }
+            try
+            {
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText(block.Trim());
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+                ViewModel.StatusMessage = $"Copied {name} SmartArt Markdown block to clipboard.";
+            }
+            catch { }
+        }
+
+        // Window-level shortcuts: Delete/Backspace = delete node, F2 = rename, Ctrl+D = duplicate,
+        // Ctrl+Z/Y = undo/redo, Ctrl+F = focus layout search, Ctrl+Enter = insert into document.
         // TextBoxes (rename box, Markdown Data) keep their native keys — focus guard.
         private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)
         {
@@ -345,11 +647,21 @@ namespace MarkSmith.Views.SmartArtStudio
                 e.Handled = true;
                 return;
             }
+            if (ctrl && e.Key == VirtualKey.Enter)
+            {
+                if (ViewModel.InsertIntoDocumentCommand.CanExecute(null))
+                {
+                    ViewModel.InsertIntoDocumentCommand.Execute(null);
+                    e.Handled = true;
+                }
+                return;
+            }
 
             if ((sender as UIElement)?.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox) return;
 
             if (ctrl && e.Key == VirtualKey.Z) { ViewModel.UndoCommand.Execute(null); e.Handled = true; }
             else if (ctrl && e.Key == VirtualKey.Y) { ViewModel.RedoCommand.Execute(null); e.Handled = true; }
+            else if (ctrl && e.Key == VirtualKey.D) { ViewModel.DuplicateSelectedCommand.Execute(null); e.Handled = true; }
             else if (e.Key is VirtualKey.Delete or VirtualKey.Back) { ViewModel.DeleteSelectedCommand.Execute(null); e.Handled = true; }
             else if (e.Key == VirtualKey.F2) { BeginRenameAndFocus(); e.Handled = true; }
         }
