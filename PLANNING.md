@@ -6391,3 +6391,44 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 2. Carried over: real Outlook draft check with a person present; continuous-page PDF default (run #59); real Windows light/dark switch; first real in-app update.
 
 **Release (same run):** tagged **v3.31.0** on `a4563ef3` after CI passed (`38106391479`). Release workflow (`38106584379`) built the x64/arm64 installers and portable zips (5 assets including `checksums.txt`); user-facing notes covering Runs #77–#79 (OCR & Document Import 4-stage visual breakdown overlay, Version History keyboard navigation & diff patch copy, and Mermaid & SmartArt Studio keyboard/context-menu polish) were prepended above the workflow body with `---`. `MarksmithBaseVersion` is now **3.32.0** (`fc81c26d`), followed by the Skeptical Reviewer hardening commits (`0809269a` and follow-up) on `main`.
+
+### 2026-10-11 16:35 – 2026-10-11 16:53 AEDT (routine run #80 — Agent 1: Suite Hub, Welcome Tour, Command Palette, Extension Hint Bar & Extension Tip UX/UI & keyboard/context-menu polish)
+
+**Agent / Execution Metadata:**
+- **Model:** `Gemini 3.8 Flash (High)`
+- **Identity:** Antigravity AI Agent (Google DeepMind)
+- **Modes:** `/boost` (Delegation Routine — Parallel 5-Agent Swarm, Agent 1)
+- **Trigger:** Specific user request (`"spawn at least 5 more agents"`)
+- **Agents Used:** `Parent Orchestrator` (`8e75e706-1587-401b-865d-ff164d4640cd`) + `Coding Worker Subagent 1 — Suite Hub, Welcome Tour, Command Palette & Extension Prompts` (`65f3be05-a639-4ade-b8f4-ed759377540f`, running `Gemini 3.8 Flash (High)`)
+
+**Found:**
+1. **Suite Hub (`SuiteHubView.xaml` & `SuiteHubView.xaml.cs`):**
+   - Cards lacked hover (`PointerEntered`/`Exited`/`Canceled`) and focus-within (`GotFocus`/`LostFocus`) border/surface elevation, right-click and `Shift+F10` / `Application` context menus, 2D grid arrow-key navigation (`Left`/`Right` across card buttons and adjacent columns, `Up`/`Down` across rows, `Home`/`End`), `Ctrl+O` shortcut to open the settings folder, and a `Copy address` button on Card 5 (`Web companion`, `http://localhost:5000`) alongside `Open in browser`.
+2. **Welcome Tour (`WelcomeTour.xaml` & `WelcomeTour.xaml.cs`):**
+   - Had no visible `Step X of 7` pill badge in the top-right header, no direct number-key slide jumping (`1`–`7` and `NumberPad1`–`NumberPad7`), no vertical `Up`/`Down` focus handoff between `Step1Card`–`Step3Card` (Page 0) / `SampleCard`/`BlankCard` (Page 6) and the footer buttons (`NextButton`/`SkipButton`/`BackButton`), no dynamic `BackButton`/`NextButton` tooltips and accessible names naming the target slide, and no right-click or `Shift+F10`/`Application` context menu with a `Jump to step` submenu.
+3. **Command Palette (`CommandPalette.xaml` & `CommandPalette.xaml.cs`):**
+   - Had no explicit `ClearSearchButton` (`×`) in the search bar or `ResetSearchButton` (`"Show all commands"`) in the `NoMatches` empty state, and when `SearchBox` was focused and non-empty, WinUI 3's internal `DeleteButton` inside `TextBox` appeared alongside custom clear controls; rows also lacked right-click and `Shift+F10`/`Application` context menus (`Run command`, `Copy command name`, `Copy keyboard shortcut`, `Remove from Recently used (Ctrl+Delete)`, `Clear Recently used`), `Ctrl+C` command copy, `Ctrl+Delete` recent removal (persisted to `palette-recent.json`), and live `AutomationProperties.Name` updates on `Results` during arrow-key movement.
+4. **Extension Hint Bar & Extension Tip (`ExtensionHintBar` & `ExtensionTip`):**
+   - Lacked hover and focus-within border highlighting on `HintBorder`/`TipBorder`, `Left`/`Right`/`Up`/`Down` arrow-key navigation between `GetExtensionButton` and `DismissButton`, right-click and `Shift+F10`/`Application` context menus (`Get the extension…`, `Dismiss`), and `HoverPolish.RestoreFocus(XamlRoot, null)` when dismissed while focus was inside the control.
+
+**Shipped:**
+- `MarkSmith.Desktop/Views/SuiteHubView.xaml` & `SuiteHubView.xaml.cs`:
+  - Named `HubScroller`, `HeaderCardBorder`, `OpenConfigFolderButton`, `CardsGrid`, `Card1Border`–`Card6Border`, `CopyMcpPathButton`, `GetExtensionButton`, and added `CopyExpressUrlButton` (`"Copy address"`) on Card 5 (`Web companion`).
+  - Wired `WireCardPolish` (hover & focus-within border/background transitions via `ThemeBrush.Set`), `BuildCardContextMenu` across all 7 cards on right-click and `Shift+F10`/`Application`, 2D grid arrow-key and `Home`/`End` navigation (`GetGridNeighborCard`), `Ctrl+O` settings folder shortcut, and 1-column/2-column responsive reflow (`ApplyResponsiveLayout` at `< 560px`).
+- `MarkSmith.Desktop/Views/WelcomeTour.xaml` & `WelcomeTour.xaml.cs`:
+  - Added `StepBadgeBorder`/`StepBadgeText` (`"Step 1 of 7"`), `BorderThickness="1"` on `TourStepCard`, accent hover/pressed border brushes on `Step1Card`–`Step3Card` and `BlankCard`, direct slide jump keys `1`–`7` / `NumberPad1`–`NumberPad7` (`TryParseSlideNumberKey`), `Up`/`Down` focus handoff between cards and footer buttons, dynamic `NextButton`/`BackButton` tooltips & accessible names, and `ShowTourContextMenu` with `Jump to step`.
+- `MarkSmith.Desktop/Controls/CommandPalette.xaml` & `CommandPalette.xaml.cs`:
+  - Added `ClearSearchButton` (`×`), `ResetSearchButton` (`"Show all commands"`), `HideBuiltInDeleteButton(SearchBox)` (preventing duplicate `×` buttons when `SearchBox` has text), right-click and `Shift+F10`/`Application` context menu (`ShowCommandContextMenu`), `Ctrl+C` (`CopySelectedCommandAsync`), `Ctrl+Delete` (`RemoveRecent`/`ClearRecents` persisted to `palette-recent.json`), and live `AutomationProperties.SetName(Results, ...)` updates on `Move(int by)`.
+- `MarkSmith.Desktop/Controls/ExtensionHintBar.xaml(.cs)` & `ExtensionTip.xaml(.cs)`:
+  - Added `HintBorder`/`TipBorder` hover and focus-within border highlighting (`RefreshBorderBrush`), arrow-key navigation between `GetExtensionButton` and `DismissButton`, right-click and `Shift+F10`/`Application` context menus, and `HoverPolish.RestoreFocus(XamlRoot, null)` on `Dismiss()`.
+- `MarkSmith.Tests/SuiteHubAndTourPolishTests.cs`:
+  - Expanded test coverage with 26 test cases verifying 2D grid neighbor navigation across 2-column and 1-column layouts, `StepBadge` clamping/formatting, `CommandPalette` count formatting, and structural/event wiring across all 5 views/controls.
+
+**Verified:**
+- Isolated `dotnet build` of `MarkSmith.Desktop.csproj` (`-c Debug -p:Platform=x64 -p:OutDir="$env:TEMP\ms_ag1\b\"`): **0 errors, 0 warnings in touched files**.
+- Unit test suite (`SuiteHubAndTourPolishTests`, `SuiteAndTourPolishTests`, `OnboardingPolishTests`, `CommandPaletteSectionsTests`): **70 passed, 0 failed**.
+- Live WinUI 3 UIAutomation + `PrintWindow` screenshot verification (`tour_step1.png`, `tour_step2.png`, `suite_hub.png`, `command_palette.png`, `command_palette_empty.png`) with isolated `MARKSMITH_CONFIG_DIR="$env:TEMP\ms_ag1\cfg"`:
+  - Confirmed `Step 1 of 7` and `Step 2 of 7` badge rendering, step cards, and dynamic button labels in `WelcomeTour`.
+  - Confirmed `SuiteHubView` focus-within accent border on `HeaderCardBorder`, `Settings folder` button, and `Copy address` button on `Web companion`.
+  - Confirmed `CommandPalette` single `×` `ClearSearchButton`, `"Show all commands"` `ResetSearchButton` in `NoMatches`, and clean query reset via UIA `InvokePattern`.
+

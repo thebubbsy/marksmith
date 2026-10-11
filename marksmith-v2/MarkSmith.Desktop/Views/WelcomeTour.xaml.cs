@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
@@ -38,6 +41,31 @@ public sealed partial class WelcomeTour : UserControl
         "You're all set",
     };
 
+    public static IReadOnlyList<string> StepTitles => PageTitles;
+
+    public static string FormatStepBadge(int index, int total)
+    {
+        var safeTotal = Math.Max(1, total);
+        var clamped = Math.Clamp(index, 0, safeTotal - 1);
+        return $"Step {clamped + 1} of {safeTotal}";
+    }
+
+    public static bool TryParseSlideNumberKey(Windows.System.VirtualKey key, out int slideIndex)
+    {
+        if (key >= Windows.System.VirtualKey.Number1 && key <= Windows.System.VirtualKey.Number7)
+        {
+            slideIndex = (int)key - (int)Windows.System.VirtualKey.Number1;
+            return true;
+        }
+        if (key >= Windows.System.VirtualKey.NumberPad1 && key <= Windows.System.VirtualKey.NumberPad7)
+        {
+            slideIndex = (int)key - (int)Windows.System.VirtualKey.NumberPad1;
+            return true;
+        }
+        slideIndex = -1;
+        return false;
+    }
+
     // editorHasDocument: the tour was replayed with work in the editor. The sample never replaces
     // a document, so its card says so and stays disabled instead of silently doing nothing.
     public WelcomeTour(bool editorHasDocument = false)
@@ -58,7 +86,10 @@ public sealed partial class WelcomeTour : UserControl
         // Handled-too: the Back/Next buttons and the PipsPager mark arrow keys handled when they
         // have focus, but Left/Right should page the tour from anywhere inside it.
         AddHandler(KeyDownEvent, new KeyEventHandler(OnTourKeyDown), true);
+        RightTapped += OnTourRightTapped;
         Loaded += (_, _) => FitHostToTallestPage();
+        SizeChanged += (_, _) => FitHostToTallestPage();
+        Unloaded += (_, _) => _transition?.Stop();
     }
 
     // Every page shares one height so the pips and buttons never jump while paging — but that
@@ -98,10 +129,26 @@ public sealed partial class WelcomeTour : UserControl
         if (_index != previous) SlideIn(_pages[_index], forward: _index > previous);
 
         var title = _index < PageTitles.Length ? PageTitles[_index] : "";
-        var announcement = $"Step {_index + 1} of {_pages.Length}: {title}";
+        var badge = FormatStepBadge(_index, _pages.Length);
+        if (StepBadgeText is not null) StepBadgeText.Text = badge;
+
+        var announcement = $"{badge}: {title}";
         AutomationProperties.SetName(PagesHost, announcement);
         AutomationProperties.SetLiveSetting(PagesHost, AutomationLiveSetting.Polite);
         AutomationProperties.SetName(Pips, $"Page {_index + 1} of {_pages.Length}");
+
+        if (_index > 0 && _index - 1 < PageTitles.Length)
+        {
+            var prevTitle = PageTitles[_index - 1];
+            ToolTipService.SetToolTip(BackButton, $"Previous step: {prevTitle} (Left arrow)");
+            AutomationProperties.SetName(BackButton, $"Back to {prevTitle}");
+        }
+        if (_index < Last && _index + 1 < PageTitles.Length)
+        {
+            var nextTitle = PageTitles[_index + 1];
+            ToolTipService.SetToolTip(NextButton, $"Next step: {nextTitle} (Right arrow)");
+            AutomationProperties.SetName(NextButton, $"Next: {nextTitle}");
+        }
 
         // Next had focus and just collapsed; hand keyboard focus to the first card rather than
         // dropping it on the dialog.
@@ -142,9 +189,33 @@ public sealed partial class WelcomeTour : UserControl
 
     private void OnTourKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Menu)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        if (e.Key == Windows.System.VirtualKey.Application || (shift && !ctrl && !alt && e.Key == Windows.System.VirtualKey.F10))
+        {
+            ShowTourContextMenu(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (IsMenuFlyoutOpen()) return;
+
         var focused = XamlRoot is null ? null : FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
 
-        // On Page 6, allow arrowing between SampleCard and BlankCard before falling back to paging:
+        // Direct step jump keys 1..7 (or NumberPad 1..7) when no modifier is held
+        if (!ctrl && !shift && !alt && TryParseSlideNumberKey(e.Key, out var targetSlide) && targetSlide <= Last)
+        {
+            if (targetSlide != _index) Show(targetSlide);
+            e.Handled = true;
+            return;
+        }
+
+        // On Page 6, allow arrowing between SampleCard, BlankCard, and BackButton before falling back to paging:
         if (_index == Last && focused is not null)
         {
             if (e.Key == Windows.System.VirtualKey.Left && IsInside(focused, BlankCard) && SampleCard.IsEnabled)
@@ -159,9 +230,21 @@ public sealed partial class WelcomeTour : UserControl
                 e.Handled = true;
                 return;
             }
+            if (e.Key == Windows.System.VirtualKey.Down && (IsInside(focused, SampleCard) || IsInside(focused, BlankCard)))
+            {
+                BackButton.Focus(FocusState.Keyboard);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Windows.System.VirtualKey.Up && IsInside(focused, BackButton))
+            {
+                (SampleCard.IsEnabled ? SampleCard : BlankCard).Focus(FocusState.Keyboard);
+                e.Handled = true;
+                return;
+            }
         }
 
-        // On Page 0, allow arrowing between Step 1, Step 2, and Step 3 cards:
+        // On Page 0, allow arrowing between Step 1, Step 2, and Step 3 cards and Next/Skip buttons:
         if (_index == 0 && focused is Button { Tag: string tag } && int.TryParse(tag, out var step))
         {
             if (e.Key == Windows.System.VirtualKey.Right && step < 3)
@@ -183,6 +266,23 @@ public sealed partial class WelcomeTour : UserControl
                     e.Handled = true;
                     return;
                 }
+            }
+            else if (e.Key == Windows.System.VirtualKey.Down)
+            {
+                NextButton.Focus(FocusState.Keyboard);
+                e.Handled = true;
+                return;
+            }
+        }
+        else if (_index == 0 && focused is not null && e.Key == Windows.System.VirtualKey.Up
+                 && (IsInside(focused, NextButton) || IsInside(focused, SkipButton)))
+        {
+            var firstStep = FindStepButton(1);
+            if (firstStep is not null)
+            {
+                firstStep.Focus(FocusState.Keyboard);
+                e.Handled = true;
+                return;
             }
         }
 
@@ -212,6 +312,84 @@ public sealed partial class WelcomeTour : UserControl
             Completed?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
         }
+    }
+
+    private bool IsMenuFlyoutOpen()
+    {
+        if (XamlRoot is null) return false;
+        return VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot).Any(p => p.Child is not ContentDialog);
+    }
+
+    private void OnTourRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowTourContextMenu(e.GetPosition(this));
+    }
+
+    private void ShowTourContextMenu(Windows.Foundation.Point? position)
+    {
+        var menu = new MenuFlyout();
+
+        var nextItem = new MenuFlyoutItem
+        {
+            Text = "Next step",
+            Icon = new FontIcon { Glyph = "\uE76C" },
+            IsEnabled = _index < Last
+        };
+        nextItem.Click += (_, _) => { if (_index < Last) Show(_index + 1); };
+        menu.Items.Add(nextItem);
+
+        var prevItem = new MenuFlyoutItem
+        {
+            Text = "Previous step",
+            Icon = new FontIcon { Glyph = "\uE76B" },
+            IsEnabled = _index > 0
+        };
+        prevItem.Click += (_, _) => { if (_index > 0) Show(_index - 1); };
+        menu.Items.Add(prevItem);
+
+        var jumpSub = new MenuFlyoutSubItem
+        {
+            Text = "Jump to step",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        for (var i = 0; i < PageTitles.Length && i < _pages.Length; i++)
+        {
+            var stepIdx = i;
+            var stepItem = new ToggleMenuFlyoutItem
+            {
+                Text = $"{stepIdx + 1} · {PageTitles[stepIdx]}",
+                IsChecked = stepIdx == _index
+            };
+            stepItem.Click += (_, _) => Show(stepIdx);
+            jumpSub.Items.Add(stepItem);
+        }
+        menu.Items.Add(jumpSub);
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        if (SampleCard.IsEnabled)
+        {
+            var sampleItem = new MenuFlyoutItem
+            {
+                Text = "Open the sample document",
+                Icon = new FontIcon { Glyph = "\uE8A5" }
+            };
+            sampleItem.Click += OnSampleCard;
+            menu.Items.Add(sampleItem);
+        }
+
+        var skipItem = new MenuFlyoutItem
+        {
+            Text = "Skip tour (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        skipItem.Click += OnSkip;
+        menu.Items.Add(skipItem);
+
+        if (position.HasValue)
+            menu.ShowAt(this, position.Value);
+        else
+            menu.ShowAt(this);
     }
 
     private Button? FindStepButton(int step)

@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -48,6 +54,7 @@ public sealed record PaletteCommand(string Label, string Category, Func<Task> Ru
 public sealed partial class CommandPalette : UserControl
 {
     private static CommandPalette? _open;
+    private static readonly HashSet<string> RemovedRecentLabels = new(StringComparer.Ordinal);
 
     private readonly IReadOnlyList<PaletteCommand> _commands;
     private readonly PaletteRecents _recents;
@@ -56,6 +63,16 @@ public sealed partial class CommandPalette : UserControl
     private XamlRoot? _root;
     private Control? _focusBefore;
     private bool _closing;
+
+    public static string FormatCountText(bool searching, int count) =>
+        !searching ? $"{count} commands"
+        : count == 0 ? ""
+        : count == 1 ? "1 match" : $"{count} matches";
+
+    public static string FormatCommandClipboardText(PaletteCommand command) =>
+        string.IsNullOrWhiteSpace(command.Shortcut)
+            ? command.Label
+            : $"{command.Label} ({command.Shortcut})";
 
     private CommandPalette(IReadOnlyList<PaletteCommand> commands, PaletteRecents recents)
     {
@@ -71,7 +88,27 @@ public sealed partial class CommandPalette : UserControl
         {
             Scrim.Opacity = 0.6;
             SearchBox.Focus(FocusState.Programmatic);
+            HideBuiltInDeleteButton(SearchBox);
         };
+    }
+
+    private static void HideBuiltInDeleteButton(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is FrameworkElement { Name: "DeleteButton" } btn)
+            {
+                btn.Visibility = Visibility.Collapsed;
+                btn.Width = 0;
+                btn.MinWidth = 0;
+                btn.MaxWidth = 0;
+                btn.Opacity = 0;
+                btn.IsHitTestVisible = false;
+                return;
+            }
+            HideBuiltInDeleteButton(child);
+        }
     }
 
     /// <summary>True while a palette is showing (a second Ctrl+K closes it instead).</summary>
@@ -136,7 +173,11 @@ public sealed partial class CommandPalette : UserControl
         HoverPolish.DialogOpening -= OnDialogOpening;
         if (_popup is not null) _popup.IsOpen = false;
         _open = null;
-        if (chosen is not null) _recents.Push(chosen.Label);
+        if (chosen is not null)
+        {
+            RemovedRecentLabels.Remove(chosen.Label);
+            _recents.Push(chosen.Label);
+        }
         HoverPolish.RestoreFocus(_root, _focusBefore);
         _result.TrySetResult(chosen);
     }
@@ -151,11 +192,53 @@ public sealed partial class CommandPalette : UserControl
 
     private bool _searching;
 
+    private IReadOnlyList<string> EffectiveRecentLabels() =>
+        _recents.Labels.Where(l => !RemovedRecentLabels.Contains(l)).ToList();
+
+    private bool IsRecent(string label) =>
+        !RemovedRecentLabels.Contains(label) && _recents.Labels.Contains(label, StringComparer.Ordinal);
+
+    private void RemoveRecent(string label)
+    {
+        RemovedRecentLabels.Add(label);
+        PersistRemainingRecents();
+        Refresh();
+        AnnounceFooterStatus("Removed from Recently used");
+    }
+
+    private void ClearRecents()
+    {
+        foreach (var label in _recents.Labels) RemovedRecentLabels.Add(label);
+        PersistRemainingRecents();
+        Refresh();
+        AnnounceFooterStatus("Cleared Recently used");
+    }
+
+    private void PersistRemainingRecents()
+    {
+        try
+        {
+            var path = Path.Combine(AppPaths.ConfigDir, "palette-recent.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(EffectiveRecentLabels()));
+        }
+        catch { }
+    }
+
+    private void AnnounceFooterStatus(string status)
+    {
+        CountText.Text = status;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CountText, CountText.Text);
+    }
+
     private void Refresh()
     {
         var query = SearchBox.Text.Trim();
         _searching = query.Length > 0;
-        var sections = CommandPaletteSections.Build(_commands, query, c => c.Label, c => c.Category, c => c.Keywords, _recents.Labels);
+        if (ClearSearchButton is not null)
+            ClearSearchButton.Visibility = SearchBox.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        var sections = CommandPaletteSections.Build(_commands, query, c => c.Label, c => c.Category, c => c.Keywords, EffectiveRecentLabels());
         var count = sections.Sum(s => s.Items.Count);
 
         if (_searching)
@@ -177,9 +260,7 @@ public sealed partial class CommandPalette : UserControl
         Results.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
         NoMatches.Visibility = count > 0 ? Visibility.Collapsed : Visibility.Visible;
         NoMatchesTitle.Text = $"Nothing matches \u201C{query}\u201D";
-        CountText.Text = !_searching ? $"{count} commands"
-            : count == 0 ? "" // the empty state already says so
-            : count == 1 ? "1 match" : $"{count} matches";
+        CountText.Text = FormatCountText(_searching, count);
 
         if (count == 0)
         {
@@ -192,7 +273,17 @@ public sealed partial class CommandPalette : UserControl
         }
     }
 
-    private void OnSearchTextChanged(object sender, TextChangedEventArgs e) => Refresh();
+    private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        HideBuiltInDeleteButton(SearchBox);
+        Refresh();
+    }
+
+    private void OnClearSearchClick(object sender, RoutedEventArgs e)
+    {
+        SearchBox.Text = "";
+        SearchBox.Focus(FocusState.Programmatic);
+    }
 
     // The label is filled here rather than bound, so the letters the query matched can be bold:
     // with abbreviations ("exppdf") it wasn't obvious why a row was listed. The category tag only
@@ -228,12 +319,124 @@ public sealed partial class CommandPalette : UserControl
         if (e.ClickedItem is PaletteCommand c) Close(c);
     }
 
+    private void OnResultsRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        var item = FindClickedCommand(e.OriginalSource as DependencyObject) ?? Results.SelectedItem as PaletteCommand;
+        if (item is null) return;
+        Results.SelectedItem = item;
+        e.Handled = true;
+        ShowCommandContextMenu(item, Results, e.GetPosition(Results));
+    }
+
+    private static PaletteCommand? FindClickedCommand(DependencyObject? source)
+    {
+        for (var d = source; d is not null; d = VisualTreeHelper.GetParent(d))
+        {
+            if (d is ListViewItem { Content: PaletteCommand cmd }) return cmd;
+            if (d is FrameworkElement { DataContext: PaletteCommand dc }) return dc;
+        }
+        return null;
+    }
+
+    private void ShowCommandContextMenu(PaletteCommand cmd, FrameworkElement anchor, Windows.Foundation.Point? position)
+    {
+        var menu = new MenuFlyout();
+
+        var runItem = new MenuFlyoutItem
+        {
+            Text = "Run command (Enter)",
+            Icon = new FontIcon { Glyph = "\uE768" }
+        };
+        runItem.Click += (_, _) => Close(cmd);
+        menu.Items.Add(runItem);
+
+        var copyNameItem = new MenuFlyoutItem
+        {
+            Text = "Copy command name",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyNameItem.Click += async (_, _) =>
+        {
+            var err = await ClipboardWriter.TrySetTextAsync(cmd.Label);
+            AnnounceFooterStatus(err is null ? "Copied command name" : $"Copy failed: {err}");
+            SearchBox.Focus(FocusState.Programmatic);
+        };
+        menu.Items.Add(copyNameItem);
+
+        if (!string.IsNullOrWhiteSpace(cmd.Shortcut))
+        {
+            var copyShortcutItem = new MenuFlyoutItem
+            {
+                Text = $"Copy keyboard shortcut ({cmd.Shortcut})",
+                Icon = new FontIcon { Glyph = "\uE765" }
+            };
+            copyShortcutItem.Click += async (_, _) =>
+            {
+                var err = await ClipboardWriter.TrySetTextAsync(cmd.Shortcut);
+                AnnounceFooterStatus(err is null ? $"Copied shortcut {cmd.Shortcut}" : $"Copy failed: {err}");
+                SearchBox.Focus(FocusState.Programmatic);
+            };
+            menu.Items.Add(copyShortcutItem);
+        }
+
+        if (IsRecent(cmd.Label))
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var removeRecentItem = new MenuFlyoutItem
+            {
+                Text = "Remove from Recently used (Ctrl+Delete)",
+                Icon = new FontIcon { Glyph = "\uE74D" }
+            };
+            removeRecentItem.Click += (_, _) =>
+            {
+                RemoveRecent(cmd.Label);
+                SearchBox.Focus(FocusState.Programmatic);
+            };
+            menu.Items.Add(removeRecentItem);
+
+            if (EffectiveRecentLabels().Count > 1)
+            {
+                var clearRecentsItem = new MenuFlyoutItem
+                {
+                    Text = "Clear Recently used",
+                    Icon = new FontIcon { Glyph = "\uE894" }
+                };
+                clearRecentsItem.Click += (_, _) =>
+                {
+                    ClearRecents();
+                    SearchBox.Focus(FocusState.Programmatic);
+                };
+                menu.Items.Add(clearRecentsItem);
+            }
+        }
+
+        if (position.HasValue)
+            menu.ShowAt(anchor, position.Value);
+        else if (Results.ContainerFromItem(cmd) is FrameworkElement container)
+            menu.ShowAt(container);
+        else
+            menu.ShowAt(anchor);
+    }
+
     // ---- Keyboard ----
 
     private void OnPreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
         var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        if (e.Key == VirtualKey.Application || (shift && !ctrl && e.Key == VirtualKey.F10))
+        {
+            if (Results.SelectedItem is PaletteCommand contextCmd)
+            {
+                ShowCommandContextMenu(contextCmd, Results, null);
+                e.Handled = true;
+            }
+            return;
+        }
+
         switch (e.Key)
         {
             case VirtualKey.Escape:
@@ -248,6 +451,12 @@ public sealed partial class CommandPalette : UserControl
                 break;
             case VirtualKey.K when ctrl:
                 Close(null);
+                break;
+            case VirtualKey.C when ctrl && !shift && SearchBox.SelectionLength == 0 && Results.SelectedItem is PaletteCommand copyCmd:
+                _ = CopySelectedCommandAsync(copyCmd);
+                break;
+            case VirtualKey.Delete when ctrl && Results.SelectedItem is PaletteCommand recCmd && IsRecent(recCmd.Label):
+                RemoveRecent(recCmd.Label);
                 break;
             case VirtualKey.Enter:
                 if (Results.SelectedItem is PaletteCommand c) Close(c);
@@ -280,6 +489,12 @@ public sealed partial class CommandPalette : UserControl
         e.Handled = true;
     }
 
+    private async Task CopySelectedCommandAsync(PaletteCommand cmd)
+    {
+        var err = await ClipboardWriter.TrySetTextAsync(FormatCommandClipboardText(cmd));
+        AnnounceFooterStatus(err is null ? "Copied command" : $"Copy failed: {err}");
+    }
+
     private void Move(int by)
     {
         var count = Results.Items.Count;
@@ -288,6 +503,10 @@ public sealed partial class CommandPalette : UserControl
         // Arrows wrap around (Up on the first row is the last row); paging stops at the ends.
         index = Math.Abs(by) == 1 ? (index % count + count) % count : Math.Clamp(index, 0, count - 1);
         Results.SelectedIndex = index;
+        if (Results.SelectedItem is PaletteCommand selectedCmd)
+        {
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(Results, $"Commands — {selectedCmd}");
+        }
         if (index == 0 && !_searching)
         {
             // ScrollIntoView stops at the first row and leaves its heading cut off.

@@ -56,15 +56,18 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Search row: magnifier, borderless box, and an Esc cap that also closes. -->
-                <Grid Padding="16,6,8,6" ColumnSpacing="10">
+                <!-- Search row: magnifier, borderless box, clear button when non-empty, and an Esc cap that also closes. -->
+                <Grid Padding="16,6,8,6" ColumnSpacing="6">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <FontIcon Glyph="&#xE721;" FontSize="16" VerticalAlignment="Center"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                              Margin="0,0,4,0"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                              AutomationProperties.AccessibilityView="Raw" />
                     <TextBox x:Name="SearchBox" Grid.Column="1" FontSize="15"
                              VerticalAlignment="Center" Padding="0,8,0,8"
                              BorderThickness="0" Background="Transparent"
@@ -80,7 +83,17 @@
                             <Thickness x:Key="TextControlBorderThemeThicknessFocused">0</Thickness>
                         </TextBox.Resources>
                     </TextBox>
-                    <Button x:Name="EscButton" Grid.Column="2" Padding="8,3,8,4" MinWidth="0"
+                    <Button x:Name="ClearSearchButton" Grid.Column="2" Visibility="Collapsed"
+                            Padding="6,4" MinWidth="28" Height="28"
+                            VerticalAlignment="Center" Click="OnClearSearchClick" IsTabStop="False"
+                            Background="{ThemeResource SubtleFillColorTransparentBrush}"
+                            BorderThickness="0"
+                            ToolTipService.ToolTip="Clear search query (Esc)"
+                            AutomationProperties.Name="Clear search query">
+                        <FontIcon Glyph="&#xE711;" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                  AutomationProperties.AccessibilityView="Raw" />
+                    </Button>
+                    <Button x:Name="EscButton" Grid.Column="3" Padding="8,3,8,4" MinWidth="0"
                             VerticalAlignment="Center" Click="OnEscClick" IsTabStop="False"
                             Background="{ThemeResource SubtleFillColorTransparentBrush}"
                             BorderThickness="0"
@@ -100,6 +113,7 @@
                               SelectionMode="Single" IsItemClickEnabled="True"
                               IsTabStop="False"
                               ItemClick="OnResultClick"
+                              RightTapped="OnResultsRightTapped"
                               ContainerContentChanging="OnContainerContentChanging"
                               AutomationProperties.Name="Commands">
                         <!-- Sticky headings drew over the row scrolled beneath them (the header
@@ -173,12 +187,16 @@
                     <!-- A query with no hits used to leave an empty box, which reads as broken. -->
                     <StackPanel x:Name="NoMatches" Visibility="Collapsed" Spacing="6"
                                 Padding="24,28,24,30" HorizontalAlignment="Center">
-                        <FontIcon Glyph="&#xE721;" FontSize="28" Opacity="0.45" />
+                        <FontIcon Glyph="&#xE721;" FontSize="28" Opacity="0.45" AutomationProperties.AccessibilityView="Raw" />
                         <TextBlock x:Name="NoMatchesTitle" FontSize="14" FontWeight="SemiBold"
                                    HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
                         <TextBlock Text="Try a shorter word, or an abbreviation like “ep” for Export PDF."
                                    FontSize="12" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button x:Name="ResetSearchButton" Content="Show all commands" Click="OnClearSearchClick"
+                                HorizontalAlignment="Center" Margin="0,6,0,0" Padding="10,4" FontSize="12"
+                                ToolTipService.ToolTip="Clear search and show all commands (Esc)"
+                                AutomationProperties.Name="Show all commands" />
                     </StackPanel>
                 </Grid>
 

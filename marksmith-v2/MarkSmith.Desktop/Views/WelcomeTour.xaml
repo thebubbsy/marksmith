@@ -48,6 +48,7 @@
             <Setter Property="VerticalContentAlignment" Value="Top" />
             <Setter Property="Padding" Value="12,12,12,12" />
             <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style x:Key="TourStepCaption" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
@@ -65,7 +66,7 @@
          ContentDialog's overlay scrollbar, which draws at the dialog's right edge when a short
          window forces the content to scroll. Without it the scrollbar thumb sits on top of the
          Next button and reads as a stray white sliver. -->
-    <Grid Width="540" RowSpacing="14" Padding="0,0,16,0">
+    <Grid x:Name="TourRootGrid" Width="540" MaxWidth="540" MinWidth="340" RowSpacing="14" Padding="0,0,16,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -77,6 +78,15 @@
              skeleton fails, the identical skeleton without it parses). Pages are stacked panels
              visibility-switched from code-behind; Back/Next/pips still navigate. -->
         <Grid x:Name="PagesHost" Grid.Row="0">
+
+            <Border x:Name="StepBadgeBorder" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,6,8,0" Padding="8,2" CornerRadius="6"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    IsHitTestVisible="False" Canvas.ZIndex="2">
+                <TextBlock x:Name="StepBadgeText" Text="Step 1 of 7" FontSize="11"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           AutomationProperties.AccessibilityView="Raw" />
+            </Border>
 
             <!-- 1 · Welcome -->
             <StackPanel x:Name="Page0" Padding="8,4,8,4">
@@ -96,9 +106,15 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Button Grid.Column="0" Tag="1" Click="OnStepCard" Style="{StaticResource TourStepCard}"
+                    <Button x:Name="Step1Card" Grid.Column="0" Tag="1" Click="OnStepCard" Style="{StaticResource TourStepCard}"
                             AutomationProperties.Name="Source — go to step 1"
                             ToolTipService.ToolTip="Jump to step 1 · Source">
+                        <Button.Resources>
+                            <ResourceDictionary>
+                                <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="AccentFillColorSecondaryBrush" />
+                                <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="AccentFillColorTertiaryBrush" />
+                            </ResourceDictionary>
+                        </Button.Resources>
                         <StackPanel Spacing="4">
                             <FontIcon Glyph="&#xE70F;" Style="{StaticResource TourGlyph}" HorizontalAlignment="Left" />
                             <TextBlock Text="1 · Source" FontWeight="SemiBold" />
@@ -106,9 +122,15 @@
                         </StackPanel>
                     </Button>
                     <FontIcon Grid.Column="1" Glyph="&#xE76C;" FontSize="12" Opacity="0.45" VerticalAlignment="Center" />
-                    <Button Grid.Column="2" Tag="2" Click="OnStepCard" Style="{StaticResource TourStepCard}"
+                    <Button x:Name="Step2Card" Grid.Column="2" Tag="2" Click="OnStepCard" Style="{StaticResource TourStepCard}"
                             AutomationProperties.Name="Style — go to step 2"
                             ToolTipService.ToolTip="Jump to step 2 · Style">
+                        <Button.Resources>
+                            <ResourceDictionary>
+                                <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="AccentFillColorSecondaryBrush" />
+                                <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="AccentFillColorTertiaryBrush" />
+                            </ResourceDictionary>
+                        </Button.Resources>
                         <StackPanel Spacing="4">
                             <FontIcon Glyph="&#xE790;" Style="{StaticResource TourGlyph}" HorizontalAlignment="Left" />
                             <TextBlock Text="2 · Style" FontWeight="SemiBold" />
@@ -116,9 +138,15 @@
                         </StackPanel>
                     </Button>
                     <FontIcon Grid.Column="3" Glyph="&#xE76C;" FontSize="12" Opacity="0.45" VerticalAlignment="Center" />
-                    <Button Grid.Column="4" Tag="3" Click="OnStepCard" Style="{StaticResource TourStepCard}"
+                    <Button x:Name="Step3Card" Grid.Column="4" Tag="3" Click="OnStepCard" Style="{StaticResource TourStepCard}"
                             AutomationProperties.Name="Preview and Export — go to step 3"
                             ToolTipService.ToolTip="Jump to step 3 · Preview &amp; Export">
+                        <Button.Resources>
+                            <ResourceDictionary>
+                                <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="AccentFillColorSecondaryBrush" />
+                                <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="AccentFillColorTertiaryBrush" />
+                            </ResourceDictionary>
+                        </Button.Resources>
                         <StackPanel Spacing="4">
                             <FontIcon Glyph="&#xEDE1;" Style="{StaticResource TourGlyph}" HorizontalAlignment="Left" />
                             <TextBlock Text="3 · Preview &amp; Export" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -127,7 +155,7 @@
                     </Button>
                 </Grid>
                 <TextBlock Margin="0,14,0,0" Style="{StaticResource TourStepCaption}"
-                           Text="Everything updates live as you go. Use Next, the dots, or the arrow keys to move around." />
+                           Text="Everything updates live as you go. Use Next, the dots, keys 1–7, or the arrow keys to move around." />
             </StackPanel>
 
             <!-- 2 · Source -->
@@ -339,6 +367,12 @@
                             AutomationProperties.Name="Start with my own document"
                             AutomationProperties.HelpText="Closes the tour and returns to the Markdown editor"
                             ToolTipService.ToolTip="Close the tour and start in the editor">
+                        <Button.Resources>
+                            <ResourceDictionary>
+                                <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="AccentFillColorSecondaryBrush" />
+                                <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="AccentFillColorTertiaryBrush" />
+                            </ResourceDictionary>
+                        </Button.Resources>
                         <StackPanel Spacing="4">
                             <FontIcon Glyph="&#xE70F;" Style="{StaticResource TourGlyph}" HorizontalAlignment="Left" />
                             <TextBlock Text="Start with my own" FontWeight="SemiBold" />

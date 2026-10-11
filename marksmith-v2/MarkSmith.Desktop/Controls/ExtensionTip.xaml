@@ -10,7 +10,7 @@
     <!-- One-time tip card for the browser Connector. Styled as a plain theme card (same chrome as
          the pipeline cards) with the accent reserved for the glyph + CTA — no off-theme gradients,
          and text uses the theme's default type scale instead of hardcoded sizes. -->
-    <Border CornerRadius="10" Padding="14,12"
+    <Border x:Name="TipBorder" CornerRadius="10" Padding="14,12"
             Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
             BorderThickness="1"
@@ -25,10 +25,10 @@
             <TextBlock Grid.Column="1" Text="Work in your AI chat as normal" FontWeight="SemiBold"
                        TextWrapping="Wrap" VerticalAlignment="Center" />
 
-            <Button Grid.Column="2" Background="Transparent" BorderThickness="0" Click="OnCloseClick"
-                    ToolTipService.ToolTip="Dismiss this tip" AutomationProperties.Name="Dismiss this tip"
+            <Button x:Name="DismissButton" Grid.Column="2" Background="Transparent" BorderThickness="0" Click="OnCloseClick"
+                    ToolTipService.ToolTip="Dismiss this tip (Esc)" AutomationProperties.Name="Dismiss this tip"
                     VerticalAlignment="Center" Width="28" Height="28" Padding="0" Margin="0,-4,-6,-4">
-                <FontIcon Glyph="&#xE711;" FontSize="11" Opacity="0.8" />
+                <FontIcon Glyph="&#xE711;" FontSize="11" Opacity="0.8" AutomationProperties.AccessibilityView="Raw" />
             </Button>
 
             <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
@@ -36,7 +36,7 @@
                        TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-            <Button Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Click="OnGetExtensionClick"
+            <Button x:Name="GetExtensionButton" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Click="OnGetExtensionClick"
                     Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" Margin="0,4,0,0"
                     AutomationProperties.Name="Get the extension"
                     ToolTipService.ToolTip="Set up the MarkSmith Connector in Edge or Chrome: about a minute, once">
