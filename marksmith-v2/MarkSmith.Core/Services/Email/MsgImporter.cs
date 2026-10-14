@@ -14,6 +14,11 @@ namespace MarkSmith.Services.Email;
 /// RTF-only body (common in classic Outlook) into HTML.</summary>
 public static class MsgImporter
 {
+    static MsgImporter()
+    {
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+    }
+
     public static EmailImportResult Import(string msgPath, QuotedHistoryMode history = QuotedHistoryMode.Collapse, string? mediaDir = null)
     {
         var message = ToMimeMessage(msgPath);

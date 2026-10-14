@@ -2305,35 +2305,53 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnInputFileTextBoxTextChanged(object sender, TextChangedEventArgs e)
     {
-        if (InputFileTextBox is null || _suppressInputFileTextBoxChanged) return;
-        var candidate = (InputFileTextBox.Text ?? string.Empty).Trim().Trim('"');
-        if (string.IsNullOrEmpty(candidate))
+        try
         {
-            if (ViewModel.InputFilePath != candidate)
-                ViewModel.InputFilePath = candidate;
-            return;
+            if (InputFileTextBox is null || _suppressInputFileTextBoxChanged) return;
+            var candidate = (InputFileTextBox.Text ?? string.Empty).Trim().Trim('"');
+            if (string.IsNullOrEmpty(candidate))
+            {
+                if (ViewModel.InputFilePath != candidate)
+                    ViewModel.InputFilePath = candidate;
+                return;
+            }
+            if (File.Exists(candidate) && !string.Equals(ViewModel.InputFilePath, candidate, StringComparison.OrdinalIgnoreCase))
+            {
+                await OpenOrImportDocumentAsync(candidate, collapseLeftPane: false);
+            }
         }
-        if (File.Exists(candidate) && !string.Equals(ViewModel.InputFilePath, candidate, StringComparison.OrdinalIgnoreCase))
+        catch (Exception ex)
         {
-            await OpenOrImportDocumentAsync(candidate, collapseLeftPane: false);
+            System.Diagnostics.Debug.WriteLine($"[OnInputFileTextBoxTextChanged] Error: {ex}");
+            ViewModel.StatusText = $"Could not load path: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
     }
 
     private async void OnInputFileTextBoxKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        if (e.Key == Windows.System.VirtualKey.Enter && InputFileTextBox is not null)
+        try
         {
-            var candidate = (InputFileTextBox.Text ?? string.Empty).Trim().Trim('"');
-            if (InputFileTextBox.Text != candidate) InputFileTextBox.Text = candidate;
-            e.Handled = true;
-            if (!string.IsNullOrEmpty(candidate) && File.Exists(candidate))
+            if (e.Key == Windows.System.VirtualKey.Enter && InputFileTextBox is not null)
             {
-                await OpenOrImportDocumentAsync(candidate, collapseLeftPane: false);
+                var candidate = (InputFileTextBox.Text ?? string.Empty).Trim().Trim('"');
+                if (InputFileTextBox.Text != candidate) InputFileTextBox.Text = candidate;
+                e.Handled = true;
+                if (!string.IsNullOrEmpty(candidate) && File.Exists(candidate))
+                {
+                    await OpenOrImportDocumentAsync(candidate, collapseLeftPane: false);
+                }
+                else
+                {
+                    ViewModel.InputFilePath = candidate;
+                }
             }
-            else
-            {
-                ViewModel.InputFilePath = candidate;
-            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[OnInputFileTextBoxKeyDown] Error: {ex}");
+            ViewModel.StatusText = $"Could not load path: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
     }
 
@@ -2407,36 +2425,45 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnSourceDrop(object sender, DragEventArgs e)
     {
-        if (_dropZoneDragOver)
+        try
         {
-            _dropZoneDragOver = false;
-            UpdateDropZoneVisual();
-        }
-        if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
-        e.Handled = true;
+            if (_dropZoneDragOver)
+            {
+                _dropZoneDragOver = false;
+                UpdateDropZoneVisual();
+            }
+            if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
+            e.Handled = true;
 
-        var items = await e.DataView.GetStorageItemsAsync();
-        var files = items.OfType<StorageFile>().ToList();
-        if (files.Count == 1 && Ocr.OcrImport.IsImage(files[0].Path))
+            var items = await e.DataView.GetStorageItemsAsync();
+            var files = items.OfType<StorageFile>().ToList();
+            if (files.Count == 1 && Ocr.OcrImport.IsImage(files[0].Path))
+            {
+                await OpenOrImportDocumentAsync(files[0].Path, collapseLeftPane: false);
+                return;
+            }
+            // Markdown, plus everything the importers turn into Markdown (Word, PDF, HTML, email and
+            // any importer plugin's formats) — the same list the Open picker offers.
+            var docs = files.Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
+            if (docs.Count == 0) return;
+
+            // Single file: load it into the editor and play the import breakdown experience if converted.
+            if (docs.Count == 1)
+            {
+                await OpenOrImportDocumentAsync(docs[0].Path, collapseLeftPane: false);
+                return;
+            }
+
+            // Multi-file drop (Task 11): one batch job in the default output format, written to the
+            // output folder, with progress and a summary on the status line.
+            await RunMultiFileBatchAsync(docs);
+        }
+        catch (Exception ex)
         {
-            await OpenOrImportDocumentAsync(files[0].Path, collapseLeftPane: false);
-            return;
+            System.Diagnostics.Debug.WriteLine($"[OnSourceDrop] Error: {ex}");
+            ViewModel.StatusText = $"Failed to import dropped file: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
-        // Markdown, plus everything the importers turn into Markdown (Word, PDF, HTML, email and
-        // any importer plugin's formats) — the same list the Open picker offers.
-        var docs = files.Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
-        if (docs.Count == 0) return;
-
-        // Single file: load it into the editor and play the import breakdown experience if converted.
-        if (docs.Count == 1)
-        {
-            await OpenOrImportDocumentAsync(docs[0].Path, collapseLeftPane: false);
-            return;
-        }
-
-        // Multi-file drop (Task 11): one batch job in the default output format, written to the
-        // output folder, with progress and a summary on the status line.
-        await RunMultiFileBatchAsync(docs);
     }
 
     // Straight from where the files are (no temp copy): every dropped document is read in place,
@@ -2446,60 +2473,81 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     internal async Task OpenOrImportDocumentAsync(string path, bool collapseLeftPane)
     {
-        if (Ocr.OcrImport.IsImage(path))
-        {
-            if (collapseLeftPane) AutoCollapseLeftPane();
-            await ImportScannedImageToEditorAsync(path);
-            return;
-        }
-
-        bool isConvertedDoc = !Plugins.PluginFileReader.IsMarkdownFile(path);
-        if (isConvertedDoc)
-        {
-            Plugins.PluginFileReader.InvalidateCache();
-        }
-
-        _suppressInputFileTextBoxChanged = true;
         try
         {
-            if (string.Equals(ViewModel.InputFilePath, path, StringComparison.OrdinalIgnoreCase))
+            if (Ocr.OcrImport.IsImage(path))
             {
-                ViewModel.InputFilePath = string.Empty;
+                if (collapseLeftPane) AutoCollapseLeftPane();
+                await ImportScannedImageToEditorAsync(path);
+                return;
             }
-            ViewModel.InputFilePath = path;
-        }
-        finally
-        {
-            _suppressInputFileTextBoxChanged = false;
-        }
-        if (collapseLeftPane) AutoCollapseLeftPane();
-        ViewModel.UsePasteSource = false;
 
-        await ViewModel.LastFileReadTask;
-        if (isConvertedDoc && !string.IsNullOrWhiteSpace(ViewModel.CurrentMarkdown))
-        {
-            var label = $"MarkSmith {ViewModel.SourceImportKind ?? "Document"} Importer";
-            var studio = new Views.Ocr.OcrInspectionStudioWindow();
-            studio.Activate();
-            await studio.PlayImportExperience(ViewModel.CurrentMarkdown, label);
-            var decision = await studio.WaitForDecisionAsync();
-            if (decision.Imported)
+            bool isConvertedDoc = !Plugins.PluginFileReader.IsMarkdownFile(path);
+            if (isConvertedDoc)
             {
-                ViewModel.DetachFromOpenFile();
-                ViewModel.PastedMarkdown = decision.Markdown;
-                ViewModel.UsePasteSource = true;
+                Plugins.PluginFileReader.InvalidateCache();
+            }
+
+            _suppressInputFileTextBoxChanged = true;
+            try
+            {
+                if (string.Equals(ViewModel.InputFilePath, path, StringComparison.OrdinalIgnoreCase))
+                {
+                    ViewModel.InputFilePath = string.Empty;
+                }
+                ViewModel.InputFilePath = path;
+            }
+            finally
+            {
+                _suppressInputFileTextBoxChanged = false;
+            }
+            if (collapseLeftPane) AutoCollapseLeftPane();
+            ViewModel.UsePasteSource = false;
+
+            await ViewModel.LastFileReadTask;
+            if (isConvertedDoc && !string.IsNullOrWhiteSpace(ViewModel.CurrentMarkdown))
+            {
+                var label = $"MarkSmith {ViewModel.SourceImportKind ?? "Document"} Importer";
+                Views.Ocr.OcrInspectionStudioWindow? studio = null;
+                try
+                {
+                    studio = new Views.Ocr.OcrInspectionStudioWindow();
+                    studio.Activate();
+                    await studio.PlayImportExperience(ViewModel.CurrentMarkdown, label);
+                    var decision = await studio.WaitForDecisionAsync();
+                    if (decision.Imported)
+                    {
+                        ViewModel.DetachFromOpenFile();
+                        ViewModel.PastedMarkdown = decision.Markdown;
+                        ViewModel.UsePasteSource = true;
+                        SyncEditorFromDocument();
+                    }
+                    else
+                    {
+                        ViewModel.InputFilePath = string.Empty;
+                        ViewModel.StatusText = "Import cancelled.";
+                        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    try { studio?.Close(); } catch { }
+                    System.Diagnostics.Debug.WriteLine($"[OpenOrImportDocumentAsync] OCR studio error: {ex}");
+                    SyncEditorFromDocument();
+                    ViewModel.StatusText = $"Loaded {Path.GetFileName(path)} (studio unavailable: {ex.Message})";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                }
+            }
+            else if (isConvertedDoc)
+            {
                 SyncEditorFromDocument();
             }
-            else
-            {
-                ViewModel.InputFilePath = string.Empty;
-                ViewModel.StatusText = "Import cancelled.";
-                ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
-            }
         }
-        else if (isConvertedDoc)
+        catch (Exception ex)
         {
-            SyncEditorFromDocument();
+            System.Diagnostics.Debug.WriteLine($"[OpenOrImportDocumentAsync] Error opening {path}: {ex}");
+            ViewModel.StatusText = $"Failed to open document: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
     }
 
@@ -2517,25 +2565,34 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnWindowDrop(object sender, DragEventArgs e)
     {
-        if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
-        e.Handled = true;
-        var items = await e.DataView.GetStorageItemsAsync();
-        var files = items.OfType<StorageFile>().ToList();
-        if (files.Count == 1 && Ocr.OcrImport.IsImage(files[0].Path))
+        try
         {
-            await OpenOrImportDocumentAsync(files[0].Path, collapseLeftPane: true);
-            return;
-        }
-        var docs = files.Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
-        if (docs.Count == 0) return;
+            if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
+            e.Handled = true;
+            var items = await e.DataView.GetStorageItemsAsync();
+            var files = items.OfType<StorageFile>().ToList();
+            if (files.Count == 1 && Ocr.OcrImport.IsImage(files[0].Path))
+            {
+                await OpenOrImportDocumentAsync(files[0].Path, collapseLeftPane: true);
+                return;
+            }
+            var docs = files.Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
+            if (docs.Count == 0) return;
 
-        if (docs.Count == 1)
+            if (docs.Count == 1)
+            {
+                await OpenOrImportDocumentAsync(docs[0].Path, collapseLeftPane: true);
+                return;
+            }
+
+            await RunMultiFileBatchAsync(docs);
+        }
+        catch (Exception ex)
         {
-            await OpenOrImportDocumentAsync(docs[0].Path, collapseLeftPane: true);
-            return;
+            System.Diagnostics.Debug.WriteLine($"[OnWindowDrop] Error: {ex}");
+            ViewModel.StatusText = $"Failed to import dropped file: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
-
-        await RunMultiFileBatchAsync(docs);
     }
 
     // Drag-and-drop support on editor: accepts Markdown files (loads document) and image files (embeds reference).
@@ -2552,64 +2609,73 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnEditorDrop(object sender, DragEventArgs e)
     {
-        if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
-        e.Handled = true;
-        var items = await e.DataView.GetStorageItemsAsync();
-
-        // 1. Check for documents first (Markdown or supported text formats)
-        var docs = items.OfType<StorageFile>().Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
-        if (docs.Count == 1)
+        try
         {
-            await OpenOrImportDocumentAsync(docs[0].Path, collapseLeftPane: true);
-            return;
-        }
-        if (docs.Count > 1)
-        {
-            await RunMultiFileBatchAsync(docs);
-            return;
-        }
+            if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
+            e.Handled = true;
+            var items = await e.DataView.GetStorageItemsAsync();
 
-        // 2. Check for image files
-        string[] imageExts = { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg" };
-        var images = items.OfType<StorageFile>()
-            .Where(f => imageExts.Contains(f.FileType.ToLowerInvariant()))
-            .ToList();
-        if (images.Count == 0) return;
-
-        var targetDir = await ResolveImageDropFolderAsync();
-        if (targetDir is null)
-        {
-            ViewModel.StatusText = "Couldn't find a folder to store the dropped image(s).";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
-            return;
-        }
-
-        // Images already in (or below) the document's folder are referenced where they are; others
-        // are copied in first. Destinations are relative to a saved document and survive spaces
-        // (InsertSnippetBuilder.Image), so a drop from "My Pictures" no longer writes broken Markdown.
-        var docFolder = ViewModel.DocumentFolder;
-        var refs = new List<string>();
-        var copied = 0;
-        foreach (var img in images)
-        {
-            var path = img.Path;
-            if (!IsInsideFolder(path, docFolder ?? targetDir.Path))
+            // 1. Check for documents first (Markdown or supported text formats)
+            var docs = items.OfType<StorageFile>().Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
+            if (docs.Count == 1)
             {
-                var dest = await img.CopyAsync(targetDir, img.Name, NameCollisionOption.GenerateUniqueName);
-                path = dest.Path;
-                copied++;
+                await OpenOrImportDocumentAsync(docs[0].Path, collapseLeftPane: true);
+                return;
             }
-            refs.Add(Services.InsertSnippetBuilder.Image("", path, docFolder ?? "").Trim('\n'));
-        }
+            if (docs.Count > 1)
+            {
+                await RunMultiFileBatchAsync(docs);
+                return;
+            }
 
-        InsertBlock("\n" + string.Join("\n\n", refs) + "\n");
-        var noun = refs.Count == 1 ? "image" : $"{refs.Count} images";
-        ViewModel.StatusText = copied == 0
-            ? $"Added {noun} to the document."
-            : docFolder is null
-                ? $"Added {noun}. Pasted text has no folder, so {(copied == 1 ? "it was" : "they were")} copied to {targetDir.Path}."
-                : $"Added {noun}, copied into the document's folder so {(refs.Count == 1 ? "it travels" : "they travel")} with it.";
-        ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+            // 2. Check for image files
+            string[] imageExts = { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg" };
+            var images = items.OfType<StorageFile>()
+                .Where(f => imageExts.Contains(f.FileType.ToLowerInvariant()))
+                .ToList();
+            if (images.Count == 0) return;
+
+            var targetDir = await ResolveImageDropFolderAsync();
+            if (targetDir is null)
+            {
+                ViewModel.StatusText = "Couldn't find a folder to store the dropped image(s).";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+                return;
+            }
+
+            // Images already in (or below) the document's folder are referenced where they are; others
+            // are copied in first. Destinations are relative to a saved document and survive spaces
+            // (InsertSnippetBuilder.Image), so a drop from "My Pictures" no longer writes broken Markdown.
+            var docFolder = ViewModel.DocumentFolder;
+            var refs = new List<string>();
+            var copied = 0;
+            foreach (var img in images)
+            {
+                var path = img.Path;
+                if (!IsInsideFolder(path, docFolder ?? targetDir.Path))
+                {
+                    var dest = await img.CopyAsync(targetDir, img.Name, NameCollisionOption.GenerateUniqueName);
+                    path = dest.Path;
+                    copied++;
+                }
+                refs.Add(Services.InsertSnippetBuilder.Image("", path, docFolder ?? "").Trim('\n'));
+            }
+
+            InsertBlock("\n" + string.Join("\n\n", refs) + "\n");
+            var noun = refs.Count == 1 ? "image" : $"{refs.Count} images";
+            ViewModel.StatusText = copied == 0
+                ? $"Added {noun} to the document."
+                : docFolder is null
+                    ? $"Added {noun}. Pasted text has no folder, so {(copied == 1 ? "it was" : "they were")} copied to {targetDir.Path}."
+                    : $"Added {noun}, copied into the document's folder so {(refs.Count == 1 ? "it travels" : "they travel")} with it.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[OnEditorDrop] Error: {ex}");
+            ViewModel.StatusText = $"Failed to drop item into editor: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
     }
 
     private static bool IsInsideFolder(string path, string? folder)
@@ -2640,32 +2706,48 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBrowseFileClick(object sender, RoutedEventArgs e)
     {
-        var allExts = Plugins.PluginFileReader.NativeExtensions
-            .Concat(App.Plugins.AllImporterExtensions)
-            .Concat(Ocr.OcrImport.ImageExtensions.Select(ext => ext.TrimStart('.')))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var file = await Services.NativeFilePicker.PickOpenFileAsync(
-            this, "Open a document", Services.NativeFilePicker.Purpose.Documents,
-            new[]
-            {
-                Models.FileType.Of("All supported documents", allExts),
-                Models.FileType.Of("Markdown", ".md", ".markdown"),
-                Models.FileType.AllFiles,
-            },
-            okLabel: "Open", folder: OpenDocumentFolder);
-        if (!string.IsNullOrEmpty(file))
+        try
         {
-            await OpenOrImportDocumentAsync(file, collapseLeftPane: true);
+            var allExts = Plugins.PluginFileReader.NativeExtensions
+                .Concat(App.Plugins.AllImporterExtensions)
+                .Concat(Ocr.OcrImport.ImageExtensions.Select(ext => ext.TrimStart('.')))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var file = await Services.NativeFilePicker.PickOpenFileAsync(
+                this, "Open a document", Services.NativeFilePicker.Purpose.Documents,
+                new[]
+                {
+                    Models.FileType.Of("All supported documents", allExts),
+                    Models.FileType.Of("Markdown", ".md", ".markdown"),
+                    Models.FileType.AllFiles,
+                },
+                okLabel: "Open", folder: OpenDocumentFolder);
+            if (!string.IsNullOrEmpty(file))
+            {
+                await OpenOrImportDocumentAsync(file, collapseLeftPane: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[OnBrowseFileClick] Error: {ex}");
+            ViewModel.StatusText = $"Failed to open document: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
     }
 
     private async void OnBrowseLogoClick(object sender, RoutedEventArgs e)
     {
-        var file = await PickLogoAsync();
-        if (!string.IsNullOrEmpty(file))
+        try
         {
-            ViewModel.BrandLogoPath = file;
+            var file = await PickLogoAsync();
+            if (!string.IsNullOrEmpty(file))
+            {
+                ViewModel.BrandLogoPath = file;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[OnBrowseLogoClick] Error: {ex}");
         }
     }
 
@@ -2692,19 +2774,26 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBrowseFontClick(object sender, RoutedEventArgs e)
     {
-        var file = await Services.NativeFilePicker.PickOpenFileAsync(
-            this, "Choose a font to embed", Services.NativeFilePicker.Purpose.Fonts,
-            new[]
-            {
-                Models.FileType.Of("Fonts", ".ttf", ".otf"),
-                Models.FileType.Of("TrueType font", ".ttf"),
-                Models.FileType.Of("OpenType font", ".otf"),
-            },
-            okLabel: "Embed",
-            folder: Services.NativeFilePicker.FolderOf(ViewModel.CustomFontPath));
-        if (!string.IsNullOrEmpty(file))
+        try
         {
-            ViewModel.CustomFontPath = file;
+            var file = await Services.NativeFilePicker.PickOpenFileAsync(
+                this, "Choose a font to embed", Services.NativeFilePicker.Purpose.Fonts,
+                new[]
+                {
+                    Models.FileType.Of("Fonts", ".ttf", ".otf"),
+                    Models.FileType.Of("TrueType font", ".ttf"),
+                    Models.FileType.Of("OpenType font", ".otf"),
+                },
+                okLabel: "Embed",
+                folder: Services.NativeFilePicker.FolderOf(ViewModel.CustomFontPath));
+            if (!string.IsNullOrEmpty(file))
+            {
+                ViewModel.CustomFontPath = file;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[OnBrowseFontClick] Error: {ex}");
         }
     }
 
@@ -2760,17 +2849,26 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnMarkdownFileSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (sender is ComboBox { SelectedItem: Services.MarkdownFileEntry entry })
+        try
         {
-            if (File.Exists(entry.Path))
+            if (sender is ComboBox { SelectedItem: Services.MarkdownFileEntry entry })
             {
-                await OpenOrImportDocumentAsync(entry.Path, collapseLeftPane: true);
+                if (File.Exists(entry.Path))
+                {
+                    await OpenOrImportDocumentAsync(entry.Path, collapseLeftPane: true);
+                }
+                else
+                {
+                    ViewModel.LoadRecentCommand.Execute(entry.Path);
+                    AutoCollapseLeftPane(); // the panel did its job — tuck it away
+                }
             }
-            else
-            {
-                ViewModel.LoadRecentCommand.Execute(entry.Path);
-                AutoCollapseLeftPane(); // the panel did its job — tuck it away
-            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[OnMarkdownFileSelected] Error: {ex}");
+            ViewModel.StatusText = $"Failed to open file: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
     }
 
@@ -2797,10 +2895,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBrowseFolderClick(object sender, RoutedEventArgs e)
     {
-        var folder = await Services.NativeFilePicker.PickFolderAsync(
-            this, "Choose where exports are saved", Services.NativeFilePicker.Purpose.AutomationFolders,
-            okLabel: "Save exports here", folder: Directory.Exists(ViewModel.OutputFolder) ? ViewModel.OutputFolder : null);
-        if (!string.IsNullOrEmpty(folder)) ViewModel.OutputFolder = folder;
+        try
+        {
+            var folder = await Services.NativeFilePicker.PickFolderAsync(
+                this, "Choose where exports are saved", Services.NativeFilePicker.Purpose.AutomationFolders,
+                okLabel: "Save exports here", folder: Directory.Exists(ViewModel.OutputFolder) ? ViewModel.OutputFolder : null);
+            if (!string.IsNullOrEmpty(folder)) ViewModel.OutputFolder = folder;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[OnBrowseFolderClick] Error: {ex}");
+        }
     }
 
     // The "call to user" for a page-dominating diagram: keep mermaid's exact layout (Web Layout view)
@@ -3474,7 +3579,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (vm.UsePasteSource)
             return string.IsNullOrWhiteSpace(vm.PastedMarkdown) ? EmptyPreviewMarkdown() : vm.PastedMarkdown;
         if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
-            return await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
+        {
+            try
+            {
+                return await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ResolvePreviewMarkdownAsync] Failed to read {vm.InputFilePath}: {ex}");
+                return string.IsNullOrWhiteSpace(vm.PastedMarkdown) ? EmptyPreviewMarkdown() : vm.PastedMarkdown;
+            }
+        }
         if (!string.IsNullOrWhiteSpace(vm.PastedMarkdown))
             return vm.PastedMarkdown;
         return EmptyPreviewMarkdown();
@@ -6818,24 +6933,24 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnImportDocumentClick(object sender, RoutedEventArgs e)
     {
-        var supportedExts = new[] { ".docx", ".pdf", ".eml", ".msg", ".html", ".htm", ".xlsx", ".csv" }.Concat(Ocr.OcrImport.ImageExtensions);
-        var filePath = await Services.NativeFilePicker.PickOpenFileAsync(
-            this, "Import a document as Markdown", Services.NativeFilePicker.Purpose.Documents,
-            new[]
-            {
-                Models.FileType.Of("Documents, emails, spreadsheets and scans", supportedExts),
-                Models.FileType.Of("Word document", ".docx"),
-                Models.FileType.Of("PDF", ".pdf"),
-                Models.FileType.Of("Email", ".eml", ".msg"),
-                Models.FileType.Of("Web page", ".html", ".htm"),
-                Models.FileType.Of("Spreadsheet", ".xlsx", ".csv"),
-                Models.FileType.Of("Scanned page (read with OCR)", Ocr.OcrImport.ImageExtensions),
-            },
-            okLabel: "Import");
-        if (string.IsNullOrEmpty(filePath)) return;
-
         try
         {
+            var supportedExts = new[] { ".docx", ".pdf", ".eml", ".msg", ".html", ".htm", ".xlsx", ".csv" }.Concat(Ocr.OcrImport.ImageExtensions);
+            var filePath = await Services.NativeFilePicker.PickOpenFileAsync(
+                this, "Import a document as Markdown", Services.NativeFilePicker.Purpose.Documents,
+                new[]
+                {
+                    Models.FileType.Of("Documents, emails, spreadsheets and scans", supportedExts),
+                    Models.FileType.Of("Word document", ".docx"),
+                    Models.FileType.Of("PDF", ".pdf"),
+                    Models.FileType.Of("Email", ".eml", ".msg"),
+                    Models.FileType.Of("Web page", ".html", ".htm"),
+                    Models.FileType.Of("Spreadsheet", ".xlsx", ".csv"),
+                    Models.FileType.Of("Scanned page (read with OCR)", Ocr.OcrImport.ImageExtensions),
+                },
+                okLabel: "Import");
+            if (string.IsNullOrEmpty(filePath)) return;
+
             var ext = Path.GetExtension(filePath).ToLowerInvariant();
             var name = Path.GetFileName(filePath);
             if (Ocr.OcrImport.IsImage(filePath))
@@ -6871,30 +6986,46 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     return;
                 }
 
-                var studio = new Views.Ocr.OcrInspectionStudioWindow();
-                studio.Activate();
-                await studio.PlayImportExperience(tableMd, $"MarkSmith {ext.TrimStart('.').ToUpperInvariant()} Spreadsheet Importer");
-                var decision = await studio.WaitForDecisionAsync();
-                if (!decision.Imported)
+                Views.Ocr.OcrInspectionStudioWindow? studio = null;
+                try
                 {
-                    ViewModel.StatusText = "Import cancelled.";
-                    ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+                    studio = new Views.Ocr.OcrInspectionStudioWindow();
+                    studio.Activate();
+                    await studio.PlayImportExperience(tableMd, $"MarkSmith {ext.TrimStart('.').ToUpperInvariant()} Spreadsheet Importer");
+                    var decision = await studio.WaitForDecisionAsync();
+                    if (!decision.Imported)
+                    {
+                        ViewModel.StatusText = "Import cancelled.";
+                        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+                        return;
+                    }
+                    ViewModel.DetachFromOpenFile();
+                    ViewModel.PastedMarkdown = decision.Markdown;
+                    ViewModel.UsePasteSource = true;
+                    ViewModel.StatusText = $"Imported {tableModel.Rows.Count + 1} rows × {tableModel.ColumnCount} columns from {name}.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Success;
                     return;
                 }
-                ViewModel.DetachFromOpenFile();
-                ViewModel.PastedMarkdown = decision.Markdown;
-                ViewModel.UsePasteSource = true;
-                ViewModel.StatusText = $"Imported {tableModel.Rows.Count + 1} rows × {tableModel.ColumnCount} columns from {name}.";
-                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
-                return;
+                catch (Exception ex)
+                {
+                    try { studio?.Close(); } catch { }
+                    System.Diagnostics.Debug.WriteLine($"[OnImportDocumentClick spreadsheet studio error] {ex}");
+                    ViewModel.DetachFromOpenFile();
+                    ViewModel.PastedMarkdown = tableMd;
+                    ViewModel.UsePasteSource = true;
+                    ViewModel.StatusText = $"Imported {tableModel.Rows.Count + 1} rows × {tableModel.ColumnCount} columns from {name}.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+                    return;
+                }
             }
             if (ext is ".docx" or ".pdf")
             {
                 // Word/PDF keep their own result: the tier and the "edited after export" warning.
-                var studio = new Views.Ocr.OcrInspectionStudioWindow();
-                studio.Activate();
+                Views.Ocr.OcrInspectionStudioWindow? studio = null;
                 try
                 {
+                    studio = new Views.Ocr.OcrInspectionStudioWindow();
+                    studio.Activate();
                     var importer = new Services.ReverseImportService();
                     ViewModel.StatusText = $"Importing {name}…";
                     var result = ext == ".pdf"
@@ -6912,7 +7043,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
                     if (string.IsNullOrWhiteSpace(result.Markdown))
                     {
-                        studio.Close();
+                        try { studio?.Close(); } catch { }
                         ViewModel.StatusText = result.Warning ?? "No content could be extracted from that document.";
                         ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
                         return;
@@ -6953,7 +7084,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 }
                 catch (Exception ex)
                 {
-                    try { studio.Close(); } catch { }
+                    try { studio?.Close(); } catch { }
                     Services.WindowsPdfRenderer.Release();
                     ViewModel.StatusText = $"Could not import {name}: {ex.Message}";
                     ViewModel.StatusSeverity = Models.StatusSeverity.Error;
@@ -6961,30 +7092,40 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 }
             }
 
-            var studioPlugin = new Views.Ocr.OcrInspectionStudioWindow();
-            studioPlugin.Activate();
-            var imported = await Plugins.PluginFileReader.ImportAsync(filePath);
-            if (string.IsNullOrWhiteSpace(imported.Markdown))
+            Views.Ocr.OcrInspectionStudioWindow? studioPlugin = null;
+            try
             {
-                studioPlugin.Close();
-                ViewModel.StatusText = $"Nothing to import from {Path.GetFileName(filePath)}: it has no readable content.";
-                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
-                return;
+                studioPlugin = new Views.Ocr.OcrInspectionStudioWindow();
+                studioPlugin.Activate();
+                var imported = await Plugins.PluginFileReader.ImportAsync(filePath);
+                if (string.IsNullOrWhiteSpace(imported.Markdown))
+                {
+                    try { studioPlugin.Close(); } catch { }
+                    ViewModel.StatusText = $"Nothing to import from {Path.GetFileName(filePath)}: it has no readable content.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                    return;
+                }
+                var pluginLabel = $"MarkSmith {imported.Kind ?? "Document"} Importer";
+                await studioPlugin.PlayImportExperience(imported.Markdown, pluginLabel);
+                var decisionPlugin = await studioPlugin.WaitForDecisionAsync();
+                if (!decisionPlugin.Imported)
+                {
+                    ViewModel.StatusText = "Import cancelled.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+                    return;
+                }
+                ViewModel.DetachFromOpenFile();
+                ViewModel.PastedMarkdown = decisionPlugin.Markdown;
+                ViewModel.UsePasteSource = true;
+                ViewModel.StatusText = imported.Summary ?? $"Imported {Path.GetFileName(filePath)}";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
             }
-            var pluginLabel = $"MarkSmith {imported.Kind ?? "Document"} Importer";
-            await studioPlugin.PlayImportExperience(imported.Markdown, pluginLabel);
-            var decisionPlugin = await studioPlugin.WaitForDecisionAsync();
-            if (!decisionPlugin.Imported)
+            catch (Exception ex)
             {
-                ViewModel.StatusText = "Import cancelled.";
-                ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
-                return;
+                try { studioPlugin?.Close(); } catch { }
+                ViewModel.StatusText = $"Import failed: {ex.Message}";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Error;
             }
-            ViewModel.DetachFromOpenFile();
-            ViewModel.PastedMarkdown = decisionPlugin.Markdown;
-            ViewModel.UsePasteSource = true;
-            ViewModel.StatusText = imported.Summary ?? $"Imported {Path.GetFileName(filePath)}";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
         catch (Exception ex)
         {
@@ -6997,14 +7138,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var name = Path.GetFileName(filePath);
         ViewModel.StatusText = $"Reading the text in {name}…";
-        var studio = new Views.Ocr.OcrInspectionStudioWindow();
-        studio.Activate();
+        Views.Ocr.OcrInspectionStudioWindow? studio = null;
         try
         {
+            studio = new Views.Ocr.OcrInspectionStudioWindow();
+            studio.Activate();
             var read = await Ocr.OcrImport.ImageToMarkdownAsync(filePath, observer: studio);
             if (string.IsNullOrWhiteSpace(read.Markdown))
             {
-                studio.Close();
+                try { studio.Close(); } catch { }
                 ViewModel.StatusText = $"No text found in {name}.";
                 ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
                 return;
@@ -7028,7 +7170,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
         catch (Exception ex)
         {
-            studio.Close();
+            try { studio?.Close(); } catch { }
+            System.Diagnostics.Debug.WriteLine($"[ImportScannedImageToEditorAsync] Error: {ex}");
             ViewModel.StatusText = $"Image OCR failed: {ex.Message}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
@@ -7038,19 +7181,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnInsertSpreadsheetClick(object sender, RoutedEventArgs e)
     {
-        var filePath = await Services.NativeFilePicker.PickOpenFileAsync(
-            this, "Insert a spreadsheet as a table", Services.NativeFilePicker.Purpose.Spreadsheets,
-            new[]
-            {
-                Models.FileType.Of("Spreadsheets", ".xlsx", ".csv"),
-                Models.FileType.Of("Excel workbook", ".xlsx"),
-                Models.FileType.Of("CSV", ".csv"),
-            },
-            okLabel: "Insert");
-        if (string.IsNullOrEmpty(filePath)) return;
-
         try
         {
+            var filePath = await Services.NativeFilePicker.PickOpenFileAsync(
+                this, "Insert a spreadsheet as a table", Services.NativeFilePicker.Purpose.Spreadsheets,
+                new[]
+                {
+                    Models.FileType.Of("Spreadsheets", ".xlsx", ".csv"),
+                    Models.FileType.Of("Excel workbook", ".xlsx"),
+                    Models.FileType.Of("CSV", ".csv"),
+                },
+                okLabel: "Insert");
+            if (string.IsNullOrEmpty(filePath)) return;
+
             Services.TableModel model;
             var ext = Path.GetExtension(filePath).ToLowerInvariant();
 
@@ -7107,28 +7250,39 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
             var markdown = Services.SpreadsheetService.ToMarkdownTable(model);
             var sheetLabel = $"MarkSmith {ext.TrimStart('.').ToUpperInvariant()} Spreadsheet Importer";
-            var studio = new Views.Ocr.OcrInspectionStudioWindow();
-            studio.Activate();
-            await studio.PlayImportExperience(markdown, sheetLabel);
-            var decision = await studio.WaitForDecisionAsync();
-            if (decision.Imported)
+            Views.Ocr.OcrInspectionStudioWindow? studio = null;
+            try
             {
-                InsertBlock(decision.Markdown);
-                var truncated = model.Rows.Count >= Services.SpreadsheetService.MaxImportRows;
-                ViewModel.StatusText = truncated
-                    ? $"Imported {model.Rows.Count} rows (truncated at {Services.SpreadsheetService.MaxImportRows})."
-                    : $"Imported {model.Rows.Count + 1} rows × {model.ColumnCount} columns from {Path.GetFileName(filePath)}.";
-                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+                studio = new Views.Ocr.OcrInspectionStudioWindow();
+                studio.Activate();
+                await studio.PlayImportExperience(markdown, sheetLabel);
+                var decision = await studio.WaitForDecisionAsync();
+                if (decision.Imported)
+                {
+                    InsertBlock(decision.Markdown);
+                    var truncated = model.Rows.Count >= Services.SpreadsheetService.MaxImportRows;
+                    ViewModel.StatusText = truncated
+                        ? $"Imported {model.Rows.Count} rows (truncated at {Services.SpreadsheetService.MaxImportRows})."
+                        : $"Imported {model.Rows.Count + 1} rows × {model.ColumnCount} columns from {Path.GetFileName(filePath)}.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+                }
+                else
+                {
+                    ViewModel.StatusText = "Spreadsheet insert cancelled.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+                }
             }
-            else
+            catch (Exception ex)
             {
-                ViewModel.StatusText = "Spreadsheet insert cancelled.";
-                ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+                try { studio?.Close(); } catch { }
+                InsertBlock(markdown);
+                ViewModel.StatusText = $"Inserted table from {Path.GetFileName(filePath)} (studio unavailable: {ex.Message})";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
             }
         }
         catch (Exception ex)
         {
-            ViewModel.StatusText = $"Import failed: {ex.Message}";
+            ViewModel.StatusText = $"Spreadsheet insert failed: {ex.Message}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
     }
@@ -7302,11 +7456,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             _mindMapGalaxyWindow.Closed += (s, args) => _mindMapGalaxyWindow = null;
             _mindMapGalaxyWindow.OpenDocumentRequested += async (s, filePath) =>
             {
-                if (!string.IsNullOrEmpty(filePath) && System.IO.File.Exists(filePath))
+                try
                 {
-                    await OpenOrImportDocumentAsync(filePath, collapseLeftPane: true);
-                    ViewModel.StatusText = $"Opened {System.IO.Path.GetFileName(filePath)} from Document Galaxy.";
-                    ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+                    if (!string.IsNullOrEmpty(filePath) && System.IO.File.Exists(filePath))
+                    {
+                        await OpenOrImportDocumentAsync(filePath, collapseLeftPane: true);
+                        ViewModel.StatusText = $"Opened {System.IO.Path.GetFileName(filePath)} from Document Galaxy.";
+                        ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MindMapGalaxy OpenDocumentRequested] Error: {ex}");
+                    ViewModel.StatusText = $"Failed to open document: {ex.Message}";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Error;
                 }
             };
         }

@@ -368,4 +368,35 @@ public class MsgTests
         Assert.False(string.IsNullOrWhiteSpace(vm.EmailFormatDescription));
         vm.EmailFormat = "auto";
     }
+
+    [Fact]
+    public void CodePagesEncodingProvider_Enables_Codepage_1256_Arabic_Resolution()
+    {
+        // Ensures MsgImporter static constructor (or Program.Main) has registered CodePagesEncodingProvider
+        // so non-Unicode legacy encodings (like codepage 1256 Arabic) do not throw NotSupportedException.
+        var encoding = Encoding.GetEncoding(1256);
+        Assert.NotNull(encoding);
+        Assert.Equal(1256, encoding.CodePage);
+        Assert.Equal("windows-1256", encoding.WebName);
+
+        const string arabicText = "مرحبا بالعالم";
+        var bytes = encoding.GetBytes(arabicText);
+        Assert.NotEmpty(bytes);
+        var decoded = encoding.GetString(bytes);
+        Assert.Equal(arabicText, decoded);
+    }
+
+    [Theory]
+    [InlineData(1250)] // Central European
+    [InlineData(1251)] // Cyrillic
+    [InlineData(1252)] // Western
+    [InlineData(1256)] // Arabic
+    [InlineData(932)]  // Shift-JIS
+    [InlineData(936)]  // GB2312
+    public void Common_Legacy_Codepages_Are_Supported_For_Msg_Import(int codepage)
+    {
+        var encoding = Encoding.GetEncoding(codepage);
+        Assert.NotNull(encoding);
+        Assert.Equal(codepage, encoding.CodePage);
+    }
 }

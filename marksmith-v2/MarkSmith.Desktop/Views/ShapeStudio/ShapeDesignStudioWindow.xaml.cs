@@ -1713,6 +1713,50 @@ namespace MarkSmith.Views.ShapeStudio
                 new[] { Models.FileType.Of("Images", ".png", ".jpg", ".jpeg", ".bmp", ".gif") },
                 okLabel: "Use this picture", start: StartFolder.Pictures);
             if (string.IsNullOrEmpty(path)) return;
+            UseImagePath(path);
+        }
+
+        // Smart tiles picks from the full set by picture content, so the manual
+        // tile-shape boxes only apply while it is off — grey them out to say so.
+        private void OnCompAdaptiveChanged(object sender, RoutedEventArgs e)
+        {
+            // Checked fires during XAML load (IsChecked="True"), before the boxes below
+            // exist — the XAML already declares their initial disabled state, so skip then.
+            if (CompRoundRect is null || CompRect is null || CompEllipse is null || CompChevron is null
+                || CompDiamond is null || CompHexagon is null || CompTriangle is null || CompCloud is null)
+                return;
+            bool manual = CompAdaptive.IsChecked != true;
+            CompRoundRect.IsEnabled = manual;
+            CompRect.IsEnabled = manual;
+            CompEllipse.IsEnabled = manual;
+            CompChevron.IsEnabled = manual;
+            CompDiamond.IsEnabled = manual;
+            CompHexagon.IsEnabled = manual;
+            CompTriangle.IsEnabled = manual;
+            CompCloud.IsEnabled = manual;
+        }
+
+                // Escape hatch for a hanging shell dialog (cloud folder / shell extension):
+        // paste the file path instead of browsing to it.
+        private void OnUseImagePathClick(object sender, RoutedEventArgs e)
+        {
+            var path = (FuseImagePathBox.Text ?? "").Trim().Trim('"');
+            if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path))
+            {
+                ViewModel.StatusMessage = "That path doesn't point to a file. Copy it from the Explorer address bar, including the file name.";
+                return;
+            }
+            var ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
+            if (ext is not (".png" or ".jpg" or ".jpeg" or ".bmp" or ".gif"))
+            {
+                ViewModel.StatusMessage = $"“{ext}” isn't a supported picture (png, jpg, bmp, gif).";
+                return;
+            }
+            UseImagePath(path);
+        }
+
+        private void UseImagePath(string path)
+        {
             _composeImagePath = path;
             FuseImageLabel.Text = System.IO.Path.GetFileName(path);
             ToolTipService.SetToolTip(FuseImageLabel, path);
@@ -1726,8 +1770,7 @@ namespace MarkSmith.Views.ShapeStudio
             ViewModel.StatusMessage = $"Picture ready: {System.IO.Path.GetFileName(path)} — adjust the layers, then Convert.";
         }
 
-        private async void OnFuseImageClick(object sender, RoutedEventArgs e)
-        {
+        private async void OnFuseImageClick(object sender, RoutedEventArgs e)        {
             if (string.IsNullOrWhiteSpace(_composeImagePath))
             {
                 ViewModel.StatusMessage = "Choose a picture first.";
@@ -1744,6 +1787,15 @@ namespace MarkSmith.Views.ShapeStudio
             }
 
             var shapes = new List<string>();
+            bool adaptive = CompAdaptive.IsChecked == true;
+            if (adaptive)
+            {
+                // Smart tiles choose from the full set by picture content; the boxes below
+                // only apply when Smart tiles is off.
+                shapes.Add("auto");
+            }
+            else
+            {
             if (CompRoundRect.IsChecked == true) shapes.Add("roundrect");
             if (CompRect.IsChecked == true) shapes.Add("rect");
             if (CompEllipse.IsChecked == true) shapes.Add("ellipse");
@@ -1752,6 +1804,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (CompHexagon.IsChecked == true) shapes.Add("hexagon");
             if (CompTriangle.IsChecked == true) shapes.Add("triangle");
             if (CompCloud.IsChecked == true) shapes.Add("cloud");
+            }
 
             var lineMode = (FuseModePicker.SelectedItem as ComboBoxItem)?.Tag is string tag &&
                            Enum.TryParse<MarkSmith.Core.Composer.LineTraceMode>(tag, out var parsed)
@@ -1766,7 +1819,9 @@ namespace MarkSmith.Views.ShapeStudio
                 lineMode,
                 FuseMonochrome.IsChecked ?? true,
                 (int)FuseEdgeSensitivity.Value,
-                FuseStrokeWidth.Value);
+                FuseStrokeWidth.Value,
+                FuseMosaicPadding.Value,
+                CompAdaptive.IsChecked == true);
             FitCanvasAfterLayout();
         }
     }

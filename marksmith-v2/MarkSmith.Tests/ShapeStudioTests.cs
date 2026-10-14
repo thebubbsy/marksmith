@@ -240,4 +240,58 @@ public class ShapeStudioTests
         vm.SelectedPresetCategory = "All Categories";
         Assert.Equal(vm.AllPresets.Count, vm.FilteredPresets.Count);
     }
+
+    [Fact]
+    public async System.Threading.Tasks.Task InspectorList_CapsRows_ButCanvasKeepsAll()
+    {
+        string png = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"listed-{System.Guid.NewGuid():N}.png");
+        try
+        {
+            using (var bmp = new SkiaSharp.SKBitmap(120, 80))
+            {
+                var rnd = new System.Random(7);
+                for (int y = 0; y < 80; y++)
+                for (int x = 0; x < 120; x++)
+                    bmp.SetPixel(x, y, new SkiaSharp.SKColor((byte)rnd.Next(256), (byte)rnd.Next(256), (byte)rnd.Next(256)));
+                using var img = SkiaSharp.SKImage.FromBitmap(bmp);
+                using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90);
+                using var fs = System.IO.File.Create(png);
+                data.SaveTo(fs);
+            }
+            var vm = new ShapeDesignStudioViewModel();
+            await vm.ComposeHybridFusionAsync(png, 48, 0,
+                new System.Collections.Generic.List<string> { "ellipse" });
+            Assert.True(vm.Shapes.Count > ShapeDesignStudioViewModel.ListedShapesCap);
+            Assert.Equal(ShapeDesignStudioViewModel.ListedShapesCap, vm.ListedShapes.Count);
+            Assert.Contains("1,000", vm.ShapesListCapNote);
+        }
+        finally { if (System.IO.File.Exists(png)) System.IO.File.Delete(png); }
+    }
+    [Fact]
+    public async System.Threading.Tasks.Task HybridFusion_CapsTotalElements_AtPracticalBudget()
+    {
+        // Dense photo: mosaic tiles are all kept, contour lines are sampled to fit 12k.
+        string png = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"fusion-{System.Guid.NewGuid():N}.png");
+        try
+        {
+            using (var bmp = new SkiaSharp.SKBitmap(320, 200))
+            {
+                var rnd = new System.Random(42);
+                for (int y = 0; y < 200; y++)
+                for (int x = 0; x < 320; x++)
+                    bmp.SetPixel(x, y, new SkiaSharp.SKColor((byte)rnd.Next(256), (byte)rnd.Next(256), (byte)rnd.Next(256)));
+                using var img = SkiaSharp.SKImage.FromBitmap(bmp);
+                using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90);
+                using var fs = System.IO.File.Create(png);
+                data.SaveTo(fs);
+            }
+            var vm = new ShapeDesignStudioViewModel();
+            await vm.ComposeHybridFusionAsync(png, 48, 1200,
+                new System.Collections.Generic.List<string> { "auto" },
+                MarkSmith.Core.Composer.LineTraceMode.CrossHatch);
+            Assert.True(vm.Shapes.Count <= 12000, $"fusion must stay within budget, got {vm.Shapes.Count}");
+            Assert.Contains("sampled", vm.StatusMessage);
+        }
+        finally { if (System.IO.File.Exists(png)) System.IO.File.Delete(png); }
+    }
 }

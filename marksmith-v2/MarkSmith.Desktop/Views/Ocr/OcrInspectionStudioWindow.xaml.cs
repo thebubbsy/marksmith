@@ -70,6 +70,11 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         ConfigureWindowChrome();
         SizeForDisplay();
 
+        if (MarkdownScopeComboBox is not null && MarkdownScopeComboBox.SelectedIndex < 0)
+        {
+            MarkdownScopeComboBox.SelectedIndex = 0;
+        }
+
         this.Closed += (_, _) =>
         {
             _playbackCts?.Cancel();
@@ -378,11 +383,14 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         {
             try
             {
-                StatusBannerIcon.Glyph = "\uE783"; // Warning triangle
-                StatusBannerIcon.Foreground = ThemeBrush.Get("SystemFillColorCautionBrush", RootGrid.ActualTheme);
-                StatusBannerText.Text = $"Page {pageNumber}: {errorMessage}";
-                StatusSubtext.Text = "MarkSmith continued importing the rest of the document. You can inspect available pages and review before applying.";
-                FooterStatusText.Text = $"Page {pageNumber} issue: {errorMessage}";
+                if (StatusBannerIcon is not null)
+                {
+                    StatusBannerIcon.Glyph = "\uE783"; // Warning triangle
+                    StatusBannerIcon.Foreground = ThemeBrush.Get("SystemFillColorCautionBrush", RootGrid.ActualTheme);
+                }
+                if (StatusBannerText is not null) StatusBannerText.Text = $"Page {pageNumber}: {errorMessage}";
+                if (StatusSubtext is not null) StatusSubtext.Text = "MarkSmith continued importing the rest of the document. You can inspect available pages and review before applying.";
+                if (FooterStatusText is not null) FooterStatusText.Text = $"Page {pageNumber} issue: {errorMessage}";
             }
             catch (Exception ex)
             {
@@ -398,26 +406,30 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         _isReviewMode = true;
         _playbackCts?.Cancel();
         _idleLaserCts?.Cancel();
-        LaserBeam.Visibility = Visibility.Collapsed;
+        if (LaserBeam is not null) LaserBeam.Visibility = Visibility.Collapsed;
 
-        StatusBannerIcon.Glyph = "\uE73E"; // Checkmark
-        StatusBannerIcon.Foreground = ThemeBrush.Get("SystemFillColorSuccessBrush", RootGrid.ActualTheme);
-        StatusBannerText.Text = "✓ Document Scan Complete — Inspect Detected Elements & Choose Import Settings";
-        StatusSubtext.Text = "Flick through pages to inspect detected elements. Click any element to reclassify it between Picture, Mosaic, Diagram, Table, Key-Value, or Text. Hit 'Import into MarkSmith' to apply.";
+        if (StatusBannerIcon is not null)
+        {
+            StatusBannerIcon.Glyph = "\uE73E"; // Checkmark
+            StatusBannerIcon.Foreground = ThemeBrush.Get("SystemFillColorSuccessBrush", RootGrid.ActualTheme);
+        }
+        if (StatusBannerText is not null) StatusBannerText.Text = "✓ Document Scan Complete — Inspect Detected Elements & Choose Import Settings";
+        if (StatusSubtext is not null) StatusSubtext.Text = "Flick through pages to inspect detected elements. Click any element to reclassify it between Picture, Mosaic, Diagram, Table, Key-Value, or Text. Hit 'Import into MarkSmith' to apply.";
 
         UpdatePageFlickingState();
         UpdateLiveMarkdownPreview();
-        FooterStatusText.Text = "Inspection Studio active — Never auto-closes. Review detected elements before applying import.";
+        if (FooterStatusText is not null)
+            FooterStatusText.Text = "Inspection Studio active — Never auto-closes. Review detected elements before applying import.";
     }
 
     private void UpdatePageFlickingState()
     {
-        PrevPageButton.IsEnabled = _session.CanPreviousPage;
-        NextPageButton.IsEnabled = _session.CanNextPage;
+        if (PrevPageButton is not null) PrevPageButton.IsEnabled = _session.CanPreviousPage;
+        if (NextPageButton is not null) NextPageButton.IsEnabled = _session.CanNextPage;
 
         int totalPages = Math.Max(1, _session.Pages.Count);
         int currentNum = _session.CurrentPage?.PageNumber ?? (_session.CurrentPageIndex + 1);
-        PageIndicatorText.Text = $"Page {currentNum} of {totalPages}";
+        if (PageIndicatorText is not null) PageIndicatorText.Text = $"Page {currentNum} of {totalPages}";
     }
 
     private void RenderCurrentPage()
@@ -686,11 +698,14 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         UpdateSessionTelemetry();
         UpdateLiveMarkdownPreview();
-        FooterStatusText.Text = $"Reclassified Element #{elem.Id} to {elem.KindDisplayName}. Preview updated live.";
+        if (FooterStatusText is not null)
+            FooterStatusText.Text = $"Reclassified Element #{elem.Id} to {elem.KindDisplayName}. Preview updated live.";
     }
 
     private void UpdateLiveMarkdownPreview()
     {
+        if (MarkdownPreviewTextBox is null) return;
+
         if (_session.Pages.Count == 0)
         {
             MarkdownPreviewTextBox.Text = string.Empty;
@@ -706,14 +721,20 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
     private void UpdateSessionTelemetry()
     {
-        HeaderElementsCountText.Text = _session.TotalElements.ToString();
-        HeaderReclassifiedCountText.Text = _session.TotalReclassifications.ToString();
-        WordCountBadgeText.Text = $"{_session.CurrentPage?.Words.Count ?? 0} words";
+        if (HeaderElementsCountText is not null)
+            HeaderElementsCountText.Text = _session.TotalElements.ToString();
+        if (HeaderReclassifiedCountText is not null)
+            HeaderReclassifiedCountText.Text = _session.TotalReclassifications.ToString();
+        if (WordCountBadgeText is not null)
+            WordCountBadgeText.Text = $"{_session.CurrentPage?.Words.Count ?? 0} words";
 
-        SessionMetricsText.Text = $"{_session.Pages.Count} Page{(_session.Pages.Count == 1 ? "" : "s")} · " +
-                                  $"{_session.TotalElements} Elements · " +
-                                  $"{_session.TotalWords} Words · " +
-                                  $"{_session.TotalReclassifications} Reclassified";
+        if (SessionMetricsText is not null)
+        {
+            SessionMetricsText.Text = $"{_session.Pages.Count} Page{(_session.Pages.Count == 1 ? "" : "s")} · " +
+                                      $"{_session.TotalElements} Elements · " +
+                                      $"{_session.TotalWords} Words · " +
+                                      $"{_session.TotalReclassifications} Reclassified";
+        }
     }
 
     private static (Color Stroke, Color Fill) GetKindPalette(OcrBlockKind kind)
@@ -740,6 +761,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
     private void UpdatePageSheetDimensions()
     {
+        if (PageViewportGrid is null || PageSheetGrid is null) return;
+
         double availW = PageViewportGrid.ActualWidth;
         double availH = PageViewportGrid.ActualHeight;
         if (availW <= 16 || availH <= 16)
@@ -759,9 +782,12 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         PageSheetGrid.Width = Math.Max(120, Math.Round(fittedW));
         PageSheetGrid.Height = Math.Max(160, Math.Round(fittedH));
-        LaserBeam.Width = PageSheetGrid.Width;
-        ElementsCanvas.Width = PageSheetGrid.Width;
-        ElementsCanvas.Height = PageSheetGrid.Height;
+        if (LaserBeam is not null) LaserBeam.Width = PageSheetGrid.Width;
+        if (ElementsCanvas is not null)
+        {
+            ElementsCanvas.Width = PageSheetGrid.Width;
+            ElementsCanvas.Height = PageSheetGrid.Height;
+        }
     }
 
     private void AddPositionedOverlay(FrameworkElement element, OcrNormRect box)
@@ -843,13 +869,14 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
     private void OnMarkdownScopeChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (MarkdownScopeComboBox is null) return;
         _markdownScopeIsDocument = MarkdownScopeComboBox.SelectedIndex == 1;
         UpdateLiveMarkdownPreview();
     }
 
     private void OnQuickReclassifySelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_isUpdatingSelection || _selectedElement is null) return;
+        if (_isUpdatingSelection || _selectedElement is null || QuickReclassifyComboBox is null) return;
         if (QuickReclassifyComboBox.SelectedItem is ComboBoxItem item &&
             Enum.TryParse<OcrBlockKind>(item.Tag?.ToString(), out var newKind) &&
             newKind != _selectedElement.Kind)
@@ -869,7 +896,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         SelectElement(_selectedElement);
         UpdateLiveMarkdownPreview();
         UpdateSessionTelemetry();
-        FooterStatusText.Text = $"Reset Element #{_selectedElement.Id} to original {_selectedElement.KindDisplayName}.";
+        if (FooterStatusText is not null)
+            FooterStatusText.Text = $"Reset Element #{_selectedElement.Id} to original {_selectedElement.KindDisplayName}.";
     }
 
     private void OnImportCtaClick(object sender, RoutedEventArgs e)

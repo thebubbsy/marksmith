@@ -1028,7 +1028,9 @@ public static class OcrVisualElements
                         Grid = mosaicGrid,
                         Shapes = new List<string> { "roundRect", "ellipse", "diamond" },
                         Dither = true,
-                        PaletteColors = 16
+                        PaletteColors = 16,
+                        Padding = 0,
+                        AdaptiveShapes = false
                     });
                     if (mosaicShapes.Count > 0)
                     {

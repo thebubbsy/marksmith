@@ -111,7 +111,22 @@ public static class NativeFilePicker
         {
             var hwnd = request.Owner.Hwnd;
             if (hwnd == IntPtr.Zero && App.MainAppWindow is { } main) hwnd = WindowNative.GetWindowHandle(main);
-            return await RunOnStaThread(() => Show(hwnd, request));
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var result = await RunOnStaThread(() => Show(hwnd, request));
+            sw.Stop();
+            // A shell dialog that takes very long (or returns nothing after one) almost
+            // always means Windows wedged enumerating the folder — typically a cloud
+            // folder or a shell extension. Say so, with the way out.
+            if (result is null && sw.Elapsed > TimeSpan.FromSeconds(8))
+            {
+                try
+                {
+                    App.ViewModel.StatusText = $"The “{request.Title}” dialog came back empty after {sw.Elapsed.TotalSeconds:0}s — if it hung, press Esc, move the file to a local folder first, or paste its path where one is accepted.";
+                    App.ViewModel.StatusSeverity = StatusSeverity.Warning;
+                }
+                catch { }
+            }
+            return result;
         }
         catch (Exception ex)
         {

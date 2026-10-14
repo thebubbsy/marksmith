@@ -20,10 +20,12 @@ namespace MarkSmith.Services;
 public sealed class CloudStorageService
 {
     private readonly Func<string, string?> _env;
+    private readonly bool _isCustomEnv;
     private readonly Func<HttpMessageHandler> _handlerFactory;
 
     public CloudStorageService(Func<string, string?>? env = null, Func<HttpMessageHandler>? handlerFactory = null)
     {
+        _isCustomEnv = env != null;
         _env = env ?? Environment.GetEnvironmentVariable;
         _handlerFactory = handlerFactory ?? (() => new HttpClientHandler());
     }
@@ -78,8 +80,9 @@ public sealed class CloudStorageService
             var gd = Path.Combine(up, "Google Drive");
             if (Directory.Exists(gd)) AddDistinct(result, Make("googledrive", "Google Drive", gd, "default path"));
         }
-        const string gVolume = @"G:\My Drive";
-        if (Directory.Exists(gVolume)) AddDistinct(result, Make("googledrive", "Google Drive", gVolume, "G: volume"));
+        var gVolume = _env("GOOGLEDRIVE_VOLUME") ?? (_isCustomEnv ? null : @"G:\My Drive");
+        if (!string.IsNullOrEmpty(gVolume) && Directory.Exists(gVolume))
+            AddDistinct(result, Make("googledrive", "Google Drive", gVolume, "G: volume"));
 
         if (!string.IsNullOrEmpty(up))
         {

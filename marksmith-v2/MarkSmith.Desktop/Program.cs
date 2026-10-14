@@ -38,6 +38,8 @@ public static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
             if (e.ExceptionObject is Exception ex) LogFatal("AppDomain.UnhandledException", ex);

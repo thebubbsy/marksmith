@@ -431,6 +431,27 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
     public bool HasShapes => Shapes.Count > 0;
 
+    /// <summary>Inspector list cap: tens of thousands of templated rows freeze the pane,
+    /// so the list shows the first chunk (plus the selection) while the canvas, export
+    /// and status line always cover every shape.</summary>
+    public const int ListedShapesCap = 1000;
+
+    private ObservableCollection<ShapeCanvasItemViewModel>? _listedShapes;
+    public ObservableCollection<ShapeCanvasItemViewModel> ListedShapes => _listedShapes ??= new();
+
+    public bool IsShapesListCapped => Shapes.Count > ListedShapesCap;
+
+    private void RefreshListedShapes()
+    {
+        var want = (Shapes.Count > ListedShapesCap ? Shapes.Take(ListedShapesCap) : Shapes.AsEnumerable()).ToList();
+        if (SelectedShape is not null && !want.Contains(SelectedShape)) want.Add(SelectedShape);
+        if (_listedShapes is not null && _listedShapes.Count == want.Count && _listedShapes.SequenceEqual(want)) return;
+        _listedShapes = new ObservableCollection<ShapeCanvasItemViewModel>(want);
+        OnPropertyChanged(nameof(ListedShapes));
+        OnPropertyChanged(nameof(IsShapesListCapped));
+        OnPropertyChanged(nameof(ShapesListHint));
+    }
+
     private void OnShapeGeometryChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(ShapeCanvasItemViewModel.X) or nameof(ShapeCanvasItemViewModel.Y)
@@ -505,6 +526,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         WatchShapes();
         DescribeLines();
         RefreshLineStats();
+        RefreshListedShapes();
         OnPropertyChanged(nameof(HasShapes));
         InsertIntoDocumentCommand.NotifyCanExecuteChanged();
         ExportDocxCommand.NotifyCanExecuteChanged();
@@ -1110,6 +1132,11 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
     public bool HasSelectedShape => SelectedShape is not null;
 
+    /// <summary>Appended to the list hint when the inspector shows the first chunk only.</summary>
+    public string ShapesListCapNote => IsShapesListCapped
+        ? $" Showing first {ListedShapesCap:N0} of {Shapes.Count:N0} — canvas and export hold them all."
+        : "";
+
     /// <summary>Inspector empty state — differs between a blank canvas and an unselected one.</summary>
     public string InspectorEmptyTitle => IsEmpty ? "Nothing to inspect yet" : "No shape selected";
 
@@ -1120,6 +1147,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     partial void OnSelectedShapeChanged(ShapeCanvasItemViewModel? value)
     {
         OnPropertyChanged(nameof(HasSelectedShape));
+        RefreshListedShapes();
         if (!_additiveSelect)
         {
             foreach (var s in Shapes)
@@ -2784,7 +2812,8 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         }
     }
 
-    public async System.Threading.Tasks.Task ComposeImageAsync(string imagePath, int grid, IReadOnlyList<string> shapes)
+    public async System.Threading.Tasks.Task ComposeImageAsync(string imagePath, int grid, IReadOnlyList<string> shapes,
+        double mosaicPadding = 0.0, bool adaptiveShapes = false)
     {
         try
         {
@@ -2794,7 +2823,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                 {
                     Grid = grid,
                     Shapes = shapes.Any() ? shapes.ToList() : new List<string> { "ellipse" },
-                    InsetInches = 0.0
+                    InsetInches = 0.0,
+                    Padding = mosaicPadding,
+                    AdaptiveShapes = adaptiveShapes
                 }));
             ClearAll();
             AppendComposed(composed);
@@ -2816,7 +2847,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         LineTraceMode lineMode = LineTraceMode.Edges,
         bool monochromeLines = true,
         int edgeThreshold = 30,
-        double maxThicknessPt = 1.8)
+        double maxThicknessPt = 1.8,
+        double mosaicPadding = 0.0,
+        bool adaptiveShapes = false)
     {
         var ct = NextGenerationToken();
         try
@@ -2828,6 +2861,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             }
 
             StatusMessage = $"⚡ Vector Fusion: Processing {Path.GetFileName(imagePath)}…";
+            bool linesSampled = false;
             var fused = await System.Threading.Tasks.Task.Run(() =>
             {
                 var result = new List<ComposedShape>();
@@ -2839,7 +2873,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                     {
                         Grid = mosaicGrid,
                         Shapes = shapes.ToList(),
-                        InsetInches = 0.0
+                        InsetInches = 0.0,
+                        Padding = mosaicPadding,
+                        AdaptiveShapes = adaptiveShapes
                     });
                     result.AddRange(baseShapes);
                 }
@@ -2858,6 +2894,28 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                     result.AddRange(edgeLines);
                 }
 
+                // Practical budget: tens of thousands of live canvas items freeze the
+                // studio (layout + inspector list). Mosaic tiles are all kept; contour
+                // lines are sampled EVENLY so the overlay still covers the whole picture.
+                const int FusionBudget = 12000;
+                if (result.Count > FusionBudget)
+                {
+                    var tiles = result.Where(s => s.PathPoints == null).ToList();
+                    var lines = result.Where(s => s.PathPoints != null).ToList();
+                    int lineBudget = Math.Max(0, FusionBudget - tiles.Count);
+                    if (lines.Count > lineBudget && lineBudget > 0)
+                    {
+                        int stride = (int)Math.Ceiling(lines.Count / (double)lineBudget);
+                        lines = lines.Where((_, i) => i % stride == 0).ToList();
+                    }
+                    else if (lineBudget <= 0)
+                    {
+                        lines.Clear();
+                    }
+                    result = tiles.Concat(lines).ToList();
+                    linesSampled = true;
+                }
+
                 return result;
             }, ct);
 
@@ -2873,7 +2931,8 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             AppendComposed(fused);
             int shapeCount = fused.Count(s => s.PathPoints == null);
             int lineCount = fused.Count(s => s.PathPoints != null);
-            StatusMessage = $"⚡ Vector Fusion: {fused.Count:N0} elements ({shapeCount:N0} shapes + {lineCount:N0} contour lines)";
+            StatusMessage = $"⚡ Vector Fusion: {fused.Count:N0} elements ({shapeCount:N0} shapes + {lineCount:N0} contour lines)"
+                + (linesSampled ? " — lines sampled to fit the 12k practical budget" : "");
             await RefreshCanvasModeAsync();
             CanvasChanged?.Invoke(this, EventArgs.Empty);
         }

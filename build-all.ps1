@@ -6,7 +6,8 @@ $ScriptDir = $PSScriptRoot
 if (-not $ScriptDir) { $ScriptDir = Get-Location }
 
 Write-Host "[1/3] Stopping existing Marksmith & compiler processes..." -ForegroundColor Cyan
-Stop-Process -Name "Marksmith","dotnet","MSBuild","VBCSCompiler" -ErrorAction SilentlyContinue
+Stop-Process -Name "Marksmith","dotnet","MSBuild","VBCSCompiler","XamlCompiler" -Force -ErrorAction SilentlyContinue
+& dotnet build-server shutdown 2>$null
 
 $ProjectFile = Join-Path $ScriptDir "marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj"
 

@@ -6562,4 +6562,48 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Test suite (`dotnet test --filter "FullyQualifiedName~Pdf|FullyQualifiedName~Ocr"`): **170 passed, 0 failed**.
 - Target PDF (`00P7F000006aiR2UAI_Groom, J ELPE service agreement.pdf`): Successfully verified through test suite without crash.
 
+### 2026-10-14 (Document Import Crash Resolution, OCR Studio XAML Hardening & Vector Fusion Scaling)
+
+- **Timestamp:** 2026-10-14T22:02:00Z
+- **Model:** `Gemini 3.8 Flash (High)`
+- **Identity:** `Antigravity AI Agent (Google DeepMind)`
+- **Mode:** `/boost` Delegation Routine
+- **Trigger:** Document / PDF import crash report investigation & standalone OCR studio hardening mandate
+
+**Root Causes & Findings:**
+1. **XAML Initialization Re-entrancy (`0xc000027b`):** In `OcrInspectionStudioWindow.xaml`, setting `SelectedIndex="0"` alongside `SelectionChanged="OnMarkdownScopeChanged"` on `MarkdownScopeComboBox` caused events to fire during `InitializeComponent()` before `MarkdownPreviewTextBox` was instantiated, throwing stowed WinRT exceptions directly into CoreMessagingXP.
+2. **Missing CodePages Provider for Legacy Imports:** Decoding legacy code pages (e.g. Windows-1252 in RTF bodies of `.msg` files, older document encodings) in .NET 8 threw `NotSupportedException` unless `CodePagesEncodingProvider.Instance` was explicitly registered.
+3. **Unguarded CLI Launch & Import Paths:** CLI document launches in `App.xaml.cs` ran unobserved async tasks; spreadsheet and plugin import error paths lacked fallback catches to status notifications.
+4. **Studio Canvas & List Overhead:** Generating tens of thousands of vector shape canvas items during image vector fusion caused WinUI UI layout hangs; inspector needed a listed item cap (`ListedShapesCap = 1000`) and contour line sampling to stay responsive.
+5. **Host Google Drive Test Contamination:** `CloudStorageService` checked physical drive `G:\My Drive` directly, causing mock environment unit tests to fail on machines with real mounted Google Drive volumes.
+
+**Shipped:**
+- `MarkSmith.Desktop/Views/Ocr/OcrInspectionStudioWindow.xaml` & `OcrInspectionStudioWindow.xaml.cs`:
+  - Removed XAML-time `SelectedIndex="0"` from `MarkdownScopeComboBox` to prevent early re-entrant event dispatch during `InitializeComponent()`.
+  - Added defensive null-guards across all UI elements (`MarkdownPreviewTextBox`, `StatusBannerIcon`, `StatusBannerText`, `LaserBeam`, `PrevPageButton`, `NextPageButton`, `QuickReclassifyComboBox`).
+  - Retained paper-white background (`#FFFFFF`) with genuine document sheet canvas, element bounding boxes, and sweeping scan laser.
+- `MarkSmith.Desktop/App.xaml.cs` & `Program.cs`:
+  - Registered `CodePagesEncodingProvider.Instance` at program entry and in `MsgImporter`.
+  - Dispatched CLI file launches via `window.DispatcherQueue.TryEnqueue` wrapped in comprehensive try/catch with UI status error reporting.
+  - Set `e.Handled = true` in `App.UnhandledException` to log and prevent fail-fast termination.
+- `MarkSmith.Desktop/MainWindow.xaml.cs`:
+  - Audited and guarded all document import paths (`OpenOrImportDocumentAsync`, `ImportScannedImageToEditorAsync`, `OnInsertSpreadsheetClick`, `OnSourceDrop`, `OnWindowDrop`, `OnEditorDrop`, `OnBrowseFileClick`, `OnMarkdownFileSelected`) with non-fatal status notifications.
+- `MarkSmith.Desktop/Services/NativeFilePicker.cs`:
+  - Added warning banner if native shell dialog takes over 8 seconds due to cloud folder / shell extension stalls.
+- `MarkSmith.Core/Composer/ImageShapeComposer.cs` & `ViewModels/ShapeStudio/ShapeDesignStudioViewModel.cs`:
+  - Added `ListedShapesCap = 1000` to keep inspector UI snappy while canvas and export render the full set.
+  - Enforced a 12,000 element practical fusion budget with evenly sampled contour lines.
+- `MarkSmith.Core/Services/CloudStorageService.cs`:
+  - Added `_isCustomEnv` check to prevent probing host `G:\My Drive` volume during test runs.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 13 warnings**.
+- Test suite runs:
+  - `CloudStorageServiceTests`: **22 passed, 0 failed**.
+  - Targeted suites (`Ocr`, `Pdf`, `ShapeStudio`, `Composer`, `Msg`): **480 passed, 0 failed**.
+  - Target Groom Service Agreement PDF verified without crash.
+- Live WinUI 3 desktop UIAutomation test:
+  - Launched `Marksmith.exe` (PID matched), located main window automation element (`WinUIDesktopWin32WindowClass`), verified UI responsiveness, and terminated cleanly.
+
+
 

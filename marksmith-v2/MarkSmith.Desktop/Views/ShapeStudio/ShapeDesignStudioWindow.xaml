@@ -238,6 +238,16 @@
                                         <TextBlock x:Name="FuseImageLabel" Text="No image chosen" FontSize="12" TextTrimming="CharacterEllipsis"
                                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                         <Button x:Name="PickImageButton" Content="Choose image…" Click="OnPickImageClick" Padding="10,4" />
+                                        <Grid ColumnSpacing="6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="FuseImagePathBox" PlaceholderText="…or paste an image path here"
+                                                     AutomationProperties.Name="Image file path" />
+                                            <Button Grid.Column="1" Content="Use" Click="OnUseImagePathClick" Padding="10,4"
+                                                    ToolTipService.ToolTip="Use the pasted path (handy when the file dialog hangs on a cloud folder)" />
+                                        </Grid>
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -250,7 +260,17 @@
                                     <TextBlock HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                                                Text="{Binding ElementName=FuseMosaicDensity, Path=Value}" />
                                 </Grid>
-                                <Slider AutomationProperties.Name="Mosaic density" x:Name="FuseMosaicDensity" Minimum="0" Maximum="120" Value="32" SmallChange="1" LargeChange="5" />
+                                <Slider AutomationProperties.Name="Mosaic density" x:Name="FuseMosaicDensity" Minimum="0" Maximum="120" Value="96" SmallChange="1" LargeChange="5" />
+                                <Grid>
+                                    <TextBlock Text="Tile spacing" Style="{StaticResource InspectorLabel}" />
+                                    <TextBlock HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                               Text="{Binding ElementName=FuseMosaicPadding, Path=Value}" />
+                                </Grid>
+                                <Slider AutomationProperties.Name="Tile spacing" x:Name="FuseMosaicPadding" Minimum="-20" Maximum="20" Value="-6" SmallChange="1" LargeChange="5" StepFrequency="1"
+                                        ToolTipService.ToolTip="Padding around each tile (-20..+20). Negative overlaps tiles until no white space remains; positive opens gaps." />
+                                <CheckBox x:Name="CompAdaptive" Content="Smart tiles — pick each shape from the picture" MinWidth="0" IsChecked="True"
+                                          Checked="OnCompAdaptiveChanged" Unchecked="OnCompAdaptiveChanged"
+                                          ToolTipService.ToolTip="Flat areas become discs, edges become directional shapes, busy texture becomes hexagons. Overrides the tile-shape boxes below." />
                                 <TextBlock Text="Tile shapes" Style="{StaticResource InspectorLabel}" />
                                 <Grid ColumnSpacing="4" RowSpacing="0">
                                     <Grid.ColumnDefinitions>
@@ -263,14 +283,14 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <CheckBox x:Name="CompRoundRect" Grid.Row="0" Grid.Column="0" Content="Rounded rect" IsChecked="True" MinWidth="0" />
-                                    <CheckBox x:Name="CompRect" Grid.Row="0" Grid.Column="1" Content="Rectangle" MinWidth="0" />
-                                    <CheckBox x:Name="CompEllipse" Grid.Row="1" Grid.Column="0" Content="Ellipse" IsChecked="True" MinWidth="0" />
-                                    <CheckBox x:Name="CompChevron" Grid.Row="1" Grid.Column="1" Content="Chevron" MinWidth="0" />
-                                    <CheckBox x:Name="CompDiamond" Grid.Row="2" Grid.Column="0" Content="Diamond" MinWidth="0" />
-                                    <CheckBox x:Name="CompHexagon" Grid.Row="2" Grid.Column="1" Content="Hexagon" MinWidth="0" />
-                                    <CheckBox x:Name="CompTriangle" Grid.Row="3" Grid.Column="0" Content="Triangle" MinWidth="0" />
-                                    <CheckBox x:Name="CompCloud" Grid.Row="3" Grid.Column="1" Content="Cloud" MinWidth="0" />
+                                    <CheckBox x:Name="CompRoundRect" Grid.Row="0" Grid.Column="0" Content="Rounded rect" IsChecked="True" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompRect" Grid.Row="0" Grid.Column="1" Content="Rectangle" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompEllipse" Grid.Row="1" Grid.Column="0" Content="Ellipse" IsChecked="True" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompChevron" Grid.Row="1" Grid.Column="1" Content="Chevron" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompDiamond" Grid.Row="2" Grid.Column="0" Content="Diamond" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompHexagon" Grid.Row="2" Grid.Column="1" Content="Hexagon" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompTriangle" Grid.Row="3" Grid.Column="0" Content="Triangle" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompCloud" Grid.Row="3" Grid.Column="1" Content="Cloud" MinWidth="0" IsEnabled="False" />
                                 </Grid>
                             </StackPanel>
 
@@ -282,7 +302,7 @@
                                     <TextBlock HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                                                Text="{Binding ElementName=FuseLineDensity, Path=Value}" />
                                 </Grid>
-                                <Slider AutomationProperties.Name="Line density" x:Name="FuseLineDensity" Minimum="0" Maximum="1200" Value="300" SmallChange="10" LargeChange="50" StepFrequency="10" />
+                                <Slider AutomationProperties.Name="Line density" x:Name="FuseLineDensity" Minimum="0" Maximum="1200" Value="120" SmallChange="10" LargeChange="50" StepFrequency="10" />
                                 <ComboBox x:Name="FuseModePicker" Header="Line style" HorizontalAlignment="Stretch" SelectedIndex="0"
                                           AutomationProperties.Name="Line style">
                                     <ComboBoxItem Content="Cross-hatch — etching" Tag="CrossHatch" />
@@ -709,8 +729,11 @@
                             <TextBlock Text="Shapes on canvas" Style="{StaticResource SectionHeader}" />
                             <TextBlock Text="{Binding LineStats}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
                         </Grid>
-                        <TextBlock Grid.Row="1" Text="{Binding ShapesListHint}" Style="{StaticResource PaneCaption}" FontSize="11.5" />
-                        <ListView Grid.Row="2" x:Name="ShapesList" ItemsSource="{Binding Shapes}" SelectedItem="{Binding SelectedShape, Mode=TwoWay}"
+                        <TextBlock Grid.Row="1" Style="{StaticResource PaneCaption}" FontSize="11.5">
+                            <Run Text="{Binding ShapesListHint}" />
+                            <Run Text="{Binding ShapesListCapNote}" />
+                        </TextBlock>
+                        <ListView Grid.Row="2" x:Name="ShapesList" ItemsSource="{Binding ListedShapes}" SelectedItem="{Binding SelectedShape, Mode=TwoWay}"
                                   Margin="-10,4,-10,0" AutomationProperties.Name="Shapes on canvas">
                             <ListView.ItemTemplate>
                                 <DataTemplate>

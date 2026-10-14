@@ -60,7 +60,8 @@ public class ComposerTests
             var shapes = ImageShapeComposer.Compose(png, new ShapeComposerOptions
             {
                 Grid = 10,
-                Shapes = new() { "ellipse", "chevron", "diamond" }
+                Shapes = new() { "ellipse", "chevron", "diamond" },
+                AdaptiveShapes = false
             });
 
             Assert.Equal(100, shapes.Count);
@@ -210,6 +211,72 @@ public class ComposerTests
             if (File.Exists(png)) File.Delete(png);
             if (File.Exists(docx)) File.Delete(docx);
         }
+    }
+
+    [Fact]
+    public void Compose_NegativePadding_GrowsShapes_PositivePadding_ShrinksThem()
+    {
+        string png = Path.Combine(Path.GetTempPath(), $"composer-{Guid.NewGuid():N}.png");
+        try
+        {
+            MakeTestPng(png);
+            var tight = ImageShapeComposer.Compose(png, new ShapeComposerOptions { Grid = 8, Shapes = new() { "ellipse" }, Padding = -20 });
+            var normal = ImageShapeComposer.Compose(png, new ShapeComposerOptions { Grid = 8, Shapes = new() { "ellipse" }, Padding = 0 });
+            var loose = ImageShapeComposer.Compose(png, new ShapeComposerOptions { Grid = 8, Shapes = new() { "ellipse" }, Padding = 20 });
+
+            Assert.Equal(normal.Count, tight.Count);
+            Assert.Equal(normal.Count, loose.Count);
+            double avgTight = tight.Average(s => s.W * s.H);
+            double avgNormal = normal.Average(s => s.W * s.H);
+            double avgLoose = loose.Average(s => s.W * s.H);
+            Assert.True(avgTight > avgNormal, "negative padding must grow tiles into an overlay");
+            Assert.True(avgLoose < avgNormal, "positive padding must open gaps between tiles");
+        }
+        finally { if (File.Exists(png)) File.Delete(png); }
+    }
+
+    [Fact]
+    public void Compose_PaddingOutOfRange_IsClamped()
+    {
+        string png = Path.Combine(Path.GetTempPath(), $"composer-{Guid.NewGuid():N}.png");
+        try
+        {
+            MakeTestPng(png);
+            var over = ImageShapeComposer.Compose(png, new ShapeComposerOptions { Grid = 8, Shapes = new() { "ellipse" }, Padding = 999 });
+            var atMax = ImageShapeComposer.Compose(png, new ShapeComposerOptions { Grid = 8, Shapes = new() { "ellipse" }, Padding = 20 });
+            Assert.Equal(atMax.Select(s => s.W), over.Select(s => s.W));
+        }
+        finally { if (File.Exists(png)) File.Delete(png); }
+    }
+
+    [Fact]
+    public void Compose_AdaptiveShapes_PicksByContent_Deterministically()
+    {
+        // Left half flat grey (discs), right half checkerboard (texture shapes), hard edge between.
+        string png = Path.Combine(Path.GetTempPath(), $"composer-{Guid.NewGuid():N}.png");
+        try
+        {
+            using (var bmp = new SkiaSharp.SKBitmap(96, 96))
+            {
+                for (int y = 0; y < 96; y++)
+                for (int x = 0; x < 96; x++)
+                {
+                    byte v = x < 48 ? (byte)128 : (byte)(((x / 6 + y / 6) % 2 == 0) ? 30 : 225);
+                    bmp.SetPixel(x, y, new SkiaSharp.SKColor(v, v, v));
+                }
+                using var img = SkiaSharp.SKImage.FromBitmap(bmp);
+                using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90);
+                using var fs = File.Create(png);
+                data.SaveTo(fs);
+            }
+            var a = ImageShapeComposer.Compose(png, new ShapeComposerOptions { Grid = 16, Shapes = new() { "auto" }, AdaptiveShapes = true });
+            var b = ImageShapeComposer.Compose(png, new ShapeComposerOptions { Grid = 16, Shapes = new() { "auto" }, AdaptiveShapes = true });
+            Assert.Equal(a.Count, b.Count);
+            Assert.Equal(a.Select(s => s.Prst), b.Select(s => s.Prst));
+            Assert.True(a.Select(s => s.Prst).Distinct().Count() > 1, "adaptive picker should use several shapes on varied content");
+            Assert.All(a, s => Assert.True(s.W > 0 && s.H > 0));
+        }
+        finally { if (File.Exists(png)) File.Delete(png); }
     }
 
     private static string ResolveRelTarget(string relDir, string target)

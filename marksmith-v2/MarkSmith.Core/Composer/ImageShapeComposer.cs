@@ -12,14 +12,26 @@ namespace MarkSmith.Core.Composer
     public class ShapeComposerOptions
     {
         /// <summary>Cells per row (and column, aspect-corrected).</summary>
-        public int Grid { get; set; } = 24;
+        public int Grid { get; set; } = 96;
 
-        /// <summary>Allowed preset geometries, e.g. { "ellipse", "chevron" }. Must be non-empty.</summary>
-        public List<string> Shapes { get; set; } = new() { "ellipse" };
+        /// <summary>Allowed preset geometries, e.g. { "ellipse", "chevron" }. Must be non-empty.
+        /// { "auto" } lets the content-aware picker choose every tile from the full set.</summary>
+        public List<string> Shapes { get; set; } = new() { "auto" };
 
         public bool Dither { get; set; } = true;
-        public int PaletteColors { get; set; } = 16;
+        public int PaletteColors { get; set; } = 64;
         public double InsetInches { get; set; } = 0.0;
+
+        /// <summary>Tile spacing in percent of a cell, -20..+20. Positive values shrink every
+        /// shape so gaps open between tiles; negative values grow them so neighbours overlap —
+        /// far enough negative and every shape set reaches zero white space. 0 keeps the
+        /// classic 1.36x overlap exactly.</summary>
+        public double Padding { get; set; } = -6.0;
+
+        /// <summary>When true (or when <see cref="Shapes"/> contains "auto"), each cell's shape
+        /// is picked from the picture itself — flat areas get discs, edges get directional
+        /// shapes, busy texture gets hexagons — instead of cycling the list by position.</summary>
+        public bool AdaptiveShapes { get; set; } = true;
     }
 
     /// <summary>One absolutely-positioned native DrawingML shape (wps:wsp / prstGeom).</summary>
@@ -144,7 +156,11 @@ namespace MarkSmith.Core.Composer
                         double cg = Math.Clamp(c.Green + errG[y, x], 0, 255);
                         double cb = Math.Clamp(c.Blue + errB[y, x], 0, 255);
                         var nearest = Nearest(palette, cr, cg, cb);
-                        AddOverlappingShape(result, shapes, x, y, gx, gy, cellW, cellH, inset, nearest);
+                        var (ggx, ggy, gmag) = CellGradient(cells, x, y, gx, gy);
+                        bool isAuto = opt.AdaptiveShapes || shapes.Contains("auto");
+                        string prst = ResolveShape(shapes, x, y, ggx, ggy, gmag, opt.AdaptiveShapes);
+                        int rot = ResolveRotation(prst, x, y, ggx, ggy, opt.AdaptiveShapes, isAuto);
+                        AddOverlappingShape(result, prst, rot, x, y, gx, gy, cellW, cellH, inset, opt.Padding, nearest);
                         double dr = cr - nearest.Red, dg = cg - nearest.Green, db = cb - nearest.Blue;
                         if (x + 1 < gx) { errR[y, x + 1] += dr * 7 / 16.0; errG[y, x + 1] += dg * 7 / 16.0; errB[y, x + 1] += db * 7 / 16.0; }
                         if (y + 1 < gy)
@@ -163,7 +179,11 @@ namespace MarkSmith.Core.Composer
                     for (int x = 0; x < gx; x++)
                     {
                         var c = cells[y, x];
-                        AddOverlappingShape(result, shapes, x, y, gx, gy, cellW, cellH, inset, Nearest(palette, c.Red, c.Green, c.Blue));
+                        var (ggx, ggy, gmag) = CellGradient(cells, x, y, gx, gy);
+                        bool isAuto = opt.AdaptiveShapes || shapes.Contains("auto");
+                        string prst = ResolveShape(shapes, x, y, ggx, ggy, gmag, opt.AdaptiveShapes);
+                        int rot = ResolveRotation(prst, x, y, ggx, ggy, opt.AdaptiveShapes, isAuto);
+                        AddOverlappingShape(result, prst, rot, x, y, gx, gy, cellW, cellH, inset, opt.Padding, Nearest(palette, c.Red, c.Green, c.Blue));
                     }
                 }
             }
@@ -182,38 +202,31 @@ namespace MarkSmith.Core.Composer
             });
         }
 
-        private static void AddOverlappingShape(List<ComposedShape> result, List<string> shapes, int x, int y, int gx, int gy,
-            double cellW, double cellH, double inset, SKColor color)
+        private static void AddOverlappingShape(List<ComposedShape> result, string prst, int rot, int x, int y, int gx, int gy,
+            double cellW, double cellH, double inset, double padding, SKColor color)
         {
             // Interlocking staggered rows: odd rows are shifted by half a cell so shapes nest into gaps
             double xOffset = (y % 2 == 1) ? (cellW * 0.5) : 0.0;
 
-            // Intelligent shape variety: alternate and interleave selected shape types across the grid
-            int shapeIndex = (x * 3 + y * 7 + (x ^ y)) % shapes.Count;
-            string prst = shapes[Math.Abs(shapeIndex) % shapes.Count];
-
-            // 1.35x overlap factor ensures neighboring shapes overlap generously with ZERO white space
+            // Tile spacing: +20 opens gaps between tiles, -20 piles them into a deep overlay.
+            // 0 keeps the classic 1.36x overlap exactly.
+            double pad = Math.Clamp(padding, -20.0, 20.0);
             double overlapFactor = (inset <= 0.0001) ? 1.36 : 1.0;
-            double w = Math.Max(0.001, cellW * overlapFactor - inset);
-            double h = Math.Max(0.001, cellH * overlapFactor - inset);
+            overlapFactor *= 1.0 - pad / 50.0;
+            // Narrow geometries (triangles, chevrons) cover less of their cell box than discs do,
+            // so they get a coverage boost — every shape can reach zero white space.
+            double coverage = prst switch
+            {
+                "triangle" or "rttriangle" => 1.5,
+                "chevron" => 1.55,
+                "diamond" => 1.15,
+                _ => 1.0
+            };
+            double w = Math.Max(0.001, cellW * overlapFactor * coverage - inset);
+            double h = Math.Max(0.001, cellH * overlapFactor * coverage - inset);
 
             double posX = x * cellW + xOffset - (w - cellW) / 2.0;
             double posY = y * cellH - (h - cellH) / 2.0;
-
-            // Tessellation rotations: invert alternating triangles and directionally orient chevrons/diamonds
-            int rot = 0;
-            if (prst == "triangle")
-            {
-                rot = ((x + y) % 2 == 1) ? 180 : 0;
-            }
-            else if (prst == "chevron")
-            {
-                rot = ((x + y) % 4 == 0) ? 90 : ((x + y) % 4 == 2) ? 270 : (y % 2 == 1) ? 180 : 0;
-            }
-            else if (prst == "diamond" && (x + y) % 3 == 0)
-            {
-                rot = 45;
-            }
 
             result.Add(new ComposedShape
             {
@@ -225,6 +238,77 @@ namespace MarkSmith.Core.Composer
                 Rot = rot,
                 Fill = $"{color.Red:X2}{color.Green:X2}{color.Blue:X2}"
             });
+        }
+
+        /// <summary>Shapes the adaptive picker may choose from when the list holds "auto".</summary>
+        private static readonly List<string> AutoShapePool = new()
+            { "ellipse", "diamond", "hexagon", "triangle", "chevron", "trapezoid", "roundrect", "homeplate", "rttriangle", "cylinder" };
+
+        /// <summary>Luminance gradient at a cell (central differences on raw cell averages).</summary>
+        private static (double Gx, double Gy, double Mag) CellGradient(SKColor[,] cells, int x, int y, int gx, int gy)
+        {
+            static double Lum(SKColor c) => 0.299 * c.Red + 0.587 * c.Green + 0.114 * c.Blue;
+            int xm = Math.Max(0, x - 1), xp = Math.Min(gx - 1, x + 1);
+            int ym = Math.Max(0, y - 1), yp = Math.Min(gy - 1, y + 1);
+            double gxV = (Lum(cells[y, xp]) - Lum(cells[y, xm])) / Math.Max(1, xp - xm);
+            double gyV = (Lum(cells[yp, x]) - Lum(cells[ym, x])) / Math.Max(1, yp - ym);
+            return (gxV, gyV, Math.Sqrt(gxV * gxV + gyV * gyV));
+        }
+
+        /// <summary>Picks a cell's shape: legacy positional cycling, or — with AdaptiveShapes or
+        /// "auto" in the list — the shape that fits the picture under the cell (flat areas get
+        /// discs, edges get directional shapes aimed along the edge, busy texture gets hexagons).</summary>
+        private static string ResolveShape(List<string> shapes, int x, int y, double gradX, double gradY, double gradMag, bool adaptive)
+        {
+            bool auto = adaptive || shapes.Contains("auto");
+            if (!auto)
+            {
+                // Legacy positional variety (kept byte-identical): alternate and interleave the
+                // selected shape types across the grid.
+                int shapeIndex = (x * 3 + y * 7 + (x ^ y)) % shapes.Count;
+                return shapes[Math.Abs(shapeIndex) % shapes.Count];
+            }
+            var pool = shapes.Where(s => s != "auto").ToList();
+            if (pool.Count == 0) pool = AutoShapePool;
+            if (pool.Count == 1) return pool[0];
+            bool Has(string s) => pool.Contains(s);
+            if (gradMag < 8) return Has("ellipse") ? "ellipse" : pool[0];
+            if (gradMag > 60) return Has("hexagon") ? "hexagon" : pool[0];
+            double a = Math.Abs(Math.Atan2(gradY, gradX) * 180.0 / Math.PI); // 0..180
+            if (a < 25 || a > 155) return Has("chevron") ? "chevron" : (Has("trapezoid") ? "trapezoid" : pool[0]);
+            if (a > 65 && a < 115) return Has("diamond") ? "diamond" : (Has("homeplate") ? "homeplate" : pool[0]);
+            return Has("triangle") ? "triangle" : pool[0];
+        }
+
+        private static int ResolveRotation(string prst, int x, int y, double gradX, double gradY, bool adaptive, bool auto)
+        {
+            if (adaptive || auto)
+            {
+                if (prst == "triangle")
+                {
+                    double ang = Math.Atan2(gradY, gradX) * 180.0 / Math.PI; // -180..180
+                    if (ang >= -45 && ang < 45) return 0;
+                    if (ang >= 45 && ang < 135) return 90;
+                    if (ang >= -135 && ang < -45) return 270;
+                    return 180;
+                }
+                if (prst == "chevron") return gradX >= 0 ? 0 : 180;
+            }
+            // Legacy tessellation rotations (unchanged): invert alternating triangles and
+            // directionally orient chevrons/diamonds.
+            if (prst == "triangle")
+            {
+                return ((x + y) % 2 == 1) ? 180 : 0;
+            }
+            else if (prst == "chevron")
+            {
+                return ((x + y) % 4 == 0) ? 90 : ((x + y) % 4 == 2) ? 270 : (y % 2 == 1) ? 180 : 0;
+            }
+            else if (prst == "diamond" && (x + y) % 3 == 0)
+            {
+                return 45;
+            }
+            return 0;
         }
 
         /// <summary>

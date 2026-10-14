@@ -52,6 +52,7 @@ public partial class App : Application
                     $"[App.UnhandledException] {DateTime.Now:O}{Environment.NewLine}{e.Exception}{Environment.NewLine}{Environment.NewLine}");
             }
             catch { }
+            e.Handled = true;
         };
     }
 
@@ -128,7 +129,20 @@ public partial class App : Application
 
             if (cliArgs != null && cliArgs.Length > 1 && System.IO.File.Exists(cliArgs[1]))
             {
-                _ = window.OpenOrImportDocumentAsync(System.IO.Path.GetFullPath(cliArgs[1]), collapseLeftPane: false);
+                var targetFile = System.IO.Path.GetFullPath(cliArgs[1]);
+                window.DispatcherQueue.TryEnqueue(async () =>
+                {
+                    try
+                    {
+                        await window.OpenOrImportDocumentAsync(targetFile, collapseLeftPane: false);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[CLI Launch] Error opening {targetFile}: {ex}");
+                        ViewModel.StatusText = $"Couldn't open {System.IO.Path.GetFileName(targetFile)}: {ex.Message}";
+                        ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+                    }
+                });
             }
         }
         catch (Exception ex)

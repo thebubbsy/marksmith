@@ -128,16 +128,39 @@ namespace MarkSmith.Cli
                 {
                     string inputImage = args[1];
                     string outputFile = args[2];
-                    int grid = 32;
+                    int grid = 96;
                     bool compact = args.Contains("--compact");
+                    double padding = -6;
+                    bool adaptive = !args.Contains("--no-adaptive");
+                    int palette = 64;
+                    bool dither = !args.Contains("--no-dither");
+                    var cliShapes = new List<string>();
+                    bool shapesGiven = false;
                     for (int i = 3; i < args.Length; i++)
                     {
                         if (args[i] == "--grid" && i + 1 < args.Length && int.TryParse(args[i + 1], out int g))
                             grid = g;
+                        else if (args[i] == "--padding" && i + 1 < args.Length && double.TryParse(args[i + 1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double p))
+                            padding = Math.Clamp(p, -20, 20);
+                        else if (args[i] == "--shapes" && i + 1 < args.Length)
+                        {
+                            cliShapes.AddRange(args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                            shapesGiven = true;
+                        }
+                        else if (args[i] == "--palette" && i + 1 < args.Length && int.TryParse(args[i + 1], out int pc))
+                            palette = Math.Max(2, pc);
                     }
 
-                    Console.WriteLine($"Composing '{inputImage}' into vector shapes (grid={grid})...");
-                    var shapes = ImageShapeComposer.Compose(inputImage, new ShapeComposerOptions { Grid = grid });
+                    Console.WriteLine($"Composing '{inputImage}' into vector shapes (grid={grid}, padding={padding}, adaptive={adaptive})...");
+                    var shapes = ImageShapeComposer.Compose(inputImage, new ShapeComposerOptions
+                    {
+                        Grid = grid,
+                        Shapes = shapesGiven && cliShapes.Count > 0 ? cliShapes : new List<string> { "auto" },
+                        Padding = padding,
+                        AdaptiveShapes = adaptive,
+                        PaletteColors = palette,
+                        Dither = dither
+                    });
                     string md = ShapeMarkdownCodec.Serialize(shapes, compact: compact);
 
                     string outExt = Path.GetExtension(outputFile).ToLowerInvariant();
@@ -574,7 +597,7 @@ namespace MarkSmith.Cli
             Console.WriteLine("  marksmith mcp setup [--write-claude]");
             Console.WriteLine("  marksmith render-image <input.md> <output.png> [--width <w>] [--height <h>] [--scale <s>] [--theme <theme>]");
             Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html|epub|pptx|md>] [--stream] [--concurrency <n>] [-r|--recursive] [-f|--continue-on-error]");
-            Console.WriteLine("  marksmith compose <image.png> <output.md|output.docx> [--grid <n>] [--compact]");
+            Console.WriteLine("  marksmith compose <image.png> <output.md|output.docx> [--grid <n>] [--padding <-20..20>] [--shapes <a,b>] [--palette <n>] [--no-adaptive] [--no-dither] [--compact]");
             Console.WriteLine("  marksmith trace <image.png> <output.md|output.docx> [--rows <n>] [--mode <mode>] [--compact]");
             Console.WriteLine();
             Console.WriteLine("Flags:");

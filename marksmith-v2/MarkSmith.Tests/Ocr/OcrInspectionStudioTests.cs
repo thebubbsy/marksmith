@@ -235,4 +235,37 @@ public class OcrInspectionStudioTests
         Assert.Contains("Revenue 50M Profit 12M", fullDoc);
         Assert.Contains("---", fullDoc); // Page break divider
     }
+
+    [Fact]
+    public void Empty_Or_Uninitialized_InspectionSession_Does_Not_Throw_And_Handles_Telemetry_Safely()
+    {
+        var session = new OcrInspectionSession();
+
+        // 1. Initial / empty state sanity
+        Assert.Empty(session.Pages);
+        Assert.Null(session.CurrentPage);
+        Assert.Equal(0, session.CurrentPageIndex);
+        Assert.False(session.CanPreviousPage);
+        Assert.False(session.CanNextPage);
+        Assert.Equal(0, session.TotalElements);
+        Assert.Equal(0, session.TotalWords);
+        Assert.Equal(0, session.TotalVisuals);
+        Assert.Equal(0, session.TotalReclassifications);
+        Assert.Equal(string.Empty, session.GetDocumentMarkdown());
+
+        // 2. Navigation operations on empty session must be no-ops without throwing
+        session.PreviousPage();
+        Assert.Equal(0, session.CurrentPageIndex);
+        session.NextPage();
+        Assert.Equal(0, session.CurrentPageIndex);
+        session.GoToPage(10);
+        Assert.Equal(0, session.CurrentPageIndex);
+        session.GoToPage(-5);
+        Assert.Equal(0, session.CurrentPageIndex);
+
+        // 3. Reclassification attempts on empty session safely return false
+        bool reclassified = session.ReclassifyElement(1, 1, OcrBlockKind.Table);
+        Assert.False(reclassified);
+        Assert.Equal(0, session.TotalReclassifications);
+    }
 }

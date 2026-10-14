@@ -270,7 +270,7 @@
 
                         <!-- Toggle between Current Page and Full Document view -->
                         <ComboBox x:Name="MarkdownScopeComboBox" Grid.Column="1"
-                                  SelectionChanged="OnMarkdownScopeChanged" SelectedIndex="0"
+                                  SelectionChanged="OnMarkdownScopeChanged"
                                   Padding="10,4" FontSize="11.5">
                             <ComboBoxItem Content="Current Page Markdown" />
                             <ComboBoxItem Content="Full Document Markdown" />
