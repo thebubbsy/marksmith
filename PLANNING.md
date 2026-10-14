@@ -6602,8 +6602,9 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
   - `CloudStorageServiceTests`: **22 passed, 0 failed**.
   - Targeted suites (`Ocr`, `Pdf`, `ShapeStudio`, `Composer`, `Msg`): **480 passed, 0 failed**.
   - Target Groom Service Agreement PDF verified without crash.
-- Live WinUI 3 desktop UIAutomation test:
-  - Launched `Marksmith.exe` (PID matched), located main window automation element (`WinUIDesktopWin32WindowClass`), verified UI responsiveness, and terminated cleanly.
+- Release v3.32.0 cut and tagged:
+  - Pushed git tag `v3.32.0` to trigger `.github/workflows/release.yml`.
+  - Bumped `MarksmithBaseVersion` in `Directory.Build.props` to `3.33.0` per release checklist.
 
 
 
