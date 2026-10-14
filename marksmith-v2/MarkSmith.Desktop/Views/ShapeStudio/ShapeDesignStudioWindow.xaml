@@ -268,7 +268,7 @@
                                 </Grid>
                                 <Slider AutomationProperties.Name="Tile spacing" x:Name="FuseMosaicPadding" Minimum="-20" Maximum="20" Value="-6" SmallChange="1" LargeChange="5" StepFrequency="1"
                                         ToolTipService.ToolTip="Padding around each tile (-20..+20). Negative overlaps tiles until no white space remains; positive opens gaps." />
-                                <CheckBox x:Name="CompAdaptive" Content="Smart tiles — pick each shape from the picture" MinWidth="0" IsChecked="True"
+                                <CheckBox x:Name="CompAdaptive" Content="Smart tiles — pick each shape from the picture" MinWidth="0"
                                           Checked="OnCompAdaptiveChanged" Unchecked="OnCompAdaptiveChanged"
                                           ToolTipService.ToolTip="Flat areas become discs, edges become directional shapes, busy texture becomes hexagons. Overrides the tile-shape boxes below." />
                                 <TextBlock Text="Tile shapes" Style="{StaticResource InspectorLabel}" />

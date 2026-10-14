@@ -99,6 +99,10 @@ namespace MarkSmith.Views.ShapeStudio
                 foreach (var (s, p) in _shapePaths)
                     ApplyShapeVisual(p, s, ReferenceEquals(s, _hoverShape));
             };
+            if (CompAdaptive is not null)
+            {
+                CompAdaptive.IsChecked = true;
+            }
         }
 
         // Sized in DIPs (AppWindow sizes are physical pixels, so the default opened cramped on a
@@ -1720,12 +1724,12 @@ namespace MarkSmith.Views.ShapeStudio
         // tile-shape boxes only apply while it is off — grey them out to say so.
         private void OnCompAdaptiveChanged(object sender, RoutedEventArgs e)
         {
-            // Checked fires during XAML load (IsChecked="True"), before the boxes below
-            // exist — the XAML already declares their initial disabled state, so skip then.
+            var cb = (sender as CheckBox) ?? CompAdaptive;
+            if (cb is null) return;
             if (CompRoundRect is null || CompRect is null || CompEllipse is null || CompChevron is null
                 || CompDiamond is null || CompHexagon is null || CompTriangle is null || CompCloud is null)
                 return;
-            bool manual = CompAdaptive.IsChecked != true;
+            bool manual = cb.IsChecked != true;
             CompRoundRect.IsEnabled = manual;
             CompRect.IsEnabled = manual;
             CompEllipse.IsEnabled = manual;

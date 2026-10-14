@@ -43,82 +43,98 @@ public static class PdfMarkdownImporter
     {
         options ??= new PdfImportOptions();
         var bytes = ReadAll(pdf);
-        using var doc = PdfDocument.Open(bytes);
+        if (bytes.Length == 0)
+        {
+            return new PdfImportReport(string.Empty, 0, 0, null, 0, new[] { "The PDF file is empty (0 bytes)." });
+        }
+
+        PdfDocument doc;
+        try
+        {
+            doc = PdfDocument.Open(bytes);
+        }
+        catch (Exception ex)
+        {
+            return new PdfImportReport(string.Empty, 0, 0, null, 0, new[] { $"Unable to parse PDF document: {ex.Message}" });
+        }
+
         var notes = new List<string>();
         var pages = new List<PageContent>();
         int pictures = 0;
-
-        for (int n = 1; n <= doc.NumberOfPages; n++)
-        {
-            try
-            {
-                var page = doc.GetPage(n);
-                options.Progress?.Report($"Reading page {n} of {doc.NumberOfPages}…");
-                var content = new PageContent { Number = n, Height = page.Height, Width = page.Width };
-                var letters = page.Letters;
-                int usable = letters.Count(l => IsReal(l.Value));
-                if (letters.Count > 0 && usable >= Math.Max(3, letters.Count * 0.7))
-                {
-                    ReadTextPage(page, content);
-                }
-                else if (letters.Count > 0 || page.GetImages().Any() || page.Paths.Count() > 200)
-                {
-                    // Text with no character map, a scan, or text drawn as outlines: read it by OCR.
-                    content.NeedsOcr = true;
-                }
-                // Otherwise the page is blank or holds only a few vector shapes: nothing to read.
-                if (!content.NeedsOcr && options.MediaDirectory is not null)
-                    pictures += SavePictures(page, content, options, pictures);
-                pages.Add(content);
-            }
-            catch (Exception ex)
-            {
-                notes.Add($"Page {n} structure reading encountered an issue: {ex.Message}");
-                pages.Add(new PageContent { Number = n, Height = 792, Width = 612, NeedsOcr = true });
-            }
-        }
-
-        RemoveRunningHeadersAndFooters(pages);
-        PrepareDigitalPages(pages);
-
-        // Process every active page in reading order (1 .. N) so the reading animation shows
-        // Page 1 of N, Page 2 of N, ..., Page N of N across digital, scanned, and hybrid PDFs.
-        var activePages = pages.Where(p => p.NeedsOcr || p.ComposedBlocks.Count > 0).ToList();
-        var activeObserver = options.OcrObserver ?? OcrTrace.DefaultObserver;
         int ocrPages = 0;
         string? engineName = null;
-        IOcrProvider? engine = null;
 
-        for (int idx = 0; idx < activePages.Count; idx++)
+        using (doc)
         {
-            var p = activePages[idx];
-            if (!p.NeedsOcr)
+            for (int n = 1; n <= doc.NumberOfPages; n++)
             {
-                if (activeObserver is not null)
+                try
                 {
-                    try
+                    var page = doc.GetPage(n);
+                    options.Progress?.Report($"Reading page {n} of {doc.NumberOfPages}…");
+                    var content = new PageContent { Number = n, Height = page.Height, Width = page.Width };
+                    var letters = page.Letters;
+                    int usable = letters.Count(l => IsReal(l.Value));
+                    if (letters.Count > 0 && usable >= Math.Max(3, letters.Count * 0.7))
                     {
-                        using var rendered = SafeRenderPage(options.RenderPage, p.Number);
-                        var (preview, trace) = OcrTrace.RenderDigitalPagePreview(
-                            p.Number,
-                            idx,
-                            activePages.Count,
-                            "MarkSmith PDF Reader",
-                            p.TracedBlocks,
-                            p.TracedWords,
-                            rendered,
-                            TimeSpan.FromMilliseconds(35));
-                        OcrTrace.NotifyStarted(options.OcrObserver, preview);
-                        OcrTrace.NotifyRead(options.OcrObserver, trace);
+                        ReadTextPage(page, content);
                     }
-                    catch (Exception ex)
+                    else if (letters.Count > 0 || page.GetImages().Any() || page.Paths.Count() > 200)
                     {
-                        notes.Add($"Page {p.Number} digital preview failed: {ex.Message}");
-                        OcrTrace.NotifyFailed(options.OcrObserver, p.Number, ex.Message);
+                        // Text with no character map, a scan, or text drawn as outlines: read it by OCR.
+                        content.NeedsOcr = true;
                     }
+                    // Otherwise the page is blank or holds only a few vector shapes: nothing to read.
+                    if (!content.NeedsOcr && options.MediaDirectory is not null)
+                        pictures += SavePictures(page, content, options, pictures);
+                    pages.Add(content);
                 }
-                continue;
+                catch (Exception ex)
+                {
+                    notes.Add($"Page {n} structure reading encountered an issue: {ex.Message}");
+                    pages.Add(new PageContent { Number = n, Height = 792, Width = 612, NeedsOcr = true });
+                }
             }
+
+            RemoveRunningHeadersAndFooters(pages);
+            PrepareDigitalPages(pages);
+
+            // Process every active page in reading order (1 .. N) so the reading animation shows
+            // Page 1 of N, Page 2 of N, ..., Page N of N across digital, scanned, and hybrid PDFs.
+            var activePages = pages.Where(p => p.NeedsOcr || p.ComposedBlocks.Count > 0).ToList();
+            var activeObserver = options.OcrObserver ?? OcrTrace.DefaultObserver;
+            IOcrProvider? engine = null;
+
+            for (int idx = 0; idx < activePages.Count; idx++)
+            {
+                var p = activePages[idx];
+                if (!p.NeedsOcr)
+                {
+                    if (activeObserver is not null)
+                    {
+                        try
+                        {
+                            using var rendered = SafeRenderPage(options.RenderPage, p.Number);
+                            var (preview, trace) = OcrTrace.RenderDigitalPagePreview(
+                                p.Number,
+                                idx,
+                                activePages.Count,
+                                "MarkSmith PDF Reader",
+                                p.TracedBlocks,
+                                p.TracedWords,
+                                rendered,
+                                TimeSpan.FromMilliseconds(35));
+                            OcrTrace.NotifyStarted(activeObserver, preview);
+                            OcrTrace.NotifyRead(activeObserver, trace);
+                        }
+                        catch (Exception ex)
+                        {
+                            notes.Add($"Page {p.Number} digital preview failed: {ex.Message}");
+                            OcrTrace.NotifyFailed(activeObserver, p.Number, ex.Message);
+                        }
+                    }
+                    continue;
+                }
 
             if (engine is null)
             {
@@ -151,7 +167,7 @@ public static class PdfMarkdownImporter
                 var clock = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
-                    OcrTrace.NotifyStarted(options.OcrObserver, straight, p.Number, idx, activePages.Count, engine.EngineName);
+                    OcrTrace.NotifyStarted(activeObserver, straight, p.Number, idx, activePages.Count, engine.EngineName);
                     notifiedStart = true;
                     var recognized = engine.RecognizeAsync(straight).GetAwaiter().GetResult();
                     if (recognized.Lines.Count == 0 && !preferRendered && options.RenderPage is not null)
@@ -188,7 +204,7 @@ public static class PdfMarkdownImporter
                     IReadOnlyList<OcrMarkdownBlock> tracedBlocks = extracted.Blocks.Count > 0
                         ? extracted.Blocks
                         : new[] { new OcrMarkdownBlock(OcrBlockKind.Picture, $"![Page {p.Number} Visual Graphic](page-{p.Number})", new OcrNormRect(0.08f, 0.12f, 0.84f, 0.76f)) };
-                    OcrTrace.NotifyRead(options.OcrObserver, p.Number, recognized, clock.Elapsed, tracedBlocks);
+                    OcrTrace.NotifyRead(activeObserver, p.Number, recognized, clock.Elapsed, tracedBlocks);
                     notifiedRead = true;
                     p.OcrMarkdown = extracted.Markdown;
                 }
@@ -197,7 +213,7 @@ public static class PdfMarkdownImporter
                     if (notifiedStart && !notifiedRead)
                     {
                         var emptyPage = new OcrPageResult(Array.Empty<OcrLine>(), straight.Width, straight.Height);
-                        OcrTrace.NotifyRead(options.OcrObserver, p.Number, emptyPage, clock.Elapsed, Array.Empty<OcrMarkdownBlock>());
+                        OcrTrace.NotifyRead(activeObserver, p.Number, emptyPage, clock.Elapsed, Array.Empty<OcrMarkdownBlock>());
                     }
                     if (!ReferenceEquals(straight, scan)) straight.Dispose();
                 }
@@ -207,9 +223,10 @@ public static class PdfMarkdownImporter
             {
                 // One bad page (an engine error, a broken image) costs that page, not the import.
                 notes.Add($"Page {p.Number} couldn't be read: {ex.Message}");
-                OcrTrace.NotifyFailed(options.OcrObserver, p.Number, ex.Message);
+                OcrTrace.NotifyFailed(activeObserver, p.Number, ex.Message);
             }
             finally { scan?.Dispose(); }
+        }
         }
 
         var markdown = Compose(pages);

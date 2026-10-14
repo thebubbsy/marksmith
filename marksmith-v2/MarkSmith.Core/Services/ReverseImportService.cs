@@ -74,8 +74,15 @@ public sealed class ReverseImportService : IReverseImportService
     /// <summary>Converts a DOCX file to Markdown with customizable reverse-import options.</summary>
     public string ConvertDocxToMarkdown(string docxPath, ReverseImportOptions? options = null)
     {
-        using var stream = File.OpenRead(docxPath);
-        return ConvertDocxToMarkdown(stream, options);
+        try
+        {
+            using var stream = new FileStream(docxPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return ConvertDocxToMarkdown(stream, options);
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     /// <summary>Converts a DOCX stream to Markdown with customizable reverse-import options.</summary>
@@ -86,9 +93,17 @@ public sealed class ReverseImportService : IReverseImportService
     public Task<ReverseImportResult> ImportFromDocxAsync(string docxPath, string? mediaDir = null, ReverseImportOptions? options = null) =>
         Task.Run(() =>
         {
-            mediaDir ??= DefaultMediaDir(docxPath);
-            using var stream = File.OpenRead(docxPath);
-            return ImportCore(stream, mediaDir, docxPath, options);
+            try
+            {
+                mediaDir ??= DefaultMediaDir(docxPath);
+                using var stream = new FileStream(docxPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                return ImportCore(stream, mediaDir, docxPath, options);
+            }
+            catch (Exception ex)
+            {
+                return new ReverseImportResult("", ImportTier.None, false,
+                    $"Unable to read Word document ({Path.GetFileName(docxPath)}): {ex.Message}", Array.Empty<string>());
+            }
         });
 
     /// <summary>Stream overload. Pandoc fallback is unavailable without a path; Tier 1 -> Tier 2.</summary>
@@ -98,8 +113,15 @@ public sealed class ReverseImportService : IReverseImportService
     /// <summary>Back-compat sync entry (used by DocxRoundTripTests): Tier 1 -> Tier 2, markdown only.</summary>
     public string ImportFromDocx(string docxPath)
     {
-        using var stream = File.OpenRead(docxPath);
-        return ImportFromDocx(stream);
+        try
+        {
+            using var stream = new FileStream(docxPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return ImportFromDocx(stream);
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     /// <summary>Back-compat sync entry: Tier 1 -> Tier 2 (no Pandoc, no media write), markdown only.</summary>
@@ -119,15 +141,26 @@ public sealed class ReverseImportService : IReverseImportService
 
     public ReverseImportResult ImportFromPdf(string pdfPath, Import.PdfImportOptions? options = null)
     {
-        var mediaDir = Plugins.PluginFileReader.MediaDirFor(pdfPath);
-        options ??= new Import.PdfImportOptions
+        try
         {
-            MediaDirectory = mediaDir,
-            MediaLink = Plugins.PluginFileReader.MediaLinkFor(pdfPath, mediaDir),
-            RenderPage = PdfPageRenderer is null ? null : n => PdfPageRenderer(pdfPath, n),
-        };
-        using var stream = new MemoryStream(File.ReadAllBytes(pdfPath), writable: false);
-        return ImportFromPdf(stream, options);
+            var mediaDir = Plugins.PluginFileReader.MediaDirFor(pdfPath);
+            options ??= new Import.PdfImportOptions
+            {
+                MediaDirectory = mediaDir,
+                MediaLink = Plugins.PluginFileReader.MediaLinkFor(pdfPath, mediaDir),
+                RenderPage = PdfPageRenderer is null ? null : n => PdfPageRenderer(pdfPath, n),
+            };
+            using var fileStream = new FileStream(pdfPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var stream = new MemoryStream();
+            fileStream.CopyTo(stream);
+            stream.Position = 0;
+            return ImportFromPdf(stream, options);
+        }
+        catch (Exception ex)
+        {
+            return new ReverseImportResult("", ImportTier.None, false,
+                $"Unable to read PDF ({Path.GetFileName(pdfPath)}): {ex.Message}", Array.Empty<string>());
+        }
     }
 
     /// <summary>Set by the desktop app: draws page N (1-based) of a PDF file with Windows' own PDF
@@ -157,8 +190,18 @@ public sealed class ReverseImportService : IReverseImportService
         }
         catch (Exception) { /* PDFsharp can't open every PDF; PdfPig reads it below. */ }
 
-        bytes.Position = 0;
-        var report = Import.PdfMarkdownImporter.Import(bytes, options);
+        Import.PdfImportReport report;
+        try
+        {
+            bytes.Position = 0;
+            report = Import.PdfMarkdownImporter.Import(bytes, options);
+        }
+        catch (Exception ex)
+        {
+            return new ReverseImportResult("", ImportTier.None, false,
+                $"Unable to import PDF: {ex.Message}", Array.Empty<string>());
+        }
+
         var notes = report.Notes.ToList();
         if (report.OcrPages > 0)
             notes.Insert(0, $"{report.OcrPages} scanned page{(report.OcrPages == 1 ? "" : "s")} read with {report.OcrEngine}");
@@ -177,30 +220,52 @@ public sealed class ReverseImportService : IReverseImportService
     private ReverseImportResult ImportCore(Stream stream, string? mediaDir, string? pandocPath, ReverseImportOptions? options = null)
     {
         options ??= new ReverseImportOptions();
-        using var doc = WordprocessingDocument.Open(stream, false);
-
-        // Tier 1: embedded source (lossless).
-        var embedded = MarksmithSourceStore.Read(doc);
-        if (embedded is not null)
-        {
-            return new ReverseImportResult(
-                embedded.Markdown,
-                ImportTier.EmbeddedSource,
-                embedded.IsStale,
-                embedded.IsStale ? StaleWarning : null,
-                Array.Empty<string>());
-        }
-
-        // Tier 2: native Universal Engine.
+        WordprocessingDocument doc;
         try
         {
-            var (md, media) = RunUniversalEngine(doc, mediaDir, options);
-            if (!string.IsNullOrWhiteSpace(md))
-                return new ReverseImportResult(md, ImportTier.UniversalEngine, false, null, media);
+            doc = WordprocessingDocument.Open(stream, false);
         }
-        catch
+        catch (Exception ex)
         {
-            // fall through to Pandoc
+            // If native OpenXml fails to open, try Pandoc fallback if available
+            if (pandocPath is not null)
+            {
+                try
+                {
+                    var md = AppServices.Plugins.FindImporter("docx")?.ImportToMarkdown(pandocPath);
+                    if (!string.IsNullOrWhiteSpace(md))
+                        return new ReverseImportResult(md!, ImportTier.Pandoc, false, null, Array.Empty<string>());
+                }
+                catch { }
+            }
+            return new ReverseImportResult("", ImportTier.None, false, $"Unable to parse Word document: {ex.Message}", Array.Empty<string>());
+        }
+
+        using (doc)
+        {
+            // Tier 1: embedded source (lossless).
+            var embedded = MarksmithSourceStore.Read(doc);
+            if (embedded is not null)
+            {
+                return new ReverseImportResult(
+                    embedded.Markdown,
+                    ImportTier.EmbeddedSource,
+                    embedded.IsStale,
+                    embedded.IsStale ? StaleWarning : null,
+                    Array.Empty<string>());
+            }
+
+            // Tier 2: native Universal Engine.
+            try
+            {
+                var (md, media) = RunUniversalEngine(doc, mediaDir, options);
+                if (!string.IsNullOrWhiteSpace(md))
+                    return new ReverseImportResult(md, ImportTier.UniversalEngine, false, null, media);
+            }
+            catch
+            {
+                // fall through to Pandoc
+            }
         }
 
         // Tier 3: Pandoc importer plugin (path-based only).

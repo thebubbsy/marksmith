@@ -268,4 +268,96 @@ public class OcrInspectionStudioTests
         Assert.False(reclassified);
         Assert.Equal(0, session.TotalReclassifications);
     }
+
+    [Fact]
+    public async Task Empty_And_Corrupted_Documents_Handled_Safely_Without_Throwing()
+    {
+        // 1. 0-byte PDF stream
+        using var emptyPdfStream = new System.IO.MemoryStream(Array.Empty<byte>());
+        var pdfReport = MarkSmith.Services.Import.PdfMarkdownImporter.Import(emptyPdfStream);
+        Assert.NotNull(pdfReport);
+        Assert.Equal(string.Empty, pdfReport.Markdown);
+        Assert.NotEmpty(pdfReport.Notes);
+        Assert.Contains("empty", pdfReport.Notes[0], StringComparison.OrdinalIgnoreCase);
+
+        // 2. Corrupt PDF bytes
+        using var corruptPdfStream = new System.IO.MemoryStream(new byte[] { 0x01, 0x02, 0x03, 0x04 });
+        var corruptPdfReport = MarkSmith.Services.Import.PdfMarkdownImporter.Import(corruptPdfStream);
+        Assert.NotNull(corruptPdfReport);
+        Assert.Equal(string.Empty, corruptPdfReport.Markdown);
+        Assert.NotEmpty(corruptPdfReport.Notes);
+
+        // 3. Corrupt Word document stream
+        var reverseService = new MarkSmith.Services.ReverseImportService();
+        using var corruptDocxStream = new System.IO.MemoryStream(new byte[] { 0x50, 0x4B, 0x03, 0x04, 0x00 });
+        var docxResult = await reverseService.ImportFromDocxAsync(corruptDocxStream);
+        Assert.NotNull(docxResult);
+        Assert.Equal(MarkSmith.Services.ImportTier.None, docxResult.Tier);
+        Assert.NotNull(docxResult.Warning);
+
+        // 4. Corrupt Outlook MSG file
+        var tempMsgPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"marksmith_test_{Guid.NewGuid():N}.msg");
+        try
+        {
+            await System.IO.File.WriteAllBytesAsync(tempMsgPath, new byte[] { 0xD0, 0xCF, 0x11, 0xE0 });
+            var msgResult = MarkSmith.Services.Email.MsgImporter.Import(tempMsgPath);
+            Assert.NotNull(msgResult);
+            Assert.Contains("Unable to read Outlook message", msgResult.Markdown);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempMsgPath)) System.IO.File.Delete(tempMsgPath);
+        }
+    }
+
+    [Fact]
+    public async Task Missing_Or_Inaccessible_Files_Return_Safe_Warning_Without_Throwing()
+    {
+        var reverseService = new MarkSmith.Services.ReverseImportService();
+        var nonExistentPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"missing_file_{Guid.NewGuid():N}.pdf");
+
+        // 1. Missing PDF
+        var pdfResult = reverseService.ImportFromPdf(nonExistentPath);
+        Assert.NotNull(pdfResult);
+        Assert.Equal(MarkSmith.Services.ImportTier.None, pdfResult.Tier);
+        Assert.NotNull(pdfResult.Warning);
+
+        // 2. Missing DOCX async
+        var nonExistentDocx = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"missing_file_{Guid.NewGuid():N}.docx");
+        var docxResult = await reverseService.ImportFromDocxAsync(nonExistentDocx);
+        Assert.NotNull(docxResult);
+        Assert.Equal(MarkSmith.Services.ImportTier.None, docxResult.Tier);
+        Assert.NotNull(docxResult.Warning);
+
+        // 3. Missing DOCX sync helpers
+        var md1 = reverseService.ConvertDocxToMarkdown(nonExistentDocx);
+        Assert.Equal(string.Empty, md1);
+
+        var md2 = reverseService.ImportFromDocx(nonExistentDocx);
+        Assert.Equal(string.Empty, md2);
+    }
+
+    [Fact]
+    public void Locked_FileShare_ReadWrite_Documents_Can_Be_Imported_While_Held_Open()
+    {
+        var reverseService = new MarkSmith.Services.ReverseImportService();
+        var tempDocx = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"locked_test_{Guid.NewGuid():N}.docx");
+        try
+        {
+            // Simulate Word or Excel having a file open with FileShare.ReadWrite
+            System.IO.File.WriteAllBytes(tempDocx, new byte[] { 0x50, 0x4B, 0x03, 0x04 });
+            using var lockedStream = new System.IO.FileStream(tempDocx, System.IO.FileMode.Open, System.IO.FileAccess.ReadWrite, System.IO.FileShare.ReadWrite);
+
+            // Our importer should still be able to open and inspect with FileShare.ReadWrite without throwing IOException
+            var result = reverseService.ImportFromDocx(tempDocx);
+            Assert.NotNull(result);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempDocx))
+            {
+                try { System.IO.File.Delete(tempDocx); } catch { }
+            }
+        }
+    }
 }

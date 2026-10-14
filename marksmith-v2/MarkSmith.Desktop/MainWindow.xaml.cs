@@ -2488,59 +2488,112 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 Plugins.PluginFileReader.InvalidateCache();
             }
 
-            _suppressInputFileTextBoxChanged = true;
-            try
+            if (!isConvertedDoc)
             {
-                if (string.Equals(ViewModel.InputFilePath, path, StringComparison.OrdinalIgnoreCase))
-                {
-                    ViewModel.InputFilePath = string.Empty;
-                }
-                ViewModel.InputFilePath = path;
-            }
-            finally
-            {
-                _suppressInputFileTextBoxChanged = false;
-            }
-            if (collapseLeftPane) AutoCollapseLeftPane();
-            ViewModel.UsePasteSource = false;
-
-            await ViewModel.LastFileReadTask;
-            if (isConvertedDoc && !string.IsNullOrWhiteSpace(ViewModel.CurrentMarkdown))
-            {
-                var label = $"MarkSmith {ViewModel.SourceImportKind ?? "Document"} Importer";
-                Views.Ocr.OcrInspectionStudioWindow? studio = null;
+                _suppressInputFileTextBoxChanged = true;
                 try
                 {
-                    studio = new Views.Ocr.OcrInspectionStudioWindow();
-                    studio.Activate();
-                    await studio.PlayImportExperience(ViewModel.CurrentMarkdown, label);
-                    var decision = await studio.WaitForDecisionAsync();
-                    if (decision.Imported)
+                    if (string.Equals(ViewModel.InputFilePath, path, StringComparison.OrdinalIgnoreCase))
                     {
-                        ViewModel.DetachFromOpenFile();
-                        ViewModel.PastedMarkdown = decision.Markdown;
-                        ViewModel.UsePasteSource = true;
-                        SyncEditorFromDocument();
+                        ViewModel.InputFilePath = string.Empty;
+                    }
+                    ViewModel.InputFilePath = path;
+                }
+                finally
+                {
+                    _suppressInputFileTextBoxChanged = false;
+                }
+                if (collapseLeftPane) AutoCollapseLeftPane();
+                ViewModel.UsePasteSource = false;
+
+                await ViewModel.LastFileReadTask;
+                SyncEditorFromDocument();
+                return;
+            }
+
+            // Converted document (PDF, Word, HTML, Email, etc.) -> dedicated OCR Inspection Studio
+            if (collapseLeftPane) AutoCollapseLeftPane();
+            var ext = Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
+            Views.Ocr.OcrInspectionStudioWindow? studio = null;
+            try
+            {
+                studio = new Views.Ocr.OcrInspectionStudioWindow();
+                studio.Activate();
+
+                string importedKind;
+                string? warning = null;
+                if (ext == "pdf")
+                {
+                    importedKind = "PDF";
+                    var mediaDir = Plugins.PluginFileReader.MediaDirFor(path);
+                    var pdfOptions = new Services.Import.PdfImportOptions
+                    {
+                        MediaDirectory = mediaDir,
+                        MediaLink = Plugins.PluginFileReader.MediaLinkFor(path, mediaDir),
+                        RenderPage = Services.ReverseImportService.PdfPageRenderer is null ? null : n => Services.ReverseImportService.PdfPageRenderer(path, n),
+                        OcrObserver = studio,
+                    };
+                    var result = await new Services.ReverseImportService().ImportFromPdfAsync(path, pdfOptions);
+                    warning = result.Warning;
+                    if (studio.Session.Pages.Count == 0)
+                    {
+                        if (!string.IsNullOrWhiteSpace(result.Markdown))
+                        {
+                            await studio.PlayImportExperience(result.Markdown, "MarkSmith PDF Importer");
+                        }
+                        else
+                        {
+                            try { studio.Close(); } catch { }
+                            ViewModel.StatusText = warning ?? $"No readable content could be extracted from {Path.GetFileName(path)}.";
+                            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                            return;
+                        }
                     }
                     else
                     {
-                        ViewModel.InputFilePath = string.Empty;
-                        ViewModel.StatusText = "Import cancelled.";
-                        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+                        studio.CompleteScanning();
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    try { studio?.Close(); } catch { }
-                    System.Diagnostics.Debug.WriteLine($"[OpenOrImportDocumentAsync] OCR studio error: {ex}");
+                    var doc = await Plugins.PluginFileReader.ImportAsync(path);
+                    importedKind = doc.Kind ?? "Document";
+                    warning = doc.Summary;
+                    if (string.IsNullOrWhiteSpace(doc.Markdown))
+                    {
+                        try { studio.Close(); } catch { }
+                        ViewModel.StatusText = warning ?? $"No content could be extracted from {Path.GetFileName(path)}.";
+                        ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                        return;
+                    }
+                    var label = $"MarkSmith {importedKind} Importer";
+                    await studio.PlayImportExperience(doc.Markdown, label);
+                }
+
+                var decision = await studio.WaitForDecisionAsync();
+                if (decision.Imported && !string.IsNullOrWhiteSpace(decision.Markdown))
+                {
+                    ViewModel.DetachFromOpenFile();
+                    ViewModel.PastedMarkdown = decision.Markdown;
+                    ViewModel.UsePasteSource = true;
+                    ViewModel.SourceImportKind = importedKind;
                     SyncEditorFromDocument();
-                    ViewModel.StatusText = $"Loaded {Path.GetFileName(path)} (studio unavailable: {ex.Message})";
-                    ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                    var lead = warning ?? $"Imported {Path.GetFileName(path)} as Markdown ({decision.PageCount} page{(decision.PageCount == 1 ? "" : "s")}, {decision.ReclassifiedCount} reclassified)";
+                    ViewModel.StatusText = lead + " · Ctrl+S saves a Markdown copy; the original file is never changed.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+                }
+                else
+                {
+                    ViewModel.StatusText = "Import cancelled. Editor contents preserved.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
                 }
             }
-            else if (isConvertedDoc)
+            catch (Exception ex)
             {
-                SyncEditorFromDocument();
+                try { studio?.Close(); } catch { }
+                System.Diagnostics.Debug.WriteLine($"[OpenOrImportDocumentAsync] OCR studio error: {ex}");
+                ViewModel.StatusText = $"Couldn't import {Path.GetFileName(path)}: {ex.Message}";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Error;
             }
         }
         catch (Exception ex)
@@ -3240,7 +3293,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 {
                     if (path is not null)
                     {
-                        var stream = File.OpenRead(path).AsRandomAccessStream();
+                        var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite).AsRandomAccessStream();
                         e.Response = core.Environment.CreateWebResourceResponse(stream, 200, "OK",
                             $"Content-Type: {Services.DocumentImages.MimeFor(path)}\r\nCache-Control: no-cache");
                         return;
@@ -6963,7 +7016,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 Services.TableModel tableModel;
                 if (ext == ".xlsx")
                 {
-                    using var stream = File.OpenRead(filePath);
+                    using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                     var sheets = Services.SpreadsheetService.ReadXlsx(stream);
                     if (sheets.Count == 0)
                     {
@@ -7002,6 +7055,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     ViewModel.DetachFromOpenFile();
                     ViewModel.PastedMarkdown = decision.Markdown;
                     ViewModel.UsePasteSource = true;
+                    SyncEditorFromDocument();
                     ViewModel.StatusText = $"Imported {tableModel.Rows.Count + 1} rows × {tableModel.ColumnCount} columns from {name}.";
                     ViewModel.StatusSeverity = Models.StatusSeverity.Success;
                     return;
@@ -7013,6 +7067,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     ViewModel.DetachFromOpenFile();
                     ViewModel.PastedMarkdown = tableMd;
                     ViewModel.UsePasteSource = true;
+                    SyncEditorFromDocument();
                     ViewModel.StatusText = $"Imported {tableModel.Rows.Count + 1} rows × {tableModel.ColumnCount} columns from {name}.";
                     ViewModel.StatusSeverity = Models.StatusSeverity.Success;
                     return;
@@ -7054,6 +7109,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     {
                         await studio.PlayImportExperience(result.Markdown, sourceLabel);
                     }
+                    else
+                    {
+                        studio.CompleteScanning();
+                    }
 
                     var decision = await studio.WaitForDecisionAsync();
                     if (!decision.Imported)
@@ -7066,6 +7125,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     ViewModel.DetachFromOpenFile();
                     ViewModel.PastedMarkdown = decision.Markdown;
                     ViewModel.UsePasteSource = true;
+                    SyncEditorFromDocument();
                     ViewModel.StatusText = result.Tier == Services.ImportTier.EmbeddedSource
                         ? $"Imported {name} (its original MarkSmith source)"
                         : $"Imported {name}";
@@ -7117,6 +7177,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 ViewModel.DetachFromOpenFile();
                 ViewModel.PastedMarkdown = decisionPlugin.Markdown;
                 ViewModel.UsePasteSource = true;
+                SyncEditorFromDocument();
                 ViewModel.StatusText = imported.Summary ?? $"Imported {Path.GetFileName(filePath)}";
                 ViewModel.StatusSeverity = Models.StatusSeverity.Success;
             }
@@ -7165,6 +7226,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ViewModel.DetachFromOpenFile();
             ViewModel.PastedMarkdown = decision.Markdown;
             ViewModel.UsePasteSource = true;
+            SyncEditorFromDocument();
             ViewModel.StatusText = $"Imported {name} · read with {read.Engine}" + (read.FellBack ? " (the chosen engine isn't available here)" : "");
             ViewModel.StatusSeverity = read.FellBack ? Models.StatusSeverity.Warning : Models.StatusSeverity.Success;
         }
@@ -7199,7 +7261,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
             if (ext == ".xlsx")
             {
-                using var stream = File.OpenRead(filePath);
+                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 var sheets = Services.SpreadsheetService.ReadXlsx(stream);
                 if (sheets.Count == 0)
                 {
@@ -7553,22 +7615,29 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         private async Task AwaitAndApplyStudioDecisionAsync(Views.Ocr.OcrInspectionStudioWindow studio)
         {
-            var decision = await studio.WaitForDecisionAsync();
-            lock (_lock)
+            try
             {
-                if (ReferenceEquals(_studio, studio))
-                    _studio = null;
+                var decision = await studio.WaitForDecisionAsync();
+                lock (_lock)
+                {
+                    if (ReferenceEquals(_studio, studio))
+                        _studio = null;
+                }
+                if (decision.Imported && !string.IsNullOrWhiteSpace(decision.Markdown))
+                {
+                    _window.ViewModel.DetachFromOpenFile();
+                    _window.ViewModel.PastedMarkdown = decision.Markdown;
+                    _window.ViewModel.UsePasteSource = true;
+                    _window.SyncEditorFromDocument();
+                    if (_window.PasteTextBox.Visibility == Visibility.Visible)
+                        _window.PasteTextBox.Focus(FocusState.Programmatic);
+                    _window._previewDebounce?.Stop();
+                    _window._previewDebounce?.Start();
+                }
             }
-            if (decision.Imported && !string.IsNullOrWhiteSpace(decision.Markdown))
+            catch (Exception ex)
             {
-                _window.ViewModel.DetachFromOpenFile();
-                _window.ViewModel.PastedMarkdown = decision.Markdown;
-                _window.ViewModel.UsePasteSource = true;
-                _window.SyncEditorFromDocument();
-                if (_window.PasteTextBox.Visibility == Visibility.Visible)
-                    _window.PasteTextBox.Focus(FocusState.Programmatic);
-                _window._previewDebounce?.Stop();
-                _window._previewDebounce?.Start();
+                System.Diagnostics.Debug.WriteLine($"AmbientStudioOcrObserver AwaitAndApplyStudioDecisionAsync error: {ex}");
             }
         }
     }

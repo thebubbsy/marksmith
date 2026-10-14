@@ -6606,5 +6606,49 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
   - Pushed git tag `v3.32.0` to trigger `.github/workflows/release.yml`.
   - Bumped `MarksmithBaseVersion` in `Directory.Build.props` to `3.33.0` per release checklist.
 
+### 2026-10-14 (Document Import Crash Elimination, OCR Studio Review Mode & Concurrency Polish)
+
+- **Timestamp:** 2026-10-14T23:14:00Z
+- **Model:** `Gemini 3.8 Flash (High)`
+- **Identity:** `Antigravity AI Agent (Google DeepMind)`
+- **Mode:** `/boost` Delegation Routine
+- **Trigger:** Document / PDF import crash report investigation, OCR studio completion race condition fix & interactive element reclassification polish
+
+**Bugs Identified & Fixed:**
+1. **Studio Queue Drain vs Completion Race Condition:** In `OcrInspectionStudioWindow.xaml.cs`, `CompleteScanning()` immediately scheduled review mode transition while `ProcessPageQueueAsync` was still actively draining animations for earlier pages. When `ProcessPageQueueAsync` finished its loop, it checked `if (_session.Pages.Count >= _expectedPageCount && !_isReviewMode)` which was bypassed because `_isReviewMode` had already been flipped to `true`, leaving the visual canvas and inspector cards in a desynchronized half-scanned state.
+   - *Fix:* Added `_scanningCompleted` coordination flag. `ProcessPageQueueAsync` now drains all queued pages and transitions cleanly into review mode; `CompleteScanning()` only enters review mode immediately if the queue is already empty and idle.
+2. **Element Reclassification State Desynchronization:** In `OcrInspectionStudioWindow.xaml.cs`, `ReclassifyElement` updated the canvas frame and preview text, but left the middle panel card header (`titleText.Text = $"#{elem.Id} · {elem.KindDisplayName}"`), the card's combobox, the card's snippet text, `SelectedElementBadgeText`, and `QuickReclassifyComboBox` displaying stale kinds and colors.
+   - *Fix:* Directly synchronized the inspector card, selection badge, and quick-reclassify combobox inside `ReclassifyElement`.
+3. **Missing Editor Synchronization on Interactive Menu Imports:** In `MainWindow.xaml.cs` (`ImportDocumentInteractiveAsync`), all four import branches (Spreadsheet direct, Spreadsheet fallback, PDF/DOCX, and Plugin file reader) updated `ViewModel.PastedMarkdown` and set `ViewModel.UsePasteSource = true`, but NEVER called `SyncEditorFromDocument()`, leaving the UI editor displaying previous document content until manually nudged. Additionally, in the PDF branch of `ImportDocumentInteractiveAsync`, `else { studio.CompleteScanning(); }` was omitted, causing PDFs with scanned pages to stall in scanning mode indefinitely.
+   - *Fix:* Added `studio.CompleteScanning()` and called `SyncEditorFromDocument()` across all interactive import pathways.
+4. **File Sharing Violations on Open/Synced Documents:** Default `File.OpenRead` uses `FileShare.Read`, which throws an `IOException` if a document is concurrently held open by Word, Excel, or OneDrive file synchronization.
+   - *Fix:* Replaced `File.OpenRead` with `new FileStream(..., FileMode.Open, FileAccess.Read, FileShare.ReadWrite)` in `ReverseImportService.cs`, `MsgImporter.cs`, and `MainWindow.xaml.cs` (for spreadsheets and WebView2 image serving). Wrapped file stream opens in `ReverseImportService.ConvertDocxToMarkdown`, `ImportFromDocxAsync`, `ImportFromDocx`, and `ImportFromPdf` in try/catch blocks returning safe `ReverseImportResult("", ImportTier.None, false, warning, Array.Empty<string>())` instead of throwing unhandled exceptions.
+5. **Empty & Corrupted Document Fallback Handling:** If a PDF or document had 0 pages or empty content, the inspection studio window was opened and left blank indefinitely.
+   - *Fix:* In `OpenOrImportDocumentAsync`, if extracted markdown is empty, the studio is cleanly closed and an informative warning status banner is displayed on the main editor window.
+
+**Shipped:**
+- `MarkSmith.Core/Services/ReverseImportService.cs`:
+  - Added non-blocking `FileShare.ReadWrite` and defensive exception guards returning safe failure results across all DOCX and PDF import methods.
+- `MarkSmith.Desktop/MainWindow.xaml.cs`:
+  - Added `SyncEditorFromDocument()` across all interactive import branches.
+  - Added `studio.CompleteScanning()` to PDF interactive import.
+  - Handled empty document extractions gracefully with status warnings instead of lingering blank studio windows.
+  - Replaced `File.OpenRead` with `FileShare.ReadWrite` streams in spreadsheet imports and WebView2 image host mapping.
+- `MarkSmith.Desktop/Views/Ocr/OcrInspectionStudioWindow.xaml.cs`:
+  - Added `_scanningCompleted` coordination to eliminate race conditions between queue processing and scan completion.
+  - Synchronized inspector cards, selection badges, and quick-reclassify dropdowns during element reclassification.
+- `MarkSmith.Tests/Ocr/OcrInspectionStudioTests.cs`:
+  - Added `Missing_Or_Inaccessible_Files_Return_Safe_Warning_Without_Throwing` verifying missing/locked DOCX and PDF paths return safe results without throwing.
+  - Added `Locked_FileShare_ReadWrite_Documents_Can_Be_Imported_While_Held_Open` verifying concurrent reads of documents open in Word/Excel.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 13 warnings**.
+- Test suite runs:
+  - Full suite (`dotnet test marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj`): **4,755 passed, 0 failed, 1 skipped** (4 min 16 sec).
+  - Target Groom Service Agreement PDF test (`Target_Groom_Service_Agreement_Pdf_Parses_Safely_Without_Crashing`): **1 passed, 0 failed**.
+  - `OcrInspectionStudioTests`: **9 passed, 0 failed**.
+- Live WinUI 3 desktop UIAutomation test:
+  - Launched `Marksmith.exe` (PID matched), located main window automation element (`WinUIDesktopWin32WindowClass`), verified UI responsiveness, and terminated cleanly.
+
 
 

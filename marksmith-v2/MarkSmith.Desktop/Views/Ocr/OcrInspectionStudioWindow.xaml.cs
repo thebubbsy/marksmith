@@ -37,6 +37,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     private readonly Dictionary<OcrInspectionElement, Border> _canvasElementFrames = new();
     private readonly Dictionary<OcrInspectionElement, Border> _inspectorCards = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<int, OcrPagePreview> _pagePreviews = new();
+    private readonly System.Collections.Concurrent.ConcurrentQueue<OcrInspectionPage> _pageQueue = new();
+    private int _isProcessingQueue = 0;
 
     private CancellationTokenSource? _idleLaserCts;
     private CancellationTokenSource? _playbackCts;
@@ -48,6 +50,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     private bool _isUpdatingSelection = false;
     private int _expectedPageCount = 1;
     private volatile string _currentEngineName = "MarkSmith OCR";
+    private volatile bool _scanningCompleted = false;
 
     public OcrInspectionSession Session => _session;
     public bool IsReviewMode => _isReviewMode;
@@ -191,31 +194,68 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         }
 
         var page = _session.AddOrUpdatePage(preview, trace);
+        _pageQueue.Enqueue(page);
 
         var dq = this.DispatcherQueue;
         if (dq is null) return;
 
-        dq.TryEnqueue(async () =>
+        dq.TryEnqueue(() => _ = ProcessPageQueueAsync());
+    }
+
+    private async Task ProcessPageQueueAsync()
+    {
+        if (Interlocked.CompareExchange(ref _isProcessingQueue, 1, 0) != 0) return;
+        try
         {
-            try
+            _idleLaserCts?.Cancel();
+            if (_playbackCts is null || _playbackCts.IsCancellationRequested)
             {
-                _idleLaserCts?.Cancel();
-                _playbackCts?.Cancel();
                 _playbackCts = new CancellationTokenSource();
-                var token = _playbackCts.Token;
+            }
+            var token = _playbackCts.Token;
 
+            while (_pageQueue.TryDequeue(out var page))
+            {
                 await AnimateSinglePageBreakdownAsync(page, token);
-
-                if (_session.Pages.Count >= _expectedPageCount && _expectedPageCount > 0)
+                if (_session.Pages.Count > 1 && !_pageQueue.IsEmpty)
                 {
-                    EnterReviewMode();
+                    try { await Task.Delay(100, token); } catch (OperationCanceledException) { break; }
                 }
             }
-            catch (Exception ex)
+
+            if ((_scanningCompleted || (_session.Pages.Count >= _expectedPageCount && _expectedPageCount > 0)) && !_isReviewMode)
             {
-                System.Diagnostics.Debug.WriteLine($"OcrInspectionStudio PageRead dispatch error: {ex}");
+                _session.CurrentPageIndex = 0;
+                RenderCurrentPage();
+                EnterReviewMode();
             }
-        });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"OcrInspectionStudio ProcessPageQueueAsync error: {ex}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isProcessingQueue, 0);
+            if (!_pageQueue.IsEmpty)
+            {
+                var dq = this.DispatcherQueue;
+                dq?.TryEnqueue(() => _ = ProcessPageQueueAsync());
+            }
+            else if (_scanningCompleted && !_isReviewMode)
+            {
+                var dq = this.DispatcherQueue;
+                dq?.TryEnqueue(() =>
+                {
+                    if (!_isReviewMode)
+                    {
+                        _session.CurrentPageIndex = 0;
+                        RenderCurrentPage();
+                        EnterReviewMode();
+                    }
+                });
+            }
+        }
     }
 
     public void PageFailed(int pageNumber, string errorMessage) => ReportPageError(pageNumber, errorMessage);
@@ -352,13 +392,14 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     /// </summary>
     public void CompleteScanning()
     {
+        _scanningCompleted = true;
         var dq = this.DispatcherQueue;
         if (dq is null) return;
         dq.TryEnqueue(() =>
         {
             try
             {
-                if (!_isReviewMode)
+                if (_pageQueue.IsEmpty && Interlocked.CompareExchange(ref _isProcessingQueue, 0, 0) == 0 && !_isReviewMode)
                 {
                     _session.CurrentPageIndex = 0;
                     RenderCurrentPage();
@@ -417,6 +458,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         if (StatusSubtext is not null) StatusSubtext.Text = "Flick through pages to inspect detected elements. Click any element to reclassify it between Picture, Mosaic, Diagram, Table, Key-Value, or Text. Hit 'Import into MarkSmith' to apply.";
 
         UpdatePageFlickingState();
+        RenderCurrentPage();
         UpdateLiveMarkdownPreview();
         if (FooterStatusText is not null)
             FooterStatusText.Text = "Inspection Studio active — Never auto-closes. Review detected elements before applying import.";
@@ -449,6 +491,11 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             CanvasMetricsText.Text = $"{_imagePixelWidth} × {_imagePixelHeight} px";
             UpdatePageSheetDimensions();
             _ = LoadPreviewBitmapAsync(page.Image);
+        }
+        else
+        {
+            DocumentImage.Source = null;
+            UpdatePageSheetDimensions();
         }
 
         // Render detected element boundary boxes on canvas
@@ -696,6 +743,58 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             }
         }
 
+        // Keep the middle pane inspector card in sync
+        if (_inspectorCards.TryGetValue(elem, out var card) && card.Child is StackPanel cardStack)
+        {
+            var (strokeColor, _) = GetKindPalette(elem.Kind);
+            if (cardStack.Children.Count > 0 && cardStack.Children[0] is Grid headerGrid &&
+                headerGrid.Children.Count > 0 && headerGrid.Children[0] is TextBlock titleText)
+            {
+                titleText.Text = $"#{elem.Id} · {elem.KindDisplayName}";
+                titleText.Foreground = new SolidColorBrush(strokeColor);
+            }
+            if (cardStack.Children.Count > 1 && cardStack.Children[1] is ComboBox cardCombo)
+            {
+                for (int ci = 0; ci < cardCombo.Items.Count; ci++)
+                {
+                    if (cardCombo.Items[ci] is ComboBoxItem item && item.Tag is OcrBlockKind k && k == elem.Kind)
+                    {
+                        if (cardCombo.SelectedIndex != ci) cardCombo.SelectedIndex = ci;
+                        break;
+                    }
+                }
+            }
+            if (cardStack.Children.Count > 2 && cardStack.Children[2] is TextBlock snippetText)
+            {
+                snippetText.Text = elem.CurrentMarkdown.Length > 90
+                    ? elem.CurrentMarkdown.Substring(0, 87) + "…"
+                    : elem.CurrentMarkdown;
+            }
+        }
+
+        // Keep the right pane selection inspector in sync if this element is currently selected
+        if (ReferenceEquals(elem, _selectedElement))
+        {
+            SelectedElementBadgeText.Text = $"Element #{elem.Id} ({elem.KindDisplayName})";
+            _isUpdatingSelection = true;
+            try
+            {
+                for (int i = 0; i < QuickReclassifyComboBox.Items.Count; i++)
+                {
+                    if (QuickReclassifyComboBox.Items[i] is ComboBoxItem item &&
+                        string.Equals(item.Tag?.ToString(), elem.Kind.ToString(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        QuickReclassifyComboBox.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
+            finally
+            {
+                _isUpdatingSelection = false;
+            }
+        }
+
         UpdateSessionTelemetry();
         UpdateLiveMarkdownPreview();
         if (FooterStatusText is not null)
@@ -765,13 +864,14 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         double availW = PageViewportGrid.ActualWidth;
         double availH = PageViewportGrid.ActualHeight;
-        if (availW <= 16 || availH <= 16)
+        if (availW <= 16 || availH <= 16 || double.IsNaN(availW) || double.IsNaN(availH) || double.IsInfinity(availW) || double.IsInfinity(availH))
         {
             availW = 380;
             availH = 520;
         }
 
         double aspect = _imagePixelWidth / (double)Math.Max(1, _imagePixelHeight);
+        if (double.IsNaN(aspect) || double.IsInfinity(aspect) || aspect <= 0) aspect = 0.75;
         double fittedW = availW;
         double fittedH = fittedW / aspect;
         if (fittedH > availH)
@@ -780,8 +880,13 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             fittedW = fittedH * aspect;
         }
 
-        PageSheetGrid.Width = Math.Max(120, Math.Round(fittedW));
-        PageSheetGrid.Height = Math.Max(160, Math.Round(fittedH));
+        fittedW = Math.Max(120, Math.Round(fittedW));
+        fittedH = Math.Max(160, Math.Round(fittedH));
+        if (double.IsNaN(fittedW) || double.IsInfinity(fittedW)) fittedW = 380;
+        if (double.IsNaN(fittedH) || double.IsInfinity(fittedH)) fittedH = 520;
+
+        PageSheetGrid.Width = fittedW;
+        PageSheetGrid.Height = fittedH;
         if (LaserBeam is not null) LaserBeam.Width = PageSheetGrid.Width;
         if (ElementsCanvas is not null)
         {
@@ -792,13 +897,21 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
     private void AddPositionedOverlay(FrameworkElement element, OcrNormRect box)
     {
+        if (double.IsNaN(box.X) || double.IsNaN(box.Y) || double.IsNaN(box.Width) || double.IsNaN(box.Height)) return;
         double cw = ElementsCanvas.Width > 0 ? ElementsCanvas.Width : Math.Max(100, PageViewportGrid.ActualWidth);
         double ch = ElementsCanvas.Height > 0 ? ElementsCanvas.Height : Math.Max(100, PageViewportGrid.ActualHeight);
+        if (double.IsNaN(cw) || double.IsInfinity(cw) || cw <= 0) cw = 380;
+        if (double.IsNaN(ch) || double.IsInfinity(ch) || ch <= 0) ch = 520;
 
-        double left = Math.Clamp(box.X * cw, 0, cw - 4);
-        double top = Math.Clamp(box.Y * ch, 0, ch - 4);
+        double left = Math.Clamp(box.X * cw, 0, Math.Max(0, cw - 4));
+        double top = Math.Clamp(box.Y * ch, 0, Math.Max(0, ch - 4));
         double width = Math.Clamp(box.Width * cw, 8, Math.Max(8, cw - left));
         double height = Math.Clamp(box.Height * ch, 8, Math.Max(8, ch - top));
+
+        if (double.IsNaN(left) || double.IsInfinity(left)) left = 0;
+        if (double.IsNaN(top) || double.IsInfinity(top)) top = 0;
+        if (double.IsNaN(width) || double.IsInfinity(width) || width <= 0) width = 8;
+        if (double.IsNaN(height) || double.IsInfinity(height) || height <= 0) height = 8;
 
         Canvas.SetLeft(element, left);
         Canvas.SetTop(element, top);
@@ -810,6 +923,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
     private async Task LoadPreviewBitmapAsync(byte[] jpegBytes)
     {
+        if (jpegBytes is null || jpegBytes.Length == 0) return;
         try
         {
             using var stream = new InMemoryRandomAccessStream();
@@ -923,32 +1037,39 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
     private void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Key == Windows.System.VirtualKey.Escape)
+        try
         {
-            e.Handled = true;
-            OnDiscardClick(this, new RoutedEventArgs());
-        }
-        else if (e.Key == Windows.System.VirtualKey.Left || e.Key == Windows.System.VirtualKey.PageUp)
-        {
-            if (_session.CanPreviousPage)
+            if (e.Key == Windows.System.VirtualKey.Escape)
             {
                 e.Handled = true;
-                OnPrevPageClick(this, new RoutedEventArgs());
+                OnDiscardClick(this, new RoutedEventArgs());
             }
-        }
-        else if (e.Key == Windows.System.VirtualKey.Right || e.Key == Windows.System.VirtualKey.PageDown)
-        {
-            if (_session.CanNextPage)
+            else if (e.Key == Windows.System.VirtualKey.Left || e.Key == Windows.System.VirtualKey.PageUp)
+            {
+                if (_session.CanPreviousPage)
+                {
+                    e.Handled = true;
+                    OnPrevPageClick(this, new RoutedEventArgs());
+                }
+            }
+            else if (e.Key == Windows.System.VirtualKey.Right || e.Key == Windows.System.VirtualKey.PageDown)
+            {
+                if (_session.CanNextPage)
+                {
+                    e.Handled = true;
+                    OnNextPageClick(this, new RoutedEventArgs());
+                }
+            }
+            else if (e.Key == Windows.System.VirtualKey.Enter &&
+                     Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
             {
                 e.Handled = true;
-                OnNextPageClick(this, new RoutedEventArgs());
+                OnImportCtaClick(this, new RoutedEventArgs());
             }
         }
-        else if (e.Key == Windows.System.VirtualKey.Enter &&
-                 Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
+        catch (Exception ex)
         {
-            e.Handled = true;
-            OnImportCtaClick(this, new RoutedEventArgs());
+            System.Diagnostics.Debug.WriteLine($"OnRootKeyDown error: {ex}");
         }
     }
 }

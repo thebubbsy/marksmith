@@ -21,10 +21,27 @@ public static class MsgImporter
 
     public static EmailImportResult Import(string msgPath, QuotedHistoryMode history = QuotedHistoryMode.Collapse, string? mediaDir = null)
     {
-        var message = ToMimeMessage(msgPath);
-        var stem = Path.GetFileNameWithoutExtension(msgPath);
-        var dir = Path.GetDirectoryName(Path.GetFullPath(msgPath)) ?? ".";
-        return EmailImporter.Import(message, history, mediaDir ?? Path.Combine(dir, stem + "_media"), dir);
+        try
+        {
+            var message = ToMimeMessage(msgPath);
+            var stem = Path.GetFileNameWithoutExtension(msgPath);
+            var dir = Path.GetDirectoryName(Path.GetFullPath(msgPath)) ?? ".";
+            return EmailImporter.Import(message, history, mediaDir ?? Path.Combine(dir, stem + "_media"), dir);
+        }
+        catch (Exception ex)
+        {
+            var fileName = Path.GetFileName(msgPath);
+            return new EmailImportResult(
+                $"*Unable to read Outlook message ({fileName}): {ex.Message}*",
+                fileName,
+                null,
+                null,
+                false,
+                0,
+                Array.Empty<string>(),
+                null,
+                false);
+        }
     }
 
     /// <summary>The .msg as a MIME message: headers, the HTML (or text) body, inline pictures as
@@ -32,7 +49,8 @@ public static class MsgImporter
     /// An unsent message (a draft) gets <c>X-Unsent: 1</c>, as an .eml draft would.</summary>
     public static MimeMessage ToMimeMessage(string msgPath)
     {
-        using var msg = new OutlookMessage(msgPath, FileAccess.Read);
+        using var stream = new FileStream(msgPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var msg = new OutlookMessage(stream);
         var mime = new MimeMessage { Subject = msg.Subject ?? "" };
 
         if (msg.Sender is { } sender && !string.IsNullOrWhiteSpace(sender.Email ?? sender.DisplayName))
