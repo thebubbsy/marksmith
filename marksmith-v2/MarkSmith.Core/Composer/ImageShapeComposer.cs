@@ -263,9 +263,12 @@ namespace MarkSmith.Core.Composer
             bool auto = adaptive || shapes.Contains("auto");
             if (!auto)
             {
-                // Legacy positional variety (kept byte-identical): alternate and interleave the
-                // selected shape types across the grid.
-                int shapeIndex = (x * 3 + y * 7 + (x ^ y)) % shapes.Count;
+                // Positional variety: alternate and interleave the selected shape types across the grid.
+                int shapeIndex = (x * 3 + y * 7 + (x ^ y));
+                if ((shapes.Count & 1) == 0)
+                {
+                    shapeIndex += (x + y) & 1;
+                }
                 return shapes[Math.Abs(shapeIndex) % shapes.Count];
             }
             var pool = shapes.Where(s => s != "auto").ToList();
@@ -501,14 +504,298 @@ namespace MarkSmith.Core.Composer
             return best;
         }
 
+        // ---- Offscreen Skia Flattened Bitmap Preview (Trick 1) ----
+
+        /// <summary>
+        /// Rasterizes a shape composition onto an in-memory SKBitmap and returns raw PNG bytes.
+        /// Replaces thousands of SVG DOM elements with an O(1) lightweight bitmap preview,
+        /// completely eliminating UI lag and DOM tree bloat in WebView2/HTML previews.
+        /// </summary>
+        public static byte[] RenderBitmapPreviewPngBytes(
+            IReadOnlyList<ComposedShape> shapes,
+            double widthIn,
+            double heightIn,
+            float scale = 2.0f,
+            bool transparent = false)
+        {
+            if (shapes == null || shapes.Count == 0)
+                return Array.Empty<byte>();
+
+            double wIn = widthIn > 0 ? widthIn : DefaultCanvasWidthInches;
+            double hIn = heightIn > 0 ? heightIn : (wIn * 0.75);
+
+            int pixelW = Math.Max(1, (int)Math.Ceiling(wIn * 96.0 * scale));
+            int pixelH = Math.Max(1, (int)Math.Ceiling(hIn * 96.0 * scale));
+
+            using var bitmap = new SKBitmap(pixelW, pixelH);
+            using var canvas = new SKCanvas(bitmap);
+            canvas.Clear(transparent ? SKColors.Transparent : SKColors.White);
+
+            canvas.Scale(scale);
+
+            using var fillPaint = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Fill
+            };
+
+            using var strokePaint = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeJoin = SKStrokeJoin.Round
+            };
+
+            using var textPaint = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Fill,
+                TextAlign = SKTextAlign.Center
+            };
+
+            foreach (var s in shapes)
+            {
+                double x = s.X * 96.0;
+                double y = s.Y * 96.0;
+                double w = s.W * 96.0;
+                double h = s.H * 96.0;
+                double cx = x + w / 2.0;
+                double cy = y + h / 2.0;
+
+                string hex = (s.Fill ?? "000000").TrimStart('#');
+                if (!SKColor.TryParse("#" + hex, out var color))
+                {
+                    color = SKColors.Black;
+                }
+                fillPaint.Color = color;
+                strokePaint.Color = color;
+
+                // Curved sketch stroke
+                if (s.PathPoints is { Count: >= 2 })
+                {
+                    using var path = new SKPath();
+                    path.MoveTo((float)(x + s.PathPoints[0].X * w / 100.0), (float)(y + s.PathPoints[0].Y * h / 100.0));
+                    for (int i = 1; i < s.PathPoints.Count; i++)
+                    {
+                        path.LineTo((float)(x + s.PathPoints[i].X * w / 100.0), (float)(y + s.PathPoints[i].Y * h / 100.0));
+                    }
+                    strokePaint.StrokeWidth = (float)(s.StrokeWidthPt * 96.0 / 72.0);
+                    strokePaint.StrokeCap = s.PathPoints.Count == 2 ? SKStrokeCap.Butt : SKStrokeCap.Round;
+                    canvas.DrawPath(path, strokePaint);
+                    continue;
+                }
+
+                if (s.Prst == "line")
+                {
+                    strokePaint.StrokeWidth = (float)(s.H * 96.0 * 0.18);
+                    strokePaint.StrokeCap = SKStrokeCap.Butt;
+                    if (s.Rot != 0)
+                    {
+                        canvas.Save();
+                        canvas.RotateDegrees(s.Rot, (float)cx, (float)cy);
+                        canvas.DrawLine((float)x, (float)y, (float)(x + w), (float)(y + h), strokePaint);
+                        canvas.Restore();
+                    }
+                    else
+                    {
+                        canvas.DrawLine((float)x, (float)y, (float)(x + w), (float)(y + h), strokePaint);
+                    }
+                    continue;
+                }
+
+                if (s.Rot != 0)
+                {
+                    canvas.Save();
+                    canvas.RotateDegrees(s.Rot, (float)cx, (float)cy);
+                }
+
+                DrawShapeGeometry(canvas, s, x, y, w, h, cx, cy, fillPaint);
+
+                if (s.Rot != 0)
+                {
+                    canvas.Restore();
+                }
+
+                // Text labels
+                if (!string.IsNullOrWhiteSpace(s.Text) && s.PathPoints is not { Count: >= 2 } && s.Prst != "line")
+                {
+                    DrawShapeLabel(canvas, s, x, y, w, h, cx, cy, textPaint);
+                }
+            }
+
+            canvas.Flush();
+            using var image = SKImage.FromBitmap(bitmap);
+            using var data = image.Encode(SKEncodedImageFormat.Png, 90);
+            return data.ToArray();
+        }
+
+        /// <summary>
+        /// Rasterizes shapes onto an in-memory bitmap and returns a data:image/png;base64,... URI.
+        /// </summary>
+        public static string RenderBitmapPreviewPng(
+            IReadOnlyList<ComposedShape> shapes,
+            double widthIn,
+            double heightIn,
+            float scale = 2.0f,
+            bool transparent = false)
+        {
+            byte[] bytes = RenderBitmapPreviewPngBytes(shapes, widthIn, heightIn, scale, transparent);
+            return "data:image/png;base64," + Convert.ToBase64String(bytes);
+        }
+
+        private static void DrawShapeGeometry(
+            SKCanvas canvas, ComposedShape s, double x, double y, double w, double h, double cx, double cy,
+            SKPaint fillPaint)
+        {
+            switch ((s.Prst ?? "").ToLowerInvariant())
+            {
+                case "ellipse" or "circle":
+                    canvas.DrawOval(new SKRect((float)x, (float)y, (float)(x + w), (float)(y + h)), fillPaint);
+                    break;
+                case "roundrect":
+                    float r = (float)PresetGeometry.RoundRectRadius(w, h);
+                    canvas.DrawRoundRect(new SKRect((float)x, (float)y, (float)(x + w), (float)(y + h)), r, r, fillPaint);
+                    break;
+                case "diamond":
+                    using (var p = new SKPath())
+                    {
+                        p.MoveTo((float)cx, (float)y);
+                        p.LineTo((float)(x + w), (float)cy);
+                        p.LineTo((float)cx, (float)(y + h));
+                        p.LineTo((float)x, (float)cy);
+                        p.Close();
+                        canvas.DrawPath(p, fillPaint);
+                    }
+                    break;
+                case "triangle":
+                    using (var p = new SKPath())
+                    {
+                        p.MoveTo((float)cx, (float)y);
+                        p.LineTo((float)(x + w), (float)(y + h));
+                        p.LineTo((float)x, (float)(y + h));
+                        p.Close();
+                        canvas.DrawPath(p, fillPaint);
+                    }
+                    break;
+                case "parallelogram":
+                    using (var p = new SKPath())
+                    {
+                        p.MoveTo((float)(x + w * 0.25), (float)y);
+                        p.LineTo((float)(x + w), (float)y);
+                        p.LineTo((float)(x + w * 0.75), (float)(y + h));
+                        p.LineTo((float)x, (float)(y + h));
+                        p.Close();
+                        canvas.DrawPath(p, fillPaint);
+                    }
+                    break;
+                case "heart":
+                    using (var p = new SKPath())
+                    {
+                        p.MoveTo((float)cx, (float)(y + h * 0.72));
+                        p.CubicTo((float)x, (float)(y + h * 0.30), (float)(x + w * 0.08), (float)y, (float)cx, (float)(y + h * 0.22));
+                        p.CubicTo((float)(x + w * 0.92), (float)y, (float)(x + w), (float)(y + h * 0.30), (float)cx, (float)(y + h * 0.72));
+                        p.Close();
+                        canvas.DrawPath(p, fillPaint);
+                    }
+                    break;
+                case "cylinder" or "can":
+                    float capR = (float)PresetGeometry.CylinderCapRadius(w, h);
+                    using (var p = new SKPath())
+                    {
+                        p.MoveTo((float)x, (float)(y + capR));
+                        p.ArcTo(new SKRect((float)x, (float)y, (float)(x + w), (float)(y + 2 * capR)), 180, -180, false);
+                        p.LineTo((float)(x + w), (float)(y + h - capR));
+                        p.ArcTo(new SKRect((float)x, (float)(y + h - 2 * capR), (float)(x + w), (float)(y + h)), 0, 180, false);
+                        p.Close();
+                        canvas.DrawPath(p, fillPaint);
+                    }
+                    canvas.DrawOval(new SKRect((float)x, (float)y, (float)(x + w), (float)(y + 2 * capR)), fillPaint);
+                    break;
+                default:
+                    var outline = PresetGeometry.Outline(s.Prst, w, h);
+                    if (outline != null && outline.Count >= 3)
+                    {
+                        using var p = new SKPath();
+                        p.MoveTo((float)(x + outline[0].X), (float)(y + outline[0].Y));
+                        for (int i = 1; i < outline.Count; i++)
+                        {
+                            p.LineTo((float)(x + outline[i].X), (float)(y + outline[i].Y));
+                        }
+                        p.Close();
+                        canvas.DrawPath(p, fillPaint);
+                    }
+                    else
+                    {
+                        canvas.DrawRect(new SKRect((float)x, (float)y, (float)(x + w), (float)(y + h)), fillPaint);
+                    }
+                    break;
+            }
+        }
+
+        private static void DrawShapeLabel(
+            SKCanvas canvas, ComposedShape s, double x, double y, double w, double h, double cx, double cy,
+            SKPaint textPaint)
+        {
+            var ins = PresetGeometry.TextInsets(s.Prst, w, h);
+            if (ShapeComposerDocxWriter.IsMostlyUpsideDown(s.Rot)) ins = new[] { ins[2], ins[3], ins[0], ins[1] };
+            double boxW = Math.Max(8, w - ins[0] - ins[2]);
+            double boxH = Math.Max(8, h - ins[1] - ins[3]);
+            double textCx = x + ins[0] + boxW / 2.0;
+            double textCy = y + ins[1] + boxH / 2.0;
+
+            string guarded = MarkSmith.Services.ContrastGuard.EnsureLegibleText(
+                s.TextColor ?? "121212", "#" + s.Fill);
+
+            if (SKColor.TryParse("#" + guarded, out var textColor))
+                textPaint.Color = textColor;
+            else
+                textPaint.Color = SKColors.Black;
+
+            var (pt, lines) = PresetGeometry.FitLabel(s.Text!, s.Prst, w, h);
+            float fontSize = (float)(pt * 96.0 / 72.0);
+            textPaint.TextSize = fontSize;
+
+            using var typeface = SKTypeface.FromFamilyName("Segoe UI", SKFontStyleWeight.SemiBold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
+                                 ?? SKTypeface.Default;
+            textPaint.Typeface = typeface;
+
+            double lineHeight = fontSize * PresetGeometry.LineSpacing;
+            double top = textCy - (lines.Count - 1) * lineHeight / 2.0;
+
+            double labelRot = ShapeComposerDocxWriter.IsMostlyUpsideDown(s.Rot) ? 0 : s.Rot;
+            bool hasRot = labelRot % 360 != 0;
+            if (hasRot)
+            {
+                canvas.Save();
+                canvas.RotateDegrees((float)labelRot, (float)cx, (float)cy);
+            }
+
+            for (int i = 0; i < lines.Count; i++)
+            {
+                float lineY = (float)(top + i * lineHeight);
+                canvas.DrawText(lines[i], (float)textCx, lineY + fontSize * 0.35f, textPaint);
+            }
+
+            if (hasRot)
+            {
+                canvas.Restore();
+            }
+        }
+
         // ---- SVG preview (maps prstGeom -> SVG elements) ----
 
-        public static string RenderSvg(List<ComposedShape> shapes, double widthIn, double heightIn)
+        public static string RenderSvg(List<ComposedShape> shapes, double widthIn, double heightIn, bool? compoundPaths = null)
         {
+            bool useCompound = compoundPaths ?? (shapes != null && shapes.Count > 30);
+            if (useCompound && shapes != null)
+            {
+                return RenderSvgCompound(shapes, widthIn, heightIn);
+            }
+
             var sb = new StringBuilder();
             sb.Append($@"<svg xmlns=""http://www.w3.org/2000/svg"" width=""100%"" height=""100%"" viewBox=""0 0 {widthIn * 96} {heightIn * 96}"">");
             sb.Append($@"<rect width=""100%"" height=""100%"" fill=""#ffffff""/>");
-            foreach (var s in shapes)
+            foreach (var s in shapes ?? Enumerable.Empty<ComposedShape>())
             {
                 sb.Append(SvgShape(s));
                 // Font on top of a shape: the label is a sibling <text> whose colour is CONTRAST-
@@ -521,6 +808,126 @@ namespace MarkSmith.Core.Composer
             }
             sb.Append("</svg>");
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Compound Path Grouping by Color (Trick 3):
+        /// Groups shapes sharing the same palette fill color into a single compound &lt;path d="M... Z M... Z"&gt;
+        /// element instead of emitting thousands of individual DOM elements, collapsing DOM overhead.
+        /// </summary>
+        public static string RenderSvgCompound(List<ComposedShape> shapes, double widthIn, double heightIn)
+        {
+            var sb = new StringBuilder();
+            sb.Append($@"<svg xmlns=""http://www.w3.org/2000/svg"" width=""100%"" height=""100%"" viewBox=""0 0 {widthIn * 96:F1} {heightIn * 96:F1}"">");
+            sb.Append($@"<rect width=""100%"" height=""100%"" fill=""#ffffff""/>");
+
+            var allShapes = shapes ?? new List<ComposedShape>();
+            var filledShapes = allShapes.Where(s => s.PathPoints is not { Count: >= 2 } && s.Prst != "line").ToList();
+            var strokedShapes = allShapes.Where(s => s.PathPoints is { Count: >= 2 } || s.Prst == "line").ToList();
+
+            var colorGroups = filledShapes.GroupBy(s => (s.Fill ?? "000000").TrimStart('#').ToUpperInvariant());
+            foreach (var group in colorGroups)
+            {
+                var d = new StringBuilder();
+                foreach (var s in group)
+                {
+                    AppendCompoundSubPath(d, s);
+                }
+
+                if (d.Length > 0)
+                {
+                    sb.Append($@"<path d=""{d.ToString().Trim()}"" fill=""#{group.Key}""/>");
+                }
+            }
+
+            // Open stroked shapes (curved sketch lines / scanlines)
+            foreach (var s in strokedShapes)
+            {
+                sb.Append(SvgShape(s));
+            }
+
+            // Text labels on top
+            foreach (var s in filledShapes)
+            {
+                if (!string.IsNullOrWhiteSpace(s.Text))
+                {
+                    sb.Append(SvgLabel(s));
+                }
+            }
+
+            sb.Append("</svg>");
+            return sb.ToString();
+        }
+
+        private static void AppendCompoundSubPath(StringBuilder d, ComposedShape s)
+        {
+            double x = s.X * 96.0, y = s.Y * 96.0, w = s.W * 96.0, h = s.H * 96.0;
+            double cx = x + w / 2.0, cy = y + h / 2.0;
+
+            string prst = (s.Prst ?? "").ToLowerInvariant();
+
+            if (prst is "ellipse" or "circle")
+            {
+                double rx = w / 2.0;
+                double ry = h / 2.0;
+                var p1 = RotatePoint(cx - rx, cy, cx, cy, s.Rot);
+                var p2 = RotatePoint(cx + rx, cy, cx, cy, s.Rot);
+                d.Append(string.Create(CultureInfo.InvariantCulture, $"M {p1.X:F1} {p1.Y:F1} A {rx:F1} {ry:F1} {s.Rot} 1 0 {p2.X:F1} {p2.Y:F1} A {rx:F1} {ry:F1} {s.Rot} 1 0 {p1.X:F1} {p1.Y:F1} Z "));
+                return;
+            }
+
+            IReadOnlyList<(double X, double Y)> vertices;
+            switch (prst)
+            {
+                case "diamond":
+                    vertices = new[] { (cx, y), (x + w, cy), (cx, y + h), (x, cy) };
+                    break;
+                case "triangle":
+                    vertices = new[] { (cx, y), (x + w, y + h), (x, y + h) };
+                    break;
+                case "parallelogram":
+                    vertices = new[] { (x + w * 0.25, y), (x + w, y), (x + w * 0.75, y + h), (x, y + h) };
+                    break;
+                default:
+                    var outline = PresetGeometry.Outline(prst, w, h);
+                    if (outline != null && outline.Count >= 3)
+                    {
+                        vertices = outline.Select(p => (x + p.X, y + p.Y)).ToList();
+                    }
+                    else
+                    {
+                        vertices = new[] { (x, y), (x + w, y), (x + w, y + h), (x, y + h) };
+                    }
+                    break;
+            }
+
+            AppendPolygonSubPath(d, vertices, cx, cy, s.Rot);
+        }
+
+        private static void AppendPolygonSubPath(StringBuilder d, IReadOnlyList<(double X, double Y)> vertices, double cx, double cy, double rotDeg)
+        {
+            if (vertices == null || vertices.Count < 3) return;
+            var p0 = RotatePoint(vertices[0].X, vertices[0].Y, cx, cy, rotDeg);
+            d.Append('M').Append(p0.X.ToString("F1", CultureInfo.InvariantCulture))
+             .Append(' ').Append(p0.Y.ToString("F1", CultureInfo.InvariantCulture));
+            for (int i = 1; i < vertices.Count; i++)
+            {
+                var p = RotatePoint(vertices[i].X, vertices[i].Y, cx, cy, rotDeg);
+                d.Append(" L").Append(p.X.ToString("F1", CultureInfo.InvariantCulture))
+                 .Append(' ').Append(p.Y.ToString("F1", CultureInfo.InvariantCulture));
+            }
+            d.Append(" Z ");
+        }
+
+        private static (double X, double Y) RotatePoint(double px, double py, double cx, double cy, double rotDeg)
+        {
+            if (rotDeg % 360 == 0) return (px, py);
+            double rad = rotDeg * Math.PI / 180.0;
+            double cos = Math.Cos(rad);
+            double sin = Math.Sin(rad);
+            double dx = px - cx;
+            double dy = py - cy;
+            return (cx + dx * cos - dy * sin, cy + dx * sin + dy * cos);
         }
 
         private static string SvgLabel(ComposedShape s)

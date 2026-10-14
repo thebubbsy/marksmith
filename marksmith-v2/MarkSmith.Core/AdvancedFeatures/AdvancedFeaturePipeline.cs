@@ -51,6 +51,7 @@ namespace MarkSmith.Core.AdvancedFeatures
                 new SmartArtDetector(),
                 new EngineeringDiagramDetector(),
                 new ShapesDetector(),
+                new MosaicDetector(),
                 new KanbanDetector(),
                 new WorkflowDetector(),
                 new TimelineDetector(),

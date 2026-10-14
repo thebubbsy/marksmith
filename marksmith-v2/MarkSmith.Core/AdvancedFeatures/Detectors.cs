@@ -238,7 +238,9 @@ namespace MarkSmith.Core.AdvancedFeatures
             var inner = string.Join("\n", DetectorHelpers.GetInnerLines(rawBlock));
             try
             {
-                var shapes = MarkSmith.Core.Composer.ShapeMarkdownCodec.Parse(inner);
+                var shapes = MarkSmith.Core.Composer.MosaicRecipe.IsRecipe(inner)
+                    ? MarkSmith.Core.Composer.MosaicRecipe.Parse("", inner).Synthesize(isPreview: true)
+                    : MarkSmith.Core.Composer.ShapeMarkdownCodec.Parse(inner);
                 if (shapes.Count == 0)
                 {
                     errors.Add("No valid shape lines found.");
@@ -247,6 +249,41 @@ namespace MarkSmith.Core.AdvancedFeatures
             catch (Exception ex)
             {
                 errors.Add($"Malformed shapes block: {ex.Message}");
+            }
+
+            double conf = errors.Count == 0 ? 0.95 : 0.4;
+            return (errors.Count == 0, conf, errors.ToArray());
+        }
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // Mosaic — validates :::mosaic recipe blocks.
+    // ───────────────────────────────────────────────────────────────────
+    public class MosaicDetector : IFeatureDetector
+    {
+        public string FeatureName => "Mosaic";
+        public double Threshold => 0.85;
+
+        public bool Matches(string rawBlock) =>
+            rawBlock.StartsWith(":::mosaic", StringComparison.OrdinalIgnoreCase);
+
+        public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
+        {
+            var errors = new List<string>();
+            var inner = string.Join("\n", DetectorHelpers.GetInnerLines(rawBlock));
+            try
+            {
+                var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
+                var recipe = MarkSmith.Core.Composer.MosaicRecipe.Parse(firstLine, inner);
+                var shapes = recipe.Synthesize(isPreview: true);
+                if (shapes.Count == 0)
+                {
+                    errors.Add("No shapes synthesized from mosaic recipe.");
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Malformed mosaic block: {ex.Message}");
             }
 
             double conf = errors.Count == 0 ? 0.95 : 0.4;

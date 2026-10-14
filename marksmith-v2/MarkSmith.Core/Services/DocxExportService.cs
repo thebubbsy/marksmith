@@ -1735,6 +1735,9 @@ public sealed partial class DocxExportService
             case "Shapes":
                 RenderShapes(node, target, ctx);
                 break;
+            case "Mosaic":
+                RenderMosaic(node, target, ctx);
+                break;
             case "References":
                 RenderReferences(node, target, ctx);
                 break;
@@ -2704,7 +2707,21 @@ public sealed partial class DocxExportService
         {
             try
             {
-                var shapes = MarkSmith.Core.Composer.ShapeMarkdownCodec.Parse(node.InnerContent);
+                List<MarkSmith.Core.Composer.ComposedShape> shapes;
+                if (MarkSmith.Core.Composer.MosaicRecipe.IsRecipe(node.InnerContent))
+                {
+                    var firstLine = node.Block?.RawText != null
+                        ? DetectorHelpers.SplitLines(node.Block.RawText)[0]
+                        : "";
+                    var recipe = MarkSmith.Core.Composer.MosaicRecipe.Parse(firstLine, node.InnerContent, node.Attributes);
+                    // Trick 2: Full-density native DrawingML vector shapes synthesized for Word export
+                    shapes = recipe.Synthesize(isPreview: false);
+                }
+                else
+                {
+                    shapes = MarkSmith.Core.Composer.ShapeMarkdownCodec.Parse(node.InnerContent);
+                }
+
                 if (shapes.Count == 0) return;
 
                 var (w, h) = MarkSmith.Core.Composer.ShapeMarkdownCodec.CanvasSize(shapes);
@@ -2720,6 +2737,39 @@ public sealed partial class DocxExportService
                 System.Diagnostics.Debug.WriteLine($"Shapes render failed: {ex.Message}");
                 var p = new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { After = "120" }));
                 AddText(p, $"[Shapes render error: {ex.Message}]", new Fmt { Bold = true, Color = "d73a49" });
+                target.Append(p);
+            }
+        }
+
+        /// <summary>
+        /// Renders a :::mosaic recipe block as ONE native DrawingML shape group (wps:wsp in wpg:wgp) —
+        /// full-density native DrawingML vector shapes synthesized for Word export.
+        /// </summary>
+        private static void RenderMosaic(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+        {
+            try
+            {
+                var firstLine = node.Block?.RawText != null
+                    ? DetectorHelpers.SplitLines(node.Block.RawText)[0]
+                    : "";
+                var recipe = MarkSmith.Core.Composer.MosaicRecipe.Parse(firstLine, node.InnerContent, node.Attributes);
+                // Trick 2: Full-density native DrawingML vector shapes synthesized for Word export
+                var shapes = recipe.Synthesize(isPreview: false);
+                if (shapes.Count == 0) return;
+
+                var (w, h) = MarkSmith.Core.Composer.ShapeMarkdownCodec.CanvasSize(shapes);
+                string inlineXml = MarkSmith.Core.Composer.ShapeComposerDocxWriter.BuildInlineXml(shapes, w, h);
+
+                var drawing = new W.Drawing { InnerXml = inlineXml };
+                var run = new W.Run();
+                run.Append(drawing);
+                target.Append(new W.Paragraph(run));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Mosaic render failed: {ex.Message}");
+                var p = new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { After = "120" }));
+                AddText(p, $"[Mosaic render error: {ex.Message}]", new Fmt { Bold = true, Color = "d73a49" });
                 target.Append(p);
             }
         }

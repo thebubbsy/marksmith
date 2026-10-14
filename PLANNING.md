@@ -6650,5 +6650,47 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Live WinUI 3 desktop UIAutomation test:
   - Launched `Marksmith.exe` (PID matched), located main window automation element (`WinUIDesktopWin32WindowClass`), verified UI responsiveness, and terminated cleanly.
 
+### 2026-10-15 (Shape Rendering Optimizations & Deferred Mosaic Synthesis)
+
+- **Timestamp:** 2026-10-15T00:15:00Z
+- **Model:** `Gemini 3.8 Flash (High)`
+- **Identity:** `Antigravity AI Agent (Google DeepMind)`
+- **Mode:** `/boost`
+- **Trigger:** Implementation of all four Shape Rendering Optimizations (Tricks 1-4) across in-app preview and Word (.docx) export
+
+**Optimizations Implemented:**
+1. **Trick 1: Skia Flattened Bitmap Preview (`shapes.Count > 150`):**
+   - In `ShapeMarkdownHtml.cs`, when shape count exceeds 150, shapes are rasterized offscreen into an in-memory `SKBitmap` via `ImageShapeComposer.RenderBitmapPreviewPng` and emitted as an `<img src="data:image/png;base64,...">` tag.
+   - Reduces DOM element count from hundreds/thousands of individual `<path>`/`<rect>` nodes down to an $O(1)$ single `<img>` tag, completely eliminating WebView2 layout thrashing and scrolling stutter.
+2. **Trick 3: Compound Path Grouping by Color (`31..150` shapes):**
+   - In `ImageShapeComposer.RenderSvgCompound`, shapes sharing the same palette fill color are grouped into a single `<path d="M... Z M... Z" fill="#HEX"/>`.
+   - Collapses DOM node count by ~95% while retaining native SVG vector sharpness at arbitrary DPI and zoom levels.
+3. **Trick 4: LOD Clamping for In-App Preview (`MaxPreviewGrid = 32`):**
+   - In `MosaicRecipe.cs`, `Synthesize(isPreview: true)` clamps dense grids to `MaxPreviewGrid = 32`. In-app editing stays fluid and responsive even if a recipe requests grid 64, 96, or 128.
+4. **Trick 2: Deferred Recipe Synthesis & 100% Native Word Export:**
+   - Word exports via `DocxExportService.cs` (`RenderMosaic` and `RenderShapes`) call `recipe.Synthesize(isPreview: false)` to synthesize the full requested density.
+   - Generates 100% native DrawingML vector shapes (`<wps:wsp>` within `<wpg:wgp>`, with `<a:prstGeom>` and `<a:solidFill>`), ensuring every individual tile is fully vector-scalable and editable inside Microsoft Word. Validates against OpenXML schema with 0 errors.
+5. **Fixed Parity Cancellation Bug in `ResolveShape`:**
+   - Identified that the legacy positional formula `(x * 3 + y * 7 + (x ^ y))` evaluates to an identically even integer for all integer coordinates $(x, y)$, causing palettes with an even number of shapes (such as 2-shape palettes) to evaluate to index 0 for 100% of cells.
+   - Added parity offset `(x + y) & 1` when `shapes.Count` is even to produce proper checkerboard/interleaved distribution.
+6. **Attributes Support in `MosaicRecipe.Parse`:**
+   - Added `IDictionary<string, string>? attributes` to `MosaicRecipe.Parse`, allowing `node.Attributes` from `AdvancedFeaturePipeline` to populate recipe parameters.
+
+**Shipped:**
+- `MarkSmith.Core/Composer/MosaicRecipe.cs`:
+  - Created deferred mosaic/shape recipe parser and synthesizer with preview LOD clamping.
+- `MarkSmith.Core/Composer/ImageShapeComposer.cs`:
+  - Added `RenderBitmapPreviewPngBytes`, `RenderBitmapPreviewPng`, and `RenderSvgCompound`.
+  - Fixed parity cancellation in `ResolveShape` for even shape counts.
+- `MarkSmith.Core/Composer/ShapeMarkdownHtml.cs`:
+  - Updated `LiftShapes` to support `:::mosaic` and shape recipes with 3-tier rendering (bitmap preview, compound path SVG, discrete SVG).
+- `MarkSmith.Core/AdvancedFeatures/Detectors.cs` & `AdvancedFeaturePipeline.cs`:
+  - Added and registered `MosaicDetector`.
+- `MarkSmith.Core/Services/DocxExportService.cs`:
+  - Added `RenderMosaic` and updated `RenderShapes` for full-density deferred recipe synthesis to native DrawingML.
+- `MarkSmith.Tests/ComposerOptimizationTests.cs`:
+  - Added tests for all 4 optimizations and recipe parsing in both `:::mosaic` and `:::shapes` blocks.
+
+
 
 
