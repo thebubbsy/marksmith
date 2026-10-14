@@ -268,9 +268,9 @@ public class ShapeStudioTests
         finally { if (System.IO.File.Exists(png)) System.IO.File.Delete(png); }
     }
     [Fact]
-    public async System.Threading.Tasks.Task HybridFusion_CapsTotalElements_AtPracticalBudget()
+    public async System.Threading.Tasks.Task HybridFusion_PreservesAllElements_Without12kArtificialLimit()
     {
-        // Dense photo: mosaic tiles are all kept, contour lines are sampled to fit 12k.
+        // Dense photo: mosaic tiles and contour lines are all kept without artificial 12k clamping.
         string png = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"fusion-{System.Guid.NewGuid():N}.png");
         try
         {
@@ -289,8 +289,10 @@ public class ShapeStudioTests
             await vm.ComposeHybridFusionAsync(png, 48, 1200,
                 new System.Collections.Generic.List<string> { "auto" },
                 MarkSmith.Core.Composer.LineTraceMode.CrossHatch);
-            Assert.True(vm.Shapes.Count <= 12000, $"fusion must stay within budget, got {vm.Shapes.Count}");
-            Assert.Contains("sampled", vm.StatusMessage);
+            Assert.True(vm.Shapes.Count > 12000, $"fusion should preserve all elements without 12k cap, got {vm.Shapes.Count}");
+            Assert.DoesNotContain("12k", vm.StatusMessage);
+            Assert.DoesNotContain("sampled", vm.StatusMessage);
+            Assert.Contains("Vector Fusion", vm.StatusMessage);
         }
         finally { if (System.IO.File.Exists(png)) System.IO.File.Delete(png); }
     }

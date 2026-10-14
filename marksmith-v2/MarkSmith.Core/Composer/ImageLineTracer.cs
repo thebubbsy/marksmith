@@ -501,15 +501,13 @@ namespace MarkSmith.Core.Composer
         // ---- preview ----
 
         /// <summary>Rasterizes a traced composition to a PNG for the studio canvas and thumbnails.
-        /// Capped at <paramref name="previewCap"/> lines for the raster pass only — export and the
-        /// markdown/SVG paths always carry the FULL line set. When over the cap, lines are sampled
-        /// EVENLY (every Nth) so the preview still shows the whole picture, not just the top.</summary>
+        /// Uses offscreen Skia flattened bitmap rendering for O(1) lightweight preview.</summary>
         public static byte[]? RenderPreviewPng(List<ComposedShape> shapes, double widthIn, double heightIn,
-            int previewCap = 24000)
+            int previewCap = 0)
         {
-            if (shapes.Count == 0) return null;
+            if (shapes == null || shapes.Count == 0) return null;
             List<ComposedShape> limited;
-            if (shapes.Count <= previewCap)
+            if (previewCap <= 0 || shapes.Count <= previewCap)
             {
                 limited = shapes;
             }
@@ -520,8 +518,7 @@ namespace MarkSmith.Core.Composer
                 for (int i = 0; i < shapes.Count; i += stride)
                     limited.Add(shapes[i]);
             }
-            string svg = ImageShapeComposer.RenderSvg(limited, widthIn, heightIn);
-            return MarkSmith.Services.SvgRasterizer.ToPng(svg, scale: 2.0);
+            return ImageShapeComposer.RenderBitmapPreviewPngBytes(limited, widthIn, heightIn, scale: 2.0f);
         }
 
         private static SKBitmap Downscale(SKBitmap src, int maxWidth)

@@ -2861,7 +2861,6 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             }
 
             StatusMessage = $"⚡ Vector Fusion: Processing {Path.GetFileName(imagePath)}…";
-            bool linesSampled = false;
             var fused = await System.Threading.Tasks.Task.Run(() =>
             {
                 var result = new List<ComposedShape>();
@@ -2894,28 +2893,6 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                     result.AddRange(edgeLines);
                 }
 
-                // Practical budget: tens of thousands of live canvas items freeze the
-                // studio (layout + inspector list). Mosaic tiles are all kept; contour
-                // lines are sampled EVENLY so the overlay still covers the whole picture.
-                const int FusionBudget = 12000;
-                if (result.Count > FusionBudget)
-                {
-                    var tiles = result.Where(s => s.PathPoints == null).ToList();
-                    var lines = result.Where(s => s.PathPoints != null).ToList();
-                    int lineBudget = Math.Max(0, FusionBudget - tiles.Count);
-                    if (lines.Count > lineBudget && lineBudget > 0)
-                    {
-                        int stride = (int)Math.Ceiling(lines.Count / (double)lineBudget);
-                        lines = lines.Where((_, i) => i % stride == 0).ToList();
-                    }
-                    else if (lineBudget <= 0)
-                    {
-                        lines.Clear();
-                    }
-                    result = tiles.Concat(lines).ToList();
-                    linesSampled = true;
-                }
-
                 return result;
             }, ct);
 
@@ -2931,8 +2908,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             AppendComposed(fused);
             int shapeCount = fused.Count(s => s.PathPoints == null);
             int lineCount = fused.Count(s => s.PathPoints != null);
-            StatusMessage = $"⚡ Vector Fusion: {fused.Count:N0} elements ({shapeCount:N0} shapes + {lineCount:N0} contour lines)"
-                + (linesSampled ? " — lines sampled to fit the 12k practical budget" : "");
+            StatusMessage = $"⚡ Vector Fusion: {fused.Count:N0} elements ({shapeCount:N0} shapes + {lineCount:N0} contour lines)";
             await RefreshCanvasModeAsync();
             CanvasChanged?.Invoke(this, EventArgs.Empty);
         }
