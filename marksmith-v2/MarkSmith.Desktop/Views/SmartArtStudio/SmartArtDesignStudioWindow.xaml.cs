@@ -602,6 +602,90 @@ namespace MarkSmith.Views.SmartArtStudio
             FocusRenameBox();
         }
 
+        private void OnOutlineEmptyPanelRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var addFirstItem = new MenuFlyoutItem
+            {
+                Text = "Add first item",
+                Icon = new FontIcon { Glyph = "\uE710" },
+                KeyboardAcceleratorTextOverride = "Insert"
+            };
+            addFirstItem.Click += OnAddFirstNodeClick;
+            menu.Items.Add(addFirstItem);
+
+            var switchMarkdownItem = new MenuFlyoutItem
+            {
+                Text = "Switch to Markdown editor",
+                Icon = new FontIcon { Glyph = "\uE943" },
+                KeyboardAcceleratorTextOverride = "Ctrl+2"
+            };
+            switchMarkdownItem.Click += (_, _) =>
+            {
+                if (EditorTabs != null && MarkdownTab != null) EditorTabs.SelectedItem = MarkdownTab;
+            };
+            menu.Items.Add(switchMarkdownItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var pasteItem = new MenuFlyoutItem
+            {
+                Text = "Paste bullets from clipboard",
+                Icon = new FontIcon { Glyph = "\uE77F" },
+                KeyboardAcceleratorTextOverride = "Ctrl+V"
+            };
+            pasteItem.Click += async (_, _) =>
+            {
+                try
+                {
+                    var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var text = await pkg.GetTextAsync();
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            ViewModel.MarkdownText = text;
+                            ViewModel.StatusMessage = "Pasted outline Markdown from clipboard.";
+                        }
+                    }
+                }
+                catch { }
+            };
+            menu.Items.Add(pasteItem);
+
+            var copySmartArtItem = new MenuFlyoutItem
+            {
+                Text = "Copy :::smartart block",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C"
+            };
+            copySmartArtItem.Click += OnCopySmartArtBlockClick;
+            menu.Items.Add(copySmartArtItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var focusSearchItem = new MenuFlyoutItem
+            {
+                Text = "Search layouts",
+                Icon = new FontIcon { Glyph = "\uE721" },
+                KeyboardAcceleratorTextOverride = "Ctrl+F"
+            };
+            focusSearchItem.Click += (_, _) =>
+            {
+                LayoutSearch?.Focus(FocusState.Programmatic);
+            };
+            menu.Items.Add(focusSearchItem);
+
+            if (sender is FrameworkElement fe)
+                menu.ShowAt(fe, e.GetPosition(fe));
+            else if (OutlineEmptyPanel is not null)
+                menu.ShowAt(OutlineEmptyPanel, e.GetPosition(OutlineEmptyPanel));
+            else
+                menu.ShowAt(this.Content, e.GetPosition(this.Content));
+        }
+
         private void FocusRenameBox()
         {
             // The rename box appears on the next layout pass — focus + select-all then.

@@ -805,6 +805,155 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnEditorReplaceClick(object sender, RoutedEventArgs e) => ShowFindBar(replace: true);
 
+    private void OnEditorFindButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var findItem = new MenuFlyoutItem
+        {
+            Text = "Find in document",
+            Icon = new FontIcon { Glyph = "\uE721" },
+            KeyboardAcceleratorTextOverride = "Ctrl+F"
+        };
+        findItem.Click += (_, _) => ShowFindBar();
+        menu.Items.Add(findItem);
+
+        var replaceItem = new MenuFlyoutItem
+        {
+            Text = "Find and replace",
+            Icon = new FontIcon { Glyph = "\uE70F" },
+            KeyboardAcceleratorTextOverride = "Ctrl+H"
+        };
+        replaceItem.Click += (_, _) => ShowFindBar(replace: true);
+        menu.Items.Add(replaceItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var nextItem = new MenuFlyoutItem
+        {
+            Text = "Next match",
+            Icon = new FontIcon { Glyph = "\uE70D" },
+            KeyboardAcceleratorTextOverride = "F3"
+        };
+        nextItem.Click += OnFindNextClick;
+        menu.Items.Add(nextItem);
+
+        var prevItem = new MenuFlyoutItem
+        {
+            Text = "Previous match",
+            Icon = new FontIcon { Glyph = "\uE70E" },
+            KeyboardAcceleratorTextOverride = "Shift+F3"
+        };
+        prevItem.Click += OnFindPrevClick;
+        menu.Items.Add(prevItem);
+
+        if (!string.IsNullOrEmpty(FindTextBox?.Text))
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var copyQueryItem = new MenuFlyoutItem
+            {
+                Text = "Copy search query",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyQueryItem.Click += (_, _) =>
+            {
+                try
+                {
+                    var pkg = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    pkg.SetText(FindTextBox.Text);
+                    Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(pkg);
+                    ViewModel.StatusText = $"Copied search query '{FindTextBox.Text}'";
+                }
+                catch { }
+            };
+            menu.Items.Add(copyQueryItem);
+        }
+
+        if (FindBar?.Visibility == Visibility.Visible)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var closeItem = new MenuFlyoutItem
+            {
+                Text = "Close find bar",
+                Icon = new FontIcon { Glyph = "\uE711" },
+                KeyboardAcceleratorTextOverride = "Esc"
+            };
+            closeItem.Click += OnFindCloseClick;
+            menu.Items.Add(closeItem);
+        }
+
+        menu.ShowAt(EditorFindButton, e.GetPosition(EditorFindButton));
+    }
+
+    private void OnLineNumbersToggleRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var toggleLinesItem = new MenuFlyoutItem
+        {
+            Text = LineNumbersToggle.IsChecked == true ? "Hide line numbers" : "Show line numbers",
+            Icon = new FontIcon { Glyph = LineNumbersToggle.IsChecked == true ? "\uE8FD" : "\uE73E" }
+        };
+        toggleLinesItem.Click += (_, _) =>
+        {
+            LineNumbersToggle.IsChecked = !(LineNumbersToggle.IsChecked == true);
+        };
+        menu.Items.Add(toggleLinesItem);
+
+        var toggleWrapItem = new MenuFlyoutItem
+        {
+            Text = WordWrapToggle.IsChecked == true ? "Disable word wrap" : "Enable word wrap",
+            Icon = new FontIcon { Glyph = "\uE8A5" },
+            KeyboardAcceleratorTextOverride = "Alt+Z"
+        };
+        toggleWrapItem.Click += (_, _) =>
+        {
+            WordWrapToggle.IsChecked = !(WordWrapToggle.IsChecked == true);
+        };
+        menu.Items.Add(toggleWrapItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var foldAllItem = new MenuFlyoutItem
+        {
+            Text = "Fold all code blocks",
+            Icon = new FontIcon { Glyph = "\uE943" }
+        };
+        foldAllItem.Click += OnFoldAllCodeClick;
+        menu.Items.Add(foldAllItem);
+
+        var unfoldAllItem = new MenuFlyoutItem
+        {
+            Text = "Unfold everything",
+            Icon = new FontIcon { Glyph = "\uE70E" }
+        };
+        unfoldAllItem.Click += OnUnfoldAllClick;
+        menu.Items.Add(unfoldAllItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var resetZoomItem = new MenuFlyoutItem
+        {
+            Text = "Reset editor font size (100%)",
+            Icon = new FontIcon { Glyph = "\uE71E" }
+        };
+        resetZoomItem.Click += OnEditorZoomResetClick;
+        menu.Items.Add(resetZoomItem);
+
+        var selectAllItem = new MenuFlyoutItem
+        {
+            Text = "Select all text",
+            Icon = new FontIcon { Glyph = "\uE8B3" },
+            KeyboardAcceleratorTextOverride = "Ctrl+A"
+        };
+        selectAllItem.Click += (_, _) => PasteTextBox?.SelectAll();
+        menu.Items.Add(selectAllItem);
+
+        menu.ShowAt(LineNumbersToggle, e.GetPosition(LineNumbersToggle));
+    }
+
     // "Export history" moved into the ⋯ menu but kept its rich ListView flyout: the menu item
     // re-opens it as the button's attached flyout (enqueued so the closing menu doesn't eat it).
     private void OnExportHistoryMenuClick(object sender, RoutedEventArgs e)
@@ -9546,7 +9695,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var item = new MenuFlyoutItem
             {
                 Text = label,
-                Icon = Math.Abs(_lastPreviewZoom - scale) < 0.02 ? new FontIcon { Glyph = "\uE73E" } : null
+                Icon = new FontIcon { Glyph = Math.Abs(_lastPreviewZoom - scale) < 0.02 ? "\uE73E" : "\uE71F" }
             };
             double targetScale = scale;
             item.Click += (_, _) =>
@@ -9685,6 +9834,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         SetPreviewFit(on);
         if (!on) PersistPreviewZoom(_lastPreviewZoom);
         SendPreviewZoom(anchor: null);
+    }
+
+    private void OnPreviewFitToggleRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowPreviewZoomContextMenu(PreviewFitToggle, e.GetPosition(PreviewFitToggle));
     }
 
     private bool _previewFit;

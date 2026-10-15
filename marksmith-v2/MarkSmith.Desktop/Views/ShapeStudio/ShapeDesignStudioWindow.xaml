@@ -194,6 +194,8 @@
                             <GridView x:Name="PaletteGrid" ItemsSource="{Binding PaletteItems}" SelectionMode="Single"
                                       SelectedItem="{Binding ArmedTool, Mode=TwoWay}" Margin="-4,0"
                                       SizeChanged="OnPaletteGridSizeChanged"
+                                      RightTapped="OnPaletteGridRightTapped"
+                                      ToolTipService.ToolTip="Shapes to draw · Click to arm shape, Right-click for options"
                                       AutomationProperties.Name="Shapes to draw">
                                 <!-- Tiles share the row evenly (OnPaletteGridSizeChanged). Fixed 84 px tiles fitted
                                      two to a row and left a third of the pane empty. -->
@@ -226,8 +228,10 @@
                             <TextBlock Text="Turn a photo or logo into Word shapes and traced line art. Set either density to 0 to skip that layer." Style="{StaticResource PaneCaption}" />
 
                             <!-- Image card -->
-                            <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="1" CornerRadius="6" Padding="10">
+                            <Border x:Name="ImageCardBorder" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="10"
+                                    RightTapped="OnImageCardRightTapped"
+                                    ToolTipService.ToolTip="Image to vectorize · Right-click for options">
                                 <Grid ColumnSpacing="10">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -243,7 +247,9 @@
                                     <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
                                         <TextBlock x:Name="FuseImageLabel" Text="No image chosen" FontSize="12" TextTrimming="CharacterEllipsis"
                                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                        <Button x:Name="PickImageButton" Content="Choose image…" Click="OnPickImageClick" Padding="10,4" />
+                                        <Button x:Name="PickImageButton" Content="Choose image…" Click="OnPickImageClick" Padding="10,4"
+                                                RightTapped="OnImageCardRightTapped"
+                                                ToolTipService.ToolTip="Choose image file · Right-click for options" />
                                         <Grid ColumnSpacing="6">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />

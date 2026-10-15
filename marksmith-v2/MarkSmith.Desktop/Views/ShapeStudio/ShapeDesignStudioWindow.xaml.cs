@@ -1156,6 +1156,20 @@ namespace MarkSmith.Views.ShapeStudio
                 flyout.Items.Add(new MenuFlyoutSeparator());
             }
 
+            var insertSub = new MenuFlyoutSubItem
+            {
+                Text = "Insert shape",
+                Icon = new FontIcon { Glyph = "\uE710" }
+            };
+            insertSub.Items.Add(ShapeMenuItem("Process (Rectangle)", "\uE735", () => ViewModel.AddShapeAt("rect", position.X, position.Y)));
+            insertSub.Items.Add(ShapeMenuItem("Terminal (Rounded rectangle)", "\uE735", () => ViewModel.AddShapeAt("roundrect", position.X, position.Y)));
+            insertSub.Items.Add(ShapeMenuItem("Circle (Ellipse)", "\uE707", () => ViewModel.AddShapeAt("ellipse", position.X, position.Y)));
+            insertSub.Items.Add(ShapeMenuItem("Decision (Diamond)", "\uF0E2", () => ViewModel.AddShapeAt("diamond", position.X, position.Y)));
+            insertSub.Items.Add(ShapeMenuItem("Data store (Cylinder)", "\uE81E", () => ViewModel.AddShapeAt("cylinder", position.X, position.Y)));
+            insertSub.Items.Add(ShapeMenuItem("Directional (Chevron)", "\uE76C", () => ViewModel.AddShapeAt("chevron", position.X, position.Y)));
+            flyout.Items.Add(insertSub);
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
             flyout.Items.Add(ShapeMenuItem("Paste shapes from clipboard", "\uE77F", () => OnLoadMarkdownClick(this, new RoutedEventArgs())));
             flyout.Items.Add(ShapeMenuItem("Copy shapes as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), enabled: any));
             flyout.Items.Add(new MenuFlyoutSeparator());
@@ -2071,6 +2085,56 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.ShowAt(PresetList, e.GetPosition(PresetList));
         }
 
+        private void OnPaletteGridRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (PaletteGrid is null) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            bool any = ViewModel.HasShapes;
+
+            string currentTool = ViewModel.ArmedTool ?? "roundrect";
+            flyout.Items.Add(ShapeMenuItem($"Arm '{currentTool}' to draw", "\uE790", () =>
+            {
+                ViewModel.ArmedTool = currentTool;
+                ViewModel.StatusMessage = $"Armed '{currentTool}'. Click canvas to drop or drag to draw.";
+            }));
+
+            flyout.Items.Add(ShapeMenuItem($"Insert '{currentTool}' at center", "\uE710", () =>
+            {
+                ViewModel.AddShapeAt(currentTool, 220, 160);
+                ViewModel.StatusMessage = $"Inserted '{currentTool}' shape.";
+            }));
+
+            if (ViewModel.IsPlacing)
+            {
+                flyout.Items.Add(ShapeMenuItem("Disarm tool (Select mode)", "\uE894", () =>
+                {
+                    ViewModel.ArmedTool = null;
+                    ViewModel.StatusMessage = "Selection mode active.";
+                }, "Esc"));
+            }
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Select all shapes", "\uE8B3", () => ViewModel.SelectAllCommand.Execute(null), "Ctrl+A", enabled: any && !ViewModel.IsDense));
+            flyout.Items.Add(ShapeMenuItem("Copy shapes as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), "Ctrl+Shift+C", enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Fit diagram in window", "\uE9A6", FitCanvasToContent, "Ctrl+0", enabled: any));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Switch to Presets tab", "\uF0E2", () =>
+            {
+                if (LeftTabs != null && PresetsTab != null) LeftTabs.SelectedItem = PresetsTab;
+            }, "Ctrl+1"));
+
+            flyout.Items.Add(ShapeMenuItem("Switch to Picture to vector tab", "\uEB9F", () =>
+            {
+                if (LeftTabs != null && PictureTab != null) LeftTabs.SelectedItem = PictureTab;
+            }, "Ctrl+3"));
+
+            flyout.ShowAt(PaletteGrid, e.GetPosition(PaletteGrid));
+        }
+
         // ---- picture → vector ----
 
         private string? _composeImagePath;
@@ -2142,6 +2206,85 @@ namespace MarkSmith.Views.ShapeStudio
             }
             catch { }
             ViewModel.StatusMessage = $"Picture ready: {System.IO.Path.GetFileName(path)} — adjust the layers, then Convert.";
+        }
+
+        private void OnImageCardRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            flyout.Items.Add(ShapeMenuItem("Choose image file…", "\uE8B7", () => OnPickImageClick(this, new RoutedEventArgs())));
+
+            flyout.Items.Add(ShapeMenuItem("Paste image path from clipboard", "\uE77F", async () =>
+            {
+                try
+                {
+                    var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var text = await pkg.GetTextAsync();
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            FuseImagePathBox.Text = text.Trim('\"', ' ');
+                            OnUseImagePathClick(this, new RoutedEventArgs());
+                        }
+                    }
+                }
+                catch { }
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Copy image path", "\uE8C8", () =>
+            {
+                var path = FuseImagePathBox?.Text ?? _composeImagePath ?? "";
+                if (!string.IsNullOrEmpty(path))
+                {
+                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(path);
+                    ViewModel.StatusMessage = "Copied image path to clipboard.";
+                }
+            }, enabled: !string.IsNullOrEmpty(FuseImagePathBox?.Text) || !string.IsNullOrEmpty(_composeImagePath)));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Trace & vectorize image", "\uEB9F", () => OnFuseImageClick(this, new RoutedEventArgs()), enabled: ViewModel.HasImage));
+
+            flyout.Items.Add(ShapeMenuItem("Reset tracing sliders to defaults", "\uE777", () =>
+            {
+                FuseMosaicDensity.Value = 96;
+                FuseMosaicPadding.Value = -6;
+                FuseLineDensity.Value = 120;
+                ViewModel.StatusMessage = "Reset mosaic and line sliders to default density.";
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Clear image", "\uE74D", () =>
+            {
+                _composeImagePath = null;
+                FuseThumb.Source = null;
+                FuseImageLabel.Text = "No image chosen";
+                ToolTipService.SetToolTip(FuseImageLabel, null);
+                PickImageButton.Content = "Choose image…";
+                if (FuseImagePathBox != null) FuseImagePathBox.Text = string.Empty;
+                ViewModel.HasImage = false;
+                ViewModel.StatusMessage = "Cleared chosen image.";
+            }, enabled: ViewModel.HasImage));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Switch to Presets tab", "\uF0E2", () =>
+            {
+                if (LeftTabs != null && PresetsTab != null) LeftTabs.SelectedItem = PresetsTab;
+            }, "Ctrl+1"));
+
+            flyout.Items.Add(ShapeMenuItem("Switch to Shapes library", "\uE790", () =>
+            {
+                if (LeftTabs != null && ShapesTab != null) LeftTabs.SelectedItem = ShapesTab;
+            }, "Ctrl+2"));
+
+            if (sender is FrameworkElement fe)
+                flyout.ShowAt(fe, e.GetPosition(fe));
+            else if (ImageCardBorder is not null)
+                flyout.ShowAt(ImageCardBorder, e.GetPosition(ImageCardBorder));
+            else
+                flyout.ShowAt(this.Content, e.GetPosition(this.Content));
         }
 
         private async void OnFuseImageClick(object sender, RoutedEventArgs e)        {

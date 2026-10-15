@@ -7660,6 +7660,59 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 28636, `Alive: True`, `Responding: True`, clean exit.
 
+### 2026-10-16 (scheduled routine run #98 — WinUI 3 Desktop Polish: Shape Library Grid & Image Vectorizer Actions, Canvas Shape Insertion Menu, Editor Find & Line Numbers Menus, Preview Fit Zoom Menu, SmartArt Outline Empty Actions, MindMap Preview Card & Minimap Menus)
+
+- **Surface / Component Targets:** `ShapeDesignStudioWindow`, `MainWindow`, `SmartArtDesignStudioWindow`, `MindMapGalaxyWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #97:
+    * Target A: `ShapeDesignStudioWindow` Toolbar `PaletteButton` & Canvas selection ordering / layer styling refinements (e.g. quick swatch picker right-click, shape layer elevation shortcuts).
+    * Target B: `ShapeDesignStudioWindow` Presets `PresetCategoryCombo` & `PresetList` expanded keyboard interaction / drag-and-drop or instant preview actions.
+  - Generated:
+    1. `ShapeDesignStudioWindow` Shapes Library `PaletteGrid` Context Menu & Quick Arming/Dropping (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`)
+    2. `ShapeDesignStudioWindow` Picture Vectorizer `PickImageButton` & Image Card Context Actions (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Added `RightTapped="OnPaletteGridRightTapped"` on `PaletteGrid` offering Arm shape to draw (`\uE790`), Insert shape at center (`\uE710`), Disarm tool `Esc` (`\uE894`), Select all shapes `Ctrl+A` (`\uE8B3`), Copy shapes as Markdown `Ctrl+Shift+C` (`\uE8C8`), Fit diagram in window `Ctrl+0` (`\uE9A6`), Switch to Presets tab `Ctrl+1` (`\uF0E2`), and Switch to Picture to vector tab `Ctrl+3` (`\uEB9F`). Added `RightTapped="OnImageCardRightTapped"` on image card `ImageCardBorder` and `PickImageButton` offering Choose image file (`\uE8B7`), Paste image path from clipboard (`\uE77F`), Copy image path (`\uE8C8`), Trace & vectorize image (`\uEB9F`), Reset tracing sliders (`\uE777`), Clear image (`\uE74D`), Switch to Presets tab `Ctrl+1` (`\uF0E2`), and Switch to Shapes library `Ctrl+2` (`\uE790`). Enriched `ShowCanvasContextMenu` with an "Insert shape" submenu (`\uE710`) providing Process (Rectangle) (`\uE735`), Terminal (Rounded rectangle) (`\uE735`), Circle (Ellipse) (`\uE707`), Decision (Diamond) (`\uF0E2`), Data store (Cylinder) (`\uE81E`), and Directional (Chevron) (`\uE76C`), all with icons.
+  - Generated:
+    3. `MainWindow` Editor Bottom Strip `EditorFindButton` & `LineNumbersToggle` Context Menus (`MainWindow.xaml` & `.xaml.cs`)
+    4. `MainWindow` Preview Footer `PreviewFitToggle` Context Menu & Zoom Presets (`MainWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Added `RightTapped="OnEditorFindButtonRightTapped"` on `EditorFindButton` offering Find in document `Ctrl+F` (`\uE721`), Find and replace `Ctrl+H` (`\uE70F`), Next match `F3` (`\uE70D`), Previous match `Shift+F3` (`\uE70E`), Copy search query (`\uE8C8`), and Close find bar `Esc` (`\uE711`). Added `RightTapped="OnLineNumbersToggleRightTapped"` on `LineNumbersToggle` offering Toggle line numbers (`\uE8FD`/`\uE73E`), Toggle word wrap `Alt+Z` (`\uE8A5`), Fold all code blocks (`\uE943`), Unfold everything (`\uE70E`), Reset editor zoom to 100% (`\uE71E`), and Select all text `Ctrl+A` (`\uE8B3`). Added `RightTapped="OnPreviewFitToggleRightTapped"` on `PreviewFitToggle` and updated `ShowPreviewZoomContextMenu` ensuring all zoom preset stops have dedicated icons (`\uE73E` for active zoom, `\uE71F` for stops), preserving 100% icon coverage.
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `SmartArtDesignStudioWindow` Outline Empty State `OutlineEmptyPanel` Context Actions (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`)
+    6. `MindMapGalaxyWindow` Floating `PreviewOverlayCard` & `MinimapOverlay` Context Menus (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Added `x:Name="OutlineEmptyPanel"`, `Background="Transparent"`, `IsHitTestVisible="True"`, and `RightTapped="OnOutlineEmptyPanelRightTapped"` to the outline empty state panel in `SmartArtDesignStudioWindow` offering Add first item `Insert` (`\uE710`), Switch to Markdown editor `Ctrl+2` (`\uE943`), Paste bullets from clipboard `Ctrl+V` (`\uE77F`), Copy :::smartart block `Ctrl+Shift+C` (`\uE8C8`), and Search layouts `Ctrl+F` (`\uE721`). Added `RightTapped="OnPreviewOverlayCardRightTapped"` on `PreviewOverlayCard` in `MindMapGalaxyWindow` offering Open in editor (`\uE8A7`), Earlier versions / Version history (`\uE81C`), Copy preview title (`\uE8FD`), Copy preview Markdown (`\uE8C8`), Copy file path (`\uE8C8`), and Close preview card `Esc` (`\uE711`). Added `RightTapped="OnMinimapOverlayRightTapped"` on `MinimapOverlay` offering Fit all nodes in window `Ctrl+0` (`\uE9A6`), Reset zoom 100% (`\uE71E`), Zoom in (`\uE710`), Zoom out (`\uE738`), and Clear selection `Esc` (`\uE894`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #99.
+
+**Shipped:**
+1. **`ShapeDesignStudioWindow` Shapes Library `PaletteGrid` Context Menu & Canvas Shape Insertion (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnPaletteGridRightTapped"` on `PaletteGrid` providing Arm shape to draw (`\uE790`), Insert shape at center (`\uE710`), Disarm tool `Esc` (`\uE894`), Select all shapes `Ctrl+A` (`\uE8B3`), Copy shapes as Markdown `Ctrl+Shift+C` (`\uE8C8`), Fit diagram in window `Ctrl+0` (`\uE9A6`), Switch to Presets tab `Ctrl+1` (`\uF0E2`), and Switch to Picture to vector tab `Ctrl+3` (`\uEB9F`).
+   - Enriched `ShowCanvasContextMenu` on `MainCanvas` with an "Insert shape" submenu (`\uE710`) providing Process (Rectangle) (`\uE735`), Terminal (Rounded rectangle) (`\uE735`), Circle (Ellipse) (`\uE707`), Decision (Diamond) (`\uF0E2`), Data store (Cylinder) (`\uE81E`), and Directional (Chevron) (`\uE76C`), all with icons.
+2. **`ShapeDesignStudioWindow` Picture Vectorizer `PickImageButton` & Image Card Context Actions (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnImageCardRightTapped"` on `ImageCardBorder` and `PickImageButton` offering Choose image file (`\uE8B7`), Paste image path from clipboard (`\uE77F`), Copy image path (`\uE8C8`), Trace & vectorize image (`\uEB9F`), Reset tracing sliders to defaults (`\uE777`), Clear image (`\uE74D`), Switch to Presets tab `Ctrl+1` (`\uF0E2`), and Switch to Shapes library `Ctrl+2` (`\uE790`).
+3. **`MainWindow` Editor Bottom Strip `EditorFindButton` & `LineNumbersToggle` Context Menus (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnEditorFindButtonRightTapped"` on `EditorFindButton` offering Find in document `Ctrl+F` (`\uE721`), Find and replace `Ctrl+H` (`\uE70F`), Next match `F3` (`\uE70D`), Previous match `Shift+F3` (`\uE70E`), Copy search query (`\uE8C8`), and Close find bar `Esc` (`\uE711`).
+   - Attached `RightTapped="OnLineNumbersToggleRightTapped"` on `LineNumbersToggle` offering Toggle line numbers (`\uE8FD`/`\uE73E`), Toggle word wrap `Alt+Z` (`\uE8A5`), Fold all code blocks (`\uE943`), Unfold everything (`\uE70E`), Reset editor zoom to 100% (`\uE71E`), and Select all text `Ctrl+A` (`\uE8B3`).
+4. **`MainWindow` Preview Footer `PreviewFitToggle` Context Menu & Zoom Presets (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnPreviewFitToggleRightTapped"` on `PreviewFitToggle` routing to `ShowPreviewZoomContextMenu`.
+   - Updated `ShowPreviewZoomContextMenu` to provide 100% icon coverage across all zoom stops (`\uE73E` for active, `\uE71F` for stops), Fit to window width (`\uE8A9`), Reset zoom 100% (`\uE71E`), and Copy zoom level (`\uE8C8`).
+5. **`SmartArtDesignStudioWindow` Outline Empty State `OutlineEmptyPanel` Context Actions (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `x:Name="OutlineEmptyPanel"`, `Background="Transparent"`, `IsHitTestVisible="True"`, and `RightTapped="OnOutlineEmptyPanelRightTapped"` offering Add first item `Insert` (`\uE710`), Switch to Markdown editor `Ctrl+2` (`\uE943`), Paste bullets from clipboard `Ctrl+V` (`\uE77F`), Copy :::smartart block `Ctrl+Shift+C` (`\uE8C8`), and Search layouts `Ctrl+F` (`\uE721`).
+6. **`MindMapGalaxyWindow` Floating `PreviewOverlayCard` & `MinimapOverlay` Context Menus (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnPreviewOverlayCardRightTapped"` on `PreviewOverlayCard` offering Open in editor (`\uE8A7`), Earlier versions / Version history (`\uE81C`), Copy preview title (`\uE8FD`), Copy preview Markdown (`\uE8C8`), Copy file path (`\uE8C8`), and Close preview card `Esc` (`\uE711`).
+   - Attached `RightTapped="OnMinimapOverlayRightTapped"` on `MinimapOverlay` offering Fit all nodes in window `Ctrl+0` (`\uE9A6`), Reset zoom 100% (`\uE71E`), Zoom in (`\uE710`), Zoom out (`\uE738`), and Clear selection `Esc` (`\uE894`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64 -p:OutDir="$env:TEMP\ms98d\b\"`: **0 errors, 16 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 13800, `Alive: True`, `Responding: True`, clean exit.
+
 
 
 

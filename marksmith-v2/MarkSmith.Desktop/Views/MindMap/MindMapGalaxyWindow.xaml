@@ -396,7 +396,8 @@
                         Margin="24,0,0,24" Width="180" Height="120"
                         Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                         CornerRadius="8" Padding="6"
-                        ToolTipService.ToolTip="Overview: click or drag to move around the map">
+                        RightTapped="OnMinimapOverlayRightTapped"
+                        ToolTipService.ToolTip="Overview: click or drag to move around the map (Right-click for options)">
                     <Canvas x:Name="MinimapCanvas" Background="Transparent"
                             AutomationProperties.Name="Map overview"
                             PointerPressed="OnMinimapPointerPressed"
@@ -415,7 +416,9 @@
                         HorizontalAlignment="Right" VerticalAlignment="Bottom"
                         Margin="0,0,24,24" Width="400" MaxHeight="320"
                         Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                        CornerRadius="12" Padding="14,12">
+                        CornerRadius="12" Padding="14,12"
+                        RightTapped="OnPreviewOverlayCardRightTapped"
+                        ToolTipService.ToolTip="Document preview (Right-click for document options)">
                     <Grid RowSpacing="8">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />

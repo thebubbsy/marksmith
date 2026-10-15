@@ -3101,6 +3101,91 @@ namespace MarkSmith.Views.MindMap
             ViewModel.HidePreviewCard();
         }
 
+        private void OnPreviewOverlayCardRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var openItem = new MenuFlyoutItem
+            {
+                Text = "Open in editor",
+                Icon = new FontIcon { Glyph = "\uE8A7" },
+                IsEnabled = ViewModel.PreviewHasFile
+            };
+            openItem.Click += OnOpenInEditorClick;
+            menu.Items.Add(openItem);
+
+            var historyItem = new MenuFlyoutItem
+            {
+                Text = "Version history",
+                Icon = new FontIcon { Glyph = "\uE81C" },
+                IsEnabled = ViewModel.PreviewHasFile
+            };
+            historyItem.Click += OnPreviewVersionHistoryClick;
+            menu.Items.Add(historyItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyTitleItem = new MenuFlyoutItem
+            {
+                Text = "Copy preview title",
+                Icon = new FontIcon { Glyph = "\uE8FD" },
+                IsEnabled = !string.IsNullOrEmpty(ViewModel.PreviewTitle)
+            };
+            copyTitleItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.PreviewTitle ?? "");
+                ViewModel.StatusMessage = "Copied preview title to clipboard";
+            };
+            menu.Items.Add(copyTitleItem);
+
+            var copyMarkdownItem = new MenuFlyoutItem
+            {
+                Text = "Copy preview Markdown",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !string.IsNullOrEmpty(ViewModel.PreviewMarkdown)
+            };
+            copyMarkdownItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.PreviewMarkdown ?? "");
+                ViewModel.StatusMessage = "Copied preview Markdown to clipboard";
+            };
+            menu.Items.Add(copyMarkdownItem);
+
+            if (!string.IsNullOrEmpty(ViewModel.PreviewFilePath))
+            {
+                var copyPathItem = new MenuFlyoutItem
+                {
+                    Text = "Copy file path",
+                    Icon = new FontIcon { Glyph = "\uE8C8" }
+                };
+                copyPathItem.Click += (_, _) =>
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.PreviewFilePath ?? "");
+                    ViewModel.StatusMessage = "Copied file path to clipboard";
+                };
+                menu.Items.Add(copyPathItem);
+            }
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var closeItem = new MenuFlyoutItem
+            {
+                Text = "Close preview card",
+                Icon = new FontIcon { Glyph = "\uE711" },
+                KeyboardAcceleratorTextOverride = "Esc"
+            };
+            closeItem.Click += OnClosePreviewCardClick;
+            menu.Items.Add(closeItem);
+
+            if (sender is FrameworkElement fe)
+                menu.ShowAt(fe, e.GetPosition(fe));
+            else if (PreviewOverlayCard is not null)
+                menu.ShowAt(PreviewOverlayCard, e.GetPosition(PreviewOverlayCard));
+            else
+                menu.ShowAt(this.Content, e.GetPosition(this.Content));
+        }
+
         #region Minimap Radar Navigation
 
         private bool _isMinimapDragging;
@@ -3233,6 +3318,71 @@ namespace MarkSmith.Views.MindMap
             ViewModel.ViewportOffsetX = -(_minimapMinX + (pt.X / _minimapScale));
             ViewModel.ViewportOffsetY = -(_minimapMinY + (pt.Y / _minimapScale));
             RequestRedraw(RedrawScope.Transform);
+        }
+
+        private void OnMinimapOverlayRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var fitItem = new MenuFlyoutItem
+            {
+                Text = "Fit all nodes in window",
+                Icon = new FontIcon { Glyph = "\uE9A6" },
+                KeyboardAcceleratorTextOverride = "Ctrl+0"
+            };
+            fitItem.Click += OnFitToWindowClick;
+            menu.Items.Add(fitItem);
+
+            var resetZoomItem = new MenuFlyoutItem
+            {
+                Text = "Reset zoom (100%)",
+                Icon = new FontIcon { Glyph = "\uE71E" }
+            };
+            resetZoomItem.Click += OnZoomResetClick;
+            menu.Items.Add(resetZoomItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var zoomInItem = new MenuFlyoutItem
+            {
+                Text = "Zoom in",
+                Icon = new FontIcon { Glyph = "\uE710" }
+            };
+            zoomInItem.Click += (_, _) => ZoomAbout(new Point(CanvasWidth / 2.0, CanvasHeight / 2.0), 1.15);
+            menu.Items.Add(zoomInItem);
+
+            var zoomOutItem = new MenuFlyoutItem
+            {
+                Text = "Zoom out",
+                Icon = new FontIcon { Glyph = "\uE738" }
+            };
+            zoomOutItem.Click += OnZoomOutClick;
+            menu.Items.Add(zoomOutItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var clearSelItem = new MenuFlyoutItem
+            {
+                Text = "Clear selection",
+                Icon = new FontIcon { Glyph = "\uE894" },
+                KeyboardAcceleratorTextOverride = "Esc",
+                IsEnabled = ViewModel.HasSelection
+            };
+            clearSelItem.Click += (_, _) =>
+            {
+                ViewModel.SelectedNode = null;
+                ViewModel.SelectedLink = null;
+                ViewModel.HidePreviewCard();
+            };
+            menu.Items.Add(clearSelItem);
+
+            if (sender is FrameworkElement fe)
+                menu.ShowAt(fe, e.GetPosition(fe));
+            else if (MinimapOverlay is not null)
+                menu.ShowAt(MinimapOverlay, e.GetPosition(MinimapOverlay));
+            else
+                menu.ShowAt(this.Content, e.GetPosition(this.Content));
         }
 
         private void OnStatusBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

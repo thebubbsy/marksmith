@@ -273,13 +273,18 @@
                         </ScrollViewer>
 
                         <!-- Empty state: shown once every item has been deleted. -->
-                        <StackPanel Grid.Row="1" Spacing="10" MaxWidth="300" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        <StackPanel x:Name="OutlineEmptyPanel" Grid.Row="1" Spacing="10" MaxWidth="300" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    Background="Transparent" IsHitTestVisible="True"
+                                    RightTapped="OnOutlineEmptyPanelRightTapped"
+                                    ToolTipService.ToolTip="The outline is empty · Right-click for options"
                                     Visibility="{Binding IsOutlineEmpty, Converter={StaticResource BoolToVisibilityConverter}}">
                             <FontIcon Glyph="&#xF003;" FontSize="36" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
                             <TextBlock Text="The outline is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
                             <TextBlock Text="Add a first item, then build it out with Child and Sibling — or paste bullets on the Markdown tab."
                                        Style="{StaticResource PaneCaption}" TextAlignment="Center" />
-                            <Button Click="OnAddFirstNodeClick" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" Margin="0,4,0,0">
+                            <Button Click="OnAddFirstNodeClick" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" Margin="0,4,0,0"
+                                    RightTapped="OnOutlineEmptyPanelRightTapped"
+                                    ToolTipService.ToolTip="Add first item (Insert · Right-click for options)">
                                 <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Add first item" /></StackPanel>
                             </Button>
                         </StackPanel>
