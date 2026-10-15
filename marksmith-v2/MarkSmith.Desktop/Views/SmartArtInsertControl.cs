@@ -66,6 +66,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         };
         AutomationProperties.SetName(examplesButton, "Start from an example");
         ToolTipService.SetToolTip(examplesButton, "Start from an example: fills in a layout and an outline that suits it");
+        examplesButton.RightTapped += OnExamplesButtonRightTapped;
 
         var galleryHeader = new Grid();
         galleryHeader.Children.Add(new TextBlock
@@ -86,6 +87,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         AutomationProperties.SetName(_gallery, "Layout");
         ScrollViewer.SetVerticalScrollBarVisibility(_gallery, ScrollBarVisibility.Disabled);
         ScrollViewer.SetVerticalScrollMode(_gallery, ScrollMode.Disabled);
+        _gallery.RightTapped += OnGalleryRightTapped;
         foreach (var layout in SmartArt.Layouts) _gallery.Items.Add(Tile(layout));
         _gallery.SelectionChanged += (_, _) =>
         {
@@ -254,7 +256,193 @@ public sealed class SmartArtInsertControl : InsertDialogBody
             ShiftLines(direction);
             _box.Focus(FocusState.Programmatic);
         };
+        button.RightTapped += (s, e) =>
+        {
+            e.Handled = true;
+            ShowIndentContextMenu(button, e.GetPosition(button));
+        };
         return button;
+    }
+
+    private void ShowIndentContextMenu(FrameworkElement anchor, Windows.Foundation.Point? position)
+    {
+        var menu = new MenuFlyout();
+
+        var indentItem = new MenuFlyoutItem
+        {
+            Text = "Indent line (Alt+Shift+Right)",
+            Icon = new FontIcon { Glyph = "\uE8A9" }
+        };
+        indentItem.Click += (_, _) => { ShiftLines(+1); _box.Focus(FocusState.Programmatic); };
+        menu.Items.Add(indentItem);
+
+        var outdentItem = new MenuFlyoutItem
+        {
+            Text = "Outdent line (Alt+Shift+Left)",
+            Icon = new FontIcon { Glyph = "\uE8A8" }
+        };
+        outdentItem.Click += (_, _) => { ShiftLines(-1); _box.Focus(FocusState.Programmatic); };
+        menu.Items.Add(outdentItem);
+
+        var resetItem = new MenuFlyoutItem
+        {
+            Text = "Reset all indentations",
+            Icon = new FontIcon { Glyph = "\uE777" }
+        };
+        resetItem.Click += (_, _) =>
+        {
+            var lines = (_box.Text ?? "").Split('\n');
+            _box.Text = string.Join("\n", lines.Select(l => l.TrimStart()));
+            _box.Focus(FocusState.Programmatic);
+        };
+        menu.Items.Add(resetItem);
+
+        var copyItem = new MenuFlyoutItem
+        {
+            Text = "Copy outline text (Ctrl+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_box.Text);
+        menu.Items.Add(copyItem);
+
+        if (position.HasValue)
+            menu.ShowAt(anchor, position.Value);
+        else
+            menu.ShowAt(anchor);
+    }
+
+    private void OnExamplesButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+        var menu = new MenuFlyout();
+
+        var nextEx = new MenuFlyoutItem
+        {
+            Text = "Cycle to next example",
+            Icon = new FontIcon { Glyph = "\uE76C" }
+        };
+        nextEx.Click += (_, _) =>
+        {
+            var list = SmartArt.Examples;
+            var currentIdx = -1;
+            for (var i = 0; i < list.Count; i++)
+            {
+                if (string.Equals(list[i].Alias, _layout.Alias, StringComparison.OrdinalIgnoreCase))
+                {
+                    currentIdx = i;
+                    break;
+                }
+            }
+            var nextIdx = (currentIdx + 1) % list.Count;
+            ApplyExample(list[nextIdx]);
+        };
+        menu.Items.Add(nextEx);
+
+        var prevEx = new MenuFlyoutItem
+        {
+            Text = "Cycle to previous example",
+            Icon = new FontIcon { Glyph = "\uE76B" }
+        };
+        prevEx.Click += (_, _) =>
+        {
+            var list = SmartArt.Examples;
+            var currentIdx = -1;
+            for (var i = 0; i < list.Count; i++)
+            {
+                if (string.Equals(list[i].Alias, _layout.Alias, StringComparison.OrdinalIgnoreCase))
+                {
+                    currentIdx = i;
+                    break;
+                }
+            }
+            var prevIdx = (currentIdx - 1 + list.Count) % list.Count;
+            ApplyExample(list[prevIdx]);
+        };
+        menu.Items.Add(prevEx);
+
+        var resetItem = new MenuFlyoutItem
+        {
+            Text = "Reset to default example",
+            Icon = new FontIcon { Glyph = "\uE777" }
+        };
+        resetItem.Click += (_, _) => ApplyExample(SmartArt.Examples[0]);
+        menu.Items.Add(resetItem);
+
+        var copyOutline = new MenuFlyoutItem
+        {
+            Text = "Copy outline text (Ctrl+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyOutline.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_box.Text);
+        menu.Items.Add(copyOutline);
+
+        menu.ShowAt(anchor, e.GetPosition(anchor));
+    }
+
+    private void OnGalleryRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+        var menu = new MenuFlyout();
+
+        var nextLayout = new MenuFlyoutItem
+        {
+            Text = "Select next layout",
+            Icon = new FontIcon { Glyph = "\uE76C" }
+        };
+        nextLayout.Click += (_, _) =>
+        {
+            var layouts = SmartArt.Layouts;
+            var idx = -1;
+            for (var i = 0; i < layouts.Count; i++)
+            {
+                if (Equals(layouts[i], _layout))
+                {
+                    idx = i;
+                    break;
+                }
+            }
+            var next = layouts[(idx + 1) % layouts.Count];
+            _layout = next;
+            _gallery.SelectedItem = _gallery.Items.OfType<GridViewItem>().FirstOrDefault(i => Equals(i.Tag, next));
+            Update();
+        };
+        menu.Items.Add(nextLayout);
+
+        var prevLayout = new MenuFlyoutItem
+        {
+            Text = "Select previous layout",
+            Icon = new FontIcon { Glyph = "\uE76B" }
+        };
+        prevLayout.Click += (_, _) =>
+        {
+            var layouts = SmartArt.Layouts;
+            var idx = -1;
+            for (var i = 0; i < layouts.Count; i++)
+            {
+                if (Equals(layouts[i], _layout))
+                {
+                    idx = i;
+                    break;
+                }
+            }
+            var prev = layouts[(idx - 1 + layouts.Count) % layouts.Count];
+            _layout = prev;
+            _gallery.SelectedItem = _gallery.Items.OfType<GridViewItem>().FirstOrDefault(i => Equals(i.Tag, prev));
+            Update();
+        };
+        menu.Items.Add(prevLayout);
+
+        var copyLayoutName = new MenuFlyoutItem
+        {
+            Text = "Copy layout name",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyLayoutName.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_layout.Name);
+        menu.Items.Add(copyLayoutName);
+
+        menu.ShowAt(anchor, e.GetPosition(anchor));
     }
 
     private void OnOutlineKeyDown(object sender, KeyRoutedEventArgs e)

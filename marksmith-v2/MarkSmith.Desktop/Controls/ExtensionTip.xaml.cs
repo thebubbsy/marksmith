@@ -134,6 +134,8 @@ namespace MarkSmith.Controls
                 Icon = new FontIcon { Glyph = "\uEA86" }
             };
             getItem.Click += OnGetExtensionClick;
+            menu.Items.Add(getItem);
+
             var copyInfoItem = new MenuFlyoutItem
             {
                 Text = "Copy extension info",
@@ -155,6 +157,18 @@ namespace MarkSmith.Controls
                 menu.ShowAt(this, position.Value);
             else
                 menu.ShowAt(this);
+        }
+
+        private void OnGetExtensionButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ShowTipContextMenu(e.GetPosition(this));
+        }
+
+        private void OnDismissButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ShowTipContextMenu(e.GetPosition(this));
         }
 
         private void CopyExtensionInfo()

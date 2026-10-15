@@ -109,7 +109,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Button x:Name="Step1Card" Grid.Column="0" Tag="1" Click="OnStepCard" Style="{StaticResource TourStepCard}"
+                    <Button x:Name="Step1Card" Grid.Column="0" Tag="1" Click="OnStepCard" RightTapped="OnStepCardRightTapped" Style="{StaticResource TourStepCard}"
                             AutomationProperties.Name="Source — go to step 1"
                             ToolTipService.ToolTip="Jump to step 1 · Source">
                         <Button.Resources>
@@ -125,7 +125,7 @@
                         </StackPanel>
                     </Button>
                     <FontIcon Grid.Column="1" Glyph="&#xE76C;" FontSize="12" Opacity="0.45" VerticalAlignment="Center" />
-                    <Button x:Name="Step2Card" Grid.Column="2" Tag="2" Click="OnStepCard" Style="{StaticResource TourStepCard}"
+                    <Button x:Name="Step2Card" Grid.Column="2" Tag="2" Click="OnStepCard" RightTapped="OnStepCardRightTapped" Style="{StaticResource TourStepCard}"
                             AutomationProperties.Name="Style — go to step 2"
                             ToolTipService.ToolTip="Jump to step 2 · Style">
                         <Button.Resources>
@@ -141,7 +141,7 @@
                         </StackPanel>
                     </Button>
                     <FontIcon Grid.Column="3" Glyph="&#xE76C;" FontSize="12" Opacity="0.45" VerticalAlignment="Center" />
-                    <Button x:Name="Step3Card" Grid.Column="4" Tag="3" Click="OnStepCard" Style="{StaticResource TourStepCard}"
+                    <Button x:Name="Step3Card" Grid.Column="4" Tag="3" Click="OnStepCard" RightTapped="OnStepCardRightTapped" Style="{StaticResource TourStepCard}"
                             AutomationProperties.Name="Preview and Export — go to step 3"
                             ToolTipService.ToolTip="Jump to step 3 · Preview &amp; Export">
                         <Button.Resources>
@@ -348,7 +348,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <!-- The recommended start: accent border in every state. -->
-                    <Button x:Name="SampleCard" Click="OnSampleCard" Style="{StaticResource TourStepCard}" BorderThickness="2"
+                    <Button x:Name="SampleCard" Click="OnSampleCard" RightTapped="OnSampleCardRightTapped" Style="{StaticResource TourStepCard}" BorderThickness="2"
                             AutomationProperties.Name="Open the sample document"
                             AutomationProperties.HelpText="Loads a sample report with tables, math, and live diagrams into Split view"
                             ToolTipService.ToolTip="Open the sample beside its live preview">
@@ -366,7 +366,7 @@
                                         Text="A short report with a table, math and live diagrams, shown beside its preview. Restyle it and export." />
                         </StackPanel>
                     </Button>
-                    <Button Grid.Column="1" x:Name="BlankCard" Click="OnBlankCard" Style="{StaticResource TourStepCard}"
+                    <Button Grid.Column="1" x:Name="BlankCard" Click="OnBlankCard" RightTapped="OnBlankCardRightTapped" Style="{StaticResource TourStepCard}"
                             AutomationProperties.Name="Start with my own document"
                             AutomationProperties.HelpText="Closes the tour and returns to the Markdown editor"
                             ToolTipService.ToolTip="Close the tour and start in the editor">
@@ -405,12 +405,12 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Button x:Name="SkipButton" Grid.Column="0" Content="Skip" Click="OnSkip" MinWidth="88"
+            <Button x:Name="SkipButton" Grid.Column="0" Content="Skip" Click="OnSkip" RightTapped="OnSkipButtonRightTapped" MinWidth="88"
                     ToolTipService.ToolTip="Skip the tour — reopen it anytime from the ⋯ menu (Esc)" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                <Button x:Name="BackButton" Content="Back" Click="OnBack" Visibility="Collapsed" MinWidth="88"
+                <Button x:Name="BackButton" Content="Back" Click="OnBack" RightTapped="OnBackButtonRightTapped" Visibility="Collapsed" MinWidth="88"
                         ToolTipService.ToolTip="Previous step" />
-                <Button x:Name="NextButton" Content="Next" Click="OnNext" Style="{StaticResource AccentButtonStyle}" MinWidth="112"
+                <Button x:Name="NextButton" Content="Next" Click="OnNext" RightTapped="OnNextButtonRightTapped" Style="{StaticResource AccentButtonStyle}" MinWidth="112"
                         ToolTipService.ToolTip="Next step" />
             </StackPanel>
         </Grid>

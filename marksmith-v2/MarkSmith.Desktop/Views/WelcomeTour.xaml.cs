@@ -536,4 +536,252 @@ public sealed partial class WelcomeTour : UserControl
         else
             menu.ShowAt(anchor);
     }
+
+    private void OnStepCardRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not Button btn) return;
+        var stepNum = btn.Tag is string s && int.TryParse(s, out var v) ? v : 1;
+
+        var menu = new MenuFlyout();
+        var jumpItem = new MenuFlyoutItem
+        {
+            Text = $"Jump to step {stepNum}",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        jumpItem.Click += (_, _) => Show(stepNum);
+        menu.Items.Add(jumpItem);
+
+        var copyItem = new MenuFlyoutItem
+        {
+            Text = "Copy step overview",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyItem.Click += (_, _) =>
+        {
+            var title = stepNum < PageTitles.Length ? PageTitles[stepNum] : $"Step {stepNum}";
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText($"{stepNum}. {title}");
+            ClipboardWriter.Set(dp);
+        };
+        menu.Items.Add(copyItem);
+
+        if (_index < Last)
+        {
+            var nextItem = new MenuFlyoutItem
+            {
+                Text = "Next step (Right arrow)",
+                Icon = new FontIcon { Glyph = "\uE76C" }
+            };
+            nextItem.Click += (_, _) => Show(_index + 1);
+            menu.Items.Add(nextItem);
+        }
+
+        var skipItem = new MenuFlyoutItem
+        {
+            Text = "Skip tour (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        skipItem.Click += OnSkip;
+        menu.Items.Add(skipItem);
+
+        menu.ShowAt(btn, e.GetPosition(btn));
+    }
+
+    private void OnSampleCardRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        if (SampleCard.IsEnabled)
+        {
+            var openSample = new MenuFlyoutItem
+            {
+                Text = "Open the sample document (Ctrl+Enter)",
+                Icon = new FontIcon { Glyph = "\uE8A5" }
+            };
+            openSample.Click += OnSampleCard;
+            menu.Items.Add(openSample);
+        }
+
+        var startOwn = new MenuFlyoutItem
+        {
+            Text = "Start with my own document",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        startOwn.Click += OnBlankCard;
+        menu.Items.Add(startOwn);
+
+        var copyDesc = new MenuFlyoutItem
+        {
+            Text = "Copy sample description",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyDesc.Click += (_, _) =>
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(SampleCaption.Text);
+            ClipboardWriter.Set(dp);
+        };
+        menu.Items.Add(copyDesc);
+
+        var skip = new MenuFlyoutItem
+        {
+            Text = "Skip tour (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        skip.Click += OnSkip;
+        menu.Items.Add(skip);
+
+        menu.ShowAt(SampleCard, e.GetPosition(SampleCard));
+    }
+
+    private void OnBlankCardRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var startOwn = new MenuFlyoutItem
+        {
+            Text = "Start with my own document (Enter)",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        startOwn.Click += OnBlankCard;
+        menu.Items.Add(startOwn);
+
+        if (SampleCard.IsEnabled)
+        {
+            var openSample = new MenuFlyoutItem
+            {
+                Text = "Open the sample document",
+                Icon = new FontIcon { Glyph = "\uE8A5" }
+            };
+            openSample.Click += OnSampleCard;
+            menu.Items.Add(openSample);
+        }
+
+        var replay = new MenuFlyoutItem
+        {
+            Text = "Replay from step 1",
+            Icon = new FontIcon { Glyph = "\uE72C" }
+        };
+        replay.Click += (_, _) => Show(0);
+        menu.Items.Add(replay);
+
+        var skip = new MenuFlyoutItem
+        {
+            Text = "Skip tour (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        skip.Click += OnSkip;
+        menu.Items.Add(skip);
+
+        menu.ShowAt(BlankCard, e.GetPosition(BlankCard));
+    }
+
+    private void OnSkipButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var skip = new MenuFlyoutItem
+        {
+            Text = "Skip tour (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        skip.Click += OnSkip;
+        menu.Items.Add(skip);
+
+        var replay = new MenuFlyoutItem
+        {
+            Text = "Replay from step 1",
+            Icon = new FontIcon { Glyph = "\uE72C" }
+        };
+        replay.Click += (_, _) => Show(0);
+        menu.Items.Add(replay);
+
+        var copySteps = new MenuFlyoutItem
+        {
+            Text = "Copy tour step overview",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copySteps.Click += (_, _) =>
+        {
+            var overview = string.Join(Environment.NewLine, PageTitles.Select((t, idx) => $"{idx + 1}. {t}"));
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(overview);
+            ClipboardWriter.Set(dp);
+        };
+        menu.Items.Add(copySteps);
+
+        menu.ShowAt(SkipButton, e.GetPosition(SkipButton));
+    }
+
+    private void OnBackButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var prevItem = new MenuFlyoutItem
+        {
+            Text = "Previous step (Left arrow)",
+            Icon = new FontIcon { Glyph = "\uE76B" },
+            IsEnabled = _index > 0
+        };
+        prevItem.Click += OnBack;
+        menu.Items.Add(prevItem);
+
+        var firstItem = new MenuFlyoutItem
+        {
+            Text = "Jump to first step (Home)",
+            Icon = new FontIcon { Glyph = "\uE892" },
+            IsEnabled = _index > 0
+        };
+        firstItem.Click += (_, _) => Show(0);
+        menu.Items.Add(firstItem);
+
+        var skip = new MenuFlyoutItem
+        {
+            Text = "Skip tour (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        skip.Click += OnSkip;
+        menu.Items.Add(skip);
+
+        menu.ShowAt(BackButton, e.GetPosition(BackButton));
+    }
+
+    private void OnNextButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var nextItem = new MenuFlyoutItem
+        {
+            Text = "Next step (Right arrow)",
+            Icon = new FontIcon { Glyph = "\uE76C" },
+            IsEnabled = _index < Last
+        };
+        nextItem.Click += OnNext;
+        menu.Items.Add(nextItem);
+
+        var lastItem = new MenuFlyoutItem
+        {
+            Text = "Jump to last step (End)",
+            Icon = new FontIcon { Glyph = "\uE893" },
+            IsEnabled = _index < Last
+        };
+        lastItem.Click += (_, _) => Show(Last);
+        menu.Items.Add(lastItem);
+
+        var skip = new MenuFlyoutItem
+        {
+            Text = "Skip tour (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        skip.Click += OnSkip;
+        menu.Items.Add(skip);
+
+        menu.ShowAt(NextButton, e.GetPosition(NextButton));
+    }
 }

@@ -27,7 +27,7 @@
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </StackPanel>
 
-            <Button x:Name="GetExtensionButton" Grid.Column="2" Click="OnGetExtensionClick"
+            <Button x:Name="GetExtensionButton" Grid.Column="2" Click="OnGetExtensionClick" RightTapped="OnGetExtensionButtonRightTapped"
                     ToolTipService.ToolTip="Set up the MarkSmith Connector in Edge or Chrome: about a minute, once"
                     AutomationProperties.Name="Get the extension"
                     Style="{ThemeResource AccentButtonStyle}" VerticalAlignment="Center">
@@ -37,7 +37,7 @@
                 </StackPanel>
             </Button>
 
-            <Button x:Name="DismissButton" Grid.Column="3" Background="Transparent" BorderThickness="0" Click="OnCloseClick"
+            <Button x:Name="DismissButton" Grid.Column="3" Background="Transparent" BorderThickness="0" Click="OnCloseClick" RightTapped="OnDismissButtonRightTapped"
                     ToolTipService.ToolTip="Dismiss this hint (Esc)" AutomationProperties.Name="Dismiss this hint"
                     VerticalAlignment="Top" Width="28" Height="28" Padding="0">
                 <FontIcon Glyph="&#xE711;" FontSize="11" Opacity="0.8" AutomationProperties.AccessibilityView="Raw" />

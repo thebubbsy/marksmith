@@ -78,6 +78,7 @@ public sealed class ImageInsertControl : InsertDialogBody
         ToolTipService.SetToolTip(browse, "Pick an image file on this PC (Ctrl+O, Alt+B)");
         AutomationProperties.SetName(browse, "Browse for an image");
         browse.Click += OnBrowseClick;
+        browse.RightTapped += OnBrowseRightTapped;
 
         var zoneMenu = new MenuFlyout();
         zoneMenu.Opening += (_, _) =>
@@ -164,20 +165,102 @@ public sealed class ImageInsertControl : InsertDialogBody
         _zone.DragLeave += (_, _) => Highlight(false);
         _zone.Drop += OnDrop;
 
+        var sourceMenu = new MenuFlyout();
+        sourceMenu.Opening += (_, _) =>
+        {
+            sourceMenu.Items.Clear();
+            var pasteItem = new MenuFlyoutItem
+            {
+                Text = "Paste address or path (Ctrl+V)",
+                Icon = new FontIcon { Glyph = "\uE77F" },
+            };
+            pasteItem.Click += async (_, _) => await PasteSourceFromClipboardAsync();
+            sourceMenu.Items.Add(pasteItem);
+
+            var browseItem = new MenuFlyoutItem
+            {
+                Text = "Browse for image… (Ctrl+O)",
+                Icon = new FontIcon { Glyph = "\uE8E5" },
+            };
+            browseItem.Click += OnBrowseClick;
+            sourceMenu.Items.Add(browseItem);
+
+            var clearItem = new MenuFlyoutItem
+            {
+                Text = "Clear path (Delete)",
+                Icon = new FontIcon { Glyph = "\uE74D" },
+                IsEnabled = Source.Length > 0,
+            };
+            clearItem.Click += (_, _) => ClearSelectedImage();
+            sourceMenu.Items.Add(clearItem);
+
+            if (Source.Length > 0)
+            {
+                var copyItem = new MenuFlyoutItem
+                {
+                    Text = "Copy image path or URL (Ctrl+C)",
+                    Icon = new FontIcon { Glyph = "\uE8C8" },
+                };
+                copyItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(Source);
+                sourceMenu.Items.Add(copyItem);
+            }
+        };
+
         _source = new TextBox
         {
             Header = "File or web address",
             PlaceholderText = @"C:\Pictures\chart.png or https://…",
             IsSpellCheckEnabled = false,
             InputScope = LinkInsertControl.UrlScope(),
+            ContextFlyout = sourceMenu,
         };
         ToolTipService.SetToolTip(_source, "Local image path (C:\\...) or web URL (https://...)");
         _source.TextChanged += (_, _) => OnSourceChanged();
+
+        var altMenu = new MenuFlyout();
+        altMenu.Opening += (_, _) =>
+        {
+            altMenu.Items.Clear();
+            var prefillItem = new MenuFlyoutItem
+            {
+                Text = "Prefill from file name",
+                Icon = new FontIcon { Glyph = "\uE8D2" },
+                IsEnabled = Source.Length > 0,
+            };
+            prefillItem.Click += (_, _) =>
+            {
+                if (Source.Length > 0)
+                {
+                    _alt.Text = DocumentImages.AltFromFileName(Source);
+                    _autoAlt = _alt.Text;
+                }
+            };
+            altMenu.Items.Add(prefillItem);
+
+            var copyAltItem = new MenuFlyoutItem
+            {
+                Text = "Copy alt text (Ctrl+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = _alt.Text.Length > 0,
+            };
+            copyAltItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_alt.Text);
+            altMenu.Items.Add(copyAltItem);
+
+            var clearAltItem = new MenuFlyoutItem
+            {
+                Text = "Clear alt text",
+                Icon = new FontIcon { Glyph = "\uE74D" },
+                IsEnabled = _alt.Text.Length > 0,
+            };
+            clearAltItem.Click += (_, _) => _alt.Text = string.Empty;
+            altMenu.Items.Add(clearAltItem);
+        };
 
         _alt = new TextBox
         {
             Header = "Alt text",
             PlaceholderText = "What the picture shows",
+            ContextFlyout = altMenu,
         };
         ToolTipService.SetToolTip(_alt, "Read aloud by screen readers, and shown wherever the picture can't load");
         _alt.TextChanged += (_, _) => Refresh();
@@ -399,6 +482,74 @@ public sealed class ImageInsertControl : InsertDialogBody
             _alt.Focus(FocusState.Programmatic);
             _alt.SelectAll();
         }
+    }
+
+    private void OnBrowseRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+        var menu = new MenuFlyout();
+
+        var browseItem = new MenuFlyoutItem
+        {
+            Text = "Browse for image… (Ctrl+O)",
+            Icon = new FontIcon { Glyph = "\uE8E5" },
+        };
+        browseItem.Click += OnBrowseClick;
+        menu.Items.Add(browseItem);
+
+        var pasteItem = new MenuFlyoutItem
+        {
+            Text = "Paste address or path (Ctrl+V)",
+            Icon = new FontIcon { Glyph = "\uE77F" },
+        };
+        pasteItem.Click += async (_, _) => await PasteSourceFromClipboardAsync();
+        menu.Items.Add(pasteItem);
+
+        var clearItem = new MenuFlyoutItem
+        {
+            Text = "Clear selected image (Delete)",
+            Icon = new FontIcon { Glyph = "\uE74D" },
+            IsEnabled = Source.Length > 0,
+        };
+        clearItem.Click += (_, _) => ClearSelectedImage();
+        menu.Items.Add(clearItem);
+
+        if (Source.Length > 0)
+        {
+            var copyItem = new MenuFlyoutItem
+            {
+                Text = "Copy image path or URL (Ctrl+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+            };
+            copyItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(Source);
+            menu.Items.Add(copyItem);
+
+            if (File.Exists(Source))
+            {
+                var showInExplorerItem = new MenuFlyoutItem
+                {
+                    Text = "Show in File Explorer",
+                    Icon = new FontIcon { Glyph = "\uE838" },
+                };
+                showInExplorerItem.Click += (_, _) =>
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = "explorer.exe",
+                            Arguments = $"/select,\"{Source}\"",
+                            UseShellExecute = true,
+                        });
+                    }
+                    catch { }
+                };
+                menu.Items.Add(showInExplorerItem);
+            }
+        }
+
+        menu.ShowAt(anchor, e.GetPosition(anchor));
     }
 
     // ---- helpers -------------------------------------------------------------------------------

@@ -25,7 +25,7 @@
             <TextBlock Grid.Column="1" Text="Work in your AI chat as normal" FontWeight="SemiBold"
                        TextWrapping="Wrap" VerticalAlignment="Center" />
 
-            <Button x:Name="DismissButton" Grid.Column="2" Background="Transparent" BorderThickness="0" Click="OnCloseClick"
+            <Button x:Name="DismissButton" Grid.Column="2" Background="Transparent" BorderThickness="0" Click="OnCloseClick" RightTapped="OnDismissButtonRightTapped"
                     ToolTipService.ToolTip="Dismiss this tip (Esc)" AutomationProperties.Name="Dismiss this tip"
                     VerticalAlignment="Center" Width="28" Height="28" Padding="0" Margin="0,-4,-6,-4">
                 <FontIcon Glyph="&#xE711;" FontSize="11" Opacity="0.8" AutomationProperties.AccessibilityView="Raw" />
@@ -36,7 +36,7 @@
                        TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-            <Button x:Name="GetExtensionButton" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Click="OnGetExtensionClick"
+            <Button x:Name="GetExtensionButton" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Click="OnGetExtensionClick" RightTapped="OnGetExtensionButtonRightTapped"
                     Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" Margin="0,4,0,0"
                     AutomationProperties.Name="Get the extension"
                     ToolTipService.ToolTip="Set up the MarkSmith Connector in Edge or Chrome: about a minute, once">

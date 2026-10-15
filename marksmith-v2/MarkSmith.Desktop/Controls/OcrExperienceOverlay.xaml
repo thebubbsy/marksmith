@@ -105,7 +105,7 @@
                         </Border>
                     </StackPanel>
 
-                    <Button x:Name="SkipButton" Grid.Column="2" Click="OnSkipClick"
+                    <Button x:Name="SkipButton" Grid.Column="2" Click="OnSkipClick" RightTapped="OnSkipButtonRightTapped"
                             Padding="10,5" CornerRadius="6"
                             Background="{ThemeResource ControlFillColorSecondaryBrush}"
                             BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
@@ -308,7 +308,7 @@
                                                                FontSize="12" FontWeight="SemiBold"
                                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
                                                 </StackPanel>
-                                                <Button x:Name="CopyFinalMarkdownButton" Grid.Column="1" Click="OnCopyFinalMarkdownClick"
+                                                <Button x:Name="CopyFinalMarkdownButton" Grid.Column="1" Click="OnCopyFinalMarkdownClick" RightTapped="OnCopyFinalMarkdownButtonRightTapped"
                                                         Padding="8,3" CornerRadius="4"
                                                         ToolTipService.ToolTip="Copy assembled Markdown to clipboard (Ctrl+C)"
                                                         AutomationProperties.Name="Copy assembled Markdown">

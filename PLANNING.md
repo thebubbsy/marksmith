@@ -7886,3 +7886,63 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 18 warnings**.
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 30464, `Alive: True`, `Responding: True`, clean exit.
+
+### 2026-10-16 (scheduled routine run #102 — WinUI 3 Desktop Polish: WelcomeTour Step Cards & Nav Buttons Menus Parity, Image Insert Action Controls Context Menus, SmartArt Insert Layout & Outline Menus Parity, Extension Hint Bar & Tip Action Buttons Parity, OCR Experience Overlay Skip & Copy Buttons Menus)
+
+- **Surface / Component Targets:** `WelcomeTour`, `ImageInsertControl`, `SmartArtInsertControl`, `ExtensionHintBar`, `ExtensionTip`, `OcrExperienceOverlay`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #101:
+    * Target A: `WelcomeTour` step action buttons and navigation buttons context menus parity.
+    * Target B: `ImageInsertControl` browse and field action buttons context parity.
+  - Generated:
+    1. `WelcomeTour` Step Cards & Navigation Buttons Right-Click Context Menus Parity (`Views/WelcomeTour.xaml` & `.xaml.cs`)
+    2. `ImageInsertControl` Browse Button & Field Context Menus Parity (`Views/ImageInsertControl.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Wired `Step1Card`, `Step2Card`, `Step3Card`, `SampleCard`, `BlankCard`, `SkipButton`, `BackButton`, and `NextButton` in `WelcomeTour.xaml` with `RightTapped` handlers offering jump to step, sample document actions, replay from step 1, previous/next page navigation, and tour skip with 100% Fluent icon coverage. In `ImageInsertControl.cs`, attached `browse.RightTapped` offering Browse for image `Ctrl+O` (`\uE8E5`), Paste address/path `Ctrl+V` (`\uE77F`), Clear selected image `Delete` (`\uE74D`), Copy image path `Ctrl+C` (`\uE8C8`), and Show in File Explorer (`\uE838`); and attached dedicated context flyouts to `_source` and `_alt` text boxes.
+  - Generated:
+    3. `SmartArtInsertControl` Examples & Indent Action Buttons Right-Click Context Menus (`Views/SmartArtInsertControl.cs`)
+    4. `ExtensionHintBar` Action Buttons Right-Click Context Menus & Missing Item Bug Fix (`Controls/ExtensionHintBar.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Attached `examplesButton.RightTapped` offering Cycle to next/prev example (`\uE76C`/`\uE76B`), Reset to default example (`\uE777`), and Copy outline text (`\uE8C8`). Attached `_gallery.RightTapped` offering Select next/prev layout and Copy layout name. Attached `IndentButton.RightTapped` offering Indent line `Alt+Shift+Right` (`\uE8A9`), Outdent line `Alt+Shift+Left` (`\uE8A8`), Reset all indentations (`\uE777`), and Copy outline text (`\uE8C8`). In `ExtensionHintBar.xaml` & `.xaml.cs`, attached `RightTapped` on `GetExtensionButton` and `DismissButton`, and fixed the missing `menu.Items.Add(getItem)` bug.
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `ExtensionTip` Action Buttons Right-Click Context Menus & Missing Item Bug Fix (`Controls/ExtensionTip.xaml` & `.xaml.cs`)
+    6. `OcrExperienceOverlay` Skip & Copy Final Markdown Action Buttons Right-Click Menus (`Controls/OcrExperienceOverlay.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Attached `RightTapped` on `GetExtensionButton` and `DismissButton` in `ExtensionTip.xaml` & `.xaml.cs` and fixed the un-added `getItem` bug in `ShowTipContextMenu`. In `OcrExperienceOverlay.xaml` & `.xaml.cs`, attached `RightTapped` on `SkipButton` (Skip to editor `Esc` `\uE711`, Copy assembled Markdown `Ctrl+C` `\uE8C8`) and `CopyFinalMarkdownButton` (Copy assembled Markdown `Ctrl+C` `\uE8C8`, Skip to editor `Esc` `\uE711`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #103 (`SplashWindow` skip/dismiss context affordances, `MainWindow` split pane splitter bar menu actions, `OptionRow` action control context menus).
+
+**Shipped:**
+1. **`WelcomeTour` Step Cards & Navigation Buttons Parity (`Views/WelcomeTour.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnStepCardRightTapped"` on `Step1Card`, `Step2Card`, and `Step3Card` offering Jump to step (`\uE8FD`), Copy step overview (`\uE8C8`), Next step (`\uE76C`), and Skip tour (`\uE711`).
+   - Attached `RightTapped="OnSampleCardRightTapped"` on `SampleCard` offering Open sample document `Ctrl+Enter` (`\uE8A5`), Start with my own document (`\uE70F`), Copy sample description (`\uE8C8`), and Skip tour `Esc` (`\uE711`).
+   - Attached `RightTapped="OnBlankCardRightTapped"` on `BlankCard` offering Start with my own document `Enter` (`\uE70F`), Open sample document (`\uE8A5`), Replay from step 1 (`\uE72C`), and Skip tour `Esc` (`\uE711`).
+   - Attached `RightTapped="OnSkipButtonRightTapped"`, `OnBackButtonRightTapped`, and `OnNextButtonRightTapped` on `SkipButton`, `BackButton`, and `NextButton` providing full navigation options (`\uE711`, `\uE72C`, `\uE8C8`, `\uE76B`, `\uE892`, `\uE76C`, `\uE893`).
+2. **`ImageInsertControl` Browse Button & Field Context Menus Parity (`Views/ImageInsertControl.cs`):**
+   - Attached `browse.RightTapped` offering Browse for image `Ctrl+O` (`\uE8E5`), Paste address or path `Ctrl+V` (`\uE77F`), Clear selected image `Delete` (`\uE74D`), Copy image path or URL `Ctrl+C` (`\uE8C8`), and Show in File Explorer (`\uE838`).
+   - Attached dedicated `ContextFlyout` on `_source` TextBox offering Paste `Ctrl+V` (`\uE77F`), Browse `Ctrl+O` (`\uE8E5`), Clear path `Delete` (`\uE74D`), and Copy path `Ctrl+C` (`\uE8C8`).
+   - Attached dedicated `ContextFlyout` on `_alt` TextBox offering Prefill from file name (`\uE8D2`), Copy alt text `Ctrl+C` (`\uE8C8`), and Clear alt text (`\uE74D`).
+3. **`SmartArtInsertControl` Examples & Indent Action Buttons Parity (`Views/SmartArtInsertControl.cs`):**
+   - Attached `examplesButton.RightTapped` offering Cycle to next example (`\uE76C`), Cycle to previous example (`\uE76B`), Reset to default example (`\uE777`), and Copy outline text `Ctrl+C` (`\uE8C8`).
+   - Attached `_gallery.RightTapped` offering Select next layout (`\uE76C`), Select previous layout (`\uE76B`), and Copy layout name (`\uE8C8`).
+   - Attached `button.RightTapped` in `IndentButton` offering Indent line `Alt+Shift+Right` (`\uE8A9`), Outdent line `Alt+Shift+Left` (`\uE8A8`), Reset all indentations (`\uE777`), and Copy outline text `Ctrl+C` (`\uE8C8`).
+4. **`ExtensionHintBar` Action Buttons Parity & Missing Item Bug Fix (`Controls/ExtensionHintBar.xaml` & `.xaml.cs`):**
+   - Fixed missing `menu.Items.Add(getItem)` bug in `ShowHintContextMenu`.
+   - Attached `RightTapped="OnGetExtensionButtonRightTapped"` and `RightTapped="OnDismissButtonRightTapped"` on `GetExtensionButton` and `DismissButton` routing directly to the polished hint context menu.
+5. **`ExtensionTip` Action Buttons Parity & Missing Item Bug Fix (`Controls/ExtensionTip.xaml` & `.xaml.cs`):**
+   - Fixed missing `menu.Items.Add(getItem)` bug in `ShowTipContextMenu`.
+   - Attached `RightTapped="OnGetExtensionButtonRightTapped"` and `RightTapped="OnDismissButtonRightTapped"` on `GetExtensionButton` and `DismissButton` routing directly to the polished tip context menu.
+6. **`OcrExperienceOverlay` Skip & Copy Final Markdown Buttons Parity (`Controls/OcrExperienceOverlay.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnSkipButtonRightTapped"` on `SkipButton` offering Skip to editor `Esc` (`\uE711`), and Copy assembled Markdown `Ctrl+C` (`\uE8C8`).
+   - Attached `RightTapped="OnCopyFinalMarkdownButtonRightTapped"` on `CopyFinalMarkdownButton` offering Copy assembled Markdown `Ctrl+C` (`\uE8C8`), and Skip to editor `Esc` (`\uE711`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 13164, `Alive: True`, `Responding: True`, clean exit.
+

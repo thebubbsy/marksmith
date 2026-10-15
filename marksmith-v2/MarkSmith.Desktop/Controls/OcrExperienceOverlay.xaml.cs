@@ -1567,6 +1567,54 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         e.Handled = true;
     }
 
+    private void OnSkipButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var skipItem = new MenuFlyoutItem
+        {
+            Text = "Skip to editor (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        skipItem.Click += (_, _) => SkipAnimation();
+        menu.Items.Add(skipItem);
+
+        var copyItem = new MenuFlyoutItem
+        {
+            Text = "Copy assembled Markdown (Ctrl+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyItem.Click += (_, _) => CopyFinalMarkdownToClipboard();
+        menu.Items.Add(copyItem);
+
+        menu.ShowAt(SkipButton, e.GetPosition(SkipButton));
+    }
+
+    private void OnCopyFinalMarkdownButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var copyItem = new MenuFlyoutItem
+        {
+            Text = "Copy assembled Markdown (Ctrl+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyItem.Click += (_, _) => CopyFinalMarkdownToClipboard();
+        menu.Items.Add(copyItem);
+
+        var skipItem = new MenuFlyoutItem
+        {
+            Text = "Skip to editor (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        skipItem.Click += (_, _) => SkipAnimation();
+        menu.Items.Add(skipItem);
+
+        menu.ShowAt(CopyFinalMarkdownButton, e.GetPosition(CopyFinalMarkdownButton));
+    }
+
     private void SkipAnimation()
     {
         lock (_sync)
