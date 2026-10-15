@@ -99,8 +99,10 @@
                         </MenuFlyout>
                     </DropDownButton.Flyout>
                 </DropDownButton>
-                <Button Command="{Binding InsertIntoDocumentCommand}" Style="{ThemeResource AccentButtonStyle}"
-                        ToolTipService.ToolTip="Insert this diagram into the open document — it previews live and exports as editable Word shapes">
+                <Button x:Name="InsertIntoDocumentButton" Command="{Binding InsertIntoDocumentCommand}" Style="{ThemeResource AccentButtonStyle}"
+                        RightTapped="OnInsertIntoDocumentButtonRightTapped"
+                        AutomationProperties.Name="Insert into document"
+                        ToolTipService.ToolTip="Insert this diagram into the open document (Ctrl+Enter, Right-click for options)">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE8A5;" FontSize="14" />
                         <TextBlock Text="Insert into document" />
@@ -353,7 +355,8 @@
 
                             <Button x:Name="ConvertButton" Click="OnFuseImageClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Padding="12,8"
                                     IsEnabled="{Binding HasImage}" AutomationProperties.Name="Convert picture to shapes"
-                                    ToolTipService.ToolTip="Replace the canvas with the converted picture (Ctrl+Z restores it)">
+                                    RightTapped="OnConvertButtonRightTapped"
+                                    ToolTipService.ToolTip="Replace the canvas with the converted picture (Ctrl+Z restores it, Right-click for options)">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE945;" FontSize="14" />
                                     <TextBlock Text="Convert picture to shapes" />

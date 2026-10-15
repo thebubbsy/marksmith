@@ -107,39 +107,45 @@
                 <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto"
                               VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left" VerticalAlignment="Center">
-                        <Button Command="{Binding AddChildNodeCommand}" Style="{StaticResource GalaxyToolButton}"
-                                ToolTipService.ToolTip="Add a node under the selected one (Tab)" AutomationProperties.Name="Add child">
+                        <Button x:Name="AddChildToolButton" Command="{Binding AddChildNodeCommand}" Style="{StaticResource GalaxyToolButton}"
+                                RightTapped="OnAddChildButtonRightTapped"
+                                ToolTipService.ToolTip="Add a node under the selected one (Tab, Right-click for options)" AutomationProperties.Name="Add child">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE710;" FontSize="12" />
                                 <TextBlock Text="Add child" FontSize="12" />
                             </StackPanel>
                         </Button>
-                        <Button Command="{Binding AddSiblingNodeCommand}" Style="{StaticResource GalaxyToolButton}"
-                                ToolTipService.ToolTip="Add a node beside the selected one (Enter)" AutomationProperties.Name="Add sibling">
+                        <Button x:Name="AddSiblingToolButton" Command="{Binding AddSiblingNodeCommand}" Style="{StaticResource GalaxyToolButton}"
+                                RightTapped="OnAddSiblingButtonRightTapped"
+                                ToolTipService.ToolTip="Add a node beside the selected one (Enter, Right-click for options)" AutomationProperties.Name="Add sibling">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE710;" FontSize="12" />
                                 <TextBlock Text="Add sibling" FontSize="12" />
                             </StackPanel>
                         </Button>
-                        <Button Click="OnConnectSelectedClick" Style="{StaticResource GalaxyToolButton}"
-                                ToolTipService.ToolTip="Link the selected node to another one and say why (Ctrl+L)" AutomationProperties.Name="Link">
+                        <Button x:Name="LinkToolButton" Click="OnConnectSelectedClick" Style="{StaticResource GalaxyToolButton}"
+                                RightTapped="OnLinkToolButtonRightTapped"
+                                ToolTipService.ToolTip="Link the selected node to another one and say why (Ctrl+L, Right-click for options)" AutomationProperties.Name="Link">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE71B;" FontSize="12" />
                                 <TextBlock Text="Link" FontSize="12" />
                             </StackPanel>
                         </Button>
-                        <Button Command="{Binding DeleteSelectionCommand}" IsEnabled="{Binding HasSelection}" Style="{StaticResource GalaxyToolButton}"
-                                ToolTipService.ToolTip="Delete the selected node or link (Delete)" AutomationProperties.Name="Delete">
+                        <Button x:Name="DeleteToolButton" Command="{Binding DeleteSelectionCommand}" IsEnabled="{Binding HasSelection}" Style="{StaticResource GalaxyToolButton}"
+                                RightTapped="OnDeleteToolButtonRightTapped"
+                                ToolTipService.ToolTip="Delete the selected node or link (Delete, Right-click for options)" AutomationProperties.Name="Delete">
                             <FontIcon Glyph="&#xE74D;" FontSize="12" />
                         </Button>
 
                         <AppBarSeparator />
 
-                        <Button Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" Style="{StaticResource GalaxyToolButton}"
+                        <Button x:Name="UndoToolButton" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" Style="{StaticResource GalaxyToolButton}"
+                                RightTapped="OnUndoToolButtonRightTapped"
                                 ToolTipService.ToolTip="{Binding UndoToolTip}" AutomationProperties.Name="Undo">
                             <FontIcon Glyph="&#xE7A7;" FontSize="12" />
                         </Button>
-                        <Button Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" Style="{StaticResource GalaxyToolButton}"
+                        <Button x:Name="RedoToolButton" Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" Style="{StaticResource GalaxyToolButton}"
+                                RightTapped="OnRedoToolButtonRightTapped"
                                 ToolTipService.ToolTip="{Binding RedoToolTip}" AutomationProperties.Name="Redo">
                             <FontIcon Glyph="&#xE7A6;" FontSize="12" />
                         </Button>

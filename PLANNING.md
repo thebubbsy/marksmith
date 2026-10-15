@@ -7713,6 +7713,62 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 13800, `Alive: True`, `Responding: True`, clean exit.
 
+### 2026-10-16 (scheduled routine run #99 — WinUI 3 Desktop Polish: Title Bar Export/Import Menus, Centre Bottom Bar Copy/Print Actions, SmartArt Top Toolbar Actions, MindMap Action Tools Menus, Shape Insert & Convert Menus, History Header Actions)
+
+- **Surface / Component Targets:** `MainWindow`, `SmartArtDesignStudioWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `HistoryWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #98:
+    * Target A: `MainWindow` Title Bar quick actions (`ExportPdfTitleButton`, `ExportDocxTitleButton`, `ImportDocumentTitleButton`, `DiagramStudioTitleButton`, `SettingsTitleButton`) & bottom bar copy/print context action parity.
+    * Target B: `SmartArtDesignStudioWindow` top toolbar actions (`UndoStudioButton`, `RedoStudioButton`, `InsertIntoDocumentButton`) right-click accelerator menus.
+  - Generated:
+    1. `MainWindow` Title Bar Quick Buttons Right-Click Context Menus (`MainWindow.xaml` & `.xaml.cs`)
+    2. `MainWindow` Centre Bottom Bar `CopyHtmlButton` & `PrintDocumentButton` Right-Click Context Menus (`MainWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Added `x:Name` and `RightTapped` on `ExportPdfTitleButton`, `ExportDocxTitleButton`, `ImportDocumentTitleButton`, `DiagramStudioTitleButton`, and `SettingsTitleButton` in `MainWindow.xaml` with dedicated handlers providing quick actions (open folder, copy path, toggle dialogs, shortcuts) with 100% Fluent icon coverage. Added `RightTapped="OnCopyHtmlButtonRightTapped"` on `CopyHtmlButton` offering Copy HTML `Ctrl+Shift+C` (`\uE8C8`), Copy plain Markdown (`\uE8C8`), Copy outline / TOC (`\uE8A4`), and Copy document stats (`\uE946`). Added `RightTapped="OnPrintButtonRightTapped"` on `PrintDocumentButton` offering Print document `Ctrl+P` (`\uE749`), Print preview (`\uE7B3`), Export PDF (`\uEA90`), and Page setup (`\uE72C`).
+  - Generated:
+    3. `SmartArtDesignStudioWindow` Toolbar `UndoStudioButton`, `RedoStudioButton`, & `InsertIntoDocumentButton` Context Menus (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`)
+    4. `MindMapGalaxyWindow` Action Tools `AddChildToolButton`, `AddSiblingToolButton`, `LinkToolButton`, `DeleteToolButton`, `UndoToolButton`, & `RedoToolButton` Context Actions (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Added `RightTapped="OnUndoButtonRightTapped"`, `RightTapped="OnRedoButtonRightTapped"`, and `RightTapped="OnInsertIntoDocumentButtonRightTapped"` in `SmartArtDesignStudioWindow.xaml` & `.xaml.cs` offering Undo `Ctrl+Z` (`\uE7A7`), Redo `Ctrl+Y` (`\uE7A6`), Revert all changes (`\uE777`), Insert snippet `Ctrl+Enter` (`\uE8A5`), Copy :::smartart block `Ctrl+Shift+C` (`\uE8C8`), and Preview rendered SVG (`\uE7B3`). Added `RightTapped` handlers across the left tool strip in `MindMapGalaxyWindow.xaml` & `.xaml.cs` for child nodes `Tab` (`\uE710`), sibling nodes `Enter` (`\uE710`), linking nodes `Ctrl+L` (`\uE71B`), deleting nodes `Del` (`\uE74D`), undo `Ctrl+Z` (`\uE7A7`), and redo `Ctrl+Y` (`\uE7A6`).
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `ShapeDesignStudioWindow` `InsertIntoDocumentButton` & Vectorizer `ConvertButton` Context Menus (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`)
+    6. `HistoryWindow` Header Actions & Diff Mode Toggles Context Actions (`Views/History/HistoryWindow.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Added `RightTapped="OnInsertIntoDocumentButtonRightTapped"` and `RightTapped="OnConvertButtonRightTapped"` in `ShapeDesignStudioWindow.xaml` & `.xaml.cs` offering Insert into document `Ctrl+Enter` (`\uE8A5`), Copy shapes as Markdown `Ctrl+Shift+C` (`\uE8C8`), Trace & vectorize image (`\uEB9F`), Choose new image (`\uE8B7`), and Reset sliders (`\uE777`). Added `RightTapped` handlers in `HistoryWindow.xaml` & `.xaml.cs` on `StarredFilterToggle`, `TakeCheckpointButton`, `RestoreButton`, and the diff mode segmented toggle buttons (`UnifiedToggle`, `SplitToggle`, `PreviewToggle`) providing quick version actions, filter toggles, checkpoint shortcuts, and diff view routing.
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #100.
+
+**Shipped:**
+1. **`MainWindow` Title Bar Quick Buttons Context Menus (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `x:Name` and `RightTapped` on `ExportPdfTitleButton`, `ExportDocxTitleButton`, `ImportDocumentTitleButton`, `DiagramStudioTitleButton`, and `SettingsTitleButton`.
+   - Wired context menus with accelerators, folder locations, copy paths, and dialog launches, all with full Fluent icon parity.
+2. **`MainWindow` Centre Bottom Bar Copy & Print Context Menus (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnCopyHtmlButtonRightTapped"` on `CopyHtmlButton` offering Copy HTML `Ctrl+Shift+C` (`\uE8C8`), Copy plain Markdown (`\uE8C8`), Copy outline TOC (`\uE8A4`), and Copy document word count & stats (`\uE946`).
+   - Attached `RightTapped="OnPrintButtonRightTapped"` on `PrintDocumentButton` offering Print document `Ctrl+P` (`\uE749`), Print preview (`\uE7B3`), Export PDF (`\uEA90`), and Page setup (`\uE72C`).
+3. **`SmartArtDesignStudioWindow` Toolbar Undo, Redo, & Insert Context Menus (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped` on `UndoStudioButton`, `RedoStudioButton`, and `InsertIntoDocumentButton` providing Undo `Ctrl+Z` (`\uE7A7`), Redo `Ctrl+Y` (`\uE7A6`), Revert all changes (`\uE777`), Insert snippet `Ctrl+Enter` (`\uE8A5`), Copy :::smartart block `Ctrl+Shift+C` (`\uE8C8`), and Preview rendered SVG (`\uE7B3`).
+4. **`MindMapGalaxyWindow` Action Tools Context Menus (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped` handlers to `AddChildToolButton`, `AddSiblingToolButton`, `LinkToolButton`, `DeleteToolButton`, `UndoToolButton`, and `RedoToolButton` using the `MenuItem` helper with full accelerator visibility and Fluent icons.
+5. **`ShapeDesignStudioWindow` Insert & Vectorizer Convert Context Menus (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnInsertIntoDocumentButtonRightTapped"` on `InsertIntoDocumentButton` providing Insert into document `Ctrl+Enter` (`\uE8A5`), Copy shapes as Markdown `Ctrl+Shift+C` (`\uE8C8`), Select all shapes `Ctrl+A` (`\uE8B3`), and Fit diagram `Ctrl+0` (`\uE9A6`).
+   - Attached `RightTapped="OnConvertButtonRightTapped"` on `ConvertButton` providing Trace & vectorize image (`\uEB9F`), Choose new image (`\uE8B7`), Reset tracing sliders (`\uE777`), and Copy image path (`\uE8C8`).
+6. **`HistoryWindow` Header Controls & Diff Mode Toggles Context Actions (`Views/History/HistoryWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnStarredFilterToggleRightTapped"` on `StarredFilterToggle` offering Show starred versions only (`\uE735`), Show all versions (`\uE734`), Clear search filter (`\uE894`), and Reload history (`\uE72C`).
+   - Attached `RightTapped="OnTakeCheckpointButtonRightTapped"` on `TakeCheckpointButton` offering Take checkpoint `Ctrl+Shift+C` (`\uE74E`), Restore selected version `Ctrl+Enter` (`\uE7A7`), Show in File Explorer (`\uEC50`), and Clear filters (`\uE894`).
+   - Attached `RightTapped="OnRestoreButtonRightTapped"` on `RestoreButton` offering Restore version `Ctrl+Enter` (`\uE7A7`), Copy version Markdown `Ctrl+C` (`\uE8C8`), and Copy diff patch `Ctrl+Shift+C` (`\uE943`).
+   - Attached `RightTapped="OnDiffModeToggleRightTapped"` on `UnifiedToggle`, `SplitToggle`, and `PreviewToggle` routing to `ShowDiffAreaContextMenu`.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 18 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 28148, `Alive: True`, `Responding: True`, clean exit.
+
+
 
 
 

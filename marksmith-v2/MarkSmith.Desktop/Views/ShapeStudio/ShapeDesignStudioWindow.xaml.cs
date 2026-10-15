@@ -2287,6 +2287,77 @@ namespace MarkSmith.Views.ShapeStudio
                 flyout.ShowAt(this.Content, e.GetPosition(this.Content));
         }
 
+        private void OnInsertIntoDocumentButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (InsertIntoDocumentButton is null) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            bool any = ViewModel.Shapes.Count > 0;
+
+            flyout.Items.Add(ShapeMenuItem("Insert into document", "\uE8A5", () => ViewModel.InsertIntoDocumentCommand.Execute(null), "Ctrl+Enter", enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Copy shapes as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), "Ctrl+Shift+C", enabled: any));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Select all shapes", "\uE8B3", () => ViewModel.SelectAllCommand.Execute(null), "Ctrl+A", enabled: any && !ViewModel.IsDense));
+            flyout.Items.Add(ShapeMenuItem("Fit diagram in window", "\uE9A6", FitCanvasToContent, "Ctrl+0", enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Clear canvas", "\uE74D", () => OnClearClick(this, new RoutedEventArgs()), enabled: any));
+
+            if (sender is FrameworkElement fe)
+                flyout.ShowAt(fe, e.GetPosition(fe));
+            else
+                flyout.ShowAt(InsertIntoDocumentButton, e.GetPosition(InsertIntoDocumentButton));
+        }
+
+        private void OnConvertButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (ConvertButton is null) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            flyout.Items.Add(ShapeMenuItem("Convert picture to shapes", "\uE945", () => OnFuseImageClick(this, new RoutedEventArgs()), enabled: ViewModel.HasImage));
+            flyout.Items.Add(ShapeMenuItem("Choose image file…", "\uE8B7", () => OnPickImageClick(this, new RoutedEventArgs())));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Reset tracing sliders to defaults", "\uE777", () =>
+            {
+                FuseMosaicDensity.Value = 96;
+                FuseMosaicPadding.Value = -6;
+                FuseLineDensity.Value = 120;
+                ViewModel.StatusMessage = "Reset mosaic and line sliders to default density.";
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Clear image", "\uE74D", () =>
+            {
+                _composeImagePath = null;
+                FuseThumb.Source = null;
+                FuseImageLabel.Text = "No image chosen";
+                ToolTipService.SetToolTip(FuseImageLabel, null);
+                PickImageButton.Content = "Choose image…";
+                if (FuseImagePathBox != null) FuseImagePathBox.Text = string.Empty;
+                ViewModel.HasImage = false;
+                ViewModel.StatusMessage = "Cleared chosen image.";
+            }, enabled: ViewModel.HasImage));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Switch to Shapes library", "\uE790", () =>
+            {
+                if (LeftTabs != null && ShapesTab != null) LeftTabs.SelectedItem = ShapesTab;
+            }, "Ctrl+2"));
+
+            flyout.Items.Add(ShapeMenuItem("Switch to Presets tab", "\uF0E2", () =>
+            {
+                if (LeftTabs != null && PresetsTab != null) LeftTabs.SelectedItem = PresetsTab;
+            }, "Ctrl+1"));
+
+            if (sender is FrameworkElement fe)
+                flyout.ShowAt(fe, e.GetPosition(fe));
+            else
+                flyout.ShowAt(ConvertButton, e.GetPosition(ConvertButton));
+        }
+
         private async void OnFuseImageClick(object sender, RoutedEventArgs e)        {
             if (string.IsNullOrWhiteSpace(_composeImagePath))
             {

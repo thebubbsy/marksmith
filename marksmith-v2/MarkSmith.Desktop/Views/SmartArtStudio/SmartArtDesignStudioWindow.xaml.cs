@@ -686,6 +686,146 @@ namespace MarkSmith.Views.SmartArtStudio
                 menu.ShowAt(this.Content, e.GetPosition(this.Content));
         }
 
+        private void OnUndoButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (UndoStudioButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var undoItem = new MenuFlyoutItem
+            {
+                Text = "Undo",
+                Icon = new FontIcon { Glyph = "\uE7A7" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Z",
+                IsEnabled = ViewModel.CanUndo
+            };
+            undoItem.Click += (_, _) => { if (ViewModel.CanUndo) ViewModel.UndoCommand.Execute(null); };
+            menu.Items.Add(undoItem);
+
+            var redoItem = new MenuFlyoutItem
+            {
+                Text = "Redo",
+                Icon = new FontIcon { Glyph = "\uE7A6" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Y",
+                IsEnabled = ViewModel.CanRedo
+            };
+            redoItem.Click += (_, _) => { if (ViewModel.CanRedo) ViewModel.RedoCommand.Execute(null); };
+            menu.Items.Add(redoItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyBulletsItem = new MenuFlyoutItem
+            {
+                Text = "Copy outline bullets",
+                Icon = new FontIcon { Glyph = "\uE8FD" },
+                KeyboardAcceleratorTextOverride = "Ctrl+C"
+            };
+            copyBulletsItem.Click += OnCopyOutlineMarkdownClick;
+            menu.Items.Add(copyBulletsItem);
+
+            var resetItem = new MenuFlyoutItem
+            {
+                Text = "Reset layout filter",
+                Icon = new FontIcon { Glyph = "\uE72C" }
+            };
+            resetItem.Click += (_, _) =>
+            {
+                ViewModel.SelectedCategory = "All";
+                if (LayoutSearch != null) LayoutSearch.Text = "";
+                ViewModel.StatusMessage = "Reset layout filters.";
+            };
+            menu.Items.Add(resetItem);
+
+            menu.ShowAt(UndoStudioButton, e.GetPosition(UndoStudioButton));
+        }
+
+        private void OnRedoButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (RedoStudioButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var redoItem = new MenuFlyoutItem
+            {
+                Text = "Redo",
+                Icon = new FontIcon { Glyph = "\uE7A6" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Y",
+                IsEnabled = ViewModel.CanRedo
+            };
+            redoItem.Click += (_, _) => { if (ViewModel.CanRedo) ViewModel.RedoCommand.Execute(null); };
+            menu.Items.Add(redoItem);
+
+            var undoItem = new MenuFlyoutItem
+            {
+                Text = "Undo",
+                Icon = new FontIcon { Glyph = "\uE7A7" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Z",
+                IsEnabled = ViewModel.CanUndo
+            };
+            undoItem.Click += (_, _) => { if (ViewModel.CanUndo) ViewModel.UndoCommand.Execute(null); };
+            menu.Items.Add(undoItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyBulletsItem = new MenuFlyoutItem
+            {
+                Text = "Copy outline bullets",
+                Icon = new FontIcon { Glyph = "\uE8FD" },
+                KeyboardAcceleratorTextOverride = "Ctrl+C"
+            };
+            copyBulletsItem.Click += OnCopyOutlineMarkdownClick;
+            menu.Items.Add(copyBulletsItem);
+
+            menu.ShowAt(RedoStudioButton, e.GetPosition(RedoStudioButton));
+        }
+
+        private void OnInsertIntoDocumentButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (InsertIntoDocumentButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var insertItem = new MenuFlyoutItem
+            {
+                Text = "Insert into document",
+                Icon = new FontIcon { Glyph = "\uE8A5" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Enter"
+            };
+            insertItem.Click += (_, _) => ViewModel.InsertIntoDocumentCommand.Execute(null);
+            menu.Items.Add(insertItem);
+
+            var copyBlockItem = new MenuFlyoutItem
+            {
+                Text = "Copy :::smartart block",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C"
+            };
+            copyBlockItem.Click += OnCopySmartArtBlockClick;
+            menu.Items.Add(copyBlockItem);
+
+            var copyBulletsItem = new MenuFlyoutItem
+            {
+                Text = "Copy outline bullets",
+                Icon = new FontIcon { Glyph = "\uE8FD" },
+                KeyboardAcceleratorTextOverride = "Ctrl+C"
+            };
+            copyBulletsItem.Click += OnCopyOutlineMarkdownClick;
+            menu.Items.Add(copyBulletsItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var searchLayoutsItem = new MenuFlyoutItem
+            {
+                Text = "Search layouts",
+                Icon = new FontIcon { Glyph = "\uE721" },
+                KeyboardAcceleratorTextOverride = "Ctrl+F"
+            };
+            searchLayoutsItem.Click += (_, _) => LayoutSearch?.Focus(FocusState.Programmatic);
+            menu.Items.Add(searchLayoutsItem);
+
+            menu.ShowAt(InsertIntoDocumentButton, e.GetPosition(InsertIntoDocumentButton));
+        }
+
         private void FocusRenameBox()
         {
             // The rename box appears on the next layout pass — focus + select-all then.

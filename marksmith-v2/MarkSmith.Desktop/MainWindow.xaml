@@ -146,17 +146,19 @@
                     </StackPanel>
                 </Button>
                 <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
-                <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
+                <Button x:Name="ExportPdfTitleButton" Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnConvertPdfClick" IsEnabled="{Binding IsNotBusy}"
-                        ToolTipService.ToolTip="Export as PDF (.pdf)">
+                        RightTapped="OnExportPdfTitleButtonRightTapped"
+                        ToolTipService.ToolTip="Export as PDF (.pdf, Right-click for options)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xEA90;" FontSize="12" />
                         <TextBlock Text="Export PDF" FontSize="12" />
                     </StackPanel>
                 </Button>
-                <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
+                <Button x:Name="ExportDocxTitleButton" Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnConvertDocxClick" IsEnabled="{Binding IsNotBusy}"
-                        ToolTipService.ToolTip="Export as Word (.docx)">
+                        RightTapped="OnExportDocxTitleButtonRightTapped"
+                        ToolTipService.ToolTip="Export as Word (.docx, Right-click for options)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE8A5;" FontSize="12" />
                         <TextBlock Text="Export Word" FontSize="12" />
@@ -167,18 +169,20 @@
                         </Border>
                     </StackPanel>
                 </Button>
-                <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
+                <Button x:Name="ImportDocumentTitleButton" Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnImportDocumentClick" IsEnabled="{Binding IsNotBusy}"
-                        ToolTipService.ToolTip="Import a Word, PDF, HTML or email (.eml, .msg) file as a new Markdown document">
+                        RightTapped="OnImportDocumentTitleButtonRightTapped"
+                        ToolTipService.ToolTip="Import a Word, PDF, HTML or email (.eml, .msg) file as a new Markdown document (Right-click for options)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE8B5;" FontSize="12" />
                         <TextBlock Text="Import" FontSize="12" />
                     </StackPanel>
                 </Button>
                 <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
-                <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
+                <Button x:Name="DiagramStudioTitleButton" Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnOpenMermaidStudioClick"
-                        ToolTipService.ToolTip="Open Diagram Studio (Ctrl+Shift+M)">
+                        RightTapped="OnDiagramStudioTitleButtonRightTapped"
+                        ToolTipService.ToolTip="Open Diagram Studio (Ctrl+Shift+M, Right-click for options)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xEF90;" FontSize="12" />
                         <TextBlock Text="Diagram Studio" FontSize="12" />
@@ -193,9 +197,10 @@
                         <TextBlock Text="Suite Hub" FontSize="12" FontWeight="SemiBold" />
                     </StackPanel>
                 </Button>
-                <Button Height="30" Width="34" Padding="0" Background="Transparent" BorderThickness="0"
+                <Button x:Name="SettingsTitleButton" Height="30" Width="34" Padding="0" Background="Transparent" BorderThickness="0"
                         Click="OnSettingsClick"
-                        ToolTipService.ToolTip="Settings (Ctrl+,)">
+                        RightTapped="OnSettingsTitleButtonRightTapped"
+                        ToolTipService.ToolTip="Settings (Ctrl+,, Right-click for options)">
                     <FontIcon Glyph="&#xE713;" FontSize="14" />
                 </Button>
                 <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
@@ -1070,12 +1075,16 @@
                     </StackPanel>
 
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,4,0,10">
-                        <Button ToolTipService.ToolTip="Copy the rendered HTML to the clipboard" Height="32" Width="32" Padding="0"
-                                Click="OnCopyHtmlClick" VerticalAlignment="Center">
+                        <Button x:Name="CopyHtmlButton" ToolTipService.ToolTip="Copy the rendered HTML to the clipboard (Right-click for copy options)" Height="32" Width="32" Padding="0"
+                                Click="OnCopyHtmlClick" VerticalAlignment="Center"
+                                RightTapped="OnCopyHtmlButtonRightTapped"
+                                AutomationProperties.Name="Copy rendered HTML">
                             <FontIcon Glyph="&#xE8C8;" FontSize="13" />
                         </Button>
-                        <Button ToolTipService.ToolTip="Print the rendered document (Ctrl+P)" Height="32" Width="32" Padding="0"
-                                Click="OnPrintClick" VerticalAlignment="Center">
+                        <Button x:Name="PrintDocumentButton" ToolTipService.ToolTip="Print the rendered document (Ctrl+P, Right-click for options)" Height="32" Width="32" Padding="0"
+                                Click="OnPrintClick" VerticalAlignment="Center"
+                                RightTapped="OnPrintButtonRightTapped"
+                                AutomationProperties.Name="Print rendered document">
                             <FontIcon Glyph="&#xE749;" FontSize="13" />
                         </Button>
 

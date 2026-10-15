@@ -1989,6 +1989,257 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.ShowAt(SuiteHubButton, e.GetPosition(SuiteHubButton));
     }
 
+    private void OnExportPdfTitleButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (ExportPdfTitleButton is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var exportPdfItem = new MenuFlyoutItem
+        {
+            Text = "Export as PDF (.pdf)",
+            Icon = new FontIcon { Glyph = "\uEA90" }
+        };
+        exportPdfItem.Click += (_, _) => OnConvertPdfClick(this, new RoutedEventArgs());
+        menu.Items.Add(exportPdfItem);
+
+        var exportAllItem = new MenuFlyoutItem
+        {
+            Text = "Export all licensed formats",
+            Icon = new FontIcon { Glyph = "\uE81C" }
+        };
+        exportAllItem.Click += async (_, _) => await ViewModel.ExportAllAsync();
+        menu.Items.Add(exportAllItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var openFolderItem = new MenuFlyoutItem
+        {
+            Text = "Open export output folder",
+            Icon = new FontIcon { Glyph = "\uE838" }
+        };
+        openFolderItem.Click += (_, _) =>
+        {
+            var folder = ViewModel.OutputFolder;
+            if (string.IsNullOrWhiteSpace(folder))
+            {
+                folder = string.IsNullOrWhiteSpace(ViewModel.InputFilePath)
+                    ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+                    : Path.GetDirectoryName(ViewModel.InputFilePath) ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            }
+            try
+            {
+                if (Directory.Exists(folder))
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = folder, UseShellExecute = true });
+                    AnnounceStatus($"Opened folder: {folder}");
+                }
+            }
+            catch { }
+        };
+        menu.Items.Add(openFolderItem);
+
+        menu.ShowAt(ExportPdfTitleButton, e.GetPosition(ExportPdfTitleButton));
+    }
+
+    private void OnExportDocxTitleButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (ExportDocxTitleButton is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var exportDocxItem = new MenuFlyoutItem
+        {
+            Text = "Export as Word (.docx)",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        exportDocxItem.Click += (_, _) => OnConvertDocxClick(this, new RoutedEventArgs());
+        menu.Items.Add(exportDocxItem);
+
+        var exportAllItem = new MenuFlyoutItem
+        {
+            Text = "Export all licensed formats",
+            Icon = new FontIcon { Glyph = "\uE81C" }
+        };
+        exportAllItem.Click += async (_, _) => await ViewModel.ExportAllAsync();
+        menu.Items.Add(exportAllItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var openFolderItem = new MenuFlyoutItem
+        {
+            Text = "Open export output folder",
+            Icon = new FontIcon { Glyph = "\uE838" }
+        };
+        openFolderItem.Click += (_, _) =>
+        {
+            var folder = ViewModel.OutputFolder;
+            if (string.IsNullOrWhiteSpace(folder))
+            {
+                folder = string.IsNullOrWhiteSpace(ViewModel.InputFilePath)
+                    ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+                    : Path.GetDirectoryName(ViewModel.InputFilePath) ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            }
+            try
+            {
+                if (Directory.Exists(folder))
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = folder, UseShellExecute = true });
+                    AnnounceStatus($"Opened folder: {folder}");
+                }
+            }
+            catch { }
+        };
+        menu.Items.Add(openFolderItem);
+
+        menu.ShowAt(ExportDocxTitleButton, e.GetPosition(ExportDocxTitleButton));
+    }
+
+    private void OnImportDocumentTitleButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (ImportDocumentTitleButton is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var importDocItem = new MenuFlyoutItem
+        {
+            Text = "Import Word, PDF, HTML, or email",
+            Icon = new FontIcon { Glyph = "\uE8B5" }
+        };
+        importDocItem.Click += (_, _) => OnImportDocumentClick(this, new RoutedEventArgs());
+        menu.Items.Add(importDocItem);
+
+        var importSpreadsheetItem = new MenuFlyoutItem
+        {
+            Text = "Insert table from spreadsheet…",
+            Icon = new FontIcon { Glyph = "\uEDE1" }
+        };
+        importSpreadsheetItem.Click += (_, _) => OnInsertSpreadsheetClick(this, new RoutedEventArgs());
+        menu.Items.Add(importSpreadsheetItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var browseFileItem = new MenuFlyoutItem
+        {
+            Text = "Browse Markdown files (Ctrl+O)",
+            Icon = new FontIcon { Glyph = "\uE8E5" }
+        };
+        browseFileItem.Click += (_, _) => OnBrowseFileClick(this, new RoutedEventArgs());
+        menu.Items.Add(browseFileItem);
+
+        menu.ShowAt(ImportDocumentTitleButton, e.GetPosition(ImportDocumentTitleButton));
+    }
+
+    private void OnDiagramStudioTitleButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (DiagramStudioTitleButton is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var diagramItem = new MenuFlyoutItem
+        {
+            Text = "Diagram Studio (Ctrl+Shift+M)",
+            Icon = new FontIcon { Glyph = "\uEF90" }
+        };
+        diagramItem.Click += (_, _) => OnOpenMermaidStudioClick(this, new RoutedEventArgs());
+        menu.Items.Add(diagramItem);
+
+        var shapeItem = new MenuFlyoutItem
+        {
+            Text = "Shape Studio",
+            Icon = new FontIcon { Glyph = "\uE790" }
+        };
+        shapeItem.Click += (_, _) => OnOpenShapeDesignStudioClick(this, new RoutedEventArgs());
+        menu.Items.Add(shapeItem);
+
+        var smartArtItem = new MenuFlyoutItem
+        {
+            Text = "SmartArt Studio",
+            Icon = new FontIcon { Glyph = "\uF003" }
+        };
+        smartArtItem.Click += (_, _) => OnOpenSmartArtDesignStudioClick(this, new RoutedEventArgs());
+        menu.Items.Add(smartArtItem);
+
+        var mindMapItem = new MenuFlyoutItem
+        {
+            Text = "Document Galaxy",
+            Icon = new FontIcon { Glyph = "\uEC26" }
+        };
+        mindMapItem.Click += (_, _) => OnOpenMindMapGalaxyClick(this, new RoutedEventArgs());
+        menu.Items.Add(mindMapItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var workflowItem = new MenuFlyoutItem
+        {
+            Text = "Insert workflow",
+            Icon = new FontIcon { Glyph = "\uE9D5" }
+        };
+        workflowItem.Click += (_, _) => OnInsertWorkflowClick(this, new RoutedEventArgs());
+        menu.Items.Add(workflowItem);
+
+        var timelineItem = new MenuFlyoutItem
+        {
+            Text = "Insert timeline",
+            Icon = new FontIcon { Glyph = "\uE7C1" }
+        };
+        timelineItem.Click += (_, _) => OnInsertTimelineClick(this, new RoutedEventArgs());
+        menu.Items.Add(timelineItem);
+
+        menu.ShowAt(DiagramStudioTitleButton, e.GetPosition(DiagramStudioTitleButton));
+    }
+
+    private void OnSettingsTitleButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (SettingsTitleButton is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var settingsItem = new MenuFlyoutItem
+        {
+            Text = "Settings (Ctrl+,)",
+            Icon = new FontIcon { Glyph = "\uE713" }
+        };
+        settingsItem.Click += (_, _) => OnSettingsClick(this, new RoutedEventArgs());
+        menu.Items.Add(settingsItem);
+
+        var shortcutsItem = new MenuFlyoutItem
+        {
+            Text = "Keyboard shortcuts (F1)",
+            Icon = new FontIcon { Glyph = "\uE765" }
+        };
+        shortcutsItem.Click += (_, _) => OnShortcutsButtonClick(this, new RoutedEventArgs());
+        menu.Items.Add(shortcutsItem);
+
+        var historyItem = new MenuFlyoutItem
+        {
+            Text = "Version history",
+            Icon = new FontIcon { Glyph = "\uE823" }
+        };
+        historyItem.Click += (_, _) => OnOpenHistoryClick(this, new RoutedEventArgs());
+        menu.Items.Add(historyItem);
+
+        var suiteHubItem = new MenuFlyoutItem
+        {
+            Text = "Suite Hub",
+            Icon = new FontIcon { Glyph = "\uECA5" }
+        };
+        suiteHubItem.Click += (_, _) => OnSuiteHubClick(this, new RoutedEventArgs());
+        menu.Items.Add(suiteHubItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var tourItem = new MenuFlyoutItem
+        {
+            Text = "Take a quick tour",
+            Icon = new FontIcon { Glyph = "\uE897" }
+        };
+        tourItem.Click += (_, _) => OnTakeTourClick(this, new RoutedEventArgs());
+        menu.Items.Add(tourItem);
+
+        menu.ShowAt(SettingsTitleButton, e.GetPosition(SettingsTitleButton));
+    }
+
     // Same setting as Settings ▸ Automation ▸ Local API; the property hook re-applies automation
     // synchronously. Used by Suite Hub and the extension setup guide.
     private async Task<(bool Running, int Port, string? Error)> TurnOnApiAsync()
@@ -6101,6 +6352,67 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
+    private void OnCopyHtmlButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (CopyHtmlButton is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var copyHtmlItem = new MenuFlyoutItem
+        {
+            Text = "Copy rendered HTML",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyHtmlItem.Click += (_, _) => OnCopyHtmlClick(this, new RoutedEventArgs());
+        menu.Items.Add(copyHtmlItem);
+
+        var copyEmailItem = new MenuFlyoutItem
+        {
+            Text = "Copy as email",
+            Icon = new FontIcon { Glyph = "\uE715" }
+        };
+        copyEmailItem.Click += async (_, _) => await ViewModel.CopyAsEmailAsync();
+        menu.Items.Add(copyEmailItem);
+
+        var copyMarkdownItem = new MenuFlyoutItem
+        {
+            Text = "Copy Markdown source",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        copyMarkdownItem.Click += (_, _) =>
+        {
+            var text = ViewModel.CurrentMarkdown ?? "";
+            CopyTextToStatusBar(text, $"Copied {text.Length} characters of Markdown source.");
+        };
+        menu.Items.Add(copyMarkdownItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var count = ViewModel?.TocEntries?.Count ?? 0;
+        var copyOutlineItem = new MenuFlyoutItem
+        {
+            Text = count > 0 ? $"Copy Table of Contents ({count} headings)" : "Copy Table of Contents",
+            Icon = new FontIcon { Glyph = "\uE8A4" },
+            IsEnabled = count > 0
+        };
+        copyOutlineItem.Click += (_, _) => CopyAllHeadingsAsToc();
+        menu.Items.Add(copyOutlineItem);
+
+        var copyStatsItem = new MenuFlyoutItem
+        {
+            Text = "Copy document word count and stats",
+            Icon = new FontIcon { Glyph = "\uE946" }
+        };
+        copyStatsItem.Click += (_, _) =>
+        {
+            var stats = ViewModel.WordCountText;
+            CopyTextToStatusBar(stats, $"Copied stats: {stats}");
+        };
+        menu.Items.Add(copyStatsItem);
+
+        menu.ShowAt(CopyHtmlButton, e.GetPosition(CopyHtmlButton));
+    }
+
     private void OnOpenHistoryClick(object sender, RoutedEventArgs e)
     {
         // The hub shows EVERY file ever touched, so it works even with nothing open — the current
@@ -9607,6 +9919,57 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         PrintDocument();
         args.Handled = true;
+    }
+
+    private void OnPrintButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (PrintDocumentButton is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var printItem = new MenuFlyoutItem
+        {
+            Text = "Print document (Ctrl+P)",
+            Icon = new FontIcon { Glyph = "\uE749" }
+        };
+        printItem.Click += (_, _) => PrintDocument();
+        menu.Items.Add(printItem);
+
+        var fitItem = new MenuFlyoutItem
+        {
+            Text = "Fit page width",
+            Icon = new FontIcon { Glyph = "\uE9A6" }
+        };
+        fitItem.Click += (_, _) => OnPreviewFitClick(this, new RoutedEventArgs());
+        menu.Items.Add(fitItem);
+
+        var resetZoomItem = new MenuFlyoutItem
+        {
+            Text = "Reset preview zoom (100%)",
+            Icon = new FontIcon { Glyph = "\uE71E" }
+        };
+        resetZoomItem.Click += (_, _) => OnPreviewZoomResetClick(this, new RoutedEventArgs());
+        menu.Items.Add(resetZoomItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var exportPdfItem = new MenuFlyoutItem
+        {
+            Text = "Export as PDF (.pdf)",
+            Icon = new FontIcon { Glyph = "\uEA90" }
+        };
+        exportPdfItem.Click += (_, _) => OnConvertPdfClick(this, new RoutedEventArgs());
+        menu.Items.Add(exportPdfItem);
+
+        var exportDocxItem = new MenuFlyoutItem
+        {
+            Text = "Export as Word (.docx)",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        exportDocxItem.Click += (_, _) => OnConvertDocxClick(this, new RoutedEventArgs());
+        menu.Items.Add(exportDocxItem);
+
+        menu.ShowAt(PrintDocumentButton, e.GetPosition(PrintDocumentButton));
     }
 
     // Open the system print dialog for the rendered preview. The preview is kept current by the

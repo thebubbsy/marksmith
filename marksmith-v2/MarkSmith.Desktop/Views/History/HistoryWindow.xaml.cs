@@ -1339,4 +1339,172 @@ public sealed partial class HistoryWindow : Window
 
         menu.ShowAt(anchor, position);
     }
+
+    private void OnStarredFilterToggleRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var starredOnly = new MenuFlyoutItem
+        {
+            Text = "Show starred versions only",
+            Icon = new FontIcon { Glyph = "\uE735" }
+        };
+        starredOnly.Click += (_, _) => _vm.IsStarredOnlyFilter = true;
+        menu.Items.Add(starredOnly);
+
+        var showAll = new MenuFlyoutItem
+        {
+            Text = "Show all versions",
+            Icon = new FontIcon { Glyph = "\uE734" }
+        };
+        showAll.Click += (_, _) => _vm.IsStarredOnlyFilter = false;
+        menu.Items.Add(showAll);
+
+        var clearFilter = new MenuFlyoutItem
+        {
+            Text = "Clear search filter",
+            Icon = new FontIcon { Glyph = "\uE894" },
+            IsEnabled = !string.IsNullOrEmpty(_vm.SearchQuery) || !string.IsNullOrEmpty(SearchBox.Text)
+        };
+        clearFilter.Click += (_, _) =>
+        {
+            _vm.SearchQuery = "";
+            SearchBox.Text = "";
+            SearchBox.Focus(FocusState.Programmatic);
+        };
+        menu.Items.Add(clearFilter);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var reload = new MenuFlyoutItem
+        {
+            Text = "Reload history",
+            Icon = new FontIcon { Glyph = "\uE72C" }
+        };
+        reload.Click += (_, _) => _ = _vm.LoadAsync();
+        menu.Items.Add(reload);
+
+        if (sender is FrameworkElement fe)
+            menu.ShowAt(fe, e.GetPosition(fe));
+    }
+
+    private void OnTakeCheckpointButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var checkpointItem = new MenuFlyoutItem
+        {
+            Text = "Take checkpoint (Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE74E" }
+        };
+        checkpointItem.Click += (_, _) => OnTakeSnapshotClick(this, new RoutedEventArgs());
+        menu.Items.Add(checkpointItem);
+
+        var restoreItem = new MenuFlyoutItem
+        {
+            Text = "Restore selected version",
+            Icon = new FontIcon { Glyph = "\uE7A7" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
+            IsEnabled = _vm.HasSelection
+        };
+        restoreItem.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await ConfirmAndRestoreAsync();
+        };
+        menu.Items.Add(restoreItem);
+
+        var filePath = _vm.SelectedFile?.Summary.FilePath ?? _vm.FileName;
+        var showInExplorer = new MenuFlyoutItem
+        {
+            Text = "Show in File Explorer",
+            Icon = new FontIcon { Glyph = "\uEC50" },
+            IsEnabled = !string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath)
+        };
+        showInExplorer.Click += (_, _) =>
+        {
+            try { System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{filePath}\""); }
+            catch { }
+        };
+        menu.Items.Add(showInExplorer);
+
+        var clearFilter = new MenuFlyoutItem
+        {
+            Text = "Clear filters",
+            Icon = new FontIcon { Glyph = "\uE894" },
+            IsEnabled = _vm.IsStarredOnlyFilter || !string.IsNullOrEmpty(_vm.SearchQuery)
+        };
+        clearFilter.Click += (_, _) =>
+        {
+            _vm.ClearFiltersCommand.Execute(null);
+            SearchBox.Text = "";
+        };
+        menu.Items.Add(clearFilter);
+
+        if (sender is FrameworkElement fe)
+            menu.ShowAt(fe, e.GetPosition(fe));
+    }
+
+    private void OnRestoreButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var restoreItem = new MenuFlyoutItem
+        {
+            Text = "Restore version to editor",
+            Icon = new FontIcon { Glyph = "\uE7A7" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
+            IsEnabled = _vm.HasSelection
+        };
+        restoreItem.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await ConfirmAndRestoreAsync();
+        };
+        menu.Items.Add(restoreItem);
+
+        var copyMarkdown = new MenuFlyoutItem
+        {
+            Text = "Copy version Markdown",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            KeyboardAcceleratorTextOverride = "Ctrl+C",
+            IsEnabled = _vm.HasSelection
+        };
+        copyMarkdown.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await CopyVersionMarkdownAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+        };
+        menu.Items.Add(copyMarkdown);
+
+        var copyPatch = new MenuFlyoutItem
+        {
+            Text = "Copy diff patch",
+            Icon = new FontIcon { Glyph = "\uE943" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
+            IsEnabled = _vm.HasSelection
+        };
+        copyPatch.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await CopyDiffPatchAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+        };
+        menu.Items.Add(copyPatch);
+
+        if (sender is FrameworkElement fe)
+            menu.ShowAt(fe, e.GetPosition(fe));
+    }
+
+    private void OnDiffModeToggleRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement fe)
+        {
+            ShowDiffAreaContextMenu(fe, e.GetPosition(fe));
+        }
+    }
 }
+

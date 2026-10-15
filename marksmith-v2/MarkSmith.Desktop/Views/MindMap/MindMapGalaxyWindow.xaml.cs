@@ -3385,6 +3385,214 @@ namespace MarkSmith.Views.MindMap
                 menu.ShowAt(this.Content, e.GetPosition(this.Content));
         }
 
+        private void OnAddChildButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (AddChildToolButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var childItem = MenuItem("Add child node", "\uE710", "Tab");
+            childItem.Click += (_, _) => ViewModel.AddChildNodeCommand.Execute(null);
+            menu.Items.Add(childItem);
+
+            var siblingItem = MenuItem("Add sibling node", "\uE710", "Enter");
+            siblingItem.Click += (_, _) => ViewModel.AddSiblingNodeCommand.Execute(null);
+            menu.Items.Add(siblingItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var linkItem = MenuItem("Link selected node", "\uE71B", "Ctrl+L");
+            linkItem.IsEnabled = ViewModel.HasSelection;
+            linkItem.Click += OnConnectSelectedClick;
+            menu.Items.Add(linkItem);
+
+            var renameItem = MenuItem("Rename selected node", "\uE8AC", "F2");
+            renameItem.IsEnabled = ViewModel.SelectedNode != null;
+            renameItem.Click += (_, _) =>
+            {
+                TitleBox?.Focus(FocusState.Programmatic);
+                TitleBox?.SelectAll();
+            };
+            menu.Items.Add(renameItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var fitItem = MenuItem("Fit all nodes in window", "\uE9A6", "Ctrl+0");
+            fitItem.Click += OnFitToWindowClick;
+            menu.Items.Add(fitItem);
+
+            menu.ShowAt(AddChildToolButton, e.GetPosition(AddChildToolButton));
+        }
+
+        private void OnAddSiblingButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (AddSiblingToolButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var siblingItem = MenuItem("Add sibling node", "\uE710", "Enter");
+            siblingItem.Click += (_, _) => ViewModel.AddSiblingNodeCommand.Execute(null);
+            menu.Items.Add(siblingItem);
+
+            var childItem = MenuItem("Add child node", "\uE710", "Tab");
+            childItem.Click += (_, _) => ViewModel.AddChildNodeCommand.Execute(null);
+            menu.Items.Add(childItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var linkItem = MenuItem("Link selected node", "\uE71B", "Ctrl+L");
+            linkItem.IsEnabled = ViewModel.HasSelection;
+            linkItem.Click += OnConnectSelectedClick;
+            menu.Items.Add(linkItem);
+
+            var deleteItem = MenuItem("Delete selected", "\uE74D", "Delete");
+            deleteItem.IsEnabled = ViewModel.HasSelection;
+            deleteItem.Click += (_, _) => ViewModel.DeleteSelectionCommand.Execute(null);
+            menu.Items.Add(deleteItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var fitItem = MenuItem("Fit all nodes in window", "\uE9A6", "Ctrl+0");
+            fitItem.Click += OnFitToWindowClick;
+            menu.Items.Add(fitItem);
+
+            menu.ShowAt(AddSiblingToolButton, e.GetPosition(AddSiblingToolButton));
+        }
+
+        private void OnLinkToolButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (LinkToolButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var linkItem = MenuItem("Link to another node", "\uE71B", "Ctrl+L");
+            linkItem.IsEnabled = ViewModel.HasSelection;
+            linkItem.Click += OnConnectSelectedClick;
+            menu.Items.Add(linkItem);
+
+            var clearSelItem = MenuItem("Clear selection", "\uE894", "Esc");
+            clearSelItem.IsEnabled = ViewModel.HasSelection;
+            clearSelItem.Click += (_, _) =>
+            {
+                ViewModel.SelectedNode = null;
+                ViewModel.SelectedLink = null;
+                ViewModel.HidePreviewCard();
+            };
+            menu.Items.Add(clearSelItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyMermaidItem = MenuItem("Copy as Mermaid mind map", "\uE8C8");
+            copyMermaidItem.Click += OnCopyMermaidMindmapClick;
+            menu.Items.Add(copyMermaidItem);
+
+            var copyFlowchartItem = MenuItem("Copy as Mermaid flowchart", "\uE8C8", "Ctrl+Shift+C");
+            copyFlowchartItem.Click += OnCopyMermaidFlowchartClick;
+            menu.Items.Add(copyFlowchartItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var fitItem = MenuItem("Fit all nodes in window", "\uE9A6", "Ctrl+0");
+            fitItem.Click += OnFitToWindowClick;
+            menu.Items.Add(fitItem);
+
+            menu.ShowAt(LinkToolButton, e.GetPosition(LinkToolButton));
+        }
+
+        private void OnDeleteToolButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (DeleteToolButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var deleteItem = MenuItem("Delete selection", "\uE74D", "Delete");
+            deleteItem.IsEnabled = ViewModel.HasSelection;
+            deleteItem.Click += (_, _) => ViewModel.DeleteSelectionCommand.Execute(null);
+            menu.Items.Add(deleteItem);
+
+            var clearSelItem = MenuItem("Clear selection", "\uE894", "Esc");
+            clearSelItem.IsEnabled = ViewModel.HasSelection;
+            clearSelItem.Click += (_, _) =>
+            {
+                ViewModel.SelectedNode = null;
+                ViewModel.SelectedLink = null;
+                ViewModel.HidePreviewCard();
+            };
+            menu.Items.Add(clearSelItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var undoItem = MenuItem("Undo", "\uE7A7", "Ctrl+Z");
+            undoItem.IsEnabled = ViewModel.CanUndo;
+            undoItem.Click += (_, _) => ViewModel.UndoCommand.Execute(null);
+            menu.Items.Add(undoItem);
+
+            var redoItem = MenuItem("Redo", "\uE7A6", "Ctrl+Y");
+            redoItem.IsEnabled = ViewModel.CanRedo;
+            redoItem.Click += (_, _) => ViewModel.RedoCommand.Execute(null);
+            menu.Items.Add(redoItem);
+
+            menu.ShowAt(DeleteToolButton, e.GetPosition(DeleteToolButton));
+        }
+
+        private void OnUndoToolButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (UndoToolButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var undoItem = MenuItem("Undo", "\uE7A7", "Ctrl+Z");
+            undoItem.IsEnabled = ViewModel.CanUndo;
+            undoItem.Click += (_, _) => ViewModel.UndoCommand.Execute(null);
+            menu.Items.Add(undoItem);
+
+            var redoItem = MenuItem("Redo", "\uE7A6", "Ctrl+Y");
+            redoItem.IsEnabled = ViewModel.CanRedo;
+            redoItem.Click += (_, _) => ViewModel.RedoCommand.Execute(null);
+            menu.Items.Add(redoItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var fitItem = MenuItem("Fit all nodes in window", "\uE9A6", "Ctrl+0");
+            fitItem.Click += OnFitToWindowClick;
+            menu.Items.Add(fitItem);
+
+            var resetZoomItem = MenuItem("Reset zoom (100%)", "\uE71E");
+            resetZoomItem.Click += OnZoomResetClick;
+            menu.Items.Add(resetZoomItem);
+
+            menu.ShowAt(UndoToolButton, e.GetPosition(UndoToolButton));
+        }
+
+        private void OnRedoToolButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (RedoToolButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var redoItem = MenuItem("Redo", "\uE7A6", "Ctrl+Y");
+            redoItem.IsEnabled = ViewModel.CanRedo;
+            redoItem.Click += (_, _) => ViewModel.RedoCommand.Execute(null);
+            menu.Items.Add(redoItem);
+
+            var undoItem = MenuItem("Undo", "\uE7A7", "Ctrl+Z");
+            undoItem.IsEnabled = ViewModel.CanUndo;
+            undoItem.Click += (_, _) => ViewModel.UndoCommand.Execute(null);
+            menu.Items.Add(undoItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var fitItem = MenuItem("Fit all nodes in window", "\uE9A6", "Ctrl+0");
+            fitItem.Click += OnFitToWindowClick;
+            menu.Items.Add(fitItem);
+
+            var resetZoomItem = MenuItem("Reset zoom (100%)", "\uE71E");
+            resetZoomItem.Click += OnZoomResetClick;
+            menu.Items.Add(resetZoomItem);
+
+            menu.ShowAt(RedoToolButton, e.GetPosition(RedoToolButton));
+        }
+
         private void OnStatusBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
             e.Handled = true;

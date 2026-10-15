@@ -58,9 +58,10 @@
                          ToolTipService.ToolTip="Filter the timeline by label, kind (Auto-Save, Checkpoint, Export · PDF…), weekday or time · Right-click for options" />
 
                 <!-- Filter Starred -->
-                <ToggleButton Grid.Column="2" IsChecked="{Binding IsStarredOnlyFilter, Mode=TwoWay}"
+                <ToggleButton x:Name="StarredFilterToggle" Grid.Column="2" IsChecked="{Binding IsStarredOnlyFilter, Mode=TwoWay}"
                                Padding="10,6" CornerRadius="6" VerticalAlignment="Center"
-                               ToolTipService.ToolTip="Show starred versions only"
+                               RightTapped="OnStarredFilterToggleRightTapped"
+                               ToolTipService.ToolTip="Show starred versions only (Right-click for options)"
                                AutomationProperties.Name="Show starred versions only">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE734;" FontSize="13" />
@@ -70,8 +71,9 @@
 
                 <!-- Take Checkpoint. Stays enabled even when the selected document isn't open, so
                      its tooltip can still explain why (disabled controls show no tooltip). -->
-                <Button Grid.Column="3" Click="OnTakeSnapshotClick" Padding="12,6" CornerRadius="6"
+                <Button x:Name="TakeCheckpointButton" Grid.Column="3" Click="OnTakeSnapshotClick" Padding="12,6" CornerRadius="6"
                         VerticalAlignment="Center" ToolTipService.ToolTip="{Binding CheckpointTooltip}"
+                        RightTapped="OnTakeCheckpointButtonRightTapped"
                         AutomationProperties.Name="Take checkpoint">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE74E;" FontSize="13" />
@@ -83,8 +85,9 @@
                 <Button x:Name="RestoreButton" Grid.Column="4" Click="OnRestoreClick" Padding="16,6" CornerRadius="6"
                         Style="{ThemeResource AccentButtonStyle}" IsEnabled="{Binding HasSelection}"
                         FontWeight="SemiBold" VerticalAlignment="Center"
+                        RightTapped="OnRestoreButtonRightTapped"
                         AutomationProperties.Name="Restore to editor"
-                        ToolTipService.ToolTip="Put the selected version's text back in the editor (Ctrl+Enter · Ctrl+Z in the editor undoes it)">
+                        ToolTipService.ToolTip="Put the selected version's text back in the editor (Ctrl+Enter · Right-click for options)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE7A7;" FontSize="13" />
                         <TextBlock Text="Restore to Editor" FontSize="12" />
@@ -365,14 +368,17 @@
                                     </StackPanel.Resources>
                                     <ToggleButton x:Name="UnifiedToggle" Content="Unified" IsChecked="True"
                                                   Click="OnUnifiedToggleClick"
+                                                  RightTapped="OnDiffModeToggleRightTapped"
                                                   AutomationProperties.Name="Unified diff view"
                                                   ToolTipService.ToolTip="Changes inline: removed lines, then the lines that replaced them (Ctrl+1)" />
                                     <ToggleButton x:Name="SplitToggle" Content="Side by side"
                                                   Click="OnSplitToggleClick"
+                                                  RightTapped="OnDiffModeToggleRightTapped"
                                                   AutomationProperties.Name="Side by side diff view"
                                                   ToolTipService.ToolTip="The version before on the left, this version on the right (Ctrl+2)" />
                                     <ToggleButton x:Name="PreviewToggle" Content="Preview"
                                                   Click="OnPreviewToggleClick"
+                                                  RightTapped="OnDiffModeToggleRightTapped"
                                                   AutomationProperties.Name="Rendered document preview"
                                                   ToolTipService.ToolTip="This version rendered as a document (Ctrl+3)" />
                                 </StackPanel>
