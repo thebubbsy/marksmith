@@ -1299,6 +1299,14 @@ namespace MarkSmith.Views.MindMap
 
             flyout.Items.Add(new MenuFlyoutSeparator());
 
+            var copyItem = MenuItem("Copy title", "\uE8C8", "Ctrl+C");
+            copyItem.Click += async (s, e) =>
+            {
+                ViewModel.SelectedNode = node;
+                await CopyNodeTitleAsync(node);
+            };
+            flyout.Items.Add(copyItem);
+
             var renameItem = MenuItem("Rename", "\uE8AC", "F2");
             renameItem.Click += (s, e) =>
             {
@@ -1708,6 +1716,14 @@ namespace MarkSmith.Views.MindMap
                     await ViewModel.SaveAsync();
                     e.Handled = true;
                     return;
+                case Windows.System.VirtualKey.C when ctrl && !shift && canvasFocused && ViewModel.SelectedNode != null:
+                    await CopyNodeTitleAsync(ViewModel.SelectedNode);
+                    e.Handled = true;
+                    return;
+                case Windows.System.VirtualKey.C when ctrl && shift && canvasFocused:
+                    CopyMermaid(asFlowchart: true, "flowchart");
+                    e.Handled = true;
+                    return;
                 case Windows.System.VirtualKey.D when ctrl:
                     ViewModel.DuplicateSelectedNode();
                     e.Handled = true;
@@ -1951,6 +1967,14 @@ namespace MarkSmith.Views.MindMap
             if (!string.IsNullOrEmpty(path)) ViewModel.ExportToDocx(path);
         }
 
+        private async Task CopyNodeTitleAsync(MindMapNodeViewModel node)
+        {
+            var error = await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(node.Title);
+            ViewModel.StatusMessage = error is null
+                ? $"Copied “{node.Title}” to clipboard."
+                : $"Couldn't copy: {error}";
+        }
+
         private void OnCopyMermaidFlowchartClick(object sender, RoutedEventArgs e)
             => CopyMermaid(asFlowchart: true, "flowchart");
 
@@ -1962,9 +1986,18 @@ namespace MarkSmith.Views.MindMap
             try
             {
                 var error = await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(ViewModel.ExportToMermaid(asFlowchart));
-                ViewModel.StatusMessage = error is null
-                    ? $"Copied the map as a Mermaid {label}. Paste it into any document."
-                    : $"The map wasn't copied. {error}";
+                if (error is null)
+                {
+                    ViewModel.StatusMessage = $"Copied the map as a Mermaid {label}. Paste it into any document.";
+                    if (ExportDropDownButton is not null)
+                    {
+                        MarkSmith.Services.CopyFeedback.ApplyButtonTick(ExportDropDownButton, null);
+                    }
+                }
+                else
+                {
+                    ViewModel.StatusMessage = $"The map wasn't copied. {error}";
+                }
             }
             catch (Exception ex)
             {

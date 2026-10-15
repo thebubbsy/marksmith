@@ -219,6 +219,10 @@
                                 <Border Style="{StaticResource PaletteKeyCapStyle}"><TextBlock Text="Esc" Style="{StaticResource PaletteKeyCapTextStyle}" /></Border>
                                 <TextBlock Text="to close" Margin="2,0,0,0" Style="{StaticResource PaletteHintTextStyle}" />
                             </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <Border Style="{StaticResource PaletteKeyCapStyle}"><TextBlock Text="Apps" Style="{StaticResource PaletteKeyCapTextStyle}" /></Border>
+                                <TextBlock Text="options" Margin="2,0,0,0" Style="{StaticResource PaletteHintTextStyle}" />
+                            </StackPanel>
                         </StackPanel>
                         <TextBlock x:Name="CountText" HorizontalAlignment="Right"
                                    Style="{StaticResource PaletteHintTextStyle}"

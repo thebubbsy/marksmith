@@ -76,7 +76,7 @@
                         <TextBlock Text="Clear" />
                     </StackPanel>
                 </Button>
-                <DropDownButton AutomationProperties.Name="Export" ToolTipService.ToolTip="Save the diagram as a Word file, or move it in and out as Markdown">
+                <DropDownButton x:Name="ExportDropDownButton" AutomationProperties.Name="Export" ToolTipService.ToolTip="Save the diagram as a Word file, or move it in and out as Markdown">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xEDE1;" FontSize="14" />
                         <TextBlock Text="Export" />
@@ -90,10 +90,10 @@
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8F1;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                             <MenuFlyoutSeparator />
-                            <MenuFlyoutItem x:Name="CopyMarkdownItem" Text="Copy as Markdown" Click="OnCopyMarkdownClick">
+                            <MenuFlyoutItem x:Name="CopyMarkdownItem" Text="Copy as Markdown" KeyboardAcceleratorTextOverride="Ctrl+Shift+C" Click="OnCopyMarkdownClick">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-                            <MenuFlyoutItem Text="Load Markdown from clipboard" Click="OnLoadMarkdownClick">
+                            <MenuFlyoutItem Text="Load Markdown from clipboard" KeyboardAcceleratorTextOverride="Ctrl+V" Click="OnLoadMarkdownClick">
                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE77F;" /></MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                         </MenuFlyout>

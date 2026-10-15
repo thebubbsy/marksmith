@@ -316,7 +316,19 @@ public sealed partial class CommandPalette : UserControl
     // shows in search results; with nothing typed the row already sits under its heading.
     private void OnContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs e)
     {
-        if (e.InRecycleQueue || e.Item is not PaletteCommand c) return;
+        if (e.InRecycleQueue)
+        {
+            if (e.ItemContainer is FrameworkElement fe) ToolTipService.SetToolTip(fe, null);
+            return;
+        }
+        if (e.Item is not PaletteCommand c) return;
+        if (e.ItemContainer is FrameworkElement container)
+        {
+            var tip = string.IsNullOrWhiteSpace(c.Shortcut)
+                ? $"{c.Label} ({c.Category})"
+                : $"{c.Label} ({c.Category}) · {c.Shortcut}";
+            ToolTipService.SetToolTip(container, tip);
+        }
         if (e.ItemContainer.ContentTemplateRoot is not Grid { Children.Count: > 2 } row) return;
         if (row.Children[1] is TextBlock text)
         {
@@ -478,7 +490,7 @@ public sealed partial class CommandPalette : UserControl
             case VirtualKey.K when ctrl:
                 Close(null);
                 break;
-            case VirtualKey.C when ctrl && !shift && SearchBox.SelectionLength == 0 && Results.SelectedItem is PaletteCommand copyCmd:
+            case VirtualKey.C when ctrl && SearchBox.SelectionLength == 0 && Results.SelectedItem is PaletteCommand copyCmd:
                 _ = CopySelectedCommandAsync(copyCmd);
                 break;
             case VirtualKey.Delete when ctrl && Results.SelectedItem is PaletteCommand recCmd && IsRecent(recCmd.Label):

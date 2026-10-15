@@ -49,6 +49,8 @@ public sealed partial class OptionRow : UserControl
         HeaderRow.PointerPressed += OnHeaderPointerPressed;
         HeaderRow.PointerReleased += (_, _) => { _pointerPressed = false; UpdateState(); };
         HeaderRow.Tapped += OnHeaderTapped;
+        HeaderRow.RightTapped += OnHeaderRightTapped;
+        HeaderRow.KeyDown += OnHeaderKeyDown;
         // IsEnabled already reaches the control inside; this greys the row's own text to match.
         IsEnabledChanged += (_, _) => UpdateState();
         Loaded += (_, _) => UpdateState(useTransitions: false);
@@ -102,6 +104,88 @@ public sealed partial class OptionRow : UserControl
                 e.Handled = true;
                 break;
         }
+    }
+
+    private void OnHeaderRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (!IsEnabled) return;
+        if (e.OriginalSource is DependencyObject source && (IsInside(source, ActionPart) || IsInside(source, DetailsPart))) return;
+        e.Handled = true;
+        ShowOptionContextMenu(e.GetPosition(HeaderRow));
+    }
+
+    private void OnHeaderKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (!IsEnabled) return;
+        if (e.Key == Windows.System.VirtualKey.Application ||
+            (e.Key == Windows.System.VirtualKey.F10 && Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down)))
+        {
+            e.Handled = true;
+            ShowOptionContextMenu(null);
+        }
+    }
+
+    private void ShowOptionContextMenu(Windows.Foundation.Point? position)
+    {
+        var menu = new MenuFlyout();
+
+        if (Action is ToggleSwitch { IsEnabled: true } toggle)
+        {
+            var toggleItem = new MenuFlyoutItem
+            {
+                Text = toggle.IsOn ? "Turn off (Space)" : "Turn on (Space)",
+                Icon = new FontIcon { Glyph = toggle.IsOn ? "\uE73A" : "\uE739" }
+            };
+            toggleItem.Click += (_, _) => toggle.IsOn = !toggle.IsOn;
+            menu.Items.Add(toggleItem);
+            menu.Items.Add(new MenuFlyoutSeparator());
+        }
+        else if (Action is CheckBox { IsEnabled: true } check)
+        {
+            var checkItem = new MenuFlyoutItem
+            {
+                Text = (check.IsChecked ?? false) ? "Uncheck (Space)" : "Check (Space)",
+                Icon = new FontIcon { Glyph = (check.IsChecked ?? false) ? "\uE73A" : "\uE739" }
+            };
+            checkItem.Click += (_, _) => check.IsChecked = !(check.IsChecked ?? false);
+            menu.Items.Add(checkItem);
+            menu.Items.Add(new MenuFlyoutSeparator());
+        }
+
+        if (!string.IsNullOrWhiteSpace(Header))
+        {
+            var copyHeaderItem = new MenuFlyoutItem
+            {
+                Text = "Copy setting name",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyHeaderItem.Click += async (_, _) =>
+            {
+                await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(Header);
+            };
+            menu.Items.Add(copyHeaderItem);
+        }
+
+        if (!string.IsNullOrWhiteSpace(Description))
+        {
+            var copyDescItem = new MenuFlyoutItem
+            {
+                Text = "Copy description",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyDescItem.Click += async (_, _) =>
+            {
+                await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(Description);
+            };
+            menu.Items.Add(copyDescItem);
+        }
+
+        if (menu.Items.Count == 0) return;
+
+        if (position.HasValue)
+            menu.ShowAt(HeaderRow, position.Value);
+        else
+            menu.ShowAt(HeaderRow);
     }
 
     private static Control? FindFirstInput(DependencyObject? root)
@@ -158,6 +242,13 @@ public sealed partial class OptionRow : UserControl
         // its own: a bare ToggleSwitch or ComboBox in a row would otherwise be announced unnamed.
         AutomationProperties.SetName(this, Header ?? "");
         AutomationProperties.SetHelpText(this, Description ?? "");
+        if (!string.IsNullOrEmpty(Description))
+            ToolTipService.SetToolTip(HeaderRow, Description);
+        else if (!string.IsNullOrEmpty(Header))
+            ToolTipService.SetToolTip(HeaderRow, Header);
+        else
+            ToolTipService.SetToolTip(HeaderRow, null);
+
         NameUnnamed(Action as DependencyObject);
         NameUnnamed(Details as DependencyObject);
     }

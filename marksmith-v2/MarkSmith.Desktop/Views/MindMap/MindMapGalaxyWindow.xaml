@@ -184,7 +184,7 @@
                             </StackPanel>
                         </Button>
 
-                        <DropDownButton Padding="10,5" MinHeight="32" ToolTipService.ToolTip="Export or copy the map"
+                        <DropDownButton x:Name="ExportDropDownButton" Padding="10,5" MinHeight="32" ToolTipService.ToolTip="Export or copy the map"
                                         AutomationProperties.Name="Export">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xEDE1;" FontSize="12" />
@@ -196,7 +196,7 @@
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutSeparator />
-                                    <MenuFlyoutItem Text="Copy as Mermaid flowchart" Click="OnCopyMermaidFlowchartClick">
+                                    <MenuFlyoutItem Text="Copy as Mermaid flowchart" KeyboardAcceleratorTextOverride="Ctrl+Shift+C" Click="OnCopyMermaidFlowchartClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Copy as Mermaid mind map" Click="OnCopyMermaidMindmapClick">

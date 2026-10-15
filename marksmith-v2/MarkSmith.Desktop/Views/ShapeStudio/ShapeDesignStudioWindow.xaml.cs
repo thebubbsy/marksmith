@@ -1722,6 +1722,10 @@ namespace MarkSmith.Views.ShapeStudio
                 }
                 ViewModel.MarkKept();
                 ViewModel.StatusMessage = $"Copied {ViewModel.Shapes.Count} shapes as a :::shapes Markdown block.";
+                if (ExportDropDownButton is not null)
+                {
+                    MarkSmith.Services.CopyFeedback.ApplyButtonTick(ExportDropDownButton, null);
+                }
             }
             catch (Exception ex)
             {

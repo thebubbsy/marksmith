@@ -83,7 +83,7 @@ public abstract class InsertDialogBody : UserControl
             VerticalAlignment = VerticalAlignment.Center,
         };
         AutomationProperties.SetName(_copySnippetButton, "Copy generated Markdown snippet");
-        ToolTipService.SetToolTip(_copySnippetButton, "Copy the generated Markdown snippet (Ctrl+Shift+C)");
+        ToolTipService.SetToolTip(_copySnippetButton, "Copy the generated Markdown snippet (Ctrl+C / Ctrl+Shift+C)");
         _copySnippetButton.Click += (_, _) => CopyCurrentSnippet();
 
         var previewHeader = new Grid();
@@ -97,6 +97,7 @@ public abstract class InsertDialogBody : UserControl
             Opacity = 0.65,
             VerticalAlignment = VerticalAlignment.Center,
         };
+        ToolTipService.SetToolTip(insertsLabel, "Generated Markdown preview · Press Ctrl+Enter to insert");
         Grid.SetColumn(insertsLabel, 0);
         Grid.SetColumn(_copySnippetButton, 1);
         previewHeader.Children.Add(insertsLabel);
@@ -109,7 +110,7 @@ public abstract class InsertDialogBody : UserControl
             var snippet = Snippet.Trim('\n');
             var copyItem = new MenuFlyoutItem
             {
-                Text = "Copy Markdown snippet (Ctrl+Shift+C)",
+                Text = "Copy Markdown snippet (Ctrl+C / Ctrl+Shift+C)",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
                 IsEnabled = snippet.Length > 0,
             };
@@ -171,25 +172,41 @@ public abstract class InsertDialogBody : UserControl
         bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
-        if (e.Key == VirtualKey.C && ctrl && shift)
+        if (e.Key == VirtualKey.C && ctrl)
         {
-            if (Snippet.Trim('\n').Length > 0)
+            var rootElem = XamlRoot;
+            var focusedElem = rootElem is null ? null : FocusManager.GetFocusedElement(rootElem) as DependencyObject;
+            bool hasTextSelection = focusedElem switch
+            {
+                TextBox tb => tb.SelectionLength > 0,
+                _ => false
+            };
+
+            // If Shift is pressed (Ctrl+Shift+C) OR no text is selected in the active text box (Ctrl+C),
+            // copy the generated Markdown snippet to the clipboard.
+            if ((shift || !hasTextSelection) && Snippet.Trim('\n').Length > 0)
             {
                 e.Handled = true;
                 CopyCurrentSnippet();
+                return;
             }
-            return;
         }
 
         if (e.Key != VirtualKey.Enter) return;
         var root = XamlRoot;
         var focused = root is null ? null : FocusManager.GetFocusedElement(root) as DependencyObject;
-        if (focused is TextBox { AcceptsReturn: true }) return; // Do not commit inside multiline text editors
+
         if (focused is ComboBox or ComboBoxItem or SelectorItem or ButtonBase) return; // Do not commit when interacting with dropdowns or buttons
-        if (IsValid)
+
+        // If Ctrl+Enter is pressed, commit even in multiline text editors!
+        // If Enter alone is pressed, commit only if NOT inside a multiline text editor.
+        if (ctrl || focused is not TextBox { AcceptsReturn: true })
         {
-            e.Handled = true;
-            RequestCommit();
+            if (IsValid)
+            {
+                e.Handled = true;
+                RequestCommit();
+            }
         }
     }
 
@@ -452,8 +469,11 @@ public sealed class TableInsertControl : InsertDialogBody
         : base("A Markdown table with placeholder cells. The first cell comes selected, so you can type straight over it.")
     {
         _rows = MakeNumberBox("Body rows", 2, 1, 50);
+        ToolTipService.SetToolTip(_rows, "Number of body rows (1–50)");
         _cols = MakeNumberBox("Columns", 2, 1, 20);
+        ToolTipService.SetToolTip(_cols, "Number of columns (1–20)");
         _header = new CheckBox { Content = "Include header row", IsChecked = true };
+        ToolTipService.SetToolTip(_header, "Generate a header row separated from body cells");
         _rows.ValueChanged += (_, _) => Refresh();
         _cols.ValueChanged += (_, _) => Refresh();
         _header.Click += (_, _) => Refresh();
@@ -482,7 +502,9 @@ public sealed class LinkInsertControl : InsertDialogBody
         : base("A clickable link. Leave the text empty to type it in the document instead.")
     {
         _text = new TextBox { Header = "Link text", PlaceholderText = "Read the docs", Text = initialText };
+        ToolTipService.SetToolTip(_text, "The text displayed in the document (optional)");
         _url = new TextBox { Header = "URL", PlaceholderText = "https://example.com", IsSpellCheckEnabled = false, InputScope = UrlScope() };
+        ToolTipService.SetToolTip(_url, "Target URL or heading reference (e.g. https://example.com or #heading)");
         _text.TextChanged += (_, _) => Refresh();
         _url.TextChanged += (_, _) => Refresh();
         AddField(_text);
@@ -543,10 +565,12 @@ public sealed class CodeBlockInsertControl : InsertDialogBody
             IsEditable = true,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
+        ToolTipService.SetToolTip(_lang, "Syntax highlighting language (C#, Python, JavaScript, Mermaid...)");
         _lang.SelectionChanged += (_, _) => Refresh();
         _lang.TextSubmitted += (_, _) => DispatcherQueue.TryEnqueue(Refresh);
         _body = MultilineBox("", "Paste or type code (optional)", monospace: true);
         _body.Header = "Code";
+        ToolTipService.SetToolTip(_body, "Initial code content (optional) · Press Ctrl+Enter to insert");
         _body.TextChanged += (_, _) => Refresh();
         AddField(_lang);
         AddField(_body);
@@ -587,6 +611,7 @@ public sealed class EmbedInsertControl : InsertDialogBody
             SelectedIndex = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
+        ToolTipService.SetToolTip(_provider, "Video platform hosting the media");
         _provider.SelectionChanged += (_, _) => Refresh();
         _url = new TextBox
         {
@@ -595,6 +620,7 @@ public sealed class EmbedInsertControl : InsertDialogBody
             IsSpellCheckEnabled = false,
             InputScope = LinkInsertControl.UrlScope(),
         };
+        ToolTipService.SetToolTip(_url, "Paste a full video link (YouTube, Vimeo, Loom, CodePen, Bilibili)");
         _url.TextChanged += (_, _) =>
         {
             var detected = Services.ContainerBlockParsers.DetectProvider(_url.Text);

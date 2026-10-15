@@ -6846,3 +6846,42 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Targeted xUnit test suite (`KeyboardShortcutsTests`, `OcrInspectionStudioTests`, `ShapeStudioTests`): **297 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 UIAutomation test (`Marksmith.exe` launched with isolated `MARKSMITH_CONFIG_DIR`):
   - Verified `WinUIDesktopWin32WindowClass` main window (PID 26024), verified 170 UI elements, confirmed `WelcomeTour` renders with Step 1 of 7, verified UI responsiveness, and terminated cleanly.
+
+### 2026-10-15 (scheduled routine run #84 — WinUI 3 Desktop Polish: Universal Ctrl+Enter Insert Dialog Commit, CommandPalette Tooltips & Parity, MindMap Node Clipboard Copy & Export Feedback, ShapeStudio Accelerators, OptionRow Context Menu, Settings Plugins Folder Parity)
+
+#### Agent / Execution Metadata
+- **Identity:** `Antigravity AI Agent (Google DeepMind)`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+**Shipped:**
+1. **Universal `Ctrl+Enter` Dialog Commit & Fallback Snippet Copy (`Views/InsertDialogControls.cs`):**
+   - Enabled `Ctrl+Enter` commit in `InsertDialogBody.OnBodyKeyDown`, allowing multiline dialogs (`LinesInsertControl`, `CodeBlockInsertControl`, `ChartInsertControl`) to commit immediately without tab navigation.
+   - Enhanced `Ctrl+C` and `Ctrl+Shift+C` in `OnBodyKeyDown`: when no text is selected in an active input (or focus is on non-text elements), `Ctrl+C` falls back to copying the generated Markdown snippet to clipboard.
+   - Added `ToolTipService.ToolTip` and accessible hints across insert dialogs: `Inserts` preview header badge (`"Press Ctrl+Enter to insert"`), `TableInsertControl` rows/cols/header checkboxes, `LinkInsertControl` text and URL fields, `CodeBlockInsertControl` language picker and code editor, and `EmbedInsertControl` provider and URL fields.
+2. **CommandPalette Tooltips, Shortcut Parity & Footer Context Hint (`Controls/CommandPalette.xaml` & `.xaml.cs`):**
+   - Added `Ctrl+Shift+C` key support in `OnPreviewKeyDown` to copy the selected command string, establishing parity with standard copy chords.
+   - Attached dynamic tooltips to realized `ListViewItem` containers in `OnContainerContentChanging` (`"{c.Label} ({c.Category}) · {c.Shortcut}"`), with clean recycle queue cleanup.
+   - Enhanced the footer key hint bar with an `Apps` keycap and `"options"` label, advertising right-click and context menu discovery.
+3. **MindMap Galaxy Node Clipboard Copy & Export Tactile Feedback (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Added `Ctrl+C` keyboard shortcut in `OnRootKeyDown` when canvas is focused with a node selected, copying the node's title to clipboard via `CopyNodeTitleAsync`.
+   - Added `Ctrl+Shift+C` in `OnRootKeyDown` to copy the whole map as a Mermaid flowchart directly from the canvas.
+   - Added `"Copy title (Ctrl+C)"` menu item with icon `\uE8C8` to `BuildNodeContextMenu`.
+   - Named `ExportDropDownButton` in XAML and added `KeyboardAcceleratorTextOverride="Ctrl+Shift+C"` to the "Copy as Mermaid flowchart" flyout item.
+   - Wired `CopyFeedback.ApplyButtonTick` to `ExportDropDownButton` in `CopyMermaid` for 1400ms checkmark confirmation upon copy.
+4. **Shape Design Studio Accelerator Parity & Export Tactile Indicators (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Added `KeyboardAcceleratorTextOverride="Ctrl+Shift+C"` to `CopyMarkdownItem` ("Copy as Markdown") and `KeyboardAcceleratorTextOverride="Ctrl+V"` to `Load Markdown from clipboard` in `ExportMenu`.
+   - Named `ExportDropDownButton` and wired `CopyFeedback.ApplyButtonTick` into `OnCopyMarkdownClick` for instant tactile confirmation upon copying shapes.
+5. **Side Panel OptionRow Context Menu Affordances & Tooltip Synchronization (`Controls/OptionRow.xaml.cs`):**
+   - Attached `RightTapped` and `KeyDown` (`Application` / `Shift+F10`) context menu handlers to `HeaderRow`.
+   - Implemented `ShowOptionContextMenu`: offers "Turn on / off" (for `ToggleSwitch`), "Check / Uncheck" (for `CheckBox`), "Copy setting name", and "Copy description".
+   - Enhanced `Sync()` to automatically synchronize `ToolTipService.ToolTip` on `HeaderRow` from the option's `Description` or `Header`.
+6. **Settings View Plugins Folder Context Actions & Tactile Checkmark Feedback (`Views/SettingsView.xaml` & `.xaml.cs`):**
+   - Added `Button.ContextFlyout` and `HyperlinkButton.ContextFlyout` to the plugins folder buttons in `SettingsView.xaml` with "Open in File Explorer" and "Copy folder path (`Ctrl+C`)".
+   - Implemented `OnCopyPluginsFolderPathClick` and wired `CopyFeedback.ApplyButtonTick` into both folder launch and copy handlers for tactile button feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 13 warnings**.
+- Targeted test suites (`OcrInspectionStudioTests`, `KeyboardShortcutsTests`, `ShapeStudioTests`): **298 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 UIAutomation smoke launch (`Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR`):
+  - Verified `WinUIDesktopWin32WindowClass` main window (PID 26864, HWND 1510318), verified `Responding: True`, and closed cleanly.

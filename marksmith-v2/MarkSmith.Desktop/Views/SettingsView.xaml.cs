@@ -925,10 +925,24 @@ public sealed partial class SettingsView : UserControl
         }
     }
 
+    private async void OnCopyPluginsFolderPathClick(object sender, RoutedEventArgs e)
+    {
+        var folder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "Plugins");
+        await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(folder);
+        if (sender is Button b)
+        {
+            MarkSmith.Services.CopyFeedback.ApplyButtonTick(b, null);
+        }
+    }
+
     private async void OnOpenPluginsFolderClick(object sender, RoutedEventArgs e)
     {
         var folder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "Plugins");
         System.IO.Directory.CreateDirectory(folder);
+        if (sender is Button btn)
+        {
+            MarkSmith.Services.CopyFeedback.ApplyButtonTick(btn, null);
+        }
         try
         {
             var storageFolder = await Windows.Storage.StorageFolder.GetFolderFromPathAsync(folder);
