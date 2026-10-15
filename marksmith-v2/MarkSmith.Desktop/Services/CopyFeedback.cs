@@ -50,6 +50,24 @@ public static class CopyFeedback
             };
             timer.Start();
         }
+        else if (button.Content is TextBlock textBlock)
+        {
+            if (button.Tag is not string originalText)
+            {
+                originalText = textBlock.Text;
+                button.Tag = originalText;
+            }
+            textBlock.Text = error is null ? copiedLabel : "\u26A0 Busy";
+            var timer = button.DispatcherQueue.CreateTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(error is null ? 1400 : 3000);
+            timer.IsRepeating = false;
+            timer.Tick += (_, _) =>
+            {
+                textBlock.Text = originalText;
+                button.Tag = null;
+            };
+            timer.Start();
+        }
         else if (button.Content is FontIcon fontIcon)
         {
             ApplyIconTick(fontIcon, button, error);

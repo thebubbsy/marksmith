@@ -6802,3 +6802,47 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Targeted test suite (`SmartArt`, `Shape`, `Suite`, `Settings`, `MindMap`): **1,022 passed, 0 failed, 0 skipped**.
 - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 13 warnings**.
 - Smoke-launched `Marksmith.exe` on WinUI 3 runtime (PID 17620): verified `RunningHealthy: True`, 0 stowed/unhandled exceptions, and terminated cleanly.
+
+### 2026-10-15 (scheduled routine run #83 — WinUI 3 Desktop Polish: HistoryWindow Diff & Timeline Feedback, MermaidStudio Shortcuts, FindBar & Cheatsheet Theme Parity, ExtensionSetup Focus Guard, WelcomeTour Navigation)
+
+#### Agent / Execution Metadata
+- **Identity:** `Antigravity AI Agent (Google DeepMind)`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+**Shipped:**
+1. **HistoryWindow Diff & Timeline Tactile Feedback + Toolbar Copy Actions (`Views/History/HistoryWindow.xaml` & `.xaml.cs`):**
+   - Added `CopyToolbarButton` (`Copy diff` / `Copy Markdown`) to Pane 3's top toolbar beside the Delta meter with `ContextFlyout` (`MenuFlyout`), shortcut tooltips (`Ctrl+Shift+C` / `Ctrl+C`), and accessibility labels.
+   - Implemented `OnCopyToolbarButtonClick`, `OnCopyDiffPatchContextClick`, `OnCopyMarkdownContextClick`, and `UpdateCopyToolbarButton(mode)`.
+   - Wired `CopyFeedback.ApplyButtonTick` and `CopyFeedback.ApplyIconTick` into `CopyVersionMarkdownAsync` and `CopyDiffPatchAsync` for 1400ms visual checkmark ticks.
+   - Synchronized `CopyToolbarButton` on selection change, and wired `OnRootKeyDown` so `Ctrl+C` and `Ctrl+Shift+C` trigger button feedback.
+2. **MermaidDiagramStudio Export & Copy Visual Feedback + Shortcut Parity (`Views/Mermaid/MermaidDiagramStudioControl.xaml` & `.xaml.cs`):**
+   - Added `Ctrl+Shift+C` (`OnCopySvgAcceleratorInvoked`) and `Ctrl+Shift+E` (`OnExportSvgAcceleratorInvoked`) keyboard accelerators.
+   - Added `x:Name="ExportSvgButton"` and `x:Name="CopySvgButton"` with explicit `(Ctrl+Shift+E)` and `(Ctrl+Shift+C)` tooltips.
+   - Wired `CopyFeedback.ApplyIconTick` and `CopyFeedback.ApplyButtonTick` into `OnCopySvgClick`.
+3. **MainWindow FindBar Tactile Feedback & Shortcut Polish (`MainWindow.xaml` & `.xaml.cs`):**
+   - Added `Alt+C` keyboard shortcut across `OnFindTextBoxKeyDown`, `OnReplaceTextBoxKeyDown`, and `OnFindBarKeyDown` to instantly toggle `MatchCaseCheck`.
+   - Added `Ctrl+H` from `FindTextBox` to expand the Replace row (if collapsed) and focus `ReplaceTextBox`.
+   - Added `AutomationProperties.Name` and tooltips reflecting shortcuts (`Match case (Alt+C)`, `Replace match (Enter)`, `Replace all matches`).
+   - Wired `CopyFeedback.ApplyButtonTick` on `ReplaceAllButton` to show `✓ {count} replaced` for 1400ms upon successful batch replacements.
+4. **Shortcuts Cheatsheet Theme Brush Safety & Shortcut Parity (`MainWindow.xaml.cs`, `MainWindow.xaml`, `KeyboardShortcuts.cs`):**
+   - Added `Ctrl+/` and `Ctrl+Shift+?` key handling via VK 191 in `OnRootPreviewKeyDown` (avoiding WinUI OEM accelerator string crash).
+   - Mapped VK 191 to `/` in `KeyChord.Keys` and added `Ctrl("191")` to `app.shortcuts`.
+   - Replaced static `Application.Current.Resources` lookups in `ShowShortcutsCheatsheetAsync` with `ThemeBrush.Get(..., theme)` and assigned `dialog.RequestedTheme = theme` for dynamic theme changes.
+   - Added right-click context menu and tooltip to each shortcut row allowing users to copy the shortcut chord to clipboard.
+5. **ExtensionSetupView Focus-Trap Protection & FolderPathBox Parity (`Views/ExtensionSetupView.xaml` & `.xaml.cs`):**
+   - Protected keyboard focus by transferring focus away from `TurnOnButton` to `CopyFolderButton` before disabling or collapsing `TurnOnButton`.
+   - Added `ToolTipService.ToolTip` and `TextBox.ContextFlyout` to `FolderPathBox` with "Copy folder path (`Ctrl+Shift+C`)" and "Show in File Explorer (`Ctrl+O`)".
+6. **WelcomeTour Navigation & ImageInsertControl Polish (`Views/WelcomeTour.xaml`, `Views/WelcomeTour.xaml.cs`, `Views/ImageInsertControl.cs`, `Services/CopyFeedback.cs`):**
+   - Disabled tab stop on `WelcomeTour` `PipsPager` (`IsTabStop="False"`) to prevent double-advance arrow cycling bugs.
+   - Added Left/Right arrow key focus guarding on the bottom button row (`SkipButton`, `BackButton`, `NextButton`) so arrow keys navigate between buttons rather than unexpectedly triggering slide changes.
+   - Added `(Esc)` hint to `SkipButton` tooltip.
+   - Added `TextBlock` content support to `CopyFeedback.ApplyButtonTick`.
+   - Added tooltips on `ImageInsertControl` drop zone and source input box.
+   - Added right-click context menu items for "Copy image path or URL (`Ctrl+C`)" and "Show in File Explorer" (when local file exists), with keyboard `Ctrl+C` support.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64 -p:OutDir="$env:TEMP\ms_run83\b\"`: **0 errors, 13 warnings**.
+- Targeted xUnit test suite (`KeyboardShortcutsTests`, `OcrInspectionStudioTests`, `ShapeStudioTests`): **297 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 UIAutomation test (`Marksmith.exe` launched with isolated `MARKSMITH_CONFIG_DIR`):
+  - Verified `WinUIDesktopWin32WindowClass` main window (PID 26024), verified 170 UI elements, confirmed `WelcomeTour` renders with Step 1 of 7, verified UI responsiveness, and terminated cleanly.

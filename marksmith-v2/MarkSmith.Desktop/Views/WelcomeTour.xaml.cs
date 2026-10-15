@@ -288,6 +288,41 @@ public sealed partial class WelcomeTour : UserControl
             }
         }
 
+        // Guard Left/Right arrow navigation when focus is inside the bottom button row
+        if (focused is not null && (IsInside(focused, SkipButton) || IsInside(focused, BackButton) || IsInside(focused, NextButton)))
+        {
+            if (e.Key == Windows.System.VirtualKey.Right)
+            {
+                if (IsInside(focused, SkipButton))
+                {
+                    (BackButton.Visibility == Visibility.Visible ? BackButton : NextButton).Focus(FocusState.Keyboard);
+                    e.Handled = true;
+                    return;
+                }
+                if (IsInside(focused, BackButton))
+                {
+                    NextButton.Focus(FocusState.Keyboard);
+                    e.Handled = true;
+                    return;
+                }
+            }
+            else if (e.Key == Windows.System.VirtualKey.Left)
+            {
+                if (IsInside(focused, NextButton) && BackButton.Visibility == Visibility.Visible)
+                {
+                    BackButton.Focus(FocusState.Keyboard);
+                    e.Handled = true;
+                    return;
+                }
+                if (IsInside(focused, BackButton) || (IsInside(focused, NextButton) && BackButton.Visibility != Visibility.Visible))
+                {
+                    SkipButton.Focus(FocusState.Keyboard);
+                    e.Handled = true;
+                    return;
+                }
+            }
+        }
+
         // Global slide navigation: PageUp/PageDown, Home/End, Left/Right
         if ((e.Key == Windows.System.VirtualKey.Right || e.Key == Windows.System.VirtualKey.PageDown) && _index < Last)
         {

@@ -94,6 +94,7 @@ public class KeyboardShortcutsTests
         Assert.Equal("Ctrl+,", KeyboardShortcuts.KeysFor("app.settings"));
         Assert.Equal("F11", KeyboardShortcuts.KeysFor("view.focus"));
         Assert.Equal("Bold (Ctrl+B)", KeyboardShortcuts.Tip("Bold", "format.bold"));
+        Assert.Equal("Ctrl+/", new KeyChord("Control", "191").Display);
         Assert.Equal(new[] { "Ctrl", "Shift", "O" }, new KeyChord("Control,Shift", "O").Keys);
     }
 

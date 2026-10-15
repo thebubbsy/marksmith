@@ -4120,6 +4120,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             e.Handled = true;
             return;
         }
+
+        // Ctrl+/ or Ctrl+Shift+? opens Shortcuts Cheatsheet. VirtualKey 191 is VK_OEM_2 (/ and ? on US layout).
+        if (e.Key == (Windows.System.VirtualKey)191 && ctrl && !alt)
+        {
+            _ = ShowShortcutsCheatsheetAsync();
+            e.Handled = true;
+            return;
+        }
     }
 
     private void OnShortcutsCheatsheetInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
@@ -4256,8 +4264,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // is drawn as its own keycap; alternative chords stack in the keys column.
     private async Task ShowShortcutsCheatsheetAsync()
     {
+        var theme = (Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Default;
+        var secondary = ThemeBrush.Get("TextFillColorSecondaryBrush", theme);
+        var controlFill = ThemeBrush.Get("ControlFillColorDefaultBrush", theme);
+        var controlStroke = ThemeBrush.Get("ControlStrokeColorDefaultBrush", theme);
         var res = Application.Current.Resources;
-        var secondary = (Brush)res["TextFillColorSecondaryBrush"];
 
         var rows = new StackPanel { Spacing = 6 };
         foreach (var (section, sectionRows) in Shortcuts.Sheet())
@@ -4304,6 +4315,29 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
                 row.Children.Add(keys);
                 row.Children.Add(desc);
+
+                var chordText = shortcut.Gesture ?? (shortcut.Chords.Count > 0 ? string.Join(", ", shortcut.Chords.Select(c => c.Display)) : "");
+                if (!string.IsNullOrEmpty(chordText))
+                {
+                    ToolTipService.SetToolTip(row, $"{shortcut.Action} ({chordText}) — right-click to copy");
+                    var flyout = new MenuFlyout();
+                    var copyItem = new MenuFlyoutItem
+                    {
+                        Text = $"Copy shortcut ({chordText})",
+                        Icon = new FontIcon { Glyph = "\uE8C8" }
+                    };
+                    copyItem.Click += async (_, _) =>
+                    {
+                        var err = await ClipboardWriter.TrySetTextAsync(chordText);
+                        ViewModel.StatusText = err is null
+                            ? $"Copied shortcut chord \u201C{chordText}\u201D to clipboard."
+                            : $"Failed to copy shortcut: {err}";
+                        ViewModel.StatusSeverity = err is null ? Models.StatusSeverity.Informational : Models.StatusSeverity.Warning;
+                    };
+                    flyout.Items.Add(copyItem);
+                    row.ContextFlyout = flyout;
+                }
+
                 rows.Children.Add(row);
             }
         }
@@ -4317,8 +4351,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 first = false;
                 host.Children.Add(new Border
                 {
-                    Background = (Brush)res["ControlFillColorDefaultBrush"],
-                    BorderBrush = (Brush)res["ControlStrokeColorDefaultBrush"],
+                    Background = controlFill,
+                    BorderBrush = controlStroke,
                     BorderThickness = new Thickness(1, 1, 1, 2),
                     CornerRadius = new CornerRadius(4),
                     Padding = new Thickness(7, 1, 7, 2),
@@ -4346,6 +4380,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = Content.XamlRoot,
+            RequestedTheme = theme,
         };
         await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
     }
@@ -4933,6 +4968,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (ShiftDown()) FindPrev(); else FindNext();
             e.Handled = true;
         }
+        else if (e.Key == Windows.System.VirtualKey.C && AltDown() && !CtrlDown())
+        {
+            MatchCaseCheck.IsChecked = !(MatchCaseCheck.IsChecked == true);
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.H && CtrlDown() && !AltDown() && !ShiftDown())
+        {
+            if (ReplaceRow.Visibility != Visibility.Visible)
+            {
+                ReplaceExpandToggle.IsChecked = true;
+            }
+            ReplaceTextBox.Focus(FocusState.Keyboard);
+            ReplaceTextBox.SelectAll();
+            e.Handled = true;
+        }
         else if (e.Key == Windows.System.VirtualKey.Tab && !ShiftDown() && ReplaceRow.Visibility == Visibility.Visible)
         {
             ReplaceTextBox.Focus(FocusState.Keyboard);
@@ -5089,10 +5139,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             CloseFindBar();
             e.Handled = true;
         }
+        else if (e.Key == Windows.System.VirtualKey.C && AltDown() && !CtrlDown())
+        {
+            MatchCaseCheck.IsChecked = !(MatchCaseCheck.IsChecked == true);
+            e.Handled = true;
+        }
     }
 
     private static bool ShiftDown() =>
         Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+    private static bool AltDown() =>
+        Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Menu)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+    private static bool CtrlDown() =>
+        Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
     // Highlight the current match in the editor and scroll it into view. Selecting text on a
@@ -5121,6 +5184,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
             OnReplaceClick(sender, new RoutedEventArgs());
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.C && AltDown() && !CtrlDown())
+        {
+            MatchCaseCheck.IsChecked = !(MatchCaseCheck.IsChecked == true);
             e.Handled = true;
         }
         else if (e.Key == Windows.System.VirtualKey.Tab && ShiftDown())
@@ -5199,6 +5267,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         if (count > 0)
         {
+            CopyFeedback.ApplyButtonTick(ReplaceAllButton, null, $"\u2713 {count} replaced");
+
             // Setting Text resets the caret to the top and the editor scrolls there; keep the
             // caret (moved through the edit) and the scroll position where the user was.
             var sv = FindEditorScrollViewer();

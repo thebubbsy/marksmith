@@ -50,6 +50,8 @@
             <KeyboardAccelerator Key="F2" Invoked="OnRenameAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="D" Invoked="OnDuplicateAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="C" Invoked="OnCopyAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control,Shift" Key="C" Invoked="OnCopySvgAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control,Shift" Key="E" Invoked="OnExportSvgAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="V" Invoked="OnPasteAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="A" Invoked="OnSelectAllAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="OnFindShapesAcceleratorInvoked" />
@@ -220,14 +222,14 @@
 
                 <!-- Right Actions (Export/Copy are icon-only; Sync keeps its label as the primary action) -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <Button Click="OnExportSvgClick" ToolTipService.ToolTip="Export the canvas as an SVG file" AutomationProperties.Name="Export SVG"
+                    <Button x:Name="ExportSvgButton" Click="OnExportSvgClick" ToolTipService.ToolTip="Export the canvas as an SVG file (Ctrl+Shift+E)" AutomationProperties.Name="Export SVG (Ctrl+Shift+E)"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon Glyph="&#xEDE1;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
 
-                    <Button Click="OnCopySvgClick" ToolTipService.ToolTip="Copy the diagram as SVG to the clipboard" AutomationProperties.Name="Copy SVG"
+                    <Button x:Name="CopySvgButton" Click="OnCopySvgClick" ToolTipService.ToolTip="Copy the diagram as SVG to the clipboard (Ctrl+Shift+C)" AutomationProperties.Name="Copy SVG (Ctrl+Shift+C)"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
-                        <FontIcon Glyph="&#xE8C8;" FontSize="14" Foreground="#4CC9F0" />
+                        <FontIcon x:Name="CopySvgIcon" Glyph="&#xE8C8;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
 
                     <!-- The window's one primary action: filled in the studio's cyan accent. -->

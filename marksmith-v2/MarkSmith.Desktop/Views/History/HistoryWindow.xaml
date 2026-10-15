@@ -340,11 +340,12 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <!-- Mode Selector -->
                             <!-- One segmented control: three loose bordered buttons read as three
-                                 separate actions, not one choice of view. -->
+                                  separate actions, not one choice of view. -->
                             <Border Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="6" Padding="2" VerticalAlignment="Center">
@@ -389,6 +390,30 @@
                                 <TextBlock Text="{Binding DiffStats}" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </Border>
+
+                            <!-- Copy Action Button -->
+                            <Button x:Name="CopyToolbarButton" Grid.Column="3" Click="OnCopyToolbarButtonClick"
+                                    VerticalAlignment="Center" Padding="8,4" CornerRadius="6"
+                                    Background="{ThemeResource SubtleFillColorTransparentBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    ToolTipService.ToolTip="Copy diff patch (Ctrl+Shift+C)"
+                                    AutomationProperties.Name="Copy diff patch (Ctrl+Shift+C)"
+                                    Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
+                                <Button.ContextFlyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem Text="Copy diff patch" Click="OnCopyDiffPatchContextClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Copy version Markdown" Click="OnCopyMarkdownContextClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Button.ContextFlyout>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon x:Name="CopyToolbarIcon" Glyph="&#xE943;" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="CopyToolbarText" Text="Copy diff" FontSize="12" />
+                                </StackPanel>
+                            </Button>
                         </Grid>
                     </Border>
 

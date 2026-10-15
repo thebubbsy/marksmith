@@ -393,7 +393,7 @@
             </StackPanel>
         </Grid>
 
-        <PipsPager x:Name="Pips" Grid.Row="1" HorizontalAlignment="Center"
+        <PipsPager x:Name="Pips" Grid.Row="1" HorizontalAlignment="Center" IsTabStop="False"
                    NumberOfPages="7" MaxVisiblePips="7" SelectedIndexChanged="OnPipSelected" />
 
         <Grid Grid.Row="2">
@@ -403,7 +403,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <Button x:Name="SkipButton" Grid.Column="0" Content="Skip" Click="OnSkip" MinWidth="88"
-                    ToolTipService.ToolTip="Skip the tour — reopen it anytime from the ⋯ menu" />
+                    ToolTipService.ToolTip="Skip the tour — reopen it anytime from the ⋯ menu (Esc)" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                 <Button x:Name="BackButton" Content="Back" Click="OnBack" Visibility="Collapsed" MinWidth="88"
                         ToolTipService.ToolTip="Previous step" />

@@ -239,6 +239,10 @@ public sealed partial class HistoryWindow : Window
         {
             ShowNotice();
         }
+        else if (e.PropertyName == nameof(HistoryWindowViewModel.Selected))
+        {
+            UpdateCopyToolbarButton(_vm.DiffMode);
+        }
     }
 
     // The page fits itself to the pane's width when it loads. Loaded while the pane was collapsed
@@ -487,7 +491,51 @@ public sealed partial class HistoryWindow : Window
         return menu;
     }
 
-    private async Task CopyVersionMarkdownAsync(VersionItemViewModel? item = null)
+    private async void OnCopyToolbarButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (_vm.Selected is null) return;
+        if (_vm.DiffMode == HistoryDiffMode.Preview)
+        {
+            await CopyVersionMarkdownAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+        }
+        else
+        {
+            await CopyDiffPatchAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+        }
+    }
+
+    private async void OnCopyDiffPatchContextClick(object sender, RoutedEventArgs e)
+    {
+        if (_vm.Selected is not null)
+            await CopyDiffPatchAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+    }
+
+    private async void OnCopyMarkdownContextClick(object sender, RoutedEventArgs e)
+    {
+        if (_vm.Selected is not null)
+            await CopyVersionMarkdownAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+    }
+
+    private void UpdateCopyToolbarButton(HistoryDiffMode mode)
+    {
+        if (CopyToolbarButton is null || CopyToolbarText is null || CopyToolbarIcon is null) return;
+        if (mode == HistoryDiffMode.Preview)
+        {
+            CopyToolbarText.Text = "Copy Markdown";
+            CopyToolbarIcon.Glyph = "\uE8C8";
+            ToolTipService.SetToolTip(CopyToolbarButton, "Copy version Markdown (Ctrl+C)");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CopyToolbarButton, "Copy version Markdown (Ctrl+C)");
+        }
+        else
+        {
+            CopyToolbarText.Text = "Copy diff";
+            CopyToolbarIcon.Glyph = "\uE943";
+            ToolTipService.SetToolTip(CopyToolbarButton, "Copy diff patch (Ctrl+Shift+C)");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CopyToolbarButton, "Copy diff patch (Ctrl+Shift+C)");
+        }
+    }
+
+    private async Task CopyVersionMarkdownAsync(VersionItemViewModel? item = null, Button? feedbackButton = null, FontIcon? feedbackIcon = null)
     {
         var target = item ?? _vm.Selected;
         if (target is null) return;
@@ -495,19 +543,29 @@ public sealed partial class HistoryWindow : Window
         if (string.IsNullOrEmpty(text))
         {
             _vm.ShowNotice("Couldn't copy that version's text: no content stored.", isError: true);
+            var btnErr = feedbackButton ?? (CopyToolbarButton?.Visibility == Visibility.Visible && _vm.DiffMode == HistoryDiffMode.Preview ? CopyToolbarButton : null);
+            if (btnErr is not null) CopyFeedback.ApplyButtonTick(btnErr, "No content", "No content");
+            else if (feedbackIcon is not null) CopyFeedback.ApplyIconTick(feedbackIcon, feedbackButton, "No content");
             return;
         }
-        try
+        var error = await ClipboardWriter.TrySetTextAsync(text);
+        if (error is null)
         {
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(text);
-            ClipboardWriter.Set(dp);
             _vm.ShowNotice($"Copied the {target.TimestampLabel} version's Markdown to the clipboard.");
+            var btn = feedbackButton ?? (CopyToolbarButton?.Visibility == Visibility.Visible && _vm.DiffMode == HistoryDiffMode.Preview ? CopyToolbarButton : null);
+            if (btn is not null) CopyFeedback.ApplyButtonTick(btn, null, "✓ Copied");
+            else if (feedbackIcon is not null) CopyFeedback.ApplyIconTick(feedbackIcon, feedbackButton, null);
         }
-        catch { }
+        else
+        {
+            _vm.ShowNotice($"Couldn't copy: {error}", isError: true);
+            var btn = feedbackButton ?? (CopyToolbarButton?.Visibility == Visibility.Visible && _vm.DiffMode == HistoryDiffMode.Preview ? CopyToolbarButton : null);
+            if (btn is not null) CopyFeedback.ApplyButtonTick(btn, error, "Failed");
+            else if (feedbackIcon is not null) CopyFeedback.ApplyIconTick(feedbackIcon, feedbackButton, error);
+        }
     }
 
-    private async Task CopyDiffPatchAsync(VersionItemViewModel? item = null)
+    private async Task CopyDiffPatchAsync(VersionItemViewModel? item = null, Button? feedbackButton = null, FontIcon? feedbackIcon = null)
     {
         var target = item ?? _vm.Selected;
         if (target is null) return;
@@ -515,16 +573,26 @@ public sealed partial class HistoryWindow : Window
         if (string.IsNullOrWhiteSpace(patch))
         {
             _vm.ShowNotice("No line changes in this version to copy as a diff patch.", isError: true);
+            var btnErr = feedbackButton ?? (CopyToolbarButton?.Visibility == Visibility.Visible && _vm.DiffMode != HistoryDiffMode.Preview ? CopyToolbarButton : null);
+            if (btnErr is not null) CopyFeedback.ApplyButtonTick(btnErr, "No changes", "No changes");
+            else if (feedbackIcon is not null) CopyFeedback.ApplyIconTick(feedbackIcon, feedbackButton, "No changes");
             return;
         }
-        try
+        var error = await ClipboardWriter.TrySetTextAsync(patch);
+        if (error is null)
         {
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(patch);
-            ClipboardWriter.Set(dp);
             _vm.ShowNotice($"Copied unified diff patch ({target.TimestampLabel}) to the clipboard.");
+            var btn = feedbackButton ?? (CopyToolbarButton?.Visibility == Visibility.Visible && _vm.DiffMode != HistoryDiffMode.Preview ? CopyToolbarButton : null);
+            if (btn is not null) CopyFeedback.ApplyButtonTick(btn, null, "✓ Copied");
+            else if (feedbackIcon is not null) CopyFeedback.ApplyIconTick(feedbackIcon, feedbackButton, null);
         }
-        catch { }
+        else
+        {
+            _vm.ShowNotice($"Couldn't copy: {error}", isError: true);
+            var btn = feedbackButton ?? (CopyToolbarButton?.Visibility == Visibility.Visible && _vm.DiffMode != HistoryDiffMode.Preview ? CopyToolbarButton : null);
+            if (btn is not null) CopyFeedback.ApplyButtonTick(btn, error, "Failed");
+            else if (feedbackIcon is not null) CopyFeedback.ApplyIconTick(feedbackIcon, feedbackButton, error);
+        }
     }
 
     private async Task<ContentDialogResult> ShowDialogAsync(ContentDialog dialog)
@@ -648,6 +716,7 @@ public sealed partial class HistoryWindow : Window
         SplitToggle.IsChecked = mode == HistoryDiffMode.Split;
         PreviewToggle.IsChecked = mode == HistoryDiffMode.Preview;
         _vm.SetDiffMode(mode);
+        UpdateCopyToolbarButton(mode);
         // Wait one layout pass so the WebView has its real width before the page measures it.
         if (mode == HistoryDiffMode.Preview)
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, RenderPreview);
@@ -857,12 +926,12 @@ public sealed partial class HistoryWindow : Window
         else if (isCtrl && isShift && e.Key == VirtualKey.C && !inTextBox && (focusedVersion ?? _vm.Selected) is { } patchTarget)
         {
             e.Handled = true;
-            _ = CopyDiffPatchAsync(patchTarget);
+            _ = CopyDiffPatchAsync(patchTarget, CopyToolbarButton, CopyToolbarIcon);
         }
         else if (isCtrl && !isShift && e.Key == VirtualKey.C && !inTextBox && (focusedVersion ?? _vm.Selected) is { } copyTarget)
         {
             e.Handled = true;
-            _ = CopyVersionMarkdownAsync(copyTarget);
+            _ = CopyVersionMarkdownAsync(copyTarget, CopyToolbarButton, CopyToolbarIcon);
         }
         else if (e.Key == VirtualKey.Escape)
         {

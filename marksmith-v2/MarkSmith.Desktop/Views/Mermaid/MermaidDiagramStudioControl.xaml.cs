@@ -575,6 +575,20 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         args.Handled = true;
     }
 
+    private void OnCopySvgAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (IsEditingText()) return;
+        OnCopySvgClick(CopySvgButton, new RoutedEventArgs());
+        args.Handled = true;
+    }
+
+    private void OnExportSvgAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (IsEditingText()) return;
+        OnExportSvgClick(ExportSvgButton, new RoutedEventArgs());
+        args.Handled = true;
+    }
+
     private void OnPasteAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         if (IsEditingText()) return;
@@ -822,5 +836,19 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         // This used to call Clipboard.SetContent bare: a busy clipboard threw out of the click.
         var error = await MarkSmith.Services.ClipboardWriter.TrySetAsync(package);
         ViewModel.StatusText = error is null ? "SVG copied to the clipboard." : $"The SVG wasn't copied. {error}";
+
+        var btn = sender as Button ?? CopySvgButton;
+        if (btn is not null)
+        {
+            var icon = CopySvgIcon ?? (btn.Content as FontIcon);
+            if (icon is not null)
+            {
+                CopyFeedback.ApplyIconTick(icon, btn, error);
+            }
+            else
+            {
+                CopyFeedback.ApplyButtonTick(btn, error, "✓ SVG");
+            }
+        }
     }
 }

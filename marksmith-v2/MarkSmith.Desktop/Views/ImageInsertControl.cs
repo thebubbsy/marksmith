@@ -107,6 +107,40 @@ public sealed class ImageInsertControl : InsertDialogBody
             };
             clearItem.Click += (_, _) => ClearSelectedImage();
             zoneMenu.Items.Add(clearItem);
+
+            if (Source.Length > 0)
+            {
+                var copyItem = new MenuFlyoutItem
+                {
+                    Text = "Copy image path or URL (Ctrl+C)",
+                    Icon = new FontIcon { Glyph = "\uE8C8" },
+                };
+                copyItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(Source);
+                zoneMenu.Items.Add(copyItem);
+
+                if (File.Exists(Source))
+                {
+                    var showInExplorerItem = new MenuFlyoutItem
+                    {
+                        Text = "Show in File Explorer",
+                        Icon = new FontIcon { Glyph = "\uE838" },
+                    };
+                    showInExplorerItem.Click += (_, _) =>
+                    {
+                        try
+                        {
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = "explorer.exe",
+                                Arguments = $"/select,\"{Source}\"",
+                                UseShellExecute = true,
+                            });
+                        }
+                        catch { }
+                    };
+                    zoneMenu.Items.Add(showInExplorerItem);
+                }
+            }
         };
 
         _zone = new Border
@@ -124,6 +158,7 @@ public sealed class ImageInsertControl : InsertDialogBody
                 Children = { _zoneIcon, _thumb, _zoneTitle, _zoneHint, browse },
             },
         }.Themed(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush").Themed(Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
+        ToolTipService.SetToolTip(_zone, "Drag an image here, click Browse, or right-click for options");
         AutomationProperties.SetName(_zone, "Image drop zone");
         _zone.DragOver += OnDragOver;
         _zone.DragLeave += (_, _) => Highlight(false);
@@ -136,6 +171,7 @@ public sealed class ImageInsertControl : InsertDialogBody
             IsSpellCheckEnabled = false,
             InputScope = LinkInsertControl.UrlScope(),
         };
+        ToolTipService.SetToolTip(_source, "Local image path (C:\\...) or web URL (https://...)");
         _source.TextChanged += (_, _) => OnSourceChanged();
 
         _alt = new TextBox
@@ -212,6 +248,11 @@ public sealed class ImageInsertControl : InsertDialogBody
         {
             e.Handled = true;
             await PasteSourceFromClipboardAsync();
+        }
+        else if (e.Key == VirtualKey.C && ctrl && !shift && !alt && Source.Length > 0)
+        {
+            e.Handled = true;
+            await ClipboardWriter.TrySetTextAsync(Source);
         }
         else if (e.Key == VirtualKey.Delete && !ctrl && !shift && !alt && Source.Length > 0)
         {

@@ -135,6 +135,10 @@ public sealed partial class ExtensionSetupView : UserControl
         AutomationProperties.SetName(StatusText, message);
         AutomationProperties.SetLiveSetting(StatusText, AutomationLiveSetting.Polite);
         AutomationProperties.SetName(StatusCard, $"Extension status: {message}");
+        if (phase != Phase.ApiOff && TurnOnButton.FocusState != FocusState.Unfocused)
+        {
+            (CopyFolderButton ?? (Control)FolderPathBox).Focus(FocusState.Programmatic);
+        }
         TurnOnButton.Visibility = phase == Phase.ApiOff ? Visibility.Visible : Visibility.Collapsed;
         ThemeBrush.Set(StatusCard, Border.BackgroundProperty,
             phase == Phase.Connected ? "SystemFillColorSuccessBackgroundBrush" : "CardBackgroundFillColorDefaultBrush");
@@ -142,13 +146,25 @@ public sealed partial class ExtensionSetupView : UserControl
 
     private async void OnTurnOnClick(object sender, RoutedEventArgs e)
     {
+        var hadFocus = TurnOnButton.FocusState != FocusState.Unfocused;
         TurnOnButton.IsEnabled = false;
+        if (hadFocus)
+        {
+            (CopyFolderButton ?? (Control)FolderPathBox).Focus(FocusState.Programmatic);
+        }
         string? error;
         try { (_, _, error) = await _turnOnApi(); }
         catch (Exception ex) { error = $"Couldn't turn on the connection: {ex.Message}"; }
         TurnOnButton.IsEnabled = true;
-        if (error is null) Refresh(force: true);
-        else ShowError(error);
+        if (error is null)
+        {
+            Refresh(force: true);
+        }
+        else
+        {
+            ShowError(error);
+            if (hadFocus) TurnOnButton.Focus(FocusState.Programmatic);
+        }
     }
 
     private void OnCopyFolderClick(object sender, RoutedEventArgs e)

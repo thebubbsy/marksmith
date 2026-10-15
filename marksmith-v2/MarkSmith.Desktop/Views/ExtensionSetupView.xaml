@@ -79,7 +79,19 @@
                         </Grid.ColumnDefinitions>
                         <TextBox x:Name="FolderPathBox" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas"
                                  FontSize="12" VerticalAlignment="Center"
-                                 AutomationProperties.Name="Extension folder" />
+                                 ToolTipService.ToolTip="MarkSmith unpacked extension folder path"
+                                 AutomationProperties.Name="Extension folder">
+                            <TextBox.ContextFlyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem Text="Copy folder path" Click="OnCopyFolderClick" KeyboardAcceleratorTextOverride="Ctrl+Shift+C">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Show in File Explorer" Click="OnOpenFolderClick" KeyboardAcceleratorTextOverride="Ctrl+O">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE838;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                </MenuFlyout>
+                            </TextBox.ContextFlyout>
+                        </TextBox>
                         <Button Grid.Column="1" x:Name="CopyFolderButton" Click="OnCopyFolderClick"
                                 AutomationProperties.Name="Copy folder path (Ctrl+Shift+C)"
                                 ToolTipService.ToolTip="Copy the folder's path (Ctrl+Shift+C)">

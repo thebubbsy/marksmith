@@ -29,6 +29,7 @@ public readonly record struct KeyChord(string Modifiers, string Key)
                 "Left" => "←",
                 "Right" => "→",
                 "188" => ",",
+                "191" => "/",
                 _ when Key.StartsWith("Number", StringComparison.Ordinal) && Key.Length == 7 => Key[6..],
                 _ => Key,
             });
@@ -118,7 +119,7 @@ public static class KeyboardShortcuts
         new("view.portalBlur", ViewSection, "Looking Glass: blur or sharpen the preview around the portal", new[] { CtrlAlt("X") }),
         new("studio.diagram", ViewSection, "Open Diagram Studio", new[] { CtrlShift("M") }),
         new("app.settings", ViewSection, "Open Settings", new[] { Ctrl("188") }, HandledInCode: true),
-        new("app.shortcuts", ViewSection, "Show this list of shortcuts", new[] { Bare("F1") }),
+        new("app.shortcuts", ViewSection, "Show this list of shortcuts", new[] { Bare("F1"), Ctrl("191") }, HandledInCode: true),
         new("app.debug", ViewSection, "Debug mode: log every preview render", new[] { CtrlAlt("T") }),
 
         new("dev.resetLicense", ViewSection, "Reset the license to Free (developer)", new[] { new KeyChord("Control,Shift,Menu", "L") }, Hidden: true),
