@@ -7944,5 +7944,58 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 **Verified:**
 - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
-- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 13164, `Alive: True`, `Responding: True`, clean exit.
+### 2026-10-16 (scheduled routine run #103 — WinUI 3 Desktop Polish: SplashWindow Skip & Context Affordances, OptionRow & SettingsCard Action Controls Parity, MainWindow Primary Export SplitButton Menu, InsertDialog Snippet Copy Button Menu, SuiteHub Action Buttons Menus, NodePalette Category Pills & Search Menus)
+
+- **Surface / Component Targets:** `SplashWindow`, `OptionRow`, `SettingsCard`, `MainWindow`, `InsertDialogControls`, `SuiteHubView`, `NodePaletteControl`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #102:
+    * Target A: `SplashWindow` skip/dismiss context affordances (`OnRootPointerPressed`, `RightTapped`, context menu with Continue, Replay, Audio Mute toggle, Version copy).
+    * Target B: `OptionRow` & `SettingsCard` direct action-control right-click context menu parity.
+  - Generated:
+    1. `SplashWindow` Pointer & Context Menu Affordances (`Views/SplashWindow.xaml` & `Views/SplashWindow.xaml.cs`)
+    2. `OptionRow` & `SettingsCard` Action Controls Right-Click Parity (`Controls/OptionRow.xaml.cs` & `Controls/SettingsCard.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Filtered `OnRootPointerPressed` in `SplashWindow.xaml.cs` so right-click is preserved, attached `RightTapped="OnRootRightTapped"`, auto-close timer cancellation on context flyout open, re-engagement on flyout close, and keyboard actions (`Space`, `Enter`, `Esc`, `F5`, `M`). In `OptionRow.xaml.cs` and `SettingsCard.xaml.cs`, replaced blanket `IsInside` return with `IsInsideTextInput` helper, allowing direct right-click on `ToggleSwitch`, `CheckBox`, `ComboBox`, and `Button` controls to open context menus.
+  - Generated:
+    3. `MainWindow` Primary Export SplitButton Right-Click Menu Parity (`MainWindow.xaml` & `MainWindow.xaml.cs`)
+    4. `InsertDialogControls` Snippet Copy Button & Preview Header Right-Click Context Menu (`Views/InsertDialogControls.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Attached `RightTapped="OnExportSplitButtonRightTapped"` on `ExportSplitButton` in `MainWindow.xaml` to show the full export menu flyout, and attached `OnCancelConversionButtonRightTapped` on `CancelConversionButton` offering cancel export (`\uE711`) and copy status (`\uE8C8`). In `InsertDialogControls.cs`, attached `RightTapped` on `_copySnippetButton` and `previewHeader` with `PopulateSnippetContextMenu` offering Copy snippet (`\uE8C8`), Insert into document (`\uE898`), and Focus first input field (`\uE892`).
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `SuiteHubView` Cards 2, 3, 4, 5, 6 Action Buttons Right-Click Menus Parity (`Views/SuiteHubView.xaml` & `Views/SuiteHubView.xaml.cs`)
+    6. `NodePaletteControl` Category Pills & Search Box Right-Click Context Menus Parity (`Views/Mermaid/NodePaletteControl.xaml` & `Views/Mermaid/NodePaletteControl.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Attached `RightTapped` on `Card2CopySetupButton`, `CopyMcpPathButton`, `TurnOnApiButton`, `CopyApiUrlButton`, `GetExtensionButton`, `Card4CopyCommandButton`, `CopyCliPathButton`, `Card5ExpressButton`, `CopyExpressUrlButton`, and `Card6GalaxyButton` in `SuiteHubView.xaml` & `.xaml.cs` routing directly to `ShowCardContextMenu(cardIndex, fe, e.GetPosition(fe))`. In `NodePaletteControl.xaml` & `.xaml.cs`, attached `RightTapped` on all 8 category pills and `SearchTextBox` offering filter to category, show all shapes, clear search query, and focus search box with 100% icon parity.
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #104 (`MindMapGalaxyWindow` node visual hover/selection affordance refinement, `ShapeDesignStudioWindow` quick insert shape palette context menus, `MarkdownHtmlService` inline portal lens preview controls).
+
+**Shipped:**
+1. **`SplashWindow` Skip & Context Affordances (`Views/SplashWindow.xaml` & `.xaml.cs`):**
+   - Filtered `OnRootPointerPressed` so right-clicks preserve menu gestures without premature window closure.
+   - Attached `RightTapped="OnRootRightTapped"` and `KeyDown="OnRootKeyDown"` presenting Continue to MarkSmith `Space`/`Enter` (`\uE76C`), Replay intro video `F5` (`\uE72C`), Mute/unmute audio `M` (`\uE767`/`\uE74F`), and Copy application version (`\uE8C8`).
+   - Integrated `CancellationTokenSource` auto-close timer pause while context menu is open, restarting a safe 6s timeout on menu close.
+2. **`OptionRow` & `SettingsCard` Action Controls Parity (`Controls/OptionRow.xaml.cs` & `Controls/SettingsCard.xaml.cs`):**
+   - Replaced blanket `IsInside` exclusion with targeted `IsInsideTextInput` helper, enabling direct right-click context menus on `ToggleSwitch`, `CheckBox`, `ComboBox`, and action buttons.
+   - Added `ComboBox` ("Open options dropdown" `\uE70D`) and `Button` ("Run action" `\uE768`) menu actions with 100% Fluent icon coverage.
+3. **`MainWindow` Primary Export SplitButton Right-Click Menu Parity (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnExportSplitButtonRightTapped"` on `ExportSplitButton`, opening the full export formats flyout on right-click.
+   - Attached `x:Name="CancelConversionButton"` and `RightTapped="OnCancelConversionButtonRightTapped"` providing Cancel export in progress `Esc` (`\uE711`) and Copy export status (`\uE8C8`).
+4. **`InsertDialogControls` Snippet Copy Button & Header Menu (`Views/InsertDialogControls.cs`):**
+   - Attached `_copySnippetButton.RightTapped` and `previewHeader.RightTapped` in `InsertDialogBody` sharing `PopulateSnippetContextMenu`.
+   - Offers Copy Markdown snippet `Ctrl+C`/`Ctrl+Shift+C` (`\uE8C8`), Insert into document `Ctrl+Enter` (`\uE898`), and Focus first input field (`\uE892`).
+5. **`SuiteHubView` Cards 2–6 Action Buttons Menus Parity (`Views/SuiteHubView.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped` handlers across Cards 2, 3, 4, 5, and 6 action buttons routing directly to the respective card context menus with full icon parity.
+6. **`NodePaletteControl` Category Pills & Search Box Menus Parity (`Views/Mermaid/NodePaletteControl.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnCategoryPillRightTapped"` on `CatAll`, `CatFlowchart`, `CatSequence`, `CatClass`, `CatState`, `CatGantt`, `CatER`, and `CatMindmap` offering Filter to category (`\uE71C`), Show all shapes (`\uE8A5`), Clear search query (`\uE894`), and Focus search box (`\uE721`).
+   - Attached `RightTapped="OnSearchTextBoxRightTapped"` offering Clear search query (`\uE894`), Show all shapes (`\uE8A5`), and Select all search text (`\uE8D2`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 6964, `Alive: True`, `Responding: True`, clean exit.
 

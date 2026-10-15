@@ -109,9 +109,16 @@ public sealed partial class OptionRow : UserControl
     private void OnHeaderRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         if (!IsEnabled) return;
-        if (e.OriginalSource is DependencyObject source && (IsInside(source, ActionPart) || IsInside(source, DetailsPart))) return;
+        if (e.OriginalSource is DependencyObject source && IsInsideTextInput(source)) return;
         e.Handled = true;
         ShowOptionContextMenu(e.GetPosition(HeaderRow));
+    }
+
+    private static bool IsInsideTextInput(DependencyObject? element)
+    {
+        for (var d = element; d is not null; d = VisualTreeHelper.GetParent(d))
+            if (d is TextBox or PasswordBox) return true;
+        return false;
     }
 
     private void OnHeaderKeyDown(object sender, KeyRoutedEventArgs e)
@@ -149,6 +156,37 @@ public sealed partial class OptionRow : UserControl
             };
             checkItem.Click += (_, _) => check.IsChecked = !(check.IsChecked ?? false);
             menu.Items.Add(checkItem);
+            menu.Items.Add(new MenuFlyoutSeparator());
+        }
+        else if (Action is ComboBox { IsEnabled: true } combo)
+        {
+            var openComboItem = new MenuFlyoutItem
+            {
+                Text = "Open options dropdown",
+                Icon = new FontIcon { Glyph = "\uE70D" }
+            };
+            openComboItem.Click += (_, _) =>
+            {
+                combo.Focus(FocusState.Programmatic);
+                combo.IsDropDownOpen = !combo.IsDropDownOpen;
+            };
+            menu.Items.Add(openComboItem);
+            menu.Items.Add(new MenuFlyoutSeparator());
+        }
+        else if (Action is Button { IsEnabled: true } actionBtn)
+        {
+            var btnText = actionBtn.Content is string s && !string.IsNullOrWhiteSpace(s) ? s : "Run action";
+            var runItem = new MenuFlyoutItem
+            {
+                Text = btnText,
+                Icon = new FontIcon { Glyph = "\uE768" }
+            };
+            runItem.Click += (_, _) =>
+            {
+                if (actionBtn.Command?.CanExecute(actionBtn.CommandParameter) ?? true)
+                    actionBtn.Command?.Execute(actionBtn.CommandParameter);
+            };
+            menu.Items.Add(runItem);
             menu.Items.Add(new MenuFlyoutSeparator());
         }
 

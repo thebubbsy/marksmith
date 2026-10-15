@@ -85,6 +85,11 @@ public abstract class InsertDialogBody : UserControl
         AutomationProperties.SetName(_copySnippetButton, "Copy generated Markdown snippet");
         ToolTipService.SetToolTip(_copySnippetButton, "Copy the generated Markdown snippet (Ctrl+C / Ctrl+Shift+C)");
         _copySnippetButton.Click += (_, _) => CopyCurrentSnippet();
+        _copySnippetButton.RightTapped += (_, e) =>
+        {
+            e.Handled = true;
+            ShowSnippetContextMenu(_copySnippetButton, e.GetPosition(_copySnippetButton));
+        };
 
         var previewHeader = new Grid();
         previewHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -102,20 +107,16 @@ public abstract class InsertDialogBody : UserControl
         Grid.SetColumn(_copySnippetButton, 1);
         previewHeader.Children.Add(insertsLabel);
         previewHeader.Children.Add(_copySnippetButton);
+        previewHeader.RightTapped += (_, e) =>
+        {
+            e.Handled = true;
+            ShowSnippetContextMenu(previewHeader, e.GetPosition(previewHeader));
+        };
 
         var previewContextFlyout = new MenuFlyout();
         previewContextFlyout.Opening += (_, _) =>
         {
-            previewContextFlyout.Items.Clear();
-            var snippet = Snippet.Trim('\n');
-            var copyItem = new MenuFlyoutItem
-            {
-                Text = "Copy Markdown snippet (Ctrl+C / Ctrl+Shift+C)",
-                Icon = new FontIcon { Glyph = "\uE8C8" },
-                IsEnabled = snippet.Length > 0,
-            };
-            copyItem.Click += (_, _) => CopyCurrentSnippet();
-            previewContextFlyout.Items.Add(copyItem);
+            PopulateSnippetContextMenu(previewContextFlyout);
         };
 
         var previewCard = new Border
@@ -274,6 +275,50 @@ public abstract class InsertDialogBody : UserControl
         if (first is null) return;
         first.Focus(FocusState.Programmatic);
         if (first is TextBox box) box.SelectAll();
+    }
+
+    private void PopulateSnippetContextMenu(MenuFlyout menu)
+    {
+        menu.Items.Clear();
+        var snippet = Snippet.Trim('\n');
+
+        var copyItem = new MenuFlyoutItem
+        {
+            Text = "Copy Markdown snippet (Ctrl+C / Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = snippet.Length > 0,
+        };
+        copyItem.Click += (_, _) => CopyCurrentSnippet();
+        menu.Items.Add(copyItem);
+
+        var insertItem = new MenuFlyoutItem
+        {
+            Text = "Insert into document (Ctrl+Enter)",
+            Icon = new FontIcon { Glyph = "\uE898" },
+            IsEnabled = IsValid,
+        };
+        insertItem.Click += (_, _) => RequestCommit();
+        menu.Items.Add(insertItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var focusFieldItem = new MenuFlyoutItem
+        {
+            Text = "Focus first input field",
+            Icon = new FontIcon { Glyph = "\uE892" },
+        };
+        focusFieldItem.Click += (_, _) => FocusFirstField();
+        menu.Items.Add(focusFieldItem);
+    }
+
+    private void ShowSnippetContextMenu(FrameworkElement anchor, Windows.Foundation.Point? position)
+    {
+        var menu = new MenuFlyout();
+        PopulateSnippetContextMenu(menu);
+        if (position.HasValue)
+            menu.ShowAt(anchor, position.Value);
+        else
+            menu.ShowAt(anchor);
     }
 
     private static Control? FirstInput(Panel panel)

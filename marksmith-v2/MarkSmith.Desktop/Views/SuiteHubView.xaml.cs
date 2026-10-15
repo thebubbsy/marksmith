@@ -618,6 +618,41 @@ public sealed partial class SuiteHubView : UserControl
             ShowCardContextMenu(1, fe, e.GetPosition(fe));
     }
 
+    private void OnCard2ButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement fe)
+            ShowCardContextMenu(2, fe, e.GetPosition(fe));
+    }
+
+    private void OnCard3ButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement fe)
+            ShowCardContextMenu(3, fe, e.GetPosition(fe));
+    }
+
+    private void OnCard4ButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement fe)
+            ShowCardContextMenu(4, fe, e.GetPosition(fe));
+    }
+
+    private void OnCard5ButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement fe)
+            ShowCardContextMenu(5, fe, e.GetPosition(fe));
+    }
+
+    private void OnCard6ButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement fe)
+            ShowCardContextMenu(6, fe, e.GetPosition(fe));
+    }
+
     private void OnVersionInfoTapped(object sender, TappedRoutedEventArgs e)
     {
         var info = $"{VersionText.Text} · {LicenseText.Text}";

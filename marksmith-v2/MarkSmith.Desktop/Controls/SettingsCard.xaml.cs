@@ -122,10 +122,17 @@ public sealed partial class SettingsCard : UserControl
     private void OnCardRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         if (!IsEnabled) return;
-        if (e.OriginalSource is DependencyObject source && (IsInside(source, ActionPart) || IsInside(source, DetailsPart)))
+        if (e.OriginalSource is DependencyObject source && IsInsideTextInput(source))
             return;
         ShowCardContextMenu(e.GetPosition(this));
         e.Handled = true;
+    }
+
+    private static bool IsInsideTextInput(DependencyObject? element)
+    {
+        for (var d = element; d is not null; d = VisualTreeHelper.GetParent(d))
+            if (d is TextBox or PasswordBox) return true;
+        return false;
     }
 
     private void OnCardKeyDown(object sender, KeyRoutedEventArgs e)
@@ -180,6 +187,21 @@ public sealed partial class SettingsCard : UserControl
             {
                 combo.Focus(FocusState.Programmatic);
                 combo.IsDropDownOpen = !combo.IsDropDownOpen;
+            };
+            menu.Items.Add(item);
+        }
+        else if (Action is Button { IsEnabled: true } actionBtn)
+        {
+            var btnText = actionBtn.Content is string s && !string.IsNullOrWhiteSpace(s) ? s : "Run action";
+            var item = new MenuFlyoutItem
+            {
+                Text = btnText,
+                Icon = new FontIcon { Glyph = "\uE768" }
+            };
+            item.Click += (_, _) =>
+            {
+                if (actionBtn.Command?.CanExecute(actionBtn.CommandParameter) ?? true)
+                    actionBtn.Command?.Execute(actionBtn.CommandParameter);
             };
             menu.Items.Add(item);
         }

@@ -243,6 +243,98 @@ public sealed partial class NodePaletteControl : UserControl
         if (sender is ToggleButton btn) SelectPill(btn);
     }
 
+    private void OnCategoryPillRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is ToggleButton btn && btn.Content is string cat)
+        {
+            var menu = new MenuFlyout();
+
+            var filterItem = new MenuFlyoutItem
+            {
+                Text = cat == "All" ? "Show all shapes" : $"Filter to {cat} shapes",
+                Icon = new FontIcon { Glyph = "\uE71C" }
+            };
+            filterItem.Click += (_, _) => SelectPill(btn);
+            menu.Items.Add(filterItem);
+
+            if (cat != "All")
+            {
+                var showAllItem = new MenuFlyoutItem
+                {
+                    Text = "Show all shapes",
+                    Icon = new FontIcon { Glyph = "\uE8A5" }
+                };
+                showAllItem.Click += (_, _) => SelectPill(CatAll);
+                menu.Items.Add(showAllItem);
+            }
+
+            if (!string.IsNullOrEmpty(SearchTextBox.Text))
+            {
+                var clearSearchItem = new MenuFlyoutItem
+                {
+                    Text = "Clear search query (Esc)",
+                    Icon = new FontIcon { Glyph = "\uE894" }
+                };
+                clearSearchItem.Click += (_, _) => OnClearSearchClick(this, new Microsoft.UI.Xaml.RoutedEventArgs());
+                menu.Items.Add(clearSearchItem);
+            }
+
+            var focusSearchItem = new MenuFlyoutItem
+            {
+                Text = "Focus search box (Ctrl+F)",
+                Icon = new FontIcon { Glyph = "\uE721" }
+            };
+            focusSearchItem.Click += (_, _) => FocusSearchBox();
+            menu.Items.Add(focusSearchItem);
+
+            menu.ShowAt(btn, e.GetPosition(btn));
+        }
+    }
+
+    private void OnSearchTextBoxRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        if (!string.IsNullOrEmpty(SearchTextBox.Text))
+        {
+            var clearItem = new MenuFlyoutItem
+            {
+                Text = "Clear search query (Esc)",
+                Icon = new FontIcon { Glyph = "\uE894" }
+            };
+            clearItem.Click += (_, _) =>
+            {
+                SearchTextBox.Text = string.Empty;
+                SearchTextBox.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+            };
+            menu.Items.Add(clearItem);
+        }
+
+        var showAllItem = new MenuFlyoutItem
+        {
+            Text = "Show all shapes",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        showAllItem.Click += (_, _) =>
+        {
+            SearchTextBox.Text = string.Empty;
+            SelectPill(CatAll);
+        };
+        menu.Items.Add(showAllItem);
+
+        var copySearchItem = new MenuFlyoutItem
+        {
+            Text = "Select all search text (Ctrl+A)",
+            Icon = new FontIcon { Glyph = "\uE8D2" }
+        };
+        copySearchItem.Click += (_, _) => SearchTextBox.SelectAll();
+        menu.Items.Add(copySearchItem);
+
+        menu.ShowAt(SearchTextBox, e.GetPosition(SearchTextBox));
+    }
+
     private void SelectPill(ToggleButton btn)
     {
         if (btn.Content is string cat)

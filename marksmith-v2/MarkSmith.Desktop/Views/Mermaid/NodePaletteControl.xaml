@@ -26,6 +26,7 @@
                      AutomationProperties.Name="Search shapes"
                      TextChanged="OnSearchTextChanged"
                      KeyDown="OnSearchTextBoxKeyDown"
+                     RightTapped="OnSearchTextBoxRightTapped"
                      FontSize="12" />
         </StackPanel>
 
@@ -33,21 +34,21 @@
              and Mindmap sat past the edge where a mouse wheel can't scroll; they wrap three to a
              row now and every category is visible. -->
         <VariableSizedWrapGrid Grid.Row="1" Orientation="Horizontal" ItemWidth="78" ItemHeight="32">
-            <ToggleButton x:Name="CatAll" Content="All" IsChecked="True" Click="OnCategoryPillClick" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatAll" Content="All" IsChecked="True" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatFlowchart" Content="Flowchart" Click="OnCategoryPillClick" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatFlowchart" Content="Flowchart" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatSequence" Content="Sequence" Click="OnCategoryPillClick" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatSequence" Content="Sequence" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatClass" Content="Class" Click="OnCategoryPillClick" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatClass" Content="Class" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatState" Content="State" Click="OnCategoryPillClick" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatState" Content="State" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatGantt" Content="Gantt" Click="OnCategoryPillClick" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatGantt" Content="Gantt" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatER" Content="ER" Click="OnCategoryPillClick" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatER" Content="ER" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatMindmap" Content="Mindmap" Click="OnCategoryPillClick" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatMindmap" Content="Mindmap" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
         </VariableSizedWrapGrid>
 

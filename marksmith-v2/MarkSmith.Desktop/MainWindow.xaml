@@ -2059,6 +2059,7 @@
                     <SplitButton x:Name="ExportSplitButton" Grid.Column="0" Height="40" HorizontalAlignment="Stretch"
                                  AutomationProperties.Name="Generate Word document"
                                  Click="OnPrimaryExportClick" IsEnabled="{Binding IsNotBusy}"
+                                 RightTapped="OnExportSplitButtonRightTapped"
                                  ToolTipService.ToolTip="Generate a Word document — use the chevron for other formats">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon x:Name="PrimaryExportIcon" Glyph="&#xE8A5;" FontSize="16" />
@@ -2120,9 +2121,10 @@
                         </SplitButton.Flyout>
                     </SplitButton>
 
-                    <Button Grid.Column="1" Height="40" Content="Cancel" Margin="8,0,0,0"
+                    <Button x:Name="CancelConversionButton" Grid.Column="1" Height="40" Content="Cancel" Margin="8,0,0,0"
                             Command="{Binding CancelConversionCommand}"
                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}"
+                            RightTapped="OnCancelConversionButtonRightTapped"
                             ToolTipService.ToolTip="Cancel the export in progress" />
 
                     <ProgressRing Grid.Column="2" IsActive="{Binding IsBusy}" Width="22" Height="22" Margin="8,0,0,0"

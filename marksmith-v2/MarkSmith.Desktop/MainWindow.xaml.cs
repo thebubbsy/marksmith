@@ -6304,6 +6304,52 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         else await ViewModel.ConvertToPdfAsync();
     }
 
+    private void OnExportSplitButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (ExportSplitButton?.Flyout is Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase flyout)
+        {
+            flyout.ShowAt(ExportSplitButton, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
+            {
+                Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedLeft,
+                Position = e.GetPosition(ExportSplitButton)
+            });
+        }
+    }
+
+    private void OnCancelConversionButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+        var cancelItem = new MenuFlyoutItem
+        {
+            Text = "Cancel export in progress (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        cancelItem.Click += (_, _) =>
+        {
+            if (ViewModel.CancelConversionCommand.CanExecute(null))
+                ViewModel.CancelConversionCommand.Execute(null);
+        };
+        menu.Items.Add(cancelItem);
+
+        var copyStatusItem = new MenuFlyoutItem
+        {
+            Text = "Copy export status",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyStatusItem.Click += async (_, _) =>
+        {
+            await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusText ?? "Exporting...");
+        };
+        menu.Items.Add(copyStatusItem);
+
+        if (sender is FrameworkElement fe)
+            menu.ShowAt(fe, e.GetPosition(fe));
+        else
+            menu.ShowAt(ExportSplitButton);
+    }
+
     private async void OnExportAllClick(object sender, RoutedEventArgs e)
     {
         await ViewModel.ExportAllAsync();

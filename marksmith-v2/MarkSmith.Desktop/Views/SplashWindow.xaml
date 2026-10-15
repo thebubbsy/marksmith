@@ -7,7 +7,8 @@
     <!-- Launch intro: plays the branded video once before the main window appears.
          Click anywhere to skip; auto-closes when the video ends or after 12s max
          (a missing/corrupt asset can never hang the app — it closes immediately). -->
-    <Grid x:Name="Root" Background="Black" PointerPressed="OnRootPointerPressed">
+    <Grid x:Name="Root" Background="Black" PointerPressed="OnRootPointerPressed"
+          RightTapped="OnRootRightTapped" KeyDown="OnRootKeyDown">
         <MediaPlayerElement x:Name="Player" AreTransportControlsEnabled="False" Stretch="Uniform" />
         <TextBlock Text="MarkSmith" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,24"
                    Foreground="White" Opacity="0.5" FontSize="12" />

@@ -145,6 +145,7 @@
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
                             <Button x:Name="Card2CopySetupButton" Padding="8,4" FontSize="11"
+                                    RightTapped="OnCard2ButtonRightTapped"
                                     ToolTipService.ToolTip="Copy a ready-made MarkSmith entry for your AI app's settings (Ctrl+2)"
                                     AutomationProperties.Name="Copy setup for AI apps (Ctrl+2)">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
@@ -166,6 +167,7 @@
                                 </Button.Flyout>
                             </Button>
                             <Button x:Name="CopyMcpPathButton" Click="OnCopyMcpPathClick" Padding="8,4" FontSize="11"
+                                    RightTapped="OnCard2ButtonRightTapped"
                                     ToolTipService.ToolTip="Copy the full path of the MarkSmith MCP server, for apps that ask for a command"
                                     AutomationProperties.Name="Copy MCP server path">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
@@ -203,6 +205,7 @@
                                  didn't say where to go. One click turns it on (same setting as
                                  Settings > Automation > Local API). -->
                             <Button x:Name="TurnOnApiButton" Click="OnTurnOnApiClick" Padding="8,4" FontSize="11"
+                                    RightTapped="OnCard3ButtonRightTapped"
                                     Style="{ThemeResource AccentButtonStyle}"
                                     ToolTipService.ToolTip="Let the browser extension reach MarkSmith on this PC (Settings › Automation › Local API, Ctrl+3)"
                                     AutomationProperties.Name="Turn on local API connection (Ctrl+3)">
@@ -212,6 +215,7 @@
                                 </StackPanel>
                             </Button>
                             <Button x:Name="CopyApiUrlButton" Click="OnCopyApiUrlClick" Padding="8,4" FontSize="11"
+                                    RightTapped="OnCard3ButtonRightTapped"
                                     ToolTipService.ToolTip="Copy the address the extension connects to, if it asks for one (Ctrl+3)"
                                     AutomationProperties.Name="Copy local API address (Ctrl+3)">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
@@ -220,6 +224,7 @@
                                 </StackPanel>
                             </Button>
                             <Button x:Name="GetExtensionButton" Click="OnOpenExtensionDocsClick" Padding="8,4" FontSize="11"
+                                    RightTapped="OnCard3ButtonRightTapped"
                                     ToolTipService.ToolTip="Set up the extension in Edge or Chrome: about a minute, once"
                                     AutomationProperties.Name="Get the extension">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
@@ -254,6 +259,7 @@
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
                             <Button x:Name="Card4CopyCommandButton" Padding="8,4" FontSize="11"
+                                    RightTapped="OnCard4ButtonRightTapped"
                                     ToolTipService.ToolTip="Copy a ready-to-edit command (Ctrl+4)"
                                     AutomationProperties.Name="Copy a CLI command (Ctrl+4)">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
@@ -279,6 +285,7 @@
                                 </Button.Flyout>
                             </Button>
                             <Button x:Name="CopyCliPathButton" Click="OnCopyCliPathClick" Padding="8,4" FontSize="11"
+                                    RightTapped="OnCard4ButtonRightTapped"
                                     ToolTipService.ToolTip="Copy the full path of marksmith.exe (Ctrl+Shift+C)"
                                     AutomationProperties.Name="Copy MarkSmith CLI path (Ctrl+Shift+C)">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
@@ -313,6 +320,7 @@
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
                             <Button x:Name="Card5ExpressButton" Click="OnLaunchExpressClick" Padding="8,4" FontSize="11"
+                                    RightTapped="OnCard5ButtonRightTapped"
                                     ToolTipService.ToolTip="Start MarkSmith Express if needed and open it in your browser (Ctrl+5)"
                                     AutomationProperties.Name="Open Express web companion in browser (Ctrl+5)">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
@@ -321,6 +329,7 @@
                                 </StackPanel>
                             </Button>
                             <Button x:Name="CopyExpressUrlButton" Click="OnCopyExpressUrlClick" Padding="8,4" FontSize="11"
+                                    RightTapped="OnCard5ButtonRightTapped"
                                     ToolTipService.ToolTip="Copy the web companion address (http://localhost:5000)"
                                     AutomationProperties.Name="Copy Express web companion address">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
@@ -355,6 +364,7 @@
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
                             <Button x:Name="Card6GalaxyButton" Click="OnOpenGalaxyClick" Padding="8,4" FontSize="11"
+                                    RightTapped="OnCard6ButtonRightTapped"
                                     ToolTipService.ToolTip="Open the Document Galaxy window (Ctrl+6)"
                                     AutomationProperties.Name="Open Document Galaxy (Ctrl+6)">
                                 <StackPanel Orientation="Horizontal" Spacing="5">

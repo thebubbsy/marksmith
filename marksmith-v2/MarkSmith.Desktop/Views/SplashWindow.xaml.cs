@@ -67,18 +67,140 @@ public sealed partial class SplashWindow : Window
         catch { }
     }
 
-    private void OnRootPointerPressed(object sender, PointerRoutedEventArgs e) => SafeClose();
+    private CancellationTokenSource? _autoCloseCts = new();
+    private bool _menuOpen;
 
-    private async Task AutoCloseAsync()
+    private void OnRootPointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        await Task.Delay(12_000);
+        var point = e.GetCurrentPoint(Root);
+        if (point.Properties.IsRightButtonPressed)
+        {
+            // Do not dismiss on right-click; allow RightTapped to show context menu
+            return;
+        }
         SafeClose();
+    }
+
+    private void OnRootRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowSplashContextMenu(e.GetPosition(Root));
+    }
+
+    private void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key is Windows.System.VirtualKey.Space or Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Escape)
+        {
+            e.Handled = true;
+            SafeClose();
+        }
+        else if (e.Key == Windows.System.VirtualKey.F5)
+        {
+            e.Handled = true;
+            ReplayVideo();
+        }
+        else if (e.Key == Windows.System.VirtualKey.M)
+        {
+            e.Handled = true;
+            ToggleMute();
+        }
+    }
+
+    private void ShowSplashContextMenu(Windows.Foundation.Point? position)
+    {
+        _autoCloseCts?.Cancel();
+        _autoCloseCts = null;
+
+        var menu = new Microsoft.UI.Xaml.Controls.MenuFlyout();
+
+        var continueItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = "Continue to MarkSmith (Space)",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE76C" }
+        };
+        continueItem.Click += (_, _) => SafeClose();
+        menu.Items.Add(continueItem);
+
+        var replayItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = "Replay intro video (F5)",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE72C" }
+        };
+        replayItem.Click += (_, _) => ReplayVideo();
+        menu.Items.Add(replayItem);
+
+        bool isMuted = Player.MediaPlayer.IsMuted;
+        var muteItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = isMuted ? "Unmute audio (M)" : "Mute audio (M)",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = isMuted ? "\uE767" : "\uE74F" }
+        };
+        muteItem.Click += (_, _) => ToggleMute();
+        menu.Items.Add(muteItem);
+
+        menu.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+
+        var copyVersionItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = "Copy application version",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE8C8" }
+        };
+        copyVersionItem.Click += async (_, _) =>
+        {
+            await MarkSmith.Services.ClipboardWriter.TrySetTextAsync("MarkSmith Desktop");
+        };
+        menu.Items.Add(copyVersionItem);
+
+        menu.Opening += (_, _) => _menuOpen = true;
+        menu.Closed += (_, _) =>
+        {
+            _menuOpen = false;
+            _ = AutoCloseAsync(6_000);
+        };
+
+        if (position.HasValue)
+            menu.ShowAt(Root, position.Value);
+        else
+            menu.ShowAt(Root);
+    }
+
+    private void ReplayVideo()
+    {
+        try
+        {
+            Player.MediaPlayer.PlaybackSession.Position = TimeSpan.Zero;
+            Player.MediaPlayer.Play();
+        }
+        catch { }
+    }
+
+    private void ToggleMute()
+    {
+        try
+        {
+            Player.MediaPlayer.IsMuted = !Player.MediaPlayer.IsMuted;
+        }
+        catch { }
+    }
+
+    private async Task AutoCloseAsync(int delayMs = 12_000)
+    {
+        _autoCloseCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _autoCloseCts = cts;
+        try
+        {
+            await Task.Delay(delayMs, cts.Token);
+            if (!_menuOpen) SafeClose();
+        }
+        catch (OperationCanceledException) { }
     }
 
     private void SafeClose()
     {
         if (_closed) return;
         _closed = true;
+        _autoCloseCts?.Cancel();
         if (DispatcherQueue.HasThreadAccess)
         {
             Close();
