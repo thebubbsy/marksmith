@@ -109,7 +109,8 @@
 
                 <!-- Left Tools (compact, icon-driven so the full set fits the default window) -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <Button Click="OnTemplatesClick" ToolTipService.ToolTip="Start from a template diagram"
+                    <Button x:Name="TemplatesButton" Click="OnTemplatesClick" ToolTipService.ToolTip="Start from a template diagram (Right-click for options)"
+                            RightTapped="OnTemplatesButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE8A5;" FontSize="14" Foreground="#4CC9F0" />
@@ -147,8 +148,9 @@
 
                     <!-- Align & Distribute flyout (draw.io / Whimsical parity). Acts on the
                          current multi-selection; each op is one undo step. -->
-                    <Button x:Name="AlignButton" ToolTipService.ToolTip="Align &amp; distribute — select two or more nodes first"
+                    <Button x:Name="AlignButton" ToolTipService.ToolTip="Align &amp; distribute — select two or more nodes first (Right-click for options)"
                             AutomationProperties.Name="Align and distribute" IsEnabled="False"
+                            RightTapped="OnAlignButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <PathIcon Width="14" Height="14" Data="M0.88,0.88 h1.31 v12.25 h-1.31 Z M3.5,3.06 h8.75 v2.62 h-8.75 Z M3.5,8.31 h5.25 v2.62 h-5.25 Z" Foreground="#4CC9F0" />
@@ -186,12 +188,14 @@
                         </Button.Flyout>
                     </Button>
 
-                    <Button Click="OnUndoClick" IsEnabled="{Binding CanUndo}" ToolTipService.ToolTip="Undo (Ctrl+Z)" AutomationProperties.Name="Undo"
+                    <Button x:Name="UndoToolbarButton" Click="OnUndoClick" IsEnabled="{Binding CanUndo}" ToolTipService.ToolTip="Undo (Ctrl+Z, Right-click for options)" AutomationProperties.Name="Undo"
+                            RightTapped="OnUndoButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon Glyph="&#xE7A7;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
 
-                    <Button Click="OnRedoClick" IsEnabled="{Binding CanRedo}" ToolTipService.ToolTip="Redo (Ctrl+Y)" AutomationProperties.Name="Redo"
+                    <Button x:Name="RedoToolbarButton" Click="OnRedoClick" IsEnabled="{Binding CanRedo}" ToolTipService.ToolTip="Redo (Ctrl+Y, Right-click for options)" AutomationProperties.Name="Redo"
+                            RightTapped="OnRedoButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon Glyph="&#xE7A6;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
@@ -581,17 +585,24 @@
         </Grid>
 
         <!-- Bottom Status Bar -->
-        <Border Grid.Row="3" Background="#232334" Padding="12,0" VerticalAlignment="Stretch">
+        <Border Grid.Row="3" Background="#232334" Padding="12,0" VerticalAlignment="Stretch"
+                RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped"
+                ToolTipService.ToolTip="Diagram Studio status (Double-click to fit to window, Right-click for options)">
             <Grid VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="StatusBarText" Grid.Column="0" Text="{Binding StatusText}" FontSize="11" Foreground="#8D99AE" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                           AutomationProperties.LiveSetting="Polite" />
+                           AutomationProperties.LiveSetting="Polite"
+                           IsHitTestVisible="True"
+                           RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
                 <!-- Filled from code: "3 nodes · 2 connectors · Snap on" (bare counts read as noise). -->
                 <TextBlock x:Name="CanvasSummaryText" Grid.Column="1" FontSize="11" Foreground="#8D99AE" VerticalAlignment="Center"
-                           AutomationProperties.LiveSetting="Polite" />
+                           AutomationProperties.LiveSetting="Polite"
+                           IsHitTestVisible="True"
+                           RightTapped="OnStatusBarRightTapped" DoubleTapped="OnCanvasSummaryDoubleTapped"
+                           ToolTipService.ToolTip="Diagram summary · Double-click to copy summary, right-click for options" />
             </Grid>
         </Border>
     </Grid>

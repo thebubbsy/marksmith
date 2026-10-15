@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using MarkSmith.Services;
@@ -1222,5 +1223,173 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
                 CopyFeedback.ApplyButtonTick(btn, error, "✓ SVG");
             }
         }
+    }
+
+    private void OnStatusBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        _canvas.FitToContent();
+    }
+
+    private void OnCanvasSummaryDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        try
+        {
+            var dp = new DataPackage();
+            dp.SetText(CanvasSummaryText.Text);
+            ClipboardWriter.Set(dp);
+            if (ViewModel != null) ViewModel.StatusText = "Copied summary to clipboard.";
+        }
+        catch { }
+    }
+
+    private void OnStatusBarRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var copyStatus = new MenuFlyoutItem
+        {
+            Text = "Copy diagram status & summary",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyStatus.Click += (_, _) =>
+        {
+            try
+            {
+                var dp = new DataPackage();
+                dp.SetText($"{StatusBarText.Text} — {CanvasSummaryText.Text}");
+                ClipboardWriter.Set(dp);
+                if (ViewModel != null) ViewModel.StatusText = "Copied status & summary to clipboard.";
+            }
+            catch { }
+        };
+        menu.Items.Add(copyStatus);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var zoomFit = new MenuFlyoutItem
+        {
+            Text = "Fit whole diagram (Ctrl+0)",
+            Icon = new FontIcon { Glyph = "\uE9A6" }
+        };
+        zoomFit.Click += (_, _) => _canvas.FitToContent();
+        menu.Items.Add(zoomFit);
+
+        var zoomActual = new MenuFlyoutItem
+        {
+            Text = "Actual size (100%)",
+            Icon = new FontIcon { Glyph = "\uE71E" }
+        };
+        zoomActual.Click += (_, _) => _canvas.ZoomReset();
+        menu.Items.Add(zoomActual);
+
+        var autoLayout = new MenuFlyoutItem
+        {
+            Text = "Auto-arrange nodes",
+            Icon = new FontIcon { Glyph = "\uECA5" }
+        };
+        autoLayout.Click += (s, args) => OnAutoLayoutClick(s, new RoutedEventArgs());
+        menu.Items.Add(autoLayout);
+
+        var toggleSnap = new MenuFlyoutItem
+        {
+            Text = ViewModel?.IsGridSnapEnabled == true ? "Disable grid snap" : "Enable grid snap",
+            Icon = new FontIcon { Glyph = "\uE80A" }
+        };
+        toggleSnap.Click += (_, _) =>
+        {
+            if (ViewModel != null) ViewModel.IsGridSnapEnabled = !ViewModel.IsGridSnapEnabled;
+        };
+        menu.Items.Add(toggleSnap);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var syncDoc = new MenuFlyoutItem
+        {
+            Text = "Sync to document (Ctrl+Enter)",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        syncDoc.Click += (s, args) => OnSyncToMarkdownClick(s, new RoutedEventArgs());
+        menu.Items.Add(syncDoc);
+
+        menu.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
+    }
+
+    private void OnUndoButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        e.Handled = true;
+        ShowUndoRedoMenu(fe, e.GetPosition(fe));
+    }
+
+    private void OnRedoButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        e.Handled = true;
+        ShowUndoRedoMenu(fe, e.GetPosition(fe));
+    }
+
+    private void ShowUndoRedoMenu(FrameworkElement fe, Windows.Foundation.Point pos)
+    {
+        var menu = new MenuFlyout();
+
+        var undo = new MenuFlyoutItem
+        {
+            Text = "Undo",
+            Icon = new FontIcon { Glyph = "\uE7A7" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Z",
+            IsEnabled = ViewModel?.CanUndo ?? false
+        };
+        undo.Click += (s, args) => OnUndoClick(s, new RoutedEventArgs());
+        menu.Items.Add(undo);
+
+        var redo = new MenuFlyoutItem
+        {
+            Text = "Redo",
+            Icon = new FontIcon { Glyph = "\uE7A6" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Y",
+            IsEnabled = ViewModel?.CanRedo ?? false
+        };
+        redo.Click += (s, args) => OnRedoClick(s, new RoutedEventArgs());
+        menu.Items.Add(redo);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var selectAll = new MenuFlyoutItem
+        {
+            Text = "Select all nodes",
+            Icon = new FontIcon { Glyph = "\uE8B3" },
+            KeyboardAcceleratorTextOverride = "Ctrl+A"
+        };
+        selectAll.Click += (_, _) => ViewModel?.SelectAll();
+        menu.Items.Add(selectAll);
+
+        var autoLayout = new MenuFlyoutItem
+        {
+            Text = "Auto-arrange nodes",
+            Icon = new FontIcon { Glyph = "\uECA5" }
+        };
+        autoLayout.Click += (s, args) => OnAutoLayoutClick(s, new RoutedEventArgs());
+        menu.Items.Add(autoLayout);
+
+        menu.ShowAt(fe, new FlyoutShowOptions { Position = pos });
+    }
+
+    private void OnAlignButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        e.Handled = true;
+        if (AlignButton.Flyout != null)
+            AlignButton.Flyout.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
+    }
+
+    private void OnTemplatesButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        e.Handled = true;
+        OnTemplatesClick(sender, new RoutedEventArgs());
     }
 }

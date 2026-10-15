@@ -8053,3 +8053,61 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 24120, `Alive: True`, `Responding: True`, clean exit.
+
+
+### 2026-10-16 (scheduled routine run #105 — WinUI 3 Desktop Polish: MindMap Galaxy Hierarchy Edge Connector Visual Hover & Navigation Menu, HistoryWindow Version Item Star Button & Delta Badge Right-Click Menus, HistoryWindow Timeline & Documents Header Menus, Mermaid Diagram Studio Status Bar & Toolbar Actions Menus, SettingsView Navigation Items Context Menus)
+
+- **Surface / Component Targets:** `MindMapGalaxyWindow`, `HistoryWindow`, `MermaidDiagramStudioControl`, `SettingsView`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, pointer gesture quarantine, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #104:
+    * Target A: `MindMapGalaxyWindow` edge connector visual hover/selection affordance refinement.
+    * Target B: `HistoryWindow` commit detail / version items context menus and gesture parity.
+  - Generated:
+    1. `MindMapGalaxyWindow` Hierarchy Edge Connector Visual Hover, Hand Cursor & Right-Click Context Menu Parity (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`)
+    2. `HistoryWindow` Version Item Star Button & Delta Badge Right-Click Context Menus and Double-Tap Parity (`Views/History/HistoryWindow.xaml` & `Views/History/HistoryWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): In `MindMapGalaxyWindow.xaml.cs`, added hit testing path on `EdgeVisual` with `IsHovered`, `UpdateAppearance`, hand cursor on `MakeHierarchyTarget`, and `BuildHierarchyContextMenu` (Select child node `\uE762`, Select parent node `\uE762`, Focus / center child node `\uE73E`, Focus / center parent node `\uE73E`, Copy relationship `\uE8C8`). In `HistoryWindow.xaml` & `.xaml.cs`, attached `RightTapped="OnStarButtonRightTapped"` presenting Star/Remove star (`\uE734`/`\uE735`), filter starred versions (`\uE734`), copy timestamp & label (`\uE8C8`), and more actions (`\uE712`).
+  - Generated:
+    3. `MermaidDiagramStudioControl` Bottom Status Bar & Summary Double-Tap / Right-Click Context Menu Parity (`Views/Mermaid/MermaidDiagramStudioControl.xaml` & `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs`)
+    4. `MermaidDiagramStudioControl` Toolbar Undo, Redo, Align, and Templates Buttons Right-Click Menus Parity (`Views/Mermaid/MermaidDiagramStudioControl.xaml` & `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): In `MermaidDiagramStudioControl.xaml` & `.xaml.cs`, attached `RightTapped="OnStatusBarRightTapped"`, `DoubleTapped="OnStatusBarDoubleTapped"`, and double-tap on `CanvasSummaryText` to copy summary; right-click menu offers Copy status & summary (`\uE8C8`), Fit whole diagram `Ctrl+0` (`\uE9A6`), Actual size `100%` (`\uE71E`), Auto-arrange nodes (`\uECA5`), Toggle grid snap (`\uE80A`), and Sync to document `Ctrl+Enter` (`\uE8A5`). For Idea 4, attached `UndoToolbarButton` & `RedoToolbarButton` right-click menu with Undo (`\uE7A7`), Redo (`\uE7A6`), Select all nodes (`\uE8B3`), and Auto-arrange nodes (`\uECA5`), plus `RightTapped` on `AlignButton` to show align flyout and on `TemplatesButton` to trigger template selection.
+  - Refined Block 1 (Pass 2 - Final): In `HistoryWindow.xaml` & `.xaml.cs`, added delta badge `DoubleTapped` (copies line delta string `+X -Y`) and `RightTapped` presenting Copy delta (`\uE8C8`), Copy patch (`\uE943`), Unified diff (`\uE8A5`), and Side-by-side diff (`\uE8A5`).
+  - Generated:
+    5. `HistoryWindow` Timeline Header & Documents List Header Double-Tap and Right-Click Context Menus (`Views/History/HistoryWindow.xaml` & `Views/History/HistoryWindow.xaml.cs`)
+    6. `SettingsView` Navigation Items Right-Click Menu Parity (`Views/SettingsView.xaml` & `Views/SettingsView.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): In `HistoryWindow.xaml` & `.xaml.cs`, added `TimelineHeaderBorder` double-tap scrolls to top / selects newest version; right-click menu presents Refresh (`\uE72C`), Take checkpoint (`\uE74E`), Scroll to latest (`\uE74A`), Scroll to oldest (`\uE74B`), and Clear filters (`\uE894`); `DocumentsHeaderBorder` double-tap refreshes files; right-click menu presents Refresh list (`\uE72C`), Show in File Explorer (`\uEC50`), and Copy file path (`\uE8C8`). In `SettingsView.xaml` & `.xaml.cs`, attached `RightTapped="OnNavItemRightTapped"` on all 7 `NavigationViewItem`s (General, PDF, Automation, Google Docs, License, Plugins, About & updates) presenting Open page (`\uE8E5`), Next page `Ctrl+Tab` (`\uE76C`), Previous page `Ctrl+Shift+Tab` (`\uE76B`), and Copy page name (`\uE8C8`). Added `using Microsoft.UI.Xaml.Controls.Primitives;`.
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #106 (`ShapeDesignStudioWindow` shape outline / fill color swatch right-click palette menu, `SmartArtDesignStudioWindow` node shape selection right-click context menu, `HistoryWindow` search filter clear button & hotkey parity).
+
+**Shipped:**
+1. **`MindMapGalaxyWindow` Hierarchy Edge Connector Visual Hover & Navigation Menu (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Added `IsHovered` state tracking and hit test path geometry for hierarchy curve edges.
+   - Dynamic stroke thickness, color contrast, and hand cursor affordance on hover.
+   - Right-click hierarchy menu: Select child (`\uE762`), Select parent (`\uE762`), Focus child (`\uE73E`), Focus parent (`\uE73E`), and Copy relationship (`\uE8C8`).
+2. **`HistoryWindow` Version Item Star Button & Delta Badge Menus Parity (`Views/History/HistoryWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnStarButtonRightTapped"` on version star button offering Star/Remove star (`\uE734`/`\uE735`), Filter starred versions (`\uE734`), Copy timestamp & label (`\uE8C8`), and More actions (`\uE712`).
+   - Attached `DoubleTapped` on delta badge (copies `+X -Y` delta) and `RightTapped="OnDeltaBadgeRightTapped"` offering Copy delta (`\uE8C8`), Copy patch (`\uE943`), Unified diff (`\uE8A5`), and Side-by-side diff (`\uE8A5`).
+3. **`MermaidDiagramStudioControl` Status Bar & Summary Gesture Parity (`Views/Mermaid/MermaidDiagramStudioControl.xaml` & `.xaml.cs`):**
+   - Attached `DoubleTapped` on bottom status bar (fits whole diagram in window) and double-tap on `CanvasSummaryText` (copies summary string to clipboard).
+   - Attached `RightTapped="OnStatusBarRightTapped"` presenting Copy status & summary (`\uE8C8`), Fit whole diagram `Ctrl+0` (`\uE9A6`), Actual size `100%` (`\uE71E`), Auto-arrange nodes (`\uECA5`), Toggle grid snap (`\uE80A`), and Sync to document `Ctrl+Enter` (`\uE8A5`).
+4. **`MermaidDiagramStudioControl` Toolbar Undo, Redo, Align, and Templates Buttons Menus Parity (`Views/Mermaid/MermaidDiagramStudioControl.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnUndoRedoButtonRightTapped"` on `UndoToolbarButton` & `RedoToolbarButton` offering Undo (`\uE7A7`), Redo (`\uE7A6`), Select all nodes (`\uE8B3`), and Auto-arrange nodes (`\uECA5`).
+   - Attached `RightTapped` on `AlignButton` (opens align presets flyout) and `TemplatesButton` (triggers template picker).
+5. **`HistoryWindow` Timeline Header & Documents List Header Double-Tap and Right-Click Context Menus (`Views/History/HistoryWindow.xaml` & `.xaml.cs`):**
+   - Attached `DoubleTapped` on `TimelineHeaderBorder` (scrolls to top / selects newest version) and `RightTapped="OnTimelineHeaderRightTapped"` offering Refresh (`\uE72C`), Take checkpoint (`\uE74E`), Scroll to latest (`\uE74A`), Scroll to oldest (`\uE74B`), and Clear filters (`\uE894`).
+   - Attached `DoubleTapped` on `DocumentsHeaderBorder` (refreshes file list) and `RightTapped="OnDocumentsHeaderRightTapped"` offering Refresh list (`\uE72C`), Show in File Explorer (`\uEC50`), and Copy file path (`\uE8C8`).
+6. **`SettingsView` Navigation Items Right-Click Menu Parity (`Views/SettingsView.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnNavItemRightTapped"` across all 7 `NavigationViewItem`s (General, PDF, Automation, Google Docs, License, Plugins, About & updates).
+   - Right-click menu presents Open page (`\uE8E5`), Next page `Ctrl+Tab` (`\uE76C`), Previous page `Ctrl+Shift+Tab` (`\uE76B`), and Copy page name (`\uE8C8`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 20464, `Alive: True`, `Responding: True`, clean exit.
+

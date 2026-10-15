@@ -116,7 +116,11 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Border Padding="14,10" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                    <Border x:Name="DocumentsHeaderBorder" Padding="14,10" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1"
+                            IsHitTestVisible="True"
+                            DoubleTapped="OnDocumentsHeaderDoubleTapped"
+                            RightTapped="OnDocumentsHeaderRightTapped"
+                            ToolTipService.ToolTip="Documents header · Double-click to refresh file list, right-click for options">
                         <TextBlock Text="DOCUMENTS" FontSize="11" FontWeight="Bold" CharacterSpacing="60"
                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                     </Border>
@@ -206,7 +210,11 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Border Padding="14,10" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                    <Border x:Name="TimelineHeaderBorder" Padding="14,10" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1"
+                            IsHitTestVisible="True"
+                            DoubleTapped="OnTimelineHeaderDoubleTapped"
+                            RightTapped="OnTimelineHeaderRightTapped"
+                            ToolTipService.ToolTip="Timeline header · Double-click to scroll to latest version, right-click for options">
                         <Grid ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -287,6 +295,9 @@
                                                                 <Border Grid.Row="0" Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}"
                                                                         CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Margin="0,0,4,0"
                                                                         ToolTipService.ToolTip="{Binding DeltaTooltip}"
+                                                                        IsHitTestVisible="True"
+                                                                        DoubleTapped="OnVersionDeltaBadgeDoubleTapped"
+                                                                        RightTapped="OnVersionDeltaBadgeRightTapped"
                                                                         Visibility="{Binding HasDelta, Converter={StaticResource BoolToVis}}">
                                                                     <TextBlock Text="{Binding DeltaBadge}" FontSize="10" FontFamily="Cascadia Mono, Consolas, monospace"
                                                                                Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
@@ -295,7 +306,9 @@
                                                                 <!-- Star Button -->
                                                                 <Button Grid.Row="0" Grid.Column="3" Background="Transparent" BorderThickness="0" Padding="6"
                                                                         services:HoverPolish.ApplyOnLoad="True" VerticalAlignment="Center"
-                                                                        Click="OnStarClick" ToolTipService.ToolTip="{Binding StarTooltip}"
+                                                                        Click="OnStarClick"
+                                                                        RightTapped="OnStarButtonRightTapped"
+                                                                        ToolTipService.ToolTip="{Binding StarTooltip}"
                                                                         AutomationProperties.Name="{Binding StarTooltip}">
                                                                     <Grid>
                                                                         <FontIcon Glyph="&#xE734;" FontSize="14" Foreground="{ThemeResource TextFillColorTertiaryBrush}"

@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
@@ -1478,6 +1479,55 @@ public sealed partial class SettingsView : UserControl
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", folder) { UseShellExecute = true }); }
             catch { }
         }
+    }
+
+    private void OnNavItemRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is not NavigationViewItem item) return;
+        e.Handled = true;
+        Nav.SelectedItem = item;
+        var menu = new MenuFlyout();
+
+        var openPage = new MenuFlyoutItem
+        {
+            Text = $"Open {item.Content} page",
+            Icon = new FontIcon { Glyph = "\uE8E5" }
+        };
+        openPage.Click += (_, _) => Nav.SelectedItem = item;
+        menu.Items.Add(openPage);
+
+        var nextPage = new MenuFlyoutItem
+        {
+            Text = "Next page",
+            Icon = new FontIcon { Glyph = "\uE76C" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Tab"
+        };
+        nextPage.Click += (_, _) => StepNavPage(1);
+        menu.Items.Add(nextPage);
+
+        var prevPage = new MenuFlyoutItem
+        {
+            Text = "Previous page",
+            Icon = new FontIcon { Glyph = "\uE76B" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+Tab"
+        };
+        prevPage.Click += (_, _) => StepNavPage(-1);
+        menu.Items.Add(prevPage);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyName = new MenuFlyoutItem
+        {
+            Text = "Copy page name",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyName.Click += async (_, _) =>
+        {
+            await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(item.Content?.ToString() ?? "");
+        };
+        menu.Items.Add(copyName);
+
+        menu.ShowAt(item, new FlyoutShowOptions { Position = e.GetPosition(item) });
     }
 }
 

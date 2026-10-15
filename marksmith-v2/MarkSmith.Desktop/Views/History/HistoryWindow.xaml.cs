@@ -1562,5 +1562,290 @@ public sealed partial class HistoryWindow : Window
         var anchor = sender as FrameworkElement ?? (FrameworkElement)ClearFiltersButton;
         menu.ShowAt(anchor, e.GetPosition(anchor));
     }
+
+    private void OnStarButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: VersionItemViewModel item } fe) return;
+        e.Handled = true;
+        _vm.SelectVersionCommand.Execute(item);
+        var menu = BuildStarButtonMenu(item);
+        menu.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
+    }
+
+    private MenuFlyout BuildStarButtonMenu(VersionItemViewModel item)
+    {
+        var menu = new MenuFlyout();
+
+        var toggleStar = new MenuFlyoutItem
+        {
+            Text = item.IsStarred ? "Remove star" : "Star this version",
+            Icon = new FontIcon { Glyph = item.IsStarred ? "\uE735" : "\uE734" },
+            KeyboardAcceleratorTextOverride = "S"
+        };
+        toggleStar.Click += (_, _) => _ = _vm.ToggleStarCommand.ExecuteAsync(item);
+        menu.Items.Add(toggleStar);
+
+        var filterStarred = new MenuFlyoutItem
+        {
+            Text = _vm.IsStarredOnlyFilter ? "Show all versions" : "Show starred versions only",
+            Icon = new FontIcon { Glyph = "\uE734" }
+        };
+        filterStarred.Click += (_, _) => _vm.IsStarredOnlyFilter = !_vm.IsStarredOnlyFilter;
+        menu.Items.Add(filterStarred);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyInfo = new MenuFlyoutItem
+        {
+            Text = "Copy timestamp & label",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyInfo.Click += (_, _) =>
+        {
+            try
+            {
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText($"{item.TimestampLabel} — {item.Snippet}");
+                ClipboardWriter.Set(dp);
+                _vm.ShowNotice($"Copied version info for {item.TimestampLabel}.");
+            }
+            catch { }
+        };
+        menu.Items.Add(copyInfo);
+
+        var moreActions = new MenuFlyoutItem
+        {
+            Text = "More actions…",
+            Icon = new FontIcon { Glyph = "\uE712" }
+        };
+        moreActions.Click += (_, _) =>
+        {
+            if (FindVersionButton(TimelineScroll, item) is { } btn)
+                BuildVersionMenu(item).ShowAt(btn);
+        };
+        menu.Items.Add(moreActions);
+
+        return menu;
+    }
+
+    private void OnVersionDeltaBadgeDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: VersionItemViewModel item }) return;
+        e.Handled = true;
+        _vm.SelectVersionCommand.Execute(item);
+        try
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(item.DeltaBadge);
+            ClipboardWriter.Set(dp);
+            _vm.ShowNotice($"Copied line delta {item.DeltaBadge} to clipboard.");
+        }
+        catch { }
+    }
+
+    private void OnVersionDeltaBadgeRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: VersionItemViewModel item } fe) return;
+        e.Handled = true;
+        _vm.SelectVersionCommand.Execute(item);
+        var menu = BuildDeltaBadgeMenu(item);
+        menu.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
+    }
+
+    private MenuFlyout BuildDeltaBadgeMenu(VersionItemViewModel item)
+    {
+        var menu = new MenuFlyout();
+
+        var copyDelta = new MenuFlyoutItem
+        {
+            Text = $"Copy line delta ({item.DeltaBadge})",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyDelta.Click += (_, _) =>
+        {
+            try
+            {
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText(item.DeltaBadge);
+                ClipboardWriter.Set(dp);
+                _vm.ShowNotice($"Copied line delta {item.DeltaBadge} to clipboard.");
+            }
+            catch { }
+        };
+        menu.Items.Add(copyDelta);
+
+        var copyPatch = new MenuFlyoutItem
+        {
+            Text = "Copy diff patch",
+            Icon = new FontIcon { Glyph = "\uE943" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C"
+        };
+        copyPatch.Click += async (_, _) =>
+        {
+            if (!ReferenceEquals(_vm.Selected, item))
+                _vm.SelectVersionCommand.Execute(item);
+            await CopyDiffPatchAsync(item);
+        };
+        menu.Items.Add(copyPatch);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var viewUnified = new MenuFlyoutItem
+        {
+            Text = "Unified diff view",
+            Icon = new FontIcon { Glyph = "\uE8A5" },
+            KeyboardAcceleratorTextOverride = "Ctrl+1"
+        };
+        viewUnified.Click += (_, _) => SetMode(HistoryDiffMode.Unified);
+        menu.Items.Add(viewUnified);
+
+        var viewSplit = new MenuFlyoutItem
+        {
+            Text = "Side by side diff view",
+            Icon = new FontIcon { Glyph = "\uE8A5" },
+            KeyboardAcceleratorTextOverride = "Ctrl+2"
+        };
+        viewSplit.Click += (_, _) => SetMode(HistoryDiffMode.Split);
+        menu.Items.Add(viewSplit);
+
+        return menu;
+    }
+
+    private void OnTimelineHeaderDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        TimelineScroll.ChangeView(null, 0, null);
+        _vm.SelectFirstVersion();
+    }
+
+    private void OnTimelineHeaderRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var refresh = new MenuFlyoutItem
+        {
+            Text = "Refresh version history",
+            Icon = new FontIcon { Glyph = "\uE72C" },
+            KeyboardAcceleratorTextOverride = "F5"
+        };
+        refresh.Click += async (_, _) =>
+        {
+            if (_vm.SelectedFile is { } file)
+                await _vm.ShowFileAsync(file.Summary.FilePath);
+            else
+                await _vm.LoadCommand.ExecuteAsync(null);
+        };
+        menu.Items.Add(refresh);
+
+        var checkpoint = new MenuFlyoutItem
+        {
+            Text = "Take checkpoint…",
+            Icon = new FontIcon { Glyph = "\uE74E" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+S"
+        };
+        checkpoint.Click += (_, _) => OnTakeSnapshotClick(this, new RoutedEventArgs());
+        menu.Items.Add(checkpoint);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var scrollToTop = new MenuFlyoutItem
+        {
+            Text = "Scroll to latest version",
+            Icon = new FontIcon { Glyph = "\uE74A" },
+            KeyboardAcceleratorTextOverride = "Home"
+        };
+        scrollToTop.Click += (_, _) =>
+        {
+            TimelineScroll.ChangeView(null, 0, null);
+            _vm.SelectFirstVersion();
+        };
+        menu.Items.Add(scrollToTop);
+
+        var scrollToBottom = new MenuFlyoutItem
+        {
+            Text = "Scroll to oldest version",
+            Icon = new FontIcon { Glyph = "\uE74B" },
+            KeyboardAcceleratorTextOverride = "End"
+        };
+        scrollToBottom.Click += (_, _) =>
+        {
+            TimelineScroll.ChangeView(null, TimelineScroll.ScrollableHeight, null);
+            _vm.SelectLastVersion();
+        };
+        menu.Items.Add(scrollToBottom);
+
+        var clearFilters = new MenuFlyoutItem
+        {
+            Text = "Clear filters",
+            Icon = new FontIcon { Glyph = "\uE894" }
+        };
+        clearFilters.Click += (_, _) => _vm.ClearFiltersCommand.Execute(null);
+        menu.Items.Add(clearFilters);
+
+        menu.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
+    }
+
+    private void OnDocumentsHeaderDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        _ = _vm.LoadCommand.ExecuteAsync(null);
+    }
+
+    private void OnDocumentsHeaderRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var refresh = new MenuFlyoutItem
+        {
+            Text = "Refresh documents list",
+            Icon = new FontIcon { Glyph = "\uE72C" },
+            KeyboardAcceleratorTextOverride = "F5"
+        };
+        refresh.Click += async (_, _) => await _vm.LoadCommand.ExecuteAsync(null);
+        menu.Items.Add(refresh);
+
+        if (_vm.SelectedFile is { } file && !file.IsScratch)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var showExplorer = new MenuFlyoutItem
+            {
+                Text = "Show in File Explorer",
+                Icon = new FontIcon { Glyph = "\uEC50" }
+            };
+            showExplorer.Click += (_, _) =>
+            {
+                if (File.Exists(file.Summary.FilePath))
+                {
+                    try { System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{file.Summary.FilePath}\""); }
+                    catch { }
+                }
+            };
+            menu.Items.Add(showExplorer);
+
+            var copyPath = new MenuFlyoutItem
+            {
+                Text = "Copy file path",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyPath.Click += (_, _) =>
+            {
+                try
+                {
+                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    dp.SetText(file.Summary.FilePath);
+                    ClipboardWriter.Set(dp);
+                    _vm.ShowNotice("Copied file path to clipboard.");
+                }
+                catch { }
+            };
+            menu.Items.Add(copyPath);
+        }
+        menu.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
+    }
 }
 

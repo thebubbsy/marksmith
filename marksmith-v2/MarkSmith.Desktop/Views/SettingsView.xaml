@@ -83,25 +83,25 @@
                         AlwaysShowHeader="False"
                         SelectionChanged="OnNavSelectionChanged">
             <NavigationView.MenuItems>
-                <NavigationViewItem Content="General" Tag="General" AutomationProperties.Name="General" ToolTipService.ToolTip="General (Ctrl+1)">
+                <NavigationViewItem Content="General" Tag="General" AutomationProperties.Name="General" ToolTipService.ToolTip="General (Ctrl+1)" RightTapped="OnNavItemRightTapped">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE713;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="PDF" Tag="Pdf" AutomationProperties.Name="PDF" ToolTipService.ToolTip="PDF (Ctrl+2)">
+                <NavigationViewItem Content="PDF" Tag="Pdf" AutomationProperties.Name="PDF" ToolTipService.ToolTip="PDF (Ctrl+2)" RightTapped="OnNavItemRightTapped">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xEA90;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="Automation" Tag="Automation" AutomationProperties.Name="Automation" ToolTipService.ToolTip="Automation (Ctrl+3)">
+                <NavigationViewItem Content="Automation" Tag="Automation" AutomationProperties.Name="Automation" ToolTipService.ToolTip="Automation (Ctrl+3)" RightTapped="OnNavItemRightTapped">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE945;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="Google Docs" Tag="Google" AutomationProperties.Name="Google Docs" ToolTipService.ToolTip="Google Docs (Ctrl+4)">
+                <NavigationViewItem Content="Google Docs" Tag="Google" AutomationProperties.Name="Google Docs" ToolTipService.ToolTip="Google Docs (Ctrl+4)" RightTapped="OnNavItemRightTapped">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE774;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="License" Tag="License" AutomationProperties.Name="License" ToolTipService.ToolTip="License (Ctrl+5)">
+                <NavigationViewItem Content="License" Tag="License" AutomationProperties.Name="License" ToolTipService.ToolTip="License (Ctrl+5)" RightTapped="OnNavItemRightTapped">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE8D7;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="Plugins" Tag="Plugins" AutomationProperties.Name="Plugins" ToolTipService.ToolTip="Plugins (Ctrl+6)">
+                <NavigationViewItem Content="Plugins" Tag="Plugins" AutomationProperties.Name="Plugins" ToolTipService.ToolTip="Plugins (Ctrl+6)" RightTapped="OnNavItemRightTapped">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xEA86;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="About &amp; updates" Tag="About" AutomationProperties.Name="About &amp; updates" ToolTipService.ToolTip="About &amp; updates (Ctrl+7)">
+                <NavigationViewItem Content="About &amp; updates" Tag="About" AutomationProperties.Name="About &amp; updates" ToolTipService.ToolTip="About &amp; updates (Ctrl+7)" RightTapped="OnNavItemRightTapped">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE946;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>

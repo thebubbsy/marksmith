@@ -457,6 +457,7 @@ namespace MarkSmith.Views.MindMap
             /// <summary>Dash state currently applied, so the collection is only rebuilt when it
             /// genuinely flips rather than on every appearance pass.</summary>
             public bool Dashed;
+            public bool IsHovered;
 
             public MindMapLinkViewModel? Link;   // null for hierarchy edges
             public string SourceId = "";
@@ -731,6 +732,16 @@ namespace MarkSmith.Views.MindMap
             (e.Line, e.Figure, e.Segment) = BuildBezierPath(e.Stroke, 1.8, dashed: false);
             e.Line.Opacity = 0.75;
             EdgeLayer.Children.Add(e.Line);
+
+            // A generous transparent stroke makes the hierarchy line clickable & hoverable
+            var (hit, hitFigure, hitSegment) = BuildBezierPath(new SolidColorBrush(Colors.Transparent), WorldHitStrokeScreenWidth, dashed: false);
+            hit.IsHitTestVisible = true;
+            MakeHierarchyTarget(hit, e, parentId, childId);
+            e.Hit = hit;
+            e.HitFigure = hitFigure;
+            e.HitSegment = hitSegment;
+            EdgeLayer.Children.Add(hit);
+
             return e;
         }
 
@@ -1045,8 +1056,9 @@ namespace MarkSmith.Views.MindMap
 
                 if (e.Link == null)
                 {
-                    e.Stroke.Color = ColorFromHex(_palette.HierarchyLine);
-                    e.Line.Opacity = faded ? 0.18 : 0.75;
+                    e.Stroke.Color = e.IsHovered ? _palette.SelectionInk : ColorFromHex(_palette.HierarchyLine);
+                    e.Line.StrokeThickness = e.IsHovered ? 2.8 : 1.8;
+                    e.Line.Opacity = faded ? (e.IsHovered ? 0.6 : 0.18) : (e.IsHovered ? 1.0 : 0.75);
                     continue;
                 }
 
@@ -1458,6 +1470,126 @@ namespace MarkSmith.Views.MindMap
                 ViewModel.SelectedLink = link;
                 RequestRedraw(RedrawScope.Appearance);
             }
+        }
+
+        private void MakeHierarchyTarget(FrameworkElement target, EdgeVisual edge, string parentId, string childId)
+        {
+            target.Tag = edge;
+            target.PointerPressed += (s, args) =>
+            {
+                var pt = args.GetCurrentPoint(GalaxyCanvas);
+                if (pt.Properties.IsLeftButtonPressed)
+                {
+                    args.Handled = true;
+                    GalaxyCanvas.Focus(FocusState.Programmatic);
+                    if (_nodeIndex.TryGetValue(childId, out var childNode))
+                    {
+                        ViewModel.SelectedNode = childNode;
+                        RequestRedraw(RedrawScope.Appearance);
+                    }
+                }
+            };
+            target.PointerEntered += (s, args) =>
+            {
+                if (_draggedNode != null || _isPanning) return;
+                edge.IsHovered = true;
+                RequestRedraw(RedrawScope.Appearance);
+            };
+            target.PointerExited += (s, args) =>
+            {
+                edge.IsHovered = false;
+                RequestRedraw(RedrawScope.Appearance);
+            };
+            SetCursor(target, Microsoft.UI.Input.InputSystemCursorShape.Hand);
+            target.ContextFlyout = BuildHierarchyContextMenu(edge, parentId, childId);
+        }
+
+        private MenuFlyout BuildHierarchyContextMenu(EdgeVisual edge, string parentId, string childId)
+        {
+            var flyout = new MenuFlyout();
+
+            var selectChildItem = MenuItem("Select child node", "\uE762");
+            selectChildItem.Click += (s, e) =>
+            {
+                if (_nodeIndex.TryGetValue(childId, out var child))
+                {
+                    ViewModel.SelectedNode = child;
+                    RequestRedraw(RedrawScope.Appearance);
+                }
+            };
+            flyout.Items.Add(selectChildItem);
+
+            var selectParentItem = MenuItem("Select parent node", "\uE762");
+            selectParentItem.Click += (s, e) =>
+            {
+                if (_nodeIndex.TryGetValue(parentId, out var parent))
+                {
+                    ViewModel.SelectedNode = parent;
+                    RequestRedraw(RedrawScope.Appearance);
+                }
+            };
+            flyout.Items.Add(selectParentItem);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var focusChildItem = MenuItem("Focus child in window", "\uE73E");
+            focusChildItem.Click += (s, e) =>
+            {
+                if (_nodeIndex.TryGetValue(childId, out var child))
+                {
+                    ViewModel.SelectedNode = child;
+                    ViewModel.CenterOn(child);
+                    RequestRedraw(RedrawScope.Appearance);
+                }
+            };
+            flyout.Items.Add(focusChildItem);
+
+            var focusParentItem = MenuItem("Focus parent in window", "\uE73E");
+            focusParentItem.Click += (s, e) =>
+            {
+                if (_nodeIndex.TryGetValue(parentId, out var parent))
+                {
+                    ViewModel.SelectedNode = parent;
+                    ViewModel.CenterOn(parent);
+                    RequestRedraw(RedrawScope.Appearance);
+                }
+            };
+            flyout.Items.Add(focusParentItem);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var copyRelationItem = MenuItem("Copy hierarchy relationship", "\uE8C8");
+            copyRelationItem.Click += (s, e) =>
+            {
+                string pTitle = _nodeIndex.TryGetValue(parentId, out var p) ? p.Title : parentId;
+                string cTitle = _nodeIndex.TryGetValue(childId, out var c) ? c.Title : childId;
+                try
+                {
+                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    dp.SetText($"{pTitle} → {cTitle}");
+                    ClipboardWriter.Set(dp);
+                    ViewModel.StatusMessage = $"Copied '{pTitle} → {cTitle}' to clipboard.";
+                }
+                catch { }
+            };
+            flyout.Items.Add(copyRelationItem);
+
+            flyout.Opening += (s, e) =>
+            {
+                edge.IsHovered = true;
+                RequestRedraw(RedrawScope.Appearance);
+                string pTitle = _nodeIndex.TryGetValue(parentId, out var p) ? p.Title : "Parent";
+                string cTitle = _nodeIndex.TryGetValue(childId, out var c) ? c.Title : "Child";
+                selectChildItem.Text = $"Select child ({cTitle})";
+                selectParentItem.Text = $"Select parent ({pTitle})";
+            };
+            flyout.Closing += (s, e) =>
+            {
+                edge.IsHovered = false;
+                RequestRedraw(RedrawScope.Appearance);
+            };
+
+            return flyout;
         }
 
         private static Color ColorFromHex(string hex)
