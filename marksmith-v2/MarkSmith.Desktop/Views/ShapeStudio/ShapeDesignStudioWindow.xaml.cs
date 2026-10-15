@@ -526,6 +526,37 @@ namespace MarkSmith.Views.ShapeStudio
             PaletteFlyout.Hide();
         }
 
+        private void OnPaletteButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (PaletteButton is null) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            foreach (var choice in _paletteChoices)
+            {
+                bool isSelected = string.Equals(ViewModel.SelectedPaletteName, choice.Name, StringComparison.OrdinalIgnoreCase);
+                var item = ShapeMenuItem(isSelected ? $"{choice.Name} (active)" : choice.Name, isSelected ? "\uE73E" : "\uE790", () =>
+                {
+                    ViewModel.SelectedPaletteName = choice.Name;
+                    if (ViewModel.HasShapes && !ViewModel.IsDense) ViewModel.ApplyPaletteThemeCommand.Execute(null);
+                    else ViewModel.StatusMessage = $"Colour scheme: {choice.Name} — presets and new shapes will use it.";
+                });
+                flyout.Items.Add(item);
+            }
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var copyNameItem = ShapeMenuItem($"Copy scheme name ({ViewModel.SelectedPaletteName})", "\uE8C8", () =>
+            {
+                var name = ViewModel.SelectedPaletteName ?? string.Empty;
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(name);
+                ViewModel.StatusMessage = $"Copied scheme name: {name}";
+            });
+            flyout.Items.Add(copyNameItem);
+
+            flyout.ShowAt(PaletteButton, e.GetPosition(PaletteButton));
+        }
+
         // ---- keyboard ----
         // Del delete · Ctrl+D duplicate · Ctrl+A select all · Ctrl+Z / Ctrl+Y undo/redo · Esc cancels the
         // armed tool, then the selection · arrows nudge 1 px (Shift: 10 px) while the canvas has focus.
@@ -1975,6 +2006,69 @@ namespace MarkSmith.Views.ShapeStudio
                 ViewModel.ApplyPreset(preset);
                 FitCanvasAfterLayout();
             }
+        }
+
+        private void OnPresetCategoryComboRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (PresetCategoryCombo is null) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            foreach (var category in ViewModel.PresetCategories)
+            {
+                var glyph = category switch
+                {
+                    "All" => "\uE71D",
+                    "Flowcharts" => "\uE81E",
+                    "Hierarchy" => "\uF003",
+                    "Cycles" => "\uE777",
+                    "Comparison" => "\uE8D3",
+                    _ => "\uF0E2"
+                };
+                bool isSelected = string.Equals(ViewModel.SelectedPresetCategory, category, StringComparison.OrdinalIgnoreCase);
+                var item = ShapeMenuItem(isSelected ? $"{category} (active)" : category, glyph, () =>
+                {
+                    ViewModel.SelectedPresetCategory = category;
+                });
+                flyout.Items.Add(item);
+            }
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var resetItem = ShapeMenuItem("Reset category to All", "\uE72C", () =>
+            {
+                ViewModel.SelectedPresetCategory = "All";
+            });
+            flyout.Items.Add(resetItem);
+
+            flyout.ShowAt(PresetCategoryCombo, e.GetPosition(PresetCategoryCombo));
+        }
+
+        private void OnPresetListRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (PresetList is null) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            bool any = ViewModel.HasShapes;
+
+            flyout.Items.Add(ShapeMenuItem("Apply first preset", "\uE710", () =>
+            {
+                var first = ViewModel.FilteredPresets.FirstOrDefault();
+                if (first is not null)
+                {
+                    ViewModel.ApplyPreset(first);
+                    FitCanvasAfterLayout();
+                }
+            }));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Select all shapes", "\uE8B3", () => ViewModel.SelectAllCommand.Execute(null), "Ctrl+A", enabled: any && !ViewModel.IsDense));
+            flyout.Items.Add(ShapeMenuItem("Copy shapes as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), "Ctrl+Shift+C", enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Insert into document", "\uE8A5", () => ViewModel.InsertIntoDocumentCommand.Execute(null), enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Clear canvas", "\uE74D", () => OnClearClick(this, new RoutedEventArgs()), enabled: any));
+
+            flyout.ShowAt(PresetList, e.GetPosition(PresetList));
         }
 
         // ---- picture → vector ----

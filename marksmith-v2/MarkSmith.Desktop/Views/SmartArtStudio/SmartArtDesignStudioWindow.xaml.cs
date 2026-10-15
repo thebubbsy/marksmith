@@ -232,6 +232,103 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnLayoutCategoryComboRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (LayoutCategoryCombo is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            foreach (var category in ViewModel.Categories)
+            {
+                var glyph = category switch
+                {
+                    "All" => "\uE71D",
+                    "Hierarchy" => "\uF003",
+                    "Process" => "\uE81E",
+                    "Cycle" => "\uE777",
+                    "Matrix" => "\uE80A",
+                    "Pyramid" => "\uE7AD",
+                    "Venn" => "\uE707",
+                    "Relationship" => "\uE71B",
+                    "Picture List" => "\uEB9F",
+                    "List" => "\uE8A5",
+                    _ => "\uE71D"
+                };
+                bool isSelected = string.Equals(ViewModel.SelectedCategory, category, StringComparison.OrdinalIgnoreCase);
+                var item = new MenuFlyoutItem
+                {
+                    Text = isSelected ? $"{category} (active)" : category,
+                    Icon = new FontIcon { Glyph = glyph }
+                };
+                string cat = category;
+                item.Click += (_, _) =>
+                {
+                    ViewModel.SelectedCategory = cat;
+                    ViewModel.StatusMessage = $"Filtered layouts by {cat}.";
+                };
+                menu.Items.Add(item);
+            }
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var resetItem = new MenuFlyoutItem
+            {
+                Text = "Reset category to All",
+                Icon = new FontIcon { Glyph = "\uE72C" }
+            };
+            resetItem.Click += (_, _) =>
+            {
+                ViewModel.SelectedCategory = "All";
+                ViewModel.StatusMessage = "Reset layout filter to All categories.";
+            };
+            menu.Items.Add(resetItem);
+
+            menu.ShowAt(LayoutCategoryCombo, e.GetPosition(LayoutCategoryCombo));
+        }
+
+        private void OnNoMatchesPanelRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var clearSearchItem = new MenuFlyoutItem
+            {
+                Text = "Clear search filter",
+                Icon = new FontIcon { Glyph = "\uE74D" }
+            };
+            clearSearchItem.Click += (_, _) =>
+            {
+                LayoutSearch.Text = string.Empty;
+                ViewModel.StatusMessage = "Cleared layout search.";
+            };
+            menu.Items.Add(clearSearchItem);
+
+            var showAllItem = new MenuFlyoutItem
+            {
+                Text = "Set category to All",
+                Icon = new FontIcon { Glyph = "\uE71D" }
+            };
+            showAllItem.Click += (_, _) =>
+            {
+                ViewModel.SelectedCategory = "All";
+                ViewModel.StatusMessage = "Category filter set to All.";
+            };
+            menu.Items.Add(showAllItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var focusSearchItem = new MenuFlyoutItem
+            {
+                Text = "Focus search box",
+                Icon = new FontIcon { Glyph = "\uE721" }
+            };
+            focusSearchItem.Click += (_, _) => LayoutSearch?.Focus(FocusState.Programmatic);
+            menu.Items.Add(focusSearchItem);
+
+            var anchor = (sender as FrameworkElement) ?? LayoutSearch;
+            menu.ShowAt(anchor, e.GetPosition(anchor));
+        }
+
         private void OnLayoutListKeyDown(object sender, KeyRoutedEventArgs e)
         {
             bool shiftDown = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)

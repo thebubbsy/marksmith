@@ -2148,6 +2148,172 @@ namespace MarkSmith.Views.MindMap
             menu.ShowAt(ExportDropDownButton, e.GetPosition(ExportDropDownButton));
         }
 
+        private void OnArrangeDropDownRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (ArrangeDropDownButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var treeItem = new MenuFlyoutItem
+            {
+                Text = "Tree layout, left to right",
+                Icon = new FontIcon { Glyph = "\uE81E" }
+            };
+            treeItem.Click += OnLayoutTreeClick;
+            menu.Items.Add(treeItem);
+
+            var hierItem = new MenuFlyoutItem
+            {
+                Text = "Hierarchy layout, top down",
+                Icon = new FontIcon { Glyph = "\uF003" }
+            };
+            hierItem.Click += OnLayoutHierarchyClick;
+            menu.Items.Add(hierItem);
+
+            var radialItem = new MenuFlyoutItem
+            {
+                Text = "Radial, around the root",
+                Icon = new FontIcon { Glyph = "\uE707" }
+            };
+            radialItem.Click += OnLayoutRadialClick;
+            menu.Items.Add(radialItem);
+
+            var clusterItem = new MenuFlyoutItem
+            {
+                Text = "Clusters, by tag and link",
+                Icon = new FontIcon { Glyph = "\uF0E2" }
+            };
+            clusterItem.Click += OnLayoutClustersClick;
+            menu.Items.Add(clusterItem);
+
+            var forceItem = new MenuFlyoutItem
+            {
+                Text = "Force-directed web",
+                Icon = new FontIcon { Glyph = "\uEC26" }
+            };
+            forceItem.Click += OnLayoutForceClick;
+            menu.Items.Add(forceItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var fitItem = new MenuFlyoutItem
+            {
+                Text = "Fit all nodes in window (Ctrl+0)",
+                Icon = new FontIcon { Glyph = "\uE9A6" }
+            };
+            fitItem.Click += (s, args) => OnFitToWindowClick(this, new RoutedEventArgs());
+            menu.Items.Add(fitItem);
+
+            menu.ShowAt(ArrangeDropDownButton, e.GetPosition(ArrangeDropDownButton));
+        }
+
+        private void OnImportFolderButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (ImportFolderButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var importItem = new MenuFlyoutItem
+            {
+                Text = "Import folder…",
+                Icon = new FontIcon { Glyph = "\uE8B7" }
+            };
+            importItem.Click += OnImportFolderClick;
+            menu.Items.Add(importItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var fitItem = new MenuFlyoutItem
+            {
+                Text = "Fit all nodes in window (Ctrl+0)",
+                Icon = new FontIcon { Glyph = "\uE9A6" }
+            };
+            fitItem.Click += (s, args) => OnFitToWindowClick(this, new RoutedEventArgs());
+            menu.Items.Add(fitItem);
+
+            var clearItem = new MenuFlyoutItem
+            {
+                Text = "Clear selection (Esc)",
+                Icon = new FontIcon { Glyph = "\uE894" },
+                IsEnabled = ViewModel.HasSelection
+            };
+            clearItem.Click += (s, args) =>
+            {
+                ViewModel.SelectedNode = null;
+                ViewModel.SelectedLink = null;
+                ViewModel.HidePreviewCard();
+            };
+            menu.Items.Add(clearItem);
+
+            menu.ShowAt(ImportFolderButton, e.GetPosition(ImportFolderButton));
+        }
+
+        private void OnSaveMapButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (SaveMapButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var saveItem = new MenuFlyoutItem
+            {
+                Text = "Save map (Ctrl+S)",
+                Icon = new FontIcon { Glyph = "\uE74E" }
+            };
+            saveItem.Click += (s, args) => OnSaveClick(this, new RoutedEventArgs());
+            menu.Items.Add(saveItem);
+
+            var saveAsItem = new MenuFlyoutItem
+            {
+                Text = "Save a copy of the map… (Ctrl+Shift+S)",
+                Icon = new FontIcon { Glyph = "\uEA35" }
+            };
+            saveAsItem.Click += (s, args) => OnSaveAsClick(this, new RoutedEventArgs());
+            menu.Items.Add(saveAsItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyFlowchartItem = new MenuFlyoutItem
+            {
+                Text = "Copy as Mermaid flowchart (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyFlowchartItem.Click += OnCopyMermaidFlowchartClick;
+            menu.Items.Add(copyFlowchartItem);
+
+            var copyMindmapItem = new MenuFlyoutItem
+            {
+                Text = "Copy as Mermaid mind map",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyMindmapItem.Click += OnCopyMermaidMindmapClick;
+            menu.Items.Add(copyMindmapItem);
+
+            var exportDocxItem = new MenuFlyoutItem
+            {
+                Text = "Export Word document…",
+                Icon = new FontIcon { Glyph = "\uE8A5" }
+            };
+            exportDocxItem.Click += OnExportDocxClick;
+            menu.Items.Add(exportDocxItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyTitleItem = new MenuFlyoutItem
+            {
+                Text = "Copy map title",
+                Icon = new FontIcon { Glyph = "\uE8FD" }
+            };
+            copyTitleItem.Click += (s, args) =>
+            {
+                var title = ViewModel.Title;
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(title);
+                ViewModel.StatusMessage = $"Copied map title: {title}";
+            };
+            menu.Items.Add(copyTitleItem);
+
+            menu.ShowAt(SaveMapButton, e.GetPosition(SaveMapButton));
+        }
+
         private static string SanitizeFileName(string? name)
         {
             if (string.IsNullOrWhiteSpace(name)) return "Document Galaxy";

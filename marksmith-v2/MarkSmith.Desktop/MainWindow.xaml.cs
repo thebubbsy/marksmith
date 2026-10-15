@@ -851,6 +851,67 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
     }
 
+    private void OnMoreMenuButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (MoreMenuButton is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var historyItem = new MenuFlyoutItem
+        {
+            Text = "Version history…",
+            Icon = new FontIcon { Glyph = "\uE823" }
+        };
+        historyItem.Click += OnOpenHistoryClick;
+        menu.Items.Add(historyItem);
+
+        var exportsItem = new MenuFlyoutItem
+        {
+            Text = "Recent exports",
+            Icon = new FontIcon { Glyph = "\uE81C" }
+        };
+        exportsItem.Click += OnExportHistoryMenuClick;
+        menu.Items.Add(exportsItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var shortcutsItem = new MenuFlyoutItem
+        {
+            Text = "Keyboard shortcuts (F1)",
+            Icon = new FontIcon { Glyph = "\uE765" }
+        };
+        shortcutsItem.Click += OnShortcutsButtonClick;
+        menu.Items.Add(shortcutsItem);
+
+        var settingsItem = new MenuFlyoutItem
+        {
+            Text = "Settings (Ctrl+,)",
+            Icon = new FontIcon { Glyph = "\uE713" }
+        };
+        settingsItem.Click += OnSettingsClick;
+        menu.Items.Add(settingsItem);
+
+        var tourItem = new MenuFlyoutItem
+        {
+            Text = "Take a quick tour",
+            Icon = new FontIcon { Glyph = "\uE897" }
+        };
+        tourItem.Click += OnTakeTourClick;
+        menu.Items.Add(tourItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var coffeeItem = new MenuFlyoutItem
+        {
+            Text = "Buy me a coffee",
+            Icon = new FontIcon { Glyph = "\uEC32" }
+        };
+        coffeeItem.Click += OnBuyCoffeeClick;
+        menu.Items.Add(coffeeItem);
+
+        menu.ShowAt(MoreMenuButton, e.GetPosition(MoreMenuButton));
+    }
+
     // WebSocket streaming for the local REST API (opt-in via Settings > Local REST API > Enable
     // WebSocket streaming, OFF by default). While connected, clients receive live status/busy
     // events and can pull a preview snapshot or stream text into the editor.
@@ -2768,6 +2829,81 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.Items.Add(firstHeadingItem);
 
         menu.ShowAt(TocCountText, e.GetPosition(TocCountText));
+    }
+
+    private void OnOutlineButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (OutlineButton is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var openOutlineItem = new MenuFlyoutItem
+        {
+            Text = "Open Document Outline",
+            Icon = new FontIcon { Glyph = "\uE8A4" }
+        };
+        openOutlineItem.Click += (_, _) =>
+        {
+            if (OutlineFlyout is not null) OutlineFlyout.ShowAt(OutlineButton);
+        };
+        menu.Items.Add(openOutlineItem);
+
+        var count = ViewModel?.TocEntries?.Count ?? 0;
+        var copyTocItem = new MenuFlyoutItem
+        {
+            Text = count > 0 ? $"Copy Table of Contents ({count} headings)" : "Copy Table of Contents",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = count > 0
+        };
+        copyTocItem.Click += (_, _) => CopyAllHeadingsAsToc();
+        menu.Items.Add(copyTocItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var firstHeadingItem = new MenuFlyoutItem
+        {
+            Text = "Jump to first heading",
+            Icon = new FontIcon { Glyph = "\uE74A" },
+            IsEnabled = count > 0
+        };
+        firstHeadingItem.Click += (_, _) =>
+        {
+            var first = ViewModel?.TocEntries?.FirstOrDefault();
+            if (first is not null) NavigateToTocEntry(first);
+        };
+        menu.Items.Add(firstHeadingItem);
+
+        var lastHeadingItem = new MenuFlyoutItem
+        {
+            Text = "Jump to last heading",
+            Icon = new FontIcon { Glyph = "\uE74B" },
+            IsEnabled = count > 0
+        };
+        lastHeadingItem.Click += (_, _) =>
+        {
+            var last = ViewModel?.TocEntries?.LastOrDefault();
+            if (last is not null) NavigateToTocEntry(last);
+        };
+        menu.Items.Add(lastHeadingItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var filterItem = new MenuFlyoutItem
+        {
+            Text = "Filter headings…",
+            Icon = new FontIcon { Glyph = "\uE721" }
+        };
+        filterItem.Click += (_, _) =>
+        {
+            if (OutlineFlyout is not null)
+            {
+                OutlineFlyout.ShowAt(OutlineButton);
+                TocFilterBox?.Focus(FocusState.Programmatic);
+            }
+        };
+        menu.Items.Add(filterItem);
+
+        menu.ShowAt(OutlineButton, e.GetPosition(OutlineButton));
     }
 
     private async void OnBrowseWatchFolderClick(object sender, RoutedEventArgs e)
@@ -5828,6 +5964,153 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnTogglePinFileClick(object sender, RoutedEventArgs e)
     {
         ViewModel.TogglePinCurrentFile();
+    }
+
+    private void OnPinFileButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (PinFileButton is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+        var path = ViewModel.InputFilePath;
+        bool hasFile = !string.IsNullOrWhiteSpace(path);
+
+        if (hasFile)
+        {
+            bool isPinned = ViewModel.IsCurrentFilePinned;
+            var togglePinItem = new MenuFlyoutItem
+            {
+                Text = isPinned ? "Unpin this file" : "Pin this file",
+                Icon = new FontIcon { Glyph = isPinned ? "\uE734" : "\uE735" }
+            };
+            togglePinItem.Click += OnTogglePinFileClick;
+            menu.Items.Add(togglePinItem);
+
+            var showFolderItem = new MenuFlyoutItem
+            {
+                Text = "Show in File Explorer (Ctrl+O)",
+                Icon = new FontIcon { Glyph = "\uE838" }
+            };
+            showFolderItem.Click += (_, _) => ShowExportedFileInFolder(path);
+            menu.Items.Add(showFolderItem);
+
+            var copyPathItem = new MenuFlyoutItem
+            {
+                Text = "Copy full path (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyPathItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(path);
+                AnnounceStatus($"Copied file path: {System.IO.Path.GetFileName(path)}");
+            };
+            menu.Items.Add(copyPathItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var clearFileItem = new MenuFlyoutItem
+            {
+                Text = "Clear current file",
+                Icon = new FontIcon { Glyph = "\uE74D" }
+            };
+            clearFileItem.Click += (_, _) =>
+            {
+                ViewModel.InputFilePath = string.Empty;
+                AnnounceStatus("Cleared current file selection.");
+            };
+            menu.Items.Add(clearFileItem);
+        }
+        else
+        {
+            var browseItem = new MenuFlyoutItem
+            {
+                Text = "Browse files… (Ctrl+O)",
+                Icon = new FontIcon { Glyph = "\uE8E5" }
+            };
+            browseItem.Click += OnBrowseFileClick;
+            menu.Items.Add(browseItem);
+
+            var rescanItem = new MenuFlyoutItem
+            {
+                Text = "Rescan Markdown files",
+                Icon = new FontIcon { Glyph = "\uE72C" }
+            };
+            rescanItem.Click += OnRescanMarkdownClick;
+            menu.Items.Add(rescanItem);
+        }
+
+        menu.ShowAt(PinFileButton, e.GetPosition(PinFileButton));
+    }
+
+    private void OnMarkdownFilesComboRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (MarkdownFilesCombo is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var rescanItem = new MenuFlyoutItem
+        {
+            Text = "Rescan recent Markdown files",
+            Icon = new FontIcon { Glyph = "\uE72C" }
+        };
+        rescanItem.Click += OnRescanMarkdownClick;
+        menu.Items.Add(rescanItem);
+
+        var browseItem = new MenuFlyoutItem
+        {
+            Text = "Browse files… (Ctrl+O)",
+            Icon = new FontIcon { Glyph = "\uE8E5" }
+        };
+        browseItem.Click += OnBrowseFileClick;
+        menu.Items.Add(browseItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        string? selectedPath = null;
+        if (MarkdownFilesCombo.SelectedItem is Services.MarkdownFileEntry entry)
+        {
+            selectedPath = entry.Path;
+        }
+        bool hasSelected = !string.IsNullOrWhiteSpace(selectedPath);
+
+        var showFolderItem = new MenuFlyoutItem
+        {
+            Text = "Show selected in Explorer",
+            Icon = new FontIcon { Glyph = "\uE838" },
+            IsEnabled = hasSelected
+        };
+        showFolderItem.Click += (_, _) =>
+        {
+            if (hasSelected && selectedPath is not null) ShowExportedFileInFolder(selectedPath);
+        };
+        menu.Items.Add(showFolderItem);
+
+        var copyPathItem = new MenuFlyoutItem
+        {
+            Text = "Copy selected file path",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = hasSelected
+        };
+        copyPathItem.Click += (_, _) =>
+        {
+            if (hasSelected && selectedPath is not null)
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(selectedPath);
+                AnnounceStatus($"Copied path: {System.IO.Path.GetFileName(selectedPath)}");
+            }
+        };
+        menu.Items.Add(copyPathItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var historyItem = new MenuFlyoutItem
+        {
+            Text = "Version history…",
+            Icon = new FontIcon { Glyph = "\uE823" }
+        };
+        historyItem.Click += OnOpenHistoryClick;
+        menu.Items.Add(historyItem);
+
+        menu.ShowAt(MarkdownFilesCombo, e.GetPosition(MarkdownFilesCombo));
     }
 
     private void OnCenterViewSelectorChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)

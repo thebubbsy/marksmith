@@ -146,7 +146,9 @@
 
                         <AppBarSeparator />
 
-                        <DropDownButton Padding="10,5" MinHeight="32" ToolTipService.ToolTip="Rearrange every node automatically"
+                        <DropDownButton x:Name="ArrangeDropDownButton" Padding="10,5" MinHeight="32"
+                                        RightTapped="OnArrangeDropDownRightTapped"
+                                        ToolTipService.ToolTip="Rearrange every node automatically (Right-click for layout options)"
                                         AutomationProperties.Name="Arrange">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xECA5;" FontSize="12" />
@@ -187,8 +189,9 @@
 
                         <AppBarSeparator />
 
-                        <Button Click="OnImportFolderClick" Style="{StaticResource GalaxyToolButton}"
-                                ToolTipService.ToolTip="Map a folder: every document in it becomes a node, linked by what they share"
+                        <Button x:Name="ImportFolderButton" Click="OnImportFolderClick" Style="{StaticResource GalaxyToolButton}"
+                                RightTapped="OnImportFolderButtonRightTapped"
+                                ToolTipService.ToolTip="Map a folder: every document in it becomes a node, linked by what they share (Right-click for options)"
                                 AutomationProperties.Name="Import folder">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE8B7;" FontSize="12" />
@@ -224,8 +227,9 @@
                             </DropDownButton.Flyout>
                         </DropDownButton>
 
-                        <Button Click="OnSaveClick" Style="{StaticResource GalaxyToolButton}"
-                                ToolTipService.ToolTip="Save the map (Ctrl+S)" AutomationProperties.Name="Save">
+                        <Button x:Name="SaveMapButton" Click="OnSaveClick" Style="{StaticResource GalaxyToolButton}"
+                                RightTapped="OnSaveMapButtonRightTapped"
+                                ToolTipService.ToolTip="Save the map (Ctrl+S, Right-click for options)" AutomationProperties.Name="Save">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE74E;" FontSize="12" />
                                 <TextBlock Text="Save" FontSize="12" />

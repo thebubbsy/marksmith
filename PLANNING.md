@@ -7605,6 +7605,62 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 1856, `Alive: True`, `Responding: True`, clean exit.
 
+### 2026-10-16 (scheduled routine run #97 — WinUI 3 Desktop Polish: Step 1 Pin/Recent Files Menus, Step 3 Outline & More Menus, SmartArt Category & Empty-State Actions, MindMap Arrange & Save Menus, Shape Palette & Preset Gallery Context Actions)
+
+- **Surface / Component Targets:** `MainWindow`, `SmartArtDesignStudioWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #96:
+    * Target A: `ShapeDesignStudioWindow` Left Tabs and preset gallery/shape palette navigation enhancements (`PresetCategoryCombo` & `PresetList` item context actions / right-tap menu for presets and shapes).
+    * Target B: `ShapeDesignStudioWindow` Canvas Toolbar `PaletteButton` (Colour scheme) & Canvas right-click context menu / selection ordering actions.
+  - Generated:
+    1. `MainWindow` Step 1 `PinFileButton` & `MarkdownFilesCombo` Context Menus (`MainWindow.xaml` & `.xaml.cs`)
+    2. `MainWindow` Step 3 `OutlineButton` & `MoreMenuButton` Right-Click Context Actions (`MainWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Added `RightTapped="OnPinFileButtonRightTapped"` on `PinFileButton` offering Pin/Unpin file (`\uE735`/`\uE734`), Show in File Explorer `Ctrl+O` (`\uE838`), Copy full file path `Ctrl+Shift+C` (`\uE8C8`), and Clear current file (`\uE74D`). Added `RightTapped="OnMarkdownFilesComboRightTapped"` on `MarkdownFilesCombo` offering Rescan recent Markdown files (`\uE72C`), Browse files `Ctrl+O` (`\uE8E5`), Show selected in Explorer (`\uE838`), Copy selected file path (`\uE8C8`), and Version history (`\uE823`). Added `RightTapped="OnOutlineButtonRightTapped"` on `OutlineButton` offering Open Document Outline (`\uE8A4`), Copy Table of Contents (TOC) Markdown (`\uE8C8`), Jump to first heading (`\uE74A`), Jump to last heading (`\uE74B`), and Filter headings (`\uE721`). Added `RightTapped="OnMoreMenuButtonRightTapped"` on `MoreMenuButton` offering Version history (`\uE823`), Recent exports (`\uE81C`), Keyboard shortcuts `F1` (`\uE765`), Settings `Ctrl+,` (`\uE713`), Take a quick tour (`\uE897`), and Support MarkSmith (`\uEC32`).
+  - Generated:
+    3. `SmartArtDesignStudioWindow` `LayoutCategoryCombo` & `NoMatchesPanel` Context Actions (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`)
+    4. `MindMapGalaxyWindow` Toolbar `ArrangeDropDownButton`, `ImportFolderButton`, & `SaveMapButton` Context Menus (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Added `RightTapped="OnLayoutCategoryComboRightTapped"` on `LayoutCategoryCombo` in `SmartArtDesignStudioWindow` dynamically enumerating all layout categories (`\uE71D`, `\uF003`, `\uE81E`, `\uE777`, `\uE80A`, `\uE7AD`, `\uE707`, `\uE71B`, `\uEB9F`, `\uE8A5`), marking active filters with check indicator, and providing Reset category filter (`\uE72C`). Added `x:Name="NoMatchesPanel"`, `Background="Transparent"`, `IsHitTestVisible="True"`, and `RightTapped="OnNoMatchesPanelRightTapped"` on the empty-matches stackpanel offering Clear search filter (`\uE74D`), Set category to All (`\uE71D`), and Focus search box (`\uE721`). Added `x:Name="ArrangeDropDownButton"` and `RightTapped="OnArrangeDropDownRightTapped"` on `Arrange` DropDownButton in `MindMapGalaxyWindow` offering Tree layout (`\uE81E`), Hierarchy layout (`\uF003`), Radial layout (`\uE707`), Clusters layout (`\uF0E2`), Force-directed web (`\uEC26`), and Fit all nodes in window `Ctrl+0` (`\uE9A6`). Added `x:Name="ImportFolderButton"` and `RightTapped="OnImportFolderButtonRightTapped"` offering Import folder (`\uE8B7`), Fit all nodes (`\uE9A6`), and Clear selection `Esc` (`\uE894`). Added `x:Name="SaveMapButton"` and `RightTapped="OnSaveMapButtonRightTapped"` on `Save` button in `MindMapGalaxyWindow` offering Save map `Ctrl+S` (`\uE74E`), Save copy as `Ctrl+Shift+S` (`\uEA35`), Copy as Mermaid flowchart `Ctrl+Shift+C` (`\uE8C8`), Copy as Mermaid mind map (`\uE8C8`), Export Word document (`\uE8A5`), and Copy map title (`\uE8FD`).
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `ShapeDesignStudioWindow` Toolbar `PaletteButton` (Colour scheme) Context Menu & Scheme Actions (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`)
+    6. `ShapeDesignStudioWindow` Presets `PresetCategoryCombo` & `PresetList` Context Menus (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Added `RightTapped="OnPaletteButtonRightTapped"` on `PaletteButton` in `ShapeDesignStudioWindow` offering all available colour palettes from `ViewModel.PaletteNames` (with active scheme indicator, instant canvas theme application, and status bar readout) plus Copy colour scheme name (`\uE8C8`). Added `RightTapped="OnPresetCategoryComboRightTapped"` on `PresetCategoryCombo` offering all preset categories (`All`, `Flowcharts`, `Hierarchy`, `Cycles`, `Comparison`) with active markers and Reset category to All (`\uE72C`). Added `RightTapped="OnPresetListRightTapped"` on `PresetList` offering Apply first preset (`\uE710`), Select all shapes `Ctrl+A` (`\uE8B3`), Copy shapes as Markdown `Ctrl+Shift+C` (`\uE8C8`), Insert into document (`\uE8A5`), and Clear canvas (`\uE74D`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #98.
+
+**Shipped:**
+1. **`MainWindow` Step 1 `PinFileButton` & `MarkdownFilesCombo` Context Menus (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnPinFileButtonRightTapped"` on `PinFileButton` offering Pin/Unpin file (`\uE735`/`\uE734`), Show in File Explorer `Ctrl+O` (`\uE838`), Copy full file path `Ctrl+Shift+C` (`\uE8C8`), and Clear current file (`\uE74D`).
+   - Attached `RightTapped="OnMarkdownFilesComboRightTapped"` on `MarkdownFilesCombo` offering Rescan recent Markdown files (`\uE72C`), Browse files `Ctrl+O` (`\uE8E5`), Show selected in Explorer (`\uE838`), Copy selected file path (`\uE8C8`), and Version history (`\uE823`).
+2. **`MainWindow` Step 3 `OutlineButton` & `MoreMenuButton` Right-Click Context Actions (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnOutlineButtonRightTapped"` on `OutlineButton` offering Open Document Outline (`\uE8A4`), Copy Table of Contents (TOC) Markdown (`\uE8C8`), Jump to first heading (`\uE74A`), Jump to last heading (`\uE74B`), and Filter headings (`\uE721`).
+   - Attached `RightTapped="OnMoreMenuButtonRightTapped"` on `MoreMenuButton` offering Version history (`\uE823`), Recent exports (`\uE81C`), Keyboard shortcuts `F1` (`\uE765`), Settings `Ctrl+,` (`\uE713`), Take a quick tour (`\uE897`), and Support MarkSmith (`\uEC32`).
+3. **`SmartArtDesignStudioWindow` `LayoutCategoryCombo` & `NoMatchesPanel` Context Actions (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnLayoutCategoryComboRightTapped"` on `LayoutCategoryCombo` providing fast filtering across all layout categories with active indicator glyphs and Reset filter (`\uE72C`).
+   - Attached `RightTapped="OnNoMatchesPanelRightTapped"` on `NoMatchesPanel` and `NoMatchesTitleText` providing Clear search filter (`\uE74D`), Set category to All (`\uE71D`), and Focus search box (`\uE721`).
+4. **`MindMapGalaxyWindow` Toolbar `ArrangeDropDownButton`, `ImportFolderButton`, & `SaveMapButton` Context Menus (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnArrangeDropDownRightTapped"` on `ArrangeDropDownButton` providing Tree (`\uE81E`), Hierarchy (`\uF003`), Radial (`\uE707`), Clusters (`\uF0E2`), Force-directed web (`\uEC26`), and Fit all nodes `Ctrl+0` (`\uE9A6`).
+   - Attached `RightTapped="OnImportFolderButtonRightTapped"` on `ImportFolderButton` providing Import folder (`\uE8B7`), Fit all nodes (`\uE9A6`), and Clear selection `Esc` (`\uE894`).
+   - Attached `RightTapped="OnSaveMapButtonRightTapped"` on `SaveMapButton` providing Save map `Ctrl+S` (`\uE74E`), Save copy as `Ctrl+Shift+S` (`\uEA35`), Copy as Mermaid flowchart `Ctrl+Shift+C` (`\uE8C8`), Copy as Mermaid mind map (`\uE8C8`), Export Word document (`\uE8A5`), and Copy map title (`\uE8FD`).
+5. **`ShapeDesignStudioWindow` Toolbar `PaletteButton` (Colour scheme) Context Menu & Scheme Actions (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnPaletteButtonRightTapped"` on `PaletteButton` providing direct color palette switching with active indicators (`\uE73E`/`\uE790`), instant live shape recolouring, and Copy scheme name (`\uE8C8`).
+6. **`ShapeDesignStudioWindow` Presets `PresetCategoryCombo` & `PresetList` Context Menus (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnPresetCategoryComboRightTapped"` on `PresetCategoryCombo` providing fast category filtering (`All`, `Flowcharts`, `Hierarchy`, `Cycles`, `Comparison`) and Reset category filter (`\uE72C`).
+   - Attached `RightTapped="OnPresetListRightTapped"` on `PresetList` providing Apply first preset (`\uE710`), Select all shapes `Ctrl+A` (`\uE8B3`), Copy shapes as Markdown `Ctrl+Shift+C` (`\uE8C8`), Insert into document (`\uE8A5`), and Clear canvas (`\uE74D`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64 -p:OutDir="$env:TEMP\ms97d\b\"`: **0 errors, 16 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 28636, `Alive: True`, `Responding: True`, clean exit.
+
+
 
 
 

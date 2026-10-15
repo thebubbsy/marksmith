@@ -100,7 +100,9 @@
                                         RightTapped="OnLayoutSearchRightTapped" />
                         <ComboBox x:Name="LayoutCategoryCombo" AutomationProperties.Name="Layout type" HorizontalAlignment="Stretch"
                                   ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
-                                  KeyDown="OnLayoutCategoryComboKeyDown" />
+                                  KeyDown="OnLayoutCategoryComboKeyDown"
+                                  RightTapped="OnLayoutCategoryComboRightTapped"
+                                  ToolTipService.ToolTip="Filter by layout category (Right-click for options)" />
                     </StackPanel>
                     <ListView Grid.Row="1" x:Name="LayoutList" ItemsSource="{Binding Layouts}" SelectedItem="{Binding SelectedLayout, Mode=TwoWay}"
                               Padding="4,0,4,8" AutomationProperties.Name="Layouts" RightTapped="OnLayoutListRightTapped" KeyDown="OnLayoutListKeyDown">
@@ -134,12 +136,16 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
-                    <StackPanel Grid.Row="1" Spacing="6" Margin="16,24,16,0" HorizontalAlignment="Center" VerticalAlignment="Top"
+                    <StackPanel x:Name="NoMatchesPanel" Grid.Row="1" Spacing="6" Margin="16,24,16,0" HorizontalAlignment="Center" VerticalAlignment="Top"
+                                Background="Transparent" IsHitTestVisible="True"
+                                RightTapped="OnNoMatchesPanelRightTapped"
+                                ToolTipService.ToolTip="No matching layouts (Right-click for options)"
                                 Visibility="{Binding HasNoLayoutMatches, Converter={StaticResource BoolToVisibilityConverter}}">
                         <FontIcon Glyph="&#xE721;" FontSize="24" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
                         <TextBlock x:Name="NoMatchesTitleText" Text="No layouts match" FontSize="13" FontWeight="SemiBold"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
-                                   AutomationProperties.LiveSetting="Polite" />
+                                   AutomationProperties.LiveSetting="Polite"
+                                   RightTapped="OnNoMatchesPanelRightTapped" />
                         <TextBlock Text="Try a shorter term, set the type back to All, or search for &quot;cycle&quot; or &quot;pyramid&quot;." FontSize="12"
                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
                     </StackPanel>

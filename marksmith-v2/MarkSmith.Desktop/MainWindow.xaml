@@ -317,9 +317,10 @@
                                     </StackPanel>
                                 </Button>
                                 <Button x:Name="PinFileButton" Grid.Column="1" VerticalAlignment="Bottom"
-                                        Click="OnTogglePinFileClick" IsEnabled="{Binding HasInputFile}"
+                                        Click="OnTogglePinFileClick" RightTapped="OnPinFileButtonRightTapped"
+                                        IsEnabled="{Binding HasInputFile}"
                                         AutomationProperties.Name="Pin this file"
-                                        ToolTipService.ToolTip="Pin this file to the top of the file list">
+                                        ToolTipService.ToolTip="Pin this file to the top of the file list (Right-click for file options)">
                                     <Grid>
                                         <FontIcon Glyph="&#xE735;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                                                   Visibility="{Binding IsCurrentFilePinned, Converter={StaticResource BoolToVisibilityConverter}}" />
@@ -346,7 +347,8 @@
                             </Grid>
                             <ComboBox x:Name="MarkdownFilesCombo" ItemsSource="{Binding MarkdownFiles}"
                                       SelectionChanged="OnMarkdownFileSelected" Margin="0,-8,0,0"
-                                      ToolTipService.ToolTip="Recent and discovered Markdown files on this PC"
+                                      RightTapped="OnMarkdownFilesComboRightTapped"
+                                      ToolTipService.ToolTip="Recent and discovered Markdown files on this PC (Right-click for options)"
                                       AutomationProperties.Name="Recent and found Markdown files" PlaceholderText="Pick a Markdown file from your PC…" HorizontalAlignment="Stretch">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
@@ -1319,7 +1321,8 @@
                              so it doesn't collide with the ⋯ menu's history attached flyout. -->
                         <Button x:Name="OutlineButton"
                                 AutomationProperties.Name="Document outline"
-                                ToolTipService.ToolTip="Document outline (H1–H6)">
+                                RightTapped="OnOutlineButtonRightTapped"
+                                ToolTipService.ToolTip="Document outline (H1–H6, Right-click for outline options)">
                             <FontIcon Glyph="&#xE8A4;" FontSize="14" />
                             <Button.Flyout>
                                 <Flyout x:Name="OutlineFlyout" Placement="BottomEdgeAlignedRight" Opened="OnOutlineFlyoutOpened">
@@ -1357,8 +1360,8 @@
                                             <ListView.ItemTemplate>
                                                 <DataTemplate>
                                                     <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis"
-                                                               Margin="{Binding Level, Converter={StaticResource LevelToIndentConverter}}"
-                                                               ToolTipService.ToolTip="Click to jump to heading · Right-click to copy heading or link" />
+                                                                Margin="{Binding Level, Converter={StaticResource LevelToIndentConverter}}"
+                                                                ToolTipService.ToolTip="Click to jump to heading · Right-click to copy heading or link" />
                                                 </DataTemplate>
                                             </ListView.ItemTemplate>
                                         </ListView>
@@ -1368,7 +1371,8 @@
                         </Button>
                         <Button x:Name="MoreMenuButton"
                                 AutomationProperties.Name="More options"
-                                ToolTipService.ToolTip="More — history, tour, shortcuts, settings, support">
+                                RightTapped="OnMoreMenuButtonRightTapped"
+                                ToolTipService.ToolTip="More — history, tour, shortcuts, settings, support (Right-click for options)">
                             <FontIcon Glyph="&#xE712;" FontSize="14" />
                             <Button.Flyout>
                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
