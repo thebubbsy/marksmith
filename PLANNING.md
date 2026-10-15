@@ -7002,3 +7002,63 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Targeted test suites (`KeyboardShortcutsTests`, `OcrInspectionStudioTests`, `ShapeStudioTests`): **53 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 UIAutomation smoke launch (`Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR`):
   - Verified `WinUIDesktopWin32WindowClass` main window (PID 10172, HWND 134364), verified `Alive: True`, `Responding: True`, and closed cleanly.
+
+### 2026-10-15 (scheduled routine run #87 — WinUI 3 Desktop Polish: Preview Zoom Stops & Alt+Z Wrap, OCR Batch Actions & BBox Copy, Canvas Context Menus, Find Bar Polish)
+
+#### Agent / Execution Metadata
+- **Identity:** `Antigravity AI Agent (Google DeepMind)`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #86:
+    * Target A: Preview zoom stops & Alt+Z word wrap toggle.
+    * Target B: OCR Inspection Studio page context menu, raw text copy, bbox copy, and batch reclassification.
+  - Generated:
+    1. Command Palette Preview Zoom Stops & `Alt+Z` Word Wrap Accelerator (`MainWindow.xaml` & `.xaml.cs`)
+    2. `OcrInspectionStudioWindow` Page Sheet Context Menu, Raw Text & Bounding Box Copy, and Batch Reclassification (`Views/Ocr/OcrInspectionStudioWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Added `WordWrapToggle` right-tapped context menu; added $O(1)$ batch reclassification pass across sibling elements with live telemetry updates.
+  - Generated:
+    3. `MindMapGalaxyWindow` Canvas Right-Tapped Gesture & Mermaid Copy Context Menu (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`)
+    4. `ShapeDesignStudioWindow` Canvas Right-Tapped Gesture & Selection Action Parity (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Wired touch/pen/mouse parity via `RightTapped` event handlers; added selection-gated Duplicate (`Ctrl+D`) and Delete (`Del`) to canvas context menu.
+  - Refined Block 1 (Pass 2 - Final): Ensured search palette commands conform to test catalog rules; added "Copy bounding box" in (X, Y, W, H) format for OCR debuggers.
+  - Generated:
+    5. `SmartArtDesignStudioWindow` Outline Insert Action & F5 Preview Refresh (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`)
+    6. `MainWindow` Find & Replace Bar Context Menu & Count Tapped Clipboard Affordance (`MainWindow.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Guarded `FindTextBox` context menu against text selection override; added `Tapped` and `RightTapped` copy shortcuts on `FindCountText`.
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward Block 3 ideas (5 & 6) into the next cycle as baseline refinement targets.
+
+**Shipped:**
+1. **Command Palette Preview Zoom Stops & `Alt+Z` Word Wrap Accelerator (`MainWindow.xaml` & `.xaml.cs`):**
+   - Expanded `BuildPaletteCommands()` with preview zoom stops: "Reset preview zoom (100%)", "Set preview zoom to 75%", "125%", "150%", "Fit preview to window width", and "Toggle word wrap".
+   - Added `Alt+Z` accelerator in `OnRootPreviewKeyDown` for toggling editor word wrap with status bar announcement.
+   - Attached `RightTapped="OnWordWrapRightTapped"` to `WordWrapToggle` offering zoom resets, fit-to-width, and line number visibility toggles.
+2. **`OcrInspectionStudioWindow` Page Sheet Context Menu, Raw Text & Bounding Box Copy, and Batch Reclassification (`Views/Ocr/OcrInspectionStudioWindow.xaml` & `.xaml.cs`):**
+   - Added `PageSheetBorder` right-tapped context menu `OnPageSheetRightTapped` offering "Copy current page Markdown (`Ctrl+Shift+C`)", "Copy full document Markdown", "Reset all elements on page (`Ctrl+Shift+R`)", page navigation, and "Import into MarkSmith (`Ctrl+Enter`)".
+   - Enhanced element context menu (`BuildElementContextMenu`) with "Copy raw text" and "Copy bounding box (X, Y, W, H)".
+   - Implemented batch reclassification: "Reclassify all similar blocks on page as..." allowing one-click uniform reassignment of all matching page elements with immediate telemetry and live preview update.
+3. **`MindMapGalaxyWindow` Canvas Right-Tapped Gesture & Mermaid Copy Context Menu (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Wired `RightTapped="OnCanvasRightTapped"` on `GalaxyCanvas` for pointer/touch/pen context menu triggering.
+   - Added "Copy map as Mermaid (`Ctrl+Shift+C`)" to the canvas context menu.
+4. **`ShapeDesignStudioWindow` Canvas Right-Tapped Gesture & Selection Action Parity (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Wired `RightTapped="OnCanvasRightTapped"` on `MainCanvas`.
+   - Updated `ShowCanvasContextMenu`: when elements are selected, dynamically prepends "Duplicate selection (`Ctrl+D`)" and "Delete selection (`Del`)" ahead of canvas-level paste/copy actions.
+5. **`SmartArtDesignStudioWindow` Outline Insert Action & F5 Preview Refresh (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Added "Insert into document (`Ctrl+Enter`)" and "Refresh preview (`F5`)" to `ShowOutlineAreaContextMenu`.
+   - Wired `F5` preview refresh in `OnRootGridKeyDown` with status message update.
+6. **`MainWindow` Find & Replace Bar Context Menu & Count Tapped Clipboard Affordance (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnFindTextBoxRightTapped"` to `FindTextBox` (guarded when text is highlighted) offering find next/prev, match case toggle, toggle replace, and close find bar.
+   - Wired `RightTapped="OnFindCountRightTapped"` and `Tapped="OnFindCountTapped"` on `FindCountText` with instant clipboard copy and status confirmation.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 13 warnings**.
+- Targeted test suites (`KeyboardShortcutsTests`, `OcrInspectionStudioTests`, `ShapeStudioTests`): **53 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 UIAutomation smoke launch (`Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR`):
+  - Verified `WinUIDesktopWin32WindowClass` main window (PID 2496, HWND 265278), verified `Alive: True`, `Responding: True`, and closed cleanly.
+

@@ -4329,6 +4329,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             e.Handled = true;
             return;
         }
+
+        // Alt+Z toggles word wrap
+        if (e.Key == Windows.System.VirtualKey.Z && alt && !ctrl && !shift)
+        {
+            var newWrap = !(WordWrapToggle?.IsChecked == true);
+            if (WordWrapToggle != null) WordWrapToggle.IsChecked = newWrap;
+            ApplyWordWrap(newWrap, persist: true);
+            AnnounceStatus($"Word wrap: {(newWrap ? "On" : "Off")}");
+            e.Handled = true;
+            return;
+        }
     }
 
     private void OnShortcutsCheatsheetInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
@@ -4700,6 +4711,18 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 OnLineNumbersToggled(this, new RoutedEventArgs());
             }, keywords: "gutter line numbers margin"),
             Do("Reset editor zoom (100%)", "View", () => OnEditorZoomResetClick(this, click), keywords: "font zoom 100 default size reset"),
+            Do("Reset preview zoom (100%)", "View", () => OnPreviewZoomResetClick(this, click), keywords: "preview zoom 100 default reset"),
+            Do("Set preview zoom to 75%", "View", () => { ApplyPreviewZoom(0.75); AnnounceStatus("Preview zoom: 75%"); }, keywords: "preview zoom 75 scale"),
+            Do("Set preview zoom to 125%", "View", () => { ApplyPreviewZoom(1.25); AnnounceStatus("Preview zoom: 125%"); }, keywords: "preview zoom 125 scale"),
+            Do("Set preview zoom to 150%", "View", () => { ApplyPreviewZoom(1.50); AnnounceStatus("Preview zoom: 150%"); }, keywords: "preview zoom 150 scale"),
+            Do("Fit preview to window width", "View", () => { SetPreviewFit(true); AnnounceStatus("Preview zoom: Fit to width"); }, keywords: "preview fit width zoom auto"),
+            Do("Toggle word wrap", "View", () =>
+            {
+                var newWrap = !(WordWrapToggle?.IsChecked == true);
+                if (WordWrapToggle != null) WordWrapToggle.IsChecked = newWrap;
+                ApplyWordWrap(newWrap, persist: true);
+                AnnounceStatus($"Word wrap: {(newWrap ? "On" : "Off")}");
+            }, keywords: "alt+z wrap editor line soft wrap break"),
             Do("Document outline", "View", () => OutlineButton.Flyout?.ShowAt(OutlineButton)),
 
             Do("Open Diagram Studio", "Studio", () => OnOpenMermaidStudioClick(this, click), "studio.diagram", "mermaid flowchart chart"),
@@ -5231,6 +5254,122 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             CloseFindBar();
             e.Handled = true;
         }
+    }
+
+    private void OnFindTextBoxRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (FindTextBox is null) return;
+        if (!string.IsNullOrEmpty(FindTextBox.SelectedText)) return; // preserve native selection menus
+
+        var menu = new MenuFlyout();
+
+        var findNextItem = new MenuFlyoutItem
+        {
+            Text = "Find next match (Enter)",
+            Icon = new FontIcon { Glyph = "\uE70D" },
+            IsEnabled = _findMatches.Count > 0
+        };
+        findNextItem.Click += (_, _) => FindNext();
+        menu.Items.Add(findNextItem);
+
+        var findPrevItem = new MenuFlyoutItem
+        {
+            Text = "Find previous match (Shift+Enter)",
+            Icon = new FontIcon { Glyph = "\uE70E" },
+            IsEnabled = _findMatches.Count > 0
+        };
+        findPrevItem.Click += (_, _) => FindPrev();
+        menu.Items.Add(findPrevItem);
+
+        var matchCaseItem = new ToggleMenuFlyoutItem
+        {
+            Text = "Match case (Alt+C)",
+            IsChecked = MatchCaseCheck?.IsChecked == true
+        };
+        matchCaseItem.Click += (_, _) =>
+        {
+            if (MatchCaseCheck != null)
+            {
+                MatchCaseCheck.IsChecked = !(MatchCaseCheck.IsChecked == true);
+                RecomputeFindMatches();
+            }
+        };
+        menu.Items.Add(matchCaseItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var toggleReplaceItem = new MenuFlyoutItem
+        {
+            Text = ReplaceRow.Visibility == Visibility.Visible ? "Hide replace (Ctrl+H)" : "Show replace (Ctrl+H)",
+            Icon = new FontIcon { Glyph = "\uE76C" }
+        };
+        toggleReplaceItem.Click += (_, _) =>
+        {
+            if (ReplaceExpandToggle != null)
+            {
+                ReplaceExpandToggle.IsChecked = !(ReplaceExpandToggle.IsChecked == true);
+            }
+        };
+        menu.Items.Add(toggleReplaceItem);
+
+        var closeItem = new MenuFlyoutItem
+        {
+            Text = "Close find (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        closeItem.Click += (_, _) => CloseFindBar();
+        menu.Items.Add(closeItem);
+
+        menu.ShowAt(FindTextBox, e.GetPosition(FindTextBox));
+        e.Handled = true;
+    }
+
+    private void OnFindCountTextTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        if (FindCountText is null || string.IsNullOrWhiteSpace(FindCountText.Text)) return;
+        _ = Services.ClipboardWriter.TrySetTextAsync(FindCountText.Text);
+        AnnounceStatus($"Copied search count: {FindCountText.Text}");
+        e.Handled = true;
+    }
+
+    private void OnFindCountTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (FindCountText is null || string.IsNullOrWhiteSpace(FindCountText.Text)) return;
+        var countStr = FindCountText.Text;
+
+        var menu = new MenuFlyout();
+        var copyCountItem = new MenuFlyoutItem
+        {
+            Text = $"Copy count ({countStr})",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyCountItem.Click += (_, _) =>
+        {
+            _ = Services.ClipboardWriter.TrySetTextAsync(countStr);
+            AnnounceStatus($"Copied search count: {countStr}");
+        };
+        menu.Items.Add(copyCountItem);
+
+        var nextItem = new MenuFlyoutItem
+        {
+            Text = "Next match (Enter)",
+            Icon = new FontIcon { Glyph = "\uE70D" },
+            IsEnabled = _findMatches.Count > 0
+        };
+        nextItem.Click += (_, _) => FindNext();
+        menu.Items.Add(nextItem);
+
+        var prevItem = new MenuFlyoutItem
+        {
+            Text = "Previous match (Shift+Enter)",
+            Icon = new FontIcon { Glyph = "\uE70E" },
+            IsEnabled = _findMatches.Count > 0
+        };
+        prevItem.Click += (_, _) => FindPrev();
+        menu.Items.Add(prevItem);
+
+        menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
+        e.Handled = true;
     }
 
     private bool _suppressFindJump;
@@ -5924,6 +6063,55 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (_initializingWordWrap) return;
         ApplyWordWrap(WordWrapToggle?.IsChecked == true, persist: true);
+    }
+
+    private void OnWordWrapRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        var menu = new MenuFlyout();
+
+        var toggleItem = new ToggleMenuFlyoutItem
+        {
+            Text = "Wrap long lines (Alt+Z)",
+            Icon = new FontIcon { Glyph = "\uE8FD" },
+            IsChecked = WordWrapToggle?.IsChecked == true
+        };
+        toggleItem.Click += (_, _) =>
+        {
+            var newWrap = !(WordWrapToggle?.IsChecked == true);
+            if (WordWrapToggle != null) WordWrapToggle.IsChecked = newWrap;
+            ApplyWordWrap(newWrap, persist: true);
+            AnnounceStatus($"Word wrap: {(newWrap ? "On" : "Off")}");
+        };
+        menu.Items.Add(toggleItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var resetZoomItem = new MenuFlyoutItem
+        {
+            Text = "Reset editor zoom to 100% (Ctrl+0)",
+            Icon = new FontIcon { Glyph = "\uE71E" }
+        };
+        resetZoomItem.Click += (_, _) => OnEditorZoomResetClick(this, new RoutedEventArgs());
+        menu.Items.Add(resetZoomItem);
+
+        var toggleLinesItem = new ToggleMenuFlyoutItem
+        {
+            Text = "Line numbers gutter",
+            Icon = new FontIcon { Glyph = "\uE8EC" },
+            IsChecked = LineNumbersToggle?.IsChecked == true
+        };
+        toggleLinesItem.Click += (_, _) =>
+        {
+            if (LineNumbersToggle != null) LineNumbersToggle.IsChecked = !(LineNumbersToggle.IsChecked == true);
+            OnLineNumbersToggled(this, new RoutedEventArgs());
+        };
+        menu.Items.Add(toggleLinesItem);
+
+        if (WordWrapToggle != null)
+        {
+            menu.ShowAt(WordWrapToggle, e.GetPosition(WordWrapToggle));
+            e.Handled = true;
+        }
     }
 
     // ---- Folding: a view of the document, never an edit to it ----

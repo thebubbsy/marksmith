@@ -1565,7 +1565,23 @@ namespace MarkSmith.Views.MindMap
             resetZoomItem.Click += OnZoomResetClick;
             flyout.Items.Add(resetZoomItem);
 
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var copyMermaidItem = MenuItem("Copy map as Mermaid", "\uE8C8", "Ctrl+Shift+C");
+            copyMermaidItem.Click += (s, e) => CopyMermaid(asFlowchart: true, "flowchart");
+            flyout.Items.Add(copyMermaidItem);
+
             flyout.ShowAt(GalaxyCanvas, screenPos);
+        }
+
+        private void OnCanvasRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (e.Handled) return;
+            var pos = e.GetPosition(GalaxyCanvas);
+            double worldX = ((pos.X - CanvasWidth / 2.0) / ViewModel.ZoomLevel) - ViewModel.ViewportOffsetX;
+            double worldY = ((pos.Y - CanvasHeight / 2.0) / ViewModel.ZoomLevel) - ViewModel.ViewportOffsetY;
+            ShowCanvasContextMenu(pos, worldX, worldY);
+            e.Handled = true;
         }
 
         private void OnCanvasPointerMoved(object sender, PointerRoutedEventArgs e)

@@ -689,6 +689,32 @@ namespace MarkSmith.Views.SmartArtStudio
             copyBlockItem.Click += (_, _) => CopySmartArtBlock();
             menu.Items.Add(copyBlockItem);
 
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var insertItem = new MenuFlyoutItem
+            {
+                Text = "Insert into document",
+                Icon = new FontIcon { Glyph = "\uE8A5" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Enter",
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            insertItem.Click += (_, _) => ViewModel.InsertIntoDocumentCommand.Execute(null);
+            menu.Items.Add(insertItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var refreshItem = new MenuFlyoutItem
+            {
+                Text = "Refresh preview (F5)",
+                Icon = new FontIcon { Glyph = "\uE72C" }
+            };
+            refreshItem.Click += (_, _) =>
+            {
+                RefreshWebView();
+                ViewModel.StatusMessage = "Preview refreshed.";
+            };
+            menu.Items.Add(refreshItem);
+
             menu.ShowAt(target, position);
         }
 
@@ -895,6 +921,14 @@ namespace MarkSmith.Views.SmartArtStudio
             if (ctrl && (e.Key is VirtualKey.Number2 or VirtualKey.NumberPad2))
             {
                 EditorTabs.SelectedItem = MarkdownTab;
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == VirtualKey.F5)
+            {
+                RefreshWebView();
+                ViewModel.StatusMessage = "Preview refreshed.";
                 e.Handled = true;
                 return;
             }

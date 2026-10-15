@@ -933,6 +933,13 @@ namespace MarkSmith.Views.ShapeStudio
             var flyout = new MenuFlyout();
             bool any = ViewModel.HasShapes;
 
+            if (ViewModel.HasSelection)
+            {
+                flyout.Items.Add(ShapeMenuItem("Duplicate selection", "\uE8C8", () => ViewModel.DuplicateSelectedCommand.Execute(null), "Ctrl+D"));
+                flyout.Items.Add(ShapeMenuItem("Delete selection", "\uE74D", () => ViewModel.RemoveSelectedCommand.Execute(null), "Del"));
+                flyout.Items.Add(new MenuFlyoutSeparator());
+            }
+
             flyout.Items.Add(ShapeMenuItem("Paste shapes from clipboard", "\uE77F", () => OnLoadMarkdownClick(this, new RoutedEventArgs())));
             flyout.Items.Add(ShapeMenuItem("Copy shapes as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), enabled: any));
             flyout.Items.Add(new MenuFlyoutSeparator());
@@ -943,6 +950,14 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(ShapeMenuItem("Clear canvas", "\uE74D", () => OnClearClick(this, new RoutedEventArgs()), enabled: any));
 
             flyout.ShowAt(MainCanvas, position);
+        }
+
+        private void OnCanvasRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (e.Handled) return;
+            var pos = e.GetPosition(MainCanvas);
+            ShowCanvasContextMenu(pos);
+            e.Handled = true;
         }
 
         private void OnShapePointerMoved(object sender, PointerRoutedEventArgs e)

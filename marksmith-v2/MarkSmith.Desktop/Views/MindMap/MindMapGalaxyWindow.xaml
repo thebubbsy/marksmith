@@ -242,7 +242,8 @@
                         PointerMoved="OnCanvasPointerMoved"
                         PointerReleased="OnCanvasPointerReleased"
                         PointerCaptureLost="OnCanvasPointerCaptureLost"
-                        PointerWheelChanged="OnCanvasPointerWheelChanged">
+                        PointerWheelChanged="OnCanvasPointerWheelChanged"
+                        RightTapped="OnCanvasRightTapped">
                     <Canvas x:Name="WorldCanvas">
                         <Canvas.RenderTransform>
                             <CompositeTransform x:Name="WorldTransform" />

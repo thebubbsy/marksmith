@@ -902,6 +902,69 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             };
             menu.Items.Add(copyElemItem);
 
+            string rawText = elem.Words.Count > 0
+                ? string.Join(" ", elem.Words.Select(w => w.Text))
+                : elem.CurrentMarkdown;
+            if (!string.IsNullOrWhiteSpace(rawText))
+            {
+                var copyRawItem = new MenuFlyoutItem
+                {
+                    Text = "Copy raw text",
+                    Icon = new FontIcon { Glyph = "\uE8FD" }
+                };
+                copyRawItem.Click += (_, _) =>
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(rawText);
+                    SetFooterStatusText($"Copied {elem.KindDisplayName} text to clipboard.");
+                };
+                menu.Items.Add(copyRawItem);
+            }
+
+            var copyBoxItem = new MenuFlyoutItem
+            {
+                Text = $"Copy bounding box ({elem.Box.X:0.00}, {elem.Box.Y:0.00}, {elem.Box.Width:0.00}×{elem.Box.Height:0.00})",
+                Icon = new FontIcon { Glyph = "\uE790" }
+            };
+            copyBoxItem.Click += (_, _) =>
+            {
+                var boxStr = $"X={elem.Box.X:0.000}, Y={elem.Box.Y:0.000}, W={elem.Box.Width:0.000}, H={elem.Box.Height:0.000}";
+                _ = Services.ClipboardWriter.TrySetTextAsync(boxStr);
+                SetFooterStatusText($"Copied bounding box: {boxStr}");
+            };
+            menu.Items.Add(copyBoxItem);
+
+            var siblingsOfSameKind = _session.CurrentPage?.Elements.Where(e => e.Kind == elem.Kind).ToList() ?? new();
+            if (siblingsOfSameKind.Count > 1)
+            {
+                var batchSubItem = new MenuFlyoutSubItem
+                {
+                    Text = $"Reclassify all {siblingsOfSameKind.Count} {elem.KindDisplayName}s as",
+                    Icon = new FontIcon { Glyph = "\uE8D2" }
+                };
+                foreach (var opt in ReclassifyKindOptions)
+                {
+                    if (opt.Kind == elem.Kind) continue;
+                    var batchKindItem = new MenuFlyoutItem
+                    {
+                        Text = $"{opt.ShortcutNumber} · {opt.Label}"
+                    };
+                    var targetKind = opt.Kind;
+                    batchKindItem.Click += (_, _) =>
+                    {
+                        foreach (var targetElem in siblingsOfSameKind)
+                        {
+                            ReclassifyElement(targetElem, targetKind, refreshPreviewAndTelemetry: false);
+                        }
+                        UpdateSessionTelemetry();
+                        UpdateLiveMarkdownPreview();
+                        UpdateActionButtonsState();
+                        SetFooterStatusText($"Reclassified {siblingsOfSameKind.Count} {elem.KindDisplayName} elements to {opt.Label}.");
+                    };
+                    batchSubItem.Items.Add(batchKindItem);
+                }
+                menu.Items.Add(batchSubItem);
+            }
+
             menu.Items.Add(new MenuFlyoutSeparator());
 
             var resetPageItem = new MenuFlyoutItem
@@ -914,6 +977,79 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             menu.Items.Add(resetPageItem);
         };
         return menu;
+    }
+
+    private void OnPageSheetRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (e.Handled) return;
+
+        var menu = new MenuFlyout();
+
+        var copyPageItem = new MenuFlyoutItem
+        {
+            Text = "Copy current page Markdown (Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyPageItem.Click += (_, _) => OnCopyMarkdownClick(this, new RoutedEventArgs());
+        menu.Items.Add(copyPageItem);
+
+        var copyAllItem = new MenuFlyoutItem
+        {
+            Text = "Copy full document Markdown",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyAllItem.Click += (_, _) =>
+        {
+            var allMd = _session.GetDocumentMarkdown();
+            _ = Services.ClipboardWriter.TrySetTextAsync(allMd);
+            SetFooterStatusText("Copied full document Markdown to clipboard.");
+        };
+        menu.Items.Add(copyAllItem);
+
+        var resetPageItem = new MenuFlyoutItem
+        {
+            Text = "Reset all elements on page (Ctrl+Shift+R)",
+            Icon = new FontIcon { Glyph = "\uE72C" },
+            IsEnabled = (_session.CurrentPage?.ReclassifiedCount ?? 0) > 0
+        };
+        resetPageItem.Click += (_, _) => ResetCurrentPageElements();
+        menu.Items.Add(resetPageItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var prevPageItem = new MenuFlyoutItem
+        {
+            Text = "Previous page (Left)",
+            Icon = new FontIcon { Glyph = "\uE76B" },
+            IsEnabled = _session.CanPreviousPage
+        };
+        prevPageItem.Click += (_, _) => OnPrevPageClick(this, new RoutedEventArgs());
+        menu.Items.Add(prevPageItem);
+
+        var nextPageItem = new MenuFlyoutItem
+        {
+            Text = "Next page (Right)",
+            Icon = new FontIcon { Glyph = "\uE76C" },
+            IsEnabled = _session.CanNextPage
+        };
+        nextPageItem.Click += (_, _) => OnNextPageClick(this, new RoutedEventArgs());
+        menu.Items.Add(nextPageItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var importItem = new MenuFlyoutItem
+        {
+            Text = "Import into MarkSmith (Ctrl+Enter)",
+            Icon = new FontIcon { Glyph = "\uE898" }
+        };
+        importItem.Click += (_, _) => OnImportCtaClick(this, new RoutedEventArgs());
+        menu.Items.Add(importItem);
+
+        if (PageSheetBorder is not null)
+        {
+            menu.ShowAt(PageSheetBorder, e.GetPosition(PageSheetBorder));
+            e.Handled = true;
+        }
     }
 
     private void ClearElementSelection()

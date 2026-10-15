@@ -181,7 +181,8 @@
                             <Border x:Name="PageSheetBorder"
                                     HorizontalAlignment="Center" VerticalAlignment="Center"
                                     CornerRadius="4" Background="#FFFFFF"
-                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
+                                    RightTapped="OnPageSheetRightTapped">
                                 <Grid x:Name="PageSheetGrid" Width="380" Height="520">
                                     <!-- Real Page Image -->
                                     <Image x:Name="DocumentImage" Stretch="Fill"

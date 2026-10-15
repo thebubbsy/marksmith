@@ -459,7 +459,8 @@
                         <Grid Width="2200" Height="1800">
                             <Canvas x:Name="MainCanvas" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
                                     PointerPressed="OnCanvasPointerPressed" PointerMoved="OnCanvasPointerMoved"
-                                    PointerReleased="OnCanvasPointerReleased" PointerCaptureLost="OnCanvasPointerCaptureLost">
+                                    PointerReleased="OnCanvasPointerReleased" PointerCaptureLost="OnCanvasPointerCaptureLost"
+                                    RightTapped="OnCanvasRightTapped">
                                 <ItemsControl ItemsSource="{Binding Shapes}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
