@@ -25,10 +25,12 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <!-- The dialog title already says Suite Hub; this card is about the app itself. -->
                             <TextBlock Text="MarkSmith" FontSize="16" FontWeight="SemiBold" />
-                            <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="6,1" VerticalAlignment="Center">
+                            <Border x:Name="VersionBadge" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="6,1" VerticalAlignment="Center"
+                                    Tapped="OnVersionInfoTapped" ToolTipService.ToolTip="Click to copy version details (Ctrl+C)" AutomationProperties.Name="MarkSmith Version badge">
                                 <TextBlock x:Name="VersionText" Text="Version 3.0.0" FontSize="10.5" Opacity="0.8" />
                             </Border>
-                            <Border x:Name="LicenseBadge" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="6,1" VerticalAlignment="Center">
+                            <Border x:Name="LicenseBadge" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="6,1" VerticalAlignment="Center"
+                                    Tapped="OnVersionInfoTapped" ToolTipService.ToolTip="Click to copy plan and license details (Ctrl+C)">
                                 <TextBlock x:Name="LicenseText" Text="Free plan" FontSize="10.5" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" FontWeight="SemiBold" />
                             </Border>
                         </StackPanel>

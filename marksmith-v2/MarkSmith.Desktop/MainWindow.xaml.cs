@@ -2068,6 +2068,69 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnStatusShowOutputFolderClick(object sender, RoutedEventArgs e) => ShowExportedFileInFolder(ViewModel.StatusOutputPath);
 
+    private void OnStatusMsgTextDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        var text = ViewModel.StatusText;
+        if (string.IsNullOrWhiteSpace(text)) return;
+        _ = Services.ClipboardWriter.TrySetTextAsync(text);
+        e.Handled = true;
+    }
+
+    private void OnStatusMsgTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        var text = ViewModel.StatusText;
+        var hasPath = ViewModel.HasStatusOutput && !string.IsNullOrEmpty(ViewModel.StatusOutputPath);
+        if (string.IsNullOrWhiteSpace(text) && !hasPath) return;
+
+        var menu = new MenuFlyout();
+
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            var copyStatusItem = new MenuFlyoutItem
+            {
+                Text = "Copy status message",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyStatusItem.Click += (_, _) => _ = Services.ClipboardWriter.TrySetTextAsync(text);
+            menu.Items.Add(copyStatusItem);
+        }
+
+        if (hasPath)
+        {
+            if (menu.Items.Count > 0) menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyPathItem = new MenuFlyoutItem
+            {
+                Text = "Copy exported file path",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyPathItem.Click += (_, _) => _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusOutputPath!);
+            menu.Items.Add(copyPathItem);
+
+            var openFileItem = new MenuFlyoutItem
+            {
+                Text = "Open exported file",
+                Icon = new FontIcon { Glyph = "\uE8E5" }
+            };
+            openFileItem.Click += OnStatusOpenOutputClick;
+            menu.Items.Add(openFileItem);
+
+            var showFolderItem = new MenuFlyoutItem
+            {
+                Text = "Show in File Explorer",
+                Icon = new FontIcon { Glyph = "\uE838" }
+            };
+            showFolderItem.Click += OnStatusShowOutputFolderClick;
+            menu.Items.Add(showFolderItem);
+        }
+
+        if (menu.Items.Count > 0)
+        {
+            menu.ShowAt(StatusMsgText, e.GetPosition(StatusMsgText));
+            e.Handled = true;
+        }
+    }
+
     // Document outline (Task 17): scroll the preview to the clicked heading. The anchor is the exact
     // id Markdig rendered on the heading element, so getElementById + scrollIntoView lands on it.
     private void OnTocItemClick(object sender, ItemClickEventArgs e)
@@ -4128,6 +4191,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             e.Handled = true;
             return;
         }
+
+        // Ctrl+0 or Ctrl+NumPad0 resets editor font size to 100%
+        if ((e.Key == Windows.System.VirtualKey.Number0 || e.Key == Windows.System.VirtualKey.NumberPad0) && ctrl && !shift && !alt)
+        {
+            ApplyEditorFontSize(EditorFontBase, persist: true);
+            e.Handled = true;
+            return;
+        }
     }
 
     private void OnShortcutsCheatsheetInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
@@ -5311,6 +5382,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnEditorZoomInClick(object sender, RoutedEventArgs e) => ApplyEditorFontSize(PasteTextBox.FontSize + 1, persist: true);
 
     private void OnEditorZoomOutClick(object sender, RoutedEventArgs e) => ApplyEditorFontSize(PasteTextBox.FontSize - 1, persist: true);
+
+    private void OnEditorZoomResetClick(object sender, RoutedEventArgs e) => ApplyEditorFontSize(EditorFontBase, persist: true);
 
     // Ctrl+wheel over the editor zooms the source font; a bare wheel still scrolls the text.
     private void OnEditorPointerWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)

@@ -781,9 +781,14 @@
                                     <Button x:Name="EditorZoomOutButton" ToolTipService.ToolTip="Decrease editor font size (Ctrl+wheel down)" AutomationProperties.Name="Decrease editor font size" Width="28" Height="24" Padding="0" Click="OnEditorZoomOutClick">
                                         <TextBlock Text="A&#x2212;" FontSize="12" />
                                     </Button>
-                                    <TextBlock x:Name="EditorZoomText" Text="100%" VerticalAlignment="Center" FontSize="11"
-                                               Opacity="0.6" MinWidth="42" TextAlignment="Center"
-                                               ToolTipService.ToolTip="Editor font size" />
+                                    <Button x:Name="EditorZoomResetButton" Height="24" MinWidth="42" Padding="4,0"
+                                            Background="Transparent" BorderThickness="0"
+                                            ToolTipService.ToolTip="Editor font size · Click for 100%; Ctrl+wheel zooms."
+                                            AutomationProperties.Name="Reset editor font size to 100%"
+                                            Click="OnEditorZoomResetClick">
+                                        <TextBlock x:Name="EditorZoomText" Text="100%" VerticalAlignment="Center" FontSize="11"
+                                                   Opacity="0.7" TextAlignment="Center" />
+                                    </Button>
                                     <Button x:Name="EditorZoomInButton" ToolTipService.ToolTip="Increase editor font size (Ctrl+wheel up)" AutomationProperties.Name="Increase editor font size" Width="28" Height="24" Padding="0" Click="OnEditorZoomInClick">
                                         <TextBlock Text="A+" FontSize="12" />
                                     </Button>
@@ -2086,6 +2091,8 @@
                     <TextBlock x:Name="StatusMsgText" Text="{Binding StatusText}"
                                VerticalAlignment="Center" FontSize="12" Opacity="0.85"
                                TextTrimming="CharacterEllipsis" MaxWidth="560"
+                               RightTapped="OnStatusMsgTextRightTapped"
+                               DoubleTapped="OnStatusMsgTextDoubleTapped"
                                ToolTipService.ToolTip="{Binding StatusText}" />
                     <!-- Shown only while the status line is announcing a finished export (the
                          Windows toast is easy to miss, or switched off entirely). -->

@@ -94,6 +94,13 @@ namespace MarkSmith.Controls
                 return;
             }
 
+            if (ctrl && !shift && !alt && e.Key == Windows.System.VirtualKey.C)
+            {
+                CopyExtensionInfo();
+                e.Handled = true;
+                return;
+            }
+
             var focused = XamlRoot is null ? null : FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
             if (!ctrl && !shift && !alt && focused is not null)
             {
@@ -127,7 +134,14 @@ namespace MarkSmith.Controls
                 Icon = new FontIcon { Glyph = "\uEA86" }
             };
             getItem.Click += OnGetExtensionClick;
-            menu.Items.Add(getItem);
+            var copyInfoItem = new MenuFlyoutItem
+            {
+                Text = "Copy extension info",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                KeyboardAcceleratorTextOverride = "Ctrl+C"
+            };
+            copyInfoItem.Click += (_, _) => CopyExtensionInfo();
+            menu.Items.Add(copyInfoItem);
 
             var dismissItem = new MenuFlyoutItem
             {
@@ -141,6 +155,16 @@ namespace MarkSmith.Controls
                 menu.ShowAt(this, position.Value);
             else
                 menu.ShowAt(this);
+        }
+
+        private void CopyExtensionInfo()
+        {
+            const string info = "MarkSmith Connector: Install the browser extension in Edge or Chrome to send ChatGPT, Gemini and Claude replies straight here.";
+            _ = Services.ClipboardWriter.TrySetTextAsync(info);
+            if (GetExtensionButton is not null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(GetExtensionButton, null, "\u2713 Copied");
+            }
         }
 
         // Opens the in-app setup guide (MainWindow.ShowExtensionSetupAsync), which points Load

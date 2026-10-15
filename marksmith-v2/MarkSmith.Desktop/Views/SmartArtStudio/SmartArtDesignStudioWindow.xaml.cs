@@ -546,6 +546,42 @@ namespace MarkSmith.Views.SmartArtStudio
 
             menu.Items.Add(new MenuFlyoutSeparator());
 
+            var copyTextItem = new MenuFlyoutItem
+            {
+                Text = "Copy item text",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                KeyboardAcceleratorTextOverride = "Ctrl+C",
+                IsEnabled = !string.IsNullOrWhiteSpace(node.Text)
+            };
+            copyTextItem.Click += (_, _) =>
+            {
+                if (!string.IsNullOrWhiteSpace(node.Text))
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(node.Text);
+                    ViewModel.StatusMessage = $"Copied \"{node.Text}\" to clipboard.";
+                }
+            };
+            menu.Items.Add(copyTextItem);
+
+            var copyBulletItem = new MenuFlyoutItem
+            {
+                Text = "Copy item as bullet",
+                Icon = new FontIcon { Glyph = "\uE8FD" },
+                IsEnabled = !string.IsNullOrWhiteSpace(node.Text)
+            };
+            copyBulletItem.Click += (_, _) =>
+            {
+                if (!string.IsNullOrWhiteSpace(node.Text))
+                {
+                    var indent = new string(' ', Math.Max(0, node.Depth) * 2);
+                    _ = Services.ClipboardWriter.TrySetTextAsync($"{indent}* {node.Text}");
+                    ViewModel.StatusMessage = $"Copied \"{node.Text}\" bullet to clipboard.";
+                }
+            };
+            menu.Items.Add(copyBulletItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
             var addChildItem = new MenuFlyoutItem
             {
                 Text = "Add child",
@@ -867,6 +903,13 @@ namespace MarkSmith.Views.SmartArtStudio
 
             if (ctrl && e.Key == VirtualKey.C)
             {
+                if (ViewModel.SelectedNode is { } selected && !string.IsNullOrWhiteSpace(selected.Text))
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(selected.Text);
+                    ViewModel.StatusMessage = $"Copied \"{selected.Text}\" to clipboard.";
+                    e.Handled = true;
+                    return;
+                }
                 CopyOutlineMarkdown();
                 e.Handled = true;
             }

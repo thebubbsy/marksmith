@@ -6885,3 +6885,64 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Targeted test suites (`OcrInspectionStudioTests`, `KeyboardShortcutsTests`, `ShapeStudioTests`): **298 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 UIAutomation smoke launch (`Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR`):
   - Verified `WinUIDesktopWin32WindowClass` main window (PID 26864, HWND 1510318), verified `Responding: True`, and closed cleanly.
+
+### 2026-10-15 (scheduled routine run #85 — WinUI 3 Desktop Polish: SettingsCard Context Menus & Tooltips, SmartArt Node Copy Parity, Status Bar Path & Message Copying, Editor Zoom Reset, Extension Nudge Info Chords, Suite Hub Badges)
+
+#### Agent / Execution Metadata
+- **Identity:** `Antigravity AI Agent (Google DeepMind)`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Generated:
+    1. `SettingsCard` Context Menu Affordances & Tooltip Synchronization (`Controls/SettingsCard.xaml.cs`)
+    2. `SmartArtDesignStudioWindow` Outline Item Copy Context Menu & Node Clipboard Parity (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Guarded editable child textboxes against card context menu hijacking; added outline node copy status feedback and bullet indentation.
+  - Generated:
+    3. `MainWindow` Status Bar Message Context Menu & Quick Copy Affordance (`MainWindow.xaml` & `.xaml.cs`)
+    4. `MainWindow` Editor & Preview Zoom 100% Reset Button & Keyboard Chords (`MainWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Extended status bar context menu with export path actions; aligned `EditorZoomResetButton` with `PreviewZoomResetButton` and added `Ctrl+0` / `Ctrl+NumPad0`.
+  - Refined Block 1 (Pass 2 - Final): Completed dynamic `ShowCardContextMenu` with action-aware toggles (switch, check, combo, copy name/desc); wired `OnRootGridKeyDown` Ctrl+C node copy fallback.
+  - Generated:
+    5. `ExtensionTip` & `ExtensionHintBar` Context Menu Affordances & Copy Action Parity (`Controls/ExtensionTip.xaml.cs` & `Controls/ExtensionHintBar.xaml.cs`)
+    6. `SuiteHubView` Header Card Version Copy Tactile Feedback & Tooltip Polish (`Views/SuiteHubView.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Added `CopyExtensionInfo()` / `CopyHintInfo()` with `CopyFeedback.ApplyButtonTick` checkmarks; made `VersionBadge` and `LicenseBadge` clickable/tappable with tactile confirmation.
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward Block 3 ideas (5 & 6) into the next cycle as baseline refinement targets.
+
+**Shipped:**
+1. **`SettingsCard` Context Menu Affordances & Tooltip Synchronization (`Controls/SettingsCard.xaml.cs`):**
+   - Attached `RightTapped` and `KeyDown` (`Application` / `Shift+F10`) context menu handlers to `SettingsCard`.
+   - Implemented `ShowCardContextMenu`: provides context-aware toggles ("Turn on" / "Turn off" for `ToggleSwitch`, "Check" / "Uncheck" for `CheckBox`, "Open options dropdown" for `ComboBox`), "Copy setting name", and "Copy setting description".
+   - Preserved nested focus and native text flyouts by checking `IsInside(source, ActionPart) || IsInside(source, DetailsPart)`.
+   - Synchronized `ToolTipService.ToolTip` in `Sync()` with header and description text.
+2. **`SmartArtDesignStudioWindow` Outline Item Copy Context Menu & Node Clipboard Parity (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Added "Copy item text (`Ctrl+C`)" and "Copy item as bullet" menu items with icons `\uE8C8` and `\uE8FD` to `ShowRowContextMenu`.
+   - Updated `OnRootGridKeyDown`: when `Ctrl+C` is pressed and an outline item is selected, it copies the selected node's text directly with a live status announcement, matching `MindMapGalaxyWindow` behavior, with clean fallback to `CopyOutlineMarkdown()`.
+3. **`MainWindow` Status Bar Message Context Menu & Quick Copy Affordance (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnStatusMsgTextRightTapped"` and `DoubleTapped="OnStatusMsgTextDoubleTapped"` to `StatusMsgText`.
+   - Implemented `OnStatusMsgTextRightTapped`: provides "Copy status message" (`\uE8C8`), and when an export has produced output, offers "Copy exported file path", "Open exported file", and "Show in File Explorer".
+   - Implemented `OnStatusMsgTextDoubleTapped` for instant single-gesture clipboard copying of status messages.
+4. **`MainWindow` Editor Zoom 100% Reset Button & Keyboard Chords (`MainWindow.xaml` & `.xaml.cs`):**
+   - Replaced static `EditorZoomText` with interactive borderless `EditorZoomResetButton` (`Click="OnEditorZoomResetClick"`), establishing design and interaction parity with `PreviewZoomResetButton`.
+   - Added tooltip hint: `"Editor font size · Click for 100%; Ctrl+wheel zooms."`
+   - Added `Ctrl+0` and `Ctrl+NumPad0` in `OnRootPreviewKeyDown` to instantly reset editor font size to base 13px (100%) and persist settings.
+5. **`ExtensionTip` & `ExtensionHintBar` Context Menu Affordances & Copy Action Parity (`Controls/ExtensionTip.xaml.cs` & `Controls/ExtensionHintBar.xaml.cs`):**
+   - Added "Copy extension info (`Ctrl+C`)" to `ExtensionTip`'s context menu and implemented `CopyExtensionInfo()` with checkmark tick feedback on `GetExtensionButton`.
+   - Added "Copy hint info (`Ctrl+C`)" to `ExtensionHintBar`'s context menu and implemented `CopyHintInfo()` with checkmark tick feedback.
+   - Handled `Ctrl+C` in `OnTipKeyDown` and `OnBarKeyDown` for instant keyboard copying.
+6. **`SuiteHubView` Header Card Version Copy Tactile Feedback & Tooltip Polish (`Views/SuiteHubView.xaml` & `.xaml.cs`):**
+   - Made `VersionBadge` and `LicenseBadge` interactive with `Tapped="OnVersionInfoTapped"` and descriptive tooltip hints.
+   - Implemented `OnVersionInfoTapped` to copy formatted version & plan metadata to the clipboard with toast feedback.
+   - Updated `BuildCardContextMenu(0)` to pass `OpenConfigFolderButton` to `CopyToClipboard` for checkmark button tick feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 13 warnings**.
+- Targeted test suites (`KeyboardShortcutsTests`, `OcrInspectionStudioTests`, `ShapeStudioTests`, `SmartArtLayoutCatalogTests`): **83 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 UIAutomation smoke launch (`Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR`):
+  - Verified `WinUIDesktopWin32WindowClass` main window (PID 15856), verified `Alive: True`, `Responding: True`, and closed cleanly.
+

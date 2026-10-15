@@ -1,9 +1,11 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
+using Windows.System;
 
 namespace MarkSmith.Controls;
 
@@ -53,6 +55,8 @@ public sealed partial class SettingsCard : UserControl
         PointerPressed += OnCardPointerPressed;
         PointerReleased += (_, _) => { _pointerPressed = false; UpdateState(); };
         Tapped += OnCardTapped;
+        RightTapped += OnCardRightTapped;
+        KeyDown += OnCardKeyDown;
         SizeChanged += (_, e) => UpdateActionPlacement(e.NewSize.Width);
         // IsEnabled already reaches the control inside; this greys the row's own text to match.
         IsEnabledChanged += (_, _) => UpdateState();
@@ -112,6 +116,107 @@ public sealed partial class SettingsCard : UserControl
         {
             input.Focus(FocusState.Programmatic);
             e.Handled = true;
+        }
+    }
+
+    private void OnCardRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (!IsEnabled) return;
+        if (e.OriginalSource is DependencyObject source && (IsInside(source, ActionPart) || IsInside(source, DetailsPart)))
+            return;
+        ShowCardContextMenu(e.GetPosition(this));
+        e.Handled = true;
+    }
+
+    private void OnCardKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (!IsEnabled) return;
+        var ctrl = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+                    & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+        var shift = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
+                     & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+        var alt = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu)
+                   & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+
+        if (e.Key == VirtualKey.Application || (shift && !ctrl && !alt && e.Key == VirtualKey.F10))
+        {
+            ShowCardContextMenu(null);
+            e.Handled = true;
+        }
+    }
+
+    private void ShowCardContextMenu(Windows.Foundation.Point? position)
+    {
+        var menu = new MenuFlyout();
+
+        if (Action is ToggleSwitch { IsEnabled: true } toggle)
+        {
+            var item = new MenuFlyoutItem
+            {
+                Text = toggle.IsOn ? "Turn off" : "Turn on",
+                Icon = new FontIcon { Glyph = "\uE7E8" }
+            };
+            item.Click += (_, _) => toggle.IsOn = !toggle.IsOn;
+            menu.Items.Add(item);
+        }
+        else if (Action is CheckBox { IsEnabled: true } check)
+        {
+            var item = new MenuFlyoutItem
+            {
+                Text = check.IsChecked == true ? "Uncheck" : "Check",
+                Icon = new FontIcon { Glyph = "\uE73E" }
+            };
+            item.Click += (_, _) => check.IsChecked = !(check.IsChecked ?? false);
+            menu.Items.Add(item);
+        }
+        else if (Action is ComboBox { IsEnabled: true } combo)
+        {
+            var item = new MenuFlyoutItem
+            {
+                Text = "Open options dropdown",
+                Icon = new FontIcon { Glyph = "\uE70D" }
+            };
+            item.Click += (_, _) =>
+            {
+                combo.Focus(FocusState.Programmatic);
+                combo.IsDropDownOpen = !combo.IsDropDownOpen;
+            };
+            menu.Items.Add(item);
+        }
+
+        if (!string.IsNullOrWhiteSpace(Header))
+        {
+            if (menu.Items.Count > 0) menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyNameItem = new MenuFlyoutItem
+            {
+                Text = "Copy setting name",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyNameItem.Click += (_, _) => _ = Services.ClipboardWriter.TrySetTextAsync(Header);
+            menu.Items.Add(copyNameItem);
+        }
+
+        if (!string.IsNullOrWhiteSpace(Description))
+        {
+            var copyDescItem = new MenuFlyoutItem
+            {
+                Text = "Copy setting description",
+                Icon = new FontIcon { Glyph = "\uE8FD" }
+            };
+            copyDescItem.Click += (_, _) => _ = Services.ClipboardWriter.TrySetTextAsync(Description);
+            menu.Items.Add(copyDescItem);
+        }
+
+        if (menu.Items.Count == 0) return;
+
+        if (position.HasValue)
+        {
+            menu.ShowAt(this, position.Value);
+        }
+        else
+        {
+            menu.ShowAt(this, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft });
         }
     }
 
@@ -193,6 +298,7 @@ public sealed partial class SettingsCard : UserControl
         // The row's accessible name is its title; the control inside carries its own name and help text.
         AutomationProperties.SetName(this, Header ?? "");
         AutomationProperties.SetHelpText(this, Description ?? "");
+        ToolTipService.SetToolTip(this, !string.IsNullOrWhiteSpace(Description) ? $"{Header}: {Description}" : Header);
         NameUnnamed(Action as DependencyObject);
         NameUnnamed(Details as DependencyObject);
     }

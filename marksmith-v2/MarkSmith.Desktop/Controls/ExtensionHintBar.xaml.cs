@@ -93,6 +93,13 @@ namespace MarkSmith.Controls
                 return;
             }
 
+            if (ctrl && !shift && !alt && e.Key == Windows.System.VirtualKey.C)
+            {
+                CopyHintInfo();
+                e.Handled = true;
+                return;
+            }
+
             var focused = XamlRoot is null ? null : FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
             if (!ctrl && !shift && !alt && focused is not null)
             {
@@ -126,7 +133,14 @@ namespace MarkSmith.Controls
                 Icon = new FontIcon { Glyph = "\uEA86" }
             };
             getItem.Click += OnGetExtensionClick;
-            menu.Items.Add(getItem);
+            var copyInfoItem = new MenuFlyoutItem
+            {
+                Text = "Copy hint info",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                KeyboardAcceleratorTextOverride = "Ctrl+C"
+            };
+            copyInfoItem.Click += (_, _) => CopyHintInfo();
+            menu.Items.Add(copyInfoItem);
 
             var dismissItem = new MenuFlyoutItem
             {
@@ -140,6 +154,16 @@ namespace MarkSmith.Controls
                 menu.ShowAt(this, position.Value);
             else
                 menu.ShowAt(this);
+        }
+
+        private void CopyHintInfo()
+        {
+            const string info = "MarkSmith Connector: That paste looks like plain text. Use the MarkSmith Connector's 'Copy as Markdown' button in your AI chat to keep full formatting.";
+            _ = Services.ClipboardWriter.TrySetTextAsync(info);
+            if (GetExtensionButton is not null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(GetExtensionButton, null, "\u2713 Copied");
+            }
         }
 
         // Wide: [icon | text | CTA | ×] on one row. Narrow: the CTA drops under the text so the

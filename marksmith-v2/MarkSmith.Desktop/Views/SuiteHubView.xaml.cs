@@ -406,7 +406,7 @@ public sealed partial class SuiteHubView : UserControl
         {
             case 0:
                 menu.Items.Add(MakeMenuItem("Open settings folder (Ctrl+O)", "\uE8B7", () => OnOpenConfigFolderClick(this, new RoutedEventArgs())));
-                menu.Items.Add(MakeMenuItem("Copy settings folder path", "\uE8C8", () => CopyToClipboard(AppPaths.ConfigDir, "Copied the configuration folder path.")));
+                menu.Items.Add(MakeMenuItem("Copy settings folder path", "\uE8C8", () => CopyToClipboard(AppPaths.ConfigDir, "Copied the configuration folder path.", OpenConfigFolderButton)));
                 menu.Items.Add(MakeMenuItem("Copy version & plan info", "\uE946", () => CopyToClipboard($"{VersionText.Text} · {LicenseText.Text}", $"Copied version info ({VersionText.Text} · {LicenseText.Text}).")));
                 break;
             case 1:
@@ -562,6 +562,13 @@ public sealed partial class SuiteHubView : UserControl
         {
             SetNotification($"Couldn't open the folder: {ex.Message}", success: false);
         }
+    }
+
+    private void OnVersionInfoTapped(object sender, TappedRoutedEventArgs e)
+    {
+        var info = $"{VersionText.Text} · {LicenseText.Text}";
+        CopyToClipboard(info, $"Copied version info ({info}).");
+        e.Handled = true;
     }
 
     private void OnOpenMermaidStudioClick(object sender, RoutedEventArgs e)
