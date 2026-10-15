@@ -1192,4 +1192,151 @@ public sealed partial class HistoryWindow : Window
 
         menu.ShowAt(TimelineScroll, e.GetPosition(TimelineScroll));
     }
+
+    private void OnDiffSummaryDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var title = _vm.DiffTitle;
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(title);
+            ClipboardWriter.Set(dp);
+            _vm.ShowNotice($"Copied version title: {title}");
+        }
+    }
+
+    private void OnDiffSummaryRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowDiffAreaContextMenu(DiffSummaryPanel, e.GetPosition(DiffSummaryPanel));
+    }
+
+    private void OnDeltaMeterDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var stats = _vm.DiffStats;
+        if (!string.IsNullOrWhiteSpace(stats))
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(stats);
+            ClipboardWriter.Set(dp);
+            _vm.ShowNotice($"Copied diff statistics: {stats}");
+        }
+    }
+
+    private void OnDeltaMeterRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowDiffAreaContextMenu(DeltaMeterBorder, e.GetPosition(DeltaMeterBorder));
+    }
+
+    private void OnDiffAreaRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement fe)
+        {
+            ShowDiffAreaContextMenu(fe, e.GetPosition(fe));
+        }
+    }
+
+    private void ShowDiffAreaContextMenu(FrameworkElement anchor, Windows.Foundation.Point position)
+    {
+        var menu = new MenuFlyout();
+
+        var copyPatch = new MenuFlyoutItem
+        {
+            Text = "Copy diff patch",
+            Icon = new FontIcon { Glyph = "\uE943" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
+            IsEnabled = _vm.HasSelection
+        };
+        copyPatch.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await CopyDiffPatchAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+        };
+        menu.Items.Add(copyPatch);
+
+        var copyMarkdown = new MenuFlyoutItem
+        {
+            Text = "Copy version Markdown",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = _vm.HasSelection
+        };
+        copyMarkdown.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await CopyVersionMarkdownAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+        };
+        menu.Items.Add(copyMarkdown);
+
+        if (_vm.HasDiffStats)
+        {
+            var copyStats = new MenuFlyoutItem
+            {
+                Text = $"Copy diff statistics ({_vm.DiffStats})",
+                Icon = new FontIcon { Glyph = "\uE946" }
+            };
+            copyStats.Click += (_, _) =>
+            {
+                var stats = _vm.DiffStats;
+                if (!string.IsNullOrWhiteSpace(stats))
+                {
+                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    dp.SetText(stats);
+                    ClipboardWriter.Set(dp);
+                    _vm.ShowNotice($"Copied diff statistics: {stats}");
+                }
+            };
+            menu.Items.Add(copyStats);
+        }
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var restoreItem = new MenuFlyoutItem
+        {
+            Text = "Restore version to editor",
+            Icon = new FontIcon { Glyph = "\uE7A7" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
+            IsEnabled = _vm.HasSelection
+        };
+        restoreItem.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await ConfirmAndRestoreAsync();
+        };
+        menu.Items.Add(restoreItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var unifiedMode = new MenuFlyoutItem
+        {
+            Text = "Unified diff view",
+            Icon = new FontIcon { Glyph = "\uE8D2" },
+            KeyboardAcceleratorTextOverride = "Ctrl+1"
+        };
+        unifiedMode.Click += (_, _) => SetMode(HistoryDiffMode.Unified);
+        menu.Items.Add(unifiedMode);
+
+        var splitMode = new MenuFlyoutItem
+        {
+            Text = "Side by side diff view",
+            Icon = new FontIcon { Glyph = "\uE8D3" },
+            KeyboardAcceleratorTextOverride = "Ctrl+2"
+        };
+        splitMode.Click += (_, _) => SetMode(HistoryDiffMode.Split);
+        menu.Items.Add(splitMode);
+
+        var previewMode = new MenuFlyoutItem
+        {
+            Text = "Rendered document preview",
+            Icon = new FontIcon { Glyph = "\uE7B3" },
+            KeyboardAcceleratorTextOverride = "Ctrl+3"
+        };
+        previewMode.Click += (_, _) => SetMode(HistoryDiffMode.Preview);
+        menu.Items.Add(previewMode);
+
+        menu.ShowAt(anchor, position);
+    }
 }

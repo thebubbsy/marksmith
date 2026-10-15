@@ -6104,6 +6104,82 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         e.Handled = true;
     }
 
+    private void OnReplaceTextBoxRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (ReplaceTextBox is null) return;
+        if (!string.IsNullOrEmpty(ReplaceTextBox.SelectedText)) return; // preserve native selection menus
+
+        var menu = new MenuFlyout();
+
+        var replaceOneItem = new MenuFlyoutItem
+        {
+            Text = "Replace next match (Enter)",
+            Icon = new FontIcon { Glyph = "\uE8AB" },
+            IsEnabled = _findMatches.Count > 0
+        };
+        replaceOneItem.Click += (_, _) => OnReplaceClick(this, new RoutedEventArgs());
+        menu.Items.Add(replaceOneItem);
+
+        var replaceAllItem = new MenuFlyoutItem
+        {
+            Text = "Replace all matches",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = _findMatches.Count > 0
+        };
+        replaceAllItem.Click += (_, _) => OnReplaceAllClick(this, new RoutedEventArgs());
+        menu.Items.Add(replaceAllItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyItem = new MenuFlyoutItem
+        {
+            Text = "Copy replacement text (Ctrl+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = !string.IsNullOrEmpty(ReplaceTextBox.Text)
+        };
+        copyItem.Click += (_, _) =>
+        {
+            if (!string.IsNullOrEmpty(ReplaceTextBox.Text))
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(ReplaceTextBox.Text);
+                AnnounceStatus("Copied replacement text.");
+            }
+        };
+        menu.Items.Add(copyItem);
+
+        var clearItem = new MenuFlyoutItem
+        {
+            Text = "Clear replacement field",
+            Icon = new FontIcon { Glyph = "\uE711" },
+            IsEnabled = !string.IsNullOrEmpty(ReplaceTextBox.Text)
+        };
+        clearItem.Click += (_, _) =>
+        {
+            ReplaceTextBox.Text = string.Empty;
+            ReplaceTextBox.Focus(FocusState.Programmatic);
+        };
+        menu.Items.Add(clearItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var closeItem = new MenuFlyoutItem
+        {
+            Text = "Close replace (Ctrl+H)",
+            Icon = new FontIcon { Glyph = "\uE76C" }
+        };
+        closeItem.Click += (_, _) =>
+        {
+            if (ReplaceExpandToggle != null)
+            {
+                ReplaceExpandToggle.IsChecked = false;
+            }
+        };
+        menu.Items.Add(closeItem);
+
+        menu.ShowAt(ReplaceTextBox, e.GetPosition(ReplaceTextBox));
+        e.Handled = true;
+    }
+
     private void OnFindCountTextTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
         if (FindCountText is null || string.IsNullOrWhiteSpace(FindCountText.Text)) return;
@@ -7757,6 +7833,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
+    private void OnCursorPosTextDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        _ = ShowGoToLineDialogAsync();
+        e.Handled = true;
+    }
+
     private void OnCursorPosTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         var pos = CursorPosText?.Text ?? "Ln 1, Col 1";
@@ -7783,6 +7865,55 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus($"Copied cursor position: {pos}");
         };
         menu.Items.Add(copyPosItem);
+
+        var copyLineItem = new MenuFlyoutItem
+        {
+            Text = "Copy current line text",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyLineItem.Click += (_, _) =>
+        {
+            if (PasteTextBox is not null)
+            {
+                var text = PasteTextBox.Text ?? string.Empty;
+                var caret = Math.Clamp(PasteTextBox.SelectionStart, 0, text.Length);
+                var start = text.LastIndexOfAny(new[] { '\r', '\n' }, Math.Max(0, caret - 1));
+                start = start < 0 ? 0 : (start + 1 < text.Length && text[start] == '\r' && text[start + 1] == '\n') ? start + 2 : start + 1;
+                var end = text.IndexOfAny(new[] { '\r', '\n' }, start);
+                if (end < 0) end = text.Length;
+                var line = text.Substring(start, Math.Max(0, end - start));
+                if (!string.IsNullOrEmpty(line))
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(line);
+                    AnnounceStatus("Copied current line text.");
+                }
+            }
+        };
+        menu.Items.Add(copyLineItem);
+
+        var selectLineItem = new MenuFlyoutItem
+        {
+            Text = "Select current line",
+            Icon = new FontIcon { Glyph = "\uE8B3" }
+        };
+        selectLineItem.Click += (_, _) =>
+        {
+            if (PasteTextBox is not null)
+            {
+                var text = PasteTextBox.Text ?? string.Empty;
+                var caret = Math.Clamp(PasteTextBox.SelectionStart, 0, text.Length);
+                var start = text.LastIndexOfAny(new[] { '\r', '\n' }, Math.Max(0, caret - 1));
+                start = start < 0 ? 0 : (start + 1 < text.Length && text[start] == '\r' && text[start + 1] == '\n') ? start + 2 : start + 1;
+                var end = text.IndexOfAny(new[] { '\r', '\n' }, start);
+                if (end < 0) end = text.Length;
+                PasteTextBox.SelectionStart = start;
+                PasteTextBox.SelectionLength = Math.Max(0, end - start);
+                PasteTextBox.Focus(FocusState.Programmatic);
+            }
+        };
+        menu.Items.Add(selectLineItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
 
         var jumpStartItem = new MenuFlyoutItem
         {
@@ -8446,6 +8577,106 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             menu.ShowAt(anchor, position.Value);
         else
             menu.ShowAt(anchor);
+    }
+
+    private void OnPreviewWidthBadgeTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        CopyPreviewWidthToClipboard();
+        e.Handled = true;
+    }
+
+    private void OnPreviewWidthBadgeDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        CopyPreviewWidthToClipboard();
+        e.Handled = true;
+    }
+
+    private void CopyPreviewWidthToClipboard()
+    {
+        var widthText = PreviewWidthText?.Text ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(widthText) || widthText.StartsWith("—", StringComparison.Ordinal)) return;
+        _ = Services.ClipboardWriter.TrySetTextAsync(widthText);
+        AnnounceStatus($"Copied preview width: {widthText}");
+    }
+
+    private void OnPreviewWidthBadgeRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (PreviewWidthBadge is null) return;
+        var menu = new MenuFlyout();
+
+        var widthText = PreviewWidthText?.Text ?? string.Empty;
+        bool hasWidth = !string.IsNullOrWhiteSpace(widthText) && !widthText.StartsWith("—", StringComparison.Ordinal);
+
+        var copyWidthItem = new MenuFlyoutItem
+        {
+            Text = hasWidth ? $"Copy preview width ({widthText})" : "Copy preview width",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = hasWidth
+        };
+        copyWidthItem.Click += (_, _) => CopyPreviewWidthToClipboard();
+        menu.Items.Add(copyWidthItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var fitWidthItem = new MenuFlyoutItem
+        {
+            Text = "Fit page width",
+            Icon = new FontIcon { Glyph = "\uE9A6" }
+        };
+        fitWidthItem.Click += (_, _) =>
+        {
+            if (PreviewFitToggle != null)
+            {
+                PreviewFitToggle.IsChecked = true;
+            }
+            OnPreviewFitClick(this, new RoutedEventArgs());
+        };
+        menu.Items.Add(fitWidthItem);
+
+        var resetZoomItem = new MenuFlyoutItem
+        {
+            Text = "Reset preview zoom (100%)",
+            Icon = new FontIcon { Glyph = "\uE71E" }
+        };
+        resetZoomItem.Click += (_, _) => OnPreviewZoomResetClick(this, new RoutedEventArgs());
+        menu.Items.Add(resetZoomItem);
+
+        var zoomInItem = new MenuFlyoutItem
+        {
+            Text = "Zoom in",
+            Icon = new FontIcon { Glyph = "\uE710" }
+        };
+        zoomInItem.Click += (_, _) => OnPreviewZoomInClick(this, new RoutedEventArgs());
+        menu.Items.Add(zoomInItem);
+
+        var zoomOutItem = new MenuFlyoutItem
+        {
+            Text = "Zoom out",
+            Icon = new FontIcon { Glyph = "\uE738" }
+        };
+        zoomOutItem.Click += (_, _) => OnPreviewZoomOutClick(this, new RoutedEventArgs());
+        menu.Items.Add(zoomOutItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyHtmlItem = new MenuFlyoutItem
+        {
+            Text = "Copy rendered HTML",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyHtmlItem.Click += (_, _) => OnCopyHtmlClick(this, new RoutedEventArgs());
+        menu.Items.Add(copyHtmlItem);
+
+        var printItem = new MenuFlyoutItem
+        {
+            Text = "Print rendered document (Ctrl+P)",
+            Icon = new FontIcon { Glyph = "\uE749" }
+        };
+        printItem.Click += (_, _) => OnPrintClick(this, new RoutedEventArgs());
+        menu.Items.Add(printItem);
+
+        menu.ShowAt(PreviewWidthBadge, e.GetPosition(PreviewWidthBadge));
+        e.Handled = true;
     }
 
     // Fit page width: the page fills the pane and follows it as the window, splitter or drawer

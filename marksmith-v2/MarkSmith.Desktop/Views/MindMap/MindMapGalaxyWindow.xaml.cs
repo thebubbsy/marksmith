@@ -2607,6 +2607,98 @@ namespace MarkSmith.Views.MindMap
             menu.ShowAt(anchor, e.GetPosition(anchor));
         }
 
+        private void OnZoomResetDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OnZoomResetClick(sender, new RoutedEventArgs());
+        }
+
+        private void OnSearchMatchLabelDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            var matchText = SearchMatchLabel?.Text ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(matchText)) return;
+            e.Handled = true;
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(matchText);
+            ClipboardWriter.Set(dp);
+            ViewModel.StatusMessage = $"Copied search match count: {matchText}";
+        }
+
+        private void OnSearchMatchLabelRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (SearchMatchLabel is null) return;
+            e.Handled = true;
+            var matchText = SearchMatchLabel.Text ?? string.Empty;
+            var menu = new MenuFlyout();
+
+            var copyMatchItem = new MenuFlyoutItem
+            {
+                Text = !string.IsNullOrWhiteSpace(matchText) ? $"Copy match count ({matchText})" : "Copy match count",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !string.IsNullOrWhiteSpace(matchText)
+            };
+            copyMatchItem.Click += (_, _) =>
+            {
+                if (!string.IsNullOrWhiteSpace(matchText))
+                {
+                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    dp.SetText(matchText);
+                    ClipboardWriter.Set(dp);
+                    ViewModel.StatusMessage = $"Copied search match count: {matchText}";
+                }
+            };
+            menu.Items.Add(copyMatchItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var nextItem = new MenuFlyoutItem
+            {
+                Text = "Next match (Enter / F3)",
+                Icon = new FontIcon { Glyph = "\uE70D" },
+                IsEnabled = ViewModel.HasSearchQuery
+            };
+            nextItem.Click += (_, _) => ViewModel.FocusNextMatch(forward: true);
+            menu.Items.Add(nextItem);
+
+            var prevItem = new MenuFlyoutItem
+            {
+                Text = "Previous match (Shift+F3)",
+                Icon = new FontIcon { Glyph = "\uE70E" },
+                IsEnabled = ViewModel.HasSearchQuery
+            };
+            prevItem.Click += (_, _) => ViewModel.FocusNextMatch(forward: false);
+            menu.Items.Add(prevItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var clearItem = new MenuFlyoutItem
+            {
+                Text = "Clear search (Esc)",
+                Icon = new FontIcon { Glyph = "\uE894" },
+                IsEnabled = !string.IsNullOrEmpty(SearchBox?.Text)
+            };
+            clearItem.Click += (_, _) =>
+            {
+                if (SearchBox != null)
+                {
+                    SearchBox.Text = "";
+                    ViewModel.SearchQuery = "";
+                    GalaxyCanvas.Focus(FocusState.Programmatic);
+                }
+            };
+            menu.Items.Add(clearItem);
+
+            var focusSearchItem = new MenuFlyoutItem
+            {
+                Text = "Focus search box (Ctrl+F)",
+                Icon = new FontIcon { Glyph = "\uE721" }
+            };
+            focusSearchItem.Click += (_, _) => SearchBox?.Focus(FocusState.Programmatic);
+            menu.Items.Add(focusSearchItem);
+
+            menu.ShowAt(SearchMatchLabel, e.GetPosition(SearchMatchLabel));
+        }
+
         private void OnTagPillClick(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.Tag is string tag)

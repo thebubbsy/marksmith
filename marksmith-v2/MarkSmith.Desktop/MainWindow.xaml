@@ -703,7 +703,9 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBox x:Name="ReplaceTextBox" Grid.Column="0" PlaceholderText="Replace with…"
                                                      AutomationProperties.Name="Replace with"
-                                                     Height="30" FontSize="13" KeyDown="OnReplaceTextBoxKeyDown" />
+                                                     Height="30" FontSize="13" KeyDown="OnReplaceTextBoxKeyDown"
+                                                     RightTapped="OnReplaceTextBoxRightTapped"
+                                                     ToolTipService.ToolTip="Replacement text · Press Enter to replace next match · Right-click for options" />
                                             <Button x:Name="ReplaceOneButton" Grid.Column="1" Height="30" Padding="12,0" Click="OnReplaceClick"
                                                     AutomationProperties.Name="Replace match (Enter)"
                                                     ToolTipService.ToolTip="Replace this match and go to the next one (Enter)">
@@ -942,8 +944,13 @@
                                                    Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.55" />
                                         <Rectangle Width="1" Height="7" HorizontalAlignment="Right" VerticalAlignment="Center"
                                                    Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.55" />
-                                        <Border HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="4" Padding="8,0"
-                                                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+                                        <Border x:Name="PreviewWidthBadge" HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="4" Padding="8,1"
+                                                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                                                IsHitTestVisible="True"
+                                                Tapped="OnPreviewWidthBadgeTapped"
+                                                DoubleTapped="OnPreviewWidthBadgeDoubleTapped"
+                                                RightTapped="OnPreviewWidthBadgeRightTapped"
+                                                ToolTipService.ToolTip="Preview viewport width · Click or double-click to copy, right-click for options">
                                             <TextBlock x:Name="PreviewWidthText" Text="— px" FontSize="11"
                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         </Border>
@@ -2153,8 +2160,9 @@
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1" VerticalAlignment="Center"
                                FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
-                               Tapped="OnCursorPosTextTapped" RightTapped="OnCursorPosTextRightTapped"
-                               ToolTipService.ToolTip="Cursor position · Click or press Ctrl+G to jump to line, right-click for options" />
+                               Tapped="OnCursorPosTextTapped" DoubleTapped="OnCursorPosTextDoubleTapped"
+                               RightTapped="OnCursorPosTextRightTapped"
+                               ToolTipService.ToolTip="Cursor position · Click or double-click to jump to line (Ctrl+G), right-click for options" />
                 </StackPanel>
             </Grid>
         </Border>

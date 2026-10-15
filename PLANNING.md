@@ -7377,3 +7377,62 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Combined test suite (`CommandIcons|KeyboardShortcuts|OcrExperience|ShapeStudio`): **336 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 27708, `Alive: True`, `Responding: True`, exited cleanly.
 
+### 2026-10-16 (scheduled routine run #93 — WinUI 3 Desktop Polish: Preview Width Badge & Replace Menus, Cursor Position Actions, History Diff Headers & Background Menus, MindMap Zoom Double-Tap & Search Match Actions)
+
+- **Surface / Component Targets:** `MainWindow`, `HistoryWindow`, `MindMapGalaxyWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #92:
+    * Target A: `MainWindow` Preview viewport width badge interactivity & preview zoom actions (`MainWindow.xaml` & `.xaml.cs`).
+    * Target B: `MainWindow` Replace input box context menu and search/replace keyboard affordances (`MainWindow.xaml` & `.xaml.cs`).
+  - Generated:
+    1. `MainWindow` Preview Viewport Width Badge Context Menu & Zoom Affordances (`MainWindow.xaml` & `.xaml.cs`)
+    2. `MainWindow` Replace Input Box Context Menu & Quick Action Shortcuts (`MainWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Enabled `IsHitTestVisible="True"` on `PreviewWidthBadge` with double-tap/tap to copy viewport width and right-tap Fluent context menu offering Copy preview width (`\uE8C8`), Fit page width (`\uE9A6`), Reset preview zoom 100% (`\uE71E`), Zoom in (`\uE710`), Zoom out (`\uE738`), Copy rendered HTML (`\uE8C8`), and Print rendered document (`\uE749`). Attached `RightTapped="OnReplaceTextBoxRightTapped"` on `ReplaceTextBox` preserving native text selections with Replace next match `Enter` (`\uE8AB`), Replace all matches (`\uE8C8`), Copy replacement text `Ctrl+C` (`\uE8C8`), Clear replacement field (`\uE711`), and Close replace `Ctrl+H` (`\uE76C`).
+  - Generated:
+    3. `MainWindow` Status Bar Cursor Position Double-Tap Dialog & Extended Context Menu (`MainWindow.xaml` & `.xaml.cs`)
+    4. `HistoryWindow` Diff Header & Delta Meter Double-Tap Copy & Summary Flyout (`Views/History/HistoryWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Added `DoubleTapped="OnCursorPosTextDoubleTapped"` on `CursorPosText` for instant Go To Line dialog (`ShowGoToLineDialogAsync()`); enhanced `OnCursorPosTextRightTapped` to include Copy current line text (`\uE8C8`) and Select current line (`\uE8B3`) alongside existing Go to line and Copy position. Attached `DoubleTapped` and `RightTapped` to `DiffSummaryPanel` and `DeltaMeterBorder` in `HistoryWindow` for instant version title or diff statistics copy with confirmation in `NoticeBar`, and right-tap diff area context menu.
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `HistoryWindow` Diff Views Background Context Menu & View Mode Shortcuts (`Views/History/HistoryWindow.xaml` & `.xaml.cs`)
+    6. `MindMapGalaxyWindow` Zoom Button Double-Tap Reset & Search Match Context Actions (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Attached `RightTapped="OnDiffAreaRightTapped"` to `UnifiedScroll` and `SplitScroll` offering Copy diff patch `Ctrl+Shift+C` (`\uE943`), Copy version Markdown (`\uE8C8`), Copy diff statistics (`\uE946`), Restore version to editor `Ctrl+Enter` (`\uE7A7`), and View mode switches (Unified `Ctrl+1` `\uE8D2`, Side by side `Ctrl+2` `\uE8D3`, Rendered preview `Ctrl+3` `\uE7B3`). Attached `DoubleTapped="OnZoomResetDoubleTapped"` on `ZoomResetButton` in `MindMapGalaxyWindow` to reset zoom to 100%; attached `DoubleTapped="OnSearchMatchLabelDoubleTapped"` and `RightTapped="OnSearchMatchLabelRightTapped"` to `SearchMatchLabel` with Copy match count (`\uE8C8`), Next match (`\uE70D`), Previous match (`\uE70E`), Clear search (`\uE894`), and Focus search box (`\uE721`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #94.
+
+**Shipped:**
+1. **`MainWindow` Preview Viewport Width Badge Context Menu & Zoom Affordances (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"`, `Tapped="OnPreviewWidthBadgeTapped"`, `DoubleTapped="OnPreviewWidthBadgeDoubleTapped"`, and `RightTapped="OnPreviewWidthBadgeRightTapped"`.
+   - Double-tap and tap copy the viewport width string with `AnnounceStatus` visual feedback.
+   - Right-tap opens Fluent context menu: Copy preview width (`\uE8C8`), Fit page width (`\uE9A6`), Reset preview zoom 100% (`\uE71E`), Zoom in (`\uE710`), Zoom out (`\uE738`), Copy rendered HTML (`\uE8C8`), and Print rendered document (`\uE749`).
+2. **`MainWindow` Replace Input Box Context Menu & Quick Action Shortcuts (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnReplaceTextBoxRightTapped"` on `ReplaceTextBox`, respecting active text selections (`SelectionLength > 0`).
+   - Surfaced context menu: Replace next match `Enter` (`\uE8AB`), Replace all matches (`\uE8C8`), Copy replacement text `Ctrl+C` (`\uE8C8`), Clear replacement field (`\uE711`), and Close replace `Ctrl+H` (`\uE76C`).
+3. **`MainWindow` Status Bar Cursor Position Double-Tap Dialog & Extended Context Menu (`MainWindow.xaml` & `.xaml.cs`):**
+   - Added `DoubleTapped="OnCursorPosTextDoubleTapped"` on `CursorPosText` for instant Go To Line dialog (`ShowGoToLineDialogAsync()`).
+   - Extended `OnCursorPosTextRightTapped` to include Copy current line text (`\uE8C8`) and Select current line (`\uE8B3`) alongside Go to line and Copy position.
+4. **`HistoryWindow` Diff Header & Delta Meter Double-Tap Copy & Summary Flyout (`Views/History/HistoryWindow.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"`, `DoubleTapped`, and `RightTapped` to `DiffSummaryPanel` and `DeltaMeterBorder`.
+   - Double-tapping copies version title or diff statistics with confirmation in `NoticeBar`.
+   - Right-tapping opens unified diff context menu (`ShowDiffAreaContextMenu`).
+5. **`HistoryWindow` Diff Views Background Context Menu & View Mode Shortcuts (`Views/History/HistoryWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnDiffAreaRightTapped"` to `UnifiedScroll` and `SplitScroll`.
+   - Context menu provides Copy diff patch `Ctrl+Shift+C` (`\uE943`), Copy version Markdown (`\uE8C8`), Copy diff statistics (`\uE946`), Restore version to editor `Ctrl+Enter` (`\uE7A7`), and View mode switches (Unified `Ctrl+1` `\uE8D2`, Side by side `Ctrl+2` `\uE8D3`, Rendered preview `Ctrl+3` `\uE7B3`).
+6. **`MindMapGalaxyWindow` Zoom Button Double-Tap Reset & Search Match Context Actions (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Added `DoubleTapped="OnZoomResetDoubleTapped"` on `ZoomResetButton` to reset canvas zoom to 100%.
+   - Attached `IsHitTestVisible="True"`, `DoubleTapped="OnSearchMatchLabelDoubleTapped"`, and `RightTapped="OnSearchMatchLabelRightTapped"` to `SearchMatchLabel` offering Copy match count (`\uE8C8`), Next match (`\uE70D`), Previous match (`\uE70E`), Clear search (`\uE894`), and Focus search box (`\uE721`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 14 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Full test suite (`MarkSmith.Tests`): **4,797 passed, 0 failed, 1 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 26016, `Alive: True`, `Responding: True`, exited cleanly.
+
+
