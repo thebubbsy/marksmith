@@ -7999,3 +7999,57 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 6964, `Alive: True`, `Responding: True`, clean exit.
 
+
+### 2026-10-16 (scheduled routine run #104 — WinUI 3 Desktop Polish: MindMap Galaxy Tag Pills Bar Context Menus, Mermaid Minimap Right-Click Gesture Quarantine & Navigation Menu, Mermaid Canvas Zoom Stepper Context Menus Parity, SmartArt Outline Toolbar Tool Buttons Right-Click Menus Parity, Shape Studio Canvas Toolstrip Buttons Menus Parity, Extension Setup Guide Hyperlink Context Menu)
+
+- **Surface / Component Targets:** `MindMapGalaxyWindow`, `MermaidMinimapControl`, `MermaidCanvasControl`, `SmartArtDesignStudioWindow`, `ShapeDesignStudioWindow`, `ExtensionSetupView`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, pointer gesture quarantine, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #103:
+    * Target A: `MindMapGalaxyWindow` floating tag pills bar right-click context menus (`AllTagsPill` and dynamic category tag buttons).
+    * Target B: `MermaidMinimapControl` pointer pressed right-button gesture quarantine and minimap right-click context menu.
+  - Generated:
+    1. `MindMapGalaxyWindow` Floating Tag Pills Bar Context Menus (`Views/MindMap/MindMapGalaxyWindow.xaml` & `Views/MindMap/MindMapGalaxyWindow.xaml.cs`)
+    2. `MermaidMinimapControl` Right-Click Quarantine & Viewport Menu (`Views/Mermaid/MermaidMinimapControl.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): In `MindMapGalaxyWindow.xaml` & `.xaml.cs`, attached `RightTapped="OnAllTagsPillRightTapped"` offering Show all nodes / Clear filter (`\uE8EC`), Copy all tag names (`\uE8C8`), and Fit all nodes in window (`\uE9A6`). Attached `RightTapped="OnDynamicTagPillRightTapped"` on each realized tag pill button offering Filter to tag (`\uE71C`), Clear active tag filter (`\uE711`), Copy tag name (`\uE8C8`), Add tag to selected node (`\uE710`), and Remove tag from selected node (`\uE74D`). In `MermaidMinimapControl.cs`, filtered `OnMapPointerPressed` so right-button clicks do not initiate drag navigation or capture pointer, and hooked `RightTapped += OnMapRightTapped` presenting Center view here (`\uE73E`), Fit all in window (`\uE9A6`), Zoom to 100% (`\uE71E`), Zoom in (`\uE710`), and Zoom out (`\uE738`).
+  - Generated:
+    3. `MermaidCanvasControl` Zoom Stepper Sibling Buttons Right-Click Parity (`Views/Mermaid/MermaidCanvasControl.xaml`)
+    4. `SmartArtDesignStudioWindow` Outline Toolbar Tool Buttons Right-Click Menus Parity (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): In `MermaidCanvasControl.xaml`, attached `RightTapped="OnZoomResetRightTapped"` to `ZoomOutButton`, `ZoomInButton`, and `FitButton` for complete parity with `ZoomResetButton`, and updated tooltip strings to advertise right-click presets. In `SmartArtDesignStudioWindow.xaml`, attached `RightTapped="OnOutlineToolbarRightTapped"` on all individual toolbar buttons (`Child`, `Sibling`, `Rename`, `Duplicate`, `Delete`, `MoveUp`, `MoveDown`, `Promote`, `Demote`) ensuring right-click gestures anywhere on the outline tool buttons trigger the polished outline action menu.
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `ShapeDesignStudioWindow` Canvas Toolstrip Tool Buttons Right-Click Menus Parity (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`)
+    6. `ExtensionSetupView` Documentation Guide Hyperlink Right-Click Menu Parity (`Views/ExtensionSetupView.xaml` & `Views/ExtensionSetupView.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): In `ShapeDesignStudioWindow.xaml` & `.xaml.cs`, attached `RightTapped="OnToolStripRightTapped"` across all canvas toolstrip buttons (Undo, Redo, AlignLeft, AlignCenter, AlignRight, AlignTop, AlignMiddle, AlignBottom, DistributeHorizontal, DistributeVertical, BringToFront, SendToBack, RotateCounterClockwise, RotateClockwise, Duplicate, Delete) and updated flyout anchor to dynamically anchor to sender `FrameworkElement`. In `ExtensionSetupView.xaml` & `.xaml.cs`, attached `RightTapped="OnGuideHyperlinkRightTapped"` to the documentation HyperlinkButton offering Open guide in browser (`\uE8A7`), Copy guide web address (`\uE8C8`), Copy extension folder path (`\uE8C8`), and Show in File Explorer (`\uE838`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #105 (`MindMapGalaxyWindow` edge connector visual hover/selection affordance refinement, `HistoryWindow` commit detail pill context menus, `MarkdownHtmlService` inline portal lens preview controls).
+
+**Shipped:**
+1. **`MindMapGalaxyWindow` Floating Tag Pills Bar Context Menus (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnAllTagsPillRightTapped"` on `AllTagsPill` offering Show all nodes (`\uE8EC`), Copy all tag names (`\uE8C8`), and Fit all nodes in window (`\uE9A6`).
+   - Attached `RightTapped="OnDynamicTagPillRightTapped"` on dynamic tag buttons offering Filter to tag (`\uE71C`), Clear active tag filter (`\uE711`), Copy tag name (`\uE8C8`), Add tag to selected node (`\uE710`), and Remove tag from selected node (`\uE74D`).
+2. **`MermaidMinimapControl` Right-Click Quarantine & Viewport Menu (`Views/Mermaid/MermaidMinimapControl.cs`):**
+   - Quarantined `OnMapPointerPressed` against right-button clicks, preserving native gesture pipeline for right-clicks.
+   - Attached `_mapCanvas.RightTapped += OnMapRightTapped` presenting Center view here (`\uE73E`), Fit all in window (`\uE9A6`), Zoom to 100% (`\uE71E`), Zoom in (`\uE710`), and Zoom out (`\uE738`).
+3. **`MermaidCanvasControl` Zoom Stepper Sibling Buttons Parity (`Views/Mermaid/MermaidCanvasControl.xaml`):**
+   - Attached `RightTapped="OnZoomResetRightTapped"` to `ZoomOutButton`, `ZoomInButton`, and `FitButton` for 100% menu parity with `ZoomResetButton`.
+   - Updated tooltips across all zoom buttons to advertise right-click zoom presets.
+4. **`SmartArtDesignStudioWindow` Outline Toolbar Tool Buttons Parity (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`):**
+   - Attached `RightTapped="OnOutlineToolbarRightTapped"` on `Child`, `Sibling`, `Rename`, `Duplicate`, `Delete`, `MoveUp`, `MoveDown`, `Promote`, and `Demote` buttons routing directly to the outline action context menu.
+   - Updated tooltips across all outline toolbar buttons to advertise right-click action options.
+5. **`ShapeDesignStudioWindow` Canvas Toolstrip Buttons Parity (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnToolStripRightTapped"` across all canvas toolstrip buttons and updated anchor to dynamic sender `FrameworkElement`.
+   - Updated tooltips across all canvas toolstrip buttons to advertise right-click options.
+6. **`ExtensionSetupView` Documentation Guide Hyperlink Parity (`Views/ExtensionSetupView.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnGuideHyperlinkRightTapped"` to the documentation HyperlinkButton presenting Open guide in browser (`\uE8A7`), Copy guide web address (`\uE8C8`), Copy extension folder path (`\uE8C8`), and Show in File Explorer (`\uE838`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 24120, `Alive: True`, `Responding: True`, clean exit.

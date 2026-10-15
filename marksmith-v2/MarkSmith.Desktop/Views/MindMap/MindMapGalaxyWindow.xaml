@@ -355,7 +355,8 @@
                             <StackPanel Orientation="Horizontal" Spacing="4" PreviewKeyDown="OnTagPillsPreviewKeyDown">
                                 <FontIcon Glyph="&#xE8EC;" FontSize="12" VerticalAlignment="Center" Margin="4,0,4,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <Button x:Name="AllTagsPill" Click="OnAllTagsClick" Padding="10,3" CornerRadius="12" FontSize="11"
-                                        Content="All tags" ToolTipService.ToolTip="Show every node (Esc clears filter)" Loaded="OnTagPillLoaded" Unloaded="OnTagPillUnloaded" />
+                                        Content="All tags" ToolTipService.ToolTip="Show every node (Esc clears filter) · Right-click for options"
+                                        Loaded="OnTagPillLoaded" Unloaded="OnTagPillUnloaded" RightTapped="OnAllTagsPillRightTapped" />
                                 <ItemsControl ItemsSource="{Binding DistinctTags}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -366,7 +367,8 @@
                                         <DataTemplate>
                                             <Button services:HoverPolish.ApplyOnLoad="True" Click="OnTagPillClick" Tag="{Binding}" Content="{Binding}"
                                                     Padding="10,3" CornerRadius="12" FontSize="11"
-                                                    Loaded="OnTagPillLoaded" Unloaded="OnTagPillUnloaded" />
+                                                    ToolTipService.ToolTip="Filter nodes by tag · Right-click for options"
+                                                    Loaded="OnTagPillLoaded" Unloaded="OnTagPillUnloaded" RightTapped="OnDynamicTagPillRightTapped" />
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>

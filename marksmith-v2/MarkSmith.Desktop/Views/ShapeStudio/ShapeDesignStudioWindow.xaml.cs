@@ -476,7 +476,8 @@ namespace MarkSmith.Views.ShapeStudio
 
             flyout.Items.Add(ShapeMenuItem("Clear canvas", "\uE74D", () => OnClearClick(this, new RoutedEventArgs()), enabled: any));
 
-            flyout.ShowAt(ToolStrip, e.GetPosition(ToolStrip));
+            var target = sender as FrameworkElement ?? ToolStrip;
+            flyout.ShowAt(target, e.GetPosition(target));
         }
 
         // ---- colour schemes ----

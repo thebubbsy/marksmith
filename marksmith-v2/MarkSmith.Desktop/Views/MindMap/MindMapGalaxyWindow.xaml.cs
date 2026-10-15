@@ -3005,6 +3005,120 @@ namespace MarkSmith.Views.MindMap
             ViewModel.SelectedTagFilter = null;
         }
 
+        private void OnAllTagsPillRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            var menu = new MenuFlyout();
+
+            var allItem = new MenuFlyoutItem
+            {
+                Text = "Show all nodes (Clear tag filter)",
+                Icon = new FontIcon { Glyph = "\uE8EC" }
+            };
+            allItem.Click += (_, _) => ViewModel.SelectedTagFilter = null;
+            menu.Items.Add(allItem);
+
+            var copyTagsItem = new MenuFlyoutItem
+            {
+                Text = "Copy all tag names",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyTagsItem.Click += (_, _) =>
+            {
+                var tags = string.Join(", ", ViewModel.DistinctTags);
+                _ = Services.ClipboardWriter.TrySetTextAsync(tags);
+                ViewModel.StatusMessage = "Copied all tags to clipboard";
+            };
+            menu.Items.Add(copyTagsItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var fitItem = new MenuFlyoutItem
+            {
+                Text = "Fit all nodes in window (Ctrl+0)",
+                Icon = new FontIcon { Glyph = "\uE9A6" }
+            };
+            fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
+            menu.Items.Add(fitItem);
+
+            menu.ShowAt(AllTagsPill, e.GetPosition(AllTagsPill));
+            e.Handled = true;
+        }
+
+        private void OnDynamicTagPillRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (sender is not Button btn || btn.Tag is not string tag) return;
+            var menu = new MenuFlyout();
+
+            var filterItem = new MenuFlyoutItem
+            {
+                Text = $"Filter to tag '{tag}'",
+                Icon = new FontIcon { Glyph = "\uE71C" }
+            };
+            filterItem.Click += (_, _) => ViewModel.SelectedTagFilter = tag;
+            menu.Items.Add(filterItem);
+
+            if (ViewModel.SelectedTagFilter != null)
+            {
+                var clearFilterItem = new MenuFlyoutItem
+                {
+                    Text = "Clear active tag filter (Esc)",
+                    Icon = new FontIcon { Glyph = "\uE711" }
+                };
+                clearFilterItem.Click += (_, _) => ViewModel.SelectedTagFilter = null;
+                menu.Items.Add(clearFilterItem);
+            }
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyTagItem = new MenuFlyoutItem
+            {
+                Text = $"Copy tag '{tag}'",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyTagItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(tag);
+                ViewModel.StatusMessage = $"Copied tag '{tag}' to clipboard";
+            };
+            menu.Items.Add(copyTagItem);
+
+            if (ViewModel.SelectedNode is { } selNode)
+            {
+                bool hasTag = selNode.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase);
+                if (!hasTag)
+                {
+                    var addTagItem = new MenuFlyoutItem
+                    {
+                        Text = $"Add '{tag}' to selected node",
+                        Icon = new FontIcon { Glyph = "\uE710" }
+                    };
+                    addTagItem.Click += (_, _) =>
+                    {
+                        selNode.Tags.Add(tag);
+                        ViewModel.StatusMessage = $"Added tag '{tag}' to '{selNode.Title}'";
+                    };
+                    menu.Items.Add(addTagItem);
+                }
+                else
+                {
+                    var removeTagItem = new MenuFlyoutItem
+                    {
+                        Text = $"Remove '{tag}' from selected node",
+                        Icon = new FontIcon { Glyph = "\uE74D" }
+                    };
+                    removeTagItem.Click += (_, _) =>
+                    {
+                        selNode.Tags.Remove(tag);
+                        ViewModel.StatusMessage = $"Removed tag '{tag}' from '{selNode.Title}'";
+                    };
+                    menu.Items.Add(removeTagItem);
+                }
+            }
+
+            menu.ShowAt(btn, e.GetPosition(btn));
+            e.Handled = true;
+        }
+
         private void OnTagPillsPreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (e.Key == Windows.System.VirtualKey.Escape)

@@ -383,6 +383,58 @@ public sealed partial class ExtensionSetupView : UserControl
         catch (Exception ex) { ShowError($"Couldn't open the guide: {ex.Message}"); }
     }
 
+    private void OnGuideHyperlinkRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? (FrameworkElement)this;
+        var menu = new MenuFlyout();
+
+        var openGuideItem = new MenuFlyoutItem
+        {
+            Text = "Open guide in browser",
+            Icon = new FontIcon { Glyph = "\uE8A7" }
+        };
+        openGuideItem.Click += (s, ev) => OnOpenGuideClick(s, ev);
+        menu.Items.Add(openGuideItem);
+
+        var copyUrlItem = new MenuFlyoutItem
+        {
+            Text = "Copy guide web address",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyUrlItem.Click += (_, _) =>
+        {
+            _ = ClipboardWriter.TrySetTextAsync(BrowserExtensionPackage.GuideUrl);
+            if (copyUrlItem.Icon is FontIcon fi) CopyFeedback.CopyWithTick(BrowserExtensionPackage.GuideUrl, fi);
+        };
+        menu.Items.Add(copyUrlItem);
+
+        if (_folder is not null)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyFolderItem = new MenuFlyoutItem
+            {
+                Text = "Copy extension folder path",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C"
+            };
+            copyFolderItem.Click += (s, ev) => OnCopyFolderClick(s, ev);
+            menu.Items.Add(copyFolderItem);
+
+            var openFolderItem = new MenuFlyoutItem
+            {
+                Text = "Show in File Explorer",
+                Icon = new FontIcon { Glyph = "\uE838" },
+                KeyboardAcceleratorTextOverride = "Ctrl+O"
+            };
+            openFolderItem.Click += (s, ev) => OnOpenFolderClick(s, ev);
+            menu.Items.Add(openFolderItem);
+        }
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
     private void OnCopyFolderButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;

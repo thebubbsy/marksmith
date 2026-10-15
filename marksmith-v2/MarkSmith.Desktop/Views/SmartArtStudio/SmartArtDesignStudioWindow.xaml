@@ -187,33 +187,33 @@
                                     Background="Transparent" IsHitTestVisible="True"
                                     RightTapped="OnOutlineToolbarRightTapped"
                                     ToolTipService.ToolTip="Outline actions (Right-click for options)">
-                            <Button Command="{Binding AddChildCommand}" Click="OnToolbarAddNodeClick" Height="32" Padding="9,0" ToolTipService.ToolTip="Add a child under the selected item (Insert)">
+                            <Button Command="{Binding AddChildCommand}" Click="OnToolbarAddNodeClick" RightTapped="OnOutlineToolbarRightTapped" Height="32" Padding="9,0" ToolTipService.ToolTip="Add a child under the selected item (Insert, Right-click for options)">
                                 <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Child" /></StackPanel>
                             </Button>
-                            <Button Command="{Binding AddSiblingCommand}" Click="OnToolbarAddNodeClick" Height="32" Padding="9,0" ToolTipService.ToolTip="Add an item after the selected one, at the same level (Enter)">
+                            <Button Command="{Binding AddSiblingCommand}" Click="OnToolbarAddNodeClick" RightTapped="OnOutlineToolbarRightTapped" Height="32" Padding="9,0" ToolTipService.ToolTip="Add an item after the selected one, at the same level (Enter, Right-click for options)">
                                 <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Sibling" /></StackPanel>
                             </Button>
                             <Rectangle Width="1" Height="20" Margin="4,0" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center" />
-                            <Button Style="{StaticResource ToolIconButton}" Click="OnRenameClick"
+                            <Button Style="{StaticResource ToolIconButton}" Click="OnRenameClick" RightTapped="OnOutlineToolbarRightTapped"
                                     IsEnabled="{Binding HasSelection}"
-                                    AutomationProperties.Name="Rename" ToolTipService.ToolTip="Rename (F2 or double-click)">
+                                    AutomationProperties.Name="Rename" ToolTipService.ToolTip="Rename (F2 or double-click, Right-click for options)">
                                 <FontIcon Glyph="&#xE70F;" FontSize="14" />
                             </Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DuplicateSelectedCommand}"
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DuplicateSelectedCommand}" RightTapped="OnOutlineToolbarRightTapped"
                                     IsEnabled="{Binding HasSelection}"
-                                    AutomationProperties.Name="Duplicate" ToolTipService.ToolTip="Duplicate (Ctrl+D)">
+                                    AutomationProperties.Name="Duplicate" ToolTipService.ToolTip="Duplicate (Ctrl+D, Right-click for options)">
                                 <FontIcon Glyph="&#xE8C8;" FontSize="14" />
                             </Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DeleteSelectedCommand}"
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DeleteSelectedCommand}" RightTapped="OnOutlineToolbarRightTapped"
                                     IsEnabled="{Binding HasSelection}"
-                                    AutomationProperties.Name="Delete" ToolTipService.ToolTip="Delete (Del)">
+                                    AutomationProperties.Name="Delete" ToolTipService.ToolTip="Delete (Del, Right-click for options)">
                                 <FontIcon Glyph="&#xE74D;" FontSize="14" />
                             </Button>
                             <Rectangle Width="1" Height="20" Margin="4,0" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center" />
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding MoveUpCommand}" IsEnabled="{Binding CanMoveUp}" AutomationProperties.Name="Move up" ToolTipService.ToolTip="Move up (Alt+Up)"><FontIcon Glyph="&#xE74A;" FontSize="14" /></Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding MoveDownCommand}" IsEnabled="{Binding CanMoveDown}" AutomationProperties.Name="Move down" ToolTipService.ToolTip="Move down (Alt+Down)"><FontIcon Glyph="&#xE74B;" FontSize="14" /></Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding PromoteCommand}" IsEnabled="{Binding CanPromote}" AutomationProperties.Name="Promote" ToolTipService.ToolTip="Promote — move one level out (Shift+Tab or Alt+Left)"><FontIcon Glyph="&#xE76B;" FontSize="14" /></Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DemoteCommand}" IsEnabled="{Binding CanDemote}" AutomationProperties.Name="Demote" ToolTipService.ToolTip="Demote — move one level in (Tab or Alt+Right)"><FontIcon Glyph="&#xE76C;" FontSize="14" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding MoveUpCommand}" IsEnabled="{Binding CanMoveUp}" AutomationProperties.Name="Move up" RightTapped="OnOutlineToolbarRightTapped" ToolTipService.ToolTip="Move up (Alt+Up, Right-click for options)"><FontIcon Glyph="&#xE74A;" FontSize="14" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding MoveDownCommand}" IsEnabled="{Binding CanMoveDown}" AutomationProperties.Name="Move down" RightTapped="OnOutlineToolbarRightTapped" ToolTipService.ToolTip="Move down (Alt+Down, Right-click for options)"><FontIcon Glyph="&#xE74B;" FontSize="14" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding PromoteCommand}" IsEnabled="{Binding CanPromote}" AutomationProperties.Name="Promote" RightTapped="OnOutlineToolbarRightTapped" ToolTipService.ToolTip="Promote — move one level out (Shift+Tab or Alt+Left, Right-click for options)"><FontIcon Glyph="&#xE76B;" FontSize="14" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DemoteCommand}" IsEnabled="{Binding CanDemote}" AutomationProperties.Name="Demote" RightTapped="OnOutlineToolbarRightTapped" ToolTipService.ToolTip="Demote — move one level in (Tab or Alt+Right, Right-click for options)"><FontIcon Glyph="&#xE76C;" FontSize="14" /></Button>
                         </StackPanel>
 
                         <!-- One row per item, indented by depth; double-click or F2 renames inline. The

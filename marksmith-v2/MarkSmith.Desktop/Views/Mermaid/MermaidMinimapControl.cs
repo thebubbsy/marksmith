@@ -65,6 +65,7 @@ public sealed class MermaidMinimapControl : UserControl
         _mapCanvas.PointerPressed += OnMapPointerPressed;
         _mapCanvas.PointerMoved += OnMapPointerMoved;
         _mapCanvas.PointerReleased += OnMapPointerReleased;
+        _mapCanvas.RightTapped += OnMapRightTapped;
 
         var restBorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x2B, 0x2D, 0x42));
         var hoverBorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xAA, 0x4C, 0xC9, 0xF0));
@@ -213,9 +214,84 @@ public sealed class MermaidMinimapControl : UserControl
 
     private void OnMapPointerPressed(object sender, PointerRoutedEventArgs e)
     {
+        var pt = e.GetCurrentPoint(_mapCanvas);
+        if (pt.Properties.IsRightButtonPressed) return;
+
         _isNavigating = true;
         _mapCanvas.CapturePointer(e.Pointer);
         NavigateToPointer(e);
+        e.Handled = true;
+    }
+
+    private void OnMapRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        var menu = new MenuFlyout();
+
+        var centerItem = new MenuFlyoutItem
+        {
+            Text = "Center view here",
+            Icon = new FontIcon { Glyph = "\uE73E" }
+        };
+        centerItem.Click += (_, _) =>
+        {
+            if (TargetScrollViewer is not { } sv) return;
+            var p = e.GetPosition(_mapCanvas);
+            double zoom = Math.Max(0.01, sv.ZoomFactor);
+            double worldX = p.X / _scale + _originX;
+            double worldY = p.Y / _scale + _originY;
+            var v = VisibleWorld(sv);
+            sv.ChangeView((worldX - v.W / 2) * zoom, (worldY - v.H / 2) * zoom, null, disableAnimation: false);
+        };
+        menu.Items.Add(centerItem);
+
+        var fitItem = new MenuFlyoutItem
+        {
+            Text = "Fit all in window",
+            Icon = new FontIcon { Glyph = "\uE9A6" }
+        };
+        fitItem.Click += (_, _) =>
+        {
+            if (TargetScrollViewer is not { } sv) return;
+            sv.ZoomToFactor(1.0f);
+        };
+        menu.Items.Add(fitItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var zoom100Item = new MenuFlyoutItem
+        {
+            Text = "Zoom to 100% (Ctrl+0)",
+            Icon = new FontIcon { Glyph = "\uE71E" }
+        };
+        zoom100Item.Click += (_, _) =>
+        {
+            TargetScrollViewer?.ZoomToFactor(1.0f);
+        };
+        menu.Items.Add(zoom100Item);
+
+        var zoomInItem = new MenuFlyoutItem
+        {
+            Text = "Zoom in (+15%, Ctrl+=)",
+            Icon = new FontIcon { Glyph = "\uE710" }
+        };
+        zoomInItem.Click += (_, _) =>
+        {
+            if (TargetScrollViewer is { } sv) sv.ZoomToFactor(sv.ZoomFactor * 1.15f);
+        };
+        menu.Items.Add(zoomInItem);
+
+        var zoomOutItem = new MenuFlyoutItem
+        {
+            Text = "Zoom out (-15%, Ctrl+-)",
+            Icon = new FontIcon { Glyph = "\uE738" }
+        };
+        zoomOutItem.Click += (_, _) =>
+        {
+            if (TargetScrollViewer is { } sv) sv.ZoomToFactor(sv.ZoomFactor / 1.15f);
+        };
+        menu.Items.Add(zoomOutItem);
+
+        menu.ShowAt(_mapCanvas, e.GetPosition(_mapCanvas));
         e.Handled = true;
     }
 
