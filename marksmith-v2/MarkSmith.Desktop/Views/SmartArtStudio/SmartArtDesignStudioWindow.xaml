@@ -283,6 +283,8 @@
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                                  Text="{Binding MarkdownText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  KeyDown="OnMarkdownTextBoxKeyDown"
+                                 RightTapped="OnMarkdownTextBoxRightTapped"
+                                 ToolTipService.ToolTip="Indented Markdown bullets (Ctrl+Enter to insert into document, Right-click for options)"
                                  FontFamily="Consolas" FontSize="13" />
                     </Grid>
                 </Grid>
@@ -332,15 +334,19 @@
 
         <!-- Status -->
         <Grid Grid.Row="2" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" Padding="14,7"
-              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" ColumnSpacing="12">
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" ColumnSpacing="12"
+              RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped"
+              ToolTipService.ToolTip="SmartArt Studio status (Double-click to copy, Right-click for options)">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite" />
+                       TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite"
+                       RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
             <TextBlock x:Name="OutlineSummaryLabel" Grid.Column="1" Text="{Binding OutlineSummaryText}" FontSize="12"
-                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"
+                       RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
         </Grid>
     </Grid>
 </Window>

@@ -1975,9 +1975,12 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBox Grid.Column="0" Text="{Binding OutputFolder, Mode=TwoWay}"
+                    <TextBox x:Name="OutputFolderTextBox" Grid.Column="0" Text="{Binding OutputFolder, Mode=TwoWay}"
                              PlaceholderText="Output folder (defaults to next to the input file)"
-                             IsSpellCheckEnabled="False" ToolTipService.ToolTip="Output folder" />
+                             IsSpellCheckEnabled="False"
+                             ToolTipService.ToolTip="Output folder (Double-click to open in File Explorer, Right-click for options)"
+                             DoubleTapped="OnOutputFolderTextBoxDoubleTapped"
+                             RightTapped="OnOutputFolderTextBoxRightTapped" />
 
                     <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseFolderClick"
                             ToolTipService.ToolTip="Choose output folder">
@@ -2102,7 +2105,11 @@
                             VerticalAlignment="Center" Margin="16,5">
                     <ProgressRing IsActive="{Binding IsBusy}" Width="14" Height="14" VerticalAlignment="Center" />
                     <Border x:Name="DetectedBadge" Visibility="Collapsed" CornerRadius="12" Padding="10,4"
-                            Background="{ThemeResource AccentFillColorSecondaryBrush}" VerticalAlignment="Center">
+                            Background="{ThemeResource AccentFillColorSecondaryBrush}" VerticalAlignment="Center"
+                            IsHitTestVisible="True"
+                            Tapped="OnDetectedBadgeTapped"
+                            RightTapped="OnDetectedBadgeRightTapped"
+                            ToolTipService.ToolTip="Detected document source (Click to inspect, Right-click for options)">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE945;" FontSize="12"
                                       Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />

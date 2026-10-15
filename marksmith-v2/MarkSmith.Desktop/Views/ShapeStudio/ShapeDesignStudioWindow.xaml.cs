@@ -203,6 +203,61 @@ namespace MarkSmith.Views.ShapeStudio
             ZoomButton.Flyout?.ShowAt(ZoomButton);
         }
 
+        private void OnZoomButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ZoomTo(1.0);
+            ViewModel.StatusMessage = "Zoom reset to 100%";
+        }
+
+        private void OnStatusBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var summary = $"{ViewModel.StatusMessage} {ViewModel.SelectionSummary}".Trim();
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = "Copied status to clipboard";
+        }
+
+        private void OnStatusBarRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var target = sender as FrameworkElement ?? RootGrid;
+            ShowStatusBarContextMenu(target, e.GetPosition(target));
+        }
+
+        private void ShowStatusBarContextMenu(FrameworkElement target, Point? position)
+        {
+            var flyout = new MenuFlyout();
+            bool any = ViewModel.HasShapes;
+
+            flyout.Items.Add(ShapeMenuItem("Copy status message", "\uE8C8", () =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusMessage ?? "");
+                ViewModel.StatusMessage = "Copied status message to clipboard";
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Copy selection summary", "\uE946", () =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.SelectionSummary ?? "");
+                ViewModel.StatusMessage = "Copied selection summary to clipboard";
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Copy shapes as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), enabled: any));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Select all shapes", "\uE8B3", () => ViewModel.SelectAllCommand.Execute(null), "Ctrl+A", enabled: any && !ViewModel.IsDense));
+            flyout.Items.Add(ShapeMenuItem("Fit diagram", "\uE9A6", FitCanvasToContent, "Ctrl+0", enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Actual size (100%)", "\uE71E", () => ZoomTo(1.0), "Ctrl+1"));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Clear canvas", "\uE74D", () => OnClearClick(this, new RoutedEventArgs()), enabled: any));
+
+            if (position.HasValue) flyout.ShowAt(target, position.Value);
+            else flyout.ShowAt(target);
+        }
+
         // ---- preset miniatures ----
 
         // Built once per preset and colour scheme on a throwaway studio; the list virtualises, so

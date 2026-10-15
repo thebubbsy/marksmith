@@ -763,19 +763,24 @@
         </Grid>
 
         <!-- Status -->
-        <Grid Grid.Row="2" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" Padding="14,7" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" ColumnSpacing="16">
+        <Grid Grid.Row="2" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" Padding="14,7" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" ColumnSpacing="16"
+              RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped"
+              ToolTipService.ToolTip="Shape Studio status (Double-click to copy, Right-click for options)">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-            <TextBlock x:Name="SelectionSummaryText" Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+            <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                       RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
+            <TextBlock x:Name="SelectionSummaryText" Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"
+                       RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
             <!-- Zoom: Ctrl+scroll and pinch always worked but nothing showed the level or offered
                  a way back. Presets now open fitted to the canvas. -->
             <DropDownButton x:Name="ZoomButton" Grid.Column="2" Padding="8,0" Height="24" MinWidth="70" FontSize="12"
                             Margin="0,-4" AutomationProperties.Name="Zoom"
-                            ToolTipService.ToolTip="Zoom — Ctrl+scroll to zoom, Ctrl+0 to fit the diagram, right-click for preset stops"
+                            ToolTipService.ToolTip="Zoom — Ctrl+scroll to zoom, Ctrl+0 to fit, double-click for 100%, right-click for preset stops"
+                            DoubleTapped="OnZoomButtonDoubleTapped"
                             RightTapped="OnZoomButtonRightTapped">
                 <TextBlock x:Name="ZoomText" Text="100%" FontSize="12" />
                 <DropDownButton.Flyout>

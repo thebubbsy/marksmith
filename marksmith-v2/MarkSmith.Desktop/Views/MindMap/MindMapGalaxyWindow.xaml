@@ -640,15 +640,19 @@
         </Grid>
 
         <!-- STATUS BAR -->
-        <Border Grid.Row="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="14,6">
-            <Grid ColumnSpacing="16">
+        <Border Grid.Row="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="14,6"
+                RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped"
+                ToolTipService.ToolTip="Document Galaxy status (Double-click to fit to window, Right-click for options)">
+            <Grid ColumnSpacing="16" RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                           TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite"
+                           RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                            RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped">
                     <TextBlock x:Name="NodesCountText" Text="{Binding NodesCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                     <TextBlock Text="·" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                     <TextBlock x:Name="LinksCountText" Text="{Binding LinksCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />

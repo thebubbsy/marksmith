@@ -1004,5 +1004,161 @@ namespace MarkSmith.Views.SmartArtStudio
             else if (e.Key is VirtualKey.Delete or VirtualKey.Back) { ViewModel.DeleteSelectedCommand.Execute(null); e.Handled = true; }
             else if (e.Key == VirtualKey.F2) { BeginRenameAndFocus(); e.Handled = true; }
         }
+
+        private void OnMarkdownTextBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (MarkdownTextBox is null) return;
+            if (!string.IsNullOrEmpty(MarkdownTextBox.SelectedText)) return;
+            e.Handled = true;
+            ShowMarkdownTextBoxContextMenu(e.GetPosition(MarkdownTextBox));
+        }
+
+        private void ShowMarkdownTextBoxContextMenu(Windows.Foundation.Point? position)
+        {
+            if (MarkdownTextBox is null) return;
+            var menu = new MenuFlyout();
+
+            var insertItem = new MenuFlyoutItem
+            {
+                Text = "Insert into document (Ctrl+Enter)",
+                Icon = new FontIcon { Glyph = "\uE8A5" }
+            };
+            insertItem.Click += (_, _) =>
+            {
+                if (ViewModel.InsertIntoDocumentCommand.CanExecute(null))
+                    ViewModel.InsertIntoDocumentCommand.Execute(null);
+            };
+            menu.Items.Add(insertItem);
+
+            var copyBlockItem = new MenuFlyoutItem
+            {
+                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyBlockItem.Click += (_, _) => CopySmartArtBlock();
+            menu.Items.Add(copyBlockItem);
+
+            var copyBulletsItem = new MenuFlyoutItem
+            {
+                Text = "Copy outline bullets (Ctrl+C)",
+                Icon = new FontIcon { Glyph = "\uE8FD" }
+            };
+            copyBulletsItem.Click += (_, _) => CopyOutlineMarkdown();
+            menu.Items.Add(copyBulletsItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var pasteItem = new MenuFlyoutItem
+            {
+                Text = "Paste bullets (Ctrl+V)",
+                Icon = new FontIcon { Glyph = "\uE77F" }
+            };
+            pasteItem.Click += async (_, _) =>
+            {
+                try
+                {
+                    var text = await Windows.ApplicationModel.DataTransfer.Clipboard.GetContent().GetTextAsync();
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        MarkdownTextBox.SelectedText = text;
+                    }
+                }
+                catch { }
+            };
+            menu.Items.Add(pasteItem);
+
+            var selectAllItem = new MenuFlyoutItem
+            {
+                Text = "Select all (Ctrl+A)",
+                Icon = new FontIcon { Glyph = "\uE8B3" }
+            };
+            selectAllItem.Click += (_, _) => MarkdownTextBox.SelectAll();
+            menu.Items.Add(selectAllItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var switchToOutlineItem = new MenuFlyoutItem
+            {
+                Text = "Switch to Outline view (Ctrl+1)",
+                Icon = new FontIcon { Glyph = "\uE8FD" }
+            };
+            switchToOutlineItem.Click += (_, _) =>
+            {
+                EditorTabs.SelectedItem = OutlineTab;
+            };
+            menu.Items.Add(switchToOutlineItem);
+
+            if (position.HasValue) menu.ShowAt(MarkdownTextBox, position.Value);
+            else menu.ShowAt(MarkdownTextBox);
+        }
+
+        private void OnStatusBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var summary = $"{ViewModel.StatusMessage} — {ViewModel.OutlineSummaryText}";
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = "Copied status & outline summary to clipboard";
+        }
+
+        private void OnStatusBarRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var target = sender as FrameworkElement ?? RootGrid;
+            ShowStatusBarContextMenu(target, e.GetPosition(target));
+        }
+
+        private void ShowStatusBarContextMenu(FrameworkElement target, Windows.Foundation.Point? position)
+        {
+            var menu = new MenuFlyout();
+
+            var copyStatusItem = new MenuFlyoutItem
+            {
+                Text = "Copy status message",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyStatusItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusMessage ?? "");
+                ViewModel.StatusMessage = "Copied status message to clipboard";
+            };
+            menu.Items.Add(copyStatusItem);
+
+            var copySummaryItem = new MenuFlyoutItem
+            {
+                Text = "Copy outline summary",
+                Icon = new FontIcon { Glyph = "\uE946" }
+            };
+            copySummaryItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.OutlineSummaryText ?? "");
+                ViewModel.StatusMessage = "Copied outline summary to clipboard";
+            };
+            menu.Items.Add(copySummaryItem);
+
+            var copyBlockItem = new MenuFlyoutItem
+            {
+                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyBlockItem.Click += (_, _) => CopySmartArtBlock();
+            menu.Items.Add(copyBlockItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var insertItem = new MenuFlyoutItem
+            {
+                Text = "Insert into document (Ctrl+Enter)",
+                Icon = new FontIcon { Glyph = "\uE8A5" }
+            };
+            insertItem.Click += (_, _) =>
+            {
+                if (ViewModel.InsertIntoDocumentCommand.CanExecute(null))
+                    ViewModel.InsertIntoDocumentCommand.Execute(null);
+            };
+            menu.Items.Add(insertItem);
+
+            if (position.HasValue) menu.ShowAt(target, position.Value);
+            else menu.ShowAt(target);
+        }
     }
 }

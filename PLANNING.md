@@ -7259,3 +7259,61 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Combined test suite (`CommandIcons|KeyboardShortcuts|OcrExperience|ShapeStudio`): **336 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 18036, HWND 1837992, `Alive: True`, `Responding: True`, exited cleanly.
+
+### 2026-10-15 (scheduled routine run #91 — WinUI 3 Desktop Polish: Output Folder & Detected Source Badge Menus, SmartArt Markdown Context Menu & Status Actions, Shape Studio Zoom Double-Tap & Status Actions, MindMap Galaxy Status Actions)
+
+- **Surface / Component Targets:** `MainWindow`, `SmartArtDesignStudioWindow`, `ShapeDesignStudioWindow`, `MindMapGalaxyWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #90:
+    * Target A: `MainWindow` output folder actions & context menu (`MainWindow.xaml` & `.xaml.cs`).
+    * Target B: `MainWindow` detected source badge interactivity & status bar actions (`MainWindow.xaml` & `.xaml.cs`).
+  - Generated:
+    1. `MainWindow` Output Folder Actions & Explorer Context Menu (`MainWindow.xaml` & `.xaml.cs`)
+    2. `MainWindow` Detected Source Badge Context Menu & Inspection Studio Link (`MainWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Wired double-tap on `OutputFolderTextBox` to reveal/open folder in File Explorer or copy path; added right-tap context menu with Open in File Explorer (`Ctrl+E`, `\uE838`), Copy folder path (`Ctrl+C`, `\uE8C8`), Choose different folder (`Ctrl+O`, `\uE8B7`), and Reset to document folder (`\uE777`). Enabled `IsHitTestVisible="True"` on `DetectedBadge` with right-tap and tap actions: Copy source info (`\uE8C8`), Open OCR Inspection Studio (`\uE8E5`), Document statistics (`\uE9F9`), and Clear tag (`\uE711`).
+  - Generated:
+    3. `SmartArtDesignStudioWindow` Markdown Code Editor Context Menu & Shortcuts (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`)
+    4. `SmartArtDesignStudioWindow` Status Bar & Summary Label Context Menu & Double-Tap Affordance (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Attached right-tap menu to `MarkdownTextBox` offering Insert into document (`Ctrl+Enter`, `\uE8A5`), Copy :::smartart block (`Ctrl+Shift+C`, `\uE8C8`), Copy outline bullets (`Ctrl+C`, `\uE8FD`), Paste bullets (`Ctrl+V`, `\uE77F`), Select all (`Ctrl+A`, `\uE8B3`), and Switch to Outline view (`Ctrl+1`, `\uE8FD`); wired double-tap on status bar to copy status and outline summary, plus right-tap menu offering Copy status (`\uE8C8`), Copy summary (`\uE946`), Copy block (`\uE8C8`), and Insert (`\uE8A5`).
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `ShapeDesignStudioWindow` Zoom Button Double-Tap Reset & Status Bar Context Menu (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`)
+    6. `MindMapGalaxyWindow` Status Bar Context Menu & Double-Tap Fit (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Attached `DoubleTapped="OnZoomButtonDoubleTapped"` on `ZoomButton` in Shape Studio to reset zoom to 100%; attached `DoubleTapped` and `RightTapped` on status bar with Copy status (`\uE8C8`), Copy selection summary (`\uE946`), Copy shapes as Markdown (`\uE8C8`), Select all (`Ctrl+A`, `\uE8B3`), Fit diagram (`Ctrl+0`, `\uE9A6`), Actual size 100% (`Ctrl+1`, `\uE71E`), and Clear canvas (`\uE74D`). Attached `DoubleTapped` and `RightTapped` on `MindMapGalaxyWindow` status bar for instant Fit to window (`Ctrl+0`) and menu with Fit (`\uE9A6`), Actual size 100% (`\uE71E`), Copy status (`\uE8C8`), Copy map topology summary (`\uE946`), and Save map (`Ctrl+S`, `\uE74E`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #92.
+
+**Shipped:**
+1. **`MainWindow` Output Folder Actions & Explorer Context Menu (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `x:Name="OutputFolderTextBox"`, `DoubleTapped="OnOutputFolderTextBoxDoubleTapped"`, and `RightTapped="OnOutputFolderTextBoxRightTapped"`.
+   - Double-tapping opens the output folder in File Explorer (or copies path if not yet on disk).
+   - Right-tapping opens a Fluent context menu: Open in File Explorer `Ctrl+E` (`\uE838`), Copy folder path `Ctrl+C` (`\uE8C8`), Choose different folder `Ctrl+O` (`\uE8B7`), and Reset to document folder (`\uE777`).
+2. **`MainWindow` Detected Source Badge Context Menu & Inspection Studio Link (`MainWindow.xaml` & `.xaml.cs`):**
+   - Enabled `IsHitTestVisible="True"`, `Tapped="OnDetectedBadgeTapped"`, `RightTapped="OnDetectedBadgeRightTapped"`, and rich tooltips on `DetectedBadge`.
+   - Menu provides Copy source information (`\uE8C8`), OCR & Document Inspection Studio launch (`\uE8E5`), Document statistics overview (`\uE9F9`), and Clear source detection tag (`\uE711`).
+3. **`SmartArtDesignStudioWindow` Markdown Code Editor Context Menu & Shortcuts (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Added `RightTapped="OnMarkdownTextBoxRightTapped"` and updated tooltips on `MarkdownTextBox`.
+   - Surfaced context menu: Insert into document `Ctrl+Enter` (`\uE8A5`), Copy :::smartart block `Ctrl+Shift+C` (`\uE8C8`), Copy outline bullets `Ctrl+C` (`\uE8FD`), Paste bullets `Ctrl+V` (`\uE77F`), Select all `Ctrl+A` (`\uE8B3`), and Switch to Outline view `Ctrl+1` (`\uE8FD`).
+4. **`SmartArtDesignStudioWindow` Status Bar & Summary Label Context Menu & Double-Tap Affordance (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Double-tapping status bar or summary label copies status and outline metrics with instant feedback.
+   - Right-tapping opens context menu: Copy status message (`\uE8C8`), Copy outline summary (`\uE946`), Copy :::smartart block `Ctrl+Shift+C` (`\uE8C8`), and Insert into document `Ctrl+Enter` (`\uE8A5`).
+5. **`ShapeDesignStudioWindow` Zoom Button Double-Tap Reset & Status Bar Context Menu (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Double-tapping `ZoomButton` instantly resets canvas zoom to 100%.
+   - Double-tapping status bar copies status and selection details; right-tapping opens context menu: Copy status message (`\uE8C8`), Copy selection summary (`\uE946`), Copy shapes as Markdown (`\uE8C8`), Select all shapes `Ctrl+A` (`\uE8B3`), Fit diagram `Ctrl+0` (`\uE9A6`), Actual size 100% `Ctrl+1` (`\uE71E`), and Clear canvas (`\uE74D`).
+6. **`MindMapGalaxyWindow` Status Bar Context Menu & Double-Tap Fit (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Double-tapping status bar triggers instant Fit all nodes in window (`Ctrl+0`).
+   - Right-tapping status bar opens context menu: Fit all nodes in window `Ctrl+0` (`\uE9A6`), Reset zoom to 100% `Ctrl+1` (`\uE71E`), Copy status message (`\uE8C8`), Copy map topology overview (`\uE946`), and Save map `Ctrl+S` (`\uE74E`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 14 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Combined test suite (`CommandIcons|KeyboardShortcuts|OcrExperience|ShapeStudio`): **336 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 10764, HWND 3278282, `Alive: True`, `Responding: True`, exited cleanly.
+

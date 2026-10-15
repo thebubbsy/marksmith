@@ -2977,6 +2977,241 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         else menu.ShowAt(InputFileTextBox);
     }
 
+    private void OnOutputFolderTextBoxDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        if (OutputFolderTextBox is null) return;
+        var folder = ViewModel.OutputFolder;
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            folder = string.IsNullOrWhiteSpace(ViewModel.InputFilePath)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+                : System.IO.Path.GetDirectoryName(ViewModel.InputFilePath) ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        }
+        e.Handled = true;
+        try
+        {
+            if (Directory.Exists(folder))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = folder,
+                    UseShellExecute = true
+                });
+                AnnounceStatus($"Opened folder: {folder}");
+            }
+            else
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(folder);
+                AnnounceStatus($"Copied folder path: {folder}");
+            }
+        }
+        catch (Exception)
+        {
+            _ = Services.ClipboardWriter.TrySetTextAsync(folder);
+            AnnounceStatus($"Copied folder path: {folder}");
+        }
+    }
+
+    private void OnOutputFolderTextBoxRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (OutputFolderTextBox is null) return;
+        if (!string.IsNullOrEmpty(OutputFolderTextBox.SelectedText)) return;
+        e.Handled = true;
+        ShowOutputFolderContextMenu(e.GetPosition(OutputFolderTextBox));
+    }
+
+    private void ShowOutputFolderContextMenu(Windows.Foundation.Point? position)
+    {
+        if (OutputFolderTextBox is null) return;
+        var menu = new MenuFlyout();
+        var folder = ViewModel.OutputFolder;
+        bool hasFolder = !string.IsNullOrWhiteSpace(folder);
+
+        if (hasFolder)
+        {
+            var openFolderItem = new MenuFlyoutItem
+            {
+                Text = "Open in File Explorer (Ctrl+E)",
+                Icon = new FontIcon { Glyph = "\uE838" }
+            };
+            openFolderItem.Click += (_, _) =>
+            {
+                try
+                {
+                    if (Directory.Exists(folder))
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = folder,
+                            UseShellExecute = true
+                        });
+                        AnnounceStatus("Opened output folder in File Explorer");
+                    }
+                    else
+                    {
+                        AnnounceStatus($"Folder does not exist yet: {folder}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AnnounceStatus($"Could not open folder: {ex.Message}");
+                }
+            };
+            menu.Items.Add(openFolderItem);
+
+            var copyPathItem = new MenuFlyoutItem
+            {
+                Text = "Copy folder path (Ctrl+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyPathItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(folder);
+                AnnounceStatus($"Copied output folder path: {folder}");
+            };
+            menu.Items.Add(copyPathItem);
+
+            var browseFolderItem = new MenuFlyoutItem
+            {
+                Text = "Choose different folder… (Ctrl+O)",
+                Icon = new FontIcon { Glyph = "\uE8B7" }
+            };
+            browseFolderItem.Click += (_, _) => OnBrowseFolderClick(this, new RoutedEventArgs());
+            menu.Items.Add(browseFolderItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var resetFolderItem = new MenuFlyoutItem
+            {
+                Text = "Reset to document folder",
+                Icon = new FontIcon { Glyph = "\uE777" }
+            };
+            resetFolderItem.Click += (_, _) =>
+            {
+                ViewModel.OutputFolder = string.Empty;
+                AnnounceStatus("Reset output folder to document location.");
+            };
+            menu.Items.Add(resetFolderItem);
+        }
+        else
+        {
+            var browseFolderItem = new MenuFlyoutItem
+            {
+                Text = "Choose output folder… (Ctrl+O)",
+                Icon = new FontIcon { Glyph = "\uE8B7" }
+            };
+            browseFolderItem.Click += (_, _) => OnBrowseFolderClick(this, new RoutedEventArgs());
+            menu.Items.Add(browseFolderItem);
+
+            var useDocFolderItem = new MenuFlyoutItem
+            {
+                Text = "Use current document folder",
+                Icon = new FontIcon { Glyph = "\uE8B7" }
+            };
+            useDocFolderItem.Click += (_, _) =>
+            {
+                if (!string.IsNullOrWhiteSpace(ViewModel.InputFilePath))
+                {
+                    var dir = System.IO.Path.GetDirectoryName(ViewModel.InputFilePath);
+                    if (!string.IsNullOrWhiteSpace(dir))
+                    {
+                        ViewModel.OutputFolder = dir;
+                        AnnounceStatus($"Output folder set to: {dir}");
+                    }
+                }
+            };
+            menu.Items.Add(useDocFolderItem);
+        }
+
+        if (menu.Items.Count == 0) return;
+        if (position.HasValue) menu.ShowAt(OutputFolderTextBox, position.Value);
+        else menu.ShowAt(OutputFolderTextBox);
+    }
+
+    private void OnDetectedBadgeTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowDetectedBadgeContextMenu(null);
+    }
+
+    private void OnDetectedBadgeRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowDetectedBadgeContextMenu(e.GetPosition(DetectedBadge));
+    }
+
+    private void ShowDetectedBadgeContextMenu(Windows.Foundation.Point? position)
+    {
+        if (DetectedBadge is null) return;
+        var menu = new MenuFlyout();
+        var sourceText = ViewModel.DetectedSourceText;
+        bool hasSource = !string.IsNullOrWhiteSpace(sourceText);
+
+        var copySourceItem = new MenuFlyoutItem
+        {
+            Text = "Copy source information",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copySourceItem.Click += (_, _) =>
+        {
+            if (hasSource)
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(sourceText);
+                AnnounceStatus($"Copied detected source: {sourceText}");
+            }
+        };
+        menu.Items.Add(copySourceItem);
+
+        var ocrStudioItem = new MenuFlyoutItem
+        {
+            Text = "OCR & Document Inspection Studio…",
+            Icon = new FontIcon { Glyph = "\uE8E5" }
+        };
+        ocrStudioItem.Click += (_, _) =>
+        {
+            try
+            {
+                var ocrWindow = new Views.Ocr.OcrInspectionStudioWindow();
+                ocrWindow.Activate();
+                AnnounceStatus("Opened OCR & Document Inspection Studio.");
+            }
+            catch (Exception ex)
+            {
+                AnnounceStatus($"Could not open OCR Studio: {ex.Message}");
+            }
+        };
+        menu.Items.Add(ocrStudioItem);
+
+        var statsItem = new MenuFlyoutItem
+        {
+            Text = "Document statistics overview",
+            Icon = new FontIcon { Glyph = "\uE9F9" }
+        };
+        statsItem.Click += (_, _) =>
+        {
+            AnnounceStatus(ViewModel.DocumentStatsDetail);
+        };
+        menu.Items.Add(statsItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var clearBadgeItem = new MenuFlyoutItem
+        {
+            Text = "Clear source detection tag",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        clearBadgeItem.Click += (_, _) =>
+        {
+            ViewModel.DetectedSourceText = string.Empty;
+            if (DetectedBadge is not null) DetectedBadge.Visibility = Visibility.Collapsed;
+            AnnounceStatus("Cleared source detection tag.");
+        };
+        menu.Items.Add(clearBadgeItem);
+
+        if (position.HasValue) menu.ShowAt(DetectedBadge, position.Value);
+        else menu.ShowAt(DetectedBadge);
+    }
+
     private void OnDropZonePointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         _dropZonePointerOver = true;

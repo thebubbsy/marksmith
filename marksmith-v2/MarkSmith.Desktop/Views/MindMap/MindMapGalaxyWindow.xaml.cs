@@ -2850,6 +2850,81 @@ namespace MarkSmith.Views.MindMap
             RequestRedraw(RedrawScope.Transform);
         }
 
+        private void OnStatusBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OnFitToWindowClick(this, new RoutedEventArgs());
+        }
+
+        private void OnStatusBarRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var target = sender as FrameworkElement ?? (FrameworkElement)GalaxyCanvas;
+            ShowStatusBarContextMenu(target, e.GetPosition(target));
+        }
+
+        private void ShowStatusBarContextMenu(FrameworkElement target, Point? position)
+        {
+            var menu = new MenuFlyout();
+
+            var fitItem = new MenuFlyoutItem
+            {
+                Text = "Fit all nodes in window (Ctrl+0)",
+                Icon = new FontIcon { Glyph = "\uE9A6" }
+            };
+            fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
+            menu.Items.Add(fitItem);
+
+            var actualItem = new MenuFlyoutItem
+            {
+                Text = "Reset zoom to 100% (Ctrl+1)",
+                Icon = new FontIcon { Glyph = "\uE71E" }
+            };
+            actualItem.Click += (_, _) => OnZoomResetClick(this, new RoutedEventArgs());
+            menu.Items.Add(actualItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyStatusItem = new MenuFlyoutItem
+            {
+                Text = "Copy status message",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyStatusItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusMessage ?? "");
+                ViewModel.StatusMessage = "Copied status message to clipboard";
+            };
+            menu.Items.Add(copyStatusItem);
+
+            var copyTopologyItem = new MenuFlyoutItem
+            {
+                Text = "Copy map topology overview",
+                Icon = new FontIcon { Glyph = "\uE946" }
+            };
+            copyTopologyItem.Click += (_, _) =>
+            {
+                var summary = $"{ViewModel.Title} — {ViewModel.NodesCountText}, {ViewModel.LinksCountText}";
+                _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+                ViewModel.StatusMessage = "Copied map topology overview to clipboard";
+            };
+            menu.Items.Add(copyTopologyItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var saveItem = new MenuFlyoutItem
+            {
+                Text = "Save map (Ctrl+S)",
+                Icon = new FontIcon { Glyph = "\uE74E" },
+                IsEnabled = ViewModel.IsDirty
+            };
+            saveItem.Click += (_, _) => ViewModel.SaveCommand.Execute(null);
+            menu.Items.Add(saveItem);
+
+            if (position.HasValue) menu.ShowAt(target, position.Value);
+            else menu.ShowAt(target);
+        }
+
         #endregion
 
         /// <summary>
