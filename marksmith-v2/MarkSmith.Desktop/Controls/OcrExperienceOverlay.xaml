@@ -291,21 +291,33 @@
                                 <Border x:Name="FinalMarkdownSheetBorder"
                                         Visibility="Collapsed"
                                         CornerRadius="8" Padding="14"
+                                        RightTapped="OnFinalSheetRightTapped"
                                         Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                                     <Grid RowDefinitions="Auto,*" RowSpacing="10">
                                         <Border Grid.Row="0" CornerRadius="6" Padding="10,6"
                                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                                 BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <FontIcon Glyph="&#xE73E;" FontSize="13"
-                                                          Foreground="{ThemeResource SystemFillColorSuccessBrush}"
-                                                          AutomationProperties.AccessibilityView="Raw" />
-                                                <TextBlock x:Name="FinalBannerText"
-                                                           Text="Page assembled in Markdown — opening in editor…"
-                                                           FontSize="12" FontWeight="SemiBold"
-                                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                            </StackPanel>
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                    <FontIcon Glyph="&#xE73E;" FontSize="13"
+                                                              Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                                                              AutomationProperties.AccessibilityView="Raw" />
+                                                    <TextBlock x:Name="FinalBannerText"
+                                                               Text="Page assembled in Markdown — opening in editor…"
+                                                               FontSize="12" FontWeight="SemiBold"
+                                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                                <Button x:Name="CopyFinalMarkdownButton" Grid.Column="1" Click="OnCopyFinalMarkdownClick"
+                                                        Padding="8,3" CornerRadius="4"
+                                                        ToolTipService.ToolTip="Copy assembled Markdown to clipboard (Ctrl+C)"
+                                                        AutomationProperties.Name="Copy assembled Markdown">
+                                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                                        <FontIcon Glyph="&#xE8C8;" FontSize="11" />
+                                                        <TextBlock Text="Copy Markdown" FontSize="11.5" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </Grid>
                                         </Border>
                                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                                             <TextBlock x:Name="FinalMarkdownTextBlock"

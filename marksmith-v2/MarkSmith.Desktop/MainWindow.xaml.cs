@@ -2756,6 +2756,136 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
+    private void AnnounceStatus(string message)
+    {
+        ViewModel.StatusText = message;
+        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+    }
+
+    private void OnInputFileTextBoxRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (InputFileTextBox is null) return;
+        if (!string.IsNullOrEmpty(InputFileTextBox.SelectedText))
+        {
+            // Let the native TextBox context menu handle selected text operations
+            return;
+        }
+        e.Handled = true;
+        ShowInputFileContextMenu(e.GetPosition(InputFileTextBox));
+    }
+
+    private void OnInputFileTextBoxDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        if (InputFileTextBox is null) return;
+        var path = ViewModel.InputFilePath;
+        if (string.IsNullOrWhiteSpace(path)) return;
+        e.Handled = true;
+        _ = Services.ClipboardWriter.TrySetTextAsync(path);
+        AnnounceStatus($"Copied full file path: {System.IO.Path.GetFileName(path)}");
+    }
+
+    private void ShowInputFileContextMenu(Windows.Foundation.Point? position)
+    {
+        if (InputFileTextBox is null) return;
+        var menu = new MenuFlyout();
+        var path = ViewModel.InputFilePath;
+        bool hasPath = !string.IsNullOrWhiteSpace(path);
+        bool fileExists = hasPath && File.Exists(path);
+
+        if (hasPath)
+        {
+            var fileName = System.IO.Path.GetFileName(path);
+            var folder = System.IO.Path.GetDirectoryName(path);
+
+            var copyPathItem = new MenuFlyoutItem
+            {
+                Text = "Copy full path (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyPathItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(path);
+                AnnounceStatus($"Copied path: {fileName}");
+            };
+            menu.Items.Add(copyPathItem);
+
+            var copyNameItem = new MenuFlyoutItem
+            {
+                Text = "Copy file name",
+                Icon = new FontIcon { Glyph = "\uE8A5" }
+            };
+            copyNameItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(fileName);
+                AnnounceStatus($"Copied file name: {fileName}");
+            };
+            menu.Items.Add(copyNameItem);
+
+            if (!string.IsNullOrWhiteSpace(folder))
+            {
+                var copyFolderItem = new MenuFlyoutItem
+                {
+                    Text = "Copy folder path",
+                    Icon = new FontIcon { Glyph = "\uE8B7" }
+                };
+                copyFolderItem.Click += (_, _) =>
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(folder);
+                    AnnounceStatus($"Copied folder path: {folder}");
+                };
+                menu.Items.Add(copyFolderItem);
+
+                var showFolderItem = new MenuFlyoutItem
+                {
+                    Text = "Show in File Explorer (Ctrl+O)",
+                    Icon = new FontIcon { Glyph = "\uE838" }
+                };
+                showFolderItem.Click += (_, _) => ShowExportedFileInFolder(path);
+                menu.Items.Add(showFolderItem);
+            }
+
+            if (fileExists)
+            {
+                var openItem = new MenuFlyoutItem
+                {
+                    Text = "Open file externally",
+                    Icon = new FontIcon { Glyph = "\uE7AC" }
+                };
+                openItem.Click += (_, _) => OpenExportedFile(path);
+                menu.Items.Add(openItem);
+            }
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var clearItem = new MenuFlyoutItem
+            {
+                Text = "Clear selected file",
+                Icon = new FontIcon { Glyph = "\uE74D" }
+            };
+            clearItem.Click += (_, _) =>
+            {
+                ViewModel.InputFilePath = string.Empty;
+                ViewModel.UsePasteSource = true;
+                AnnounceStatus("Cleared selected file.");
+            };
+            menu.Items.Add(clearItem);
+        }
+        else
+        {
+            var browseItem = new MenuFlyoutItem
+            {
+                Text = "Open a document… (Ctrl+O)",
+                Icon = new FontIcon { Glyph = "\uE8E5" }
+            };
+            browseItem.Click += (_, _) => OnBrowseFileClick(this, new RoutedEventArgs());
+            menu.Items.Add(browseItem);
+        }
+
+        if (menu.Items.Count == 0) return;
+        if (position.HasValue) menu.ShowAt(InputFileTextBox, position.Value);
+        else menu.ShowAt(InputFileTextBox);
+    }
+
     private void OnDropZonePointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         _dropZonePointerOver = true;
@@ -4495,9 +4625,39 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Do("Import Word, PDF, HTML or email as a new document", "File", () => OnImportDocumentClick(this, click)),
             DoAsync("Save (converted files save as a Markdown copy)", "File", SaveDocumentToFileAsync, "file.save"),
             Do("Version history", "File", () => OnOpenHistoryClick(this, click), keywords: "undo restore backup checkpoint"),
+            Do("Copy current file path", "File", () =>
+            {
+                if (!string.IsNullOrWhiteSpace(ViewModel.InputFilePath))
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.InputFilePath);
+                    AnnounceStatus($"Copied path: {System.IO.Path.GetFileName(ViewModel.InputFilePath)}");
+                }
+                else
+                {
+                    AnnounceStatus("No file path is currently loaded.");
+                }
+            }, keywords: "clipboard full path filename location"),
+            Do("Show current file in File Explorer", "File", () =>
+            {
+                if (!string.IsNullOrWhiteSpace(ViewModel.InputFilePath))
+                    ShowExportedFileInFolder(ViewModel.InputFilePath);
+                else
+                    AnnounceStatus("No file is currently loaded.");
+            }, keywords: "reveal folder directory explorer"),
+            Do("Copy document statistics", "File", () =>
+            {
+                var stats = ViewModel.DocumentStatsDetail;
+                if (string.IsNullOrWhiteSpace(stats)) stats = ViewModel.WordCountText;
+                if (!string.IsNullOrWhiteSpace(stats))
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(stats);
+                    AnnounceStatus($"Copied document statistics: {stats}");
+                }
+            }, keywords: "words characters reading time count stats"),
 
             Do("Find", "Edit", () => ShowFindBar(), "edit.find", "search look up"),
             Do("Find and replace", "Edit", () => ShowFindBar(replace: true), "edit.replace", "search substitute swap"),
+            Do("Go to line…", "Edit", () => _ = ShowGoToLineDialogAsync(), keywords: "jump line gotoline row offset"),
             Edit("Bold", OnBoldClick, "format.bold"),
             Edit("Italic", OnItalicClick, "format.italic"),
             Edit("Strikethrough", OnStrikethroughClick),
@@ -4534,6 +4694,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Do("Toggle focus mode", "View", () => { if (FocusModeToggle != null) FocusModeToggle.IsChecked = FocusModeToggle.IsChecked != true; }, "view.focus"),
             Do("Toggle Looking Glass portal", "View", () => { if (LookingGlassToggle.IsEnabled) LookingGlassToggle.IsChecked = LookingGlassToggle.IsChecked != true; }),
             Do("Toggle preview as email", "View", () => EmailPreviewToggle.IsChecked = EmailPreviewToggle.IsChecked != true),
+            Do("Toggle line numbers", "View", () =>
+            {
+                if (LineNumbersToggle != null) LineNumbersToggle.IsChecked = LineNumbersToggle.IsChecked != true;
+                OnLineNumbersToggled(this, new RoutedEventArgs());
+            }, keywords: "gutter line numbers margin"),
+            Do("Reset editor zoom (100%)", "View", () => OnEditorZoomResetClick(this, click), keywords: "font zoom 100 default size reset"),
             Do("Document outline", "View", () => OutlineButton.Flyout?.ShowAt(OutlineButton)),
 
             Do("Open Diagram Studio", "Studio", () => OnOpenMermaidStudioClick(this, click), "studio.diagram", "mermaid flowchart chart"),
@@ -5601,6 +5767,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 tb.Width = width - 10;
                 var label = line < _gutterLabels.Length ? _gutterLabels[line] : line + 1;
                 tb.Text = label.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                tb.Tag = line;
                 var folded = line < _gutterFolded.Length && _gutterFolded[line];
                 tb.Foreground = folded ? accent : line == caretLine ? primary : secondary;
                 // Centred on the line's box: the TextBox's line box is taller than a TextBlock's.
@@ -5628,6 +5795,129 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     private void SyncLineGutterScroll() => LayoutGutter();
+
+    private int GetLineFromGutterPoint(Windows.Foundation.Point pt)
+    {
+        if (LineNumberCanvas is not null)
+        {
+            foreach (var child in LineNumberCanvas.Children.OfType<TextBlock>())
+            {
+                if (child.Visibility != Visibility.Visible || child.Tag is not int lineIdx) continue;
+                var top = Canvas.GetTop(child);
+                var height = child.ActualHeight > 0 ? child.ActualHeight : 18;
+                if (pt.Y >= top - 2 && pt.Y <= top + height + 2)
+                {
+                    return lineIdx;
+                }
+            }
+        }
+
+        if (PasteTextBox is not null && _lineStarts.Length > 0)
+        {
+            return Math.Clamp(LineIndexAt(PasteTextBox.SelectionStart), 0, _lineStarts.Length - 1);
+        }
+
+        return 0;
+    }
+
+    private void SelectEditorLine(int lineIdx)
+    {
+        if (PasteTextBox is null || _lineStarts.Length == 0) return;
+        var line = Math.Clamp(lineIdx, 0, _lineStarts.Length - 1);
+        var text = PasteTextBox.Text ?? string.Empty;
+        var start = _lineStarts[line];
+        var end = (line + 1 < _lineStarts.Length) ? _lineStarts[line + 1] : text.Length;
+
+        var selLength = Math.Max(0, end - start);
+        while (selLength > 0 && (text[start + selLength - 1] == '\r' || text[start + selLength - 1] == '\n'))
+        {
+            selLength--;
+        }
+
+        PasteTextBox.SelectionStart = start;
+        PasteTextBox.SelectionLength = Math.Max(0, selLength);
+        PasteTextBox.Focus(FocusState.Programmatic);
+    }
+
+    private void OnLineGutterTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        if (PasteTextBox is null || LineNumberCanvas is null) return;
+        var pt = e.GetPosition(LineNumberCanvas);
+        var lineIdx = GetLineFromGutterPoint(pt);
+        SelectEditorLine(lineIdx);
+        e.Handled = true;
+    }
+
+    private void OnLineGutterRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (PasteTextBox is null || LineGutter is null) return;
+        var pt = e.GetPosition(LineNumberCanvas ?? (UIElement)LineGutter);
+        var lineIdx = GetLineFromGutterPoint(pt);
+        var label = lineIdx < _gutterLabels.Length ? _gutterLabels[lineIdx] : lineIdx + 1;
+        var text = PasteTextBox.Text ?? string.Empty;
+        var start = lineIdx < _lineStarts.Length ? _lineStarts[lineIdx] : 0;
+        var end = (lineIdx + 1 < _lineStarts.Length) ? _lineStarts[lineIdx + 1] : text.Length;
+        var lineText = text.Substring(start, Math.Max(0, end - start)).TrimEnd('\r', '\n');
+
+        var menu = new MenuFlyout();
+
+        var gotoLineItem = new MenuFlyoutItem
+        {
+            Text = "Go to line… (Ctrl+G)",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        gotoLineItem.Click += (_, _) => _ = ShowGoToLineDialogAsync();
+        menu.Items.Add(gotoLineItem);
+
+        var selectLineItem = new MenuFlyoutItem
+        {
+            Text = $"Select line {label}",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        selectLineItem.Click += (_, _) => SelectEditorLine(lineIdx);
+        menu.Items.Add(selectLineItem);
+
+        var copyLineItem = new MenuFlyoutItem
+        {
+            Text = $"Copy line {label} (Ctrl+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyLineItem.Click += (_, _) =>
+        {
+            _ = Services.ClipboardWriter.TrySetTextAsync(lineText);
+            AnnounceStatus($"Copied line {label} to clipboard.");
+        };
+        menu.Items.Add(copyLineItem);
+
+        var duplicateLineItem = new MenuFlyoutItem
+        {
+            Text = $"Duplicate line {label} (Ctrl+D)",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        duplicateLineItem.Click += (_, _) =>
+        {
+            SelectEditorLine(lineIdx);
+            DuplicateCurrentLines();
+        };
+        menu.Items.Add(duplicateLineItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var hideGutterItem = new MenuFlyoutItem
+        {
+            Text = "Hide line numbers",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        hideGutterItem.Click += (_, _) =>
+        {
+            if (LineNumbersToggle != null) LineNumbersToggle.IsChecked = false;
+            OnLineNumbersToggled(this, new RoutedEventArgs());
+        };
+        menu.Items.Add(hideGutterItem);
+
+        menu.ShowAt(LineGutter, e.GetPosition(LineGutter));
+        e.Handled = true;
+    }
 
     // Word wrap is a persisted editor display setting.
     private void OnWordWrapToggled(object sender, RoutedEventArgs e)
@@ -6321,6 +6611,168 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         _ = ShowGoToLineDialogAsync();
         e.Handled = true;
+    }
+
+    private void OnWordCountTextTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        var summary = ViewModel.DocumentStatsDetail;
+        if (string.IsNullOrWhiteSpace(summary)) summary = ViewModel.WordCountText;
+        if (string.IsNullOrWhiteSpace(summary)) return;
+        _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+        AnnounceStatus($"Copied document statistics: {summary}");
+        e.Handled = true;
+    }
+
+    private void OnWordCountTextDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        OnWordCountTextTapped(sender, new Microsoft.UI.Xaml.Input.TappedRoutedEventArgs());
+        e.Handled = true;
+    }
+
+    private void OnWordCountTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        var summary = ViewModel.DocumentStatsDetail;
+        var words = ViewModel.WordCountText;
+        if (string.IsNullOrWhiteSpace(summary) && string.IsNullOrWhiteSpace(words)) return;
+
+        var menu = new MenuFlyout();
+
+        var copySummaryItem = new MenuFlyoutItem
+        {
+            Text = "Copy statistics summary",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copySummaryItem.Click += (_, _) =>
+        {
+            var text = !string.IsNullOrWhiteSpace(summary) ? summary : words;
+            _ = Services.ClipboardWriter.TrySetTextAsync(text);
+            AnnounceStatus($"Copied document statistics: {text}");
+        };
+        menu.Items.Add(copySummaryItem);
+
+        if (!string.IsNullOrWhiteSpace(words))
+        {
+            var copyWordsItem = new MenuFlyoutItem
+            {
+                Text = "Copy word count",
+                Icon = new FontIcon { Glyph = "\uE8BD" }
+            };
+            copyWordsItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(words);
+                AnnounceStatus($"Copied word count: {words}");
+            };
+            menu.Items.Add(copyWordsItem);
+        }
+
+        if (!string.IsNullOrWhiteSpace(summary))
+        {
+            var parts = summary.Split('·', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var part in parts)
+            {
+                if (part.Contains("char", StringComparison.OrdinalIgnoreCase))
+                {
+                    var copyCharsItem = new MenuFlyoutItem
+                    {
+                        Text = $"Copy character count ({part})",
+                        Icon = new FontIcon { Glyph = "\uE8A5" }
+                    };
+                    copyCharsItem.Click += (_, _) =>
+                    {
+                        _ = Services.ClipboardWriter.TrySetTextAsync(part);
+                        AnnounceStatus($"Copied characters: {part}");
+                    };
+                    menu.Items.Add(copyCharsItem);
+                }
+                else if (part.Contains("read", StringComparison.OrdinalIgnoreCase))
+                {
+                    var copyReadItem = new MenuFlyoutItem
+                    {
+                        Text = $"Copy reading time ({part})",
+                        Icon = new FontIcon { Glyph = "\uE823" }
+                    };
+                    copyReadItem.Click += (_, _) =>
+                    {
+                        _ = Services.ClipboardWriter.TrySetTextAsync(part);
+                        AnnounceStatus($"Copied reading time: {part}");
+                    };
+                    menu.Items.Add(copyReadItem);
+                }
+            }
+        }
+
+        if (menu.Items.Count > 0)
+        {
+            menu.ShowAt(WordCountText, e.GetPosition(WordCountText));
+            e.Handled = true;
+        }
+    }
+
+    private void OnCursorPosTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        var pos = CursorPosText?.Text ?? "Ln 1, Col 1";
+        var menu = new MenuFlyout();
+
+        var gotoLineItem = new MenuFlyoutItem
+        {
+            Text = "Go to line… (Ctrl+G)",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        gotoLineItem.Click += (_, _) => _ = ShowGoToLineDialogAsync();
+        menu.Items.Add(gotoLineItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyPosItem = new MenuFlyoutItem
+        {
+            Text = $"Copy cursor position ({pos})",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyPosItem.Click += (_, _) =>
+        {
+            _ = Services.ClipboardWriter.TrySetTextAsync(pos);
+            AnnounceStatus($"Copied cursor position: {pos}");
+        };
+        menu.Items.Add(copyPosItem);
+
+        var jumpStartItem = new MenuFlyoutItem
+        {
+            Text = "Go to start of document (Ctrl+Home)",
+            Icon = new FontIcon { Glyph = "\uE898" }
+        };
+        jumpStartItem.Click += (_, _) =>
+        {
+            if (PasteTextBox is not null)
+            {
+                PasteTextBox.SelectionStart = 0;
+                PasteTextBox.SelectionLength = 0;
+                PasteTextBox.Focus(FocusState.Programmatic);
+            }
+        };
+        menu.Items.Add(jumpStartItem);
+
+        var jumpEndItem = new MenuFlyoutItem
+        {
+            Text = "Go to end of document (Ctrl+End)",
+            Icon = new FontIcon { Glyph = "\uE896" }
+        };
+        jumpEndItem.Click += (_, _) =>
+        {
+            if (PasteTextBox is not null)
+            {
+                var len = PasteTextBox.Text?.Length ?? 0;
+                PasteTextBox.SelectionStart = len;
+                PasteTextBox.SelectionLength = 0;
+                PasteTextBox.Focus(FocusState.Programmatic);
+            }
+        };
+        menu.Items.Add(jumpEndItem);
+
+        if (menu.Items.Count > 0)
+        {
+            menu.ShowAt(CursorPosText, e.GetPosition(CursorPosText));
+            e.Handled = true;
+        }
     }
 
     private async Task ShowGoToLineDialogAsync()

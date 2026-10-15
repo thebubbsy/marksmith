@@ -6946,3 +6946,59 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Live WinUI 3 UIAutomation smoke launch (`Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR`):
   - Verified `WinUIDesktopWin32WindowClass` main window (PID 15856), verified `Alive: True`, `Responding: True`, and closed cleanly.
 
+### 2026-10-15 (scheduled routine run #86 — WinUI 3 Desktop Polish: File Path & Gutter Context Menus, Status Stats Copy, Hub Shortcuts, Command Palette Expansion, OCR Final Copy)
+
+#### Agent / Execution Metadata
+- **Identity:** `Antigravity AI Agent (Google DeepMind)`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Generated:
+    1. `InputFileTextBox` Path Context Menu & Path Component Actions (`MainWindow.xaml` & `.xaml.cs`)
+    2. `LineGutter` Click-to-Select & Line Context Menu Actions (`MainWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Guarded `InputFileTextBox` native selection cut/copy; added duplicate line (`Ctrl+D`) and line-targeting hit tests to gutter.
+  - Generated:
+    3. Status Bar Word Count & Cursor Position Context Menu / Quick Copy Affordances (`MainWindow.xaml` & `.xaml.cs`)
+    4. `SuiteHubView` Focus-Aware `Ctrl+C` Clipboard Chords & Context Menu Shortcuts (`Views/SuiteHubView.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Tokenized word count summary string into word count, char count, and reading time items; wired `CopyCliPathButton` checkmark animation.
+  - Refined Block 1 (Pass 2 - Final): Full parity with keyboard accelerators (`Ctrl+Shift+C`, `Ctrl+O`, `Ctrl+G`, `Ctrl+D`); focus preservation in `PasteTextBox`.
+  - Generated:
+    5. Command Palette Document & File Actions Expansion (`MainWindow.xaml.cs`)
+    6. `OcrExperienceOverlay` Final Markdown Copy Button, `Ctrl+C` Chord & Context Menu (`Controls/OcrExperienceOverlay.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Added search keywords to palette commands to preserve shortcut catalog test integrity; added checkmark feedback on OCR final markdown copy button.
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward Block 3 ideas (5 & 6) into the next cycle as baseline refinement targets.
+
+**Shipped:**
+1. **`InputFileTextBox` Path Context Menu & Breakdown Actions (`MainWindow.xaml` & `.xaml.cs`):**
+   - Bound `ToolTipService.ToolTip="{Binding InputFilePath}"` to surface the full path on hover.
+   - Wired `RightTapped="OnInputFileTextBoxRightTapped"` (guarded when text is highlighted so native selection menus are preserved) and `DoubleTapped="OnInputFileTextBoxDoubleTapped"`.
+   - Implemented `ShowInputFileContextMenu`: surfaces "Copy full path (`Ctrl+Shift+C`)", "Copy file name", "Copy folder path", "Show in File Explorer (`Ctrl+O`)", "Open file externally", and "Clear selected file".
+2. **`LineGutter` Click-to-Select & Line Context Menu Actions (`MainWindow.xaml` & `.xaml.cs`):**
+   - Tagged each visible line number TextBlock in `LayoutGutter` (`tb.Tag = line;`).
+   - Wired `Tapped="OnLineGutterTapped"` to hit-test clicked lines, place the caret, and select the line in `PasteTextBox`.
+   - Added `RightTapped="OnLineGutterRightTapped"` with context menu: "Go to line… (`Ctrl+G`)", "Select line", "Copy line (`Ctrl+C`)", "Duplicate line (`Ctrl+D`)", and "Hide line numbers".
+3. **Status Bar Word Count & Cursor Position Context Menu / Quick Copy Affordances (`MainWindow.xaml` & `.xaml.cs`):**
+   - Named `WordCountText` in status bar with `Tapped`, `RightTapped`, and `DoubleTapped` handlers: surfaces context menu to copy statistics summary, word count, character count, and reading time.
+   - Wired `CursorPosText` `RightTapped="OnCursorPosTextRightTapped"`: surfaces "Go to line… (`Ctrl+G`)", "Copy cursor position", "Go to start of document (`Ctrl+Home`)", and "Go to end of document (`Ctrl+End`)".
+4. **`SuiteHubView` Focus-Aware `Ctrl+C` Clipboard Chords & Context Menu Shortcuts (`Views/SuiteHubView.xaml.cs`):**
+   - Implemented `Ctrl+C` handling in `OnHubKeyDown` based on focused card/button index (Card 0 version info, Card 2 Claude config, Card 3 API address, Card 4 CLI path, Card 5 Express URL).
+   - Passed `CopyCliPathButton` to `CopyToClipboard` on `Ctrl+Shift+C` for animated checkmark confirmation.
+   - Added "Copy studio shortcuts" to Card 1 context menu and "Copy Galaxy shortcut (`Ctrl+6`)" to Card 6 context menu.
+5. **Command Palette Document & File Actions Expansion (`MainWindow.xaml.cs`):**
+   - Expanded `BuildPaletteCommands()` with new searchable commands: "Copy current file path", "Show current file in File Explorer", "Copy document statistics", "Go to line…", "Toggle line numbers", and "Reset editor zoom (100%)".
+6. **`OcrExperienceOverlay` Final Markdown Copy Button, `Ctrl+C` Chord & Context Menu (`Controls/OcrExperienceOverlay.xaml` & `.xaml.cs`):**
+   - Added `CopyFinalMarkdownButton` to `FinalMarkdownSheetBorder` header with `CopyFeedback.CopyWithTick`.
+   - Wired `Ctrl+C` in `OnOverlayKeyDown` to copy assembled Markdown to clipboard with status message.
+   - Added `RightTapped="OnFinalSheetRightTapped"` offering "Copy assembled Markdown (`Ctrl+C`)" and "Skip to editor (`Esc`)".
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 13 warnings**.
+- Targeted test suites (`KeyboardShortcutsTests`, `OcrInspectionStudioTests`, `ShapeStudioTests`): **53 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 UIAutomation smoke launch (`Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR`):
+  - Verified `WinUIDesktopWin32WindowClass` main window (PID 10172, HWND 134364), verified `Alive: True`, `Responding: True`, and closed cleanly.

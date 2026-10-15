@@ -214,6 +214,42 @@ public sealed partial class SuiteHubView : UserControl
                 return;
             }
 
+            if (e.Key == VirtualKey.C)
+            {
+                var cardIdx = GetFocusedCardIndex();
+                switch (cardIdx)
+                {
+                    case 0:
+                        OnVersionInfoTapped(this, new TappedRoutedEventArgs());
+                        e.Handled = true;
+                        return;
+                    case 2:
+                        OnCopyClaudeConfigClick(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        return;
+                    case 3:
+                        if (CopyApiUrlButton.Visibility == Visibility.Visible)
+                        {
+                            OnCopyApiUrlClick(CopyApiUrlButton, new RoutedEventArgs());
+                            e.Handled = true;
+                            return;
+                        }
+                        break;
+                    case 4:
+                        if (File.Exists(CliPath))
+                        {
+                            OnCopyCliPathClick(CopyCliPathButton, new RoutedEventArgs());
+                            e.Handled = true;
+                            return;
+                        }
+                        break;
+                    case 5:
+                        OnCopyExpressUrlClick(CopyExpressUrlButton, new RoutedEventArgs());
+                        e.Handled = true;
+                        return;
+                }
+            }
+
             Control? target = e.Key switch
             {
                 VirtualKey.Number1 or VirtualKey.NumberPad1 => Card1DiagramButton,
@@ -251,7 +287,7 @@ public sealed partial class SuiteHubView : UserControl
             }
             else if (e.Key == VirtualKey.C && File.Exists(CliPath))
             {
-                CopyToClipboard(CliPath, "Copied the MarkSmith CLI path.");
+                CopyToClipboard(CliPath, "Copied the MarkSmith CLI path.", CopyCliPathButton);
                 e.Handled = true;
             }
         }
@@ -413,6 +449,8 @@ public sealed partial class SuiteHubView : UserControl
                 menu.Items.Add(MakeMenuItem("Open Diagram Studio (Ctrl+Shift+M)", "\uEF90", () => OnOpenMermaidStudioClick(this, new RoutedEventArgs())));
                 menu.Items.Add(MakeMenuItem("Open Shape Studio (Ctrl+Shift+S)", "\uE790", () => OnOpenShapeStudioClick(this, new RoutedEventArgs())));
                 menu.Items.Add(MakeMenuItem("Open SmartArt Studio (Ctrl+Shift+A)", "\uE8EC", () => OnOpenSmartArtStudioClick(this, new RoutedEventArgs())));
+                menu.Items.Add(new MenuFlyoutSeparator());
+                menu.Items.Add(MakeMenuItem("Copy studio shortcuts", "\uE8C8", () => CopyToClipboard("Diagram Studio (Ctrl+Shift+M), Shape Studio (Ctrl+Shift+S), SmartArt Studio (Ctrl+Shift+A)", "Copied studio keyboard shortcuts.")));
                 break;
             case 2:
                 menu.Items.Add(MakeMenuItem("Copy setup for Claude Desktop", "\uE99A", () => OnCopyClaudeConfigClick(this, new RoutedEventArgs())));
@@ -441,6 +479,8 @@ public sealed partial class SuiteHubView : UserControl
                 break;
             case 6:
                 menu.Items.Add(MakeMenuItem("Open Document Galaxy (Ctrl+6)", "\uEC26", () => OnOpenGalaxyClick(this, new RoutedEventArgs())));
+                menu.Items.Add(new MenuFlyoutSeparator());
+                menu.Items.Add(MakeMenuItem("Copy Galaxy shortcut (Ctrl+6)", "\uE8C8", () => CopyToClipboard("Document Galaxy (Ctrl+6)", "Copied Document Galaxy shortcut.")));
                 break;
         }
         return menu;

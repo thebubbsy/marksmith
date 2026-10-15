@@ -1507,7 +1507,64 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         {
             e.Handled = true;
             SkipAnimation();
+            return;
         }
+
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (ctrl && e.Key == Windows.System.VirtualKey.C)
+        {
+            e.Handled = true;
+            CopyFinalMarkdownToClipboard();
+        }
+    }
+
+    private void OnCopyFinalMarkdownClick(object sender, RoutedEventArgs e)
+    {
+        CopyFinalMarkdownToClipboard();
+    }
+
+    private void CopyFinalMarkdownToClipboard()
+    {
+        var text = FinalMarkdownTextBlock?.Text;
+        if (string.IsNullOrWhiteSpace(text) && _assembledPages.Count > 0)
+        {
+            text = string.Join("\n\n---\n\n", _assembledPages);
+        }
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        if (CopyFinalMarkdownButton is not null)
+        {
+            Services.CopyFeedback.CopyWithTick(CopyFinalMarkdownButton, text);
+        }
+        else
+        {
+            _ = Services.ClipboardWriter.TrySetTextAsync(text);
+        }
+        StageStatusText.Text = $"✓ Copied {text.Length:N0} characters of assembled Markdown to clipboard.";
+    }
+
+    private void OnFinalSheetRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        var menu = new MenuFlyout();
+        var copyItem = new MenuFlyoutItem
+        {
+            Text = "Copy assembled Markdown (Ctrl+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyItem.Click += (_, _) => CopyFinalMarkdownToClipboard();
+        menu.Items.Add(copyItem);
+
+        var skipItem = new MenuFlyoutItem
+        {
+            Text = "Skip to editor (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        skipItem.Click += (_, _) => SkipAnimation();
+        menu.Items.Add(skipItem);
+
+        menu.ShowAt(FinalMarkdownSheetBorder, e.GetPosition(FinalMarkdownSheetBorder));
+        e.Handled = true;
     }
 
     private void SkipAnimation()
