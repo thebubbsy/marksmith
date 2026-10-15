@@ -7317,3 +7317,63 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Combined test suite (`CommandIcons|KeyboardShortcuts|OcrExperience|ShapeStudio`): **336 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 10764, HWND 3278282, `Alive: True`, `Responding: True`, exited cleanly.
 
+### 2026-10-15 (scheduled routine run #92 — WinUI 3 Desktop Polish: Extension Setup StatusCard & Step Badge Menus, Browser Chip Menus, Settings PDF Preview & About Header Flyouts, OCR Live Markdown Preview & Footer Telemetry Menus)
+
+- **Surface / Component Targets:** `ExtensionSetupView`, `SettingsView`, `OcrInspectionStudioWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #91:
+    * Target A: `ExtensionSetupView` status card interactivity and gestures (`Views/ExtensionSetupView.xaml` & `.xaml.cs`).
+    * Target B: `ExtensionSetupView` browser address chips and step badge navigation (`Views/ExtensionSetupView.xaml` & `.xaml.cs`).
+  - Generated:
+    1. `ExtensionSetupView` StatusCard Right-Tap Context Menu & Double-Tap Instant Connection Refresh (`Views/ExtensionSetupView.xaml` & `.xaml.cs`)
+    2. `ExtensionSetupView` Browser Address Chips Context Menu & Step Badges Interactive Navigation (`Views/ExtensionSetupView.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Wired double-tap on `StatusCard` to trigger an immediate connection re-check (`Refresh(force: true)`) and copy connection status text; added right-tap context menu with Check connection now (`Ctrl+R`, `\uE72C`), Copy connection status (`Ctrl+C`, `\uE8C8`), Open extension folder (`Ctrl+O`, `\uE838`), Copy folder path (`Ctrl+Shift+C`, `\uE8C8`), Read extension guide (`\uE8A7`), and Turn on local API (`\uE7E8`) when API is off. Added right-tap menus to browser address chips offering Copy browser extensions URL (`\uE8C8`), Copy Step 1 instructions (`\uE8FD`), and Read extension guide (`\uE8A7`). Made Step 1, 2, and 3 badges interactive with tooltips, tap actions, and right-tap stage jump menus.
+  - Generated:
+    3. `SettingsView` PDF Header & Footer Live Preview Interactive Flyout & Token Inserters (`Views/SettingsView.xaml` & `.xaml.cs`)
+    4. `SettingsView` About Card Header & Version Text Right-Tap Actions & Release Flyout (`Views/SettingsView.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Wired double-tap on `PdfPagePreview` in `SettingsView` to cycle page number positions (`BottomRight` -> `BottomCenter` -> `TopRight` -> `None`); attached right-tap context menu with Copy header & footer preview (`\uE8C8`), Reset templates to defaults (`\uE777`), Page number position submenu (`\uE7C3`), Insert `{title}` into Header (`\uE70F`), and Insert `Page {page} of {pages}` into Footer (`\uE8A5`). Wired double-tap on `VersionText` to copy version details, and right-tap on `AboutHeaderGrid` with Copy version details (`\uE8C8`), Check for updates now (`\uE895`), Releases & changelog (`\uE81C`), GitHub repository (`\uE943`), Report an issue (`\uEBE8`), and License agreement (`\uE8A5`).
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `OcrInspectionStudioWindow` Live Markdown Preview Box Context Menu & Scope Switcher Actions (`Views/Ocr/OcrInspectionStudioWindow.xaml` & `.xaml.cs`)
+    6. `OcrInspectionStudioWindow` Footer Status Bar Context Menu & Metrics Copy Affordance (`Views/Ocr/OcrInspectionStudioWindow.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Attached `RightTapped="OnMarkdownPreviewRightTapped"` to `MarkdownPreviewTextBox` in OCR Studio offering Copy Markdown preview (`Ctrl+Shift+C`, `\uE8C8`), Select all (`Ctrl+A`, `\uE8B3`), Switch scope Current Page / Full Document (`\uE8FD` / `\uE8A5`), Import into MarkSmith (`Ctrl+Enter`, `\uE8A5`), and Cancel & Discard (`Esc`, `\uE711`). Attached `DoubleTapped="OnFooterBarDoubleTapped"` and `RightTapped="OnFooterBarRightTapped"` to `FooterBarGrid` for instant metrics copy and menu with Copy session metrics (`\uE946`), Copy status message (`\uE8C8`), Copy Markdown preview (`Ctrl+Shift+C`, `\uE8C8`), Import into MarkSmith (`Ctrl+Enter`, `\uE8A5`), and Cancel & Discard (`Esc`, `\uE711`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #93.
+
+**Shipped:**
+1. **`ExtensionSetupView` StatusCard Right-Tap Context Menu & Double-Tap Instant Connection Refresh (`Views/ExtensionSetupView.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"`, `DoubleTapped="OnStatusCardDoubleTapped"`, and `RightTapped="OnStatusCardRightTapped"`.
+   - Double-tapping forces an immediate connection poll (`Refresh(force: true)`) and copies current status text to clipboard.
+   - Right-tapping opens a Fluent context menu: Check connection now `Ctrl+R` (`\uE72C`), Copy connection status `Ctrl+C` (`\uE8C8`), Open extension folder `Ctrl+O` (`\uE838`), Copy folder path `Ctrl+Shift+C` (`\uE8C8`), Read extension guide (`\uE8A7`), and Turn on local API (`\uE7E8`) when disabled. Added `Ctrl+R` accelerator to `OnSetupKeyDown`.
+2. **`ExtensionSetupView` Browser Address Chips Context Menu & Step Badges Interactive Navigation (`Views/ExtensionSetupView.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped` to each browser chip generated in `CopyChip(browser, address)` offering Copy browser extensions URL (`\uE8C8`), Copy Step 1 instructions (`\uE8FD`), and Read extension guide (`\uE8A7`).
+   - Enabled hit testing and tooltips on `Step1BadgeBorder`, `Step2BadgeBorder`, and `Step3BadgeBorder`. Tapping jumps focus to the step's primary control; right-tapping opens step actions and navigation flyout.
+3. **`SettingsView` PDF Header & Footer Live Preview Interactive Flyout & Token Inserters (`Views/SettingsView.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"`, `DoubleTapped="OnPdfPagePreviewDoubleTapped"`, and `RightTapped="OnPdfPagePreviewRightTapped"` to `PdfPagePreview`.
+   - Double-tapping cycles page number positions (`BottomRight` -> `BottomCenter` -> `TopRight` -> `None`).
+   - Right-tapping opens a Fluent context menu: Copy header & footer preview (`\uE8C8`), Reset templates to defaults (`\uE777`), Page number position submenu (`\uE7C3`) with Bottom right (`\uE747`), Bottom center (`\uE746`), Top right (`\uE748`), and None (`\uE711`), plus Insert `{title}` into Header (`\uE70F`) and Insert `Page {page} of {pages}` into Footer (`\uE8A5`).
+4. **`SettingsView` About Card Header & Version Text Right-Tap Actions & Release Flyout (`Views/SettingsView.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"` and `RightTapped="OnAboutHeaderRightTapped"` to `AboutHeaderGrid`, and `DoubleTapped="OnVersionTextDoubleTapped"` with tooltips to `VersionText`.
+   - Double-tapping copies version details to clipboard with confirmation in `UpdateStatusBar`.
+   - Right-tapping opens context menu: Copy version details (`\uE8C8`), Check for updates now (`\uE895`), Releases & changelog (`\uE81C`), GitHub repository (`\uE943`), Report an issue (`\uEBE8`), and License agreement (`\uE8A5`).
+5. **`OcrInspectionStudioWindow` Live Markdown Preview Box Context Menu & Scope Switcher Actions (`Views/Ocr/OcrInspectionStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnMarkdownPreviewRightTapped"` to `MarkdownPreviewTextBox` with tooltip and selection preservation.
+   - Surfaced context menu: Copy Markdown preview `Ctrl+Shift+C` (`\uE8C8`), Select all `Ctrl+A` (`\uE8B3`), Switch scope (`\uE8FD` / `\uE8A5`), Import into MarkSmith `Ctrl+Enter` (`\uE8A5`), and Cancel & Discard `Esc` (`\uE711`).
+6. **`OcrInspectionStudioWindow` Footer Status Bar Context Menu & Metrics Copy Affordance (`Views/Ocr/OcrInspectionStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"`, `DoubleTapped="OnFooterBarDoubleTapped"`, and `RightTapped="OnFooterBarRightTapped"` to `FooterBarGrid`.
+   - Double-tapping copies session telemetry overview to clipboard with temporary confirmation in `FooterStatusText`.
+   - Right-tapping opens context menu: Copy session metrics (`\uE946`), Copy status message (`\uE8C8`), Copy Markdown preview `Ctrl+Shift+C` (`\uE8C8`), Import into MarkSmith `Ctrl+Enter` (`\uE8A5`), and Cancel & Discard `Esc` (`\uE711`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 14 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Combined test suite (`CommandIcons|KeyboardShortcuts|OcrExperience|ShapeStudio`): **336 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 27708, `Alive: True`, `Responding: True`, exited cleanly.
+

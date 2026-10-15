@@ -475,6 +475,97 @@ public sealed partial class SettingsView : UserControl
         UpdateStatusBar.IsOpen = true;
     }
 
+    private async void OnVersionTextDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var text = VersionText.Text;
+        if (string.IsNullOrEmpty(text)) text = $"Version {App.Updates.CurrentDisplayVersion}";
+        await ClipboardWriter.TrySetTextAsync(text);
+
+        UpdateStatusBar.Severity = InfoBarSeverity.Success;
+        UpdateStatusBar.Title = "Copied to clipboard";
+        UpdateStatusBar.Message = text;
+        UpdateStatusBar.IsOpen = true;
+    }
+
+    private void OnAboutHeaderRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var copyVersionItem = new MenuFlyoutItem
+        {
+            Text = "Copy version details",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyVersionItem.Click += async (_, _) =>
+        {
+            var text = $"MarkSmith — Version {App.Updates.CurrentDisplayVersion}";
+            await ClipboardWriter.TrySetTextAsync(text);
+        };
+        menu.Items.Add(copyVersionItem);
+
+        var checkUpdatesItem = new MenuFlyoutItem
+        {
+            Text = "Check for updates now",
+            Icon = new FontIcon { Glyph = "\uE895" }
+        };
+        checkUpdatesItem.Click += (s, ev) => OnCheckForUpdates(s, ev);
+        menu.Items.Add(checkUpdatesItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var releasesItem = new MenuFlyoutItem
+        {
+            Text = "Releases & changelog",
+            Icon = new FontIcon { Glyph = "\uE81C" }
+        };
+        releasesItem.Click += (_, _) =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://github.com/thebubbsy/MarkSmith/releases", UseShellExecute = true }); }
+            catch { /* ignore */ }
+        };
+        menu.Items.Add(releasesItem);
+
+        var repoItem = new MenuFlyoutItem
+        {
+            Text = "GitHub repository",
+            Icon = new FontIcon { Glyph = "\uE943" }
+        };
+        repoItem.Click += (_, _) =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://github.com/thebubbsy/MarkSmith", UseShellExecute = true }); }
+            catch { /* ignore */ }
+        };
+        menu.Items.Add(repoItem);
+
+        var reportItem = new MenuFlyoutItem
+        {
+            Text = "Report an issue",
+            Icon = new FontIcon { Glyph = "\uEBE8" }
+        };
+        reportItem.Click += (_, _) =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://github.com/thebubbsy/MarkSmith/issues", UseShellExecute = true }); }
+            catch { /* ignore */ }
+        };
+        menu.Items.Add(reportItem);
+
+        var licenseItem = new MenuFlyoutItem
+        {
+            Text = "License agreement (EULA)",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        licenseItem.Click += (_, _) =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://github.com/thebubbsy/MarkSmith/blob/main/LICENSE", UseShellExecute = true }); }
+            catch { /* ignore */ }
+        };
+        menu.Items.Add(licenseItem);
+
+        menu.ShowAt(AboutHeaderGrid, e.GetPosition(AboutHeaderGrid));
+    }
+
     private void OnUpdateStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)
@@ -557,6 +648,122 @@ public sealed partial class SettingsView : UserControl
         AutomationProperties.SetName(PdfPagePreview, spoken.Count == 0
             ? "Page preview: no header or footer"
             : "Page preview: " + string.Join(", ", spoken));
+    }
+
+    private void OnPdfPagePreviewDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        // Cycle page number position: BottomRight -> BottomCenter -> TopRight -> None -> BottomRight
+        var current = App.ViewModel.PdfPageNumberPosition;
+        App.ViewModel.PdfPageNumberPosition = current switch
+        {
+            "BottomRight" => "BottomCenter",
+            "BottomCenter" => "TopRight",
+            "TopRight" => "None",
+            _ => "BottomRight"
+        };
+    }
+
+    private void OnPdfPagePreviewRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var copyBandsItem = new MenuFlyoutItem
+        {
+            Text = "Copy header & footer preview",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyBandsItem.Click += async (_, _) =>
+        {
+            var header = PdfPreviewHeader.Text;
+            var footer = PdfPreviewFooter.Text;
+            var summary = $"Header: {(string.IsNullOrEmpty(header) ? "(none)" : header)} | Footer: {(string.IsNullOrEmpty(footer) ? "(none)" : footer)}";
+            await ClipboardWriter.TrySetTextAsync(summary);
+        };
+        menu.Items.Add(copyBandsItem);
+
+        var resetBandsItem = new MenuFlyoutItem
+        {
+            Text = "Reset header & footer to defaults",
+            Icon = new FontIcon { Glyph = "\uE777" }
+        };
+        resetBandsItem.Click += (_, _) =>
+        {
+            App.ViewModel.PdfHeaderTemplate = string.Empty;
+            App.ViewModel.PdfFooterTemplate = string.Empty;
+            App.ViewModel.PdfPageNumberPosition = "BottomRight";
+        };
+        menu.Items.Add(resetBandsItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var posSubItem = new MenuFlyoutSubItem
+        {
+            Text = "Page number position",
+            Icon = new FontIcon { Glyph = "\uE7C3" }
+        };
+
+        var posBR = new MenuFlyoutItem
+        {
+            Text = "Bottom right",
+            Icon = new FontIcon { Glyph = "\uE747" }
+        };
+        posBR.Click += (_, _) => App.ViewModel.PdfPageNumberPosition = "BottomRight";
+        posSubItem.Items.Add(posBR);
+
+        var posBC = new MenuFlyoutItem
+        {
+            Text = "Bottom center",
+            Icon = new FontIcon { Glyph = "\uE746" }
+        };
+        posBC.Click += (_, _) => App.ViewModel.PdfPageNumberPosition = "BottomCenter";
+        posSubItem.Items.Add(posBC);
+
+        var posTR = new MenuFlyoutItem
+        {
+            Text = "Top right",
+            Icon = new FontIcon { Glyph = "\uE748" }
+        };
+        posTR.Click += (_, _) => App.ViewModel.PdfPageNumberPosition = "TopRight";
+        posSubItem.Items.Add(posTR);
+
+        var posNone = new MenuFlyoutItem
+        {
+            Text = "None",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        posNone.Click += (_, _) => App.ViewModel.PdfPageNumberPosition = "None";
+        posSubItem.Items.Add(posNone);
+
+        menu.Items.Add(posSubItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var insertTitle = new MenuFlyoutItem
+        {
+            Text = "Insert {title} into Header",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertTitle.Click += (_, _) =>
+        {
+            var cur = App.ViewModel.PdfHeaderTemplate ?? string.Empty;
+            App.ViewModel.PdfHeaderTemplate = string.IsNullOrEmpty(cur) ? "{title}" : $"{cur} — {{title}}";
+        };
+        menu.Items.Add(insertTitle);
+
+        var insertPage = new MenuFlyoutItem
+        {
+            Text = "Insert Page {page} of {pages} into Footer",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        insertPage.Click += (_, _) =>
+        {
+            App.ViewModel.PdfFooterTemplate = "Page {page} of {pages}";
+        };
+        menu.Items.Add(insertPage);
+
+        menu.ShowAt(PdfPagePreview, e.GetPosition(PdfPagePreview));
     }
 
     // ---- Google ----

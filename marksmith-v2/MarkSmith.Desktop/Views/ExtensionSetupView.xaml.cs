@@ -89,13 +89,18 @@ public sealed partial class ExtensionSetupView : UserControl
                 e.Handled = true;
             }
         }
+        else if (ctrl && !shift && e.Key == Windows.System.VirtualKey.R)
+        {
+            Refresh(force: true);
+            e.Handled = true;
+        }
     }
 
     /// <summary>Stops the status poll. Call after the hosting dialog closes.</summary>
     public void Detach() => _poll.Stop();
 
     // "Edge  edge://extensions  [copy]" as one button: the whole chip copies, and its icon ticks.
-    private static Button CopyChip(string browser, string address)
+    private Button CopyChip(string browser, string address)
     {
         var icon = new FontIcon { Glyph = "\uE8C8", FontSize = 13 };
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
@@ -109,10 +114,203 @@ public sealed partial class ExtensionSetupView : UserControl
         }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush"));
         content.Children.Add(icon);
         var button = new Button { Content = content };
-        ToolTipService.SetToolTip(button, $"Copy {address} for {browser}'s address bar");
+        ToolTipService.SetToolTip(button, $"Copy {address} for {browser}'s address bar (Right-click for options)");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, $"Copy {address} for {browser}'s address bar");
         button.Click += (_, _) => CopyFeedback.CopyWithTick(address, icon);
+        button.RightTapped += (s, e) =>
+        {
+            e.Handled = true;
+            ShowChipContextMenu(button, icon, browser, address, e.GetPosition(button));
+        };
         return button;
+    }
+
+    private void ShowChipContextMenu(Button button, FontIcon icon, string browser, string address, Windows.Foundation.Point position)
+    {
+        var menu = new MenuFlyout();
+
+        var copyAddressItem = new MenuFlyoutItem
+        {
+            Text = $"Copy {browser} extensions URL",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyAddressItem.Click += (_, _) => CopyFeedback.CopyWithTick(address, icon);
+        menu.Items.Add(copyAddressItem);
+
+        var copyStepItem = new MenuFlyoutItem
+        {
+            Text = "Copy Step 1 instructions",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        copyStepItem.Click += async (_, _) =>
+        {
+            var text = $"Step 1: Open {browser}'s extensions page by pasting {address} into the address bar.";
+            await ClipboardWriter.TrySetTextAsync(text);
+        };
+        menu.Items.Add(copyStepItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var guideItem = new MenuFlyoutItem
+        {
+            Text = "Read extension guide",
+            Icon = new FontIcon { Glyph = "\uE8A7" }
+        };
+        guideItem.Click += (s, ev) => OnOpenGuideClick(s, ev);
+        menu.Items.Add(guideItem);
+
+        menu.ShowAt(button, position);
+    }
+
+    private void OnStatusCardDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        Refresh(force: true);
+        if (!string.IsNullOrEmpty(StatusText.Text))
+        {
+            _ = ClipboardWriter.TrySetTextAsync(StatusText.Text);
+        }
+    }
+
+    private void OnStatusCardRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source && IsInside(source, TurnOnButton))
+            return;
+
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var refreshItem = new MenuFlyoutItem
+        {
+            Text = "Check connection now (Ctrl+R)",
+            Icon = new FontIcon { Glyph = "\uE72C" }
+        };
+        refreshItem.Click += (_, _) => Refresh(force: true);
+        menu.Items.Add(refreshItem);
+
+        if (!string.IsNullOrEmpty(StatusText.Text))
+        {
+            var copyStatusItem = new MenuFlyoutItem
+            {
+                Text = "Copy connection status (Ctrl+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyStatusItem.Click += async (_, _) =>
+            {
+                await ClipboardWriter.TrySetTextAsync(StatusText.Text);
+            };
+            menu.Items.Add(copyStatusItem);
+        }
+
+        if (_folder is not null)
+        {
+            var openFolderItem = new MenuFlyoutItem
+            {
+                Text = "Open extension folder (Ctrl+O)",
+                Icon = new FontIcon { Glyph = "\uE838" }
+            };
+            openFolderItem.Click += (s, ev) => OnOpenFolderClick(s, ev);
+            menu.Items.Add(openFolderItem);
+
+            var copyFolderItem = new MenuFlyoutItem
+            {
+                Text = "Copy folder path (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyFolderItem.Click += (s, ev) => OnCopyFolderClick(s, ev);
+            menu.Items.Add(copyFolderItem);
+        }
+
+        var guideItem = new MenuFlyoutItem
+        {
+            Text = "Read extension guide",
+            Icon = new FontIcon { Glyph = "\uE8A7" }
+        };
+        guideItem.Click += (s, ev) => OnOpenGuideClick(s, ev);
+        menu.Items.Add(guideItem);
+
+        if (CurrentPhase == Phase.ApiOff && TurnOnButton.Visibility == Visibility.Visible)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var turnOnItem = new MenuFlyoutItem
+            {
+                Text = "Turn on local API",
+                Icon = new FontIcon { Glyph = "\uE7E8" }
+            };
+            turnOnItem.Click += (s, ev) => OnTurnOnClick(s, ev);
+            menu.Items.Add(turnOnItem);
+        }
+
+        menu.ShowAt(StatusCard, e.GetPosition(StatusCard));
+    }
+
+    private void OnStep1BadgeTapped(object sender, TappedRoutedEventArgs e)
+    {
+        var firstChip = BrowserPagesPanel.Children.OfType<Button>().FirstOrDefault();
+        firstChip?.Focus(FocusState.Programmatic);
+    }
+
+    private void OnStep2BadgeTapped(object sender, TappedRoutedEventArgs e)
+    {
+        StatusCard.Focus(FocusState.Programmatic);
+    }
+
+    private void OnStep3BadgeTapped(object sender, TappedRoutedEventArgs e)
+    {
+        (CopyFolderButton ?? (Control)FolderPathBox).Focus(FocusState.Programmatic);
+    }
+
+    private void OnStepBadgeRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? StatusCard;
+        var menu = new MenuFlyout();
+
+        var jump1 = new MenuFlyoutItem
+        {
+            Text = "Focus Step 1 (Browser extension pages)",
+            Icon = new FontIcon { Glyph = "\uE71B" }
+        };
+        jump1.Click += (_, _) => OnStep1BadgeTapped(this, new TappedRoutedEventArgs());
+        menu.Items.Add(jump1);
+
+        var jump3 = new MenuFlyoutItem
+        {
+            Text = "Focus Step 3 (Extension folder)",
+            Icon = new FontIcon { Glyph = "\uE8B7" }
+        };
+        jump3.Click += (_, _) => OnStep3BadgeTapped(this, new TappedRoutedEventArgs());
+        menu.Items.Add(jump3);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        if (_folder is not null)
+        {
+            var copyFolderItem = new MenuFlyoutItem
+            {
+                Text = "Copy extension folder path (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyFolderItem.Click += (s, ev) => OnCopyFolderClick(s, ev);
+            menu.Items.Add(copyFolderItem);
+        }
+
+        var guideItem = new MenuFlyoutItem
+        {
+            Text = "Read extension guide",
+            Icon = new FontIcon { Glyph = "\uE8A7" }
+        };
+        guideItem.Click += (s, ev) => OnOpenGuideClick(s, ev);
+        menu.Items.Add(guideItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private static bool IsInside(DependencyObject element, DependencyObject ancestor)
+    {
+        for (var d = element; d is not null; d = VisualTreeHelper.GetParent(d))
+            if (ReferenceEquals(d, ancestor)) return true;
+        return false;
     }
 
     private Phase CurrentPhase => BrowserExtensionPackage.Phase(_apiEnabled(), _apiRunning(), _extensionConnected());

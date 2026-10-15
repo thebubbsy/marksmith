@@ -1052,6 +1052,141 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         }
     }
 
+    private void OnMarkdownPreviewRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (!string.IsNullOrEmpty(MarkdownPreviewTextBox.SelectedText))
+            return; // Preserve native selection context menu
+
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var copyMarkdownItem = new MenuFlyoutItem
+        {
+            Text = "Copy Markdown preview (Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyMarkdownItem.Click += (s, ev) => OnCopyMarkdownClick(s, ev);
+        menu.Items.Add(copyMarkdownItem);
+
+        var selectAllItem = new MenuFlyoutItem
+        {
+            Text = "Select all (Ctrl+A)",
+            Icon = new FontIcon { Glyph = "\uE8B3" }
+        };
+        selectAllItem.Click += (_, _) =>
+        {
+            MarkdownPreviewTextBox.Focus(FocusState.Programmatic);
+            MarkdownPreviewTextBox.SelectAll();
+        };
+        menu.Items.Add(selectAllItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var switchScopeItem = new MenuFlyoutItem
+        {
+            Text = _markdownScopeIsDocument ? "Switch to Current Page view" : "Switch to Full Document view",
+            Icon = new FontIcon { Glyph = _markdownScopeIsDocument ? "\uE8FD" : "\uE8A5" }
+        };
+        switchScopeItem.Click += (_, _) =>
+        {
+            MarkdownScopeComboBox.SelectedIndex = _markdownScopeIsDocument ? 0 : 1;
+        };
+        menu.Items.Add(switchScopeItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var importItem = new MenuFlyoutItem
+        {
+            Text = "Import into MarkSmith (Ctrl+Enter)",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        importItem.Click += (s, ev) => OnImportCtaClick(s, ev);
+        menu.Items.Add(importItem);
+
+        var discardItem = new MenuFlyoutItem
+        {
+            Text = "Cancel & Discard (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        discardItem.Click += (s, ev) => OnDiscardClick(s, ev);
+        menu.Items.Add(discardItem);
+
+        menu.ShowAt(MarkdownPreviewTextBox, e.GetPosition(MarkdownPreviewTextBox));
+    }
+
+    private async void OnFooterBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var summary = $"{FooterStatusText.Text} — {SessionMetricsText.Text}";
+        await ClipboardWriter.TrySetTextAsync(summary);
+
+        var prevStatus = FooterStatusText.Text;
+        FooterStatusText.Text = "Copied session metrics and status to clipboard.";
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            FooterStatusText.Text = prevStatus;
+        };
+        timer.Start();
+    }
+
+    private void OnFooterBarRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var copyMetricsItem = new MenuFlyoutItem
+        {
+            Text = "Copy session metrics",
+            Icon = new FontIcon { Glyph = "\uE946" }
+        };
+        copyMetricsItem.Click += async (_, _) =>
+        {
+            await ClipboardWriter.TrySetTextAsync(SessionMetricsText.Text);
+        };
+        menu.Items.Add(copyMetricsItem);
+
+        var copyStatusItem = new MenuFlyoutItem
+        {
+            Text = "Copy status message",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyStatusItem.Click += async (_, _) =>
+        {
+            await ClipboardWriter.TrySetTextAsync(FooterStatusText.Text);
+        };
+        menu.Items.Add(copyStatusItem);
+
+        var copyMarkdownItem = new MenuFlyoutItem
+        {
+            Text = "Copy Markdown preview (Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyMarkdownItem.Click += (s, ev) => OnCopyMarkdownClick(s, ev);
+        menu.Items.Add(copyMarkdownItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var importItem = new MenuFlyoutItem
+        {
+            Text = "Import into MarkSmith (Ctrl+Enter)",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        importItem.Click += (s, ev) => OnImportCtaClick(s, ev);
+        menu.Items.Add(importItem);
+
+        var discardItem = new MenuFlyoutItem
+        {
+            Text = "Cancel & Discard (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        discardItem.Click += (s, ev) => OnDiscardClick(s, ev);
+        menu.Items.Add(discardItem);
+
+        menu.ShowAt(FooterBarGrid, e.GetPosition(FooterBarGrid));
+    }
+
     private void ClearElementSelection()
     {
         _selectedElement = null;

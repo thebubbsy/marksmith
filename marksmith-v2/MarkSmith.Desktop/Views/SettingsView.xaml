@@ -263,6 +263,11 @@
                                         <Border x:Name="PdfPagePreview" Width="132" Height="172" CornerRadius="3" Padding="10,8"
                                                 Background="White" BorderThickness="1"
                                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                IsHitTestVisible="True"
+                                                DoubleTapped="OnPdfPagePreviewDoubleTapped"
+                                                RightTapped="OnPdfPagePreviewRightTapped"
+                                                ToolTipService.ToolTip="PDF header and footer preview · Double-click to cycle page number position · Right-click for options"
+                                                AutomationProperties.Name="PDF page header and footer live preview"
                                                 AutomationProperties.LiveSetting="Polite">
                                             <Grid RowDefinitions="Auto,*,Auto">
                                                 <TextBlock x:Name="PdfPreviewHeader" FontSize="7" Foreground="#5F6368"
@@ -670,12 +675,15 @@
                         <TextBlock Text="About &amp; updates" Style="{StaticResource SettingsPageTitleStyle}" />
 
                         <Border Style="{StaticResource PipelineCardStyle}" CornerRadius="8" Padding="16">
-                            <Grid x:Name="AboutHeaderGrid" ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                            <Grid x:Name="AboutHeaderGrid" ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14"
+                                  IsHitTestVisible="True" RightTapped="OnAboutHeaderRightTapped">
                                 <Image Source="ms-appx:///Assets/logo.png" Width="48" Height="48" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock Text="MarkSmith" Style="{StaticResource BodyStrongTextBlockStyle}" FontSize="16" />
                                     <TextBlock Text="Turn AI chats into polished documents." Style="{StaticResource SettingsHintStyle}" />
-                                    <TextBlock x:Name="VersionText" Text="" Style="{StaticResource SettingsHintStyle}" IsTextSelectionEnabled="True" />
+                                    <TextBlock x:Name="VersionText" Text="" Style="{StaticResource SettingsHintStyle}" IsTextSelectionEnabled="True"
+                                               DoubleTapped="OnVersionTextDoubleTapped"
+                                               ToolTipService.ToolTip="Double-click to copy version details · Right-click for options" />
                                 </StackPanel>
                                 <StackPanel x:Name="AboutCheckPanel" Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                                     <ProgressRing x:Name="CheckRing" IsActive="False" Width="18" Height="18" Visibility="Collapsed" />

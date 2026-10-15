@@ -352,6 +352,8 @@
                                      FontFamily="Consolas" FontSize="12"
                                      AcceptsReturn="True" TextWrapping="Wrap"
                                      Background="Transparent" BorderThickness="0"
+                                     RightTapped="OnMarkdownPreviewRightTapped"
+                                     ToolTipService.ToolTip="Live Markdown preview · Right-click for options · Ctrl+Shift+C to copy"
                                      AutomationProperties.Name="Live Markdown preview" />
                         </ScrollViewer>
                     </Border>
@@ -360,9 +362,13 @@
         </Grid>
 
         <!-- Row 3: Footer Status & Progress Bar -->
-        <Grid Grid.Row="3" Padding="16,8,16,10" RowDefinitions="Auto,Auto" RowSpacing="5"
+        <Grid x:Name="FooterBarGrid" Grid.Row="3" Padding="16,8,16,10" RowDefinitions="Auto,Auto" RowSpacing="5"
               Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
-              BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+              BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0"
+              IsHitTestVisible="True"
+              DoubleTapped="OnFooterBarDoubleTapped"
+              RightTapped="OnFooterBarRightTapped"
+              ToolTipService.ToolTip="Session telemetry and status · Double-click to copy metrics · Right-click for options">
             <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                 <TextBlock x:Name="FooterStatusText"
                            Text="OCR Studio active — Ready to finalize document import into MarkSmith."
