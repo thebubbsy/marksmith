@@ -33,6 +33,7 @@ public abstract class InsertDialogBody : UserControl
     private readonly StackPanel _fields = new() { Spacing = 12 };
     private readonly TextBlock _preview;
     private readonly TextBlock _problem;
+    private readonly Button _copySnippetButton;
     private bool _valid = true;
     private bool _opened;
     private string? _lastAnnouncedProblem;
@@ -44,6 +45,14 @@ public abstract class InsertDialogBody : UserControl
     public void RequestCommit()
     {
         if (IsValid) CommitRequested?.Invoke();
+    }
+
+    /// <summary>Copies the currently generated Markdown snippet to the clipboard with visual button feedback.</summary>
+    public void CopyCurrentSnippet()
+    {
+        var snippet = Snippet.Trim('\n');
+        if (snippet.Length == 0) return;
+        CopyFeedback.CopyWithTick(_copySnippetButton, snippet);
     }
 
     protected InsertDialogBody(string description)
@@ -65,17 +74,60 @@ public abstract class InsertDialogBody : UserControl
         }.Themed(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
         AutomationProperties.SetLiveSetting(_problem, AutomationLiveSetting.Polite);
 
+        _copySnippetButton = new Button
+        {
+            Content = "Copy",
+            Padding = new Thickness(8, 2, 8, 2),
+            FontSize = 11,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        AutomationProperties.SetName(_copySnippetButton, "Copy generated Markdown snippet");
+        ToolTipService.SetToolTip(_copySnippetButton, "Copy the generated Markdown snippet (Ctrl+Shift+C)");
+        _copySnippetButton.Click += (_, _) => CopyCurrentSnippet();
+
+        var previewHeader = new Grid();
+        previewHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        previewHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var insertsLabel = new TextBlock
+        {
+            Text = "Inserts",
+            FontSize = 11,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Opacity = 0.65,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(insertsLabel, 0);
+        Grid.SetColumn(_copySnippetButton, 1);
+        previewHeader.Children.Add(insertsLabel);
+        previewHeader.Children.Add(_copySnippetButton);
+
+        var previewContextFlyout = new MenuFlyout();
+        previewContextFlyout.Opening += (_, _) =>
+        {
+            previewContextFlyout.Items.Clear();
+            var snippet = Snippet.Trim('\n');
+            var copyItem = new MenuFlyoutItem
+            {
+                Text = "Copy Markdown snippet (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = snippet.Length > 0,
+            };
+            copyItem.Click += (_, _) => CopyCurrentSnippet();
+            previewContextFlyout.Items.Add(copyItem);
+        };
+
         var previewCard = new Border
         {
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(12, 8, 12, 10),
+            ContextFlyout = previewContextFlyout,
             Child = new StackPanel
             {
                 Spacing = 4,
                 Children =
                 {
-                    new TextBlock { Text = "Inserts", FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Opacity = 0.65 },
+                    previewHeader,
                     new ScrollViewer { Content = _preview, MaxHeight = 132, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
                 },
             },
@@ -113,6 +165,21 @@ public abstract class InsertDialogBody : UserControl
 
     private void OnBodyKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        if (e.Key == VirtualKey.C && ctrl && shift)
+        {
+            if (Snippet.Trim('\n').Length > 0)
+            {
+                e.Handled = true;
+                CopyCurrentSnippet();
+            }
+            return;
+        }
+
         if (e.Key != VirtualKey.Enter) return;
         var root = XamlRoot;
         var focused = root is null ? null : FocusManager.GetFocusedElement(root) as DependencyObject;
@@ -165,6 +232,14 @@ public abstract class InsertDialogBody : UserControl
         var snippet = Snippet.Trim('\n');
         _preview.Text = snippet.Length == 0 ? "Nothing yet" : snippet;
         _preview.Opacity = snippet.Length == 0 ? 0.6 : 1;
+
+        bool canCopy = snippet.Length > 0;
+        if (!canCopy && _copySnippetButton.FocusState != FocusState.Unfocused)
+        {
+            FocusFirstField();
+        }
+        _copySnippetButton.IsEnabled = canCopy;
+
         var valid = problem is null;
         if (valid != _valid)
         {

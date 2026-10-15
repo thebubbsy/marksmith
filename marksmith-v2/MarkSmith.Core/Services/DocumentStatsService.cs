@@ -49,24 +49,38 @@ public static partial class DocumentStatsService
         int codeBlocks = 0, mermaid = 0, headings = 0, tables = 0;
         var prose = new StringBuilder(markdown.Length);
 
-        // Walk lines so fenced code is handled exactly (a regex can't reliably tell an opening fence
-        // from a closing one across the whole document). Everything OUTSIDE a fence is prose we scan
-        // for headings/tables and accumulate for word counting; fence bodies are excluded wholesale.
-        var lines = TextNormalizer.Newlines(markdown).Split('\n');
-        // Line count for the status bar: a single trailing newline shouldn't register as an extra
-        // blank line ("hello\n" is one line), but a genuine blank line still counts ("a\n\n" = 2).
-        int lineCount = lines.Length;
-        if (lineCount > 1 && lines[^1].Length == 0) lineCount--;
-        string? fenceMarker = null; // the ``` or ~~~ run that opened the current block, or null
+        // Walk lines via ReadOnlySpan<char> so fenced code is handled without allocating a full-document
+        // normalized string copy or a string[] array on every status-bar update. Everything OUTSIDE a
+        // fence is prose we scan for headings/tables and accumulate for word counting.
+        int lineCount = 0;
+        ReadOnlySpan<char> fenceMarker = default; // the ``` or ~~~ run that opened the current block, or empty
+        int pos = 0;
+        int len = markdown.Length;
 
-        foreach (var line in lines)
+        while (pos <= len)
         {
+            int lineStart = pos;
+            while (pos < len && markdown[pos] != '\r' && markdown[pos] != '\n') pos++;
+            var line = markdown.AsSpan(lineStart, pos - lineStart);
+            bool hasNewline = pos < len;
+            if (hasNewline)
+            {
+                if (markdown[pos] == '\r' && pos + 1 < len && markdown[pos + 1] == '\n') pos += 2;
+                else pos++;
+            }
+
+            // Line count for the status bar: a single trailing newline shouldn't register as an extra
+            // blank line ("hello\n" is one line), but a genuine blank line still counts ("a\n\n" = 2).
+            if (!hasNewline && line.Length == 0 && lineCount > 0)
+                break;
+
+            lineCount++;
             var trimmed = line.TrimStart();
 
-            if (fenceMarker is null)
+            if (fenceMarker.IsEmpty)
             {
                 var marker = FenceMarker(trimmed);
-                if (marker is not null)
+                if (!marker.IsEmpty)
                 {
                     fenceMarker = marker;
                     codeBlocks++;
@@ -74,18 +88,21 @@ public static partial class DocumentStatsService
                     var info = trimmed[marker.Length..].Trim();
                     if (info.StartsWith("mermaid", StringComparison.OrdinalIgnoreCase))
                         mermaid++;
-                    continue;
                 }
-
-                if (AtxHeading().IsMatch(line)) headings++;
-                if (TableDelimiterRow().IsMatch(line)) tables++;
-                prose.Append(line).Append('\n');
+                else
+                {
+                    if (!trimmed.IsEmpty && trimmed[0] == '#' && AtxHeading().IsMatch(line)) headings++;
+                    if (!trimmed.IsEmpty && (trimmed[0] == '|' || trimmed[0] == ':' || trimmed[0] == '-') && TableDelimiterRow().IsMatch(line)) tables++;
+                    prose.Append(line).Append('\n');
+                }
             }
             else if (trimmed.StartsWith(fenceMarker, StringComparison.Ordinal))
             {
-                fenceMarker = null; // closing fence — resume prose on the next line
+                fenceMarker = default; // closing fence — resume prose on the next line
             }
             // else: inside a code block — skip entirely.
+
+            if (!hasNewline) break;
         }
 
         var proseText = prose.ToString();
@@ -93,9 +110,11 @@ public static partial class DocumentStatsService
         // Single-pass: count images/links WHILE stripping them for word-counting, so the
         // regexes run once instead of twice (Matches here + Replace in CountWords).
         int images = 0, links = 0;
-        proseText = ImageRe().Replace(proseText, m => { images++; return m.Groups[1].Value; });
+        if (proseText.Contains("![", StringComparison.Ordinal))
+            proseText = ImageRe().Replace(proseText, m => { images++; return m.Groups[1].Value; });
         // After images are stripped, [text](url) only matches genuine links (no ![...] overlap).
-        proseText = LinkRe().Replace(proseText, m => { links++; return m.Groups[1].Value; });
+        if (proseText.Contains("](", StringComparison.Ordinal))
+            proseText = LinkRe().Replace(proseText, m => { links++; return m.Groups[1].Value; });
 
         int words = CountWords(proseText);
         var readingTime = TimeSpan.FromMinutes(words / WordsPerMinute);
@@ -120,26 +139,22 @@ public static partial class DocumentStatsService
         };
     }
 
-    private const string Backtick3 = "```";
-    private const string Tilde3 = "~~~";
-
-    // Returns the fence marker (a run of >= 3 backticks or tildes) a line opens with, or null.
-    private static string? FenceMarker(string trimmed)
+    // Returns the fence marker span (a run of >= 3 backticks or tildes) a line opens with, or empty.
+    private static ReadOnlySpan<char> FenceMarker(ReadOnlySpan<char> trimmed)
     {
         char c = trimmed.Length > 0 ? trimmed[0] : '\0';
-        if (c != '`' && c != '~') return null;
+        if (c != '`' && c != '~') return default;
         int n = 0;
         while (n < trimmed.Length && trimmed[n] == c) n++;
-        if (n < 3) return null;
-        if (n == 3) return c == '`' ? Backtick3 : Tilde3;
-        return new string(c, n);
+        return n >= 3 ? trimmed[..n] : default;
     }
 
     private static int CountWords(string prose)
     {
         // Images and links have already been stripped to their visible text by the caller
         // (counting them in the same pass). Only inline code and emphasis markers remain.
-        prose = InlineCodeRe().Replace(prose, " ");
+        if (prose.Contains('`'))
+            prose = InlineCodeRe().Replace(prose, " ");
         prose = MarkerRe().Replace(prose, " ");
 
         int words = 0;
@@ -163,6 +178,60 @@ public static partial class DocumentStatsService
         }
         if (inToken && tokenHasAlnum) words++; // trailing token with no closing whitespace
         return words;
+    }
+
+    /// <summary>
+    /// Formats the editor status-bar cursor readout ("Ln 12, Col 8") with zero-allocation selection
+    /// telemetry ("(3 words, 18 chars selected)" or "(42 words, 248 chars, 4 lines selected)") when
+    /// text is selected.
+    /// </summary>
+    public static string FormatCursorAndSelection(int line, int col, ReadOnlySpan<char> selection)
+    {
+        if (selection.IsEmpty)
+            return $"Ln {line}, Col {col}";
+
+        int words = 0;
+        int lines = 1;
+        bool inToken = false;
+        bool tokenHasAlnum = false;
+
+        for (int i = 0; i < selection.Length; i++)
+        {
+            char ch = selection[i];
+            if (ch == '\r')
+            {
+                lines++;
+                if (inToken && tokenHasAlnum) words++;
+                inToken = false;
+                tokenHasAlnum = false;
+                if (i + 1 < selection.Length && selection[i + 1] == '\n') i++;
+            }
+            else if (ch == '\n')
+            {
+                lines++;
+                if (inToken && tokenHasAlnum) words++;
+                inToken = false;
+                tokenHasAlnum = false;
+            }
+            else if (char.IsWhiteSpace(ch))
+            {
+                if (inToken && tokenHasAlnum) words++;
+                inToken = false;
+                tokenHasAlnum = false;
+            }
+            else
+            {
+                inToken = true;
+                if (char.IsLetterOrDigit(ch)) tokenHasAlnum = true;
+            }
+        }
+        if (inToken && tokenHasAlnum) words++;
+
+        var wordLabel = words == 1 ? "1 word" : $"{words:N0} words";
+        var charLabel = selection.Length == 1 ? "1 char" : $"{selection.Length:N0} chars";
+        return lines > 1
+            ? $"Ln {line}, Col {col}  ({wordLabel}, {charLabel}, {lines:N0} lines selected)"
+            : $"Ln {line}, Col {col}  ({wordLabel}, {charLabel} selected)";
     }
 }
 

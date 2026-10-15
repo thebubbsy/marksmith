@@ -8,13 +8,19 @@ public sealed class HistoryService
 {
     private const int MaxEntries = 200;
 
-    private static readonly string HistoryPath = Path.Combine(AppPaths.ConfigDir, "history.json");
+    private static readonly string DefaultHistoryPath = Path.Combine(AppPaths.ConfigDir, "history.json");
 
+    private readonly string _historyPath;
     private readonly List<HistoryEntry> _entries;
 
-    public HistoryService()
+    public HistoryService() : this(null)
     {
-        _entries = Load();
+    }
+
+    public HistoryService(string? customPath)
+    {
+        _historyPath = string.IsNullOrWhiteSpace(customPath) ? DefaultHistoryPath : customPath;
+        _entries = Load(_historyPath);
     }
 
     public IReadOnlyList<HistoryEntry> All => _entries;
@@ -25,20 +31,53 @@ public sealed class HistoryService
     {
         _entries.Insert(0, entry);
         if (_entries.Count > MaxEntries) _entries.RemoveRange(MaxEntries, _entries.Count - MaxEntries);
+        Save();
+    }
+
+    public bool Remove(HistoryEntry? entry)
+    {
+        if (entry is null) return false;
+        var removed = _entries.Remove(entry);
+        if (!removed)
+        {
+            var idx = _entries.FindIndex(e =>
+                e.Timestamp == entry.Timestamp &&
+                string.Equals(e.OutputPath, entry.OutputPath, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(e.Kind, entry.Kind, StringComparison.Ordinal));
+            if (idx >= 0)
+            {
+                _entries.RemoveAt(idx);
+                removed = true;
+            }
+        }
+        if (removed) Save();
+        return removed;
+    }
+
+    public void Clear()
+    {
+        if (_entries.Count == 0) return;
+        _entries.Clear();
+        Save();
+    }
+
+    private void Save()
+    {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(HistoryPath)!);
-            AtomicFile.WriteAllText(HistoryPath, JsonSerializer.Serialize(_entries, JsonOpts));
+            var dir = Path.GetDirectoryName(_historyPath);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            AtomicFile.WriteAllText(_historyPath, JsonSerializer.Serialize(_entries, JsonOpts));
         }
         catch { /* history is best-effort; never fail an export over it */ }
     }
 
-    private static List<HistoryEntry> Load()
+    private static List<HistoryEntry> Load(string path)
     {
         try
         {
-            if (File.Exists(HistoryPath))
-                return JsonSerializer.Deserialize<List<HistoryEntry>>(File.ReadAllText(HistoryPath), JsonOpts) ?? new();
+            if (File.Exists(path))
+                return JsonSerializer.Deserialize<List<HistoryEntry>>(File.ReadAllText(path), JsonOpts) ?? new();
         }
         catch { }
         return new();

@@ -2750,7 +2750,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                 var (w, h) = MarkSmith.Core.Composer.ShapeMarkdownCodec.CanvasSize(traced);
                 var snapshot = traced;
                 png = await System.Threading.Tasks.Task.Run(
-                    () => ImageLineTracer.RenderPreviewPng(snapshot, w, h, previewCap: 24000), ct);
+                    () => ImageLineTracer.RenderPreviewPng(snapshot, w, h, previewCap: 0), ct);
             }
             if (ct.IsCancellationRequested) return;
 
@@ -3011,7 +3011,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         {
             var (w, h) = MarkSmith.Core.Composer.ShapeMarkdownCodec.CanvasSize(composed);
             PreviewPng = await System.Threading.Tasks.Task.Run(
-                () => ImageLineTracer.RenderPreviewPng(composed, w, h, previewCap: 24000));
+                () => ImageLineTracer.RenderPreviewPng(composed, w, h, previewCap: 0));
             CanvasMode = "dense";
         }
         else

@@ -79,6 +79,36 @@ public sealed class ImageInsertControl : InsertDialogBody
         AutomationProperties.SetName(browse, "Browse for an image");
         browse.Click += OnBrowseClick;
 
+        var zoneMenu = new MenuFlyout();
+        zoneMenu.Opening += (_, _) =>
+        {
+            zoneMenu.Items.Clear();
+            var browseItem = new MenuFlyoutItem
+            {
+                Text = "Browse for image… (Ctrl+O)",
+                Icon = new FontIcon { Glyph = "\uE8E5" },
+            };
+            browseItem.Click += OnBrowseClick;
+            zoneMenu.Items.Add(browseItem);
+
+            var pasteItem = new MenuFlyoutItem
+            {
+                Text = "Paste address or path (Ctrl+V)",
+                Icon = new FontIcon { Glyph = "\uE77F" },
+            };
+            pasteItem.Click += async (_, _) => await PasteSourceFromClipboardAsync();
+            zoneMenu.Items.Add(pasteItem);
+
+            var clearItem = new MenuFlyoutItem
+            {
+                Text = "Clear selected image (Delete)",
+                Icon = new FontIcon { Glyph = "\uE74D" },
+                IsEnabled = Source.Length > 0,
+            };
+            clearItem.Click += (_, _) => ClearSelectedImage();
+            zoneMenu.Items.Add(clearItem);
+        };
+
         _zone = new Border
         {
             AllowDrop = true,
@@ -86,6 +116,7 @@ public sealed class ImageInsertControl : InsertDialogBody
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(20, 18, 20, 16),
             Height = 214, // fixed, so the dialog does not jump when a thumbnail replaces the icon
+            ContextFlyout = zoneMenu,
             Child = new StackPanel
             {
                 Spacing = 4,
@@ -93,6 +124,7 @@ public sealed class ImageInsertControl : InsertDialogBody
                 Children = { _zoneIcon, _thumb, _zoneTitle, _zoneHint, browse },
             },
         }.Themed(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush").Themed(Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
+        AutomationProperties.SetName(_zone, "Image drop zone");
         _zone.DragOver += OnDragOver;
         _zone.DragLeave += (_, _) => Highlight(false);
         _zone.Drop += OnDrop;
@@ -121,16 +153,70 @@ public sealed class ImageInsertControl : InsertDialogBody
         AddHandler(KeyDownEvent, new KeyEventHandler(OnImageControlKeyDown), true);
     }
 
-    private void OnImageControlKeyDown(object sender, KeyRoutedEventArgs e)
+    private async System.Threading.Tasks.Task PasteSourceFromClipboardAsync()
+    {
+        try
+        {
+            var view = Clipboard.GetContent();
+            if (view.Contains(StandardDataFormats.StorageItems))
+            {
+                var items = await view.GetStorageItemsAsync();
+                var file = items.OfType<StorageFile>().FirstOrDefault(f => ImageExtensions.Contains(f.FileType.ToLowerInvariant()))
+                           ?? items.OfType<StorageFile>().FirstOrDefault();
+                if (file is not null)
+                {
+                    _source.Text = file.Path;
+                    return;
+                }
+            }
+            if (view.Contains(StandardDataFormats.Text))
+            {
+                var text = await view.GetTextAsync();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    _source.Text = Clean(text);
+                }
+            }
+        }
+        catch { }
+    }
+
+    private void ClearSelectedImage()
+    {
+        _source.Text = string.Empty;
+        _alt.Text = string.Empty;
+        _autoAlt = string.Empty;
+        _source.Focus(FocusState.Programmatic);
+    }
+
+    private async void OnImageControlKeyDown(object sender, KeyRoutedEventArgs e)
     {
         var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
         if ((e.Key == VirtualKey.O && ctrl) || (e.Key == VirtualKey.B && alt))
         {
             e.Handled = true;
             OnBrowseClick(this, new RoutedEventArgs());
+            return;
+        }
+
+        var focused = XamlRoot is null ? null : FocusManager.GetFocusedElement(XamlRoot);
+        if (focused is TextBox) return;
+
+        if (e.Key == VirtualKey.V && ctrl && !shift && !alt)
+        {
+            e.Handled = true;
+            await PasteSourceFromClipboardAsync();
+        }
+        else if (e.Key == VirtualKey.Delete && !ctrl && !shift && !alt && Source.Length > 0)
+        {
+            e.Handled = true;
+            ClearSelectedImage();
         }
     }
 

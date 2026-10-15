@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace MarkSmith.Services;
 
 /// <summary>
@@ -12,18 +14,18 @@ namespace MarkSmith.Services;
 /// </summary>
 public static class CommandSearch
 {
-    private static readonly char[] WordBreaks = { ' ', '(', ')', ':', '.', '-', '/', '…', ',', '+', '&' };
+    private static readonly SearchValues<char> WordBreaks = SearchValues.Create(" ():.-/…,+&");
 
     /// <summary>Higher is better; null means no match. An empty query matches everything at 0.</summary>
     public static int? Score(string label, string category, string query, string keywords = "") =>
-        Analyse(label, category, query, keywords).Score;
+        Analyse(label, category, query, keywords, includeRanges: false).Score;
 
     /// <summary>
     /// The parts of <paramref name="label"/> the query matched, as (start, length) pairs in label
     /// order, for bolding in the list. Empty when the match came from keywords or the category.
     /// </summary>
     public static IReadOnlyList<(int Start, int Length)> Highlights(string label, string query) =>
-        Analyse(label, "", query, "").Ranges;
+        Analyse(label, "", query, "", includeRanges: true).Ranges;
 
     /// <summary>The items that match, best first; ties keep their original order.</summary>
     public static List<T> Rank<T>(IEnumerable<T> items, string query, Func<T, string> label, Func<T, string> category, Func<T, string>? keywords = null) =>
@@ -36,34 +38,43 @@ public static class CommandSearch
 
     private static readonly IReadOnlyList<(int Start, int Length)> NoRanges = Array.Empty<(int, int)>();
 
-    private static (int? Score, IReadOnlyList<(int Start, int Length)> Ranges) Analyse(string label, string category, string query, string keywords)
+    private static (int? Score, IReadOnlyList<(int Start, int Length)> Ranges) Analyse(string label, string category, string query, string keywords, bool includeRanges)
     {
         query = (query ?? "").Trim();
         label ??= "";
         if (query.Length == 0) return (0, NoRanges);
         var lengthPenalty = Math.Min(label.Length, 99);
-        var whole = new[] { (0, label.Length) };
 
-        if (label.Equals(query, StringComparison.OrdinalIgnoreCase)) return (1000, whole);
-        if (label.StartsWith(query, StringComparison.OrdinalIgnoreCase)) return (900 - lengthPenalty, new[] { (0, query.Length) });
+        if (label.Equals(query, StringComparison.OrdinalIgnoreCase))
+            return (1000, includeRanges ? new[] { (0, label.Length) } : NoRanges);
+        if (label.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+            return (900 - lengthPenalty, includeRanges ? new[] { (0, query.Length) } : NoRanges);
 
         var words = Words(label);
         foreach (var (start, text) in words)
         {
-            if (text.StartsWith(query, StringComparison.OrdinalIgnoreCase)) return (800 - lengthPenalty, new[] { (start, query.Length) });
+            if (text.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+                return (800 - lengthPenalty, includeRanges ? new[] { (start, query.Length) } : NoRanges);
         }
         // An initialism ("ep" for Export PDF) says more than the same letters mid-word ("rEPlace").
-        var compact = query.Replace(" ", "");
+        var compact = query.Contains(' ') ? query.Replace(" ", "") : query;
         var pieces = Abbreviation(words, compact);
         if (pieces is not null && pieces.Count > 1 && pieces.All(p => p.Length == 1)) return (750 - lengthPenalty, pieces);
         var at = label.IndexOf(query, StringComparison.OrdinalIgnoreCase);
-        if (at >= 0) return (700 - lengthPenalty, new[] { (at, query.Length) });
+        if (at >= 0) return (700 - lengthPenalty, includeRanges ? new[] { (at, query.Length) } : NoRanges);
 
         // Several words in any order: "pdf export" finds "Export PDF".
-        var terms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var haystack = $"{label} {category} {keywords}";
-        if (terms.Length > 1 && terms.All(t => haystack.Contains(t, StringComparison.OrdinalIgnoreCase)))
-            return (600 - lengthPenalty, TermRanges(label, terms));
+        if (query.Contains(' '))
+        {
+            var terms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (terms.Length > 1 && terms.All(t =>
+                label.Contains(t, StringComparison.OrdinalIgnoreCase)
+                || (category is not null && category.Contains(t, StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrEmpty(keywords) && keywords.Contains(t, StringComparison.OrdinalIgnoreCase))))
+            {
+                return (600 - lengthPenalty, includeRanges ? TermRanges(label, terms) : NoRanges);
+            }
+        }
 
         if (!string.IsNullOrEmpty(keywords) && keywords.Contains(query, StringComparison.OrdinalIgnoreCase)) return (500, NoRanges);
         if (category?.StartsWith(query, StringComparison.OrdinalIgnoreCase) == true) return (400, NoRanges);
@@ -74,13 +85,15 @@ public static class CommandSearch
 
     private static List<(int Start, string Text)> Words(string label)
     {
-        var words = new List<(int, string)>();
+        var words = new List<(int, string)>(4);
+        var span = label.AsSpan();
         var i = 0;
-        while (i < label.Length)
+        while (i < span.Length)
         {
-            while (i < label.Length && Array.IndexOf(WordBreaks, label[i]) >= 0) i++;
+            while (i < span.Length && WordBreaks.Contains(span[i])) i++;
             var start = i;
-            while (i < label.Length && Array.IndexOf(WordBreaks, label[i]) < 0) i++;
+            var nextBreak = span[start..].IndexOfAny(WordBreaks);
+            i = nextBreak >= 0 ? start + nextBreak : span.Length;
             if (i > start) words.Add((start, label[start..i]));
         }
         return words;

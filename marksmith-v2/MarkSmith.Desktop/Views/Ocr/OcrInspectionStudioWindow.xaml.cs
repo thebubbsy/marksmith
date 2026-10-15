@@ -9,7 +9,9 @@ using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -31,6 +33,18 @@ namespace MarkSmith.Views.Ocr;
 public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 {
     private static readonly FontFamily MonoFont = new("Consolas");
+
+    private static readonly (OcrBlockKind Kind, string Label, int ShortcutNumber)[] ReclassifyKindOptions =
+    {
+        (OcrBlockKind.Picture, "🖼 Picture", 1),
+        (OcrBlockKind.ShapeMosaic, "✨ Mosaic / Shape", 2),
+        (OcrBlockKind.Diagram, "📐 Diagram", 3),
+        (OcrBlockKind.Table, "📊 Table", 4),
+        (OcrBlockKind.KeyValue, "🔑 Key-Value", 5),
+        (OcrBlockKind.Heading, "📌 Heading", 6),
+        (OcrBlockKind.List, "📑 List", 7),
+        (OcrBlockKind.Paragraph, "📝 Text Block", 8),
+    };
 
     private readonly OcrInspectionSession _session = new();
     private readonly TaskCompletionSource<OcrInspectionResult> _decisionTcs = new();
@@ -78,6 +92,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             MarkdownScopeComboBox.SelectedIndex = 0;
         }
 
+        HoverPolish.Apply(RootGrid);
+
         this.Closed += (_, _) =>
         {
             _playbackCts?.Cancel();
@@ -122,6 +138,23 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         }
     }
 
+    private void OnRootSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (CanvasPaneColumn is null || InspectorPaneColumn is null) return;
+        double w = e.NewSize.Width;
+        if (w > 0 && w < 1120)
+        {
+            CanvasPaneColumn.Width = new GridLength(360);
+            InspectorPaneColumn.Width = new GridLength(290);
+        }
+        else if (w >= 1120)
+        {
+            CanvasPaneColumn.Width = new GridLength(460);
+            InspectorPaneColumn.Width = new GridLength(340);
+        }
+        UpdatePageSheetDimensions();
+    }
+
     /// <summary>
     /// Awaits the explicit user import decision. Resolves when the user clicks 'Import into MarkSmith'
     /// or cancels/closes the window.
@@ -158,9 +191,10 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                     ? $"Page {preview.PageIndex + 1} of {_expectedPageCount}"
                     : $"Page {preview.PageNumber}";
                 PageIndicatorText.Text = pageLabel;
+                AutomationProperties.SetName(PageIndicatorText, pageLabel);
 
-                StatusBannerText.Text = $"Scanning & Decomposing {pageLabel} with {_currentEngineName}…";
-                WordStreamText.Text = $"Calibrating page geometry & deskew angle…";
+                SetStatusBannerText($"Scanning & Decomposing {pageLabel} with {_currentEngineName}…");
+                WordStreamText.Text = "Calibrating page geometry & deskew angle…";
                 StageProgressBar.IsIndeterminate = false;
                 StageProgressBar.Value = 25;
 
@@ -290,7 +324,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             string pageLabel = _session.Pages.Count > 1
                 ? $"Page {page.PageNumber} of {_session.Pages.Count}"
                 : $"Page {page.PageNumber}";
-            StatusBannerText.Text = $"Analyzing & Decomposing {pageLabel} with {sourceLabel}…";
+            SetStatusBannerText($"Analyzing & Decomposing {pageLabel} with {sourceLabel}…");
             StageProgressBar.Value = Math.Round((p + 0.5) / _session.Pages.Count * 100);
 
             await AnimateSinglePageBreakdownAsync(page, token);
@@ -330,6 +364,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             ElementCardsPanel.Children.Clear();
             _canvasElementFrames.Clear();
             _inspectorCards.Clear();
+            if (NoElementsPlaceholder is not null)
+                NoElementsPlaceholder.Visibility = Visibility.Collapsed;
 
             // 1. Scan laser sweep
             LaserBeam.Visibility = Visibility.Visible;
@@ -364,6 +400,9 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                     try { await Task.Delay(30, token); } catch (OperationCanceledException) { return; }
                 }
             }
+
+            if (NoElementsPlaceholder is not null)
+                NoElementsPlaceholder.Visibility = elemCount == 0 ? Visibility.Visible : Visibility.Collapsed;
 
             // 3. Word token stream
             if (page.Words.Count > 0 && !token.IsCancellationRequested)
@@ -429,15 +468,29 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                     StatusBannerIcon.Glyph = "\uE783"; // Warning triangle
                     StatusBannerIcon.Foreground = ThemeBrush.Get("SystemFillColorCautionBrush", RootGrid.ActualTheme);
                 }
-                if (StatusBannerText is not null) StatusBannerText.Text = $"Page {pageNumber}: {errorMessage}";
+                SetStatusBannerText($"Page {pageNumber}: {errorMessage}");
                 if (StatusSubtext is not null) StatusSubtext.Text = "MarkSmith continued importing the rest of the document. You can inspect available pages and review before applying.";
-                if (FooterStatusText is not null) FooterStatusText.Text = $"Page {pageNumber} issue: {errorMessage}";
+                SetFooterStatusText($"Page {pageNumber} issue: {errorMessage}");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"ReportPageError error: {ex}");
             }
         });
+    }
+
+    private void SetStatusBannerText(string text)
+    {
+        if (StatusBannerText is null) return;
+        StatusBannerText.Text = text;
+        AutomationProperties.SetName(StatusBannerText, text);
+    }
+
+    private void SetFooterStatusText(string text)
+    {
+        if (FooterStatusText is null) return;
+        FooterStatusText.Text = text;
+        AutomationProperties.SetName(FooterStatusText, text);
     }
 
     // ---- Review Mode & Interactive State --------------------------------------------------------
@@ -454,24 +507,48 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             StatusBannerIcon.Glyph = "\uE73E"; // Checkmark
             StatusBannerIcon.Foreground = ThemeBrush.Get("SystemFillColorSuccessBrush", RootGrid.ActualTheme);
         }
-        if (StatusBannerText is not null) StatusBannerText.Text = "✓ Document Scan Complete — Inspect Detected Elements & Choose Import Settings";
-        if (StatusSubtext is not null) StatusSubtext.Text = "Flick through pages to inspect detected elements. Click any element to reclassify it between Picture, Mosaic, Diagram, Table, Key-Value, or Text. Hit 'Import into MarkSmith' to apply.";
+        SetStatusBannerText("✓ Document Scan Complete — Inspect Detected Elements & Choose Import Settings");
+        if (StatusSubtext is not null)
+            StatusSubtext.Text = "Flick through pages (←/→), navigate elements (↑/↓), or press 1–8 to reclassify the selected block. Hit 'Import into MarkSmith' (Ctrl+Enter) to apply.";
 
         UpdatePageFlickingState();
         RenderCurrentPage();
         UpdateLiveMarkdownPreview();
-        if (FooterStatusText is not null)
-            FooterStatusText.Text = "Inspection Studio active — Never auto-closes. Review detected elements before applying import.";
+        SetFooterStatusText("Inspection Studio active — Never auto-closes. Review detected elements before applying import.");
     }
 
     private void UpdatePageFlickingState()
     {
-        if (PrevPageButton is not null) PrevPageButton.IsEnabled = _session.CanPreviousPage;
-        if (NextPageButton is not null) NextPageButton.IsEnabled = _session.CanNextPage;
+        if (PrevPageButton is not null)
+        {
+            bool canPrev = _session.CanPreviousPage;
+            if (!canPrev && PrevPageButton.FocusState != FocusState.Unfocused)
+            {
+                if (NextPageButton is not null && _session.CanNextPage) NextPageButton.Focus(FocusState.Programmatic);
+                else ImportCtaButton?.Focus(FocusState.Programmatic);
+            }
+            PrevPageButton.IsEnabled = canPrev;
+        }
+
+        if (NextPageButton is not null)
+        {
+            bool canNext = _session.CanNextPage;
+            if (!canNext && NextPageButton.FocusState != FocusState.Unfocused)
+            {
+                if (PrevPageButton is not null && _session.CanPreviousPage) PrevPageButton.Focus(FocusState.Programmatic);
+                else ImportCtaButton?.Focus(FocusState.Programmatic);
+            }
+            NextPageButton.IsEnabled = canNext;
+        }
 
         int totalPages = Math.Max(1, _session.Pages.Count);
         int currentNum = _session.CurrentPage?.PageNumber ?? (_session.CurrentPageIndex + 1);
-        if (PageIndicatorText is not null) PageIndicatorText.Text = $"Page {currentNum} of {totalPages}";
+        if (PageIndicatorText is not null)
+        {
+            string label = $"Page {currentNum} of {totalPages}";
+            PageIndicatorText.Text = label;
+            AutomationProperties.SetName(PageIndicatorText, label);
+        }
     }
 
     private void RenderCurrentPage()
@@ -510,10 +587,37 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             ElementCardsPanel.Children.Add(card);
         }
 
+        if (NoElementsPlaceholder is not null)
+        {
+            NoElementsPlaceholder.Visibility = page.Elements.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        if (_selectedElement is not null && page.Elements.Contains(_selectedElement))
+        {
+            SelectElement(_selectedElement);
+        }
+        else if (page.Elements.Count > 0)
+        {
+            SelectElement(page.Elements[0]);
+        }
+        else
+        {
+            ClearElementSelection();
+        }
+
         UpdatePageFlickingState();
         UpdateLiveMarkdownPreview();
         UpdateSessionTelemetry();
     }
+
+    private static string DescribeElementForAccessibility(OcrInspectionElement elem) =>
+        $"Element {elem.Id}, {elem.KindDisplayName}, {elem.WordCount} words" +
+        (elem.IsReclassified ? $" (reclassified from {elem.OriginalKind})" : string.Empty);
+
+    private static string DescribeElementToolTip(OcrInspectionElement elem) =>
+        $"#{elem.Id} · {elem.KindDisplayName} ({elem.WordCount} words)" +
+        (elem.IsReclassified ? $" — Reclassified from {elem.OriginalKind}" : string.Empty) +
+        "\nClick to select · Right-click for actions · Keys 1–8 to reclassify · R to reset";
 
     private Border CreateCanvasElementFrame(OcrInspectionElement elem)
     {
@@ -528,6 +632,9 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             IsHitTestVisible = true,
         };
         SetCursor(border, Microsoft.UI.Input.InputSystemCursorShape.Hand);
+        AutomationProperties.SetName(border, DescribeElementForAccessibility(elem));
+        ToolTipService.SetToolTip(border, DescribeElementToolTip(elem));
+        border.ContextFlyout = BuildElementContextMenu(elem);
 
         var badge = new Border
         {
@@ -550,17 +657,29 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         border.PointerEntered += (_, _) =>
         {
+            var (sc, _) = GetKindPalette(elem.Kind);
             border.BorderThickness = new Thickness(2.5);
-            border.Background = new SolidColorBrush(Color.FromArgb(90, strokeColor.R, strokeColor.G, strokeColor.B));
+            border.Background = new SolidColorBrush(Color.FromArgb(90, sc.R, sc.G, sc.B));
+            if (_inspectorCards.TryGetValue(elem, out var card))
+            {
+                card.BorderBrush = ThemeBrush.Get("AccentFillColorDefaultBrush", RootGrid.ActualTheme);
+            }
         };
 
         border.PointerExited += (_, _) =>
         {
+            var (sc, fc) = GetKindPalette(elem.Kind);
             bool isSel = ReferenceEquals(elem, _selectedElement);
             border.BorderThickness = new Thickness(isSel ? 3.0 : 1.5);
             border.Background = new SolidColorBrush(isSel
-                ? Color.FromArgb(70, strokeColor.R, strokeColor.G, strokeColor.B)
-                : fillColor);
+                ? Color.FromArgb(70, sc.R, sc.G, sc.B)
+                : fc);
+            if (_inspectorCards.TryGetValue(elem, out var card))
+            {
+                card.BorderBrush = isSel
+                    ? ThemeBrush.Get("AccentFillColorDefaultBrush", RootGrid.ActualTheme)
+                    : ThemeBrush.Get("ControlStrokeColorDefaultBrush", RootGrid.ActualTheme);
+            }
         };
 
         border.PointerPressed += (_, args) =>
@@ -568,6 +687,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             args.Handled = true;
             SelectElement(elem);
         };
+
+        border.RightTapped += (_, _) => SelectElement(elem);
 
         return border;
     }
@@ -585,7 +706,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var titleText = new TextBlock
         {
-            Text = $"#{elem.Id} · {elem.KindDisplayName}",
+            Text = $"#{elem.Id} · {elem.KindDisplayName}" + (elem.IsReclassified ? " ✦" : string.Empty),
             FontSize = 11.5,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(strokeColor),
@@ -614,32 +735,24 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             FontSize = 11,
             Padding = new Thickness(8, 3, 8, 3),
         };
-
-        var kinds = new (OcrBlockKind Kind, string Label)[]
-        {
-            (OcrBlockKind.Picture, "🖼 Picture"),
-            (OcrBlockKind.ShapeMosaic, "✨ Mosaic / Shape"),
-            (OcrBlockKind.Diagram, "📐 Diagram"),
-            (OcrBlockKind.Table, "📊 Table"),
-            (OcrBlockKind.KeyValue, "🔑 Key-Value"),
-            (OcrBlockKind.Heading, "📌 Heading"),
-            (OcrBlockKind.List, "📑 List"),
-            (OcrBlockKind.Paragraph, "📝 Text Block"),
-        };
+        AutomationProperties.SetName(combo, $"Reclassify element {elem.Id}");
 
         int selectedIdx = 0;
-        for (int i = 0; i < kinds.Length; i++)
+        for (int i = 0; i < ReclassifyKindOptions.Length; i++)
         {
-            var item = new ComboBoxItem { Content = kinds[i].Label, Tag = kinds[i].Kind };
+            var opt = ReclassifyKindOptions[i];
+            var item = new ComboBoxItem { Content = $"{opt.ShortcutNumber} · {opt.Label}", Tag = opt.Kind };
             combo.Items.Add(item);
-            if (kinds[i].Kind == elem.Kind) selectedIdx = i;
+            if (opt.Kind == elem.Kind) selectedIdx = i;
         }
         combo.SelectedIndex = selectedIdx;
 
         combo.SelectionChanged += (_, _) =>
         {
+            if (_isUpdatingSelection) return;
             if (combo.SelectedItem is ComboBoxItem cbi && cbi.Tag is OcrBlockKind newKind && newKind != elem.Kind)
             {
+                SelectElement(elem);
                 ReclassifyElement(elem, newKind);
             }
         };
@@ -670,6 +783,36 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Child = cardStack,
         };
         SetCursor(cardBorder, Microsoft.UI.Input.InputSystemCursorShape.Hand);
+        AutomationProperties.SetName(cardBorder, DescribeElementForAccessibility(elem));
+        ToolTipService.SetToolTip(cardBorder, DescribeElementToolTip(elem));
+        cardBorder.ContextFlyout = BuildElementContextMenu(elem);
+
+        cardBorder.PointerEntered += (_, _) =>
+        {
+            cardBorder.BorderBrush = ThemeBrush.Get("AccentFillColorDefaultBrush", RootGrid.ActualTheme);
+            if (_canvasElementFrames.TryGetValue(elem, out var frame))
+            {
+                var (sc, _) = GetKindPalette(elem.Kind);
+                frame.BorderThickness = new Thickness(2.5);
+                frame.Background = new SolidColorBrush(Color.FromArgb(90, sc.R, sc.G, sc.B));
+            }
+        };
+
+        cardBorder.PointerExited += (_, _) =>
+        {
+            bool isSel = ReferenceEquals(elem, _selectedElement);
+            cardBorder.BorderBrush = isSel
+                ? ThemeBrush.Get("AccentFillColorDefaultBrush", RootGrid.ActualTheme)
+                : ThemeBrush.Get("ControlStrokeColorDefaultBrush", RootGrid.ActualTheme);
+            if (_canvasElementFrames.TryGetValue(elem, out var frame))
+            {
+                var (sc, fc) = GetKindPalette(elem.Kind);
+                frame.BorderThickness = new Thickness(isSel ? 3.0 : 1.5);
+                frame.Background = new SolidColorBrush(isSel
+                    ? Color.FromArgb(70, sc.R, sc.G, sc.B)
+                    : fc);
+            }
+        };
 
         cardBorder.PointerPressed += (_, args) =>
         {
@@ -677,7 +820,102 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             SelectElement(elem);
         };
 
+        cardBorder.RightTapped += (_, _) => SelectElement(elem);
+
         return cardBorder;
+    }
+
+    private MenuFlyout BuildElementContextMenu(OcrInspectionElement elem)
+    {
+        var menu = new MenuFlyout();
+        menu.Opening += (_, _) =>
+        {
+            SelectElement(elem);
+            menu.Items.Clear();
+
+            var reclassifySubItem = new MenuFlyoutSubItem
+            {
+                Text = "Reclassify element as",
+                Icon = new FontIcon { Glyph = "\uE8CB" }
+            };
+
+            foreach (var opt in ReclassifyKindOptions)
+            {
+                var kindItem = new ToggleMenuFlyoutItem
+                {
+                    Text = $"{opt.ShortcutNumber} · {opt.Label}",
+                    IsChecked = elem.Kind == opt.Kind
+                };
+                var targetKind = opt.Kind;
+                kindItem.Click += (_, _) =>
+                {
+                    SelectElement(elem);
+                    if (elem.Kind != targetKind)
+                    {
+                        ReclassifyElement(elem, targetKind);
+                    }
+                };
+                reclassifySubItem.Items.Add(kindItem);
+            }
+            menu.Items.Add(reclassifySubItem);
+
+            var resetItem = new MenuFlyoutItem
+            {
+                Text = $"Reset to original ({elem.OriginalKind}) (R)",
+                Icon = new FontIcon { Glyph = "\uE7A7" },
+                IsEnabled = elem.IsReclassified
+            };
+            resetItem.Click += (_, _) =>
+            {
+                SelectElement(elem);
+                ResetSelectedElement();
+            };
+            menu.Items.Add(resetItem);
+
+            var copyElemItem = new MenuFlyoutItem
+            {
+                Text = "Copy element Markdown (Ctrl+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !string.IsNullOrWhiteSpace(elem.CurrentMarkdown)
+            };
+            copyElemItem.Click += (_, _) =>
+            {
+                SelectElement(elem);
+                CopySelectedElementMarkdown();
+            };
+            menu.Items.Add(copyElemItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var resetPageItem = new MenuFlyoutItem
+            {
+                Text = "Reset all on page (Ctrl+Shift+R)",
+                Icon = new FontIcon { Glyph = "\uE72C" },
+                IsEnabled = (_session.CurrentPage?.ReclassifiedCount ?? 0) > 0
+            };
+            resetPageItem.Click += (_, _) => ResetCurrentPageElements();
+            menu.Items.Add(resetPageItem);
+        };
+        return menu;
+    }
+
+    private void ClearElementSelection()
+    {
+        _selectedElement = null;
+        if (SelectedElementBadgeText is not null)
+        {
+            SelectedElementBadgeText.Text = "No element selected";
+            AutomationProperties.SetName(SelectedElementBadgeText, SelectedElementBadgeText.Text);
+        }
+        if (QuickReclassifyComboBox is not null)
+        {
+            if (QuickReclassifyComboBox.FocusState != FocusState.Unfocused)
+            {
+                ImportCtaButton?.Focus(FocusState.Programmatic);
+            }
+            QuickReclassifyComboBox.IsEnabled = false;
+        }
+        UpdateActionButtonsState();
     }
 
     private void SelectElement(OcrInspectionElement elem)
@@ -704,25 +942,70 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             card.BorderThickness = new Thickness(isTarget ? 2 : 1);
         }
 
-        SelectedElementBadgeText.Text = $"Element #{elem.Id} ({elem.KindDisplayName})";
-
-        // Sync QuickReclassifyComboBox
-        _isUpdatingSelection = true;
-        try
+        if (_inspectorCards.TryGetValue(elem, out var selectedCard))
         {
-            for (int i = 0; i < QuickReclassifyComboBox.Items.Count; i++)
+            try { selectedCard.StartBringIntoView(); } catch { }
+        }
+
+        if (SelectedElementBadgeText is not null)
+        {
+            SelectedElementBadgeText.Text = $"Element #{elem.Id} ({elem.KindDisplayName})";
+            AutomationProperties.SetName(SelectedElementBadgeText, SelectedElementBadgeText.Text);
+        }
+
+        if (QuickReclassifyComboBox is not null)
+        {
+            QuickReclassifyComboBox.IsEnabled = true;
+
+            // Sync QuickReclassifyComboBox
+            _isUpdatingSelection = true;
+            try
             {
-                if (QuickReclassifyComboBox.Items[i] is ComboBoxItem item &&
-                    string.Equals(item.Tag?.ToString(), elem.Kind.ToString(), StringComparison.OrdinalIgnoreCase))
+                for (int i = 0; i < QuickReclassifyComboBox.Items.Count; i++)
                 {
-                    QuickReclassifyComboBox.SelectedIndex = i;
-                    break;
+                    if (QuickReclassifyComboBox.Items[i] is ComboBoxItem item &&
+                        string.Equals(item.Tag?.ToString(), elem.Kind.ToString(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        QuickReclassifyComboBox.SelectedIndex = i;
+                        break;
+                    }
                 }
             }
+            finally
+            {
+                _isUpdatingSelection = false;
+            }
         }
-        finally
+
+        UpdateActionButtonsState();
+    }
+
+    private void UpdateActionButtonsState()
+    {
+        bool canResetElement = _selectedElement?.IsReclassified == true;
+        if (ResetElementButton is not null)
         {
-            _isUpdatingSelection = false;
+            if (!canResetElement && ResetElementButton.FocusState != FocusState.Unfocused)
+            {
+                if (QuickReclassifyComboBox is not null && QuickReclassifyComboBox.IsEnabled)
+                    QuickReclassifyComboBox.Focus(FocusState.Programmatic);
+                else
+                    ImportCtaButton?.Focus(FocusState.Programmatic);
+            }
+            ResetElementButton.IsEnabled = canResetElement;
+        }
+
+        bool canResetPage = (_session.CurrentPage?.ReclassifiedCount ?? 0) > 0;
+        if (ResetPageButton is not null)
+        {
+            if (!canResetPage && ResetPageButton.FocusState != FocusState.Unfocused)
+            {
+                if (QuickReclassifyComboBox is not null && QuickReclassifyComboBox.IsEnabled)
+                    QuickReclassifyComboBox.Focus(FocusState.Programmatic);
+                else
+                    ImportCtaButton?.Focus(FocusState.Programmatic);
+            }
+            ResetPageButton.IsEnabled = canResetPage;
         }
     }
 
@@ -734,13 +1017,19 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         if (_canvasElementFrames.TryGetValue(elem, out var frame))
         {
             var (sc, fc) = GetKindPalette(elem.Kind);
+            bool isSel = ReferenceEquals(elem, _selectedElement);
             frame.BorderBrush = new SolidColorBrush(sc);
-            frame.Background = new SolidColorBrush(fc);
+            frame.BorderThickness = new Thickness(isSel ? 3.0 : 1.5);
+            frame.Background = new SolidColorBrush(isSel
+                ? Color.FromArgb(70, sc.R, sc.G, sc.B)
+                : fc);
             if (frame.Child is Border badge && badge.Child is TextBlock badgeText)
             {
                 badge.Background = new SolidColorBrush(sc);
                 badgeText.Text = $"{elem.KindIconGlyph} {elem.KindDisplayName}";
             }
+            AutomationProperties.SetName(frame, DescribeElementForAccessibility(elem));
+            ToolTipService.SetToolTip(frame, DescribeElementToolTip(elem));
         }
 
         // Keep the middle pane inspector card in sync
@@ -750,18 +1039,26 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             if (cardStack.Children.Count > 0 && cardStack.Children[0] is Grid headerGrid &&
                 headerGrid.Children.Count > 0 && headerGrid.Children[0] is TextBlock titleText)
             {
-                titleText.Text = $"#{elem.Id} · {elem.KindDisplayName}";
+                titleText.Text = $"#{elem.Id} · {elem.KindDisplayName}" + (elem.IsReclassified ? " ✦" : string.Empty);
                 titleText.Foreground = new SolidColorBrush(strokeColor);
             }
             if (cardStack.Children.Count > 1 && cardStack.Children[1] is ComboBox cardCombo)
             {
-                for (int ci = 0; ci < cardCombo.Items.Count; ci++)
+                _isUpdatingSelection = true;
+                try
                 {
-                    if (cardCombo.Items[ci] is ComboBoxItem item && item.Tag is OcrBlockKind k && k == elem.Kind)
+                    for (int ci = 0; ci < cardCombo.Items.Count; ci++)
                     {
-                        if (cardCombo.SelectedIndex != ci) cardCombo.SelectedIndex = ci;
-                        break;
+                        if (cardCombo.Items[ci] is ComboBoxItem item && item.Tag is OcrBlockKind k && k == elem.Kind)
+                        {
+                            if (cardCombo.SelectedIndex != ci) cardCombo.SelectedIndex = ci;
+                            break;
+                        }
                     }
+                }
+                finally
+                {
+                    _isUpdatingSelection = false;
                 }
             }
             if (cardStack.Children.Count > 2 && cardStack.Children[2] is TextBlock snippetText)
@@ -770,12 +1067,18 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                     ? elem.CurrentMarkdown.Substring(0, 87) + "…"
                     : elem.CurrentMarkdown;
             }
+            AutomationProperties.SetName(card, DescribeElementForAccessibility(elem));
+            ToolTipService.SetToolTip(card, DescribeElementToolTip(elem));
         }
 
-        // Keep the right pane selection inspector in sync if this element is currently selected
+        // Keep the selection inspector in sync if this element is currently selected
         if (ReferenceEquals(elem, _selectedElement))
         {
-            SelectedElementBadgeText.Text = $"Element #{elem.Id} ({elem.KindDisplayName})";
+            if (SelectedElementBadgeText is not null)
+            {
+                SelectedElementBadgeText.Text = $"Element #{elem.Id} ({elem.KindDisplayName})";
+                AutomationProperties.SetName(SelectedElementBadgeText, SelectedElementBadgeText.Text);
+            }
             _isUpdatingSelection = true;
             try
             {
@@ -797,8 +1100,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         UpdateSessionTelemetry();
         UpdateLiveMarkdownPreview();
-        if (FooterStatusText is not null)
-            FooterStatusText.Text = $"Reclassified Element #{elem.Id} to {elem.KindDisplayName}. Preview updated live.";
+        UpdateActionButtonsState();
+        SetFooterStatusText($"Reclassified Element #{elem.Id} to {elem.KindDisplayName}. Preview updated live.");
     }
 
     private void UpdateLiveMarkdownPreview()
@@ -808,6 +1111,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         if (_session.Pages.Count == 0)
         {
             MarkdownPreviewTextBox.Text = string.Empty;
+            if (CopyMarkdownButton is not null) CopyMarkdownButton.IsEnabled = false;
             return;
         }
 
@@ -816,6 +1120,10 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             : (_session.CurrentPage?.AssembledPageMarkdown ?? string.Empty);
 
         MarkdownPreviewTextBox.Text = md;
+        if (CopyMarkdownButton is not null)
+        {
+            CopyMarkdownButton.IsEnabled = !string.IsNullOrWhiteSpace(md);
+        }
     }
 
     private void UpdateSessionTelemetry()
@@ -829,10 +1137,12 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         if (SessionMetricsText is not null)
         {
-            SessionMetricsText.Text = $"{_session.Pages.Count} Page{(_session.Pages.Count == 1 ? "" : "s")} · " +
-                                      $"{_session.TotalElements} Elements · " +
-                                      $"{_session.TotalWords} Words · " +
-                                      $"{_session.TotalReclassifications} Reclassified";
+            string metrics = $"{_session.Pages.Count} Page{(_session.Pages.Count == 1 ? "" : "s")} · " +
+                             $"{_session.TotalElements} Elements · " +
+                             $"{_session.TotalWords} Words · " +
+                             $"{_session.TotalReclassifications} Reclassified";
+            SessionMetricsText.Text = metrics;
+            AutomationProperties.SetName(SessionMetricsText, metrics);
         }
     }
 
@@ -988,6 +1298,38 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         UpdateLiveMarkdownPreview();
     }
 
+    private void OnCopyMarkdownClick(object sender, RoutedEventArgs e)
+    {
+        string? md = MarkdownPreviewTextBox?.Text;
+        if (string.IsNullOrWhiteSpace(md)) return;
+        if (CopyMarkdownButton is not null)
+        {
+            CopyFeedback.CopyWithTick(CopyMarkdownButton, CopyMarkdownIcon, md);
+        }
+        else
+        {
+            _ = ClipboardWriter.TrySetTextAsync(md);
+        }
+        string scopeLabel = _markdownScopeIsDocument ? "full document" : "current page";
+        SetFooterStatusText($"✓ Copied {scopeLabel} Markdown ({md.Length:N0} chars) to clipboard.");
+    }
+
+    private async void CopySelectedElementMarkdown()
+    {
+        if (_selectedElement is null || string.IsNullOrWhiteSpace(_selectedElement.CurrentMarkdown)) return;
+        int id = _selectedElement.Id;
+        string kindName = _selectedElement.KindDisplayName;
+        var error = await ClipboardWriter.TrySetTextAsync(_selectedElement.CurrentMarkdown);
+        if (error is null)
+        {
+            SetFooterStatusText($"✓ Copied Element #{id} ({kindName}) Markdown to clipboard.");
+        }
+        else
+        {
+            SetFooterStatusText($"⚠ {error}");
+        }
+    }
+
     private void OnQuickReclassifySelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_isUpdatingSelection || _selectedElement is null || QuickReclassifyComboBox is null) return;
@@ -996,22 +1338,71 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             newKind != _selectedElement.Kind)
         {
             ReclassifyElement(_selectedElement, newKind);
-            // Refresh middle pane inspector card ComboBox to match
-            RenderCurrentPage();
-            SelectElement(_selectedElement);
         }
     }
 
     private void OnResetElementClick(object sender, RoutedEventArgs e)
     {
-        if (_selectedElement is null) return;
-        _selectedElement.ResetToOriginal();
-        RenderCurrentPage();
-        SelectElement(_selectedElement);
-        UpdateLiveMarkdownPreview();
-        UpdateSessionTelemetry();
-        if (FooterStatusText is not null)
-            FooterStatusText.Text = $"Reset Element #{_selectedElement.Id} to original {_selectedElement.KindDisplayName}.";
+        ResetSelectedElement();
+    }
+
+    private void ResetSelectedElement()
+    {
+        if (_selectedElement is null || !_selectedElement.IsReclassified) return;
+        ReclassifyElement(_selectedElement, _selectedElement.OriginalKind);
+        SetFooterStatusText($"Reset Element #{_selectedElement.Id} to original {_selectedElement.KindDisplayName}.");
+    }
+
+    private void OnResetPageClick(object sender, RoutedEventArgs e)
+    {
+        ResetCurrentPageElements();
+    }
+
+    private void ResetCurrentPageElements()
+    {
+        var page = _session.CurrentPage;
+        if (page is null) return;
+        int resetCount = 0;
+        foreach (var elem in page.Elements)
+        {
+            if (elem.IsReclassified)
+            {
+                ReclassifyElement(elem, elem.OriginalKind);
+                resetCount++;
+            }
+        }
+        if (resetCount > 0)
+        {
+            SetFooterStatusText($"Reset {resetCount} element{(resetCount == 1 ? "" : "s")} on Page {page.PageNumber} to original OCR classification.");
+        }
+    }
+
+    private void SelectPreviousElement()
+    {
+        var page = _session.CurrentPage;
+        if (page is null || page.Elements.Count == 0) return;
+        if (_selectedElement is null)
+        {
+            SelectElement(page.Elements[^1]);
+            return;
+        }
+        int idx = page.Elements.IndexOf(_selectedElement);
+        int prevIdx = idx <= 0 ? page.Elements.Count - 1 : idx - 1;
+        SelectElement(page.Elements[prevIdx]);
+    }
+
+    private void SelectNextElement()
+    {
+        var page = _session.CurrentPage;
+        if (page is null || page.Elements.Count == 0) return;
+        if (_selectedElement is null)
+        {
+            SelectElement(page.Elements[0]);
+            return;
+        }
+        int idx = page.Elements.IndexOf(_selectedElement);
+        int nextIdx = (idx < 0 || idx >= page.Elements.Count - 1) ? 0 : idx + 1;
+        SelectElement(page.Elements[nextIdx]);
     }
 
     private void OnImportCtaClick(object sender, RoutedEventArgs e)
@@ -1035,16 +1426,92 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         this.Close();
     }
 
+    private bool IsTextOrComboInputFocused()
+    {
+        try
+        {
+            var focused = RootGrid.XamlRoot is not null
+                ? FocusManager.GetFocusedElement(RootGrid.XamlRoot) as DependencyObject
+                : null;
+            while (focused is not null)
+            {
+                if (focused is TextBox) return true;
+                if (focused is ComboBox cb && cb.IsDropDownOpen) return true;
+                focused = VisualTreeHelper.GetParent(focused);
+            }
+        }
+        catch { }
+        return false;
+    }
+
     private void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
     {
         try
         {
-            if (e.Key == Windows.System.VirtualKey.Escape)
+            bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            bool alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Menu)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+            bool inputFocused = IsTextOrComboInputFocused();
+
+            // Global shortcuts that work anywhere in the studio
+            if (e.Key == Windows.System.VirtualKey.Enter && ctrl)
+            {
+                e.Handled = true;
+                OnImportCtaClick(this, new RoutedEventArgs());
+                return;
+            }
+            if (e.Key == Windows.System.VirtualKey.C && ctrl && shift && !alt)
+            {
+                e.Handled = true;
+                OnCopyMarkdownClick(this, new RoutedEventArgs());
+                return;
+            }
+            if (e.Key == Windows.System.VirtualKey.R && ctrl && shift && !alt)
+            {
+                e.Handled = true;
+                ResetCurrentPageElements();
+                return;
+            }
+            if (e.Key == Windows.System.VirtualKey.Escape && !inputFocused)
             {
                 e.Handled = true;
                 OnDiscardClick(this, new RoutedEventArgs());
+                return;
             }
-            else if (e.Key == Windows.System.VirtualKey.Left || e.Key == Windows.System.VirtualKey.PageUp)
+
+            // Do not hijack arrow keys, Home/End, or single-key shortcuts when editing/selecting inside a TextBox or open ComboBox
+            if (inputFocused) return;
+
+            if (e.Key == Windows.System.VirtualKey.C && ctrl && !shift && !alt)
+            {
+                if (_selectedElement is not null)
+                {
+                    e.Handled = true;
+                    CopySelectedElementMarkdown();
+                }
+                return;
+            }
+
+            // Context menu key (Application or Shift+F10) for the selected element
+            if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
+            {
+                if (_selectedElement is not null &&
+                    _inspectorCards.TryGetValue(_selectedElement, out var card) &&
+                    card.ContextFlyout is MenuFlyout flyout)
+                {
+                    e.Handled = true;
+                    flyout.ShowAt(card, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft });
+                }
+                return;
+            }
+
+            if (ctrl || alt) return;
+
+            if (e.Key == Windows.System.VirtualKey.Left || e.Key == Windows.System.VirtualKey.PageUp)
             {
                 if (_session.CanPreviousPage)
                 {
@@ -1060,11 +1527,61 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                     OnNextPageClick(this, new RoutedEventArgs());
                 }
             }
-            else if (e.Key == Windows.System.VirtualKey.Enter &&
-                     Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
+            else if (e.Key == Windows.System.VirtualKey.Home)
+            {
+                if (_session.CanPreviousPage)
+                {
+                    e.Handled = true;
+                    _session.GoToFirstPage();
+                    RenderCurrentPage();
+                }
+            }
+            else if (e.Key == Windows.System.VirtualKey.End)
+            {
+                if (_session.CanNextPage)
+                {
+                    e.Handled = true;
+                    _session.GoToLastPage();
+                    RenderCurrentPage();
+                }
+            }
+            else if (e.Key == Windows.System.VirtualKey.Up || (int)e.Key == 219) // Up or '['
             {
                 e.Handled = true;
-                OnImportCtaClick(this, new RoutedEventArgs());
+                SelectPreviousElement();
+            }
+            else if (e.Key == Windows.System.VirtualKey.Down || (int)e.Key == 221) // Down or ']'
+            {
+                e.Handled = true;
+                SelectNextElement();
+            }
+            else if (e.Key == Windows.System.VirtualKey.R && !shift)
+            {
+                if (_selectedElement?.IsReclassified == true)
+                {
+                    e.Handled = true;
+                    ResetSelectedElement();
+                }
+            }
+            else if (!shift)
+            {
+                int shortcutNum = e.Key switch
+                {
+                    >= Windows.System.VirtualKey.Number1 and <= Windows.System.VirtualKey.Number8
+                        => (int)e.Key - (int)Windows.System.VirtualKey.Number0,
+                    >= Windows.System.VirtualKey.NumberPad1 and <= Windows.System.VirtualKey.NumberPad8
+                        => (int)e.Key - (int)Windows.System.VirtualKey.NumberPad0,
+                    _ => 0
+                };
+                if (shortcutNum > 0 && _selectedElement is not null &&
+                    OcrInspectionSession.TryMapShortcutNumberToKind(shortcutNum, out var newKind))
+                {
+                    e.Handled = true;
+                    if (_selectedElement.Kind != newKind)
+                    {
+                        ReclassifyElement(_selectedElement, newKind);
+                    }
+                }
             }
         }
         catch (Exception ex)

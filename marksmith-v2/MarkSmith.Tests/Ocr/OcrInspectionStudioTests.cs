@@ -360,4 +360,179 @@ public class OcrInspectionStudioTests
             }
         }
     }
+
+    [Fact]
+    public void InspectionSession_GoToFirstPage_GoToLastPage_And_ResetCurrentPage_Restore_Elements_Correctly()
+    {
+        var session = new OcrInspectionSession { DocumentTitle = "Reset & Jump Test" };
+
+        // Empty session edge cases
+        session.GoToFirstPage();
+        session.GoToLastPage();
+        Assert.Equal(0, session.ResetCurrentPage());
+
+        for (int p = 1; p <= 3; p++)
+        {
+            var preview = new OcrPagePreview(p, p - 1, 3, new byte[16], 800, 1000, "MarkSmith OCR");
+            var blocks = new List<OcrTraceBlock>
+            {
+                new(0, OcrBlockKind.Heading, $"# Page {p} Title", new OcrNormRect(0.1f, 0.05f, 0.8f, 0.06f), 3),
+                new(1, OcrBlockKind.Picture, $"![Page {p} Photo](media/p{p}.png)", new OcrNormRect(0.1f, 0.2f, 0.8f, 0.4f), 0),
+            };
+            var trace = new OcrPageTrace(p, new List<OcrTraceWord>(), blocks, $"# Page {p} Title\n\n![Page {p} Photo](media/p{p}.png)", TimeSpan.FromMilliseconds(20));
+            session.AddOrUpdatePage(preview, trace);
+        }
+
+        session.GoToLastPage();
+        Assert.Equal(2, session.CurrentPageIndex);
+        Assert.Equal(3, session.CurrentPage?.PageNumber);
+
+        session.GoToFirstPage();
+        Assert.Equal(0, session.CurrentPageIndex);
+        Assert.Equal(1, session.CurrentPage?.PageNumber);
+
+        // Reclassify both elements on Page 1 and one element on Page 2
+        Assert.True(session.ReclassifyElement(1, 1, OcrBlockKind.Paragraph));
+        Assert.True(session.ReclassifyElement(1, 2, OcrBlockKind.ShapeMosaic));
+        Assert.True(session.ReclassifyElement(2, 2, OcrBlockKind.Diagram));
+        Assert.Equal(3, session.TotalReclassifications);
+        Assert.Equal(2, session.CurrentPage!.ReclassifiedCount);
+
+        // ResetCurrentPage only resets Page 1 (2 elements), leaving Page 2's reclassification intact
+        int resetOnPage1 = session.ResetCurrentPage();
+        Assert.Equal(2, resetOnPage1);
+        Assert.Equal(0, session.CurrentPage.ReclassifiedCount);
+        Assert.Equal(1, session.TotalReclassifications);
+
+        // Second call on already-clean page returns 0
+        Assert.Equal(0, session.ResetCurrentPage());
+    }
+
+    [Theory]
+    [InlineData(1, true, OcrBlockKind.Picture)]
+    [InlineData(2, true, OcrBlockKind.ShapeMosaic)]
+    [InlineData(3, true, OcrBlockKind.Diagram)]
+    [InlineData(4, true, OcrBlockKind.Table)]
+    [InlineData(5, true, OcrBlockKind.KeyValue)]
+    [InlineData(6, true, OcrBlockKind.Heading)]
+    [InlineData(7, true, OcrBlockKind.List)]
+    [InlineData(8, true, OcrBlockKind.Paragraph)]
+    [InlineData(0, false, OcrBlockKind.Paragraph)]
+    [InlineData(9, false, OcrBlockKind.Paragraph)]
+    [InlineData(-1, false, OcrBlockKind.Paragraph)]
+    public void TryMapShortcutNumberToKind_Maps_All_Eight_BlockKinds_And_Rejects_OutOfRange_Inputs(
+        int number, bool expectedSuccess, OcrBlockKind expectedKind)
+    {
+        bool ok = OcrInspectionSession.TryMapShortcutNumberToKind(number, out var actualKind);
+        Assert.Equal(expectedSuccess, ok);
+        if (expectedSuccess)
+        {
+            Assert.Equal(expectedKind, actualKind);
+        }
+    }
+
+    [Fact]
+    public void HistoryService_Remove_And_Clear_Persist_To_CustomPath_Without_Touching_Global_History()
+    {
+        var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"ms_hist_test_{Guid.NewGuid():N}");
+        var historyFile = System.IO.Path.Combine(tempDir, "history.json");
+        try
+        {
+            var svc = new MarkSmith.Services.HistoryService(historyFile);
+            Assert.Empty(svc.All);
+            Assert.False(svc.Remove(null));
+
+            var t1 = new DateTime(2026, 10, 15, 12, 0, 0, DateTimeKind.Local);
+            var t2 = new DateTime(2026, 10, 15, 12, 5, 0, DateTimeKind.Local);
+            var e1 = new MarkSmith.Models.HistoryEntry
+            {
+                Timestamp = t1,
+                SourceLabel = "alpha.md",
+                OutputPath = @"C:\temp\alpha.pdf",
+                Kind = "PDF",
+                DocumentTitle = "Alpha",
+            };
+            var e2 = new MarkSmith.Models.HistoryEntry
+            {
+                Timestamp = t2,
+                SourceLabel = "beta.md",
+                OutputPath = @"C:\temp\beta.docx",
+                Kind = "DOCX",
+                DocumentTitle = "Beta",
+            };
+
+            svc.Add(e1);
+            svc.Add(e2);
+            Assert.Equal(2, svc.All.Count);
+            Assert.Equal("Beta", svc.All[0].DocumentTitle);
+
+            // Reload from disk and remove by value match
+            var reloaded = new MarkSmith.Services.HistoryService(historyFile);
+            Assert.Equal(2, reloaded.All.Count);
+            Assert.True(reloaded.Remove(e1));
+            Assert.Single(reloaded.All);
+            Assert.Equal("Beta", reloaded.All[0].DocumentTitle);
+
+            // Clear and verify persistence on disk
+            reloaded.Clear();
+            Assert.Empty(reloaded.All);
+
+            var afterClear = new MarkSmith.Services.HistoryService(historyFile);
+            Assert.Empty(afterClear.All);
+        }
+        finally
+        {
+            if (System.IO.Directory.Exists(tempDir))
+            {
+                try { System.IO.Directory.Delete(tempDir, recursive: true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void WinUI3_Polish_Contracts_For_OcrStudio_Flyouts_InsertDialogs_And_ShapeStudioPreviewCap()
+    {
+        var repoRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+
+        // 1. ShapeDesignStudioViewModel must use previewCap: 0 (no artificial 24,000 cap)
+        var shapeVmCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+            repoRoot, "MarkSmith.Core", "ViewModels", "ShapeStudio", "ShapeDesignStudioViewModel.cs"));
+        Assert.DoesNotContain("previewCap: 24000", shapeVmCode);
+        Assert.Contains("previewCap: 0", shapeVmCode);
+
+        // 2. OcrInspectionStudioWindow XAML & code-behind polish contracts
+        var ocrXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
+            repoRoot, "MarkSmith.Desktop", "Views", "Ocr", "OcrInspectionStudioWindow.xaml"));
+        Assert.Contains("x:Name=\"ResetPageButton\"", ocrXaml);
+        Assert.Contains("x:Name=\"CopyMarkdownButton\"", ocrXaml);
+        Assert.Contains("x:Name=\"NoElementsPlaceholder\"", ocrXaml);
+        Assert.Contains("AutomationProperties.LiveSetting=\"Polite\"", ocrXaml);
+
+        var ocrCs = System.IO.File.ReadAllText(System.IO.Path.Combine(
+            repoRoot, "MarkSmith.Desktop", "Views", "Ocr", "OcrInspectionStudioWindow.xaml.cs"));
+        Assert.Contains("HoverPolish.Apply(RootGrid)", ocrCs);
+        Assert.Contains("BuildElementContextMenu", ocrCs);
+        Assert.Contains("TryMapShortcutNumberToKind", ocrCs);
+        Assert.Contains("IsTextOrComboInputFocused", ocrCs);
+
+        // 3. MainWindow flyouts (ExportHistoryFlyout, OutlineFlyout, LintFlyout) polish contracts
+        var mainXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
+            repoRoot, "MarkSmith.Desktop", "MainWindow.xaml"));
+        Assert.Contains("x:Name=\"ExportHistoryFlyout\"", mainXaml);
+        Assert.Contains("x:Name=\"ClearHistoryButton\"", mainXaml);
+        Assert.Contains("x:Name=\"OutlineFlyout\"", mainXaml);
+        Assert.Contains("x:Name=\"TocFilterBox\"", mainXaml);
+        Assert.Contains("x:Name=\"CopyAllLintButton\"", mainXaml);
+
+        // 4. InsertDialogBody & ImageInsertControl polish contracts
+        var insertControlsCs = System.IO.File.ReadAllText(System.IO.Path.Combine(
+            repoRoot, "MarkSmith.Desktop", "Views", "InsertDialogControls.cs"));
+        Assert.Contains("_copySnippetButton", insertControlsCs);
+        Assert.Contains("CopyCurrentSnippet", insertControlsCs);
+
+        var imageInsertCs = System.IO.File.ReadAllText(System.IO.Path.Combine(
+            repoRoot, "MarkSmith.Desktop", "Views", "ImageInsertControl.cs"));
+        Assert.Contains("PasteSourceFromClipboardAsync", imageInsertCs);
+        Assert.Contains("ClearSelectedImage", imageInsertCs);
+    }
 }

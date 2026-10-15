@@ -41,34 +41,65 @@ public static partial class HtmlSanitizer
     // characters, it begins with "javascript:". Removing whitespace/control chars catches the
     // standard obfuscations (java\tscript:, "  javascript:", and — because we decode first — entity
     // forms like java&#115;cript:).
-    private static bool IsJavascriptUrl(string decoded)
+    private static bool IsJavascriptUrl(string decoded) =>
+        StartsWithCompactIgnoreCase(decoded, "javascript:")
+        || StartsWithCompactIgnoreCase(decoded, "data:text/html")
+        || StartsWithCompactIgnoreCase(decoded, "vbscript:");
+
+    private static bool StartsWithCompactIgnoreCase(string s, string prefix)
     {
-        var compact = new string(decoded.Where(c => !char.IsWhiteSpace(c) && !char.IsControl(c)).ToArray());
-        return compact.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)
-            || compact.StartsWith("data:text/html", StringComparison.OrdinalIgnoreCase)
-            || compact.StartsWith("vbscript:", StringComparison.OrdinalIgnoreCase);
+        int p = 0;
+        for (int i = 0; i < s.Length && p < prefix.Length; i++)
+        {
+            char c = s[i];
+            if (char.IsWhiteSpace(c) || char.IsControl(c)) continue;
+            if (char.ToLowerInvariant(c) != prefix[p]) return false;
+            p++;
+        }
+        return p == prefix.Length;
     }
 
     public static string Apply(string html)
     {
-        if (string.IsNullOrEmpty(html)) return html;
-        html = ScriptBlocks().Replace(html, "");
-        html = EmbedElements().Replace(html, "");
+        if (string.IsNullOrEmpty(html) || !html.Contains('<')) return html;
+
+        if (html.Contains("<script", StringComparison.OrdinalIgnoreCase))
+            html = ScriptBlocks().Replace(html, "");
+
+        if (html.Contains("<iframe", StringComparison.OrdinalIgnoreCase)
+            || html.Contains("<object", StringComparison.OrdinalIgnoreCase)
+            || html.Contains("<embed", StringComparison.OrdinalIgnoreCase)
+            || html.Contains("<frame", StringComparison.OrdinalIgnoreCase))
+        {
+            html = EmbedElements().Replace(html, "");
+        }
+
+        bool hasEventHandlers = html.Contains("on", StringComparison.OrdinalIgnoreCase) && EventHandlers().IsMatch(html);
+        bool hasUrlAttrs = (html.Contains("href", StringComparison.OrdinalIgnoreCase) || html.Contains("src", StringComparison.OrdinalIgnoreCase))
+            && UrlAttr().IsMatch(html);
+        if (!hasEventHandlers && !hasUrlAttrs)
+        {
+            return html;
+        }
+
         // Process handlers / js-urls tag-by-tag using a QUOTE-AWARE tag matcher, so neither a `>`
         // inside an attribute value nor a foreign quote inside a value can defeat the stripping.
         html = TagAware().Replace(html, m =>
         {
             var tag = m.Value;
-            if (tag.Contains("on", StringComparison.OrdinalIgnoreCase))
+            if (hasEventHandlers && tag.Contains("on", StringComparison.OrdinalIgnoreCase))
                 tag = EventHandlers().Replace(tag, "");
-            tag = UrlAttr().Replace(tag, am =>
+            if (hasUrlAttrs && (tag.Contains("href", StringComparison.OrdinalIgnoreCase) || tag.Contains("src", StringComparison.OrdinalIgnoreCase)))
             {
-                var value = am.Groups[2].Value;
-                var inner = value.Length >= 2 && (value[0] == '"' || value[0] == '\'')
-                    ? value[1..^1] : value;
-                var decoded = System.Net.WebUtility.HtmlDecode(inner);
-                return IsJavascriptUrl(decoded) ? am.Groups[1].Value + "\"#\"" : am.Value;
-            });
+                tag = UrlAttr().Replace(tag, am =>
+                {
+                    var value = am.Groups[2].Value;
+                    var inner = value.Length >= 2 && (value[0] == '"' || value[0] == '\'')
+                        ? value[1..^1] : value;
+                    var decoded = System.Net.WebUtility.HtmlDecode(inner);
+                    return IsJavascriptUrl(decoded) ? am.Groups[1].Value + "\"#\"" : am.Value;
+                });
+            }
             return tag;
         });
         return html;

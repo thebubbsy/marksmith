@@ -6715,3 +6715,47 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 5. **Test Suite Verification:**
    - Updated `ShapeStudioTests.cs` to test `HybridFusion_PreservesAllElements_Without12kArtificialLimit`, confirming >12,000 shapes and contour lines are generated and retained without truncation.
    - Ran test suite and verified full pass.
+
+### 2026-10-15 (scheduled routine run #81 — Showcase WinUI 3 Polish: OCR Inspection Studio, MainWindow Flyouts, Insert Dialogs & Uncapped Skia Previews)
+
+#### Agent / Execution Metadata
+- **Agent Model:** `Gemini 4 Argon (Medium)`
+- **Identity:** `Antigravity AI Agent (Google DeepMind)`
+- **Workflows Invoked:** `/boost` + `/automation`
+- **Trigger:** Scheduled hourly WinUI 3 polish routine (`marksmith-winui3-polish`) + showcase-caliber audit across `OcrInspectionStudioWindow`, `MainWindow` flyouts (`ExportHistoryFlyout`, `OutlineFlyout`, `LintFlyout`), `InsertDialogControls`, `ImageInsertControl`, and `ShapeDesignStudioViewModel`.
+
+**Shipped:**
+1. **Removed Remaining 24,000 Shape Preview Cap (`previewCap: 0`):**
+   - `MarkSmith.Core/ViewModels/ShapeStudio/ShapeDesignStudioViewModel.cs`: Changed `previewCap: 24000` to `previewCap: 0` in both `TraceImageAsync` (line 2753) and `RefreshCanvasModeAsync` (line 3014) so the native Skia offscreen bitmap preview renders 100% of generated shapes and contour lines without stride-subsampling gaps.
+2. **Core & ViewModel Support for Export History Management & OCR Studio Navigation:**
+   - `MarkSmith.Core/Services/HistoryService.cs`: Added `HistoryService(string? customPath)` constructor for isolated test persistence alongside `Remove(HistoryEntry? entry)` (supporting both reference and value equality across reloads) and `Clear()`.
+   - `MarkSmith.Core/ViewModels/MainViewModel.cs`: Added `RemoveHistoryEntry(HistoryEntry? entry)` and `ClearExportHistory()`.
+   - `MarkSmith.Core/Ocr/OcrInspectionModels.cs`: Added `OcrInspectionPage.ResetAllElements()`, `OcrInspectionSession.GoToFirstPage()`, `OcrInspectionSession.GoToLastPage()`, `OcrInspectionSession.ResetCurrentPage()`, and `OcrInspectionSession.TryMapShortcutNumberToKind(int number, out OcrBlockKind kind)`.
+3. **`OcrInspectionStudioWindow` Comprehensive WinUI 3 Polish Pass (`Views/Ocr/OcrInspectionStudioWindow.xaml` & `.xaml.cs`):**
+   - Applied `HoverPolish.Apply(RootGrid)` on construction and added `AutomationProperties.Name` / `AutomationProperties.LiveSetting="Polite"` across all static and dynamic controls (`PrevPageButton`, `PageIndicatorText`, `NextPageButton`, `StatusBannerText`, `DiscardButton`, `ImportCtaButton`, `DocumentImage`, `WordStreamText`, `SelectedElementBadgeText`, `ResetPageButton`, `QuickReclassifyComboBox`, `ResetElementButton`, `MarkdownScopeComboBox`, `CopyMarkdownButton`, `MarkdownPreviewTextBox`, `FooterStatusText`, `SessionMetricsText`, `StageProgressBar`, canvas bounding boxes, and inspector cards).
+   - Added responsive column layout (`OnRootSizeChanged` compacting `CanvasPaneColumn` and `InspectorPaneColumn` when `< 1120px`), `NoElementsPlaceholder` empty state in the middle inspector pane, `ResetPageButton` (`Reset Page`, `Ctrl+Shift+R`), and `CopyMarkdownButton` (`Copy`, `Ctrl+Shift+C`) with `CopyFeedback.CopyWithTick`.
+   - Added bidirectional hover correlation between canvas bounding boxes and inspector cards, automatic `StartBringIntoView()` on element selection, focus-trap-safe disable gating (`UpdateActionButtonsState()` / `UpdatePageFlickingState()`), and flicker-free in-place element reclassification/reset.
+   - Added right-click and `Shift+F10`/`Application` context menu (`BuildElementContextMenu`) on canvas bounding boxes and inspector cards (`Reclassify element as` `1`–`8`, `Reset to original (R)`, `Copy element Markdown (Ctrl+C)`, `Reset all on page (Ctrl+Shift+R)`).
+   - Fixed `OnRootKeyDown` so arrow keys and single-key shortcuts are never swallowed when focus is inside a `TextBox` or open `ComboBox` (`IsTextOrComboInputFocused()`), and added `Up`/`Down`/`[`/`]` element cycling, `Home`/`End` first/last page navigation, `1`–`8` (`NumberPad1`–`NumberPad8`) quick reclassification, `R` reset element, `Ctrl+Shift+R` reset page, `Ctrl+C` copy element Markdown, and `Ctrl+Shift+C` copy live Markdown preview.
+4. **`MainWindow` Flyouts (`ExportHistoryFlyout`, `OutlineFlyout`, `LintFlyout`) & Startup Lint Sync Fix (`MainWindow.xaml` & `.xaml.cs`):**
+   - `ExportHistoryFlyout`: Added `HistoryCountText` count badge, `ClearHistoryButton` (`Clear`) with `HoverPolish.Apply`, focus-trap protection on empty state, right-click & `Shift+F10`/`Application` context menu (`Open exported file`, `Show in File Explorer (Ctrl+O)`, `Copy file path (Ctrl+C)`, `Remove from list (Delete)`, `Clear recent exports`), and `Ctrl+O` / `Ctrl+C` / `Delete` shortcuts.
+   - `OutlineFlyout`: Added `TocCountText` count badge (`(N)` or `(M of N)` when filtered), live `TocFilterBox` (`Filter headings…`) with `Down` / `Enter` keyboard navigation and `"No headings match that filter."` empty state, right-click & `Shift+F10`/`Application` context menu (`Go to heading (Enter)`, `Copy heading text (Ctrl+C)`, `Copy Markdown link (Ctrl+Shift+C)`), and `Ctrl+C` / `Ctrl+Shift+C` shortcuts.
+   - `LintFlyout`: Added `LintFlyoutCountText` count badge, `CopyAllLintButton` (`Copy all`) with `HoverPolish.Apply` and `CopyFeedback.CopyWithTick`, right-click & `Shift+F10`/`Application` context menu (`Jump to line (Enter)`, `Copy issue (Ctrl+C)`, `Copy all issues (Ctrl+Shift+C)`), and `Ctrl+C` / `Ctrl+Shift+C` shortcuts.
+   - Fixed `SyncEditorFromDocument()` to explicitly call `UpdateLintIndicator()` and `UpdateLineNumbers()` after setting `PasteTextBox.Text = repaired`, fixing a bug where opening a file left `LintButton` stuck on `"No issues"` until an interactive keystroke occurred.
+5. **Shared `InsertDialogBody` & `ImageInsertControl` Polish (`Views/InsertDialogControls.cs`, `Views/ImageInsertControl.cs`, `Services/CopyFeedback.cs`):**
+   - Added `_copySnippetButton` (`Copy`) with `CopyFeedback.CopyWithTick`, right-click context menu on `previewCard`, focus-trap-safe disable gating in `Refresh()`, and `Ctrl+Shift+C` shortcut across all 15 Insert dialogs.
+   - Added right-click context menu on `ImageInsertControl`'s drop zone (`Browse for image… (Ctrl+O)`, `Paste address or path (Ctrl+V)`, `Clear selected image (Delete)`) and `Ctrl+V` / `Delete` shortcuts when focus is outside a `TextBox`.
+6. **Core Hot-Path Allocation & Regex Hoisting (`MarkSmith.Core/Services/*`):**
+   - Hoisted `[GeneratedRegex]` and reduced allocations across `CommandSearch.cs`, `DialectNormalizer.cs`, `DocumentStatsService.cs`, `HtmlSanitizer.cs`, `LlmSourceService.cs`, `MarkdownHtmlService.cs`, `MarkdownLintService.cs`, `TableFormulaEvaluator.cs`, and `TocExtractorService.cs`.
+7. **Sidecar Automation Prompt Upgrade:**
+   - Upgraded `C:\Users\Tony\.gemini\config\sidecars\marksmith-winui3-polish\sidecar.json` to remove `"Plain Text\n"` and `\u00a0` artifacts and install the 6-section multi-stage protocol (Surface Rotation Matrix, Adversarial Skeptical Review Checklist, Targeted xUnit + Live UIA Verification, Direct `main` Commits & Releases).
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64 -p:OutDir="$env:TEMP\ms_argon_81\b\"`: **0 errors**.
+- Targeted xUnit test suite (`OcrInspectionStudioTests`, `ShapeStudioTests`, `ArgonPerformanceAndPolishTests`): **56 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 UIAutomation + `PrintWindow` screenshot verification (`Marksmith.exe` launched with isolated `MARKSMITH_CONFIG_DIR`):
+  - Verified `WinUIDesktopWin32WindowClass` main window, `OutlineButton` (`Name="Document outline"`), `MoreMenuButton` (`Name="More options"`), and `LintButton` (`Name="Markdown issues: 3 issues"`).
+  - Opened `OutlineFlyout`, verified `TocFilterBox` (`Name="Filter document outline headings"`), `TocCountText` (`(3)` -> `(1 of 3)` when filtered to `"Telemetry"`), and `TocList`; inspected `verify_outline_flyout.png`.
+  - Dismissed first-run tour via `Skip`, opened `LintFlyout`, verified `CopyAllLintButton` (`Name="Copy all Markdown issues"`, `Enabled=True`), `LintFlyoutCountText` (`(3)`), and `LintList`; inspected `verify_lint_populated.png`.
+  - Cleanly stopped only the test process PID.
+

@@ -40,6 +40,8 @@ public static class TocExtractorService
     public static IReadOnlyList<TocEntry> Extract(string? markdown)
     {
         if (string.IsNullOrWhiteSpace(markdown)) return System.Array.Empty<TocEntry>();
+        if (!markdown.Contains('#') && !markdown.Contains('=') && !markdown.Contains('-'))
+            return System.Array.Empty<TocEntry>();
 
         var doc = Markdown.Parse(markdown, Pipeline);
         var entries = new List<TocEntry>();

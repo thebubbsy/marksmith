@@ -42,6 +42,33 @@ public static class CopyFeedback
         timer.Start();
     }
 
+    public static void CopyWithTick(Button button, FontIcon icon, string text)
+        => CopyWithTick(text, icon);
+
+    public static async void CopyWithTick(Button button, string text, string copiedLabel = "\u2713 Copied")
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        var error = await ClipboardWriter.TrySetTextAsync(text);
+        if (button.Content is string currentText)
+        {
+            if (button.Tag is not string originalText)
+            {
+                originalText = currentText;
+                button.Tag = originalText;
+            }
+            button.Content = error is null ? copiedLabel : "\u26A0 Busy";
+            var timer = button.DispatcherQueue.CreateTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(error is null ? 1400 : 3000);
+            timer.IsRepeating = false;
+            timer.Tick += (_, _) =>
+            {
+                button.Content = originalText;
+                button.Tag = null;
+            };
+            timer.Start();
+        }
+    }
+
     private static ButtonBase? FindButton(DependencyObject element)
     {
         for (var d = VisualTreeHelper.GetParent(element); d is not null; d = VisualTreeHelper.GetParent(d))

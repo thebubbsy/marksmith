@@ -19,46 +19,108 @@ namespace MarkSmith.Services;
 //
 // Like AdmonitionNormalizer, this runs on the raw Markdown before Markdig in BOTH the HTML/PDF and
 // DOCX paths, and everything skips fenced-code regions so syntax examples stay literal.
-public static class DialectNormalizer
+public static partial class DialectNormalizer
 {
-    private static readonly Regex WikiLink = new(@"\[\[([^\[\]|\n]+)(?:\|([^\[\]\n]+))?\]\]", RegexOptions.Compiled);
+    [GeneratedRegex(@"\[\[([^\[\]|\n]+)(?:\|([^\[\]\n]+))?\]\]")]
+    private static partial Regex WikiLink();
+
     // #tag: after whitespace/line start, a letter first (never matches "# heading" — that has a
     // space after #), no URLs (#fragment follows non-space), and never a hex color — "#FF5733" in
     // prose is a color someone is talking about, not a tag (the lookahead rejects 3/4/6/8-digit
     // pure-hex tokens; a real tag like #q3-plan has non-hex characters and passes).
-    private static readonly Regex HashTag = new(@"(?<=^|\s)#(?![0-9a-fA-F]{3,8}\b(?![\w/-]))([a-zA-Z][\w/-]{1,49})\b", RegexOptions.Compiled);
+    [GeneratedRegex(@"(?<=^|\s)#(?![0-9a-fA-F]{3,8}\b(?![\w/-]))([a-zA-Z][\w/-]{1,49})\b")]
+    private static partial Regex HashTag();
+
     // ISS-002: ::emoji_name:: double-colon shortcode (single-colon :emoji: is Markdig's job). The
     // map lookup in EmojiReplacer ignores unknown names, so std::vector::foo passes through.
-    private static readonly Regex DoubleColonEmoji = new(@"::([a-zA-Z0-9_+-]+)::", RegexOptions.Compiled);
-    private static readonly Regex FenceTitle = new("^(`{3,}|~{3,})\\s*([\\w+#-]+)?(?::([\\w./\\\\ -]+))?((?:\\s+\\w+=(?:\"[^\"]*\"|\\S+))*)\\s*$", RegexOptions.Compiled);
-    private static readonly Regex TitleAttr = new("title=\"([^\"]*)\"", RegexOptions.Compiled);
-    private static readonly Regex TabHeader = new("^===\\s+\"([^\"]+)\"\\s*$", RegexOptions.Compiled);
-    private static readonly Regex PageBreak = new(@"^\s*(<!--\s*page\s*-?break\s*-->|\\pagebreak|\\newpage|<div[^>]*page-break-after[^>]*>\s*(</div>)?)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex InlineCode = new(@"(`+)[^\n]*?\1", RegexOptions.Compiled);
-    private static readonly Regex HtmlTag = new(@"</?[a-zA-Z!][^>]*>|<!--.*?-->", RegexOptions.Compiled);
-    private static readonly Regex DefinitionList = new(@"^(\s*):\s+(.*)$", RegexOptions.Compiled);
-    private static readonly Regex FootnoteDefinition = new(@"^\[\^[^\]\s]+\]:", RegexOptions.Compiled);
-    private static readonly Regex CriticHlComment = new(@"\{==(?<text>(?:(?!==\}).)+)==\}\{>>(?<comment>(?:(?!<<\}).)*)<<\}", RegexOptions.Compiled);
-    private static readonly Regex CriticSub = new(@"\{~~(?!=)((?:(?!~>|~~\}).)+)\~>~?((?:(?!~~\}).)+)\~~\}", RegexOptions.Compiled);
-    private static readonly Regex CriticDel = new(@"\{(--|~~)((?:(?!--\}|~~\}).)+)\1\}", RegexOptions.Compiled);
-    private static readonly Regex CriticIns = new(@"\{\+\+((?:(?!\+\+\}).)+)\+\+\}", RegexOptions.Compiled);
-    private static readonly Regex CriticHl  = new(@"\{==((?:(?!==\}).)+)==\}", RegexOptions.Compiled);
-    private static readonly Regex CriticComment = new(@"\{>>(?<comment>(?:(?!<<\}).)*)<<\}", RegexOptions.Compiled);
-    private static readonly Regex ReviewerComment = new(@"\^\[(?!(?:index|\^))\s*(?<author>[^:\]\n]+?)(?:\s*\((?<date>[^\)]+)\))?:\s*(?:[""“](?<comment>(?:[^""”\\]|\\.)*?)[""”]|(?<comment>[^\]\n]+))\s*\]", RegexOptions.Compiled);
+    [GeneratedRegex(@"::([a-zA-Z0-9_+-]+)::")]
+    private static partial Regex DoubleColonEmoji();
+
+    [GeneratedRegex("^(`{3,}|~{3,})\\s*([\\w+#-]+)?(?::([\\w./\\\\ -]+))?((?:\\s+\\w+=(?:\"[^\"]*\"|\\S+))*)\\s*$")]
+    private static partial Regex FenceTitle();
+
+    [GeneratedRegex("title=\"([^\"]*)\"")]
+    private static partial Regex TitleAttr();
+
+    [GeneratedRegex("^===\\s+\"([^\"]+)\"\\s*$")]
+    private static partial Regex TabHeader();
+
+    [GeneratedRegex(@"^\s*(<!--\s*page\s*-?break\s*-->|\\pagebreak|\\newpage|<div[^>]*page-break-after[^>]*>\s*(</div>)?)\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex PageBreak();
+
+    [GeneratedRegex(@"(`+)[^\n]*?\1")]
+    private static partial Regex InlineCode();
+
+    [GeneratedRegex(@"</?[a-zA-Z!][^>]*>|<!--.*?-->")]
+    private static partial Regex HtmlTag();
+
+    [GeneratedRegex(@"^(\s*):\s+(.*)$")]
+    private static partial Regex DefinitionList();
+
+    [GeneratedRegex(@"^\[\^[^\]\s]+\]:")]
+    private static partial Regex FootnoteDefinition();
+
+    [GeneratedRegex(@"\{==(?<text>(?:(?!==\}).)+)==\}\{>>(?<comment>(?:(?!<<\}).)*)<<\}")]
+    private static partial Regex CriticHlComment();
+
+    [GeneratedRegex(@"\{~~(?!=)((?:(?!~>|~~\}).)+)\~>~?((?:(?!~~\}).)+)\~~\}")]
+    private static partial Regex CriticSub();
+
+    [GeneratedRegex(@"\{(--|~~)((?:(?!--\}|~~\}).)+)\1\}")]
+    private static partial Regex CriticDel();
+
+    [GeneratedRegex(@"\{\+\+((?:(?!\+\+\}).)+)\+\+\}")]
+    private static partial Regex CriticIns();
+
+    [GeneratedRegex(@"\{==((?:(?!==\}).)+)==\}")]
+    private static partial Regex CriticHl();
+
+    [GeneratedRegex(@"\{>>(?<comment>(?:(?!<<\}).)*)<<\}")]
+    private static partial Regex CriticComment();
+
+    [GeneratedRegex(@"\^\[(?!(?:index|\^))\s*(?<author>[^:\]\n]+?)(?:\s*\((?<date>[^\)]+)\))?:\s*(?:[""“](?<comment>(?:[^""”\\]|\\.)*?)[""”]|(?<comment>[^\]\n]+))\s*\]")]
+    private static partial Regex ReviewerComment();
+
     // Pandoc inline footnote `^[text]` (one level of nested brackets, for links). Runs after the
     // reviewer-comment and index forms, which share the `^[` opener.
-    private static readonly Regex InlineFootnote = new(@"\^\[(?<text>[^\[\]\n]*(?:\[[^\[\]\n]*\][^\[\]\n]*)*)\]", RegexOptions.Compiled);
-    private static readonly Regex IndexAnchor = new(@"\^\[index:\s*(?:[""“](?<entry>(?:[^""”\\]|\\.)*?)[""”]|(?<entry>[^\]\n]+))\s*\]", RegexOptions.Compiled);
-    private static readonly Regex DropdownControl = new(@"\[dropdown:\s*(?<options>[^\]]+)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex DateControl = new(@"\[date(?::\s*(?<date>[^\]]+))?\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex TextControl = new(@"\[text(?::\s*(?:[""“](?<ph>(?:[^""”\\]|\\.)*?)[""”]|(?<ph>[^\]]+)))?\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    [GeneratedRegex(@"\^\[(?<text>[^\[\]\n]*(?:\[[^\[\]\n]*\][^\[\]\n]*)*)\]")]
+    private static partial Regex InlineFootnote();
+
+    [GeneratedRegex(@"\^\[index:\s*(?:[""“](?<entry>(?:[^""”\\]|\\.)*?)[""”]|(?<entry>[^\]\n]+))\s*\]")]
+    private static partial Regex IndexAnchor();
+
+    [GeneratedRegex(@"\[dropdown:\s*(?<options>[^\]]+)\]", RegexOptions.IgnoreCase)]
+    private static partial Regex DropdownControl();
+
+    [GeneratedRegex(@"\[date(?::\s*(?<date>[^\]]+))?\]", RegexOptions.IgnoreCase)]
+    private static partial Regex DateControl();
+
+    [GeneratedRegex(@"\[text(?::\s*(?:[""“](?<ph>(?:[^""”\\]|\\.)*?)[""”]|(?<ph>[^\]]+)))?\]", RegexOptions.IgnoreCase)]
+    private static partial Regex TextControl();
+
     // A GFM task-list item ("- [x] Ship it", "1. [ ] Draft"): the list marker must survive the
     // checkbox conversion below, or the item stops being a list item and Markdown folds it into
     // the previous bullet as lazy continuation text ("…customers ☑ Ship it ☐ Draft" on one line).
-    private static readonly Regex TaskListItem = new(@"^(?<lead>[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+)\[(?<checked>[ xX])\](?=[ \t]|$)", RegexOptions.Compiled);
-    private static readonly Regex CheckboxControl = new(@"(?<=^|[|\s])(?:-\s*)?\[(?<checked>[ xX])\](?=\s|[|]|$)", RegexOptions.Compiled);
-    private static readonly Regex TableDelimiterRegex = new(@"^\|[\s|:\-]+$", RegexOptions.Compiled);
-    private static readonly Regex TabbedBlockRegex = new(@"===\s*""([^""]+)""\r?\n([\s\S]*?)(?=(===\s*""|$))", RegexOptions.Compiled);
+    [GeneratedRegex(@"^(?<lead>[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+)\[(?<checked>[ xX])\](?=[ \t]|$)")]
+    private static partial Regex TaskListItem();
+
+    [GeneratedRegex(@"(?<=^|[|\s])(?:-\s*)?\[(?<checked>[ xX])\](?=\s|[|]|$)")]
+    private static partial Regex CheckboxControl();
+
+    [GeneratedRegex(@"^\|[\s|:\-]+$")]
+    private static partial Regex TableDelimiterRegex();
+
+    [GeneratedRegex(@"===\s*""([^""]+)""\r?\n([\s\S]*?)(?=(===\s*""|$))")]
+    private static partial Regex TabbedBlockRegex();
+
+    [GeneratedRegex(@"^@(?<author>[^:\[\]\n]+?)\s*\[(?<date>[^\]]+)\]:\s*(?<text>[\s\S]*)$")]
+    private static partial Regex CommentMetaAtBracket();
+
+    [GeneratedRegex(@"^(?<author>[^:()\n]+?)\s*\((?<date>[^)]+)\):\s*(?<text>[\s\S]*)$")]
+    private static partial Regex CommentMetaParen();
+
+    [GeneratedRegex(@"^(?<author>[a-zA-Z0-9_.\s-]{1,50}):\s*(?<text>[\s\S]*)$")]
+    private static partial Regex CommentMetaColon();
 
     public static string Apply(string markdown) => Apply(markdown, -1);
 
@@ -102,31 +164,29 @@ public static class DialectNormalizer
             // title/filename annotation into a caption before it) ----
             if (!inCode)
             {
-                var fm = FenceTitle.Match(trimmed);
-                if (fm.Success && (trimmed.StartsWith("```") || trimmed.StartsWith("~~~")))
+                if (trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal))
                 {
-                    inCode = true;
-                    fenceMarker = fm.Groups[1].Value[..3];
-                    var lang = fm.Groups[2].Value;
-                    var fileTag = fm.Groups[3].Value;                     // ```ts:api.ts form
-                    var titleAttr = TitleAttr.Match(fm.Groups[4].Value);   // title="train.py" form
-                    var caption = titleAttr.Success ? titleAttr.Groups[1].Value
-                        : fileTag.Length > 0 ? fileTag.Trim() : null;
-
-                    if (caption is not null)
+                    var fm = FenceTitle().Match(trimmed);
+                    if (fm.Success)
                     {
-                        // Caption as a raw-HTML line; blank line after so the HTML block doesn't
-                        // swallow the fence itself (HTML blocks run until a blank line).
-                        output.Add($"<div class=\"code-title\">{System.Net.WebUtility.HtmlEncode(caption)}</div>");
-                        output.Add("");
-                        output.Add($"{fenceMarker}{lang}"); // clean fence: language only
-                        continue;
+                        inCode = true;
+                        fenceMarker = fm.Groups[1].Value[..3];
+                        var lang = fm.Groups[2].Value;
+                        var fileTag = fm.Groups[3].Value;                     // ```ts:api.ts form
+                        var titleAttr = TitleAttr().Match(fm.Groups[4].Value);   // title="train.py" form
+                        var caption = titleAttr.Success ? titleAttr.Groups[1].Value
+                            : fileTag.Length > 0 ? fileTag.Trim() : null;
+
+                        if (caption is not null)
+                        {
+                            // Caption as a raw-HTML line; blank line after so the HTML block doesn't
+                            // swallow the fence itself (HTML blocks run until a blank line).
+                            output.Add($"<div class=\"code-title\">{System.Net.WebUtility.HtmlEncode(caption)}</div>");
+                            output.Add("");
+                            output.Add($"{fenceMarker}{lang}"); // clean fence: language only
+                            continue;
+                        }
                     }
-                    output.Add(line);
-                    continue;
-                }
-                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
-                {
                     inCode = true;
                     fenceMarker = trimmed[..3];
                     output.Add(line);
@@ -135,14 +195,14 @@ public static class DialectNormalizer
             }
             else
             {
-                if (fenceMarker is not null && trimmed.StartsWith(fenceMarker)) { inCode = false; fenceMarker = null; }
+                if (fenceMarker is not null && trimmed.StartsWith(fenceMarker, StringComparison.Ordinal)) { inCode = false; fenceMarker = null; }
                 output.Add(line);
                 continue;
             }
 
             // ---- page break markers -> a div both exporters understand (HTML: visible marker in
             // preview + page-break-after for print; DOCX: a real w:br type=page) ----
-            if (PageBreak.IsMatch(line))
+            if ((trimmed.StartsWith('<') || trimmed.StartsWith('\\')) && PageBreak().IsMatch(line))
             {
                 output.Add("<div class=\"page-break\"></div>");
                 continue;
@@ -150,41 +210,47 @@ public static class DialectNormalizer
 
             // ---- MkDocs content tabs: === "Name" + 4-space-indented body -> bold label line +
             // dedented body (sequential sections — a static document can't switch tabs) ----
-            var tab = TabHeader.Match(line);
-            if (tab.Success)
+            if (line.StartsWith("===", StringComparison.Ordinal))
             {
-                if (output.Count > 0 && output[^1].Length > 0) output.Add("");
-                output.Add($"<div class=\"tab-label\">{System.Net.WebUtility.HtmlEncode(tab.Groups[1].Value)}</div>");
-                output.Add("");
-                int j = i + 1;
-                while (j < lines.Length)
+                var tab = TabHeader().Match(line);
+                if (tab.Success)
                 {
-                    if (lines[j].Length == 0) { output.Add(""); j++; continue; }
-                    if (lines[j].StartsWith("    ") || lines[j].StartsWith("\t"))
+                    if (output.Count > 0 && output[^1].Length > 0) output.Add("");
+                    output.Add($"<div class=\"tab-label\">{System.Net.WebUtility.HtmlEncode(tab.Groups[1].Value)}</div>");
+                    output.Add("");
+                    int j = i + 1;
+                    while (j < lines.Length)
                     {
-                        output.Add(lines[j].StartsWith("\t") ? lines[j][1..] : lines[j][4..]);
-                        j++;
-                        continue;
+                        if (lines[j].Length == 0) { output.Add(""); j++; continue; }
+                        if (lines[j].StartsWith("    ") || lines[j].StartsWith("\t"))
+                        {
+                            output.Add(lines[j].StartsWith("\t") ? lines[j][1..] : lines[j][4..]);
+                            j++;
+                            continue;
+                        }
+                        break;
                     }
-                    break;
+                    i = j - 1;
+                    continue;
                 }
-                i = j - 1;
-                continue;
             }
 
             // ---- definition lists ----
             // Markdig requires 3+ spaces after the colon. AI often outputs 1 space.
-            var dlMatch = DefinitionList.Match(line);
-            if (dlMatch.Success)
+            if (trimmed.StartsWith(':'))
             {
-                output.Add(dlMatch.Groups[1].Value + ":   " + dlMatch.Groups[2].Value);
-                afterDefinitionList = true;
-                continue;
+                var dlMatch = DefinitionList().Match(line);
+                if (dlMatch.Success)
+                {
+                    output.Add(dlMatch.Groups[1].Value + ":   " + dlMatch.Groups[2].Value);
+                    afterDefinitionList = true;
+                    continue;
+                }
             }
             // A footnote definition straight after a definition list: Markdig reads it as the next
             // term, then as a link reference definition, so "[^1]" printed raw in every format.
             // An empty comment closes the list first.
-            if (afterDefinitionList && FootnoteDefinition.IsMatch(line))
+            if (afterDefinitionList && FootnoteDefinition().IsMatch(line))
             {
                 if (output.Count > 0 && output[^1].Trim().Length > 0) output.Add("");
                 output.Add("<!-- -->");
@@ -199,109 +265,125 @@ public static class DialectNormalizer
                 line = line.Replace("\\\"", "\"");
 
             // ---- wiki-links and #tags (inline, code-span-guarded) ----
-            line = ReplaceOutsideInlineCode(line, WikiLink, m =>
+            if (line.Contains("[[", StringComparison.Ordinal))
             {
-                var target = m.Groups[1].Value.Trim();
-                var alias = m.Groups[2].Success ? m.Groups[2].Value.Trim() : target;
-                return $"<span class=\"wikilink\">{System.Net.WebUtility.HtmlEncode(alias)}</span>";
-            });
-            line = ReplaceOutsideInlineCode(line, HashTag, m =>
-                $"<span class=\"md-tag\">#{m.Groups[1].Value}</span>");
+                line = ReplaceOutsideInlineCode(line, WikiLink(), m =>
+                {
+                    var target = m.Groups[1].Value.Trim();
+                    var alias = m.Groups[2].Success ? m.Groups[2].Value.Trim() : target;
+                    return $"<span class=\"wikilink\">{System.Net.WebUtility.HtmlEncode(alias)}</span>";
+                });
+            }
+            if (line.Contains('#'))
+            {
+                line = ReplaceOutsideInlineCode(line, HashTag(), m =>
+                    $"<span class=\"md-tag\">#{m.Groups[1].Value}</span>");
+            }
 
             // ---- ISS-002: ::emoji:: double-colon shortcodes (inline-code-guarded; fenced code is
             // already skipped by the inCode pass above) ----
-            line = ReplaceOutsideInlineCode(line, DoubleColonEmoji, m =>
-                EmojiReplacer.ReplaceShortcode(m.Groups[1].Value, m.Value));
+            if (line.Contains("::", StringComparison.Ordinal))
+            {
+                line = ReplaceOutsideInlineCode(line, DoubleColonEmoji(), m =>
+                    EmojiReplacer.ReplaceShortcode(m.Groups[1].Value, m.Value));
+            }
 
             // ---- CriticMarkup / revision markers ----
-            line = ReplaceOutsideInlineCode(line, CriticHlComment, m =>
+            if (line.Contains('{'))
             {
-                var hlText = m.Groups["text"].Value;
-                var (author, date, comment) = ParseCommentMetadata(m.Groups["comment"].Value);
-                return $"<mark>{hlText}</mark>" + RenderCommentAnchor(author, date, comment);
-            }, protectHtml: false);
-
-            line = ReplaceOutsideInlineCode(line, CriticSub, m => $"<del>{m.Groups[1].Value}</del><ins>{m.Groups[2].Value}</ins>", protectHtml: false);
-            line = ReplaceOutsideInlineCode(line, CriticDel, m => $"<del>{m.Groups[2].Value}</del>", protectHtml: false);
-            line = ReplaceOutsideInlineCode(line, CriticIns, m => $"<ins>{m.Groups[1].Value}</ins>", protectHtml: false);
-            line = ReplaceOutsideInlineCode(line, CriticHl,  m => $"<mark>{m.Groups[1].Value}</mark>", protectHtml: false);
-            line = ReplaceOutsideInlineCode(line, CriticComment, m =>
-            {
-                var (author, date, comment) = ParseCommentMetadata(m.Groups["comment"].Value);
-                return RenderCommentAnchor(author, date, comment);
-            }, protectHtml: false);
-
-            // ---- Reviewer comment annotations (^[Author: "Comment"] / ^[Author (Date): "Comment"]) ----
-            line = ReplaceOutsideInlineCode(line, ReviewerComment, m =>
-            {
-                var author = m.Groups["author"].Value.Trim();
-                var date = m.Groups["date"].Success ? m.Groups["date"].Value.Trim() : "";
-                var comment = CleanCommentText(m.Groups["comment"].Value);
-                return RenderCommentAnchor(author, date, comment);
-            }, protectHtml: false);
-
-            // ---- Concordance / Subject Index term anchors (^[index: "Category:Topic"]) ----
-            line = ReplaceOutsideInlineCode(line, IndexAnchor, m =>
-            {
-                var entry = m.Groups["entry"].Value.Trim();
-                return $"<span class=\"ms-index-anchor\" data-index=\"{System.Net.WebUtility.HtmlEncode(entry)}\"></span>";
-            }, protectHtml: false);
-
-            // ---- Pandoc inline footnotes: `^[text]` -> `[^ms-inline-N]`, the note written at the end ----
-            line = ReplaceOutsideInlineCode(line, InlineFootnote, m =>
-            {
-                var text = m.Groups["text"].Value.Trim();
-                if (text.Length == 0) return m.Value;
-                var label = $"ms-inline-{inlineNotes.Count + 1}";
-                inlineNotes.Add($"[^{label}]: {text}");
-                return $"[^{label}]";
-            });
-
-            // ---- Fillable Form Controls (SDT): [dropdown: ...], [date: ...], [text: ...] ----
-            line = ReplaceOutsideInlineCode(line, DropdownControl, m =>
-            {
-                var options = m.Groups["options"].Value.Split('|').Select(o => o.Trim()).Where(o => !string.IsNullOrEmpty(o)).ToList();
-                var sb = new StringBuilder();
-                sb.Append("<select class=\"ms-form-dropdown\"");
-                sb.Append($" data-options=\"{System.Net.WebUtility.HtmlEncode(string.Join("|", options))}\">");
-                foreach (var opt in options)
+                line = ReplaceOutsideInlineCode(line, CriticHlComment(), m =>
                 {
-                    sb.Append($"<option value=\"{System.Net.WebUtility.HtmlEncode(opt)}\">{System.Net.WebUtility.HtmlEncode(opt)}</option>");
-                }
-                sb.Append("</select>");
-                return sb.ToString();
-            }, protectHtml: false);
+                    var hlText = m.Groups["text"].Value;
+                    var (author, date, comment) = ParseCommentMetadata(m.Groups["comment"].Value);
+                    return $"<mark>{hlText}</mark>" + RenderCommentAnchor(author, date, comment);
+                }, protectHtml: false);
 
-            line = ReplaceOutsideInlineCode(line, DateControl, m =>
-            {
-                var d = m.Groups["date"].Success ? m.Groups["date"].Value.Trim() : "";
-                var valAttr = !string.IsNullOrEmpty(d) ? $" value=\"{System.Net.WebUtility.HtmlEncode(d)}\"" : "";
-                return $"<input type=\"date\" class=\"ms-form-date\"{valAttr} />";
-            }, protectHtml: false);
+                line = ReplaceOutsideInlineCode(line, CriticSub(), m => $"<del>{m.Groups[1].Value}</del><ins>{m.Groups[2].Value}</ins>", protectHtml: false);
+                line = ReplaceOutsideInlineCode(line, CriticDel(), m => $"<del>{m.Groups[2].Value}</del>", protectHtml: false);
+                line = ReplaceOutsideInlineCode(line, CriticIns(), m => $"<ins>{m.Groups[1].Value}</ins>", protectHtml: false);
+                line = ReplaceOutsideInlineCode(line, CriticHl(),  m => $"<mark>{m.Groups[1].Value}</mark>", protectHtml: false);
+                line = ReplaceOutsideInlineCode(line, CriticComment(), m =>
+                {
+                    var (author, date, comment) = ParseCommentMetadata(m.Groups["comment"].Value);
+                    return RenderCommentAnchor(author, date, comment);
+                }, protectHtml: false);
+            }
 
-            line = ReplaceOutsideInlineCode(line, TextControl, m =>
+            // ---- Reviewer comment annotations, Index anchors, & Pandoc inline footnotes (all open with `^[`) ----
+            if (line.Contains("^[", StringComparison.Ordinal))
             {
-                var ph = m.Groups["ph"].Success ? m.Groups["ph"].Value.Trim() : "";
-                var phAttr = !string.IsNullOrEmpty(ph) ? $" placeholder=\"{System.Net.WebUtility.HtmlEncode(ph)}\" value=\"{System.Net.WebUtility.HtmlEncode(ph)}\"" : "";
-                return $"<input type=\"text\" class=\"ms-form-text\"{phAttr} />";
-            }, protectHtml: false);
+                line = ReplaceOutsideInlineCode(line, ReviewerComment(), m =>
+                {
+                    var author = m.Groups["author"].Value.Trim();
+                    var date = m.Groups["date"].Success ? m.Groups["date"].Value.Trim() : "";
+                    var comment = CleanCommentText(m.Groups["comment"].Value);
+                    return RenderCommentAnchor(author, date, comment);
+                }, protectHtml: false);
 
-            line = ReplaceOutsideInlineCode(line, TaskListItem, m =>
-            {
-                bool isChecked = m.Groups["checked"].Value.Equals("x", StringComparison.OrdinalIgnoreCase);
-                return m.Groups["lead"].Value + (isChecked
-                    ? "<input type=\"checkbox\" class=\"ms-form-checkbox\" checked />"
-                    : "<input type=\"checkbox\" class=\"ms-form-checkbox\" />");
-            }, protectHtml: false);
+                line = ReplaceOutsideInlineCode(line, IndexAnchor(), m =>
+                {
+                    var entry = m.Groups["entry"].Value.Trim();
+                    return $"<span class=\"ms-index-anchor\" data-index=\"{System.Net.WebUtility.HtmlEncode(entry)}\"></span>";
+                }, protectHtml: false);
 
-            line = ReplaceOutsideInlineCode(line, CheckboxControl, m =>
+                line = ReplaceOutsideInlineCode(line, InlineFootnote(), m =>
+                {
+                    var text = m.Groups["text"].Value.Trim();
+                    if (text.Length == 0) return m.Value;
+                    var label = $"ms-inline-{inlineNotes.Count + 1}";
+                    inlineNotes.Add($"[^{label}]: {text}");
+                    return $"[^{label}]";
+                });
+            }
+
+            // ---- Fillable Form Controls (SDT): [dropdown: ...], [date: ...], [text: ...], [x]/[ ] ----
+            if (line.Contains('['))
             {
-                bool isChecked = m.Groups["checked"].Value.Trim().Equals("x", StringComparison.OrdinalIgnoreCase);
-                return isChecked ? "<input type=\"checkbox\" class=\"ms-form-checkbox\" checked />" : "<input type=\"checkbox\" class=\"ms-form-checkbox\" />";
-            }, protectHtml: false);
+                line = ReplaceOutsideInlineCode(line, DropdownControl(), m =>
+                {
+                    var options = m.Groups["options"].Value.Split('|').Select(o => o.Trim()).Where(o => !string.IsNullOrEmpty(o)).ToList();
+                    var sb = new StringBuilder();
+                    sb.Append("<select class=\"ms-form-dropdown\"");
+                    sb.Append($" data-options=\"{System.Net.WebUtility.HtmlEncode(string.Join("|", options))}\">");
+                    foreach (var opt in options)
+                    {
+                        sb.Append($"<option value=\"{System.Net.WebUtility.HtmlEncode(opt)}\">{System.Net.WebUtility.HtmlEncode(opt)}</option>");
+                    }
+                    sb.Append("</select>");
+                    return sb.ToString();
+                }, protectHtml: false);
+
+                line = ReplaceOutsideInlineCode(line, DateControl(), m =>
+                {
+                    var d = m.Groups["date"].Success ? m.Groups["date"].Value.Trim() : "";
+                    var valAttr = !string.IsNullOrEmpty(d) ? $" value=\"{System.Net.WebUtility.HtmlEncode(d)}\"" : "";
+                    return $"<input type=\"date\" class=\"ms-form-date\"{valAttr} />";
+                }, protectHtml: false);
+
+                line = ReplaceOutsideInlineCode(line, TextControl(), m =>
+                {
+                    var ph = m.Groups["ph"].Success ? m.Groups["ph"].Value.Trim() : "";
+                    var phAttr = !string.IsNullOrEmpty(ph) ? $" placeholder=\"{System.Net.WebUtility.HtmlEncode(ph)}\" value=\"{System.Net.WebUtility.HtmlEncode(ph)}\"" : "";
+                    return $"<input type=\"text\" class=\"ms-form-text\"{phAttr} />";
+                }, protectHtml: false);
+
+                line = ReplaceOutsideInlineCode(line, TaskListItem(), m =>
+                {
+                    bool isChecked = m.Groups["checked"].Value.Equals("x", StringComparison.OrdinalIgnoreCase);
+                    return m.Groups["lead"].Value + (isChecked
+                        ? "<input type=\"checkbox\" class=\"ms-form-checkbox\" checked />"
+                        : "<input type=\"checkbox\" class=\"ms-form-checkbox\" />");
+                }, protectHtml: false);
+
+                line = ReplaceOutsideInlineCode(line, CheckboxControl(), m =>
+                {
+                    bool isChecked = m.Groups["checked"].Value.Trim().Equals("x", StringComparison.OrdinalIgnoreCase);
+                    return isChecked ? "<input type=\"checkbox\" class=\"ms-form-checkbox\" checked />" : "<input type=\"checkbox\" class=\"ms-form-checkbox\" />";
+                }, protectHtml: false);
+            }
 
             // ---- table delimiter line normalization: e.g. |--:| -> |---:| ----
-            if (trimmed.StartsWith('|') && TableDelimiterRegex.IsMatch(trimmed))
+            if (trimmed.StartsWith('|') && TableDelimiterRegex().IsMatch(trimmed))
             {
                 line = line.Replace("--:", "---:").Replace(":--", ":---");
             }
@@ -368,7 +450,7 @@ public static class DialectNormalizer
     // that HtmlSanitizer strips. Kept as a building block for a future sanitizer-safe tab strip.
     public static string NormalizeTabbedBlocks(string markdown)
     {
-        return TabbedBlockRegex.Replace(markdown, m =>
+        return TabbedBlockRegex().Replace(markdown, m =>
         {
             var title = m.Groups[1].Value;
             var content = m.Groups[2].Value.Trim();
@@ -391,13 +473,17 @@ public static class DialectNormalizer
     private static string ReplaceOutsideInlineCode(string line, Regex rx, MatchEvaluator evaluator, bool protectHtml = true)
     {
         if (!rx.IsMatch(line)) return line;
-        
-        var codeSpans = InlineCode.Matches(line);
-        var htmlSpans = protectHtml ? HtmlTag.Matches(line) : null;
-        if (codeSpans.Count == 0 && (htmlSpans == null || htmlSpans.Count == 0)) return rx.Replace(line, evaluator);
+
+        var codeSpans = line.Contains('`') ? InlineCode().Matches(line) : null;
+        var htmlSpans = protectHtml && line.Contains('<') ? HtmlTag().Matches(line) : null;
+        if ((codeSpans == null || codeSpans.Count == 0) && (htmlSpans == null || htmlSpans.Count == 0))
+            return rx.Replace(line, evaluator);
 
         var protectedRanges = new List<(int Start, int End)>();
-        foreach (Match m in codeSpans) protectedRanges.Add((m.Index, m.Index + m.Length));
+        if (codeSpans != null)
+        {
+            foreach (Match m in codeSpans) protectedRanges.Add((m.Index, m.Index + m.Length));
+        }
         if (htmlSpans != null)
         {
             foreach (Match m in htmlSpans) protectedRanges.Add((m.Index, m.Index + m.Length));
@@ -449,17 +535,17 @@ public static class DialectNormalizer
     {
         raw = raw.Trim();
         // Format 1: @Author [Date]: Comment body
-        var m1 = Regex.Match(raw, @"^@(?<author>[^:\[\]\n]+?)\s*\[(?<date>[^\]]+)\]:\s*(?<text>[\s\S]*)$");
+        var m1 = CommentMetaAtBracket().Match(raw);
         if (m1.Success)
             return (CleanAuthor(m1.Groups["author"].Value), m1.Groups["date"].Value.Trim(), CleanCommentText(m1.Groups["text"].Value));
 
         // Format 2: Author (Date): Comment body
-        var m2 = Regex.Match(raw, @"^(?<author>[^:()\n]+?)\s*\((?<date>[^)]+)\):\s*(?<text>[\s\S]*)$");
+        var m2 = CommentMetaParen().Match(raw);
         if (m2.Success)
             return (CleanAuthor(m2.Groups["author"].Value), m2.Groups["date"].Value.Trim(), CleanCommentText(m2.Groups["text"].Value));
 
         // Format 3: Author: Comment body (where Author has no newlines and looks like an author name)
-        var m3 = Regex.Match(raw, @"^(?<author>[a-zA-Z0-9_.\s-]{1,50}):\s*(?<text>[\s\S]*)$");
+        var m3 = CommentMetaColon().Match(raw);
         if (m3.Success && !m3.Groups["author"].Value.Contains('\n'))
             return (CleanAuthor(m3.Groups["author"].Value), "", CleanCommentText(m3.Groups["text"].Value));
 

@@ -87,6 +87,24 @@ public sealed class OcrInspectionPage
     public int VisualsCount => Elements.Count(e => e.Kind is OcrBlockKind.Picture or OcrBlockKind.ShapeMosaic or OcrBlockKind.Diagram);
     public int ReclassifiedCount => Elements.Count(e => e.IsReclassified);
 
+    /// <summary>
+    /// Resets all reclassified elements on this page back to their original OCR classification.
+    /// Returns the number of elements that were modified.
+    /// </summary>
+    public int ResetAllElements()
+    {
+        int count = 0;
+        foreach (var elem in Elements)
+        {
+            if (elem.IsReclassified)
+            {
+                elem.ResetToOriginal();
+                count++;
+            }
+        }
+        return count;
+    }
+
     public string AssembledPageMarkdown
     {
         get
@@ -148,6 +166,41 @@ public sealed class OcrInspectionSession
     public void GoToPage(int pageIndex)
     {
         CurrentPageIndex = pageIndex;
+    }
+
+    public void GoToFirstPage()
+    {
+        if (Pages.Count > 0) CurrentPageIndex = 0;
+    }
+
+    public void GoToLastPage()
+    {
+        if (Pages.Count > 0) CurrentPageIndex = Pages.Count - 1;
+    }
+
+    /// <summary>
+    /// Resets all reclassified elements on the current page back to their original OCR classification.
+    /// Returns the number of elements reset.
+    /// </summary>
+    public int ResetCurrentPage() => CurrentPage?.ResetAllElements() ?? 0;
+
+    /// <summary>
+    /// Maps 1-based shortcut numbers (1..8) matching the Quick Reclassify dropdown order to <see cref="OcrBlockKind"/>.
+    /// </summary>
+    public static bool TryMapShortcutNumberToKind(int number, out OcrBlockKind kind)
+    {
+        switch (number)
+        {
+            case 1: kind = OcrBlockKind.Picture; return true;
+            case 2: kind = OcrBlockKind.ShapeMosaic; return true;
+            case 3: kind = OcrBlockKind.Diagram; return true;
+            case 4: kind = OcrBlockKind.Table; return true;
+            case 5: kind = OcrBlockKind.KeyValue; return true;
+            case 6: kind = OcrBlockKind.Heading; return true;
+            case 7: kind = OcrBlockKind.List; return true;
+            case 8: kind = OcrBlockKind.Paragraph; return true;
+            default: kind = default; return false;
+        }
     }
 
     public OcrInspectionPage AddOrUpdatePage(OcrPagePreview preview, OcrPageTrace trace)

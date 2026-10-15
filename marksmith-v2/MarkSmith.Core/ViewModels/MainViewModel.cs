@@ -756,6 +756,7 @@ private readonly MarkdownExportService _mdExport = new();
     public void RefreshToc()
     {
         var entries = TocExtractorService.Extract(CurrentMarkdown);
+        if (TocEntries.SequenceEqual(entries)) return;
         TocEntries.Clear();
         foreach (var e in entries) TocEntries.Add(e);
     }
@@ -836,6 +837,22 @@ private readonly MarkdownExportService _mdExport = new();
         // Version history: every successful export is a version of the working document.
         var effectivePath = sourcePath ?? (!string.IsNullOrWhiteSpace(InputFilePath) ? InputFilePath : "scratch://workspace-session.md");
         CaptureVersionSafe(effectivePath, markdown, "export:" + kind.ToLowerInvariant());
+    }
+
+    /// <summary>Removes a single export log entry from the observable list and persistent history.json.</summary>
+    public bool RemoveHistoryEntry(HistoryEntry? entry)
+    {
+        if (entry is null) return false;
+        var removedFromVm = History.Remove(entry);
+        var removedFromDisk = AppServices.History.Remove(entry);
+        return removedFromVm || removedFromDisk;
+    }
+
+    /// <summary>Clears all recent export log entries from the observable list and persistent history.json.</summary>
+    public void ClearExportHistory()
+    {
+        History.Clear();
+        AppServices.History.Clear();
     }
 
     private CancellationTokenSource? _autoSnapshotCts;
@@ -1461,6 +1478,11 @@ private readonly MarkdownExportService _mdExport = new();
     public string? BuildPreviewCanvasHtml(string markdown) =>
         _markdownHtml.RenderCanvasOnly(markdown, _settingsService.Current, CurrentTheme, LastClassification);
 
+    private string? _lastPreparedInput;
+    private string? _lastPreparedOutput;
+    private bool _lastPreparedNormalizeLlm;
+    private LlmClassification? _lastPreparedClassification;
+
     // Classification + normalization for content that did NOT arrive through IngestMarkdown —
     // manual paste and browsed/dropped files. Without this, the "Normalize AI formatting quirks"
     // toggle only worked for the automated ingest paths. Safe to call on already-ingested text:
@@ -1471,6 +1493,17 @@ private readonly MarkdownExportService _mdExport = new();
     /// how many matches each rule made in this document.</param>
     public string PrepareMarkdown(string markdown, bool forPreview = false)
     {
+        if (!HasNormalizationRules
+            && _lastPreparedOutput is not null
+            && NormalizeLlm == _lastPreparedNormalizeLlm
+            && ReferenceEquals(_lastPreparedClassification, LastClassification)
+            && string.Equals(markdown, _lastPreparedInput, StringComparison.Ordinal))
+        {
+            if (forPreview) ShowNormalizationRuleOutcomes(null);
+            return _lastPreparedOutput;
+        }
+
+        var rawInput = markdown;
         var classification = AppServices.LlmSource.Classify(markdown);
 
         // Correctness repairs (copy-artifact removal, math rescue, matrix recovery) ALWAYS run —
@@ -1485,17 +1518,26 @@ private readonly MarkdownExportService _mdExport = new();
         if (forPreview) ShowNormalizationRuleOutcomes(ruleOutcomes);
 
         // The source badge, though, only makes sense for a recognized vendor.
-        if (classification.Source == LlmSource.Generic) return markdown;
-
-        var better = LastClassification is null
-            || classification.Source != LastClassification.Source
-            || classification.Confidence > LastClassification.Confidence;
-        if (better)
+        if (classification.Source != LlmSource.Generic)
         {
-            LastClassification = classification;
-            DetectedSourceText = classification.AppliedFixes.Count > 0
-                ? $"{classification.SourceName} · {classification.Confidence}% · {classification.AppliedFixes.Count} fixes"
-                : $"{classification.SourceName} · {classification.Confidence}%";
+            var better = LastClassification is null
+                || classification.Source != LastClassification.Source
+                || classification.Confidence > LastClassification.Confidence;
+            if (better)
+            {
+                LastClassification = classification;
+                DetectedSourceText = classification.AppliedFixes.Count > 0
+                    ? $"{classification.SourceName} · {classification.Confidence}% · {classification.AppliedFixes.Count} fixes"
+                    : $"{classification.SourceName} · {classification.Confidence}%";
+            }
+        }
+
+        if (!HasNormalizationRules)
+        {
+            _lastPreparedInput = rawInput;
+            _lastPreparedOutput = markdown;
+            _lastPreparedNormalizeLlm = NormalizeLlm;
+            _lastPreparedClassification = LastClassification;
         }
         return markdown;
     }

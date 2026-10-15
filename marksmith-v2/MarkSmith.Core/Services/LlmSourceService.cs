@@ -163,48 +163,63 @@ public sealed partial class LlmSourceService
 
         void Apply(Regex rx, string replacement, string description)
         {
+            if (!rx.IsMatch(text)) return;
             var count = rx.Matches(text).Count;
-            if (count == 0) return;
             text = rx.Replace(text, replacement);
             fixes.Add($"{description} ({count})");
         }
 
-        Apply(OaiCiteArtifacts(), "", "Removed ChatGPT citation artifacts");
-        Apply(ChatGptCitations(), "", "Removed 【n†source】 pips");
-        Apply(GeminiGroundingCite(), "", "Removed Gemini search grounding citations");
-        Apply(CopyCodeButtons(), "", "Removed copy-button text");
-        Apply(ClaudeTagRemnants(), "", "Removed internal tag remnants");
-        Apply(FrontierReasoningBlock(), "", "Removed frontier reasoning blocks");
-        Apply(FrontierReasoningTag(), "", "Removed frontier reasoning tags");
+        if (text.Contains("cite", StringComparison.OrdinalIgnoreCase) || text.Contains('\uE200') || text.Contains('【'))
+        {
+            Apply(OaiCiteArtifacts(), "", "Removed ChatGPT citation artifacts");
+            Apply(ChatGptCitations(), "", "Removed 【n†source】 pips");
+            Apply(GeminiGroundingCite(), "", "Removed Gemini search grounding citations");
+        }
+        if (text.Contains("Copy", StringComparison.Ordinal))
+            Apply(CopyCodeButtons(), "", "Removed copy-button text");
+        if (text.Contains('<'))
+        {
+            Apply(ClaudeTagRemnants(), "", "Removed internal tag remnants");
+            Apply(FrontierReasoningBlock(), "", "Removed frontier reasoning blocks");
+            Apply(FrontierReasoningTag(), "", "Removed frontier reasoning tags");
+        }
 
-        // ChatGPT emits \( \) / \[ \]; Markdig's math extension wants $ / $$.
-        Apply(LatexBlock(), "\n$$$$\n${1}\n$$$$\n", "Converted LaTeX display math to $$");
-        Apply(LatexInline(), "$$${1}$$", "Converted LaTeX inline math to $");
+        if (text.Contains('\\') || text.Contains('$'))
+        {
+            if (text.Contains('\\'))
+            {
+                // ChatGPT emits \( \) / \[ \]; Markdig's math extension wants $ / $$.
+                Apply(LatexBlock(), "\n$$$$\n${1}\n$$$$\n", "Converted LaTeX display math to $$");
+                Apply(LatexInline(), "$$${1}$$", "Converted LaTeX inline math to $");
 
-        // Format single-line $$\begin{...}...\end{...}$$ environments onto their own display lines
-        // so Markdig parses them as <div class="math"> (display-mode) rather than inline <span class="math">,
-        // preventing KaTeX inline syntax errors (which rendered matrices as red text).
-        text = SingleLineDisplayEnv().Replace(text, "\n$$$$\n${1}\n$$$$\n");
+                // Format single-line $$\begin{...}...\end{...}$$ environments onto their own display lines
+                // so Markdig parses them as <div class="math"> (display-mode) rather than inline <span class="math">,
+                // preventing KaTeX inline syntax errors (which rendered matrices as red text).
+                if (text.Contains("\\begin{", StringComparison.Ordinal))
+                    text = SingleLineDisplayEnv().Replace(text, "\n$$$$\n${1}\n$$$$\n");
 
-        // Fenced code, inline code, and existing $-math are protected from the recovery passes.
-        // Both passes used to run the same four fence/math scans internally — compute the protected
-        // ranges ONCE here and share them, recomputing only if matrix recovery rewrote the text
-        // (Regex.Replace returns the same string instance when nothing matched, so a reference
-        // compare is a cheap, safe staleness check).
-        var protectedRanges = BuildProtectedRanges(text);
+                // Fenced code, inline code, and existing $-math are protected from the recovery passes.
+                // Both passes used to run the same four fence/math scans internally — compute the protected
+                // ranges ONCE here and share them, recomputing only if matrix recovery rewrote the text
+                // (Regex.Replace returns the same string instance when nothing matched, so a reference
+                // compare is a cheap, safe staleness check).
+                var protectedRanges = BuildProtectedRanges(text);
 
-        // Rebuild browser-copied \begin…\end environments (matrices, aligned blocks) into clean,
-        // $$-delimited LaTeX BEFORE WrapBareLatexMath, so the $$ it produces is protected from the
-        // bare-command wrapper below.
-        var beforeMatrix = text;
-        text = RecoverMatrixEnvironments(text, fixes, protectedRanges);
-        if (!ReferenceEquals(text, beforeMatrix)) protectedRanges = BuildProtectedRanges(text);
+                // Rebuild browser-copied \begin…\end environments (matrices, aligned blocks) into clean,
+                // $$-delimited LaTeX BEFORE WrapBareLatexMath, so the $$ it produces is protected from the
+                // bare-command wrapper below.
+                var beforeMatrix = text;
+                text = RecoverMatrixEnvironments(text, fixes, protectedRanges);
+                if (!ReferenceEquals(text, beforeMatrix)) protectedRanges = BuildProtectedRanges(text);
 
-        text = WrapBareLatexMath(text, fixes, protectedRanges);
+                text = WrapBareLatexMath(text, fixes, protectedRanges);
+            }
+
+            classification.HasMath = classification.HasMath || (text.Contains('$') && DollarMath().IsMatch(text));
+        }
 
         text = RestoreFencedCode(text, fencedBlocks).Trim();
         classification.AppliedFixes.AddRange(fixes);
-        classification.HasMath = classification.HasMath || DollarMath().IsMatch(text);
         return (text, fixes);
     }
 

@@ -203,6 +203,8 @@ public sealed partial class MarkdownHtmlService
 
     private const string MermaidDivOpen = "<div class=\"mermaid\">";
 
+    private static readonly List<(int Start, int End)> EmptyFencedSpans = new();
+
     // interactive == the LIVE PREVIEW (not PDF export). Only then may we swap in the focused
     // diagram viewer; the exported document is never affected.
     public string Render(string markdown, AppSettings settings, ThemeDefinition theme,
@@ -223,42 +225,74 @@ public sealed partial class MarkdownHtmlService
         // never user HTML, mirroring the mermaid escape-safety model. Fenced code spans are excluded
         // so a code sample merely SHOWING the syntax is never lifted.
         var smartArtBlocks = new List<(string Alias, string Inner)>();
-        var smartArtFences = FencedSpans(markdown);
-        markdown = SmartArtBlockRe().Replace(markdown, m =>
+        List<string> engineeringDiagrams;
+        List<string> containerBlocks;
+        List<string> watermarkBlocks;
+        List<string> coverPageBlocks;
+        List<string> indexBlocks;
+        List<string> columnsBlocks;
+        List<string> parallelBlocks;
+        List<string> chartBlocks;
+        List<string> canvasBlocks;
+        List<string> metricsBlocks;
+
+        bool hasTripleColon = markdown.Contains(":::", StringComparison.Ordinal);
+        List<(int Start, int End)> smartArtFences = (hasTripleColon || markdown.Contains('|'))
+            ? FencedSpans(markdown)
+            : EmptyFencedSpans;
+
+        if (hasTripleColon)
         {
-            foreach (var f in smartArtFences)
+            markdown = SmartArtBlockRe().Replace(markdown, m =>
             {
-                if (m.Index >= f.Start && m.Index < f.End) return m.Value; // inside a code fence
-            }
-            string alias = MarkSmith.Core.Glox.SmartArtBlockHeader.Layout(m.Groups["header"].Value)?.ToLowerInvariant() ?? "";
-            // An untyped :::workflow / :::timeline says what it is; don't let the guesser turn four
-            // workflow steps into a 2x2 block grid.
-            if (alias.Length == 0 && m.Groups["kind"].Value is "workflow" or "timeline") alias = m.Groups["kind"].Value;
-            smartArtBlocks.Add((alias, m.Groups["inner"].Value.Trim()));
-            return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
-        });
+                foreach (var f in smartArtFences)
+                {
+                    if (m.Index >= f.Start && m.Index < f.End) return m.Value; // inside a code fence
+                }
+                string alias = MarkSmith.Core.Glox.SmartArtBlockHeader.Layout(m.Groups["header"].Value)?.ToLowerInvariant() ?? "";
+                // An untyped :::workflow / :::timeline says what it is; don't let the guesser turn four
+                // workflow steps into a 2x2 block grid.
+                if (alias.Length == 0 && m.Groups["kind"].Value is "workflow" or "timeline") alias = m.Groups["kind"].Value;
+                smartArtBlocks.Add((alias, m.Groups["inner"].Value.Trim()));
+                return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
+            });
 
-        // Batch 11 (#57): the Cycle 22-29 engineering/science diagram fences are lifted in ONE
-        // compiled dispatch pass (see MarkdownHtmlService.EngineeringDiagrams.cs) instead of 49
-        // separate interpreted full-document regex scans per preview render.
-        markdown = LiftEngineeringDiagrams(markdown, smartArtFences, out var engineeringDiagrams);
-        markdown = LiftContainerBlocks(markdown, theme, out var containerBlocks);
+            // Batch 11 (#57): the Cycle 22-29 engineering/science diagram fences are lifted in ONE
+            // compiled dispatch pass (see MarkdownHtmlService.EngineeringDiagrams.cs) instead of 49
+            // separate interpreted full-document regex scans per preview render.
+            markdown = LiftEngineeringDiagrams(markdown, smartArtFences, out engineeringDiagrams);
+            markdown = LiftContainerBlocks(markdown, theme, out containerBlocks);
 
-        // Milestone 1 (R2, R3, R9): Watermarks, Cover Pages, and Line Numbering
-        markdown = LiftWatermarks(markdown, smartArtFences, isDarkEarly, out var watermarkBlocks);
-        markdown = LiftCoverPages(markdown, smartArtFences, out var coverPageBlocks);
-        markdown = TransformLineNumbers(markdown, smartArtFences);
+            // Milestone 1 (R2, R3, R9): Watermarks, Cover Pages, and Line Numbering
+            markdown = LiftWatermarks(markdown, smartArtFences, isDarkEarly, out watermarkBlocks);
+            markdown = LiftCoverPages(markdown, smartArtFences, out coverPageBlocks);
+            markdown = TransformLineNumbers(markdown, smartArtFences);
 
-        // Milestone 2 (R4, R6): Drop Caps & Concordance Index
-        markdown = TransformDropCaps(markdown, smartArtFences);
-        markdown = LiftIndexBlocks(markdown, smartArtFences, out var indexBlocks);
+            // Milestone 2 (R4, R6): Drop Caps & Concordance Index
+            markdown = TransformDropCaps(markdown, smartArtFences);
+            markdown = LiftIndexBlocks(markdown, smartArtFences, out indexBlocks);
 
-        // Milestone 3 (R7, R10): Parallel Columns & Table Formulas
-        markdown = LiftColumnsBlocks(markdown, smartArtFences, out var columnsBlocks);
-        markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
-        markdown = LiftChartBlocks(markdown, smartArtFences, theme, out var chartBlocks);
-        markdown = LiftCanvasBlocks(markdown, smartArtFences, out var canvasBlocks);
-        markdown = LiftMetricsBlocks(markdown, smartArtFences, theme, out var metricsBlocks);
+            // Milestone 3 (R7, R10): Parallel Columns & Table Formulas
+            markdown = LiftColumnsBlocks(markdown, smartArtFences, out columnsBlocks);
+            markdown = LiftParallelBlocks(markdown, smartArtFences, out parallelBlocks);
+            markdown = LiftChartBlocks(markdown, smartArtFences, theme, out chartBlocks);
+            markdown = LiftCanvasBlocks(markdown, smartArtFences, out canvasBlocks);
+            markdown = LiftMetricsBlocks(markdown, smartArtFences, theme, out metricsBlocks);
+        }
+        else
+        {
+            engineeringDiagrams = new List<string>();
+            containerBlocks = new List<string>();
+            watermarkBlocks = new List<string>();
+            coverPageBlocks = new List<string>();
+            indexBlocks = new List<string>();
+            columnsBlocks = new List<string>();
+            parallelBlocks = new List<string>();
+            chartBlocks = new List<string>();
+            canvasBlocks = new List<string>();
+            metricsBlocks = new List<string>();
+        }
+
         markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
         markdown = LiftTableCellBlocks(markdown, smartArtFences, out var tableCellBlocks);
 
@@ -2477,41 +2511,72 @@ public sealed partial class MarkdownHtmlService
         markdown = cleanShapesMd;
 
         var smartArtBlocks = new List<(string Alias, string Inner)>();
-        var smartArtFences = FencedSpans(markdown);
-        markdown = SmartArtBlockRe().Replace(markdown, m =>
-        {
-            foreach (var f in smartArtFences)
-            {
-                if (m.Index >= f.Start && m.Index < f.End) return m.Value;
-            }
-            string alias = MarkSmith.Core.Glox.SmartArtBlockHeader.Layout(m.Groups["header"].Value)?.ToLowerInvariant() ?? "";
-            if (alias.Length == 0 && m.Groups["kind"].Value is "workflow" or "timeline") alias = m.Groups["kind"].Value;
-            smartArtBlocks.Add((alias, m.Groups["inner"].Value.Trim()));
-            return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
-        });
-
-        // Batch 11 (#58): same single-pass engineering-fence lift as Render() — without it the
-        // incremental canvas swap would show raw :::fence text where full renders show SVG.
-        markdown = LiftEngineeringDiagrams(markdown, smartArtFences, out var engineeringDiagrams);
-        markdown = LiftContainerBlocks(markdown, theme, out var containerBlocks);
+        List<string> engineeringDiagrams;
+        List<string> containerBlocks;
+        List<string> watermarkBlocks;
+        List<string> coverPageBlocks;
+        List<string> indexBlocks;
+        List<string> columnsBlocks;
+        List<string> parallelBlocks;
+        List<string> chartBlocks;
+        List<string> canvasBlocks;
+        List<string> metricsBlocks;
 
         var isDarkEarly = !settings.ThemeLightInfluence && theme.IsDarkPage;
+        bool hasTripleColon = markdown.Contains(":::", StringComparison.Ordinal);
+        List<(int Start, int End)> smartArtFences = (hasTripleColon || markdown.Contains('|'))
+            ? FencedSpans(markdown)
+            : EmptyFencedSpans;
 
-        // Milestone 1 (R2, R3, R9): Watermarks, Cover Pages, and Line Numbering
-        markdown = LiftWatermarks(markdown, smartArtFences, isDarkEarly, out var watermarkBlocks);
-        markdown = LiftCoverPages(markdown, smartArtFences, out var coverPageBlocks);
-        markdown = TransformLineNumbers(markdown, smartArtFences);
+        if (hasTripleColon)
+        {
+            markdown = SmartArtBlockRe().Replace(markdown, m =>
+            {
+                foreach (var f in smartArtFences)
+                {
+                    if (m.Index >= f.Start && m.Index < f.End) return m.Value;
+                }
+                string alias = MarkSmith.Core.Glox.SmartArtBlockHeader.Layout(m.Groups["header"].Value)?.ToLowerInvariant() ?? "";
+                if (alias.Length == 0 && m.Groups["kind"].Value is "workflow" or "timeline") alias = m.Groups["kind"].Value;
+                smartArtBlocks.Add((alias, m.Groups["inner"].Value.Trim()));
+                return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
+            });
 
-        // Milestone 2 (R4, R6): Drop Caps & Concordance Index
-        markdown = TransformDropCaps(markdown, smartArtFences);
-        markdown = LiftIndexBlocks(markdown, smartArtFences, out var indexBlocks);
+            // Batch 11 (#58): same single-pass engineering-fence lift as Render() — without it the
+            // incremental canvas swap would show raw :::fence text where full renders show SVG.
+            markdown = LiftEngineeringDiagrams(markdown, smartArtFences, out engineeringDiagrams);
+            markdown = LiftContainerBlocks(markdown, theme, out containerBlocks);
 
-        // Milestone 3 (R7, R10): Parallel Columns & Table Formulas
-        markdown = LiftColumnsBlocks(markdown, smartArtFences, out var columnsBlocks);
-        markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
-        markdown = LiftChartBlocks(markdown, smartArtFences, theme, out var chartBlocks);
-        markdown = LiftCanvasBlocks(markdown, smartArtFences, out var canvasBlocks);
-        markdown = LiftMetricsBlocks(markdown, smartArtFences, theme, out var metricsBlocks);
+            // Milestone 1 (R2, R3, R9): Watermarks, Cover Pages, and Line Numbering
+            markdown = LiftWatermarks(markdown, smartArtFences, isDarkEarly, out watermarkBlocks);
+            markdown = LiftCoverPages(markdown, smartArtFences, out coverPageBlocks);
+            markdown = TransformLineNumbers(markdown, smartArtFences);
+
+            // Milestone 2 (R4, R6): Drop Caps & Concordance Index
+            markdown = TransformDropCaps(markdown, smartArtFences);
+            markdown = LiftIndexBlocks(markdown, smartArtFences, out indexBlocks);
+
+            // Milestone 3 (R7, R10): Parallel Columns & Table Formulas
+            markdown = LiftColumnsBlocks(markdown, smartArtFences, out columnsBlocks);
+            markdown = LiftParallelBlocks(markdown, smartArtFences, out parallelBlocks);
+            markdown = LiftChartBlocks(markdown, smartArtFences, theme, out chartBlocks);
+            markdown = LiftCanvasBlocks(markdown, smartArtFences, out canvasBlocks);
+            markdown = LiftMetricsBlocks(markdown, smartArtFences, theme, out metricsBlocks);
+        }
+        else
+        {
+            engineeringDiagrams = new List<string>();
+            containerBlocks = new List<string>();
+            watermarkBlocks = new List<string>();
+            coverPageBlocks = new List<string>();
+            indexBlocks = new List<string>();
+            columnsBlocks = new List<string>();
+            parallelBlocks = new List<string>();
+            chartBlocks = new List<string>();
+            canvasBlocks = new List<string>();
+            metricsBlocks = new List<string>();
+        }
+
         markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
         markdown = LiftTableCellBlocks(markdown, smartArtFences, out var tableCellBlocks);
 
@@ -3197,9 +3262,56 @@ public sealed partial class MarkdownHtmlService
         return sb.ToString();
     }
 
+    [GeneratedRegex(@"^:::watermark\s+""([^""]+)""", RegexOptions.IgnoreCase)]
+    private static partial Regex WatermarkQuotedTextRe();
+
+    [GeneratedRegex(@"(?:text=|--text\s+)(?:""([^""]*)""|(\S+))", RegexOptions.IgnoreCase)]
+    private static partial Regex WatermarkTextAttrRe();
+
+    [GeneratedRegex(@"(?:color=|--color\s+)(?:""([^""]*)""|(\S+))", RegexOptions.IgnoreCase)]
+    private static partial Regex WatermarkColorAttrRe();
+
+    [GeneratedRegex(@"^[0-9a-fA-F]{6}$")]
+    private static partial Regex Hex6ColorRe();
+
+    [GeneratedRegex(@"(?:opacity=|--opacity\s+)(?:""([^""]*)""|([0-9.]+))", RegexOptions.IgnoreCase)]
+    private static partial Regex WatermarkOpacityAttrRe();
+
+    [GeneratedRegex(@"diagonal=(?:""false""|false|""0""|0)", RegexOptions.IgnoreCase)]
+    private static partial Regex WatermarkDiagonalFalseRe();
+
+    [GeneratedRegex(@"([a-zA-Z0-9_-]+)=(?:""([^""]*)""|(\S+))")]
+    private static partial Regex KeyValueAttrRe();
+
+    [GeneratedRegex(@"(?:count-by=|countBy=|count=|--count-by\s+|--countBy\s+|--count\s+)(?:""([^""]*)""|(\d+))", RegexOptions.IgnoreCase)]
+    private static partial Regex LineNumbersCountByRe();
+
+    [GeneratedRegex(@"^:::dropcap\s+(\d+)", RegexOptions.IgnoreCase)]
+    private static partial Regex DropCapPositionalRe();
+
+    [GeneratedRegex(@"(?:lines=|--lines\s+)(?:""([^""]*)""|(\d+))", RegexOptions.IgnoreCase)]
+    private static partial Regex DropCapLinesAttrRe();
+
+    [GeneratedRegex(@"<span class=""ms-index-anchor"" data-index=""([^""]+)""")]
+    private static partial Regex IndexAnchorSpanRe();
+
+    [GeneratedRegex(@"\^\[index:\s*(?:[""“]([^""”\]]+)[""”]|([^\]\n]+))\s*\]")]
+    private static partial Regex RawIndexAnchorRe();
+
+    [GeneratedRegex(@"^:::index\s+(\d+)", RegexOptions.IgnoreCase)]
+    private static partial Regex IndexColsPositionalRe();
+
+    [GeneratedRegex(@"(?:columns=|count=|--columns\s+|--count\s+)(?:""([^""]*)""|(\d+))", RegexOptions.IgnoreCase)]
+    private static partial Regex IndexColsAttrRe();
+
+    [GeneratedRegex(@"type\s*=\s*[""']?([A-Za-z]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex ChartTypeAttrRe();
+
     private static string LiftWatermarks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, bool isDark, out List<string> watermarkBlocks)
     {
         watermarkBlocks = new List<string>();
+        if (!markdown.Contains(":::watermark", StringComparison.OrdinalIgnoreCase))
+            return markdown;
         var blocks = watermarkBlocks;
         return WatermarkBlockRe().Replace(markdown, m =>
         {
@@ -3214,11 +3326,11 @@ public sealed partial class MarkdownHtmlService
             var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
 
             string text = "CONFIDENTIAL";
-            var qm = Regex.Match(firstLine, @"^:::watermark\s+""([^""]+)""", RegexOptions.IgnoreCase);
+            var qm = WatermarkQuotedTextRe().Match(firstLine);
             if (qm.Success) text = qm.Groups[1].Value;
             else
             {
-                var tm = Regex.Match(firstLine, @"(?:text=|--text\s+)(?:""([^""]*)""|(\S+))", RegexOptions.IgnoreCase);
+                var tm = WatermarkTextAttrRe().Match(firstLine);
                 if (tm.Success) text = tm.Groups[1].Success ? tm.Groups[1].Value : tm.Groups[2].Value;
                 else if (!string.IsNullOrWhiteSpace(inner))
                 {
@@ -3228,13 +3340,13 @@ public sealed partial class MarkdownHtmlService
             }
 
             string color = isDark ? "#555555" : "#CCCCCC";
-            var cm = Regex.Match(firstLine, @"(?:color=|--color\s+)(?:""([^""]*)""|(\S+))", RegexOptions.IgnoreCase);
+            var cm = WatermarkColorAttrRe().Match(firstLine);
             if (cm.Success) color = cm.Groups[1].Success ? cm.Groups[1].Value : cm.Groups[2].Value;
-            if (!color.StartsWith("#") && !color.StartsWith("rgb") && !color.StartsWith("hsl") && Regex.IsMatch(color, "^[0-9a-fA-F]{6}$"))
+            if (!color.StartsWith("#") && !color.StartsWith("rgb") && !color.StartsWith("hsl") && Hex6ColorRe().IsMatch(color))
                 color = "#" + color;
 
             double opacity = 0.15;
-            var om = Regex.Match(firstLine, @"(?:opacity=|--opacity\s+)(?:""([^""]*)""|([0-9.]+))", RegexOptions.IgnoreCase);
+            var om = WatermarkOpacityAttrRe().Match(firstLine);
             if (om.Success)
             {
                 var opStr = om.Groups[1].Success ? om.Groups[1].Value : om.Groups[2].Value;
@@ -3244,7 +3356,7 @@ public sealed partial class MarkdownHtmlService
 
             bool diagonal = true;
             if (firstLine.Contains("--horizontal", StringComparison.OrdinalIgnoreCase) ||
-                Regex.IsMatch(firstLine, @"diagonal=(?:""false""|false|""0""|0)", RegexOptions.IgnoreCase))
+                WatermarkDiagonalFalseRe().IsMatch(firstLine))
                 diagonal = false;
 
             int angle = diagonal ? -45 : 0;
@@ -3286,6 +3398,8 @@ public sealed partial class MarkdownHtmlService
     private static string LiftCoverPages(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> coverPageBlocks)
     {
         coverPageBlocks = new List<string>();
+        if (!markdown.Contains(":::cover", StringComparison.OrdinalIgnoreCase))
+            return markdown;
         var blocks = coverPageBlocks;
         return CoverPageBlockRe().Replace(markdown, m =>
         {
@@ -3300,7 +3414,7 @@ public sealed partial class MarkdownHtmlService
             var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
 
             var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var attrMatches = Regex.Matches(firstLine, @"([a-zA-Z0-9_-]+)=(?:""([^""]*)""|(\S+))");
+            var attrMatches = KeyValueAttrRe().Matches(firstLine);
             foreach (Match am in attrMatches)
             {
                 var key = am.Groups[1].Value;
@@ -3375,6 +3489,8 @@ public sealed partial class MarkdownHtmlService
 
     private static string TransformLineNumbers(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans)
     {
+        if (!markdown.Contains(":::line-numbers", StringComparison.OrdinalIgnoreCase))
+            return markdown;
         return LineNumbersBlockRe().Replace(markdown, m =>
         {
             foreach (var f in fencedSpans)
@@ -3388,7 +3504,7 @@ public sealed partial class MarkdownHtmlService
             var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
 
             int countBy = 5;
-            var countMatch = Regex.Match(firstLine, @"(?:count-by=|countBy=|count=|--count-by\s+|--countBy\s+|--count\s+)(?:""([^""]*)""|(\d+))", RegexOptions.IgnoreCase);
+            var countMatch = LineNumbersCountByRe().Match(firstLine);
             if (countMatch.Success)
             {
                 var valStr = countMatch.Groups[1].Success ? countMatch.Groups[1].Value : countMatch.Groups[2].Value;
@@ -3430,6 +3546,8 @@ public sealed partial class MarkdownHtmlService
 
     private static string TransformDropCaps(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans)
     {
+        if (!markdown.Contains(":::dropcap", StringComparison.OrdinalIgnoreCase))
+            return markdown;
         return DropCapBlockRe().Replace(markdown, m =>
         {
             foreach (var f in fencedSpans)
@@ -3443,14 +3561,14 @@ public sealed partial class MarkdownHtmlService
             var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
 
             int dropLines = 3;
-            var numMatch = Regex.Match(firstLine, @"^:::dropcap\s+(\d+)", RegexOptions.IgnoreCase);
+            var numMatch = DropCapPositionalRe().Match(firstLine);
             if (numMatch.Success && int.TryParse(numMatch.Groups[1].Value, out int nl))
             {
                 dropLines = nl;
             }
             else
             {
-                var linesMatch = Regex.Match(firstLine, @"(?:lines=|--lines\s+)(?:""([^""]*)""|(\d+))", RegexOptions.IgnoreCase);
+                var linesMatch = DropCapLinesAttrRe().Match(firstLine);
                 if (linesMatch.Success)
                 {
                     var val = linesMatch.Groups[1].Success ? linesMatch.Groups[1].Value : linesMatch.Groups[2].Value;
@@ -3481,20 +3599,26 @@ public sealed partial class MarkdownHtmlService
     private static string LiftIndexBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> indexBlocks)
     {
         indexBlocks = new List<string>();
+        if (!markdown.Contains(":::index", StringComparison.OrdinalIgnoreCase))
+            return markdown;
         var blocks = indexBlocks;
 
         // Collect all index terms from anchors across the document
         var terms = new List<string>();
-        var anchorMatches = Regex.Matches(markdown, @"<span class=""ms-index-anchor"" data-index=""([^""]+)""");
-        foreach (Match am in anchorMatches)
+        if (markdown.Contains("ms-index-anchor", StringComparison.Ordinal))
         {
-            terms.Add(System.Net.WebUtility.HtmlDecode(am.Groups[1].Value).Trim());
+            foreach (Match am in IndexAnchorSpanRe().Matches(markdown))
+            {
+                terms.Add(System.Net.WebUtility.HtmlDecode(am.Groups[1].Value).Trim());
+            }
         }
-        var rawAnchorMatches = Regex.Matches(markdown, @"\^\[index:\s*(?:[""“]([^""”\]]+)[""”]|([^\]\n]+))\s*\]");
-        foreach (Match ram in rawAnchorMatches)
+        if (markdown.Contains("^[index:", StringComparison.Ordinal))
         {
-            var rawTerm = ram.Groups[1].Success ? ram.Groups[1].Value : ram.Groups[2].Value;
-            terms.Add(rawTerm.Trim());
+            foreach (Match ram in RawIndexAnchorRe().Matches(markdown))
+            {
+                var rawTerm = ram.Groups[1].Success ? ram.Groups[1].Value : ram.Groups[2].Value;
+                terms.Add(rawTerm.Trim());
+            }
         }
 
         var uniqueTerms = terms.Where(t => !string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -3508,14 +3632,14 @@ public sealed partial class MarkdownHtmlService
 
             var firstLine = m.Value.TrimEnd().Split('\n')[0].TrimEnd('\r');
             int cols = 2;
-            var numMatch = Regex.Match(firstLine, @"^:::index\s+(\d+)", RegexOptions.IgnoreCase);
+            var numMatch = IndexColsPositionalRe().Match(firstLine);
             if (numMatch.Success && int.TryParse(numMatch.Groups[1].Value, out int nc))
             {
                 cols = nc;
             }
             else
             {
-                var colMatch = Regex.Match(firstLine, @"(?:columns=|count=|--columns\s+|--count\s+)(?:""([^""]*)""|(\d+))", RegexOptions.IgnoreCase);
+                var colMatch = IndexColsAttrRe().Match(firstLine);
                 if (colMatch.Success)
                 {
                     var val = colMatch.Groups[1].Success ? colMatch.Groups[1].Value : colMatch.Groups[2].Value;
@@ -3595,6 +3719,9 @@ public sealed partial class MarkdownHtmlService
         ThemeDefinition theme, out List<string> chartHtmlBlocks)
     {
         var blocks = new List<string>();
+        chartHtmlBlocks = blocks;
+        if (!markdown.Contains(":::chart", StringComparison.OrdinalIgnoreCase))
+            return markdown;
         markdown = ChartBlockRe().Replace(markdown, m =>
         {
             foreach (var f in fencedSpans)
@@ -3603,7 +3730,7 @@ public sealed partial class MarkdownHtmlService
             }
 
             var attrs = m.Groups["attrs"].Value;
-            var kind = Regex.Match(attrs, @"type\s*=\s*[""']?([A-Za-z]+)", RegexOptions.IgnoreCase)
+            var kind = ChartTypeAttrRe().Match(attrs)
                             .Groups[1].Value.ToLowerInvariant();
             if (kind.Length == 0) kind = "bar";
 
@@ -3633,7 +3760,6 @@ public sealed partial class MarkdownHtmlService
             return $"\n\n<!--CHART:{blocks.Count - 1}-->\n\n";
         });
 
-        chartHtmlBlocks = blocks;
         return markdown;
     }
 
@@ -3645,6 +3771,9 @@ public sealed partial class MarkdownHtmlService
     private static string LiftCanvasBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> canvasHtmlBlocks)
     {
         var blocks = new List<string>();
+        canvasHtmlBlocks = blocks;
+        if (!markdown.Contains(":::canvas", StringComparison.OrdinalIgnoreCase))
+            return markdown;
         markdown = CanvasBlockRe().Replace(markdown, m =>
         {
             foreach (var f in fencedSpans)
@@ -3664,7 +3793,6 @@ public sealed partial class MarkdownHtmlService
             blocks.Add($"<figure class=\"ms-canvas\" style=\"margin:1em 0;text-align:center;max-width:100%;overflow:auto\">{MarkSmith.Plugins.SvgSanitizer.Sanitize(svg)}</figure>");
             return $"\n\n<!--CANVAS:{blocks.Count - 1}-->\n\n";
         });
-        canvasHtmlBlocks = blocks;
         return markdown;
     }
 
@@ -3917,9 +4045,33 @@ public sealed partial class MarkdownHtmlService
         return cells;
     }
 
+    [GeneratedRegex(@":::parallel[ \t]+([^\r\n]*)", RegexOptions.IgnoreCase)]
+    private static partial Regex ParallelHeaderRe();
+
+    [GeneratedRegex(@"(?:\r?\n|^)---(?:\r?\n|$)")]
+    private static partial Regex ParallelRowSplitRe();
+
+    [GeneratedRegex(@"(?:\r?\n|^)[ \t]*===+[ \t]*(?:\r?\n|$)")]
+    private static partial Regex ColumnsSegmentSplitRe();
+
+    [GeneratedRegex(@"count\s*=\s*[""']?(\d+)[""']?", RegexOptions.IgnoreCase)]
+    private static partial Regex ColumnsCountAttrRe();
+
+    [GeneratedRegex(@"cols=(\d+)", RegexOptions.IgnoreCase)]
+    private static partial Regex MetricsColsAttrRe();
+
+    [GeneratedRegex(@"^[-*+]\s+(.*)$")]
+    private static partial Regex MetricsBulletItemRe();
+
+    [GeneratedRegex(@"^\*\*(.*?)\*\*\s*[:\-–—]?\s*(.*)$")]
+    private static partial Regex MetricsBoldItemRe();
+
     private static string LiftParallelBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> parallelHtmlBlocks)
     {
         var blocks = new List<string>();
+        parallelHtmlBlocks = blocks;
+        if (!markdown.Contains(":::parallel", StringComparison.OrdinalIgnoreCase))
+            return markdown;
         markdown = ParallelBlockRe().Replace(markdown, m =>
         {
             foreach (var f in fencedSpans)
@@ -3935,7 +4087,7 @@ public sealed partial class MarkdownHtmlService
             var inner = m.Groups[1].Value;
 
             var headers = new List<string>();
-            var headerMatch = Regex.Match(m.Value, @":::parallel[ \t]+([^\r\n]*)", RegexOptions.IgnoreCase);
+            var headerMatch = ParallelHeaderRe().Match(m.Value);
             if (headerMatch.Success)
             {
                 var parts = headerMatch.Groups[1].Value.Split('|');
@@ -3960,7 +4112,7 @@ public sealed partial class MarkdownHtmlService
                 sb.Append("  </div>\n");
             }
 
-            var rows = Regex.Split(inner, @"(?:\r?\n|^)---(?:\r?\n|$)");
+            var rows = ParallelRowSplitRe().Split(inner);
             foreach (var row in rows)
             {
                 if (string.IsNullOrWhiteSpace(row)) continue;
@@ -3980,13 +4132,15 @@ public sealed partial class MarkdownHtmlService
             return $"\n\n<!--PARALLEL:{blocks.Count - 1}-->\n\n";
         });
 
-        parallelHtmlBlocks = blocks;
         return markdown;
     }
 
     private static string LiftColumnsBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> columnsHtmlBlocks)
     {
         var blocks = new List<string>();
+        columnsHtmlBlocks = blocks;
+        if (!markdown.Contains(":::columns", StringComparison.OrdinalIgnoreCase))
+            return markdown;
         markdown = ColumnsBlockRe().Replace(markdown, m =>
         {
             foreach (var f in fencedSpans)
@@ -3997,7 +4151,7 @@ public sealed partial class MarkdownHtmlService
             var attrs = m.Groups["attrs"].Value;
             var inner = m.Groups["body"].Value;
 
-            var segments = Regex.Split(inner, @"(?:\r?\n|^)[ \t]*===+[ \t]*(?:\r?\n|$)")
+            var segments = ColumnsSegmentSplitRe().Split(inner)
                 .Where(s => !string.IsNullOrWhiteSpace(s))
                 .ToList();
 
@@ -4005,7 +4159,7 @@ public sealed partial class MarkdownHtmlService
                 segments.Add(inner);
 
             int count = segments.Count > 1 ? segments.Count : 2;
-            var countMatch = Regex.Match(attrs, @"count\s*=\s*[""']?(\d+)[""']?", RegexOptions.IgnoreCase);
+            var countMatch = ColumnsCountAttrRe().Match(attrs);
             if (countMatch.Success && int.TryParse(countMatch.Groups[1].Value, out var parsed))
             {
                 count = parsed;
@@ -4026,13 +4180,15 @@ public sealed partial class MarkdownHtmlService
             return $"\n\n<!--COLUMNS:{blocks.Count - 1}-->\n\n";
         });
 
-        columnsHtmlBlocks = blocks;
         return markdown;
     }
 
     private static string LiftMetricsBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, ThemeDefinition theme, out List<string> metricsHtmlBlocks)
     {
         var blocks = new List<string>();
+        metricsHtmlBlocks = blocks;
+        if (!markdown.Contains(":::metrics", StringComparison.OrdinalIgnoreCase))
+            return markdown;
         markdown = MetricsBlockRe().Replace(markdown, m =>
         {
             foreach (var f in fencedSpans)
@@ -4043,12 +4199,12 @@ public sealed partial class MarkdownHtmlService
             var attrs = m.Groups["attrs"].Value;
             var body = m.Groups["body"].Value;
             int cols = 3;
-            var colsMatch = Regex.Match(attrs, @"cols=(\d+)", RegexOptions.IgnoreCase);
+            var colsMatch = MetricsColsAttrRe().Match(attrs);
             if (colsMatch.Success) cols = Math.Clamp(int.Parse(colsMatch.Groups[1].Value), 1, 6);
 
             var items = body.Split('\n')
                 .Select(l => l.Trim())
-                .Select(l => Regex.Match(l, @"^[-*+]\s+(.*)$"))
+                .Select(l => MetricsBulletItemRe().Match(l))
                 .Where(m => m.Success)
                 // Only the list marker: trimming '*' also ate the "**" opening "**99.9%** Uptime",
                 // so the card read "99.9%** Uptime" with no label.
@@ -4066,7 +4222,7 @@ public sealed partial class MarkdownHtmlService
             {
                 string val = item;
                 string lbl = "";
-                var boldMatch = Regex.Match(item, @"^\*\*(.*?)\*\*\s*[:\-–—]?\s*(.*)$");
+                var boldMatch = MetricsBoldItemRe().Match(item);
                 if (boldMatch.Success)
                 {
                     val = boldMatch.Groups[1].Value;
@@ -4094,7 +4250,6 @@ public sealed partial class MarkdownHtmlService
             return $"\n\n<!--METRICS:{blocks.Count - 1}-->\n\n";
         });
 
-        metricsHtmlBlocks = blocks;
         return markdown;
     }
 }

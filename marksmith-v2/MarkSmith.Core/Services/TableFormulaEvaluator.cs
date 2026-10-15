@@ -11,15 +11,13 @@ namespace MarkSmith.Services
     /// Evaluates spreadsheet-like formulas inside Markdown table cells
     /// (e.g. =SUM(ABOVE), =AVERAGE(LEFT), =COUNT, =MIN, =MAX, =PRODUCT, =SUM(B1:B4)).
     /// </summary>
-    public static class TableFormulaEvaluator
+    public static partial class TableFormulaEvaluator
     {
-        private static readonly Regex PositionalFormulaRegex = new(
-            @"^=\s*(?<op>SUM|AVERAGE|AVG|COUNT|MIN|MAX|PRODUCT)\s*\(\s*(?<pos>ABOVE|LEFT|RIGHT|BELOW)\s*\)(?:\s*(?:\\#\s*)?(?:""(?<fmt>[^""]*)""|(?<fmt>\S+)))?\s*$",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"^=\s*(?<op>SUM|AVERAGE|AVG|COUNT|MIN|MAX|PRODUCT)\s*\(\s*(?<pos>ABOVE|LEFT|RIGHT|BELOW)\s*\)(?:\s*(?:\\#\s*)?(?:""(?<fmt>[^""]*)""|(?<fmt>\S+)))?\s*$", RegexOptions.IgnoreCase)]
+        private static partial Regex PositionalFormulaRegex();
 
-        private static readonly Regex RangeFormulaRegex = new(
-            @"^=\s*(?<op>SUM|AVERAGE|AVG|COUNT|MIN|MAX|PRODUCT)\s*\(\s*(?<from>[A-Za-z]+[0-9]+)\s*:\s*(?<to>[A-Za-z]+[0-9]+)\s*\)(?:\s*(?:\\#\s*)?(?:""(?<fmt>[^""]*)""|(?<fmt>\S+)))?\s*$",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"^=\s*(?<op>SUM|AVERAGE|AVG|COUNT|MIN|MAX|PRODUCT)\s*\(\s*(?<from>[A-Za-z]+[0-9]+)\s*:\s*(?<to>[A-Za-z]+[0-9]+)\s*\)(?:\s*(?:\\#\s*)?(?:""(?<fmt>[^""]*)""|(?<fmt>\S+)))?\s*$", RegexOptions.IgnoreCase)]
+        private static partial Regex RangeFormulaRegex();
 
         /// <summary>
         /// Replaces each formula cell (<c>=SUM(ABOVE)</c>, <c>=AVERAGE(B2:B4)</c>…) of every pipe
@@ -32,7 +30,7 @@ namespace MarkSmith.Services
         public static string EvaluateTableMarkdown(string markdownTable)
         {
             if (string.IsNullOrWhiteSpace(markdownTable)) return markdownTable;
-            if (!markdownTable.Contains('=')) return markdownTable;
+            if (!markdownTable.Contains('|') || !markdownTable.Contains('=')) return markdownTable;
 
             var lines = markdownTable.Split('\n');
             bool changed = false;
@@ -157,7 +155,7 @@ namespace MarkSmith.Services
         private static IEnumerable<(int Row, int Col)> References(string cellText, int r, int c, int maxRows, int maxCols)
         {
             var trimmed = cellText.Trim();
-            var pos = PositionalFormulaRegex.Match(trimmed);
+            var pos = PositionalFormulaRegex().Match(trimmed);
             if (pos.Success)
             {
                 return pos.Groups["pos"].Value.ToUpperInvariant() switch
@@ -169,10 +167,10 @@ namespace MarkSmith.Services
                 };
             }
             var refs = new List<(int, int)>();
-            foreach (Match m in CellRefRegex.Matches(trimmed))
+            foreach (Match m in CellRefRegex().Matches(trimmed))
                 if (TryParseCoordinate(m.Value, out int row, out int col) && row < maxRows && col < maxCols)
                     refs.Add((row, col));
-            var range = RangeFormulaRegex.Match(trimmed);
+            var range = RangeFormulaRegex().Match(trimmed);
             if (range.Success && refs.Count == 2)
             {
                 var (r1, c1) = refs[0];
@@ -184,12 +182,15 @@ namespace MarkSmith.Services
             return refs;
         }
 
-        private static readonly Regex CellRefRegex = new(@"(?<![A-Za-z0-9.])[A-Za-z]{1,3}[0-9]+(?![A-Za-z0-9(])", RegexOptions.Compiled);
+        [GeneratedRegex(@"(?<![A-Za-z0-9.])[A-Za-z]{1,3}[0-9]+(?![A-Za-z0-9(])")]
+        private static partial Regex CellRefRegex();
 
         // "=B2*C2", "=(B2+C2)/2 \# 0.00", "=D2*1.1": numbers, cell references, + - * / and brackets.
-        private static readonly Regex ArithmeticFormulaRegex = new(
-            @"^=\s*(?<expr>[A-Za-z0-9.\s+\-*/()]+?)(?:\s*(?:\\#\s*)?""(?<fmt>[^""]*)""|\s+\\#\s*(?<fmt>\S+))?\s*$",
-            RegexOptions.Compiled);
+        [GeneratedRegex(@"^=\s*(?<expr>[A-Za-z0-9.\s+\-*/()]+?)(?:\s*(?:\\#\s*)?""(?<fmt>[^""]*)""|\s+\\#\s*(?<fmt>\S+))?\s*$")]
+        private static partial Regex ArithmeticFormulaRegex();
+
+        [GeneratedRegex(@"\s+")]
+        private static partial Regex WhitespaceRegex();
 
         private static bool TryEvaluateArithmetic(string expr, double?[,] grid, int maxRows, int maxCols, out double value)
         {
@@ -304,7 +305,7 @@ namespace MarkSmith.Services
                 return false;
 
             var trimmed = cellText.Trim();
-            var posMatch = PositionalFormulaRegex.Match(trimmed);
+            var posMatch = PositionalFormulaRegex().Match(trimmed);
             if (posMatch.Success)
             {
                 string op = posMatch.Groups["op"].Value.ToUpperInvariant();
@@ -370,7 +371,7 @@ namespace MarkSmith.Services
                 return true;
             }
 
-            var rangeMatch = RangeFormulaRegex.Match(trimmed);
+            var rangeMatch = RangeFormulaRegex().Match(trimmed);
             if (rangeMatch.Success)
             {
                 string op = rangeMatch.Groups["op"].Value.ToUpperInvariant();
@@ -412,13 +413,13 @@ namespace MarkSmith.Services
                 }
             }
 
-            var arith = ArithmeticFormulaRegex.Match(trimmed);
+            var arith = ArithmeticFormulaRegex().Match(trimmed);
             if (arith.Success && TryEvaluateArithmetic(arith.Groups["expr"].Value, grid, maxRows, maxCols, out result))
             {
                 string fmt = arith.Groups["fmt"].Success ? arith.Groups["fmt"].Value : "";
                 formattedResult = FormatNumber(result, fmt);
                 // Word's table formula fields take the same A1 arithmetic.
-                var expr = Regex.Replace(arith.Groups["expr"].Value, @"\s+", "").ToUpperInvariant();
+                var expr = WhitespaceRegex().Replace(arith.Groups["expr"].Value, "").ToUpperInvariant();
                 formulaInstruction = string.IsNullOrEmpty(fmt) ? $"={expr}" : $"={expr} \\# \"{fmt.Trim('"', '\'')}\"";
                 return true;
             }

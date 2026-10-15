@@ -758,12 +758,45 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // re-opens it as the button's attached flyout (enqueued so the closing menu doesn't eat it).
     private void OnExportHistoryMenuClick(object sender, RoutedEventArgs e)
     {
-        // An empty ListView opened as a bare title with a blank box under it.
-        var empty = ViewModel.History.Count == 0;
-        HistoryEmptyText.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
-        HistoryList.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+        UpdateExportHistoryFlyoutState();
         DispatcherQueue.TryEnqueue(() =>
             Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(MoreMenuButton));
+    }
+
+    private void OnExportHistoryFlyoutOpened(object? sender, object e)
+    {
+        if (ClearHistoryButton is not null) Services.HoverPolish.Apply(ClearHistoryButton);
+        UpdateExportHistoryFlyoutState();
+        if (ViewModel.History.Count > 0)
+        {
+            HistoryList?.Focus(FocusState.Programmatic);
+        }
+    }
+
+    private void UpdateExportHistoryFlyoutState()
+    {
+        if (HistoryEmptyText is null || HistoryList is null) return;
+        var count = ViewModel.History.Count;
+        var empty = count == 0;
+        if (empty && ClearHistoryButton is not null && ClearHistoryButton.FocusState != FocusState.Unfocused)
+        {
+            MoreMenuButton?.Focus(FocusState.Programmatic);
+        }
+        HistoryEmptyText.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+        HistoryList.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+        if (ClearHistoryButton is not null)
+            ClearHistoryButton.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+        if (HistoryCountText is not null)
+            HistoryCountText.Text = empty ? string.Empty : $"({count})";
+    }
+
+    private void OnClearExportHistoryClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.History.Count == 0) return;
+        ViewModel.ClearExportHistory();
+        UpdateExportHistoryFlyoutState();
+        ViewModel.StatusText = "Cleared recent exports list.";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
     }
 
     // WebSocket streaming for the local REST API (opt-in via Settings > Local REST API > Enable
@@ -1823,7 +1856,160 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnHistoryItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is not Models.HistoryEntry entry) return;
+        ExportHistoryFlyout?.Hide();
         OpenExportedFile(entry.OutputPath);
+    }
+
+    private static T? FindListItemFromSource<T>(DependencyObject? source, ListView? fallbackList = null) where T : class
+    {
+        for (var d = source; d is not null; d = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(d))
+        {
+            if (d is ListViewItem { Content: T item }) return item;
+            if (d is FrameworkElement { DataContext: T dc }) return dc;
+        }
+        if (fallbackList?.XamlRoot is not null &&
+            Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(fallbackList.XamlRoot) is DependencyObject focused)
+        {
+            for (var d = focused; d is not null; d = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(d))
+            {
+                if (d is ListViewItem { Content: T focusedItem }) return focusedItem;
+                if (d is FrameworkElement { DataContext: T focusedDc }) return focusedDc;
+            }
+        }
+        return fallbackList?.SelectedItem as T;
+    }
+
+    private void OnHistoryListRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        var entry = FindListItemFromSource<Models.HistoryEntry>(e.OriginalSource as DependencyObject, HistoryList);
+        if (entry is null) return;
+        e.Handled = true;
+        ShowHistoryEntryContextMenu(entry, HistoryList, e.GetPosition(HistoryList));
+    }
+
+    private void OnHistoryListKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        var entry = FindListItemFromSource<Models.HistoryEntry>(e.OriginalSource as DependencyObject, HistoryList)
+                    ?? ViewModel.History.FirstOrDefault();
+        if (entry is null) return;
+
+        bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
+        {
+            e.Handled = true;
+            var anchor = (e.OriginalSource as FrameworkElement) ?? HistoryList;
+            ShowHistoryEntryContextMenu(entry, anchor, null);
+        }
+        else if (e.Key == Windows.System.VirtualKey.O && ctrl && !shift)
+        {
+            e.Handled = true;
+            ExportHistoryFlyout?.Hide();
+            ShowExportedFileInFolder(entry.OutputPath);
+        }
+        else if (e.Key == Windows.System.VirtualKey.C && ctrl && !shift)
+        {
+            e.Handled = true;
+            if (!string.IsNullOrWhiteSpace(entry.OutputPath))
+            {
+                CopyTextToStatusBar(entry.OutputPath, $"Copied path: {entry.OutputPath}");
+            }
+        }
+        else if (e.Key == Windows.System.VirtualKey.Delete && !ctrl && !shift)
+        {
+            e.Handled = true;
+            RemoveHistoryEntryFromFlyout(entry);
+        }
+    }
+
+    private async void CopyTextToStatusBar(string text, string successStatus)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        var error = await Services.ClipboardWriter.TrySetTextAsync(text);
+        ViewModel.StatusText = error ?? successStatus;
+        ViewModel.StatusSeverity = error is null ? Models.StatusSeverity.Informational : Models.StatusSeverity.Warning;
+    }
+
+    private void RemoveHistoryEntryFromFlyout(Models.HistoryEntry entry)
+    {
+        if (ViewModel.RemoveHistoryEntry(entry))
+        {
+            UpdateExportHistoryFlyoutState();
+            ViewModel.StatusText = $"Removed {Path.GetFileName(entry.OutputPath)} from recent exports.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        }
+    }
+
+    private void ShowHistoryEntryContextMenu(Models.HistoryEntry entry, FrameworkElement? anchor, Windows.Foundation.Point? position)
+    {
+        if (anchor is null) return;
+        var menu = new MenuFlyout();
+
+        var openItem = new MenuFlyoutItem
+        {
+            Text = "Open exported file (Enter)",
+            Icon = new FontIcon { Glyph = "\uE8E5" }
+        };
+        openItem.Click += (_, _) =>
+        {
+            ExportHistoryFlyout?.Hide();
+            OpenExportedFile(entry.OutputPath);
+        };
+        menu.Items.Add(openItem);
+
+        var showFolderItem = new MenuFlyoutItem
+        {
+            Text = "Show in File Explorer (Ctrl+O)",
+            Icon = new FontIcon { Glyph = "\uEC50" }
+        };
+        showFolderItem.Click += (_, _) =>
+        {
+            ExportHistoryFlyout?.Hide();
+            ShowExportedFileInFolder(entry.OutputPath);
+        };
+        menu.Items.Add(showFolderItem);
+
+        var copyPathItem = new MenuFlyoutItem
+        {
+            Text = "Copy file path (Ctrl+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = !string.IsNullOrWhiteSpace(entry.OutputPath)
+        };
+        copyPathItem.Click += (_, _) =>
+        {
+            if (!string.IsNullOrWhiteSpace(entry.OutputPath))
+            {
+                CopyTextToStatusBar(entry.OutputPath, $"Copied path: {entry.OutputPath}");
+            }
+        };
+        menu.Items.Add(copyPathItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var removeItem = new MenuFlyoutItem
+        {
+            Text = "Remove from list (Delete)",
+            Icon = new FontIcon { Glyph = "\uE74D" }
+        };
+        removeItem.Click += (_, _) => RemoveHistoryEntryFromFlyout(entry);
+        menu.Items.Add(removeItem);
+
+        var clearAllItem = new MenuFlyoutItem
+        {
+            Text = "Clear recent exports",
+            Icon = new FontIcon { Glyph = "\uE75C" },
+            IsEnabled = ViewModel.History.Count > 0
+        };
+        clearAllItem.Click += (_, _) => OnClearExportHistoryClick(this, new RoutedEventArgs());
+        menu.Items.Add(clearAllItem);
+
+        if (position.HasValue)
+            menu.ShowAt(anchor, position.Value);
+        else
+            menu.ShowAt(anchor);
     }
 
     // Every format MarkSmith itself exports. Anything else in a history row is refused rather than
@@ -1879,9 +2065,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // Document outline (Task 17): scroll the preview to the clicked heading. The anchor is the exact
     // id Markdig rendered on the heading element, so getElementById + scrollIntoView lands on it.
-    private async void OnTocItemClick(object sender, ItemClickEventArgs e)
+    private void OnTocItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is not Services.TocEntry entry) return;
+        NavigateToTocEntry(entry);
+    }
+
+    private async void NavigateToTocEntry(Services.TocEntry entry)
+    {
         OutlineButton.Flyout?.Hide();
         // The outline used to scroll only the preview, so in Code view a click did nothing at all.
         // Wherever the editor is showing, the caret goes to the heading too.
@@ -1892,6 +2083,126 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                  System.Text.Json.JsonSerializer.Serialize(entry.Anchor) +
                  ");if(el){el.scrollIntoView({behavior:'smooth',block:'start'});}})();";
         try { await core.ExecuteScriptAsync(js); } catch { /* best-effort */ }
+    }
+
+    private void OnOutlineFlyoutOpened(object? sender, object e)
+    {
+        UpdateOutlineEmptyState();
+        if (TocFilterBox is not null && TocFilterBox.Visibility == Visibility.Visible)
+        {
+            TocFilterBox.Focus(FocusState.Programmatic);
+        }
+        else if (TocList is not null && TocList.Visibility == Visibility.Visible)
+        {
+            TocList.Focus(FocusState.Programmatic);
+        }
+    }
+
+    private void OnTocFilterTextChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdateOutlineEmptyState();
+    }
+
+    private void OnTocFilterKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Down)
+        {
+            if (TocList is not null && TocList.Visibility == Visibility.Visible)
+            {
+                e.Handled = true;
+                TocList.Focus(FocusState.Programmatic);
+            }
+        }
+        else if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            var first = (TocList?.ItemsSource as IEnumerable<Services.TocEntry>)?.FirstOrDefault();
+            if (first is not null)
+            {
+                e.Handled = true;
+                NavigateToTocEntry(first);
+            }
+        }
+    }
+
+    private void OnTocListRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        var entry = FindListItemFromSource<Services.TocEntry>(e.OriginalSource as DependencyObject, TocList);
+        if (entry is null) return;
+        e.Handled = true;
+        ShowTocEntryContextMenu(entry, TocList, e.GetPosition(TocList));
+    }
+
+    private void OnTocListKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        var entry = FindListItemFromSource<Services.TocEntry>(e.OriginalSource as DependencyObject, TocList)
+                    ?? (TocList?.ItemsSource as IEnumerable<Services.TocEntry>)?.FirstOrDefault();
+        if (entry is null) return;
+
+        bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
+        {
+            e.Handled = true;
+            var anchor = (e.OriginalSource as FrameworkElement) ?? TocList;
+            ShowTocEntryContextMenu(entry, anchor, null);
+        }
+        else if (e.Key == Windows.System.VirtualKey.C && ctrl && !shift)
+        {
+            e.Handled = true;
+            CopyTextToStatusBar(entry.Text, $"Copied heading: {entry.Text}");
+        }
+        else if (e.Key == Windows.System.VirtualKey.C && ctrl && shift)
+        {
+            e.Handled = true;
+            var mdLink = $"[{entry.Text}](#{entry.Anchor})";
+            CopyTextToStatusBar(mdLink, $"Copied Markdown link: {mdLink}");
+        }
+    }
+
+    private void ShowTocEntryContextMenu(Services.TocEntry entry, FrameworkElement? anchor, Windows.Foundation.Point? position)
+    {
+        if (anchor is null) return;
+        var menu = new MenuFlyout();
+
+        var goItem = new MenuFlyoutItem
+        {
+            Text = "Go to heading (Enter)",
+            Icon = new FontIcon { Glyph = "\uE8A4" }
+        };
+        goItem.Click += (_, _) => NavigateToTocEntry(entry);
+        menu.Items.Add(goItem);
+
+        var copyTextItem = new MenuFlyoutItem
+        {
+            Text = "Copy heading text (Ctrl+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyTextItem.Click += (_, _) =>
+        {
+            CopyTextToStatusBar(entry.Text, $"Copied heading: {entry.Text}");
+        };
+        menu.Items.Add(copyTextItem);
+
+        var copyLinkItem = new MenuFlyoutItem
+        {
+            Text = "Copy Markdown link (Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE71B" },
+            IsEnabled = !string.IsNullOrWhiteSpace(entry.Anchor)
+        };
+        copyLinkItem.Click += (_, _) =>
+        {
+            var mdLink = $"[{entry.Text}](#{entry.Anchor})";
+            CopyTextToStatusBar(mdLink, $"Copied Markdown link: {mdLink}");
+        };
+        menu.Items.Add(copyLinkItem);
+
+        if (position.HasValue)
+            menu.ShowAt(anchor, position.Value);
+        else
+            menu.ShowAt(anchor);
     }
 
     private async void OnBrowseWatchFolderClick(object sender, RoutedEventArgs e)
@@ -4462,8 +4773,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         sv.ChangeView(null, Math.Clamp(frac, 0.0, 1.0) * sv.ScrollableHeight, null, disableAnimation: true);
     }
 
-    // Editor cursor readout: "Ln 12, Col 8" plus "(N selected)" when there's a selection. Cheap to
-    // compute on every SelectionChanged — the editor is a single TextBox, not a virtualized document.
+    // Editor cursor readout: "Ln 12, Col 8" plus rich selection telemetry ("(3 words, 18 chars selected)"
+    // or "(42 words, 248 chars, 4 lines selected)") when there's a selection. Cheap to compute on every
+    // SelectionChanged — zero heap allocations over the selection span.
     private void UpdateCursorPosition()
     {
         var tb = PasteTextBox;
@@ -4478,10 +4790,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
         var col = start - lastNewline;
         line = _folds.DocumentLine(text, line); // past a fold, the document's line number
-        var sel = tb.SelectionLength;
-        CursorPosText.Text = sel > 0
-            ? $"Ln {line}, Col {col}  ({sel} selected)"
-            : $"Ln {line}, Col {col}";
+        var sel = Math.Clamp(tb.SelectionLength, 0, text.Length - start);
+        CursorPosText.Text = DocumentStatsService.FormatCursorAndSelection(line, col, text.AsSpan(start, sel));
     }
 
     // The preview column mirrors the editor column's FindBar row so the two boxes stay the same
@@ -4946,13 +5256,51 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    // The outline flyout says what it's for when there's nothing in it yet.
+    // The outline flyout says what it's for when there's nothing in it yet, and filters headings live when > 0.
     private void UpdateOutlineEmptyState()
     {
         if (TocEmptyText is null || TocList is null) return;
-        var empty = ViewModel.TocEntries.Count == 0;
-        TocEmptyText.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
-        TocList.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+        var total = ViewModel.TocEntries.Count;
+        if (total == 0)
+        {
+            if (TocFilterBox is not null) TocFilterBox.Visibility = Visibility.Collapsed;
+            if (TocCountText is not null) TocCountText.Text = string.Empty;
+            TocEmptyText.Text = "No headings yet. Lines that start with # become the outline, and clicking one takes you there.";
+            TocEmptyText.Visibility = Visibility.Visible;
+            TocList.Visibility = Visibility.Collapsed;
+            TocList.ItemsSource = ViewModel.TocEntries;
+            return;
+        }
+
+        if (TocFilterBox is not null) TocFilterBox.Visibility = Visibility.Visible;
+        var query = TocFilterBox?.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(query))
+        {
+            if (!ReferenceEquals(TocList.ItemsSource, ViewModel.TocEntries))
+                TocList.ItemsSource = ViewModel.TocEntries;
+            if (TocCountText is not null) TocCountText.Text = $"({total})";
+            TocEmptyText.Visibility = Visibility.Collapsed;
+            TocList.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            var filtered = ViewModel.TocEntries
+                .Where(e => e.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            TocList.ItemsSource = filtered;
+            if (TocCountText is not null) TocCountText.Text = $"({filtered.Count} of {total})";
+            bool noMatch = filtered.Count == 0;
+            if (noMatch)
+            {
+                TocEmptyText.Text = "No headings match that filter.";
+                if (TocFilterBox is not null && TocList.FocusState != FocusState.Unfocused)
+                {
+                    TocFilterBox.Focus(FocusState.Programmatic);
+                }
+            }
+            TocEmptyText.Visibility = noMatch ? Visibility.Visible : Visibility.Collapsed;
+            TocList.Visibility = noMatch ? Visibility.Collapsed : Visibility.Visible;
+        }
     }
 
     // ---- Line-number gutter ----
@@ -5149,6 +5497,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var repaired = Services.Editor.EditorFolds.RepairLegacy(doc, out var legacyFolds);
         PasteTextBox.Text = repaired;
         UpdateFoldStatus();
+        UpdateLintIndicator();
+        UpdateLineNumbers();
         if (legacyFolds > 0)
         {
             // An older version saved folds inside the file; put the hidden lines back where they were.
@@ -5600,6 +5950,33 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (LintList is not null) LintList.ItemsSource = _lintIssues.Select(i => new LintRow(i.Line, i.Message)).ToList();
         if (LintEmptyText is not null) LintEmptyText.Visibility = _lintIssues.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (LintList is not null) LintList.Visibility = _lintIssues.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        if (CopyAllLintButton is not null) CopyAllLintButton.Visibility = _lintIssues.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        if (LintFlyoutCountText is not null) LintFlyoutCountText.Text = _lintIssues.Count == 0 ? string.Empty : $"({_lintIssues.Count})";
+    }
+
+    private void OnLintFlyoutOpened(object? sender, object e)
+    {
+        if (CopyAllLintButton is not null) Services.HoverPolish.Apply(CopyAllLintButton);
+        if (_lintIssues.Count > 0)
+        {
+            LintList?.Focus(FocusState.Programmatic);
+        }
+    }
+
+    private void OnCopyAllLintIssuesClick(object sender, RoutedEventArgs e)
+    {
+        if (_lintIssues.Count == 0) return;
+        var allText = string.Join(Environment.NewLine, _lintIssues.Select(i => $"Line {i.Line}: {i.Message}"));
+        if (CopyAllLintButton is not null)
+        {
+            Services.CopyFeedback.CopyWithTick(CopyAllLintButton, allText);
+            ViewModel.StatusText = $"Copied {_lintIssues.Count} Markdown issue{(_lintIssues.Count == 1 ? "" : "s")} to clipboard.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        }
+        else
+        {
+            CopyTextToStatusBar(allText, $"Copied {_lintIssues.Count} Markdown issue{(_lintIssues.Count == 1 ? "" : "s")} to clipboard.");
+        }
     }
 
     private bool _editorStripCompact;
@@ -5655,10 +6032,91 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (e.ClickedItem is LintRow issue)
         {
-            GoToDocumentLine(issue.Line);
-            TriggerIssueRadarBeacon(issue.Line);
-            LintFlyout?.Hide();
+            JumpToLintIssue(issue);
         }
+    }
+
+    private void JumpToLintIssue(LintRow issue)
+    {
+        GoToDocumentLine(issue.Line);
+        TriggerIssueRadarBeacon(issue.Line);
+        LintFlyout?.Hide();
+    }
+
+    private void OnLintListRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        var issue = FindListItemFromSource<LintRow>(e.OriginalSource as DependencyObject, LintList);
+        if (issue is null) return;
+        e.Handled = true;
+        ShowLintIssueContextMenu(issue, LintList, e.GetPosition(LintList));
+    }
+
+    private void OnLintListKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        var issue = FindListItemFromSource<LintRow>(e.OriginalSource as DependencyObject, LintList)
+                    ?? (LintList?.ItemsSource as IEnumerable<LintRow>)?.FirstOrDefault();
+        if (issue is null) return;
+
+        bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
+        {
+            e.Handled = true;
+            var anchor = (e.OriginalSource as FrameworkElement) ?? LintList;
+            ShowLintIssueContextMenu(issue, anchor, null);
+        }
+        else if (e.Key == Windows.System.VirtualKey.C && ctrl && !shift)
+        {
+            e.Handled = true;
+            CopyTextToStatusBar(issue.ToString(), $"Copied issue: {issue}");
+        }
+        else if (e.Key == Windows.System.VirtualKey.C && ctrl && shift)
+        {
+            e.Handled = true;
+            OnCopyAllLintIssuesClick(this, new RoutedEventArgs());
+        }
+    }
+
+    private void ShowLintIssueContextMenu(LintRow issue, FrameworkElement? anchor, Windows.Foundation.Point? position)
+    {
+        if (anchor is null) return;
+        var menu = new MenuFlyout();
+
+        var jumpItem = new MenuFlyoutItem
+        {
+            Text = "Jump to line (Enter)",
+            Icon = new FontIcon { Glyph = "\uE71B" }
+        };
+        jumpItem.Click += (_, _) => JumpToLintIssue(issue);
+        menu.Items.Add(jumpItem);
+
+        var copyOneItem = new MenuFlyoutItem
+        {
+            Text = "Copy issue (Ctrl+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyOneItem.Click += (_, _) =>
+        {
+            CopyTextToStatusBar(issue.ToString(), $"Copied issue: {issue}");
+        };
+        menu.Items.Add(copyOneItem);
+
+        var copyAllItem = new MenuFlyoutItem
+        {
+            Text = $"Copy all issues ({_lintIssues.Count}) (Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = _lintIssues.Count > 0
+        };
+        copyAllItem.Click += (_, _) => OnCopyAllLintIssuesClick(this, new RoutedEventArgs());
+        menu.Items.Add(copyAllItem);
+
+        if (position.HasValue)
+            menu.ShowAt(anchor, position.Value);
+        else
+            menu.ShowAt(anchor);
     }
 
     // One row of the Markdown issues flyout. ToString is what a screen reader announces for the

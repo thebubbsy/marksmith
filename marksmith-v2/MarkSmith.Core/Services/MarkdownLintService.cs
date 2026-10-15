@@ -17,16 +17,27 @@ public static class MarkdownLintService
         var issues = new List<LintIssue>();
         if (string.IsNullOrWhiteSpace(markdown)) return issues;
 
-        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var span = markdown.AsSpan();
         var fenceChar = '\0';   // '`' or '~' — the character that opened the current code block
         var fenceLen = 0;       // length of the opening run, e.g. 4 for "````" — 0 means not in a fence
         int blankRun = 0;       // consecutive blank lines seen so far
+        int pos = 0;
+        int lineNo = 0;
 
-        for (var i = 0; i < lines.Length; i++)
+        while (true)
         {
-            var line = lines[i];
+            int lineStart = pos;
+            while (pos < span.Length && span[pos] != '\r' && span[pos] != '\n') pos++;
+            var line = span.Slice(lineStart, pos - lineStart);
             var trimmed = line.TrimStart();
-            var lineNo = i + 1;
+            lineNo++;
+
+            bool hasMoreLines = pos < span.Length;
+            if (hasMoreLines)
+            {
+                if (span[pos] == '\r' && pos + 1 < span.Length && span[pos + 1] == '\n') pos += 2;
+                else pos++;
+            }
 
             // Track fenced code blocks so style rules don't fire inside code. Per CommonMark, a
             // closing fence must use the same character and be at least as long as the opener —
@@ -40,6 +51,7 @@ public static class MarkdownLintService
             if (fenceLen > 0)
             {
                 if (IsClosingFence(trimmed, fenceChar, fenceLen)) fenceLen = 0;
+                if (!hasMoreLines) break;
                 continue; // inside a code block — skip all checks
             }
 
@@ -52,6 +64,7 @@ public static class MarkdownLintService
                 {
                     fenceChar = ch;
                     fenceLen = runLen;
+                    if (!hasMoreLines) break;
                     continue;
                 }
             }
@@ -67,7 +80,7 @@ public static class MarkdownLintService
                 issues.Add(new LintIssue(lineNo, "Hard tab character"));
 
             // Runs of 3+ consecutive blank lines add dead space to the rendered document.
-            if (string.IsNullOrWhiteSpace(line))
+            if (trimmed.IsEmpty)
             {
                 blankRun++;
                 if (blankRun == 3) issues.Add(new LintIssue(lineNo, "3+ consecutive blank lines"));
@@ -93,11 +106,13 @@ public static class MarkdownLintService
                 if (h <= 6 && h < trimmed.Length && trimmed[h] != ' ')
                     issues.Add(new LintIssue(lineNo, "Missing space after '#'"));
             }
+
+            if (!hasMoreLines) break;
         }
 
         // A fence that never closed means everything after it renders as code.
         if (fenceLen > 0)
-            issues.Add(new LintIssue(lines.Length, "Unclosed code fence"));
+            issues.Add(new LintIssue(lineNo, "Unclosed code fence"));
 
         return issues;
     }
@@ -108,14 +123,14 @@ public static class MarkdownLintService
     /// that many copies of the same character, followed by nothing but whitespace (CommonMark
     /// forbids an info string on a closing fence).
     /// </summary>
-    private static bool IsHardBreak(string line) =>
+    private static bool IsHardBreak(ReadOnlySpan<char> line) =>
         line.EndsWith("  ", StringComparison.Ordinal) && line.Length >= 3 && !char.IsWhiteSpace(line[^3]);
 
-    private static bool IsFenceOpener(string trimmed) =>
+    private static bool IsFenceOpener(ReadOnlySpan<char> trimmed) =>
         trimmed.Length >= 3 && (trimmed[0] == '`' || trimmed[0] == '~') &&
         trimmed[1] == trimmed[0] && trimmed[2] == trimmed[0];
 
-    private static bool IsClosingFence(string trimmed, char fenceChar, int fenceLen)
+    private static bool IsClosingFence(ReadOnlySpan<char> trimmed, char fenceChar, int fenceLen)
     {
         var runLen = 0;
         while (runLen < trimmed.Length && trimmed[runLen] == fenceChar) runLen++;
