@@ -6759,3 +6759,37 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
   - Dismissed first-run tour via `Skip`, opened `LintFlyout`, verified `CopyAllLintButton` (`Name="Copy all Markdown issues"`, `Enabled=True`), `LintFlyoutCountText` (`(3)`), and `LintList`; inspected `verify_lint_populated.png`.
   - Cleanly stopped only the test process PID.
 - **GitHub Release `v3.34.0`:** Published and verified at https://github.com/thebubbsy/marksmith/releases/tag/v3.34.0 (`isDraft: false`, assets: `Marksmith-Setup-x64.exe`, `Marksmith-Setup-arm64.exe`, `Marksmith-win-x64.zip`, `Marksmith-win-arm64.zip`, `checksums.txt`, user-facing release notes prepended above `---`). Bumped `<MarksmithBaseVersion>` to `3.35.0` in `marksmith-v2/Directory.Build.props`.
+
+### 2026-10-15 (scheduled routine run #82 — Interaction Polish: Studio Accelerators, Go To Line Dialog, Suite Hub & Settings Card Feedback)
+
+#### Agent / Execution Metadata
+- **Identity:** `Antigravity AI Agent (Google DeepMind)`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+**Shipped:**
+1. **SmartArt Design Studio Polish (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Wired `CopyFeedback.CopyWithTick` to `CopyOutlineMarkdownButton` (`Copy outline Markdown`) and `CopySmartArtBlockButton` (`Copy :::smartart block`).
+   - Added keyboard accelerators in `OnRootGridKeyDown` with input focus guards: `Ctrl+Shift+C` (copy block), `Ctrl+C` (copy outline markdown), and `Ctrl+1` / `Ctrl+2` tab navigation between Visual Outline and Preview tabs.
+2. **Shape Design Studio Polish (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Added `OnShapesListKeyDown` context actions on `ShapesList` (`Application`, `Shift+F10`, `Delete`, `Ctrl+D` duplicate, `F2` rename).
+   - Added `Ctrl+C` and `Ctrl+V` to `OnRootPreviewKeyDown` for copying and pasting shape definitions directly to/from the clipboard with automatic coordinate offset (+20, +20) for visual clarity.
+   - Added `Alt+1` / `Alt+2` / `Alt+3` and `Ctrl+Tab` / `Ctrl+Shift+Tab` panel tab switching.
+3. **MindMap Galaxy Tag Filter Polish (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Added `OnTagPillsPreviewKeyDown` handling `VirtualKey.Escape` on tag pills to immediately clear the active tag filter and restore focus to `AllTagsPill`.
+4. **MainWindow Cursor & TOC Navigation (`MainWindow.xaml` & `.xaml.cs`):**
+   - Added `Tapped="OnCursorPosTextTapped"` and `Ctrl+G` shortcut to launch `ShowGoToLineDialogAsync()`, an inline `NumberBox` jump dialog clamped to the document's total lines.
+   - Enhanced `GoToDocumentLine` to automatically select `ViewSplitTab` when in `ViewMode.Preview` so jumped lines are always visible.
+   - Added `VirtualKey.Escape` handling to `OnTocFilterKeyDown` in `OutlineFlyout` (clearing text if populated, closing flyout if already empty).
+5. **Shared Copy Feedback & Suite Hub Tactile Feedback (`Services/CopyFeedback.cs` & `Views/SuiteHubView.xaml.cs`):**
+   - Refactored `CopyFeedback` to expose `ApplyButtonTick` and `ApplyIconTick`, supporting buttons whose content is a `Panel` containing a `FontIcon` (such as the standard `StackPanel` icon+text buttons).
+   - Wired `anchorButton` into `CopyToClipboard` in `SuiteHubView`, enabling instant checkmark feedback on Card 2 (Claude / Gemini MCP setup), Card 3 (API address), Card 4 (CLI commands and CLI path), and Card 5 (Express URL).
+6. **Settings View Plugin Card Parity (`Views/SettingsView.xaml.cs`):**
+   - Attached a rich `ContextFlyout` (`MenuFlyout`) to `BuildPluginCard` with "Copy plugin ID (`Ctrl+C`)" and "Open plugins folder".
+   - Added `Ctrl+C` keyboard shortcut handling directly on `SettingsCard`.
+
+**Verified:**
+- Full test suite baseline: **4,787 passed, 0 failed, 1 skipped**.
+- Targeted test suite (`SmartArt`, `Shape`, `Suite`, `Settings`, `MindMap`): **1,022 passed, 0 failed, 0 skipped**.
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 13 warnings**.
+- Smoke-launched `Marksmith.exe` on WinUI 3 runtime (PID 17620): verified `RunningHealthy: True`, 0 stowed/unhandled exceptions, and terminated cleanly.

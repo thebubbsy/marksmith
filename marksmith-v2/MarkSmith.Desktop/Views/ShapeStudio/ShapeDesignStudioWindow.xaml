@@ -734,7 +734,8 @@
                             <Run Text="{Binding ShapesListCapNote}" />
                         </TextBlock>
                         <ListView Grid.Row="2" x:Name="ShapesList" ItemsSource="{Binding ListedShapes}" SelectedItem="{Binding SelectedShape, Mode=TwoWay}"
-                                  Margin="-10,4,-10,0" AutomationProperties.Name="Shapes on canvas">
+                                  Margin="-10,4,-10,0" AutomationProperties.Name="Shapes on canvas"
+                                  KeyDown="OnShapesListKeyDown">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Padding="0,6" ColumnSpacing="10" Background="Transparent" RightTapped="OnShapesListItemRightTapped" AutomationProperties.Name="{Binding ListTitle}">

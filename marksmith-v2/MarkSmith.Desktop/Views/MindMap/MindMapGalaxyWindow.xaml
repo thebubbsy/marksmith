@@ -327,10 +327,10 @@
                             CornerRadius="20" Padding="8,4" HorizontalAlignment="Center"
                             Visibility="{Binding HasTags, Converter={StaticResource BoolToVis}}">
                         <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto" VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="4" PreviewKeyDown="OnTagPillsPreviewKeyDown">
                                 <FontIcon Glyph="&#xE8EC;" FontSize="12" VerticalAlignment="Center" Margin="4,0,4,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <Button x:Name="AllTagsPill" Click="OnAllTagsClick" Padding="10,3" CornerRadius="12" FontSize="11"
-                                        Content="All tags" ToolTipService.ToolTip="Show every node" Loaded="OnTagPillLoaded" Unloaded="OnTagPillUnloaded" />
+                                        Content="All tags" ToolTipService.ToolTip="Show every node (Esc clears filter)" Loaded="OnTagPillLoaded" Unloaded="OnTagPillUnloaded" />
                                 <ItemsControl ItemsSource="{Binding DistinctTags}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>

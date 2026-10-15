@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -6,8 +7,8 @@ using Microsoft.UI.Xaml.Media;
 namespace MarkSmith.Services;
 
 // Copy, then swap the button's icon for a green tick for a moment: the only feedback a copy gets
-// inside a dialog, where the main window's status bar is hidden. Shared by Settings and the
-// extension setup guide so every Copy button in a dialog answers the same way.
+// inside a dialog, where the main window's status bar is hidden. Shared by Settings, Suite Hub, and
+// the extension setup guide so every Copy button in a dialog answers the same way.
 public static class CopyFeedback
 {
     // Success: a green tick. Failure (the clipboard is busy or blocked): an amber warning with the
@@ -16,30 +17,7 @@ public static class CopyFeedback
     {
         if (string.IsNullOrEmpty(text)) return;
         var error = await ClipboardWriter.TrySetTextAsync(text);
-
-        // A second click while the tick shows must not record the tick as the icon to restore.
-        if (icon.Tag is not string original)
-        {
-            original = icon.Glyph;
-            icon.Tag = original;
-        }
-        icon.Glyph = error is null ? "\uE73E" : "\uE7BA"; // CheckMark / Warning
-        ThemeBrush.Set(icon, FontIcon.ForegroundProperty,
-            error is null ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush");
-        var host = FindButton(icon);
-        var tooltip = host is null ? null : ToolTipService.GetToolTip(host);
-        if (host is not null && error is not null) ToolTipService.SetToolTip(host, $"Nothing was copied. {error}");
-        var timer = icon.DispatcherQueue.CreateTimer();
-        timer.Interval = TimeSpan.FromMilliseconds(error is null ? 1400 : 4000);
-        timer.IsRepeating = false;
-        timer.Tick += (_, _) =>
-        {
-            icon.Glyph = original;
-            icon.Tag = null;
-            icon.ClearValue(FontIcon.ForegroundProperty);
-            if (host is not null && error is not null) ToolTipService.SetToolTip(host, tooltip);
-        };
-        timer.Start();
+        ApplyIconTick(icon, FindButton(icon), error);
     }
 
     public static void CopyWithTick(Button button, FontIcon icon, string text)
@@ -49,6 +27,11 @@ public static class CopyFeedback
     {
         if (string.IsNullOrEmpty(text)) return;
         var error = await ClipboardWriter.TrySetTextAsync(text);
+        ApplyButtonTick(button, error, copiedLabel);
+    }
+
+    public static void ApplyButtonTick(Button button, string? error, string copiedLabel = "\u2713 Copied")
+    {
         if (button.Content is string currentText)
         {
             if (button.Tag is not string originalText)
@@ -67,6 +50,44 @@ public static class CopyFeedback
             };
             timer.Start();
         }
+        else if (button.Content is FontIcon fontIcon)
+        {
+            ApplyIconTick(fontIcon, button, error);
+        }
+        else if (button.Content is Panel panel)
+        {
+            var icon = panel.Children.OfType<FontIcon>().FirstOrDefault();
+            if (icon is not null)
+            {
+                ApplyIconTick(icon, button, error);
+            }
+        }
+    }
+
+    public static void ApplyIconTick(FontIcon icon, ButtonBase? host, string? error)
+    {
+        // A second click while the tick shows must not record the tick as the icon to restore.
+        if (icon.Tag is not string original)
+        {
+            original = icon.Glyph;
+            icon.Tag = original;
+        }
+        icon.Glyph = error is null ? "\uE73E" : "\uE7BA"; // CheckMark / Warning
+        ThemeBrush.Set(icon, FontIcon.ForegroundProperty,
+            error is null ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush");
+        var tooltip = host is null ? null : ToolTipService.GetToolTip(host);
+        if (host is not null && error is not null) ToolTipService.SetToolTip(host, $"Nothing was copied. {error}");
+        var timer = icon.DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(error is null ? 1400 : 4000);
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) =>
+        {
+            icon.Glyph = original;
+            icon.Tag = null;
+            icon.ClearValue(FontIcon.ForegroundProperty);
+            if (host is not null && error is not null) ToolTipService.SetToolTip(host, tooltip);
+        };
+        timer.Start();
     }
 
     private static ButtonBase? FindButton(DependencyObject element)

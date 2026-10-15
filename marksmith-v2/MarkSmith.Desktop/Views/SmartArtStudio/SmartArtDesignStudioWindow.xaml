@@ -307,16 +307,16 @@
                         <TextBlock Grid.Column="1" Text="{Binding PreviewTitle}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                            <Button Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                            <Button x:Name="CopyOutlineMarkdownButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                     Click="OnCopyOutlineMarkdownClick"
                                     AutomationProperties.Name="Copy outline bullets"
-                                    ToolTipService.ToolTip="Copy indented outline bullets">
+                                    ToolTipService.ToolTip="Copy indented outline bullets (Ctrl+C)">
                                 <FontIcon Glyph="&#xE8FD;" FontSize="12" />
                             </Button>
-                            <Button Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                            <Button x:Name="CopySmartArtBlockButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                     Click="OnCopySmartArtBlockClick"
                                     AutomationProperties.Name="Copy SmartArt Markdown"
-                                    ToolTipService.ToolTip="Copy :::smartart Markdown block">
+                                    ToolTipService.ToolTip="Copy :::smartart Markdown block (Ctrl+Shift+C)">
                                 <FontIcon Glyph="&#xE8C8;" FontSize="12" />
                             </Button>
                         </StackPanel>

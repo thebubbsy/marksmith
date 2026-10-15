@@ -2122,6 +2122,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 NavigateToTocEntry(first);
             }
         }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            if (TocFilterBox is not null && !string.IsNullOrEmpty(TocFilterBox.Text))
+            {
+                e.Handled = true;
+                TocFilterBox.Text = string.Empty;
+            }
+            else
+            {
+                OutlineFlyout?.Hide();
+                e.Handled = true;
+            }
+        }
     }
 
     private void OnTocListRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -4069,22 +4082,29 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnRootPreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Menu)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
         // Ctrl+, opens Settings. The comma key is VirtualKey 188 (VK_OEM_COMMA); WinUI's VirtualKey
         // enum has no named member for it and its accelerator-string builder crashes on it, so this
         // shortcut is handled here rather than as a XAML KeyboardAccelerator (see constructor note).
-        if (e.Key == (Windows.System.VirtualKey)188)
+        if (e.Key == (Windows.System.VirtualKey)188 && ctrl && !shift && !alt)
         {
-            var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
-                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-            var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
-                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-            var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Menu)
-                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-            if (ctrl && !shift && !alt)
-            {
-                OnSettingsClick(this, new RoutedEventArgs());
-                e.Handled = true;
-            }
+            OnSettingsClick(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
+        // Ctrl+G opens Go to Line dialog
+        if (e.Key == Windows.System.VirtualKey.G && ctrl && !shift && !alt)
+        {
+            _ = ShowGoToLineDialogAsync();
+            e.Handled = true;
+            return;
         }
     }
 
@@ -6138,11 +6158,110 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             $"if (typeof triggerRedRadarBeacon === 'function') {{ triggerRedRadarBeacon({line}); }}");
     }
 
+    private bool _isGoToLineDialogOpen;
+
+    private void OnCursorPosTextTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        _ = ShowGoToLineDialogAsync();
+        e.Handled = true;
+    }
+
+    private async Task ShowGoToLineDialogAsync()
+    {
+        if (_isGoToLineDialogOpen) return;
+        var xamlRoot = RootGrid?.XamlRoot ?? Content?.XamlRoot;
+        if (xamlRoot is null) return;
+
+        var text = PasteTextBox?.Text ?? string.Empty;
+        var totalLines = 1;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (IsLineBreak(text[i])) totalLines++;
+        }
+        totalLines = Math.Max(1, _folds.DocumentLine(text, totalLines));
+
+        var start = Math.Min(PasteTextBox?.SelectionStart ?? 0, text.Length);
+        var curLine = 1;
+        for (var i = 0; i < start; i++)
+        {
+            if (IsLineBreak(text[i])) curLine++;
+        }
+        var currentLine = Math.Clamp(_folds.DocumentLine(text, curLine), 1, totalLines);
+
+        var numberBox = new NumberBox
+        {
+            Header = $"Line number (1 – {totalLines}):",
+            Value = currentLine,
+            Minimum = 1,
+            Maximum = totalLines,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline,
+            ValidationMode = NumberBoxValidationMode.InvalidInputOverwritten,
+            SmallChange = 1,
+            LargeChange = 10,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = xamlRoot,
+            Title = "Go to line",
+            Content = numberBox,
+            PrimaryButtonText = "Go",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+
+        void Submit()
+        {
+            dialog.Hide();
+            var target = (int)Math.Clamp(double.IsNaN(numberBox.Value) ? 1 : numberBox.Value, 1, totalLines);
+            GoToDocumentLine(target);
+        }
+
+        numberBox.KeyDown += (_, ke) =>
+        {
+            if (ke.Key == Windows.System.VirtualKey.Enter)
+            {
+                ke.Handled = true;
+                Submit();
+            }
+        };
+
+        dialog.Opened += (_, _) =>
+        {
+            numberBox.Focus(FocusState.Programmatic);
+        };
+
+        _isGoToLineDialogOpen = true;
+        try
+        {
+            var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
+            if (result == ContentDialogResult.Primary)
+            {
+                var target = (int)Math.Clamp(double.IsNaN(numberBox.Value) ? 1 : numberBox.Value, 1, totalLines);
+                GoToDocumentLine(target);
+            }
+        }
+        catch
+        {
+            // Dialog was interrupted or another dialog is already open
+        }
+        finally
+        {
+            _isGoToLineDialogOpen = false;
+        }
+    }
+
     // Move the caret to the start of the given 1-based line, select the line, and bring it into view.
     // Moves the caret to a line of the DOCUMENT (lint issues, the outline): a folded line opens
     // first, and folds above it are counted.
     private void GoToDocumentLine(int documentLine)
     {
+        if (_viewMode == ViewMode.Preview && ViewSplitTab is not null)
+        {
+            ViewSplitTab.IsSelected = true;
+        }
         var visible = _folds.VisibleLine(PasteTextBox.Text ?? string.Empty, documentLine);
         if (visible == 0)
         {

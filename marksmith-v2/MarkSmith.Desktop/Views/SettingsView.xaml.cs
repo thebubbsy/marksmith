@@ -785,7 +785,7 @@ public sealed partial class SettingsView : UserControl
         buttons.Children.Add(installButton);
         buttons.Children.Add(removeButton);
 
-        return new Controls.SettingsCard
+        var card = new Controls.SettingsCard
         {
             Glyph = "\uEA86", // puzzle piece, as on the Plugins nav item
             Header = plugin.Name,
@@ -793,6 +793,47 @@ public sealed partial class SettingsView : UserControl
             Action = buttons,
             Details = details,
         };
+
+        var flyout = new MenuFlyout();
+        var copyIdItem = new MenuFlyoutItem
+        {
+            Text = $"Copy plugin ID ({plugin.Id})",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyIdItem.Click += async (_, _) =>
+        {
+            await ClipboardWriter.TrySetTextAsync(plugin.Id);
+            SetStatus($"Copied plugin ID \u201C{plugin.Id}\u201D");
+        };
+        flyout.Items.Add(copyIdItem);
+
+        var openFolderItem = new MenuFlyoutItem
+        {
+            Text = "Open plugins folder",
+            Icon = new FontIcon { Glyph = "\uE838" }
+        };
+        openFolderItem.Click += (s, e) => OnOpenPluginsFolderClick(s, e);
+        flyout.Items.Add(openFolderItem);
+
+        card.ContextFlyout = flyout;
+        card.KeyDown += async (s, e) =>
+        {
+            var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Menu)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+            if (e.Key == Windows.System.VirtualKey.C && ctrl && !shift && !alt)
+            {
+                e.Handled = true;
+                await ClipboardWriter.TrySetTextAsync(plugin.Id);
+                SetStatus($"Copied plugin ID \u201C{plugin.Id}\u201D");
+            }
+        };
+
+        return card;
     }
 
     // Pop the success tick in: fade + a slight overshoot scale so completion feels like a positive

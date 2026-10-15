@@ -789,6 +789,10 @@ namespace MarkSmith.Views.SmartArtStudio
                 dp.SetText(md);
                 Services.ClipboardWriter.Set(dp);
                 ViewModel.StatusMessage = "Copied outline bullets to clipboard.";
+                if (CopyOutlineMarkdownButton is not null)
+                {
+                    Services.CopyFeedback.CopyWithTick(CopyOutlineMarkdownButton, md);
+                }
             }
             catch { }
         }
@@ -806,17 +810,24 @@ namespace MarkSmith.Views.SmartArtStudio
                 dp.SetText(block.Trim());
                 Services.ClipboardWriter.Set(dp);
                 ViewModel.StatusMessage = $"Copied {name} SmartArt Markdown block to clipboard.";
+                if (CopySmartArtBlockButton is not null)
+                {
+                    Services.CopyFeedback.CopyWithTick(CopySmartArtBlockButton, block.Trim());
+                }
             }
             catch { }
         }
 
         // Window-level shortcuts: Delete/Backspace = delete node, F2 = rename, Ctrl+D = duplicate,
-        // Ctrl+Z/Y = undo/redo, Ctrl+F = focus layout search, Ctrl+Enter = insert into document.
+        // Ctrl+Z/Y = undo/redo, Ctrl+F = focus layout search, Ctrl+Enter = insert into document,
+        // Ctrl+Shift+C = copy SmartArt block, Ctrl+C = copy outline bullets, Ctrl+1/2 = switch tabs.
         // TextBoxes (rename box, Markdown Data) keep their native keys — focus guard.
         private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)
         {
             var ctrl = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
                         & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+            var shift = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
+                         & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
 
             if (ctrl && e.Key == VirtualKey.F)
             {
@@ -833,10 +844,33 @@ namespace MarkSmith.Views.SmartArtStudio
                 }
                 return;
             }
+            if (ctrl && shift && e.Key == VirtualKey.C)
+            {
+                CopySmartArtBlock();
+                e.Handled = true;
+                return;
+            }
+            if (ctrl && (e.Key is VirtualKey.Number1 or VirtualKey.NumberPad1))
+            {
+                EditorTabs.SelectedItem = OutlineTab;
+                e.Handled = true;
+                return;
+            }
+            if (ctrl && (e.Key is VirtualKey.Number2 or VirtualKey.NumberPad2))
+            {
+                EditorTabs.SelectedItem = MarkdownTab;
+                e.Handled = true;
+                return;
+            }
 
             if ((sender as UIElement)?.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox) return;
 
-            if (ctrl && e.Key == VirtualKey.Z) { ViewModel.UndoCommand.Execute(null); e.Handled = true; }
+            if (ctrl && e.Key == VirtualKey.C)
+            {
+                CopyOutlineMarkdown();
+                e.Handled = true;
+            }
+            else if (ctrl && e.Key == VirtualKey.Z) { ViewModel.UndoCommand.Execute(null); e.Handled = true; }
             else if (ctrl && e.Key == VirtualKey.Y) { ViewModel.RedoCommand.Execute(null); e.Handled = true; }
             else if (ctrl && e.Key == VirtualKey.D) { ViewModel.DuplicateSelectedCommand.Execute(null); e.Handled = true; }
             else if (e.Key is VirtualKey.Delete or VirtualKey.Back) { ViewModel.DeleteSelectedCommand.Execute(null); e.Handled = true; }

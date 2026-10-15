@@ -535,9 +535,13 @@ public sealed partial class SuiteHubView : UserControl
         if (success) _notificationTimer.Start();
     }
 
-    private async void CopyToClipboard(string text, string successMessage)
+    private async void CopyToClipboard(string text, string successMessage, Button? anchorButton = null)
     {
         var error = await ClipboardWriter.TrySetTextAsync(text);
+        if (anchorButton is not null)
+        {
+            CopyFeedback.ApplyButtonTick(anchorButton, error);
+        }
         SetNotification(error is null ? successMessage : $"Nothing was copied. {error}", success: error is null);
     }
 
@@ -610,25 +614,25 @@ public sealed partial class SuiteHubView : UserControl
     private void OnCopyClaudeConfigClick(object sender, RoutedEventArgs e)
     {
         var json = BuildMcpConfigJson(GetMcpServerPath());
-        CopyToClipboard(json, "Copied the MCP server entry — paste it into claude_desktop_config.json.");
+        CopyToClipboard(json, "Copied the MCP server entry — paste it into claude_desktop_config.json.", Card2CopySetupButton);
     }
 
     private void OnCopyGeminiConfigClick(object sender, RoutedEventArgs e)
     {
         var json = BuildMcpConfigJson(GetMcpServerPath());
-        CopyToClipboard(json, "Copied the MCP server entry — paste it into your client's .mcp.json.");
+        CopyToClipboard(json, "Copied the MCP server entry — paste it into your client's .mcp.json.", Card2CopySetupButton);
     }
 
     private void OnCopyMcpPathClick(object sender, RoutedEventArgs e)
     {
         var exePath = GetMcpServerPath();
-        CopyToClipboard(exePath, "Copied the marksmith-mcp server path.");
+        CopyToClipboard(exePath, "Copied the marksmith-mcp server path.", sender as Button ?? CopyMcpPathButton);
     }
 
     private void OnCopyApiUrlClick(object sender, RoutedEventArgs e)
     {
         var url = $"http://127.0.0.1:{_apiPort}";
-        CopyToClipboard(url, $"Copied the local REST API address ({url}).");
+        CopyToClipboard(url, $"Copied the local REST API address ({url}).", sender as Button ?? CopyApiUrlButton);
     }
 
     private void OnOpenExtensionDocsClick(object sender, RoutedEventArgs e) => OpenExtensionSetupRequested?.Invoke();
@@ -644,7 +648,7 @@ public sealed partial class SuiteHubView : UserControl
     {
         var exe = File.Exists(CliPath) ? $"& \"{CliPath}\"" : "marksmith";
         var (command, message) = FormatCliCommand(exe, mode);
-        CopyToClipboard(command, message);
+        CopyToClipboard(command, message, Card4CopyCommandButton);
     }
 
     // Real, runnable commands (the old button copied "marksmith suite", which isn't on PATH and
@@ -656,12 +660,12 @@ public sealed partial class SuiteHubView : UserControl
 
     private void OnCopyCliPathClick(object sender, RoutedEventArgs e)
     {
-        CopyToClipboard(CliPath, "Copied the MarkSmith CLI path.");
+        CopyToClipboard(CliPath, "Copied the MarkSmith CLI path.", sender as Button ?? CopyCliPathButton);
     }
 
     private void OnCopyExpressUrlClick(object sender, RoutedEventArgs e)
     {
-        CopyToClipboard(ExpressUrl, $"Copied the MarkSmith Express web address ({ExpressUrl}).");
+        CopyToClipboard(ExpressUrl, $"Copied the MarkSmith Express web address ({ExpressUrl}).", sender as Button ?? CopyExpressUrlButton);
     }
 
     private async void OnLaunchExpressClick(object sender, RoutedEventArgs e)

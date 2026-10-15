@@ -372,6 +372,48 @@ namespace MarkSmith.Views.ShapeStudio
             if (focused is TextBox or PasswordBox or AutoSuggestBox) return;
             if (focused is DependencyObject d && IsInsideNumberBox(d)) return;
 
+            if (ctrl && e.Key == VirtualKey.C && !shift)
+            {
+                OnCopyMarkdownClick(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (ctrl && e.Key == VirtualKey.V && !shift)
+            {
+                OnLoadMarkdownClick(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (IsDown(VirtualKey.Menu))
+            {
+                if (e.Key is VirtualKey.Number1 or VirtualKey.NumberPad1)
+                {
+                    LeftTabs.SelectedItem = PresetsTab;
+                    e.Handled = true;
+                    return;
+                }
+                if (e.Key is VirtualKey.Number2 or VirtualKey.NumberPad2)
+                {
+                    LeftTabs.SelectedItem = ShapesTab;
+                    e.Handled = true;
+                    return;
+                }
+                if (e.Key is VirtualKey.Number3 or VirtualKey.NumberPad3)
+                {
+                    LeftTabs.SelectedItem = PictureTab;
+                    e.Handled = true;
+                    return;
+                }
+            }
+            if (ctrl && e.Key == VirtualKey.Tab)
+            {
+                int curIdx = LeftTabs.SelectedItem == PresetsTab ? 0 : LeftTabs.SelectedItem == ShapesTab ? 1 : 2;
+                int nextIdx = shift ? (curIdx + 2) % 3 : (curIdx + 1) % 3;
+                LeftTabs.SelectedItem = nextIdx switch { 0 => PresetsTab, 1 => ShapesTab, _ => PictureTab };
+                e.Handled = true;
+                return;
+            }
+
             switch (e.Key)
             {
                 case VirtualKey.Z when ctrl && shift:
@@ -777,6 +819,36 @@ namespace MarkSmith.Views.ShapeStudio
             ViewModel.ClickSelect(shape);
             ShowShapeContextMenu(fe, e.GetPosition(fe));
             e.Handled = true;
+        }
+
+        private void OnShapesListKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (ViewModel.SelectedShape is not { } selected) return;
+
+            bool ctrl = IsDown(VirtualKey.Control);
+            bool shift = IsDown(VirtualKey.Shift);
+
+            if (e.Key == VirtualKey.Application || (e.Key == VirtualKey.F10 && shift))
+            {
+                var anchor = (e.OriginalSource as FrameworkElement) ?? ShapesList;
+                ShowShapeContextMenu(anchor, new Point(48, 24));
+                e.Handled = true;
+            }
+            else if (e.Key is VirtualKey.Delete or VirtualKey.Back)
+            {
+                ViewModel.RemoveSelectedCommand.Execute(null);
+                e.Handled = true;
+            }
+            else if (ctrl && e.Key == VirtualKey.D)
+            {
+                ViewModel.DuplicateSelectedCommand.Execute(null);
+                e.Handled = true;
+            }
+            else if (e.Key == VirtualKey.F2 && !selected.IsLine)
+            {
+                FocusLabelEditor();
+                e.Handled = true;
+            }
         }
 
         private void FocusLabelEditor()

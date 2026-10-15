@@ -2455,6 +2455,19 @@ namespace MarkSmith.Views.MindMap
             ViewModel.SelectedTagFilter = null;
         }
 
+        private void OnTagPillsPreviewKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Escape)
+            {
+                if (ViewModel.SelectedTagFilter is not null)
+                {
+                    ViewModel.SelectedTagFilter = null;
+                    AllTagsPill?.Focus(FocusState.Programmatic);
+                    e.Handled = true;
+                }
+            }
+        }
+
         private readonly HashSet<Button> _tagPills = new();
 
         private void OnTagPillLoaded(object sender, RoutedEventArgs e)
