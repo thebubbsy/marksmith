@@ -750,6 +750,57 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnCommandPaletteClick(object sender, RoutedEventArgs e) => _ = ShowCommandPaletteAsync();
 
+    private void OnCommandPaletteButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (CommandPaletteButton is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var paletteItem = new MenuFlyoutItem
+        {
+            Text = "Search commands (Ctrl+K)",
+            Icon = new FontIcon { Glyph = "\uE721" }
+        };
+        paletteItem.Click += (_, _) => _ = ShowCommandPaletteAsync();
+        menu.Items.Add(paletteItem);
+
+        var shortcutsItem = new MenuFlyoutItem
+        {
+            Text = "Keyboard shortcuts (F1)",
+            Icon = new FontIcon { Glyph = "\uE765" }
+        };
+        shortcutsItem.Click += (_, _) => _ = ShowShortcutsCheatsheetAsync();
+        menu.Items.Add(shortcutsItem);
+
+        var tourItem = new MenuFlyoutItem
+        {
+            Text = "Take welcome tour",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        tourItem.Click += (_, _) => _ = ShowWelcomeTourAsync();
+        menu.Items.Add(tourItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var settingsItem = new MenuFlyoutItem
+        {
+            Text = "Settings (Ctrl+,)",
+            Icon = new FontIcon { Glyph = "\uE713" }
+        };
+        settingsItem.Click += (_, _) => OnSettingsClick(this, new RoutedEventArgs());
+        menu.Items.Add(settingsItem);
+
+        var suiteHubItem = new MenuFlyoutItem
+        {
+            Text = "Suite Hub",
+            Icon = new FontIcon { Glyph = "\uECA5" }
+        };
+        suiteHubItem.Click += (_, _) => OnSuiteHubClick(this, new RoutedEventArgs());
+        menu.Items.Add(suiteHubItem);
+
+        menu.ShowAt(CommandPaletteButton, e.GetPosition(CommandPaletteButton));
+    }
+
     private void OnEditorFindClick(object sender, RoutedEventArgs e) => ShowFindBar();
 
     private void OnEditorReplaceClick(object sender, RoutedEventArgs e) => ShowFindBar(replace: true);
@@ -1675,6 +1726,57 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
         // Only one ContentDialog can be open, so the guide waits for the hub to close.
         if (openExtensionSetup) await ShowExtensionSetupAsync();
+    }
+
+    private void OnSuiteHubButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (SuiteHubButton is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var hubItem = new MenuFlyoutItem
+        {
+            Text = "Open Suite Hub",
+            Icon = new FontIcon { Glyph = "\uECA5" }
+        };
+        hubItem.Click += (_, _) => OnSuiteHubClick(this, new RoutedEventArgs());
+        menu.Items.Add(hubItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var diagramItem = new MenuFlyoutItem
+        {
+            Text = "Diagram Studio (Ctrl+Shift+M)",
+            Icon = new FontIcon { Glyph = "\uEF90" }
+        };
+        diagramItem.Click += (_, _) => OnOpenMermaidStudioClick(this, new RoutedEventArgs());
+        menu.Items.Add(diagramItem);
+
+        var smartArtItem = new MenuFlyoutItem
+        {
+            Text = "SmartArt Studio",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        smartArtItem.Click += (_, _) => OnOpenSmartArtDesignStudioClick(this, new RoutedEventArgs());
+        menu.Items.Add(smartArtItem);
+
+        var mindMapItem = new MenuFlyoutItem
+        {
+            Text = "MindMap Galaxy",
+            Icon = new FontIcon { Glyph = "\uE946" }
+        };
+        mindMapItem.Click += (_, _) => OnOpenMindMapGalaxyClick(this, new RoutedEventArgs());
+        menu.Items.Add(mindMapItem);
+
+        var shapeItem = new MenuFlyoutItem
+        {
+            Text = "Shape Studio",
+            Icon = new FontIcon { Glyph = "\uE735" }
+        };
+        shapeItem.Click += (_, _) => OnOpenShapeDesignStudioClick(this, new RoutedEventArgs());
+        menu.Items.Add(shapeItem);
+
+        menu.ShowAt(SuiteHubButton, e.GetPosition(SuiteHubButton));
     }
 
     // Same setting as Settings ▸ Automation ▸ Local API; the property hook re-applies automation
@@ -8845,6 +8947,119 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (FocusModeToggle != null) FocusModeToggle.IsChecked = FocusModeToggle.IsChecked != true;
         args.Handled = true;
+    }
+
+    private void OnFocusModeToggleRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (FocusModeToggle is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var toggleFocusItem = new MenuFlyoutItem
+        {
+            Text = FocusModeToggle.IsChecked == true ? "Exit focus mode (F11)" : "Enter focus mode (F11)",
+            Icon = new FontIcon { Glyph = "\uE740" }
+        };
+        toggleFocusItem.Click += (_, _) => FocusModeToggle.IsChecked = !(FocusModeToggle.IsChecked == true);
+        menu.Items.Add(toggleFocusItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var toggleLeftPaneItem = new MenuFlyoutItem
+        {
+            Text = _leftPaneCollapsed ? "Expand Source / Files pane" : "Collapse Source / Files pane",
+            Icon = new FontIcon { Glyph = "\uE8A0" }
+        };
+        toggleLeftPaneItem.Click += (_, _) =>
+        {
+            if (_leftPaneCollapsed) ExpandLeftPane();
+            else CollapseLeftPane();
+        };
+        menu.Items.Add(toggleLeftPaneItem);
+
+        var toggleRightPaneItem = new MenuFlyoutItem
+        {
+            Text = RightPane?.Visibility == Visibility.Visible ? "Hide Style & Export pane" : "Show Style & Export pane",
+            Icon = new FontIcon { Glyph = "\uE8A1" }
+        };
+        toggleRightPaneItem.Click += (_, _) =>
+        {
+            if (RightPane is null || RightPaneCol is null) return;
+            if (RightPane.Visibility == Visibility.Visible)
+            {
+                RightPane.Visibility = Visibility.Collapsed;
+                if (RightSplitter != null) RightSplitter.Visibility = Visibility.Collapsed;
+                RightPaneCol.Width = new GridLength(0);
+                RightPaneCol.MinWidth = 0;
+            }
+            else
+            {
+                RightPane.Visibility = Visibility.Visible;
+                if (RightSplitter != null) RightSplitter.Visibility = Visibility.Visible;
+                RightPaneCol.MinWidth = _savedRightPaneMinWidth > 0 ? _savedRightPaneMinWidth : 290;
+                RightPaneCol.Width = _savedRightPaneWidth.IsAuto ? new GridLength(380) : _savedRightPaneWidth;
+            }
+        };
+        menu.Items.Add(toggleRightPaneItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var codeViewItem = new MenuFlyoutItem
+        {
+            Text = "Code view (Ctrl+1)",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        codeViewItem.Click += (_, _) =>
+        {
+            if (ViewCodeTab != null && CenterViewSelector != null) CenterViewSelector.SelectedItem = ViewCodeTab;
+        };
+        menu.Items.Add(codeViewItem);
+
+        var splitViewItem = new MenuFlyoutItem
+        {
+            Text = "Split view (Ctrl+2)",
+            Icon = new FontIcon { Glyph = "\uE8D3" }
+        };
+        splitViewItem.Click += (_, _) =>
+        {
+            if (ViewSplitTab != null && CenterViewSelector != null) CenterViewSelector.SelectedItem = ViewSplitTab;
+        };
+        menu.Items.Add(splitViewItem);
+
+        var previewViewItem = new MenuFlyoutItem
+        {
+            Text = "Preview view (Ctrl+3)",
+            Icon = new FontIcon { Glyph = "\uE7B3" }
+        };
+        previewViewItem.Click += (_, _) =>
+        {
+            if (ViewPreviewTab != null && CenterViewSelector != null) CenterViewSelector.SelectedItem = ViewPreviewTab;
+        };
+        menu.Items.Add(previewViewItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var resetPanesItem = new MenuFlyoutItem
+        {
+            Text = "Reset side panels",
+            Icon = new FontIcon { Glyph = "\uE777" }
+        };
+        resetPanesItem.Click += (_, _) =>
+        {
+            if (FocusModeToggle.IsChecked == true) FocusModeToggle.IsChecked = false;
+            ExpandLeftPane();
+            if (RightPane != null && RightPaneCol != null)
+            {
+                RightPane.Visibility = Visibility.Visible;
+                if (RightSplitter != null) RightSplitter.Visibility = Visibility.Visible;
+                RightPaneCol.MinWidth = 290;
+                RightPaneCol.Width = new GridLength(380);
+            }
+            AnnounceStatus("Side panels reset");
+        };
+        menu.Items.Add(resetPanesItem);
+
+        menu.ShowAt(FocusModeToggle, e.GetPosition(FocusModeToggle));
     }
 
     // Ctrl+Alt+X: toggle the Looking Glass portal's focus blur — whether the rendered preview

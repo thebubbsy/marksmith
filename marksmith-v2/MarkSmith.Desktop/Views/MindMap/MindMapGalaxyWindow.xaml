@@ -176,7 +176,8 @@
                         <!-- A real toggle: its checked state is the "on" indicator, instead of a
                              hand-drawn "ON" pill squeezed beside the icon. -->
                         <ToggleButton IsChecked="{Binding IsFocusModeEnabled, Mode=TwoWay}" Padding="10,5" MinHeight="32"
-                                      ToolTipService.ToolTip="Focus: fade everything the selected node isn't connected to (F)"
+                                      RightTapped="OnFocusToggleRightTapped"
+                                      ToolTipService.ToolTip="Focus: fade everything the selected node isn't connected to (F, Right-click for options)"
                                       AutomationProperties.Name="Focus">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE890;" FontSize="12" />
@@ -195,7 +196,9 @@
                             </StackPanel>
                         </Button>
 
-                        <DropDownButton x:Name="ExportDropDownButton" Padding="10,5" MinHeight="32" ToolTipService.ToolTip="Export or copy the map"
+                        <DropDownButton x:Name="ExportDropDownButton" Padding="10,5" MinHeight="32"
+                                        RightTapped="OnExportDropDownRightTapped"
+                                        ToolTipService.ToolTip="Export or copy the map (Right-click for options)"
                                         AutomationProperties.Name="Export">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xEDE1;" FontSize="12" />

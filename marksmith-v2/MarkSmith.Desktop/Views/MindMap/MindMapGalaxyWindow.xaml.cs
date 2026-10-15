@@ -1938,6 +1938,63 @@ namespace MarkSmith.Views.MindMap
             ViewModel.ToggleFocusModeCommand.Execute(null);
         }
 
+        private void OnFocusToggleRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            var target = sender as FrameworkElement ?? GalaxyCanvas;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var toggleFocusItem = new MenuFlyoutItem
+            {
+                Text = ViewModel.IsFocusModeEnabled ? "Exit focus mode (F)" : "Enter focus mode (F)",
+                Icon = new FontIcon { Glyph = "\uE890" }
+            };
+            toggleFocusItem.Click += (_, _) => ViewModel.ToggleFocusModeCommand.Execute(null);
+            menu.Items.Add(toggleFocusItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var focusSelectedItem = new MenuFlyoutItem
+            {
+                Text = "Focus on selected node's connections",
+                Icon = new FontIcon { Glyph = "\uE7B3" },
+                IsEnabled = ViewModel.SelectedNode != null
+            };
+            focusSelectedItem.Click += (_, _) =>
+            {
+                if (ViewModel.SelectedNode is { } node)
+                {
+                    ViewModel.IsFocusModeEnabled = true;
+                    ViewModel.CenterOn(node);
+                }
+            };
+            menu.Items.Add(focusSelectedItem);
+
+            var clearSelectionItem = new MenuFlyoutItem
+            {
+                Text = "Clear selection (Esc)",
+                Icon = new FontIcon { Glyph = "\uE894" },
+                IsEnabled = ViewModel.HasSelection
+            };
+            clearSelectionItem.Click += (_, _) =>
+            {
+                ViewModel.SelectedNode = null;
+                ViewModel.SelectedLink = null;
+                ViewModel.HidePreviewCard();
+            };
+            menu.Items.Add(clearSelectionItem);
+
+            var fitWindowItem = new MenuFlyoutItem
+            {
+                Text = "Fit all nodes in window (Ctrl+0)",
+                Icon = new FontIcon { Glyph = "\uE9A6" }
+            };
+            fitWindowItem.Click += (_, _) => FitToWindow();
+            menu.Items.Add(fitWindowItem);
+
+            menu.ShowAt(target, e.GetPosition(target));
+        }
+
         private async void OnSaveClick(object sender, RoutedEventArgs e)
         {
             // Commit a half-typed field (tags, linked file) before writing.
@@ -2019,6 +2076,76 @@ namespace MarkSmith.Views.MindMap
             {
                 ViewModel.StatusMessage = $"Couldn't build the Mermaid {label}: {ex.Message}";
             }
+        }
+
+        private void OnExportDropDownRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (ExportDropDownButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var docxItem = new MenuFlyoutItem
+            {
+                Text = "Export as Word document…",
+                Icon = new FontIcon { Glyph = "\uE8A5" }
+            };
+            docxItem.Click += OnExportDocxClick;
+            menu.Items.Add(docxItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyFlowchartItem = new MenuFlyoutItem
+            {
+                Text = "Copy as Mermaid flowchart (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyFlowchartItem.Click += OnCopyMermaidFlowchartClick;
+            menu.Items.Add(copyFlowchartItem);
+
+            var copyMindmapItem = new MenuFlyoutItem
+            {
+                Text = "Copy as Mermaid mind map",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyMindmapItem.Click += OnCopyMermaidMindmapClick;
+            menu.Items.Add(copyMindmapItem);
+
+            var saveCopyItem = new MenuFlyoutItem
+            {
+                Text = "Save a copy of the map…",
+                Icon = new FontIcon { Glyph = "\uEA35" }
+            };
+            saveCopyItem.Click += OnSaveAsClick;
+            menu.Items.Add(saveCopyItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyTitleItem = new MenuFlyoutItem
+            {
+                Text = "Copy map title",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyTitleItem.Click += (_, _) =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(ViewModel.Title ?? "Document Galaxy");
+                ViewModel.StatusMessage = "Copied map title to clipboard";
+            };
+            menu.Items.Add(copyTitleItem);
+
+            var copySummaryItem = new MenuFlyoutItem
+            {
+                Text = "Copy map summary",
+                Icon = new FontIcon { Glyph = "\uE946" }
+            };
+            copySummaryItem.Click += (_, _) =>
+            {
+                var summary = $"{ViewModel.Title} · {ViewModel.NodesCountText} · {ViewModel.LinksCountText}";
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(summary);
+                ViewModel.StatusMessage = "Copied map summary to clipboard";
+            };
+            menu.Items.Add(copySummaryItem);
+
+            menu.ShowAt(ExportDropDownButton, e.GetPosition(ExportDropDownButton));
         }
 
         private static string SanitizeFileName(string? name)

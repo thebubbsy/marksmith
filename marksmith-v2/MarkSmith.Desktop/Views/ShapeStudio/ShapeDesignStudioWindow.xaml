@@ -126,7 +126,9 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <SelectorBar x:Name="LeftTabs" Margin="6,4,6,0" SelectionChanged="OnLeftTabsChanged">
+                    <SelectorBar x:Name="LeftTabs" Margin="6,4,6,0" SelectionChanged="OnLeftTabsChanged"
+                                 RightTapped="OnLeftTabsRightTapped"
+                                 ToolTipService.ToolTip="Switch between Presets, Shapes, and Picture (Right-click for options)">
                         <SelectorBarItem x:Name="PresetsTab" Text="Presets" IsSelected="True">
                             <SelectorBarItem.Icon><FontIcon Glyph="&#xF0E2;" /></SelectorBarItem.Icon>
                         </SelectorBarItem>
@@ -366,7 +368,10 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel x:Name="ToolStrip" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <StackPanel x:Name="ToolStrip" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+                                    Background="Transparent" IsHitTestVisible="True"
+                                    RightTapped="OnToolStripRightTapped"
+                                    ToolTipService.ToolTip="Canvas tools (Right-click for options)">
                             <Button Style="{StaticResource ToolIconButton}" Command="{Binding UndoCommand}" AutomationProperties.Name="Undo" ToolTipService.ToolTip="Undo (Ctrl+Z)">
                                 <FontIcon Glyph="&#xE7A7;" FontSize="14" />
                             </Button>

@@ -401,6 +401,84 @@ namespace MarkSmith.Views.ShapeStudio
             if (selected != ShapesTab) ViewModel.ArmedTool = null;
         }
 
+        private void OnLeftTabsRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (LeftTabs is null) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            flyout.Items.Add(ShapeMenuItem("Presets tab (Ctrl+1)", "\uF0E2", () =>
+            {
+                if (PresetsTab is not null) LeftTabs.SelectedItem = PresetsTab;
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Shapes library tab (Ctrl+2)", "\uE790", () =>
+            {
+                if (ShapesTab is not null) LeftTabs.SelectedItem = ShapesTab;
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Picture to vector tab (Ctrl+3)", "\uEB9F", () =>
+            {
+                if (PictureTab is not null) LeftTabs.SelectedItem = PictureTab;
+            }));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            bool any = ViewModel.HasShapes;
+            flyout.Items.Add(ShapeMenuItem("Copy shapes as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), "Ctrl+Shift+C", enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Insert into document", "\uE8A5", () => ViewModel.InsertIntoDocumentCommand.Execute(null), enabled: any));
+
+            flyout.ShowAt(LeftTabs, e.GetPosition(LeftTabs));
+        }
+
+        private void OnToolStripRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (ToolStrip is null) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            flyout.Items.Add(ShapeMenuItem("Undo", "\uE7A7", () => ViewModel.UndoCommand.Execute(null), "Ctrl+Z", enabled: ViewModel.CanUndo));
+            flyout.Items.Add(ShapeMenuItem("Redo", "\uE7A6", () => ViewModel.RedoCommand.Execute(null), "Ctrl+Y", enabled: ViewModel.CanRedo));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            bool hasSelection = ViewModel.HasSelection;
+            bool any = ViewModel.HasShapes;
+
+            if (ViewModel.CanAlign)
+            {
+                var alignSub = new MenuFlyoutSubItem
+                {
+                    Text = "Align selection",
+                    Icon = new FontIcon { Glyph = "\uE8E4" }
+                };
+                alignSub.Items.Add(ShapeMenuItem("Align left", "\uE8E4", () => ViewModel.AlignLeftCommand.Execute(null)));
+                alignSub.Items.Add(ShapeMenuItem("Align centre", "\uE8E3", () => ViewModel.AlignCenterCommand.Execute(null)));
+                alignSub.Items.Add(ShapeMenuItem("Align right", "\uE8E2", () => ViewModel.AlignRightCommand.Execute(null)));
+                alignSub.Items.Add(new MenuFlyoutSeparator());
+                alignSub.Items.Add(ShapeMenuItem("Align top", "\uE74A", () => ViewModel.AlignTopCommand.Execute(null)));
+                alignSub.Items.Add(ShapeMenuItem("Align middle", "\uE8E3", () => ViewModel.AlignMiddleCommand.Execute(null)));
+                alignSub.Items.Add(ShapeMenuItem("Align bottom", "\uE74B", () => ViewModel.AlignBottomCommand.Execute(null)));
+                flyout.Items.Add(alignSub);
+                flyout.Items.Add(new MenuFlyoutSeparator());
+            }
+
+            flyout.Items.Add(ShapeMenuItem("Duplicate selected", "\uE8C8", () => ViewModel.DuplicateSelectedCommand.Execute(null), "Ctrl+D", enabled: hasSelection));
+            flyout.Items.Add(ShapeMenuItem("Delete selected", "\uE74D", () => ViewModel.RemoveSelectedCommand.Execute(null), "Del", enabled: hasSelection));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Select all shapes", "\uE8B3", () => ViewModel.SelectAllCommand.Execute(null), "Ctrl+A", enabled: any && !ViewModel.IsDense));
+            flyout.Items.Add(ShapeMenuItem("Fit diagram", "\uE9A6", FitCanvasToContent, "Ctrl+0", enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Actual size (100%)", "\uE71E", () => ZoomTo(1.0), "Ctrl+1"));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Clear canvas", "\uE74D", () => OnClearClick(this, new RoutedEventArgs()), enabled: any));
+
+            flyout.ShowAt(ToolStrip, e.GetPosition(ToolStrip));
+        }
+
         // ---- colour schemes ----
 
         private void BuildPaletteChoices()

@@ -171,7 +171,10 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <StackPanel Orientation="Horizontal" Spacing="3">
+                        <StackPanel x:Name="OutlineToolbar" Orientation="Horizontal" Spacing="3"
+                                    Background="Transparent" IsHitTestVisible="True"
+                                    RightTapped="OnOutlineToolbarRightTapped"
+                                    ToolTipService.ToolTip="Outline actions (Right-click for options)">
                             <Button Command="{Binding AddChildCommand}" Click="OnToolbarAddNodeClick" Height="32" Padding="9,0" ToolTipService.ToolTip="Add a child under the selected item (Insert)">
                                 <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Child" /></StackPanel>
                             </Button>
@@ -322,14 +325,16 @@
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                             <Button x:Name="CopyOutlineMarkdownButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                     Click="OnCopyOutlineMarkdownClick"
+                                    RightTapped="OnCopyOutlineMarkdownButtonRightTapped"
                                     AutomationProperties.Name="Copy outline bullets"
-                                    ToolTipService.ToolTip="Copy indented outline bullets (Ctrl+C)">
+                                    ToolTipService.ToolTip="Copy indented outline bullets (Ctrl+C, Right-click for options)">
                                 <FontIcon Glyph="&#xE8FD;" FontSize="12" />
                             </Button>
                             <Button x:Name="CopySmartArtBlockButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                     Click="OnCopySmartArtBlockClick"
+                                    RightTapped="OnCopySmartArtBlockButtonRightTapped"
                                     AutomationProperties.Name="Copy SmartArt Markdown"
-                                    ToolTipService.ToolTip="Copy :::smartart Markdown block (Ctrl+Shift+C)">
+                                    ToolTipService.ToolTip="Copy :::smartart Markdown block (Ctrl+Shift+C, Right-click for options)">
                                 <FontIcon Glyph="&#xE8C8;" FontSize="12" />
                             </Button>
                         </StackPanel>

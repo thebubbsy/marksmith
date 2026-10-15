@@ -561,6 +561,212 @@ namespace MarkSmith.Views.SmartArtStudio
             e.Handled = true;
         }
 
+        private void OnOutlineToolbarRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (OutlineToolbar is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var addChildItem = new MenuFlyoutItem
+            {
+                Text = "Add child (Insert)",
+                Icon = new FontIcon { Glyph = "\uE710" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            addChildItem.Click += (_, _) => { ViewModel.AddChildCommand.Execute(null); FocusRenameBox(); };
+            menu.Items.Add(addChildItem);
+
+            var addSiblingItem = new MenuFlyoutItem
+            {
+                Text = "Add sibling (Enter)",
+                Icon = new FontIcon { Glyph = "\uE710" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            addSiblingItem.Click += (_, _) => { ViewModel.AddSiblingCommand.Execute(null); FocusRenameBox(); };
+            menu.Items.Add(addSiblingItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var renameItem = new MenuFlyoutItem
+            {
+                Text = "Rename (F2)",
+                Icon = new FontIcon { Glyph = "\uE70F" },
+                IsEnabled = ViewModel.HasSelection
+            };
+            renameItem.Click += OnRenameClick;
+            menu.Items.Add(renameItem);
+
+            var duplicateItem = new MenuFlyoutItem
+            {
+                Text = "Duplicate (Ctrl+D)",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = ViewModel.HasSelection
+            };
+            duplicateItem.Click += (_, _) => ViewModel.DuplicateSelectedCommand.Execute(null);
+            menu.Items.Add(duplicateItem);
+
+            var deleteItem = new MenuFlyoutItem
+            {
+                Text = "Delete (Del)",
+                Icon = new FontIcon { Glyph = "\uE74D" },
+                IsEnabled = ViewModel.HasSelection
+            };
+            deleteItem.Click += (_, _) => ViewModel.DeleteSelectedCommand.Execute(null);
+            menu.Items.Add(deleteItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var moveUpItem = new MenuFlyoutItem
+            {
+                Text = "Move up (Alt+Up)",
+                Icon = new FontIcon { Glyph = "\uE74A" },
+                IsEnabled = ViewModel.CanMoveUp
+            };
+            moveUpItem.Click += (_, _) => ViewModel.MoveUpCommand.Execute(null);
+            menu.Items.Add(moveUpItem);
+
+            var moveDownItem = new MenuFlyoutItem
+            {
+                Text = "Move down (Alt+Down)",
+                Icon = new FontIcon { Glyph = "\uE74B" },
+                IsEnabled = ViewModel.CanMoveDown
+            };
+            moveDownItem.Click += (_, _) => ViewModel.MoveDownCommand.Execute(null);
+            menu.Items.Add(moveDownItem);
+
+            var promoteItem = new MenuFlyoutItem
+            {
+                Text = "Promote (Shift+Tab)",
+                Icon = new FontIcon { Glyph = "\uE76B" },
+                IsEnabled = ViewModel.CanPromote
+            };
+            promoteItem.Click += (_, _) => ViewModel.PromoteCommand.Execute(null);
+            menu.Items.Add(promoteItem);
+
+            var demoteItem = new MenuFlyoutItem
+            {
+                Text = "Demote (Tab)",
+                Icon = new FontIcon { Glyph = "\uE76C" },
+                IsEnabled = ViewModel.CanDemote
+            };
+            demoteItem.Click += (_, _) => ViewModel.DemoteCommand.Execute(null);
+            menu.Items.Add(demoteItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copyBulletsItem = new MenuFlyoutItem
+            {
+                Text = "Copy outline bullets (Ctrl+C)",
+                Icon = new FontIcon { Glyph = "\uE8FD" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyBulletsItem.Click += (_, _) => CopyOutlineMarkdown();
+            menu.Items.Add(copyBulletsItem);
+
+            var copyBlockItem = new MenuFlyoutItem
+            {
+                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyBlockItem.Click += (_, _) => CopySmartArtBlock();
+            menu.Items.Add(copyBlockItem);
+
+            menu.ShowAt(OutlineToolbar, e.GetPosition(OutlineToolbar));
+        }
+
+        private void OnCopyOutlineMarkdownButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (CopyOutlineMarkdownButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var copyBulletsItem = new MenuFlyoutItem
+            {
+                Text = "Copy outline bullets (Ctrl+C)",
+                Icon = new FontIcon { Glyph = "\uE8FD" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyBulletsItem.Click += (_, _) => CopyOutlineMarkdown();
+            menu.Items.Add(copyBulletsItem);
+
+            var copyBlockItem = new MenuFlyoutItem
+            {
+                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyBlockItem.Click += (_, _) => CopySmartArtBlock();
+            menu.Items.Add(copyBlockItem);
+
+            var editMarkdownItem = new MenuFlyoutItem
+            {
+                Text = "Switch to Markdown editor (Ctrl+2)",
+                Icon = new FontIcon { Glyph = "\uE70F" }
+            };
+            editMarkdownItem.Click += (_, _) =>
+            {
+                if (MarkdownTab is not null && EditorTabs is not null) EditorTabs.SelectedItem = MarkdownTab;
+            };
+            menu.Items.Add(editMarkdownItem);
+
+            menu.ShowAt(CopyOutlineMarkdownButton, e.GetPosition(CopyOutlineMarkdownButton));
+        }
+
+        private void OnCopySmartArtBlockButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (CopySmartArtBlockButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var copyBlockItem = new MenuFlyoutItem
+            {
+                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyBlockItem.Click += (_, _) => CopySmartArtBlock();
+            menu.Items.Add(copyBlockItem);
+
+            var copyBulletsItem = new MenuFlyoutItem
+            {
+                Text = "Copy outline bullets (Ctrl+C)",
+                Icon = new FontIcon { Glyph = "\uE8FD" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyBulletsItem.Click += (_, _) => CopyOutlineMarkdown();
+            menu.Items.Add(copyBulletsItem);
+
+            var copyTitleItem = new MenuFlyoutItem
+            {
+                Text = "Copy layout title",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !string.IsNullOrWhiteSpace(ViewModel.PreviewTitle)
+            };
+            copyTitleItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.PreviewTitle ?? "");
+                ViewModel.StatusMessage = "Copied layout title to clipboard";
+            };
+            menu.Items.Add(copyTitleItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var refreshItem = new MenuFlyoutItem
+            {
+                Text = "Refresh preview (F5)",
+                Icon = new FontIcon { Glyph = "\uE72C" }
+            };
+            refreshItem.Click += (_, _) =>
+            {
+                RefreshWebView();
+                ViewModel.StatusMessage = "Preview refreshed.";
+            };
+            menu.Items.Add(refreshItem);
+
+            menu.ShowAt(CopySmartArtBlockButton, e.GetPosition(CopySmartArtBlockButton));
+        }
+
         private void ShowRowContextMenu(StudioNodeViewModel node, UIElement target, Windows.Foundation.Point position)
         {
             var menu = new MenuFlyout();

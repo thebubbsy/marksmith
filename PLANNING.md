@@ -7553,5 +7553,58 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 17892, `Alive: True`, `Responding: True`, exited cleanly.
 
+### 2026-10-16 (scheduled routine run #96 — WinUI 3 Desktop Polish: Title Bar Command Palette & Suite Hub Menus, Focus Mode Pane Toggles, SmartArt Outline Toolbar Actions, MindMap Focus & Export Menus, Shape Left Tabs & Canvas ToolStrip Menus)
+
+- **Surface / Component Targets:** `MainWindow`, `SmartArtDesignStudioWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #95:
+    * Target A: `SmartArtDesignStudioWindow` Editor Tabs extended keyboard shortcuts and outline context actions (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`).
+    * Target B: `MainWindow` Looking Glass & Email Preview header toggle sub-options and inline quick-toggles (`MainWindow.xaml` & `.xaml.cs`).
+  - Generated:
+    1. `MainWindow` Title Bar `CommandPaletteButton` & `SuiteHubButton` Context Menus (`MainWindow.xaml` & `.xaml.cs`)
+    2. `MainWindow` Title Bar `FocusModeToggle` Context Menu & Pane Visibility Actions (`MainWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Added `RightTapped="OnCommandPaletteButtonRightTapped"` on `CommandPaletteButton` offering Search commands `Ctrl+K` (`\uE721`), Keyboard shortcuts `F1` (`\uE765`), Take welcome tour (`\uE8FD`), Settings `Ctrl+,` (`\uE713`), and Suite Hub (`\uECA5`). Added `RightTapped="OnSuiteHubButtonRightTapped"` on `SuiteHubButton` offering direct studio jump to Suite Hub (`\uECA5`), Diagram Studio `Ctrl+Shift+M` (`\uEF90`), SmartArt Studio (`\uE8FD`), MindMap Galaxy (`\uE946`), and Shape Studio (`\uE735`). Added `RightTapped="OnFocusModeToggleRightTapped"` on `FocusModeToggle` offering Toggle focus mode `F11` (`\uE740`), Toggle Left pane (Files) (`\uE8A0`), Toggle Right pane (Style/Export) (`\uE8A1`), Markdown code view `Ctrl+1` (`\uE8A5`), Split view `Ctrl+2` (`\uE8D3`), Preview view `Ctrl+3` (`\uE7B3`), and Reset side panels (`\uE777`).
+  - Generated:
+    3. `SmartArtDesignStudioWindow` Outline Toolbar `OutlineToolbar` & Preview Copy Buttons Context Actions (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`)
+    4. `MindMapGalaxyWindow` Toolbar `Focus` Toggle & `ExportDropDownButton` Context Menus (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Added `x:Name="OutlineToolbar"`, `Background="Transparent"`, `IsHitTestVisible="True"`, and `RightTapped="OnOutlineToolbarRightTapped"` to the outline toolbar StackPanel in `SmartArtDesignStudioWindow` offering Add child `Insert` (`\uE710`), Add sibling `Enter` (`\uE710`), Rename `F2` (`\uE70F`), Duplicate `Ctrl+D` (`\uE8C8`), Delete `Del` (`\uE74D`), Move up `Alt+Up` (`\uE74A`), Move down `Alt+Down` (`\uE74B`), Promote `Shift+Tab` (`\uE76B`), Demote `Tab` (`\uE76C`), Copy outline bullets `Ctrl+C` (`\uE8FD`), and Copy `:::smartart` block `Ctrl+Shift+C` (`\uE8C8`). Added `RightTapped` on `CopyOutlineMarkdownButton` and `CopySmartArtBlockButton` offering bullet/block copy, title copy, and editor switching. Added `RightTapped="OnFocusToggleRightTapped"` on `Focus` toggle in `MindMapGalaxyWindow` offering Toggle focus mode `F` (`\uE890`), Focus on selected node connections (`\uE7B3`), Clear selection `Esc` (`\uE894`), and Fit all nodes in window `Ctrl+0` (`\uE9A6`). Added `RightTapped="OnExportDropDownRightTapped"` on `ExportDropDownButton` offering Export Word document (`\uE8A5`), Copy as Mermaid flowchart `Ctrl+Shift+C` (`\uE8C8`), Copy as Mermaid mind map (`\uE8C8`), Save copy of map `Ctrl+Shift+S` (`\uEA35`), Copy map title (`\uE8C8`), and Copy map summary (`\uE946`).
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `ShapeDesignStudioWindow` Left Tabs `LeftTabs` Context Menu & Mode Switching (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`)
+    6. `ShapeDesignStudioWindow` Canvas Toolbar `ToolStrip` Context Menu & Quick Alignment/Arrangement Actions (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Added `RightTapped="OnLeftTabsRightTapped"` on `LeftTabs` SelectorBar in `ShapeDesignStudioWindow` offering Presets tab `Ctrl+1` (`\uF0E2`), Shapes library tab `Ctrl+2` (`\uE790`), Picture to vector tab `Ctrl+3` (`\uEB9F`), Copy shapes as Markdown `Ctrl+Shift+C` (`\uE8C8`), and Insert into document (`\uE8A5`). Added `Background="Transparent"`, `IsHitTestVisible="True"`, and `RightTapped="OnToolStripRightTapped"` on `ToolStrip` in `ShapeDesignStudioWindow` offering Undo `Ctrl+Z` (`\uE7A7`), Redo `Ctrl+Y` (`\uE7A6`), Align selection submenu (`\uE8E4`), Duplicate selected `Ctrl+D` (`\uE8C8`), Delete selected `Del` (`\uE74D`), Select all shapes `Ctrl+A` (`\uE8B3`), Fit diagram `Ctrl+0` (`\uE9A6`), Actual size 100% `Ctrl+1` (`\uE71E`), and Clear canvas (`\uE74D`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #97.
+
+**Shipped:**
+1. **`MainWindow` Title Bar `CommandPaletteButton` & `SuiteHubButton` Context Menus (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnCommandPaletteButtonRightTapped"` on `CommandPaletteButton` offering Search commands `Ctrl+K` (`\uE721`), Keyboard shortcuts `F1` (`\uE765`), Take welcome tour (`\uE8FD`), Settings `Ctrl+,` (`\uE713`), and Suite Hub (`\uECA5`).
+   - Attached `RightTapped="OnSuiteHubButtonRightTapped"` on `SuiteHubButton` offering direct jump to Suite Hub (`\uECA5`), Diagram Studio `Ctrl+Shift+M` (`\uEF90`), SmartArt Studio (`\uE8FD`), MindMap Galaxy (`\uE946`), and Shape Studio (`\uE735`).
+2. **`MainWindow` Title Bar `FocusModeToggle` Context Menu & Pane Visibility Actions (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnFocusModeToggleRightTapped"` on `FocusModeToggle` offering Toggle focus mode `F11` (`\uE740`), Expand/Collapse Source/Files pane (`\uE8A0`), Show/Hide Style & Export pane (`\uE8A1`), Code view `Ctrl+1` (`\uE8A5`), Split view `Ctrl+2` (`\uE8D3`), Preview view `Ctrl+3` (`\uE7B3`), and Reset side panels (`\uE777`).
+3. **`SmartArtDesignStudioWindow` Outline Toolbar `OutlineToolbar` & Preview Copy Buttons Context Actions (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `x:Name="OutlineToolbar"`, `Background="Transparent"`, `IsHitTestVisible="True"`, and `RightTapped="OnOutlineToolbarRightTapped"` to outline toolbar StackPanel providing Add child `Insert` (`\uE710`), Add sibling `Enter` (`\uE710`), Rename `F2` (`\uE70F`), Duplicate `Ctrl+D` (`\uE8C8`), Delete `Del` (`\uE74D`), Move up `Alt+Up` (`\uE74A`), Move down `Alt+Down` (`\uE74B`), Promote `Shift+Tab` (`\uE76B`), Demote `Tab` (`\uE76C`), Copy outline bullets `Ctrl+C` (`\uE8FD`), and Copy `:::smartart` block `Ctrl+Shift+C` (`\uE8C8`).
+   - Attached `RightTapped` on `CopyOutlineMarkdownButton` and `CopySmartArtBlockButton` providing quick copy as bullets, block copy, layout title copy, editor switching, and preview refresh.
+4. **`MindMapGalaxyWindow` Toolbar `Focus` Toggle & `ExportDropDownButton` Context Menus (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnFocusToggleRightTapped"` on `Focus` toggle providing Toggle focus mode `F` (`\uE890`), Focus on selected node connections (`\uE7B3`), Clear selection `Esc` (`\uE894`), and Fit all nodes in window `Ctrl+0` (`\uE9A6`).
+   - Attached `RightTapped="OnExportDropDownRightTapped"` on `ExportDropDownButton` providing Export Word document (`\uE8A5`), Copy as Mermaid flowchart `Ctrl+Shift+C` (`\uE8C8`), Copy as Mermaid mind map (`\uE8C8`), Save copy of map `Ctrl+Shift+S` (`\uEA35`), Copy map title (`\uE8C8`), and Copy map summary (`\uE946`).
+5. **`ShapeDesignStudioWindow` Left Tabs `LeftTabs` Context Menu & Mode Switching (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnLeftTabsRightTapped"` on `LeftTabs` SelectorBar providing Presets tab `Ctrl+1` (`\uF0E2`), Shapes library tab `Ctrl+2` (`\uE790`), Picture to vector tab `Ctrl+3` (`\uEB9F`), Copy shapes as Markdown `Ctrl+Shift+C` (`\uE8C8`), and Insert into document (`\uE8A5`).
+6. **`ShapeDesignStudioWindow` Canvas Toolbar `ToolStrip` Context Menu & Quick Alignment/Arrangement Actions (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `Background="Transparent"`, `IsHitTestVisible="True"`, and `RightTapped="OnToolStripRightTapped"` on `ToolStrip` providing Undo `Ctrl+Z` (`\uE7A7`), Redo `Ctrl+Y` (`\uE7A6`), Align selection submenu (`\uE8E4`), Duplicate selected `Ctrl+D` (`\uE8C8`), Delete selected `Del` (`\uE74D`), Select all shapes `Ctrl+A` (`\uE8B3`), Fit diagram `Ctrl+0` (`\uE9A6`), Actual size 100% `Ctrl+1` (`\uE71E`), and Clear canvas (`\uE74D`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64 -p:OutDir="$env:TEMP\ms96d\b\"`: **0 errors, 16 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 1856, `Alive: True`, `Responding: True`, clean exit.
+
+
 
 
