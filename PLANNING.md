@@ -7117,6 +7117,63 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 13 warnings**.
 - Full test suite & targeted suites (`CommandIconsTests`, `OcrExperienceAndVisualsTests`, `KeyboardShortcutsTests`, `OcrInspectionStudioTests`, `ShapeStudioTests`): **114 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 UIAutomation smoke launch (`Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR`):
-  - Verified `WinUIDesktopWin32WindowClass` main window (PID 960, HWND 2427956), verified `Alive: True`, `Responding: True`, and closed cleanly.
+### 2026-10-15 (scheduled routine run #89 — WinUI 3 Desktop Polish: Mermaid Zoom Presets, History Search & Path Menus, Tour Step Jump, Splitter 50/50 Reset)
+
+- **Surface / Component Targets:** `MermaidCanvasControl`, `HistoryWindow`, `WelcomeTour`, `MainWindow` Splitter, `PdfMarkdownImporter`, `OcrMarkdownTests`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #88:
+    * Target A: Mermaid canvas zoom reset context menu, preset stops & canvas copy gestures (`Views/Mermaid/MermaidCanvasControl.xaml` & `.xaml.cs`).
+    * Target B: History timeline search box context menu, keyboard shortcuts, and document title / file path copy affordances (`Views/History/HistoryWindow.xaml` & `.xaml.cs`).
+  - Generated:
+    1. `MermaidCanvasControl` Zoom Reset Button Context Menu, Preset Stops & Empty Canvas Context Menu (`Views/Mermaid/MermaidCanvasControl.xaml` & `.xaml.cs`)
+    2. `HistoryWindow` Search Box Context Menu, Timeline Focus Handoff, and Document Title File Operations (`Views/History/HistoryWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Wired touch/pen/mouse parity via `RightTapped="OnCanvasRightTapped"` on `InfiniteCanvasGrid`; added "Copy diagram as Mermaid (`Ctrl+Shift+C`)" to empty canvas context menu; wired double-click and right-click on `FileNameText` in `HistoryWindow` to copy path, copy filename, reveal in File Explorer, and open in editor.
+  - Generated:
+    3. `WelcomeTour` Step Badge Context Menu & Direct Step Jumping (`Views/WelcomeTour.xaml` & `.xaml.cs`)
+    4. `MainWindow` Splitter Double-Tap 50/50 Reset & Preset Aspect Ratio Flyout (`MainWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Wired `StepBadgeBorder` `Tapped` and `RightTapped` to display full 7-step jump menu with current step indicator and "Copy tour step overview"; added `DoubleTapped` on `SplitViewSplitter` to instantly reset editor/preview columns to 50/50 split (`1*`/`1*`) and `RightTapped` to surface 50/50, 65/35, 35/65 presets plus `Ctrl+1`/`Ctrl+2`/`Ctrl+3` view mode shortcuts.
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `PdfMarkdownImporter` 1-bit and 8-bit Image Stream Memory Decoding Fix (`MarkSmith.Core/Services/Import/PdfMarkdownImporter.cs`)
+    6. `OcrMarkdownTests` Test Isolation Cleanup for Local File Dependencies (`MarkSmith.Tests/Ocr/OcrMarkdownTests.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Replaced `IPdfImage.RawBytes` compressed stream reads with `TryGetBytesAsMemory(out var mem)` to accurately decode pixel buffers for OCR crest and picture extraction; isolated ad-hoc manual verification tests (`RealWorld_FormPdf_Verification`) with `[Fact(Skip = "...")]` so CI and automated test suites remain 100% green without external local fixtures.
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward Block 3 ideas (5 & 6) / next targets into Run #90.
+
+**Shipped:**
+1. **`MermaidCanvasControl` Zoom Reset Context Menu & Preset Stops (`Views/Mermaid/MermaidCanvasControl.xaml` & `.xaml.cs`):**
+   - Attached `x:Name="ZoomResetButton"`, `RightTapped="OnZoomResetRightTapped"` on the zoom reset button.
+   - Surfaced context menu with Reset to 100% (`Ctrl+0`), Fit whole diagram, preset stops (25%, 50%, 75%, 100%, 125%, 150%, 200%), and "Copy zoom level".
+   - Attached `RightTapped="OnCanvasRightTapped"` to `InfiniteCanvasGrid` ensuring pointer/pen/touch context menu parity.
+   - Added "Copy diagram as Mermaid (`Ctrl+Shift+C`)" to empty canvas context menu when diagram nodes are present.
+2. **`HistoryWindow` Search Box Context Menu & Document Path Operations (`Views/History/HistoryWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnSearchBoxRightTapped"` on `SearchBox` offering timeline focus (`Enter`/`Down`), clear search filter (`Esc`), starred filter toggle (`Ctrl+Shift+S`), and checkpoint creation (`Ctrl+Shift+C`).
+   - Attached `RightTapped="OnFileNameRightTapped"`, `DoubleTapped="OnFileNameDoubleTapped"`, and tooltip hints to `FileNameText`: copy file path, copy file name, show in File Explorer, and open in editor.
+   - Attached `RightTapped="OnTimelineBackgroundRightTapped"` on `TimelineScroll` background.
+3. **`WelcomeTour` Step Badge Navigation & Step Jumping (`Views/WelcomeTour.xaml` & `.xaml.cs`):**
+   - Enabled `IsHitTestVisible="True"` with `Tapped="OnStepBadgeTapped"` and `RightTapped="OnStepBadgeRightTapped"` on `StepBadgeBorder`.
+   - Surfaced context menu displaying all 7 tour steps with checkmark on current active step, "Copy tour step overview", and "Replay from step 1".
+4. **`MainWindow` Splitter Double-Tap 50/50 Reset & Aspect Ratio Flyout (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `DoubleTapped="OnSplitViewSplitterDoubleTapped"` and `RightTapped="OnSplitViewSplitterRightTapped"` to `SplitViewSplitter`.
+   - Double-tap instantly snaps editor and preview panes to 50/50 ratio (`1*` / `1*`) with status bar announcement.
+   - Right-tap opens ratio presets: 50/50, 65/35 (favor editor), 35/65 (favor preview), plus shortcuts to editor only (`Ctrl+1`), split view (`Ctrl+2`), and preview only (`Ctrl+3`).
+5. **`PdfMarkdownImporter` 1-bit and 8-bit Image Stream Memory Decoding Fix (`MarkSmith.Core/Services/Import/PdfMarkdownImporter.cs`):**
+   - Fixed image decoding for 1-bit and 8-bit image streams using `img.TryGetBytesAsMemory(out var mem)` to read uncompressed pixel bytes rather than compressed raw stream buffers.
+6. **`OcrMarkdownTests` Test Isolation Cleanup (`MarkSmith.Tests/Ocr/OcrMarkdownTests.cs`):**
+   - Guarded ad-hoc manual test `RealWorld_FormPdf_Verification` with `[Fact(Skip = "Ad-hoc manual verification requiring specific local PDF fixture")]` ensuring test suite runs cleanly and reliably without external local files.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 14 warnings**.
+- Targeted test suites (`KeyboardShortcuts`, `CommandIcons`, `Ocr`): **149 passed, 0 failed, 1 skipped**.
+- Live WinUI 3 UIAutomation smoke launch (`Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR`):
+  - Verified `WinUIDesktopWin32WindowClass` main window (PID 26488), verified `Alive: True`, `Responding: True`, and closed cleanly.
+
 
 

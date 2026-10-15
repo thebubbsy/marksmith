@@ -883,7 +883,9 @@
                         </Grid>
                         <controls:GridSplitter x:Name="SplitViewSplitter" AutomationProperties.Name="Resize the editor and preview" Grid.Column="1" Width="16" Visibility="Collapsed"
                                                Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
-                                               ToolTipService.ToolTip="Drag to resize the editor / preview split" />
+                                               DoubleTapped="OnSplitViewSplitterDoubleTapped"
+                                               RightTapped="OnSplitViewSplitterRightTapped"
+                                               ToolTipService.ToolTip="Drag to resize the editor / preview split · Double-click for 50/50 · Right-click for presets" />
                         <Grid Grid.Column="2" x:Name="PreviewColumn" RowSpacing="8">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />

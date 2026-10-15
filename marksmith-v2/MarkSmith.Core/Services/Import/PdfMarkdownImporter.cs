@@ -344,7 +344,8 @@ public static class PdfMarkdownImporter
 
     private static string Clean(string s) => s.Replace("ﬁ", "fi").Replace("ﬂ", "fl").Replace("ﬀ", "ff").Replace("ﬃ", "ffi").Replace("ﬄ", "ffl").Replace(' ', ' ');
 
-    /// <summary>The page's scan: a single picture covering most of it (what scanners write).</summary>
+    /// <summary>The page's scan: a single picture covering most of it (what scanners write),
+    /// or a Skia rasterization of its vector paths when text/graphics were drawn as outlines.</summary>
     private static SKBitmap? ScanImage(Page page)
     {
         IPdfImage? best = null;
@@ -356,24 +357,191 @@ public static class PdfMarkdownImporter
         }
         // The page has no usable text, so its biggest picture (a scan, a photo of a page) is what
         // there is to read, unless it's a small logo or icon.
-        if (best is null || bestArea < page.Width * page.Height * 0.05 || best.WidthInSamples < 200) return null;
-        var bmp = Decode(best);
+        SKBitmap? bmp = null;
+        if (best is not null && bestArea >= page.Width * page.Height * 0.05 && best.WidthInSamples >= 200)
+            bmp = Decode(best);
+
+        bmp ??= RenderVectorPageFallback(page);
+        if (bmp is null) return null;
+
         // A page turned with /Rotate shows its scan turned the same way.
         int turn = ((page.Rotation.Value % 360) + 360) % 360;
-        if (bmp is null || turn == 0) return bmp;
+        if (turn == 0) return bmp;
         var turned = OcrGeometry.RotateQuarter(bmp, turn);
         bmp.Dispose();
         return turned;
+    }
+
+    private static SKBitmap? RenderVectorPageFallback(Page page)
+    {
+        try
+        {
+            var paths = page.Paths;
+            if (paths is null || paths.Count <= 200) return null;
+
+            const double dpi = 240.0;
+            double scale = dpi / 72.0;
+            int w = Math.Clamp((int)Math.Round(page.Width * scale), 64, 3600);
+            int h = Math.Clamp((int)Math.Round(page.Height * scale), 64, 3600);
+            double sx = w / Math.Max(1.0, page.Width);
+            double sy = h / Math.Max(1.0, page.Height);
+
+            var bmp = new SKBitmap(w, h, SKColorType.Bgra8888, SKAlphaType.Opaque);
+            using var canvas = new SKCanvas(bmp);
+            canvas.Clear(SKColors.White);
+
+            foreach (var img in page.GetImages())
+            {
+                using var decoded = Decode(img);
+                if (decoded is null) continue;
+                var b = img.Bounds;
+                var dest = new SKRect(
+                    (float)(b.Left * sx),
+                    (float)((page.Height - b.Top) * sy),
+                    (float)(b.Right * sx),
+                    (float)((page.Height - b.Bottom) * sy));
+                canvas.DrawBitmap(decoded, dest);
+            }
+
+            using var fillPaint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
+            using var strokePaint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke };
+
+            foreach (var pdfPath in paths)
+            {
+                if (pdfPath is null || pdfPath.IsClipping) continue;
+                if (!pdfPath.IsFilled && !pdfPath.IsStroked) continue;
+
+                using var skPath = new SKPath
+                {
+                    FillType = pdfPath.FillingRule == UglyToad.PdfPig.Core.FillingRule.EvenOdd
+                        ? SKPathFillType.EvenOdd
+                        : SKPathFillType.Winding
+                };
+
+                foreach (var subpath in pdfPath)
+                {
+                    foreach (var cmd in subpath.Commands)
+                    {
+                        switch (cmd)
+                        {
+                            case UglyToad.PdfPig.Core.PdfSubpath.Move m:
+                                skPath.MoveTo((float)(m.Location.X * sx), (float)((page.Height - m.Location.Y) * sy));
+                                break;
+                            case UglyToad.PdfPig.Core.PdfSubpath.Line l:
+                                skPath.LineTo((float)(l.To.X * sx), (float)((page.Height - l.To.Y) * sy));
+                                break;
+                            case UglyToad.PdfPig.Core.PdfSubpath.CubicBezierCurve c:
+                                skPath.CubicTo(
+                                    (float)(c.FirstControlPoint.X * sx), (float)((page.Height - c.FirstControlPoint.Y) * sy),
+                                    (float)(c.SecondControlPoint.X * sx), (float)((page.Height - c.SecondControlPoint.Y) * sy),
+                                    (float)(c.EndPoint.X * sx), (float)((page.Height - c.EndPoint.Y) * sy));
+                                break;
+                            case UglyToad.PdfPig.Core.PdfSubpath.QuadraticBezierCurve q:
+                                skPath.QuadTo(
+                                    (float)(q.ControlPoint.X * sx), (float)((page.Height - q.ControlPoint.Y) * sy),
+                                    (float)(q.EndPoint.X * sx), (float)((page.Height - q.EndPoint.Y) * sy));
+                                break;
+                            case UglyToad.PdfPig.Core.PdfSubpath.Close:
+                                skPath.Close();
+                                break;
+                        }
+                    }
+                }
+
+                if (pdfPath.IsFilled)
+                {
+                    var (r, g, b) = pdfPath.FillColor?.ToRGBValues() ?? (0, 0, 0);
+                    fillPaint.Color = new SKColor(
+                        (byte)Math.Clamp(Math.Round(r * 255.0), 0, 255),
+                        (byte)Math.Clamp(Math.Round(g * 255.0), 0, 255),
+                        (byte)Math.Clamp(Math.Round(b * 255.0), 0, 255));
+                    canvas.DrawPath(skPath, fillPaint);
+                }
+
+                if (pdfPath.IsStroked)
+                {
+                    var (r, g, b) = pdfPath.StrokeColor?.ToRGBValues() ?? (0, 0, 0);
+                    strokePaint.Color = new SKColor(
+                        (byte)Math.Clamp(Math.Round(r * 255.0), 0, 255),
+                        (byte)Math.Clamp(Math.Round(g * 255.0), 0, 255),
+                        (byte)Math.Clamp(Math.Round(b * 255.0), 0, 255));
+                    strokePaint.StrokeWidth = Math.Max(1f, (float)(pdfPath.LineWidth * sx));
+                    canvas.DrawPath(skPath, strokePaint);
+                }
+            }
+
+            if (!OcrTrace.HasReadablePageContrast(bmp))
+            {
+                bmp.Dispose();
+                return null;
+            }
+            return bmp;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static SKBitmap? Decode(IPdfImage img)
     {
         try
         {
-            if (img.TryGetPng(out var png)) return SKBitmap.Decode(png);
-            // JPEG (DCTDecode) data is a complete JPEG file.
+            if (img.TryGetPng(out var png) && png is { Length: > 0 })
+            {
+                var decodedPng = SKBitmap.Decode(png);
+                if (decodedPng is not null) return decodedPng;
+            }
+
+            // JPEG (DCTDecode) or other Skia-supported encoded stream in RawBytes.
             var raw = img.RawBytes.ToArray();
-            if (raw.Length > 2 && raw[0] == 0xFF && raw[1] == 0xD8) return SKBitmap.Decode(raw);
+            if (raw.Length > 4)
+            {
+                var decodedRaw = SKBitmap.Decode(raw);
+                if (decodedRaw is not null) return decodedRaw;
+            }
+
+            // Fallback for 1-bit monochrome or 8-bit grayscale scanned streams where TryGetPng returns false.
+            int w = img.WidthInSamples;
+            int h = img.HeightInSamples;
+            if (w > 0 && h > 0 && img.TryGetBytesAsMemory(out var mem))
+            {
+                byte[] bytes = mem.ToArray();
+                if (bytes.Length > 0)
+                {
+                    int rowBits = (w + 7) / 8;
+                    if (img.BitsPerComponent == 1 && bytes.Length >= rowBits * h)
+                    {
+                        var bmp = new SKBitmap(w, h, SKColorType.Bgra8888, SKAlphaType.Opaque);
+                        var pixels = new uint[w * h];
+                        for (int y = 0; y < h; y++)
+                        {
+                            int rowStart = y * rowBits;
+                            int dstRow = y * w;
+                            for (int x = 0; x < w; x++)
+                            {
+                                byte bVal = bytes[rowStart + (x >> 3)];
+                                int bit = (bVal >> (7 - (x & 7))) & 1;
+                                pixels[dstRow + x] = bit != 0 ? 0xFFFFFFFFu : 0xFF000000u;
+                            }
+                        }
+                        bmp.Pixels = pixels.Select(p => new SKColor((byte)(p >> 16), (byte)(p >> 8), (byte)p, 255)).ToArray();
+                        return bmp;
+                    }
+                    if (img.BitsPerComponent == 8 && bytes.Length >= w * h)
+                    {
+                        var bmp = new SKBitmap(w, h, SKColorType.Bgra8888, SKAlphaType.Opaque);
+                        var colors = new SKColor[w * h];
+                        for (int i = 0; i < w * h; i++)
+                        {
+                            byte g = bytes[i];
+                            colors[i] = new SKColor(g, g, g, 255);
+                        }
+                        bmp.Pixels = colors;
+                        return bmp;
+                    }
+                }
+            }
         }
         catch { /* undecodable picture */ }
         return null;

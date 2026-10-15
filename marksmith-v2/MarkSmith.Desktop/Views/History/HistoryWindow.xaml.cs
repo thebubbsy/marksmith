@@ -1011,4 +1011,185 @@ public sealed partial class HistoryWindow : Window
             }
         }
     }
+
+    private void OnSearchBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var focusTimeline = new MenuFlyoutItem
+        {
+            Text = "Focus timeline (Enter / Down)",
+            Icon = new FontIcon { Glyph = "\uE70D" }
+        };
+        focusTimeline.Click += (_, _) =>
+        {
+            if (_vm.Selected is { } sel && FindVersionButton(TimelineScroll, sel) is { } btn)
+            {
+                btn.Focus(FocusState.Programmatic);
+                btn.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.3 });
+            }
+            else
+            {
+                TimelineScroll.Focus(FocusState.Programmatic);
+            }
+        };
+        menu.Items.Add(focusTimeline);
+
+        var clearItem = new MenuFlyoutItem
+        {
+            Text = "Clear search filter (Esc)",
+            Icon = new FontIcon { Glyph = "\uE894" },
+            IsEnabled = !string.IsNullOrEmpty(_vm.SearchQuery) || !string.IsNullOrEmpty(SearchBox.Text)
+        };
+        clearItem.Click += (_, _) =>
+        {
+            _vm.SearchQuery = "";
+            SearchBox.Text = "";
+            SearchBox.Focus(FocusState.Programmatic);
+        };
+        menu.Items.Add(clearItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var starToggle = new ToggleMenuFlyoutItem
+        {
+            Text = "Show starred versions only (Ctrl+Shift+S)",
+            Icon = new FontIcon { Glyph = "\uE734" },
+            IsChecked = _vm.IsStarredOnlyFilter
+        };
+        starToggle.Click += (_, _) =>
+        {
+            _vm.IsStarredOnlyFilter = !_vm.IsStarredOnlyFilter;
+        };
+        menu.Items.Add(starToggle);
+
+        var checkpointItem = new MenuFlyoutItem
+        {
+            Text = "Take checkpoint (Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE74E" }
+        };
+        checkpointItem.Click += (_, _) => OnTakeSnapshotClick(this, new RoutedEventArgs());
+        menu.Items.Add(checkpointItem);
+
+        menu.ShowAt(SearchBox, e.GetPosition(SearchBox));
+    }
+
+    private void OnFileNameRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var file = _vm.SelectedFile;
+        var filePath = file?.Summary.FilePath ?? _vm.FileName;
+        var menu = new MenuFlyout();
+
+        var copyPath = new MenuFlyoutItem
+        {
+            Text = "Copy full file path (Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyPath.Click += (_, _) =>
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(filePath);
+            ClipboardWriter.Set(dp);
+            _vm.ShowNotice($"Copied file path: {filePath}");
+        };
+        menu.Items.Add(copyPath);
+
+        var copyName = new MenuFlyoutItem
+        {
+            Text = "Copy file name",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        copyName.Click += (_, _) =>
+        {
+            var name = file?.FileName ?? Path.GetFileName(filePath);
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(name);
+            ClipboardWriter.Set(dp);
+            _vm.ShowNotice($"Copied file name: {name}");
+        };
+        menu.Items.Add(copyName);
+
+        if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var showInExplorer = new MenuFlyoutItem
+            {
+                Text = "Show in File Explorer",
+                Icon = new FontIcon { Glyph = "\uEC50" }
+            };
+            showInExplorer.Click += (_, _) =>
+            {
+                try { System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{filePath}\""); }
+                catch { }
+            };
+            menu.Items.Add(showInExplorer);
+
+            var openInEditor = new MenuFlyoutItem
+            {
+                Text = "Open in editor",
+                Icon = new FontIcon { Glyph = "\uE8E5" },
+                IsEnabled = _main is not null
+            };
+            openInEditor.Click += async (_, _) =>
+            {
+                if (_main is null || !File.Exists(filePath)) return;
+                if (string.Equals(_main.InputFilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                    _main.InputFilePath = string.Empty;
+                _main.InputFilePath = filePath;
+                _main.UsePasteSource = false;
+                await _main.LastFileReadTask;
+                await _vm.ShowFileAsync(filePath);
+                _vm.ShowNotice($"Opened {Path.GetFileName(filePath)} in the editor.");
+            };
+            menu.Items.Add(openInEditor);
+        }
+
+        menu.ShowAt(FileNameTextBlock, e.GetPosition(FileNameTextBlock));
+    }
+
+    private void OnFileNameDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var filePath = _vm.SelectedFile?.Summary.FilePath ?? _vm.FileName;
+        if (!string.IsNullOrWhiteSpace(filePath))
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(filePath);
+            ClipboardWriter.Set(dp);
+            _vm.ShowNotice($"Copied file path: {filePath}");
+        }
+    }
+
+    private void OnTimelineBackgroundRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (e.OriginalSource is not ScrollViewer and not StackPanel and not Border) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var checkpointItem = new MenuFlyoutItem
+        {
+            Text = "Take checkpoint (Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE74E" }
+        };
+        checkpointItem.Click += (_, _) => OnTakeSnapshotClick(this, new RoutedEventArgs());
+        menu.Items.Add(checkpointItem);
+
+        var clearFilter = new MenuFlyoutItem
+        {
+            Text = "Clear filters",
+            Icon = new FontIcon { Glyph = "\uE894" },
+            IsEnabled = _vm.IsStarredOnlyFilter || !string.IsNullOrEmpty(_vm.SearchQuery)
+        };
+        clearFilter.Click += (_, _) =>
+        {
+            _vm.ClearFiltersCommand.Execute(null);
+            SearchBox.Text = "";
+        };
+        menu.Items.Add(clearFilter);
+
+        menu.ShowAt(TimelineScroll, e.GetPosition(TimelineScroll));
+    }
 }

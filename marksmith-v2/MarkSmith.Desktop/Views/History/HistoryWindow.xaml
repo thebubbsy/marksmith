@@ -41,8 +41,10 @@
                     <StackPanel Spacing="1">
                         <TextBlock Text="Version History" FontSize="16" FontWeight="SemiBold"
                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                        <TextBlock Text="{Binding FileName}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   TextTrimming="CharacterEllipsis" MaxWidth="320" />
+                        <TextBlock x:Name="FileNameTextBlock" Text="{Binding FileName}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="320"
+                                   RightTapped="OnFileNameRightTapped" DoubleTapped="OnFileNameDoubleTapped"
+                                   ToolTipService.ToolTip="Current document · Right-click for path options · Double-click to copy path" />
                     </StackPanel>
                 </StackPanel>
 
@@ -51,8 +53,9 @@
                          Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                          PlaceholderText="Search labels, kinds, days… (Ctrl+F)" MaxWidth="280" MinWidth="160"
                          HorizontalAlignment="Stretch" IsSpellCheckEnabled="False" KeyDown="OnSearchBoxKeyDown"
+                         RightTapped="OnSearchBoxRightTapped"
                          CornerRadius="6" VerticalAlignment="Center" Margin="0,0,4,0"
-                         ToolTipService.ToolTip="Filter the timeline by label, kind (Auto-Save, Checkpoint, Export · PDF…), weekday or time" />
+                         ToolTipService.ToolTip="Filter the timeline by label, kind (Auto-Save, Checkpoint, Export · PDF…), weekday or time · Right-click for options" />
 
                 <!-- Filter Starred -->
                 <ToggleButton Grid.Column="2" IsChecked="{Binding IsStarredOnlyFilter, Mode=TwoWay}"
@@ -213,7 +216,8 @@
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </Grid>
                     </Border>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" x:Name="TimelineScroll">
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" x:Name="TimelineScroll"
+                                  RightTapped="OnTimelineBackgroundRightTapped">
                         <StackPanel Padding="10,6,10,12" Spacing="8">
                             <TextBlock Text="Pick a document on the left to see its versions."
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12" TextWrapping="Wrap"

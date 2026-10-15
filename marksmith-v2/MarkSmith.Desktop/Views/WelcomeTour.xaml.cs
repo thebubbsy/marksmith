@@ -478,4 +478,62 @@ public sealed partial class WelcomeTour : UserControl
     private void OnBlankCard(object sender, RoutedEventArgs e) => Completed?.Invoke(this, EventArgs.Empty);
 
     private void OnSkip(object sender, RoutedEventArgs e) => Completed?.Invoke(this, EventArgs.Empty);
+
+    private void OnStepBadgeTapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowStepBadgeMenu(StepBadgeBorder, e.GetPosition(StepBadgeBorder));
+    }
+
+    private void OnStepBadgeRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowStepBadgeMenu(StepBadgeBorder, e.GetPosition(StepBadgeBorder));
+    }
+
+    private void ShowStepBadgeMenu(FrameworkElement anchor, Windows.Foundation.Point? position)
+    {
+        var menu = new MenuFlyout();
+
+        for (int i = 0; i < PageTitles.Length; i++)
+        {
+            int pageIndex = i;
+            var item = new MenuFlyoutItem
+            {
+                Text = $"{i + 1} · {PageTitles[i]}",
+                Icon = i == _index ? new FontIcon { Glyph = "\uE73E" } : new FontIcon { Glyph = "\uE8A5" }
+            };
+            item.Click += (_, _) => Show(pageIndex);
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copySteps = new MenuFlyoutItem
+        {
+            Text = "Copy tour step overview",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copySteps.Click += (_, _) =>
+        {
+            var overview = string.Join(Environment.NewLine, PageTitles.Select((t, idx) => $"{idx + 1}. {t}"));
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(overview);
+            ClipboardWriter.Set(dp);
+        };
+        menu.Items.Add(copySteps);
+
+        var replay = new MenuFlyoutItem
+        {
+            Text = "Replay from step 1",
+            Icon = new FontIcon { Glyph = "\uE72C" }
+        };
+        replay.Click += (_, _) => Show(0);
+        menu.Items.Add(replay);
+
+        if (position.HasValue)
+            menu.ShowAt(anchor, position.Value);
+        else
+            menu.ShowAt(anchor);
+    }
 }

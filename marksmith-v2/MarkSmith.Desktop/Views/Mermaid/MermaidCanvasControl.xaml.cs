@@ -153,6 +153,88 @@ public sealed partial class MermaidCanvasControl : UserControl
 
     private void OnZoomResetClick(object sender, RoutedEventArgs e) => ZoomReset();
 
+    private void OnZoomResetRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var anchor = sender as FrameworkElement ?? (FrameworkElement)InfiniteCanvasGrid;
+        var menu = new Microsoft.UI.Xaml.Controls.MenuFlyout();
+
+        var actualItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = "Reset zoom to 100% (Ctrl+0)",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE71E" }
+        };
+        actualItem.Click += (_, _) => ZoomReset();
+        menu.Items.Add(actualItem);
+
+        var fitItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = "Fit whole diagram in view",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE9A6" }
+        };
+        fitItem.Click += (_, _) => FitToContent();
+        menu.Items.Add(fitItem);
+
+        menu.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+
+        var subStops = new Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem
+        {
+            Text = "Preset zoom levels",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE71D" }
+        };
+
+        var stops = new (string label, float factor)[]
+        {
+            ("25%", 0.25f),
+            ("50%", 0.50f),
+            ("75%", 0.75f),
+            ("100%", 1.00f),
+            ("125%", 1.25f),
+            ("150%", 1.50f),
+            ("200%", 2.00f)
+        };
+
+        float currentZoom = (float)CanvasScrollViewer.ZoomFactor;
+
+        foreach (var (lbl, factor) in stops)
+        {
+            var item = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+            {
+                Text = lbl,
+                Icon = Math.Abs(currentZoom - factor) < 0.04f ? new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE73E" } : null
+            };
+            float target = factor;
+            item.Click += (_, _) => ZoomTo(target);
+            subStops.Items.Add(item);
+        }
+        menu.Items.Add(subStops);
+
+        menu.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+
+        var copyZoomItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = "Copy zoom level",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE8C8" }
+        };
+        copyZoomItem.Click += (_, _) =>
+        {
+            var text = ZoomLevelText?.Text ?? $"{Math.Round(CanvasScrollViewer.ZoomFactor * 100):0}%";
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(text);
+            ClipboardWriter.Set(dp);
+            if (ViewModel != null) ViewModel.StatusText = $"Copied zoom level: {text}";
+        };
+        menu.Items.Add(copyZoomItem);
+
+        menu.ShowAt(anchor, e.GetPosition(anchor));
+    }
+
+    private void OnCanvasRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowContextMenu(e.GetPosition(InfiniteCanvasGrid));
+    }
+
     private void OnZoomFitClick(object sender, RoutedEventArgs e)
     {
         FitToContent();
@@ -1538,6 +1620,19 @@ public sealed partial class MermaidCanvasControl : UserControl
             fit.IsEnabled = vm.Nodes.Count > 0;
             flyout.Items.Add(fit);
             flyout.Items.Add(MenuItem("Zoom to 100%", 0xE71E, (s, e) => ZoomReset(), "Ctrl+0"));
+            if (vm.Nodes.Count > 0)
+            {
+                flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+                var copyMermaid = MenuItem("Copy diagram as Mermaid", 0xE8C8, (s, e) =>
+                {
+                    var code = vm.GenerateMermaidCode();
+                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    dp.SetText(code);
+                    ClipboardWriter.Set(dp);
+                    vm.StatusText = "Copied diagram as Mermaid to clipboard.";
+                }, "Ctrl+Shift+C");
+                flyout.Items.Add(copyMermaid);
+            }
         }
 
         // Anchor the flyout to the canvas at the pointer position.

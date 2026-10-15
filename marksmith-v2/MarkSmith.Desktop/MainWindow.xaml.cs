@@ -5126,6 +5126,103 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         UpdateCenterBottomBar();
     }
 
+    private void OnSplitViewSplitterDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (SplitLeftCol != null) SplitLeftCol.Width = new GridLength(1, GridUnitType.Star);
+        if (SplitRightCol != null) SplitRightCol.Width = new GridLength(1, GridUnitType.Star);
+        AnnounceStatus("Reset editor and preview split to 50 / 50");
+    }
+
+    private void OnSplitViewSplitterRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var reset5050 = new MenuFlyoutItem
+        {
+            Text = "Reset to 50 / 50 split",
+            Icon = new FontIcon { Glyph = "\uE71E" }
+        };
+        reset5050.Click += (_, _) =>
+        {
+            if (SplitLeftCol != null) SplitLeftCol.Width = new GridLength(1, GridUnitType.Star);
+            if (SplitRightCol != null) SplitRightCol.Width = new GridLength(1, GridUnitType.Star);
+            AnnounceStatus("Editor and preview split: 50 / 50");
+        };
+        menu.Items.Add(reset5050);
+
+        var favorEditor = new MenuFlyoutItem
+        {
+            Text = "Favor editor (65 / 35)",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        favorEditor.Click += (_, _) =>
+        {
+            if (SplitLeftCol != null) SplitLeftCol.Width = new GridLength(1.85, GridUnitType.Star);
+            if (SplitRightCol != null) SplitRightCol.Width = new GridLength(1.0, GridUnitType.Star);
+            AnnounceStatus("Editor and preview split: 65 / 35");
+        };
+        menu.Items.Add(favorEditor);
+
+        var favorPreview = new MenuFlyoutItem
+        {
+            Text = "Favor preview (35 / 65)",
+            Icon = new FontIcon { Glyph = "\uE790" }
+        };
+        favorPreview.Click += (_, _) =>
+        {
+            if (SplitLeftCol != null) SplitLeftCol.Width = new GridLength(1.0, GridUnitType.Star);
+            if (SplitRightCol != null) SplitRightCol.Width = new GridLength(1.85, GridUnitType.Star);
+            AnnounceStatus("Editor and preview split: 35 / 65");
+        };
+        menu.Items.Add(favorPreview);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var showEditorOnly = new MenuFlyoutItem
+        {
+            Text = "Show editor only",
+            Icon = new FontIcon { Glyph = "\uE70F" },
+            KeyboardAcceleratorTextOverride = "Ctrl+1"
+        };
+        showEditorOnly.Click += (_, _) =>
+        {
+            if (CenterViewSelector != null && ViewCodeTab != null)
+                CenterViewSelector.SelectedItem = ViewCodeTab;
+        };
+        menu.Items.Add(showEditorOnly);
+
+        var showSplit = new MenuFlyoutItem
+        {
+            Text = "Show split view",
+            Icon = new FontIcon { Glyph = "\uE8A9" },
+            KeyboardAcceleratorTextOverride = "Ctrl+2"
+        };
+        showSplit.Click += (_, _) =>
+        {
+            if (CenterViewSelector != null && ViewSplitTab != null)
+                CenterViewSelector.SelectedItem = ViewSplitTab;
+        };
+        menu.Items.Add(showSplit);
+
+        var showPreviewOnly = new MenuFlyoutItem
+        {
+            Text = "Show preview only",
+            Icon = new FontIcon { Glyph = "\uE896" },
+            KeyboardAcceleratorTextOverride = "Ctrl+3"
+        };
+        showPreviewOnly.Click += (_, _) =>
+        {
+            if (CenterViewSelector != null && ViewPreviewTab != null)
+                CenterViewSelector.SelectedItem = ViewPreviewTab;
+        };
+        menu.Items.Add(showPreviewOnly);
+
+        if (SplitViewSplitter != null)
+            menu.ShowAt(SplitViewSplitter, e.GetPosition(SplitViewSplitter));
+    }
+
     // ---- Editor<->preview sync-scroll helpers ----
 
     // The editor's scroll fraction (0..1), or null when there is nothing to scroll. Reaches into the

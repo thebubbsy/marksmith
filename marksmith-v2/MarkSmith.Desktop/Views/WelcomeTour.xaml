@@ -82,7 +82,10 @@
             <Border x:Name="StepBadgeBorder" HorizontalAlignment="Right" VerticalAlignment="Top"
                     Margin="0,6,8,0" Padding="8,2" CornerRadius="6"
                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                    IsHitTestVisible="False" Canvas.ZIndex="2">
+                    IsHitTestVisible="True" Canvas.ZIndex="2"
+                    Tapped="OnStepBadgeTapped" RightTapped="OnStepBadgeRightTapped"
+                    ToolTipService.ToolTip="Tour steps · Click or right-click to jump to any step"
+                    AutomationProperties.Name="Tour step selector">
                 <TextBlock x:Name="StepBadgeText" Text="Step 1 of 7" FontSize="11"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            AutomationProperties.AccessibilityView="Raw" />
