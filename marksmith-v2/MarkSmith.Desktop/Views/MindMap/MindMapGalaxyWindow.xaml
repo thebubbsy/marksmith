@@ -62,11 +62,18 @@
                         <FontIcon Glyph="&#xEC26;" FontSize="18" Foreground="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center" />
                         <StackPanel Spacing="1">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold"
-                                           TextTrimming="CharacterEllipsis" MaxWidth="220" />
-                                <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="6,1" VerticalAlignment="Center"
+                                <TextBlock x:Name="MapTitleText" Text="{Binding Title}" FontSize="14" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" MaxWidth="220"
+                                           IsHitTestVisible="True"
+                                           DoubleTapped="OnMapTitleTextDoubleTapped"
+                                           RightTapped="OnMapTitleTextRightTapped"
+                                           ToolTipService.ToolTip="MindMap title · Double-click to copy title, right-click for options" />
+                                <Border x:Name="UnsavedBadge" Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="6,1" VerticalAlignment="Center"
                                         Visibility="{Binding IsDirty, Converter={StaticResource BoolToVis}}"
-                                        ToolTipService.ToolTip="Changes since the last save. Ctrl+S saves them.">
+                                        IsHitTestVisible="True"
+                                        DoubleTapped="OnUnsavedBadgeDoubleTapped"
+                                        RightTapped="OnUnsavedBadgeRightTapped"
+                                        ToolTipService.ToolTip="Changes since the last save · Double-click to save (Ctrl+S), right-click for save options">
                                     <TextBlock Text="Unsaved" FontSize="10" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
                                 </Border>
                             </StackPanel>

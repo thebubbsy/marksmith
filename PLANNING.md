@@ -7496,4 +7496,62 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 5444, `Alive: True`, `Responding: True`, exited cleanly.
 
+### 2026-10-16 (scheduled routine run #95 — WinUI 3 Desktop Polish: SmartArt Preview & Editor Tab Actions, MindMap Title & Unsaved Actions, Shape Selection Actions, Center View & Toggle Flyouts)
+
+- **Surface / Component Targets:** `MainWindow`, `SmartArtDesignStudioWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #94:
+    * Target A: `SmartArtDesignStudioWindow` Preview & Outline extended interactions (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`).
+    * Target B: `MindMapGalaxyWindow` Title & Unsaved extended interactions (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`).
+  - Generated:
+    1. `SmartArtDesignStudioWindow` Preview Header `PreviewTitleLabel` Context Actions & Markdown Copy (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`)
+    2. `MindMapGalaxyWindow` Title Header `MapTitleText` & `UnsavedBadge` Context Actions & Instant Save (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Added `x:Name="PreviewTitleLabel"`, `IsHitTestVisible="True"`, `DoubleTapped="OnPreviewTitleLabelDoubleTapped"`, and `RightTapped="OnPreviewTitleLabelRightTapped"` on the preview header title in `SmartArtDesignStudioWindow`, double-tap copying the `:::smartart` markdown block (or layout title) with status feedback, and right-tap offering Copy layout title (`\uE8C8`), Copy `:::smartart` block (`\uE8C8`), Copy outline bullets (`\uE8FD`), Refresh preview (`\uE72C`), and Switch to Markdown editor (`\uE70F`). Added `x:Name="MapTitleText"`, `IsHitTestVisible="True"`, `DoubleTapped="OnMapTitleTextDoubleTapped"`, and `RightTapped="OnMapTitleTextRightTapped"` on title text, plus `x:Name="UnsavedBadge"`, `IsHitTestVisible="True"`, `DoubleTapped="OnUnsavedBadgeDoubleTapped"`, and `RightTapped="OnUnsavedBadgeRightTapped"` on the unsaved badge in `MindMapGalaxyWindow`. Double-tapping title copies map title; right-tapping title offers Copy map title (`\uE8C8`), Copy map summary (`\uE946`), Save map changes `Ctrl+S` (`\uE74E`), Fit whole map `Ctrl+0` (`\uE9A6`), and Add child node `Tab` (`\uE710`). Double-tapping unsaved badge saves immediately (`SaveAsync`); right-tapping unsaved badge offers Save map changes `Ctrl+S` (`\uE74E`), Save copy as `Ctrl+Shift+S` (`\uE792`), Undo last change `Ctrl+Z` (`\uE7A7`), and Fit all nodes `Ctrl+0` (`\uE9A6`).
+  - Generated:
+    3. `ShapeDesignStudioWindow` Status Bar `SelectionSummaryText` Context Actions & Shape Selection (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`)
+    4. `MainWindow` Center View Switcher `CenterViewSelector` Context Menu & View Mode Shortcuts (`MainWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Attached `IsHitTestVisible="True"`, `DoubleTapped="OnSelectionSummaryDoubleTapped"`, and `RightTapped="OnSelectionSummaryRightTapped"` to `SelectionSummaryText` in `ShapeDesignStudioWindow` with double-tap copying selection summary/count, and right-tap offering Copy summary (`\uE946`), Select all shapes `Ctrl+A` (`\uE8B3`), Clear selection `Esc` (`\uE894`), Duplicate selected `Ctrl+D` (`\uE8C8`), Delete selected `Del` (`\uE74D`), Bring to front `Ctrl+Shift+]` (`\uE74A`), and Send to back `Ctrl+Shift+[` (`\uE74B`). Attached `RightTapped="OnCenterViewSelectorRightTapped"` on `CenterViewSelector` in `MainWindow` offering Code view `Ctrl+1` (`\uE8A5`), Split view `Ctrl+2` (`\uE8D3`), Preview view `Ctrl+3` (`\uE7B3`), Looking Glass toggle (`\uE7B3`), Preview as email toggle (`\uE715`), and Focus mode toggle `F11` (`\uE740`).
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `SmartArtDesignStudioWindow` Editor Tabs `EditorTabs` Context Actions & Mode Switching (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`)
+    6. `MainWindow` Looking Glass & Email Preview Header Toggles Context Menus & Direct Actions (`MainWindow.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Attached `RightTapped="OnEditorTabsRightTapped"` on `EditorTabs` in `SmartArtDesignStudioWindow` offering Outline editor `Ctrl+1` (`\uE8FD`), Markdown source `Ctrl+2` (`\uE943`), Copy outline bullets (`\uE8FD`), Copy `:::smartart` block (`\uE8C8`), and Add root item (`\uE710`). Attached `RightTapped="OnLookingGlassToggleRightTapped"` on `LookingGlassToggle` in `MainWindow` providing Toggle Looking Glass (`\uE7B3`), Circle spotlight shape (`\uE91F`), Focus band shape (`\uE8FD`), Square shape (`\uE735`), Logo Cutout shape (`\uE945`), and Reset reveal size (`\uE894`). Attached `RightTapped="OnEmailPreviewToggleRightTapped"` on `EmailPreviewToggle` in `MainWindow` providing Toggle email preview (`\uE715`), Copy as email (`\uE8C8`), Save as email (.eml) (`\uE8C3`), and Save as Outlook message (.msg) (`\uE8C3`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #96.
+
+**Shipped:**
+1. **`SmartArtDesignStudioWindow` Preview Header `PreviewTitleLabel` Context Actions & Markdown Copy (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `x:Name="PreviewTitleLabel"`, `IsHitTestVisible="True"`, `DoubleTapped="OnPreviewTitleLabelDoubleTapped"`, and `RightTapped="OnPreviewTitleLabelRightTapped"`.
+   - Double-tap copies `:::smartart` Markdown block (or layout title) with status confirmation.
+   - Right-tap opens Fluent context menu: Copy layout title (`\uE8C8`), Copy `:::smartart` block (`\uE8C8`), Copy outline bullets (`\uE8FD`), Refresh preview (`\uE72C`), and Switch to Markdown editor (`\uE70F`).
+2. **`MindMapGalaxyWindow` Title Header `MapTitleText` & `UnsavedBadge` Context Actions & Instant Save (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Attached `x:Name="MapTitleText"`, `IsHitTestVisible="True"`, `DoubleTapped="OnMapTitleTextDoubleTapped"`, and `RightTapped="OnMapTitleTextRightTapped"`. Double-tap copies map title; right-tap provides Copy map title (`\uE8C8`), Copy map summary (`\uE946`), Save map changes `Ctrl+S` (`\uE74E`), Fit all nodes in window `Ctrl+0` (`\uE9A6`), and Add child node `Tab` (`\uE710`).
+   - Attached `x:Name="UnsavedBadge"`, `IsHitTestVisible="True"`, `DoubleTapped="OnUnsavedBadgeDoubleTapped"`, and `RightTapped="OnUnsavedBadgeRightTapped"`. Double-tap immediately saves changes (`SaveAsync()`); right-tap provides Save map changes `Ctrl+S` (`\uE74E`), Save copy as `Ctrl+Shift+S` (`\uE792`), Undo last change `Ctrl+Z` (`\uE7A7`), and Fit all nodes `Ctrl+0` (`\uE9A6`).
+3. **`ShapeDesignStudioWindow` Status Bar `SelectionSummaryText` Context Actions & Shape Selection (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"`, `DoubleTapped="OnSelectionSummaryDoubleTapped"`, and `RightTapped="OnSelectionSummaryRightTapped"`.
+   - Double-tap copies selection summary or shape count to clipboard with status message.
+   - Right-tap opens Fluent context menu: Copy selection summary (`\uE946`), Select all shapes `Ctrl+A` (`\uE8B3`), Clear selection `Esc` (`\uE894`), Duplicate selected `Ctrl+D` (`\uE8C8`), Delete selected `Del` (`\uE74D`), Bring to front `Ctrl+Shift+]` (`\uE74A`), and Send to back `Ctrl+Shift+[` (`\uE74B`).
+4. **`MainWindow` Center View Switcher `CenterViewSelector` Context Menu & View Mode Shortcuts (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnCenterViewSelectorRightTapped"` on `CenterViewSelector`.
+   - Right-tap opens Fluent context menu: Code view `Ctrl+1` (`\uE8A5`), Split view `Ctrl+2` (`\uE8D3`), Preview view `Ctrl+3` (`\uE7B3`), Looking Glass toggle (`\uE7B3`), Preview as email toggle (`\uE715`), and Focus mode toggle `F11` (`\uE740`).
+5. **`SmartArtDesignStudioWindow` Editor Tabs `EditorTabs` Context Actions & Mode Switching (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnEditorTabsRightTapped"` on `EditorTabs`.
+   - Right-tap opens Fluent context menu: Outline editor `Ctrl+1` (`\uE8FD`), Markdown source `Ctrl+2` (`\uE943`), Copy outline bullets `Ctrl+C` (`\uE8FD`), Copy `:::smartart` block `Ctrl+Shift+C` (`\uE8C8`), and Add root item `Insert` (`\uE710`).
+6. **`MainWindow` Looking Glass & Email Preview Header Toggles Context Menus & Direct Actions (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnLookingGlassToggleRightTapped"` on `LookingGlassToggle` providing Toggle Looking Glass (`\uE7B3`), Circle spotlight shape (`\uE91F`), Focus band shape (`\uE8FD`), Square shape (`\uE735`), Logo Cutout shape (`\uE945`), and Reset reveal size (`\uE894`).
+   - Attached `RightTapped="OnEmailPreviewToggleRightTapped"` on `EmailPreviewToggle` providing Toggle email preview (`\uE715`), Copy as email (`\uE8C8`), Save as email (.eml) (`\uE8C3`), and Save as Outlook message (.msg) (`\uE8C3`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64 -p:OutDir="$env:TEMP\ms95d\b\"`: **0 errors, 16 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 17892, `Alive: True`, `Responding: True`, exited cleanly.
+
+
 

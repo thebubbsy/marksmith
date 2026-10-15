@@ -575,8 +575,9 @@
                          this row can no longer overflow into the step title on the left at the
                          default 1220×800 launch size. -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <ToggleButton x:Name="LookingGlassToggle" ToolTipService.ToolTip="Looking Glass portal mode — click the preview to reveal the editable Markdown behind it"
+                        <ToggleButton x:Name="LookingGlassToggle" ToolTipService.ToolTip="Looking Glass portal mode — click the preview to reveal the editable Markdown behind it (Right-click for portal options)"
                                       Height="32" Width="32" Padding="0" VerticalAlignment="Center"
+                                      RightTapped="OnLookingGlassToggleRightTapped"
                                       Checked="OnLookingGlassToggled" Unchecked="OnLookingGlassToggled">
                             <FontIcon Glyph="&#xE7B3;" FontSize="13" />
                         </ToggleButton>
@@ -584,18 +585,21 @@
                              email-safe body) instead of the themed page. -->
                         <ToggleButton x:Name="EmailPreviewToggle" Height="32" Width="32" Padding="0" VerticalAlignment="Center"
                                       AutomationProperties.Name="Preview as email"
-                                      ToolTipService.ToolTip="Preview as email: see the document exactly as the Outlook draft will show it"
+                                      ToolTipService.ToolTip="Preview as email: see the document exactly as the Outlook draft will show it (Right-click for email options)"
                                       IsChecked="{Binding PreviewAsEmail, Mode=TwoWay}"
+                                      RightTapped="OnEmailPreviewToggleRightTapped"
                                       Checked="OnEmailPreviewToggled" Unchecked="OnEmailPreviewToggled">
                             <FontIcon Glyph="&#xE715;" FontSize="13" />
                         </ToggleButton>
-                        <SelectorBar x:Name="CenterViewSelector" SelectionChanged="OnCenterViewSelectorChanged">
+                        <SelectorBar x:Name="CenterViewSelector" SelectionChanged="OnCenterViewSelectorChanged"
+                                     RightTapped="OnCenterViewSelectorRightTapped"
+                                     ToolTipService.ToolTip="Switch between Code (Ctrl+1), Split (Ctrl+2), and Preview (Ctrl+3) — Right-click for view options">
                             <SelectorBarItem x:Name="ViewCodeTab" Text="Code" IsSelected="True"
-                                             ToolTipService.ToolTip="Markdown editor only" />
+                                             ToolTipService.ToolTip="Markdown editor only (Ctrl+1)" />
                             <SelectorBarItem x:Name="ViewSplitTab" Text="Split"
-                                             ToolTipService.ToolTip="Editor and live preview side by side" />
+                                             ToolTipService.ToolTip="Editor and live preview side by side (Ctrl+2)" />
                             <SelectorBarItem x:Name="ViewPreviewTab" Text="Preview"
-                                             ToolTipService.ToolTip="Rendered preview only" />
+                                             ToolTipService.ToolTip="Rendered preview only (Ctrl+3)" />
                         </SelectorBar>
                     </StackPanel>
                 </Grid>

@@ -218,6 +218,47 @@ namespace MarkSmith.Views.ShapeStudio
             ViewModel.StatusMessage = "Copied status to clipboard";
         }
 
+        private void OnSelectionSummaryDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var summary = ViewModel.SelectionSummary;
+            if (string.IsNullOrWhiteSpace(summary))
+                summary = $"{ViewModel.SelectionCount} shapes selected";
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = $"Copied selection summary: {summary}";
+        }
+
+        private void OnSelectionSummaryRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (SelectionSummaryText is null) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            bool any = ViewModel.HasShapes;
+            bool hasSelection = ViewModel.SelectionCount > 0;
+
+            var summary = ViewModel.SelectionSummary ?? string.Empty;
+            flyout.Items.Add(ShapeMenuItem(!string.IsNullOrEmpty(summary) ? $"Copy summary ({summary})" : "Copy selection summary", "\uE946", () =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+                ViewModel.StatusMessage = $"Copied selection summary: {summary}";
+            }, enabled: !string.IsNullOrEmpty(summary)));
+
+            flyout.Items.Add(ShapeMenuItem("Select all shapes", "\uE8B3", () => ViewModel.SelectAllCommand.Execute(null), "Ctrl+A", enabled: any && !ViewModel.IsDense));
+            flyout.Items.Add(ShapeMenuItem("Clear selection", "\uE894", () => ViewModel.ClearSelection(), "Esc", enabled: hasSelection));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Duplicate selected", "\uE8C8", () => ViewModel.DuplicateSelectedCommand.Execute(null), "Ctrl+D", enabled: hasSelection));
+            flyout.Items.Add(ShapeMenuItem("Delete selected", "\uE74D", () => ViewModel.RemoveSelectedCommand.Execute(null), "Del", enabled: hasSelection));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Bring to front", "\uE74A", () => ViewModel.BringToFrontCommand.Execute(null), "Ctrl+Shift+]", enabled: hasSelection));
+            flyout.Items.Add(ShapeMenuItem("Send to back", "\uE74B", () => ViewModel.SendToBackCommand.Execute(null), "Ctrl+Shift+[", enabled: hasSelection));
+
+            flyout.ShowAt(SelectionSummaryText, e.GetPosition(SelectionSummaryText));
+        }
+
         private void OnStatusBarRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;

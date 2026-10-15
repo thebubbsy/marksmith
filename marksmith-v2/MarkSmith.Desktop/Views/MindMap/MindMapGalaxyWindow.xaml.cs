@@ -3161,6 +3161,128 @@ namespace MarkSmith.Views.MindMap
             menu.ShowAt(LinksCountText, e.GetPosition(LinksCountText));
         }
 
+        private void OnMapTitleTextDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var title = ViewModel.Title ?? string.Empty;
+            if (string.IsNullOrEmpty(title)) return;
+            _ = Services.ClipboardWriter.TrySetTextAsync(title);
+            ViewModel.StatusMessage = $"Copied map title: {title}";
+        }
+
+        private void OnMapTitleTextRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (MapTitleText is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var title = ViewModel.Title ?? string.Empty;
+            var copyTitleItem = new MenuFlyoutItem
+            {
+                Text = !string.IsNullOrEmpty(title) ? $"Copy map title ({title})" : "Copy map title",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !string.IsNullOrEmpty(title)
+            };
+            copyTitleItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(title);
+                ViewModel.StatusMessage = $"Copied map title: {title}";
+            };
+            menu.Items.Add(copyTitleItem);
+
+            var summary = $"{title} · {ViewModel.NodesCountText} · {ViewModel.LinksCountText}";
+            var copySummaryItem = new MenuFlyoutItem
+            {
+                Text = "Copy map summary",
+                Icon = new FontIcon { Glyph = "\uE946" }
+            };
+            copySummaryItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+                ViewModel.StatusMessage = $"Copied map summary: {summary}";
+            };
+            menu.Items.Add(copySummaryItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var saveItem = new MenuFlyoutItem
+            {
+                Text = "Save map changes (Ctrl+S)",
+                Icon = new FontIcon { Glyph = "\uE74E" }
+            };
+            saveItem.Click += (s, args) => OnSaveClick(this, new RoutedEventArgs());
+            menu.Items.Add(saveItem);
+
+            var fitItem = new MenuFlyoutItem
+            {
+                Text = "Fit all nodes in window (Ctrl+0)",
+                Icon = new FontIcon { Glyph = "\uE9A6" }
+            };
+            fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
+            menu.Items.Add(fitItem);
+
+            var addNodeItem = new MenuFlyoutItem
+            {
+                Text = "Add child node (Tab)",
+                Icon = new FontIcon { Glyph = "\uE710" }
+            };
+            addNodeItem.Click += (_, _) => ViewModel.AddChildNode();
+            menu.Items.Add(addNodeItem);
+
+            menu.ShowAt(MapTitleText, e.GetPosition(MapTitleText));
+        }
+
+        private async void OnUnsavedBadgeDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            GalaxyCanvas.Focus(FocusState.Programmatic);
+            await ViewModel.SaveAsync();
+        }
+
+        private void OnUnsavedBadgeRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (UnsavedBadge is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var saveItem = new MenuFlyoutItem
+            {
+                Text = "Save map changes (Ctrl+S)",
+                Icon = new FontIcon { Glyph = "\uE74E" }
+            };
+            saveItem.Click += (s, args) => OnSaveClick(this, new RoutedEventArgs());
+            menu.Items.Add(saveItem);
+
+            var saveAsItem = new MenuFlyoutItem
+            {
+                Text = "Save copy as… (Ctrl+Shift+S)",
+                Icon = new FontIcon { Glyph = "\uE792" }
+            };
+            saveAsItem.Click += (s, args) => OnSaveAsClick(this, new RoutedEventArgs());
+            menu.Items.Add(saveAsItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var undoItem = new MenuFlyoutItem
+            {
+                Text = "Undo last change (Ctrl+Z)",
+                Icon = new FontIcon { Glyph = "\uE7A7" },
+                IsEnabled = ViewModel.CanUndo
+            };
+            undoItem.Click += (_, _) => ViewModel.Undo();
+            menu.Items.Add(undoItem);
+
+            var fitItem = new MenuFlyoutItem
+            {
+                Text = "Fit all nodes in window (Ctrl+0)",
+                Icon = new FontIcon { Glyph = "\uE9A6" }
+            };
+            fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
+            menu.Items.Add(fitItem);
+
+            menu.ShowAt(UnsavedBadge, e.GetPosition(UnsavedBadge));
+        }
+
         #endregion
 
         /// <summary>

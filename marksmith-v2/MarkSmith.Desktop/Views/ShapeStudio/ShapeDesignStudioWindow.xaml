@@ -774,7 +774,10 @@
             <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                        RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
             <TextBlock x:Name="SelectionSummaryText" Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"
-                       RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
+                       IsHitTestVisible="True"
+                       DoubleTapped="OnSelectionSummaryDoubleTapped"
+                       RightTapped="OnSelectionSummaryRightTapped"
+                       ToolTipService.ToolTip="Selection summary · Double-click to copy summary, right-click for shape selection actions" />
             <!-- Zoom: Ctrl+scroll and pinch always worked but nothing showed the level or offered
                  a way back. Presets now open fitted to the canvas. -->
             <DropDownButton x:Name="ZoomButton" Grid.Column="2" Padding="8,0" Height="24" MinWidth="70" FontSize="12"

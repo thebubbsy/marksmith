@@ -154,7 +154,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <SelectorBar x:Name="EditorTabs" Margin="6,4,6,0" SelectionChanged="OnEditorTabsChanged">
+                    <SelectorBar x:Name="EditorTabs" Margin="6,4,6,0" SelectionChanged="OnEditorTabsChanged"
+                                 RightTapped="OnEditorTabsRightTapped">
                         <SelectorBarItem x:Name="OutlineTab" Text="Outline" IsSelected="True">
                             <SelectorBarItem.Icon><FontIcon Glyph="&#xE8FD;" /></SelectorBarItem.Icon>
                         </SelectorBarItem>
@@ -312,8 +313,12 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="Preview" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="1" Text="{Binding PreviewTitle}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="PreviewTitleLabel" Grid.Column="1" Text="{Binding PreviewTitle}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   IsHitTestVisible="True"
+                                   DoubleTapped="OnPreviewTitleLabelDoubleTapped"
+                                   RightTapped="OnPreviewTitleLabelRightTapped"
+                                   ToolTipService.ToolTip="Preview diagram title · Double-click to copy diagram Markdown, right-click for options" />
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                             <Button x:Name="CopyOutlineMarkdownButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                     Click="OnCopyOutlineMarkdownClick"

@@ -5583,6 +5583,53 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         PreviewWidthContainer.Visibility = !on && _viewMode != ViewMode.Code ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void OnEmailPreviewToggleRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (EmailPreviewToggle is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var isEmail = EmailPreviewToggle.IsChecked == true;
+        var toggleItem = new MenuFlyoutItem
+        {
+            Text = isEmail ? "Turn off email preview" : "Preview as email",
+            Icon = new FontIcon { Glyph = "\uE715" }
+        };
+        toggleItem.Click += (_, _) =>
+        {
+            EmailPreviewToggle.IsChecked = !isEmail;
+        };
+        menu.Items.Add(toggleItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyEmailItem = new MenuFlyoutItem
+        {
+            Text = "Copy as email",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyEmailItem.Click += OnCopyAsEmailClick;
+        menu.Items.Add(copyEmailItem);
+
+        var saveEmailItem = new MenuFlyoutItem
+        {
+            Text = "Save as email (.eml)",
+            Icon = new FontIcon { Glyph = "\uE8C3" }
+        };
+        saveEmailItem.Click += OnSaveEmailClick;
+        menu.Items.Add(saveEmailItem);
+
+        var saveMsgItem = new MenuFlyoutItem
+        {
+            Text = "Save as Outlook message (.msg)",
+            Icon = new FontIcon { Glyph = "\uE8C3" }
+        };
+        saveMsgItem.Click += OnSaveOutlookMessageClick;
+        menu.Items.Add(saveMsgItem);
+
+        menu.ShowAt(EmailPreviewToggle, e.GetPosition(EmailPreviewToggle));
+    }
+
     private async void OnEmailDraftClick(object sender, RoutedEventArgs e)
     {
         await ViewModel.CreateEmailDraftAsync();
@@ -5691,6 +5738,83 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         App.Settings.Current.EditorViewMode = mode.ToString();
         App.Settings.Save();
         ApplyViewMode(mode);
+    }
+
+    private void OnCenterViewSelectorRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (CenterViewSelector is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var codeItem = new MenuFlyoutItem
+        {
+            Text = "Code view (Ctrl+1)",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        codeItem.Click += (_, _) =>
+        {
+            if (ViewCodeTab is not null) CenterViewSelector.SelectedItem = ViewCodeTab;
+        };
+        menu.Items.Add(codeItem);
+
+        var splitItem = new MenuFlyoutItem
+        {
+            Text = "Split view (Ctrl+2)",
+            Icon = new FontIcon { Glyph = "\uE8D3" }
+        };
+        splitItem.Click += (_, _) =>
+        {
+            if (ViewSplitTab is not null) CenterViewSelector.SelectedItem = ViewSplitTab;
+        };
+        menu.Items.Add(splitItem);
+
+        var previewItem = new MenuFlyoutItem
+        {
+            Text = "Preview view (Ctrl+3)",
+            Icon = new FontIcon { Glyph = "\uE7B3" }
+        };
+        previewItem.Click += (_, _) =>
+        {
+            if (ViewPreviewTab is not null) CenterViewSelector.SelectedItem = ViewPreviewTab;
+        };
+        menu.Items.Add(previewItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var portalItem = new MenuFlyoutItem
+        {
+            Text = LookingGlassToggle?.IsChecked == true ? "Turn off Looking Glass" : "Turn on Looking Glass",
+            Icon = new FontIcon { Glyph = "\uE7B3" }
+        };
+        portalItem.Click += (_, _) =>
+        {
+            if (LookingGlassToggle is not null) LookingGlassToggle.IsChecked = !(LookingGlassToggle.IsChecked == true);
+        };
+        menu.Items.Add(portalItem);
+
+        var emailItem = new MenuFlyoutItem
+        {
+            Text = EmailPreviewToggle?.IsChecked == true ? "Turn off email preview" : "Preview as email",
+            Icon = new FontIcon { Glyph = "\uE715" }
+        };
+        emailItem.Click += (_, _) =>
+        {
+            if (EmailPreviewToggle is not null) EmailPreviewToggle.IsChecked = !(EmailPreviewToggle.IsChecked == true);
+        };
+        menu.Items.Add(emailItem);
+
+        var focusModeItem = new MenuFlyoutItem
+        {
+            Text = FocusModeToggle?.IsChecked == true ? "Exit focus mode (F11)" : "Focus mode (F11)",
+            Icon = new FontIcon { Glyph = "\uE740" }
+        };
+        focusModeItem.Click += (_, _) =>
+        {
+            if (FocusModeToggle is not null) FocusModeToggle.IsChecked = !(FocusModeToggle.IsChecked == true);
+        };
+        menu.Items.Add(focusModeItem);
+
+        menu.ShowAt(CenterViewSelector, e.GetPosition(CenterViewSelector));
     }
 
     // Switch the centre "Looking Glass" between Code, Split (editor + preview side by side) and
@@ -7488,6 +7612,100 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         App.Settings.Save();
         UpdateCenterBottomBar();
         _ = RefreshPreviewAsync();
+    }
+
+    private void OnLookingGlassToggleRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (LookingGlassToggle is null) return;
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var isPortalOn = LookingGlassToggle.IsChecked == true;
+        var toggleItem = new MenuFlyoutItem
+        {
+            Text = isPortalOn ? "Turn off Looking Glass" : "Turn on Looking Glass",
+            Icon = new FontIcon { Glyph = "\uE7B3" }
+        };
+        toggleItem.Click += (_, _) =>
+        {
+            LookingGlassToggle.IsChecked = !isPortalOn;
+        };
+        menu.Items.Add(toggleItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        void SetShape(string shape, string name)
+        {
+            if (LookingGlassToggle.IsChecked != true) LookingGlassToggle.IsChecked = true;
+            App.Settings.Current.PortalShape = shape;
+            App.Settings.Save();
+            if (PortalShapeCombo is not null)
+            {
+                foreach (var item in PortalShapeCombo.Items.OfType<ComboBoxItem>())
+                {
+                    if (item.Tag as string == shape)
+                    {
+                        PortalShapeCombo.SelectedItem = item;
+                        break;
+                    }
+                }
+            }
+            var js = "if (window.__portalSetShape) { window.__portalSetShape('" + shape + "'); }";
+            _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(js);
+            AnnounceStatus($"Looking Glass shape set to {name}");
+        }
+
+        var circleItem = new MenuFlyoutItem
+        {
+            Text = "Shape: Circle spotlight",
+            Icon = new FontIcon { Glyph = "\uE91F" }
+        };
+        circleItem.Click += (_, _) => SetShape("circle", "Circle spotlight");
+        menu.Items.Add(circleItem);
+
+        var focusItem = new MenuFlyoutItem
+        {
+            Text = "Shape: Focus band",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        focusItem.Click += (_, _) => SetShape("focus1", "Focus band");
+        menu.Items.Add(focusItem);
+
+        var squareItem = new MenuFlyoutItem
+        {
+            Text = "Shape: Square",
+            Icon = new FontIcon { Glyph = "\uE735" }
+        };
+        squareItem.Click += (_, _) => SetShape("square", "Square");
+        menu.Items.Add(squareItem);
+
+        var logoItem = new MenuFlyoutItem
+        {
+            Text = "Shape: Logo Cutout",
+            Icon = new FontIcon { Glyph = "\uE945" }
+        };
+        logoItem.Click += (_, _) => SetShape("logo", "Logo Cutout");
+        menu.Items.Add(logoItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var resetRevealItem = new MenuFlyoutItem
+        {
+            Text = "Reset reveal size (45%)",
+            Icon = new FontIcon { Glyph = "\uE894" }
+        };
+        resetRevealItem.Click += (_, _) =>
+        {
+            if (PortalRevealSlider != null) PortalRevealSlider.Value = 45;
+            App.Settings.Current.PortalRevealScope = 45;
+            App.Settings.Save();
+            var js = "if (window.__portalSetReveal) { window.__portalSetReveal(45); }";
+            _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(js);
+            AnnounceStatus("Reset Looking Glass reveal size to 45%");
+        };
+        menu.Items.Add(resetRevealItem);
+
+        menu.ShowAt(LookingGlassToggle, e.GetPosition(LookingGlassToggle));
     }
 
     // Centre pane bottom bar: the editing clusters show whenever the editor is visible or portal
