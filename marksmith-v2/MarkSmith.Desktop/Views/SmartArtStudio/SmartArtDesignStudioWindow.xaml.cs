@@ -1160,5 +1160,159 @@ namespace MarkSmith.Views.SmartArtStudio
             if (position.HasValue) menu.ShowAt(target, position.Value);
             else menu.ShowAt(target);
         }
+
+        private void OnLayoutCountLabelDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (!string.IsNullOrEmpty(LayoutSearch?.Text))
+            {
+                LayoutSearch.Text = string.Empty;
+                LayoutSearch.Focus(FocusState.Programmatic);
+                ViewModel.StatusMessage = "Cleared layout search filter.";
+            }
+            else
+            {
+                var txt = ViewModel.LayoutCountText ?? string.Empty;
+                _ = Services.ClipboardWriter.TrySetTextAsync(txt);
+                ViewModel.StatusMessage = $"Copied layout count: {txt}";
+            }
+        }
+
+        private void OnLayoutCountLabelRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (LayoutCountLabel is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var countText = ViewModel.LayoutCountText ?? string.Empty;
+            var copyCountItem = new MenuFlyoutItem
+            {
+                Text = !string.IsNullOrEmpty(countText) ? $"Copy layout count ({countText})" : "Copy layout count",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !string.IsNullOrEmpty(countText)
+            };
+            copyCountItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(countText);
+                ViewModel.StatusMessage = $"Copied layout count: {countText}";
+            };
+            menu.Items.Add(copyCountItem);
+
+            var focusSearchItem = new MenuFlyoutItem
+            {
+                Text = "Focus layout search (Ctrl+F)",
+                Icon = new FontIcon { Glyph = "\uE721" }
+            };
+            focusSearchItem.Click += (_, _) =>
+            {
+                LayoutSearch?.Focus(FocusState.Programmatic);
+            };
+            menu.Items.Add(focusSearchItem);
+
+            var resetSearchItem = new MenuFlyoutItem
+            {
+                Text = "Reset search & filter",
+                Icon = new FontIcon { Glyph = "\uE894" },
+                IsEnabled = !string.IsNullOrEmpty(LayoutSearch?.Text) || ViewModel.SelectedCategory != "All"
+            };
+            resetSearchItem.Click += (_, _) =>
+            {
+                if (LayoutSearch != null) LayoutSearch.Text = string.Empty;
+                ViewModel.SelectedCategory = "All";
+                ViewModel.StatusMessage = "Reset layout search and category filter.";
+            };
+            menu.Items.Add(resetSearchItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var pickRandomItem = new MenuFlyoutItem
+            {
+                Text = "Pick random layout",
+                Icon = new FontIcon { Glyph = "\uE8B1" },
+                IsEnabled = ViewModel.Layouts.Count > 0
+            };
+            pickRandomItem.Click += (_, _) =>
+            {
+                if (ViewModel.Layouts.Count > 0)
+                {
+                    var rng = new Random();
+                    var randomLayout = ViewModel.Layouts[rng.Next(ViewModel.Layouts.Count)];
+                    ViewModel.SelectedLayout = randomLayout;
+                    LayoutList?.ScrollIntoView(randomLayout);
+                    ViewModel.StatusMessage = $"Selected random layout: {randomLayout.DisplayName}";
+                }
+            };
+            menu.Items.Add(pickRandomItem);
+
+            menu.ShowAt(LayoutCountLabel, e.GetPosition(LayoutCountLabel));
+        }
+
+        private void OnOutlineSummaryLabelDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            CopyOutlineMarkdown();
+        }
+
+        private void OnOutlineSummaryLabelRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (OutlineSummaryLabel is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var summaryText = ViewModel.OutlineSummaryText ?? string.Empty;
+            var copySummaryItem = new MenuFlyoutItem
+            {
+                Text = !string.IsNullOrEmpty(summaryText) ? $"Copy summary ({summaryText})" : "Copy outline summary",
+                Icon = new FontIcon { Glyph = "\uE946" },
+                IsEnabled = !string.IsNullOrEmpty(summaryText)
+            };
+            copySummaryItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(summaryText);
+                ViewModel.StatusMessage = $"Copied outline summary: {summaryText}";
+            };
+            menu.Items.Add(copySummaryItem);
+
+            var copyBulletsItem = new MenuFlyoutItem
+            {
+                Text = "Copy outline bullets (Ctrl+C)",
+                Icon = new FontIcon { Glyph = "\uE8FD" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyBulletsItem.Click += (_, _) => CopyOutlineMarkdown();
+            menu.Items.Add(copyBulletsItem);
+
+            var copyBlockItem = new MenuFlyoutItem
+            {
+                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !ViewModel.IsOutlineEmpty
+            };
+            copyBlockItem.Click += (_, _) => CopySmartArtBlock();
+            menu.Items.Add(copyBlockItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var addRootItem = new MenuFlyoutItem
+            {
+                Text = "Add root item (Insert)",
+                Icon = new FontIcon { Glyph = "\uE710" }
+            };
+            addRootItem.Click += (_, _) => { ViewModel.AddChild(null); FocusRenameBox(); };
+            menu.Items.Add(addRootItem);
+
+            var switchToEditorItem = new MenuFlyoutItem
+            {
+                Text = "Switch to Markdown editor (Ctrl+2)",
+                Icon = new FontIcon { Glyph = "\uE70F" }
+            };
+            switchToEditorItem.Click += (_, _) =>
+            {
+                EditorTabs.SelectedItem = MarkdownTab;
+            };
+            menu.Items.Add(switchToEditorItem);
+
+            menu.ShowAt(OutlineSummaryLabel, e.GetPosition(OutlineSummaryLabel));
+        }
     }
 }

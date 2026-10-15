@@ -89,7 +89,11 @@
                         <Grid>
                             <TextBlock Text="Layouts" FontWeight="SemiBold" FontSize="14" />
                             <TextBlock x:Name="LayoutCountLabel" Text="{Binding LayoutCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                       HorizontalAlignment="Right" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+                                       HorizontalAlignment="Right" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite"
+                                       IsHitTestVisible="True"
+                                       DoubleTapped="OnLayoutCountLabelDoubleTapped"
+                                       RightTapped="OnLayoutCountLabelRightTapped"
+                                       ToolTipService.ToolTip="Layout count · Double-click to focus search or reset filter, right-click for layout options" />
                         </Grid>
                         <AutoSuggestBox x:Name="LayoutSearch" AutomationProperties.Name="Search layouts" PlaceholderText="Search layouts"
                                         QueryIcon="Find" TextChanged="OnLayoutSearchTextChanged" KeyDown="OnLayoutSearchKeyDown"
@@ -346,7 +350,10 @@
                        RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
             <TextBlock x:Name="OutlineSummaryLabel" Grid.Column="1" Text="{Binding OutlineSummaryText}" FontSize="12"
                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"
-                       RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
+                       IsHitTestVisible="True"
+                       DoubleTapped="OnOutlineSummaryLabelDoubleTapped"
+                       RightTapped="OnOutlineSummaryLabelRightTapped"
+                       ToolTipService.ToolTip="Outline summary · Double-click to copy outline bullets, right-click for outline options" />
         </Grid>
     </Grid>
 </Window>

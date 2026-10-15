@@ -3017,6 +3017,150 @@ namespace MarkSmith.Views.MindMap
             else menu.ShowAt(target);
         }
 
+        private void OnNodesCountDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var text = ViewModel.NodesCountText;
+            if (string.IsNullOrWhiteSpace(text)) return;
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(text);
+            ClipboardWriter.Set(dp);
+            ViewModel.StatusMessage = $"Copied node count: {text}";
+        }
+
+        private void OnNodesCountRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (NodesCountText is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var countText = ViewModel.NodesCountText ?? string.Empty;
+            var copyCountItem = new MenuFlyoutItem
+            {
+                Text = !string.IsNullOrWhiteSpace(countText) ? $"Copy node count ({countText})" : "Copy node count",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !string.IsNullOrWhiteSpace(countText)
+            };
+            copyCountItem.Click += (_, _) =>
+            {
+                if (!string.IsNullOrWhiteSpace(countText))
+                {
+                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    dp.SetText(countText);
+                    ClipboardWriter.Set(dp);
+                    ViewModel.StatusMessage = $"Copied node count: {countText}";
+                }
+            };
+            menu.Items.Add(copyCountItem);
+
+            var addNodeItem = new MenuFlyoutItem
+            {
+                Text = "Add new node (Insert / Tab)",
+                Icon = new FontIcon { Glyph = "\uE710" }
+            };
+            addNodeItem.Click += (_, _) => ViewModel.AddChildNodeCommand.Execute(null);
+            menu.Items.Add(addNodeItem);
+
+            var clearSelectionItem = new MenuFlyoutItem
+            {
+                Text = "Clear node selection (Esc)",
+                Icon = new FontIcon { Glyph = "\uE894" },
+                IsEnabled = ViewModel.HasSelection
+            };
+            clearSelectionItem.Click += (_, _) =>
+            {
+                ViewModel.SelectedNode = null;
+                ViewModel.SelectedLink = null;
+                ViewModel.HidePreviewCard();
+            };
+            menu.Items.Add(clearSelectionItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var searchItem = new MenuFlyoutItem
+            {
+                Text = "Search nodes (Ctrl+F)",
+                Icon = new FontIcon { Glyph = "\uE721" }
+            };
+            searchItem.Click += (_, _) => SearchBox?.Focus(FocusState.Programmatic);
+            menu.Items.Add(searchItem);
+
+            var fitItem = new MenuFlyoutItem
+            {
+                Text = "Fit all nodes in window (Ctrl+0)",
+                Icon = new FontIcon { Glyph = "\uE9A6" }
+            };
+            fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
+            menu.Items.Add(fitItem);
+
+            menu.ShowAt(NodesCountText, e.GetPosition(NodesCountText));
+        }
+
+        private void OnLinksCountDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var text = ViewModel.LinksCountText;
+            if (string.IsNullOrWhiteSpace(text)) return;
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(text);
+            ClipboardWriter.Set(dp);
+            ViewModel.StatusMessage = $"Copied connection count: {text}";
+        }
+
+        private void OnLinksCountRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (LinksCountText is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var countText = ViewModel.LinksCountText ?? string.Empty;
+            var copyCountItem = new MenuFlyoutItem
+            {
+                Text = !string.IsNullOrWhiteSpace(countText) ? $"Copy connection count ({countText})" : "Copy connection count",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !string.IsNullOrWhiteSpace(countText)
+            };
+            copyCountItem.Click += (_, _) =>
+            {
+                if (!string.IsNullOrWhiteSpace(countText))
+                {
+                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    dp.SetText(countText);
+                    ClipboardWriter.Set(dp);
+                    ViewModel.StatusMessage = $"Copied connection count: {countText}";
+                }
+            };
+            menu.Items.Add(copyCountItem);
+
+            var radialLayoutItem = new MenuFlyoutItem
+            {
+                Text = "Arrange as Radial Galaxy",
+                Icon = new FontIcon { Glyph = "\uE8B1" }
+            };
+            radialLayoutItem.Click += (_, _) => ViewModel.ApplyLayout("Radial");
+            menu.Items.Add(radialLayoutItem);
+
+            var treeLayoutItem = new MenuFlyoutItem
+            {
+                Text = "Arrange as Horizontal Tree",
+                Icon = new FontIcon { Glyph = "\uE8A5" }
+            };
+            treeLayoutItem.Click += (_, _) => ViewModel.ApplyLayout("Horizontal");
+            menu.Items.Add(treeLayoutItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var fitItem = new MenuFlyoutItem
+            {
+                Text = "Fit all nodes in window (Ctrl+0)",
+                Icon = new FontIcon { Glyph = "\uE9A6" }
+            };
+            fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
+            menu.Items.Add(fitItem);
+
+            menu.ShowAt(LinksCountText, e.GetPosition(LinksCountText));
+        }
+
         #endregion
 
         /// <summary>

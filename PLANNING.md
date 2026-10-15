@@ -7435,4 +7435,65 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Full test suite (`MarkSmith.Tests`): **4,797 passed, 0 failed, 1 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 26016, `Alive: True`, `Responding: True`, exited cleanly.
 
+### 2026-10-16 (scheduled routine run #94 — WinUI 3 Desktop Polish: TOC & History Header Counters, Status Output Action Menus, SmartArt Layout & Summary Context Actions, MindMap Node & Connection Actions)
+
+- **Surface / Component Targets:** `MainWindow`, `SmartArtDesignStudioWindow`, `MindMapGalaxyWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #93:
+    * Target A: `MainWindow` Outline flyout header counter and list actions (`MainWindow.xaml` & `.xaml.cs`).
+    * Target B: `MainWindow` Export history flyout header counter and batch actions (`MainWindow.xaml` & `.xaml.cs`).
+  - Generated:
+    1. `MainWindow` Outline Flyout `TocCountText` Context Actions & Outline Copy (`MainWindow.xaml` & `.xaml.cs`)
+    2. `MainWindow` Export History Flyout `HistoryCountText` Context Actions & Paths Copy (`MainWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Added `IsHitTestVisible="True"`, `DoubleTapped="OnTocCountTextDoubleTapped"`, and `RightTapped="OnTocCountTextRightTapped"` with double-tap copying full Markdown TOC with confirmation in status bar, and right-tap offering Copy heading count (`\uE8C8`), Copy all headings as TOC (`\uE8FD`), Copy headings as plain text (`\uE8C8`), Filter headings `Ctrl+F` (`\uE721`), and Jump to first heading (`\uE74B`). Added `IsHitTestVisible="True"`, `DoubleTapped="OnHistoryCountTextDoubleTapped"`, and `RightTapped="OnHistoryCountTextRightTapped"` on `HistoryCountText` copying all exported file paths with double-tap, and offering Copy export count (`\uE8C8`), Copy all output paths (`\uE8C8`), Copy export summary list (`\uE9F9`), Open export output folder (`\uE838`), and Clear recent exports (`\uE74D`).
+  - Generated:
+    3. `MainWindow` Status Bar `StatusOutputLinks` Context Actions & Path Copy (`MainWindow.xaml` & `.xaml.cs`)
+    4. `SmartArtDesignStudioWindow` Layout Gallery `LayoutCountLabel` Actions & Search Reset (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Attached `IsHitTestVisible="True"`, `DoubleTapped="OnStatusOutputLinksDoubleTapped"`, and `RightTapped="OnStatusOutputLinksRightTapped"` to `StatusOutputLinks` with double-tap copying output file path, and right-tap context menu providing Open exported file (`\uE8E5`), Show in File Explorer (`\uE838`), Copy file path (`\uE8C8`), Copy file name (`\uE8C8`), and Copy folder path (`\uE8DA`). Attached `IsHitTestVisible="True"`, `DoubleTapped="OnLayoutCountLabelDoubleTapped"`, and `RightTapped="OnLayoutCountLabelRightTapped"` on `LayoutCountLabel` in `SmartArtDesignStudioWindow` to copy layout count or clear filter, with right-tap offering Copy layout count (`\uE8C8`), Focus layout search `Ctrl+F` (`\uE721`), Reset search & filter (`\uE894`), and Pick random layout (`\uE8B1`).
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `SmartArtDesignStudioWindow` Status Bar `OutlineSummaryLabel` Context Actions (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`)
+    6. `MindMapGalaxyWindow` Status Bar `NodesCountText` and `LinksCountText` Actions (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Attached `IsHitTestVisible="True"`, `DoubleTapped="OnOutlineSummaryLabelDoubleTapped"`, and `RightTapped="OnOutlineSummaryLabelRightTapped"` on `OutlineSummaryLabel` in `SmartArtDesignStudioWindow` to copy outline markdown bullets on double-tap, and right-tap context menu with Copy outline summary (`\uE946`), Copy outline bullets (`\uE8FD`), Copy `:::smartart` block (`\uE8C8`), Add root item (`\uE710`), and Switch to Markdown editor (`\uE70F`). Attached `IsHitTestVisible="True"`, `DoubleTapped`, and `RightTapped` on `NodesCountText` and `LinksCountText` in `MindMapGalaxyWindow` status bar: `NodesCountText` offers Copy node count (`\uE8C8`), Add new node (`\uE710`), Clear node selection (`\uE894`), Search nodes (`\uE721`), and Fit all nodes in window (`\uE9A6`); `LinksCountText` offers Copy connection count (`\uE8C8`), Arrange as Radial Galaxy (`\uE8B1`), Arrange as Horizontal Tree (`\uE8A5`), and Fit all nodes in window (`\uE9A6`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #95.
+
+**Shipped:**
+1. **`MainWindow` Outline Flyout `TocCountText` Context Actions & Outline Copy (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"`, `DoubleTapped="OnTocCountTextDoubleTapped"`, and `RightTapped="OnTocCountTextRightTapped"`.
+   - Double-tap copies full outline TOC formatted as Markdown with `AnnounceStatus` feedback.
+   - Right-tap opens Fluent context menu: Copy heading count (`\uE8C8`), Copy all headings as TOC (`\uE8FD`), Copy headings as plain text (`\uE8C8`), Filter headings (`\uE721`), and Jump to first heading (`\uE74B`).
+2. **`MainWindow` Export History Flyout `HistoryCountText` Context Actions & Paths Copy (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"`, `DoubleTapped="OnHistoryCountTextDoubleTapped"`, and `RightTapped="OnHistoryCountTextRightTapped"`.
+   - Double-tap copies all exported file paths to the clipboard with status confirmation.
+   - Right-tap opens Fluent context menu: Copy export count (`\uE8C8`), Copy all output paths (`\uE8C8`), Copy export summary list (`\uE9F9`), Open export output folder (`\uE838`), and Clear recent exports (`\uE74D`).
+3. **`MainWindow` Status Bar `StatusOutputLinks` Context Actions & Path Copy (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"`, `DoubleTapped="OnStatusOutputLinksDoubleTapped"`, and `RightTapped="OnStatusOutputLinksRightTapped"`.
+   - Double-tap copies the last exported file's full path with notification.
+   - Right-tap opens Fluent context menu: Open exported file (`\uE8E5`), Show in File Explorer (`\uE838`), Copy file path (`\uE8C8`), Copy file name (`\uE8C8`), and Copy folder path (`\uE8DA`).
+4. **`SmartArtDesignStudioWindow` Layout Gallery `LayoutCountLabel` Actions & Search Reset (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"`, `DoubleTapped="OnLayoutCountLabelDoubleTapped"`, and `RightTapped="OnLayoutCountLabelRightTapped"`.
+   - Double-tap clears filter if active or copies layout count.
+   - Right-tap opens Fluent context menu: Copy layout count (`\uE8C8`), Focus layout search `Ctrl+F` (`\uE721`), Reset search & filter (`\uE894`), and Pick random layout (`\uE8B1`).
+5. **`SmartArtDesignStudioWindow` Status Bar `OutlineSummaryLabel` Context Actions (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"`, `DoubleTapped="OnOutlineSummaryLabelDoubleTapped"`, and `RightTapped="OnOutlineSummaryLabelRightTapped"`.
+   - Double-tap copies outline markdown bullets to clipboard with button feedback.
+   - Right-tap opens Fluent context menu: Copy outline summary (`\uE946`), Copy outline bullets (`\uE8FD`), Copy `:::smartart` block (`\uE8C8`), Add root item (`\uE710`), and Switch to Markdown editor (`\uE70F`).
+6. **`MindMapGalaxyWindow` Status Bar `NodesCountText` and `LinksCountText` Actions (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Attached `IsHitTestVisible="True"`, `DoubleTapped`, and `RightTapped` on `NodesCountText` and `LinksCountText`.
+   - `NodesCountText`: Double-tap copies node count string; right-tap provides Copy node count (`\uE8C8`), Add new node (`\uE710`), Clear node selection (`\uE894`), Search nodes (`\uE721`), and Fit all nodes in window (`\uE9A6`).
+   - `LinksCountText`: Double-tap copies connection count string; right-tap provides Copy connection count (`\uE8C8`), Arrange as Radial Galaxy (`\uE8B1`), Arrange as Horizontal Tree (`\uE8A5`), and Fit all nodes in window (`\uE9A6`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 16 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 5444, `Alive: True`, `Responding: True`, exited cleanly.
+
 

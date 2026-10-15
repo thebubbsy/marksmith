@@ -1325,7 +1325,11 @@
                                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                             <TextBlock Grid.Column="0" Text="Document outline" FontWeight="SemiBold" VerticalAlignment="Center" />
                                             <TextBlock x:Name="TocCountText" Grid.Column="1" FontSize="12"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"
+                                                       IsHitTestVisible="True"
+                                                       DoubleTapped="OnTocCountTextDoubleTapped"
+                                                       RightTapped="OnTocCountTextRightTapped"
+                                                       ToolTipService.ToolTip="Heading count · Double-click to copy TOC Markdown, right-click for outline options" />
                                         </Grid>
                                         <TextBox x:Name="TocFilterBox" Grid.Row="1"
                                                  PlaceholderText="Filter headings…"
@@ -1393,7 +1397,11 @@
                                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                                             <TextBlock Grid.Column="0" Text="Recent exports" FontWeight="SemiBold" VerticalAlignment="Center" />
                                             <TextBlock x:Name="HistoryCountText" Grid.Column="1" FontSize="12"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"
+                                                       IsHitTestVisible="True"
+                                                       DoubleTapped="OnHistoryCountTextDoubleTapped"
+                                                       RightTapped="OnHistoryCountTextRightTapped"
+                                                       ToolTipService.ToolTip="Recent export count · Double-click to copy all output paths, right-click for history options" />
                                             <Button x:Name="ClearHistoryButton" Grid.Column="2" Content="Clear"
                                                     Click="OnClearExportHistoryClick" Padding="8,2" FontSize="11"
                                                     Visibility="Collapsed"
@@ -2133,7 +2141,11 @@
                     <!-- Shown only while the status line is announcing a finished export (the
                          Windows toast is easy to miss, or switched off entirely). -->
                     <StackPanel x:Name="StatusOutputLinks" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
-                                Visibility="{Binding HasStatusOutput, Converter={StaticResource BoolToVisibilityConverter}}">
+                                Visibility="{Binding HasStatusOutput, Converter={StaticResource BoolToVisibilityConverter}}"
+                                IsHitTestVisible="True"
+                                DoubleTapped="OnStatusOutputLinksDoubleTapped"
+                                RightTapped="OnStatusOutputLinksRightTapped"
+                                ToolTipService.ToolTip="Exported file actions · Double-click to copy path, right-click for options">
                         <HyperlinkButton Click="OnStatusOpenOutputClick" Padding="6,1" FontSize="12"
                                          ToolTipService.ToolTip="Open the exported file"
                                          AutomationProperties.Name="Open exported file">

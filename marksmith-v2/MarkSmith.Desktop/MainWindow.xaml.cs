@@ -2017,6 +2017,120 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             menu.ShowAt(anchor);
     }
 
+    private void OnHistoryCountTextDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        CopyAllExportPaths();
+    }
+
+    private void CopyAllExportPaths()
+    {
+        var entries = ViewModel?.History;
+        if (entries is null || entries.Count == 0)
+        {
+            AnnounceStatus("No export history to copy.");
+            return;
+        }
+
+        var paths = entries
+            .Select(h => h.OutputPath)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct();
+        var allPaths = string.Join(Environment.NewLine, paths);
+        CopyTextToStatusBar(allPaths, $"Copied {entries.Count} export file path(s).");
+    }
+
+    private void OnHistoryCountTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (HistoryCountText is null) return;
+        e.Handled = true;
+        var count = ViewModel?.History?.Count ?? 0;
+        var menu = new MenuFlyout();
+
+        var copyCountItem = new MenuFlyoutItem
+        {
+            Text = count > 0 ? $"Copy export count ({HistoryCountText.Text})" : "Copy export count",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = count > 0
+        };
+        copyCountItem.Click += (_, _) =>
+        {
+            var txt = HistoryCountText.Text ?? string.Empty;
+            if (!string.IsNullOrEmpty(txt))
+            {
+                CopyTextToStatusBar(txt, $"Copied export count: {txt}");
+            }
+        };
+        menu.Items.Add(copyCountItem);
+
+        var copyAllPathsItem = new MenuFlyoutItem
+        {
+            Text = $"Copy all output paths ({count})",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = count > 0
+        };
+        copyAllPathsItem.Click += (_, _) => CopyAllExportPaths();
+        menu.Items.Add(copyAllPathsItem);
+
+        var copySummaryItem = new MenuFlyoutItem
+        {
+            Text = "Copy export summary list",
+            Icon = new FontIcon { Glyph = "\uE9F9" },
+            IsEnabled = count > 0
+        };
+        copySummaryItem.Click += (_, _) =>
+        {
+            var entries = ViewModel?.History;
+            if (entries is null || entries.Count == 0) return;
+            var sb = new System.Text.StringBuilder();
+            foreach (var h in entries)
+            {
+                sb.AppendLine($"- {h.Title}: {h.OutputPath} ({h.Subtitle})");
+            }
+            CopyTextToStatusBar(sb.ToString().TrimEnd(), $"Copied {entries.Count} export summaries.");
+        };
+        menu.Items.Add(copySummaryItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var openFolderItem = new MenuFlyoutItem
+        {
+            Text = "Open export output folder",
+            Icon = new FontIcon { Glyph = "\uE838" }
+        };
+        openFolderItem.Click += (_, _) =>
+        {
+            var folder = ViewModel.OutputFolder;
+            if (string.IsNullOrWhiteSpace(folder))
+            {
+                folder = string.IsNullOrWhiteSpace(ViewModel.InputFilePath)
+                    ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+                    : Path.GetDirectoryName(ViewModel.InputFilePath) ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            }
+            try
+            {
+                if (Directory.Exists(folder))
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = folder, UseShellExecute = true });
+                    AnnounceStatus($"Opened folder: {folder}");
+                }
+            }
+            catch { }
+        };
+        menu.Items.Add(openFolderItem);
+
+        var clearItem = new MenuFlyoutItem
+        {
+            Text = "Clear recent exports",
+            Icon = new FontIcon { Glyph = "\uE74D" },
+            IsEnabled = count > 0
+        };
+        clearItem.Click += (_, _) => OnClearExportHistoryClick(sender, new RoutedEventArgs());
+        menu.Items.Add(clearItem);
+
+        menu.ShowAt(HistoryCountText, e.GetPosition(HistoryCountText));
+    }
+
     // Every format MarkSmith itself exports. Anything else in a history row is refused rather than
     // shell-executed. ".html" was missing, so the Open output button silently did nothing after an
     // HTML export and its history row reported "Blocked opening untrusted file type". The same
@@ -2129,6 +2243,85 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             menu.ShowAt(StatusMsgText, e.GetPosition(StatusMsgText));
             e.Handled = true;
         }
+    }
+
+    private void OnStatusOutputLinksDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        var path = ViewModel.StatusOutputPath;
+        if (string.IsNullOrWhiteSpace(path)) return;
+        e.Handled = true;
+        _ = Services.ClipboardWriter.TrySetTextAsync(path);
+        AnnounceStatus($"Copied output file path: {Path.GetFileName(path)}");
+    }
+
+    private void OnStatusOutputLinksRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        var path = ViewModel.StatusOutputPath;
+        if (string.IsNullOrWhiteSpace(path) || StatusOutputLinks is null) return;
+        e.Handled = true;
+
+        var menu = new MenuFlyout();
+
+        var openFileItem = new MenuFlyoutItem
+        {
+            Text = "Open exported file",
+            Icon = new FontIcon { Glyph = "\uE8E5" }
+        };
+        openFileItem.Click += OnStatusOpenOutputClick;
+        menu.Items.Add(openFileItem);
+
+        var showFolderItem = new MenuFlyoutItem
+        {
+            Text = "Show in File Explorer",
+            Icon = new FontIcon { Glyph = "\uE838" }
+        };
+        showFolderItem.Click += OnStatusShowOutputFolderClick;
+        menu.Items.Add(showFolderItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyPathItem = new MenuFlyoutItem
+        {
+            Text = "Copy file path",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyPathItem.Click += (_, _) =>
+        {
+            _ = Services.ClipboardWriter.TrySetTextAsync(path);
+            AnnounceStatus($"Copied output file path: {Path.GetFileName(path)}");
+        };
+        menu.Items.Add(copyPathItem);
+
+        var copyNameItem = new MenuFlyoutItem
+        {
+            Text = "Copy file name",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyNameItem.Click += (_, _) =>
+        {
+            var fileName = Path.GetFileName(path);
+            _ = Services.ClipboardWriter.TrySetTextAsync(fileName);
+            AnnounceStatus($"Copied file name: {fileName}");
+        };
+        menu.Items.Add(copyNameItem);
+
+        var copyDirItem = new MenuFlyoutItem
+        {
+            Text = "Copy folder path",
+            Icon = new FontIcon { Glyph = "\uE8DA" }
+        };
+        copyDirItem.Click += (_, _) =>
+        {
+            var dir = Path.GetDirectoryName(path) ?? string.Empty;
+            if (!string.IsNullOrEmpty(dir))
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(dir);
+                AnnounceStatus($"Copied folder path: {dir}");
+            }
+        };
+        menu.Items.Add(copyDirItem);
+
+        menu.ShowAt(StatusOutputLinks, e.GetPosition(StatusOutputLinks));
     }
 
     // Document outline (Task 17): scroll the preview to the clicked heading. The anchor is the exact
@@ -2384,6 +2577,95 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
 
         CopyTextToStatusBar(sb.ToString().TrimEnd(), $"Copied {entries.Count} headings as Markdown TOC.");
+    }
+
+    private void OnTocCountTextDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        CopyAllHeadingsAsToc();
+    }
+
+    private void OnTocCountTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (TocCountText is null) return;
+        e.Handled = true;
+        var count = ViewModel?.TocEntries?.Count ?? 0;
+        var menu = new MenuFlyout();
+
+        var copyCountItem = new MenuFlyoutItem
+        {
+            Text = count > 0 ? $"Copy heading count ({TocCountText.Text})" : "Copy heading count",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = count > 0
+        };
+        copyCountItem.Click += (_, _) =>
+        {
+            var txt = TocCountText.Text ?? string.Empty;
+            if (!string.IsNullOrEmpty(txt))
+            {
+                CopyTextToStatusBar(txt, $"Copied heading count: {txt}");
+            }
+        };
+        menu.Items.Add(copyCountItem);
+
+        var copyTocItem = new MenuFlyoutItem
+        {
+            Text = $"Copy all headings as TOC ({count})",
+            Icon = new FontIcon { Glyph = "\uE8FD" },
+            IsEnabled = count > 0
+        };
+        copyTocItem.Click += (_, _) => CopyAllHeadingsAsToc();
+        menu.Items.Add(copyTocItem);
+
+        var copyPlainTextItem = new MenuFlyoutItem
+        {
+            Text = "Copy headings as plain text",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = count > 0
+        };
+        copyPlainTextItem.Click += (_, _) =>
+        {
+            var entries = ViewModel?.TocEntries;
+            if (entries is null || entries.Count == 0) return;
+            var sb = new System.Text.StringBuilder();
+            foreach (var entry in entries)
+            {
+                int indent = Math.Max(0, entry.Level - 1);
+                sb.AppendLine($"{new string(' ', indent * 2)}{entry.Text}");
+            }
+            CopyTextToStatusBar(sb.ToString().TrimEnd(), $"Copied {entries.Count} headings as plain text.");
+        };
+        menu.Items.Add(copyPlainTextItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var filterItem = new MenuFlyoutItem
+        {
+            Text = "Filter headings (Ctrl+F)",
+            Icon = new FontIcon { Glyph = "\uE721" },
+            IsEnabled = TocFilterBox is not null && TocFilterBox.Visibility == Visibility.Visible
+        };
+        filterItem.Click += (_, _) =>
+        {
+            TocFilterBox?.Focus(FocusState.Programmatic);
+            TocFilterBox?.SelectAll();
+        };
+        menu.Items.Add(filterItem);
+
+        var firstHeadingItem = new MenuFlyoutItem
+        {
+            Text = "Jump to first heading",
+            Icon = new FontIcon { Glyph = "\uE74B" },
+            IsEnabled = count > 0
+        };
+        firstHeadingItem.Click += (_, _) =>
+        {
+            var first = ViewModel?.TocEntries?.FirstOrDefault();
+            if (first != null) NavigateToTocEntry(first);
+        };
+        menu.Items.Add(firstHeadingItem);
+
+        menu.ShowAt(TocCountText, e.GetPosition(TocCountText));
     }
 
     private async void OnBrowseWatchFolderClick(object sender, RoutedEventArgs e)
