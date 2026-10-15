@@ -7206,3 +7206,56 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 **Verified:**
 - `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:OutDir=...`: **0 errors**.
 - `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "FullyQualifiedName~OcrMarkdownTests|FullyQualifiedName~OcrExperienceAndVisualsTests"`: **25 passed, 0 failed, 0 skipped** (including `RealWorld_FormPdf_Verification` on `C:\Users\Tony\Downloads\form.pdf`).
+
+### 2026-10-15 (scheduled routine run #90 — WinUI 3 Desktop Polish: Splitter Resets & Preset Flyouts, DropZone Context Menu, Step Badge Navigation, Mermaid Studio Editor Menu, Command Palette & SuiteHub Context Menus)
+
+- **Surface / Component Targets:** `MainWindow`, `MermaidDiagramStudioControl`, `CommandPalette`, `SuiteHubView`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #89:
+    * Target A: `MainWindow` left & right splitter resets and preset flyouts (`MainWindow.xaml` & `.xaml.cs`).
+    * Target B: `MainWindow` DropZone touch/right-click quick action menu (`MainWindow.xaml` & `.xaml.cs`).
+  - Generated:
+    1. `MainWindow` Left & Right Splitter Double-Tap Resets & Preset Flyouts (`MainWindow.xaml` & `.xaml.cs`)
+    2. `MainWindow` DropZone Touch & Right-Tap Quick Actions Menu (`MainWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Wired double-tap on `LeftSplitter` to snap to 320 px and `RightSplitter` to snap to 380 px; added right-tap context menus with reset, expand, collapse, and toggle focus mode (`F11`); wired `DropZone` right-tap with browse (`Ctrl+O`), paste (`Ctrl+V`), import (`Ctrl+I`), new (`Ctrl+N`), and history (`Ctrl+H`).
+  - Generated:
+    3. `MainWindow` Pipeline Step Badges Interactive Navigation & Stage Flyout (`MainWindow.xaml` & `.xaml.cs`)
+    4. `MermaidDiagramStudioControl` Code Editor Context Menu & Tab Accelerators (`Views/Mermaid/MermaidDiagramStudioControl.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Enabled hit-testing, tooltips, `Tapped`, and `RightTapped` on `Step1BadgeBorder`, `Step2BadgeBorder`, and `Step3BadgeBorder` for rapid stage jumping and pane layout resets; added `Ctrl+1`, `Ctrl+2`, and `Ctrl+3` tab switching accelerators to Mermaid studio, plus code editor right-tap menu with canvas sync, Mermaid source copy/paste, and SVG export.
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menu items have icons compliant with `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `CommandPalette` Search Box Right-Tap Context Menu (`Controls/CommandPalette.xaml` & `.xaml.cs`)
+    6. `SuiteHubView` Version & License Badges Context Menu (`Views/SuiteHubView.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Attached right-tap menu to `CommandPalette` search box (Run selected command `Enter`, Copy command `Ctrl+C`, Clear query `Esc`, Paste `Ctrl+V`); attached right-tap menu to `VersionBadge` and `LicenseBadge` in `SuiteHubView` (Copy version, Copy license, Copy overview, Open settings folder).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #91.
+
+**Shipped:**
+1. **`MainWindow` Left & Right Splitter Double-Tap Resets & Preset Flyouts (`MainWindow.xaml` & `.xaml.cs`):**
+   - Double-tapping `LeftSplitter` restores/expands the Source drawer and snaps width to 320 px. Right-tapping opens a context menu with Reset to 320 px (`\uE777`), Expand to 420 px (`\uE76C`), Collapse (`\uE76B`), and Toggle Focus Mode `F11` (`\uE740`).
+   - Double-tapping `RightSplitter` snaps width to 380 px. Right-tapping opens Reset to 380 px (`\uE777`), Expand to 480 px (`\uE76B`), Collapse (`\uE76C`), and Toggle Focus Mode `F11` (`\uE740`).
+2. **`MainWindow` DropZone Touch & Right-Tap Quick Actions Menu (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnDropZoneRightTapped"` to `DropZone` with complete iconified menu: Browse files `Ctrl+O` (`\uE8E5`), Paste from clipboard `Ctrl+V` (`\uE77F`) supporting both text/markdown and Explorer file paths, Import Word/PDF/HTML `Ctrl+I` (`\uE8B5`), New blank document `Ctrl+N` (`\uE7C3`), and Version history `Ctrl+H` (`\uE823`).
+3. **`MainWindow` Pipeline Step Badges Interactive Navigation & Stage Flyout (`MainWindow.xaml` & `.xaml.cs`):**
+   - Enabled hit testing, tooltips, `Tapped`, and `RightTapped` on `Step1BadgeBorder`, `Step2BadgeBorder`, and `Step3BadgeBorder`.
+   - Tapping Step 1 expands/focuses Source panel; tapping Step 2 cycles Code -> Split -> Preview; tapping Step 3 focuses Style & Export. Right-tapping any badge presents a stage jump menu (`\uE8B7`, `\uE70F`, `\uE8A5`), Focus Mode toggle (`\uE740`), and Reset pane layout (`\uE777`).
+4. **`MermaidDiagramStudioControl` Code Editor Context Menu & Tab Accelerators (`Views/Mermaid/MermaidDiagramStudioControl.xaml` & `.xaml.cs`):**
+   - Added `Ctrl+1` (Shapes tab), `Ctrl+2` (Code tab + focus editor), `Ctrl+3` (Preview tab) accelerators.
+   - Attached `RightTapped="OnCodeEditorTextBoxRightTapped"` offering Sync to canvas `Ctrl+Enter` (`\uE72C`), Copy Mermaid source `Ctrl+C` (`\uE8C8`), Paste source `Ctrl+V` (`\uE77F`), Select all `Ctrl+A` (`\uE8B3`), Copy SVG `Ctrl+Shift+C` (`\uE8C8`), and Export SVG `Ctrl+Shift+E` (`\uEDE1`).
+5. **`CommandPalette` Search Box Right-Tap Context Menu (`Controls/CommandPalette.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnSearchBoxRightTapped"` to `SearchBox` offering Run selected command `Enter` (`\uE768`), Copy selected command `Ctrl+C` (`\uE8C8`), Clear search query `Esc` (`\uE711`), and Paste into search `Ctrl+V` (`\uE77F`).
+6. **`SuiteHubView` Version & License Badges Context Menu (`Views/SuiteHubView.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnVersionInfoRightTapped"` to `VersionBadge` and `LicenseBadge` offering Copy version details (`\uE8C8`), Copy license and plan details (`\uE8D7`), Copy full version & license overview (`\uE946`), and Open settings folder `Ctrl+O` (`\uE8B7`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 14 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Combined test suite (`CommandIcons|KeyboardShortcuts|OcrExperience|ShapeStudio`): **336 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched with isolated config, PID 18036, HWND 1837992, `Alive: True`, `Responding: True`, exited cleanly.

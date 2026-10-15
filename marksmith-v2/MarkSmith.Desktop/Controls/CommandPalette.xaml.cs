@@ -456,6 +456,78 @@ public sealed partial class CommandPalette : UserControl
             menu.ShowAt(anchor);
     }
 
+    private void OnSearchBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var runItem = new MenuFlyoutItem
+        {
+            Text = "Run selected command (Enter)",
+            Icon = new FontIcon { Glyph = "\uE768" }
+        };
+        runItem.Click += (_, _) =>
+        {
+            if (Results.SelectedItem is PaletteCommand c) Close(c);
+        };
+        menu.Items.Add(runItem);
+
+        var copyItem = new MenuFlyoutItem
+        {
+            Text = "Copy selected command (Ctrl+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyItem.Click += async (_, _) =>
+        {
+            if (Results.SelectedItem is PaletteCommand c)
+            {
+                await CopySelectedCommandAsync(c);
+            }
+        };
+        menu.Items.Add(copyItem);
+
+        var clearItem = new MenuFlyoutItem
+        {
+            Text = "Clear search query (Esc)",
+            Icon = new FontIcon { Glyph = "\uE711" }
+        };
+        clearItem.Click += (_, _) =>
+        {
+            SearchBox.Text = "";
+            SearchBox.Focus(FocusState.Programmatic);
+        };
+        menu.Items.Add(clearItem);
+
+        var pasteItem = new MenuFlyoutItem
+        {
+            Text = "Paste into search (Ctrl+V)",
+            Icon = new FontIcon { Glyph = "\uE77F" }
+        };
+        pasteItem.Click += async (_, _) =>
+        {
+            try
+            {
+                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                {
+                    var text = await content.GetTextAsync();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        SearchBox.Text = text;
+                        SearchBox.SelectionStart = SearchBox.Text.Length;
+                    }
+                }
+            }
+            catch { }
+        };
+        menu.Items.Add(pasteItem);
+
+        if (sender is FrameworkElement fe)
+            menu.ShowAt(fe, e.GetPosition(fe));
+        else
+            menu.ShowAt(SearchBox);
+    }
+
     // ---- Keyboard ----
 
     private void OnPreviewKeyDown(object sender, KeyRoutedEventArgs e)

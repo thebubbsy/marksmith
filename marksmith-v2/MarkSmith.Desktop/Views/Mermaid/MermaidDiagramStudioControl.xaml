@@ -75,6 +75,10 @@
             <KeyboardAccelerator Modifiers="Control" Key="Add" Invoked="OnZoomInAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="Subtract" Invoked="OnZoomOutAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="Number0" Invoked="OnZoomResetAcceleratorInvoked" />
+            <!-- Tab switching shortcuts -->
+            <KeyboardAccelerator Modifiers="Control" Key="Number1" Invoked="OnSelectShapesTabAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="Number2" Invoked="OnSelectCodeTabAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="Number3" Invoked="OnSelectPreviewTabAcceleratorInvoked" />
         </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="40" /> <!-- App Title Bar Area -->
@@ -289,7 +293,8 @@
                                      AutomationProperties.Name="Mermaid source code"
                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                     ToolTipService.ToolTip="Edit the Mermaid source — the canvas updates live" />
+                                     RightTapped="OnCodeEditorTextBoxRightTapped"
+                                     ToolTipService.ToolTip="Edit the Mermaid source — the canvas updates live (Ctrl+Enter to sync, Right-click for options)" />
                             <Border Grid.Row="1" Background="#232334" Padding="8,4">
                                 <TextBlock x:Name="CodeStatusText" FontSize="10" Foreground="#8D99AE"
                                            AutomationProperties.LiveSetting="Polite"

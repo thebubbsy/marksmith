@@ -3011,6 +3011,99 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         OnBrowseFileClick(sender, new RoutedEventArgs());
     }
 
+    private void OnDropZoneRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        _dropZonePointerPressed = false;
+        UpdateDropZoneVisual();
+        var menu = new MenuFlyout();
+
+        var browseItem = new MenuFlyoutItem
+        {
+            Text = "Browse files…",
+            Icon = new FontIcon { Glyph = "\uE8E5" },
+            KeyboardAcceleratorTextOverride = "Ctrl+O"
+        };
+        browseItem.Click += (s, args) => OnBrowseFileClick(s, new RoutedEventArgs());
+        menu.Items.Add(browseItem);
+
+        var pasteItem = new MenuFlyoutItem
+        {
+            Text = "Paste from clipboard",
+            Icon = new FontIcon { Glyph = "\uE77F" },
+            KeyboardAcceleratorTextOverride = "Ctrl+V"
+        };
+        pasteItem.Click += async (s, args) =>
+        {
+            try
+            {
+                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
+                {
+                    var items = await content.GetStorageItemsAsync();
+                    if (items.Count > 0 && items[0] is Windows.Storage.StorageFile file)
+                    {
+                        await OpenOrImportDocumentAsync(file.Path, collapseLeftPane: true);
+                        return;
+                    }
+                }
+                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                {
+                    var text = await content.GetTextAsync();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        PasteTextBox.Text = text;
+                        PasteTextBox.Focus(FocusState.Programmatic);
+                        AnnounceStatus("Pasted text into editor");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AnnounceStatus($"Paste failed: {ex.Message}");
+            }
+        };
+        menu.Items.Add(pasteItem);
+
+        var importItem = new MenuFlyoutItem
+        {
+            Text = "Import Word, PDF, or HTML…",
+            Icon = new FontIcon { Glyph = "\uE8B5" }
+        };
+        importItem.Click += (s, args) => OnImportDocumentClick(s, new RoutedEventArgs());
+        menu.Items.Add(importItem);
+
+        var newItem = new MenuFlyoutItem
+        {
+            Text = "New blank document",
+            Icon = new FontIcon { Glyph = "\uE7C3" }
+        };
+        newItem.Click += (s, args) =>
+        {
+            ViewModel.InputFilePath = string.Empty;
+            PasteTextBox.Text = "# New Document\n\n";
+            PasteTextBox.SelectionStart = PasteTextBox.Text.Length;
+            PasteTextBox.Focus(FocusState.Programmatic);
+            AnnounceStatus("Created new document");
+        };
+        menu.Items.Add(newItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var historyItem = new MenuFlyoutItem
+        {
+            Text = "Version history…",
+            Icon = new FontIcon { Glyph = "\uE823" }
+        };
+        historyItem.Click += (s, args) => OnOpenHistoryClick(s, new RoutedEventArgs());
+        menu.Items.Add(historyItem);
+
+        if (sender is FrameworkElement fe)
+            menu.ShowAt(fe, e.GetPosition(fe));
+        else if (DropZone != null)
+            menu.ShowAt(DropZone);
+    }
+
     private bool IsInsideButton(DependencyObject? src)
     {
         for (var cur = src; cur is not null && !ReferenceEquals(cur, DropZone); cur = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(cur))
@@ -5221,6 +5314,266 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         if (SplitViewSplitter != null)
             menu.ShowAt(SplitViewSplitter, e.GetPosition(SplitViewSplitter));
+    }
+
+    private void OnLeftSplitterDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (LeftDrawerTab != null && LeftDrawerTab.Visibility == Visibility.Visible)
+        {
+            LeftDrawerTab.Visibility = Visibility.Collapsed;
+            if (LeftPane != null) LeftPane.Visibility = Visibility.Visible;
+        }
+        if (LeftPaneCol != null) LeftPaneCol.Width = new GridLength(320);
+        AnnounceStatus("Reset Source pane to default width (320 px)");
+    }
+
+    private void OnLeftSplitterRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var resetItem = new MenuFlyoutItem
+        {
+            Text = "Reset to default width (320 px)",
+            Icon = new FontIcon { Glyph = "\uE777" }
+        };
+        resetItem.Click += (_, _) =>
+        {
+            if (LeftDrawerTab != null && LeftDrawerTab.Visibility == Visibility.Visible)
+            {
+                LeftDrawerTab.Visibility = Visibility.Collapsed;
+                if (LeftPane != null) LeftPane.Visibility = Visibility.Visible;
+            }
+            if (LeftPaneCol != null) LeftPaneCol.Width = new GridLength(320);
+            AnnounceStatus("Source pane: 320 px");
+        };
+        menu.Items.Add(resetItem);
+
+        var expandItem = new MenuFlyoutItem
+        {
+            Text = "Expand Source pane (420 px)",
+            Icon = new FontIcon { Glyph = "\uE76C" }
+        };
+        expandItem.Click += (_, _) =>
+        {
+            if (LeftDrawerTab != null && LeftDrawerTab.Visibility == Visibility.Visible)
+            {
+                LeftDrawerTab.Visibility = Visibility.Collapsed;
+                if (LeftPane != null) LeftPane.Visibility = Visibility.Visible;
+            }
+            if (LeftPaneCol != null) LeftPaneCol.Width = new GridLength(420);
+            AnnounceStatus("Source pane: 420 px");
+        };
+        menu.Items.Add(expandItem);
+
+        var collapseItem = new MenuFlyoutItem
+        {
+            Text = "Collapse Source pane",
+            Icon = new FontIcon { Glyph = "\uE76B" }
+        };
+        collapseItem.Click += (_, _) =>
+        {
+            CollapseLeftPane();
+            AnnounceStatus("Collapsed Source pane");
+        };
+        menu.Items.Add(collapseItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var focusItem = new MenuFlyoutItem
+        {
+            Text = "Toggle Focus mode",
+            Icon = new FontIcon { Glyph = "\uE740" },
+            KeyboardAcceleratorTextOverride = "F11"
+        };
+        focusItem.Click += (_, _) =>
+        {
+            if (FocusModeToggle != null) FocusModeToggle.IsChecked = !(FocusModeToggle.IsChecked ?? false);
+        };
+        menu.Items.Add(focusItem);
+
+        if (sender is FrameworkElement fe)
+            menu.ShowAt(fe, e.GetPosition(fe));
+        else if (LeftSplitter != null)
+            menu.ShowAt(LeftSplitter);
+    }
+
+    private void OnRightSplitterDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (RightPaneCol != null) RightPaneCol.Width = new GridLength(380);
+        AnnounceStatus("Reset Style & Export pane to default width (380 px)");
+    }
+
+    private void OnRightSplitterRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var resetItem = new MenuFlyoutItem
+        {
+            Text = "Reset to default width (380 px)",
+            Icon = new FontIcon { Glyph = "\uE777" }
+        };
+        resetItem.Click += (_, _) =>
+        {
+            if (RightPaneCol != null) RightPaneCol.Width = new GridLength(380);
+            AnnounceStatus("Style & Export pane: 380 px");
+        };
+        menu.Items.Add(resetItem);
+
+        var expandItem = new MenuFlyoutItem
+        {
+            Text = "Expand Style & Export pane (480 px)",
+            Icon = new FontIcon { Glyph = "\uE76B" }
+        };
+        expandItem.Click += (_, _) =>
+        {
+            if (RightPaneCol != null) RightPaneCol.Width = new GridLength(480);
+            AnnounceStatus("Style & Export pane: 480 px");
+        };
+        menu.Items.Add(expandItem);
+
+        var collapseItem = new MenuFlyoutItem
+        {
+            Text = "Collapse Style & Export pane",
+            Icon = new FontIcon { Glyph = "\uE76C" }
+        };
+        collapseItem.Click += (_, _) =>
+        {
+            if (RightPaneCol != null) RightPaneCol.Width = new GridLength(0);
+            AnnounceStatus("Collapsed Style & Export pane");
+        };
+        menu.Items.Add(collapseItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var focusItem = new MenuFlyoutItem
+        {
+            Text = "Toggle Focus mode",
+            Icon = new FontIcon { Glyph = "\uE740" },
+            KeyboardAcceleratorTextOverride = "F11"
+        };
+        focusItem.Click += (_, _) =>
+        {
+            if (FocusModeToggle != null) FocusModeToggle.IsChecked = !(FocusModeToggle.IsChecked ?? false);
+        };
+        menu.Items.Add(focusItem);
+
+        if (sender is FrameworkElement fe)
+            menu.ShowAt(fe, e.GetPosition(fe));
+        else if (RightSplitter != null)
+            menu.ShowAt(RightSplitter);
+    }
+
+    private void OnStep1BadgeTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (LeftDrawerTab != null && LeftDrawerTab.Visibility == Visibility.Visible)
+        {
+            LeftDrawerTab.Visibility = Visibility.Collapsed;
+            if (LeftPane != null) LeftPane.Visibility = Visibility.Visible;
+            if (LeftPaneCol != null) LeftPaneCol.Width = new GridLength(320);
+        }
+        if (InputFileTextBox != null) InputFileTextBox.Focus(FocusState.Programmatic);
+        AnnounceStatus("Step 1: Source panel focused");
+    }
+
+    private void OnStep2BadgeTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (CenterViewSelector != null)
+        {
+            if (CenterViewSelector.SelectedItem == ViewCodeTab)
+                CenterViewSelector.SelectedItem = ViewSplitTab;
+            else if (CenterViewSelector.SelectedItem == ViewSplitTab)
+                CenterViewSelector.SelectedItem = ViewPreviewTab;
+            else
+                CenterViewSelector.SelectedItem = ViewCodeTab;
+        }
+    }
+
+    private void OnStep3BadgeTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (RightPaneCol != null && RightPaneCol.Width.Value == 0)
+            RightPaneCol.Width = new GridLength(380);
+        if (OutlineButton != null) OutlineButton.Focus(FocusState.Programmatic);
+        AnnounceStatus("Step 3: Style & Export panel focused");
+    }
+
+    private void OnPipelineStepBadgeRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var step1 = new MenuFlyoutItem
+        {
+            Text = "Go to Step 1: Source",
+            Icon = new FontIcon { Glyph = "\uE8B7" }
+        };
+        step1.Click += (_, _) => OnStep1BadgeTapped(this, new Microsoft.UI.Xaml.Input.TappedRoutedEventArgs());
+        menu.Items.Add(step1);
+
+        var step2 = new MenuFlyoutItem
+        {
+            Text = "Go to Step 2: Editor / Preview",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        step2.Click += (_, _) =>
+        {
+            if (PasteTextBox != null) PasteTextBox.Focus(FocusState.Programmatic);
+            AnnounceStatus("Step 2: Editor focused");
+        };
+        menu.Items.Add(step2);
+
+        var step3 = new MenuFlyoutItem
+        {
+            Text = "Go to Step 3: Style & Export",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        step3.Click += (_, _) => OnStep3BadgeTapped(this, new Microsoft.UI.Xaml.Input.TappedRoutedEventArgs());
+        menu.Items.Add(step3);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var focusMode = new MenuFlyoutItem
+        {
+            Text = "Toggle Focus mode",
+            Icon = new FontIcon { Glyph = "\uE740" },
+            KeyboardAcceleratorTextOverride = "F11"
+        };
+        focusMode.Click += (_, _) =>
+        {
+            if (FocusModeToggle != null) FocusModeToggle.IsChecked = !(FocusModeToggle.IsChecked ?? false);
+        };
+        menu.Items.Add(focusMode);
+
+        var resetPanes = new MenuFlyoutItem
+        {
+            Text = "Reset pane layout",
+            Icon = new FontIcon { Glyph = "\uE777" }
+        };
+        resetPanes.Click += (_, _) =>
+        {
+            if (LeftDrawerTab != null && LeftDrawerTab.Visibility == Visibility.Visible)
+            {
+                LeftDrawerTab.Visibility = Visibility.Collapsed;
+                if (LeftPane != null) LeftPane.Visibility = Visibility.Visible;
+            }
+            if (LeftPaneCol != null) LeftPaneCol.Width = new GridLength(320);
+            if (RightPaneCol != null) RightPaneCol.Width = new GridLength(380);
+            if (SplitLeftCol != null) SplitLeftCol.Width = new GridLength(1, GridUnitType.Star);
+            if (SplitRightCol != null) SplitRightCol.Width = new GridLength(1, GridUnitType.Star);
+            AnnounceStatus("Reset all pane widths and split ratios to default");
+        };
+        menu.Items.Add(resetPanes);
+
+        if (sender is FrameworkElement fe)
+            menu.ShowAt(fe, e.GetPosition(fe));
+        else if (RootGrid != null)
+            menu.ShowAt(RootGrid);
     }
 
     // ---- Editor<->preview sync-scroll helpers ----

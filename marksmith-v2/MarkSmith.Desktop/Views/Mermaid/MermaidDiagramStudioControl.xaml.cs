@@ -698,6 +698,136 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         args.Handled = true;
     }
 
+    private void OnSelectShapesTabAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (IsEditingText() && FocusManager.GetFocusedElement(XamlRoot) is TextBox tb && tb != CodeEditorTextBox) return;
+        LeftPanePivot.SelectedIndex = 0;
+        args.Handled = true;
+    }
+
+    private void OnSelectCodeTabAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        LeftPanePivot.SelectedIndex = 1;
+        CodeEditorTextBox.Focus(FocusState.Programmatic);
+        args.Handled = true;
+    }
+
+    private void OnSelectPreviewTabAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (IsEditingText() && FocusManager.GetFocusedElement(XamlRoot) is TextBox tb && tb != CodeEditorTextBox) return;
+        LeftPanePivot.SelectedIndex = 2;
+        args.Handled = true;
+    }
+
+    private void OnCodeEditorTextBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var syncItem = new MenuFlyoutItem
+        {
+            Text = "Sync to canvas",
+            Icon = new FontIcon { Glyph = "\uE72C" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter"
+        };
+        syncItem.Click += (_, _) =>
+        {
+            if (ViewModel != null)
+            {
+                ViewModel.SyncCanvasFromCode(CodeEditorTextBox.Text);
+                _codeDirty = false;
+                _lastPushedCode = CodePaneText();
+                RefreshPreview();
+            }
+            _canvas.FocusCanvas();
+        };
+        menu.Items.Add(syncItem);
+
+        var copyItem = new MenuFlyoutItem
+        {
+            Text = "Copy Mermaid source",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            KeyboardAcceleratorTextOverride = "Ctrl+C"
+        };
+        copyItem.Click += async (_, _) =>
+        {
+            var text = CodeEditorTextBox.Text ?? string.Empty;
+            var err = await ClipboardWriter.TrySetTextAsync(text);
+            if (ViewModel != null)
+                ViewModel.StatusText = err is null ? "Copied Mermaid source code" : $"Copy failed: {err}";
+        };
+        menu.Items.Add(copyItem);
+
+        var pasteItem = new MenuFlyoutItem
+        {
+            Text = "Paste source",
+            Icon = new FontIcon { Glyph = "\uE77F" },
+            KeyboardAcceleratorTextOverride = "Ctrl+V"
+        };
+        pasteItem.Click += async (_, _) =>
+        {
+            try
+            {
+                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                {
+                    var text = await content.GetTextAsync();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        CodeEditorTextBox.Text = text;
+                        if (ViewModel != null)
+                        {
+                            ViewModel.SyncCanvasFromCode(text);
+                            _codeDirty = false;
+                            _lastPushedCode = CodePaneText();
+                            RefreshPreview();
+                        }
+                    }
+                }
+            }
+            catch { }
+        };
+        menu.Items.Add(pasteItem);
+
+        var selectAllItem = new MenuFlyoutItem
+        {
+            Text = "Select all",
+            Icon = new FontIcon { Glyph = "\uE8B3" },
+            KeyboardAcceleratorTextOverride = "Ctrl+A"
+        };
+        selectAllItem.Click += (_, _) =>
+        {
+            CodeEditorTextBox.SelectAll();
+            CodeEditorTextBox.Focus(FocusState.Programmatic);
+        };
+        menu.Items.Add(selectAllItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copySvgItem = new MenuFlyoutItem
+        {
+            Text = "Copy diagram as SVG",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C"
+        };
+        copySvgItem.Click += (_, _) => OnCopySvgClick(this, new RoutedEventArgs());
+        menu.Items.Add(copySvgItem);
+
+        var exportSvgItem = new MenuFlyoutItem
+        {
+            Text = "Export as SVG…",
+            Icon = new FontIcon { Glyph = "\uEDE1" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+E"
+        };
+        exportSvgItem.Click += (_, _) => OnExportSvgClick(this, new RoutedEventArgs());
+        menu.Items.Add(exportSvgItem);
+
+        if (sender is FrameworkElement fe)
+            menu.ShowAt(fe, e.GetPosition(fe));
+        else
+            menu.ShowAt(CodeEditorTextBox);
+    }
+
     /// <summary>
     /// Listens for ViewModel.ZoomFactor changes (driven by the toolbar slider) and pushes
     /// the new zoom level into the canvas ScrollViewer.

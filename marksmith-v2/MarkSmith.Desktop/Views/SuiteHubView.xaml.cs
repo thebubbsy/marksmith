@@ -611,6 +611,62 @@ public sealed partial class SuiteHubView : UserControl
         e.Handled = true;
     }
 
+    private void OnVersionInfoRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var copyVersionItem = new MenuFlyoutItem
+        {
+            Text = "Copy version details",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyVersionItem.Click += (_, _) =>
+        {
+            CopyToClipboard(VersionText.Text, $"Copied version ({VersionText.Text}).");
+        };
+        menu.Items.Add(copyVersionItem);
+
+        var copyLicenseItem = new MenuFlyoutItem
+        {
+            Text = "Copy license and plan details",
+            Icon = new FontIcon { Glyph = "\uE8D7" }
+        };
+        copyLicenseItem.Click += (_, _) =>
+        {
+            CopyToClipboard(LicenseText.Text, $"Copied plan details ({LicenseText.Text}).");
+        };
+        menu.Items.Add(copyLicenseItem);
+
+        var copyBothItem = new MenuFlyoutItem
+        {
+            Text = "Copy full version & license overview",
+            Icon = new FontIcon { Glyph = "\uE946" }
+        };
+        copyBothItem.Click += (_, _) =>
+        {
+            var info = $"{VersionText.Text} · {LicenseText.Text}";
+            CopyToClipboard(info, $"Copied version and license info ({info}).");
+        };
+        menu.Items.Add(copyBothItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var openConfigItem = new MenuFlyoutItem
+        {
+            Text = "Open settings folder",
+            Icon = new FontIcon { Glyph = "\uE8B7" },
+            KeyboardAcceleratorTextOverride = "Ctrl+O"
+        };
+        openConfigItem.Click += (s, args) => OnOpenConfigFolderClick(s, new RoutedEventArgs());
+        menu.Items.Add(openConfigItem);
+
+        if (sender is FrameworkElement fe)
+            menu.ShowAt(fe, e.GetPosition(fe));
+        else
+            menu.ShowAt(this);
+    }
+
     private void OnOpenMermaidStudioClick(object sender, RoutedEventArgs e)
     {
         OpenMermaidStudioRequested?.Invoke();

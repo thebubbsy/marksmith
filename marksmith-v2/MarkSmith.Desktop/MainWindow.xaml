@@ -232,7 +232,9 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10">
-                    <Border Style="{StaticResource StepBadgeStyle}">
+                    <Border x:Name="Step1BadgeBorder" Style="{StaticResource StepBadgeStyle}" IsHitTestVisible="True"
+                            Tapped="OnStep1BadgeTapped" RightTapped="OnPipelineStepBadgeRightTapped"
+                            ToolTipService.ToolTip="Step 1: Source (Click to focus, Right-click to navigate pipeline)">
                         <TextBlock Text="1" Style="{StaticResource StepBadgeTextStyle}" />
                     </Border>
                     <StackPanel VerticalAlignment="Center">
@@ -266,7 +268,8 @@
                                   PointerExited="OnDropZonePointerExited"
                                   PointerPressed="OnDropZonePointerPressed"
                                   PointerReleased="OnDropZonePointerReleased"
-                                  ToolTipService.ToolTip="Drop a file here, or click anywhere to browse (Ctrl+O)">
+                                  RightTapped="OnDropZoneRightTapped"
+                                  ToolTipService.ToolTip="Drop a file here, or click anywhere to browse (Ctrl+O, Right-click for options)">
                                 <!-- Dashed outline reads as a drop target rather than a plain card;
                                      turns solid accent while a file is dragged over the card. -->
                                 <Rectangle x:Name="DropZoneOutline" RadiusX="8" RadiusY="8"
@@ -536,7 +539,9 @@
             </Grid>
 
             <controls:GridSplitter x:Name="LeftSplitter" AutomationProperties.Name="Resize the Source pane" Grid.Column="1" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
-                                   ToolTipService.ToolTip="Drag to resize the Source pane" />
+                                   ToolTipService.ToolTip="Drag to resize the Source pane (Double-tap to reset to 320 px, Right-click for presets)"
+                                   DoubleTapped="OnLeftSplitterDoubleTapped"
+                                   RightTapped="OnLeftSplitterRightTapped" />
 
             <!-- CENTER PANE: LOOKING Glass -->
             
@@ -552,7 +557,9 @@
                      the title trims with an ellipsis instead of sliding under the toggles. -->
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                        <Border Style="{StaticResource StepBadgeStyle}">
+                        <Border x:Name="Step2BadgeBorder" Style="{StaticResource StepBadgeStyle}" IsHitTestVisible="True"
+                                Tapped="OnStep2BadgeTapped" RightTapped="OnPipelineStepBadgeRightTapped"
+                                ToolTipService.ToolTip="Step 2: Editor / Preview (Click to cycle view, Right-click to navigate pipeline)">
                             <TextBlock Text="2" Style="{StaticResource StepBadgeTextStyle}" />
                         </Border>
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -1262,7 +1269,9 @@
 
 
             <controls:GridSplitter x:Name="RightSplitter" AutomationProperties.Name="Resize the Style &amp; Export pane" Grid.Column="3" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
-                                               ToolTipService.ToolTip="Drag to resize the Style &amp; Export pane" />
+                                   ToolTipService.ToolTip="Drag to resize the Style &amp; Export pane (Double-tap to reset to 380 px, Right-click for presets)"
+                                   DoubleTapped="OnRightSplitterDoubleTapped"
+                                   RightTapped="OnRightSplitterRightTapped" />
 
             <!-- RIGHT PANE -->
             
@@ -1276,7 +1285,9 @@
 
                 <Grid Grid.Row="0">
                     <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Border Style="{StaticResource StepBadgeStyle}">
+                        <Border x:Name="Step3BadgeBorder" Style="{StaticResource StepBadgeStyle}" IsHitTestVisible="True"
+                                Tapped="OnStep3BadgeTapped" RightTapped="OnPipelineStepBadgeRightTapped"
+                                ToolTipService.ToolTip="Step 3: Style &amp; Export (Click to focus, Right-click to navigate pipeline)">
                             <TextBlock Text="3" Style="{StaticResource StepBadgeTextStyle}" />
                         </Border>
                         <StackPanel VerticalAlignment="Center">
