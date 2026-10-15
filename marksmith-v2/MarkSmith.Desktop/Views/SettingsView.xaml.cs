@@ -566,6 +566,324 @@ public sealed partial class SettingsView : UserControl
         menu.ShowAt(AboutHeaderGrid, e.GetPosition(AboutHeaderGrid));
     }
 
+    private void OnCheckButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? CheckButton;
+        var menu = new MenuFlyout();
+
+        var checkUpdatesItem = new MenuFlyoutItem
+        {
+            Text = "Check for updates",
+            Icon = new FontIcon { Glyph = "\uE895" }
+        };
+        checkUpdatesItem.Click += (s, ev) => OnCheckForUpdates(s, ev);
+        menu.Items.Add(checkUpdatesItem);
+
+        var copyVersionItem = new MenuFlyoutItem
+        {
+            Text = "Copy version details",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyVersionItem.Click += (s, ev) => OnVersionTextDoubleTapped(s, null!);
+        menu.Items.Add(copyVersionItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var releasesItem = new MenuFlyoutItem
+        {
+            Text = "Releases & changelog",
+            Icon = new FontIcon { Glyph = "\uE81C" }
+        };
+        releasesItem.Click += (_, _) =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://github.com/thebubbsy/MarkSmith/releases", UseShellExecute = true }); }
+            catch { }
+        };
+        menu.Items.Add(releasesItem);
+
+        var reportItem = new MenuFlyoutItem
+        {
+            Text = "Report an issue",
+            Icon = new FontIcon { Glyph = "\uEBE8" }
+        };
+        reportItem.Click += (_, _) =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://github.com/thebubbsy/MarkSmith/issues", UseShellExecute = true }); }
+            catch { }
+        };
+        menu.Items.Add(reportItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnBuyButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? BuyButton;
+        var menu = new MenuFlyout();
+
+        var buyItem = new MenuFlyoutItem
+        {
+            Text = "Buy MarkSmith Pro",
+            Icon = new FontIcon { Glyph = "\uE719" }
+        };
+        buyItem.Click += (s, ev) => OnBuyPro(s, ev);
+        menu.Items.Add(buyItem);
+
+        var trialItem = new MenuFlyoutItem
+        {
+            Text = "Start free trial",
+            Icon = new FontIcon { Glyph = "\uE734" }
+        };
+        trialItem.Click += (s, ev) => OnStartTrialClick(s, ev);
+        menu.Items.Add(trialItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyPricingItem = new MenuFlyoutItem
+        {
+            Text = "Copy purchase link",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyPricingItem.Click += async (_, _) =>
+        {
+            await ClipboardWriter.TrySetTextAsync("https://marksmith.app/#pricing");
+        };
+        menu.Items.Add(copyPricingItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnStartTrialButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? StartTrialButton;
+        var menu = new MenuFlyout();
+
+        var trialItem = new MenuFlyoutItem
+        {
+            Text = "Start free trial",
+            Icon = new FontIcon { Glyph = "\uE734" }
+        };
+        trialItem.Click += (s, ev) => OnStartTrialClick(s, ev);
+        menu.Items.Add(trialItem);
+
+        var buyItem = new MenuFlyoutItem
+        {
+            Text = "Buy MarkSmith Pro",
+            Icon = new FontIcon { Glyph = "\uE719" }
+        };
+        buyItem.Click += (s, ev) => OnBuyPro(s, ev);
+        menu.Items.Add(buyItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnActivateButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? ActivateButton;
+        var menu = new MenuFlyout();
+
+        var activateItem = new MenuFlyoutItem
+        {
+            Text = "Activate license key",
+            Icon = new FontIcon { Glyph = "\uE8D7" },
+            IsEnabled = ActivateButton.IsEnabled
+        };
+        activateItem.Click += (s, ev) => OnActivateLicense(s, ev);
+        menu.Items.Add(activateItem);
+
+        var pasteItem = new MenuFlyoutItem
+        {
+            Text = "Paste key from clipboard",
+            Icon = new FontIcon { Glyph = "\uE77F" }
+        };
+        pasteItem.Click += async (_, _) =>
+        {
+            try
+            {
+                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                {
+                    var text = await content.GetTextAsync();
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        KeyBox.Text = text.Trim();
+                    }
+                }
+            }
+            catch { }
+        };
+        menu.Items.Add(pasteItem);
+
+        var clearItem = new MenuFlyoutItem
+        {
+            Text = "Clear license key",
+            Icon = new FontIcon { Glyph = "\uE894" }
+        };
+        clearItem.Click += (_, _) => KeyBox.Text = "";
+        menu.Items.Add(clearItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnDeactivateButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? DeactivateButton;
+        var menu = new MenuFlyout();
+
+        var deactItem = new MenuFlyoutItem
+        {
+            Text = "Remove license from this PC",
+            Icon = new FontIcon { Glyph = "\uE74D" }
+        };
+        deactItem.Click += (s, ev) => OnDeactivateLicense(s, ev);
+        menu.Items.Add(deactItem);
+
+        var copyKeyItem = new MenuFlyoutItem
+        {
+            Text = "Copy current license key",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyKeyItem.Click += async (_, _) =>
+        {
+            var key = KeyBox.Text?.Trim();
+            if (!string.IsNullOrEmpty(key))
+                await ClipboardWriter.TrySetTextAsync(key);
+        };
+        menu.Items.Add(copyKeyItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnRescanCloudButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? RescanCloudButton;
+        var menu = new MenuFlyout();
+
+        var rescanItem = new MenuFlyoutItem
+        {
+            Text = "Rescan for cloud drives",
+            Icon = new FontIcon { Glyph = "\uE72C" }
+        };
+        rescanItem.Click += (s, ev) => OnRescanCloud(s, ev);
+        menu.Items.Add(rescanItem);
+
+        var copySubfolderItem = new MenuFlyoutItem
+        {
+            Text = "Copy sync subfolder name",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copySubfolderItem.Click += async (_, _) =>
+        {
+            await ClipboardWriter.TrySetTextAsync(App.ViewModel.CloudSubfolder);
+        };
+        menu.Items.Add(copySubfolderItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnCopyPromptButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? CopyPromptButton;
+        var menu = new MenuFlyout();
+
+        var copyPromptItem = new MenuFlyoutItem
+        {
+            Text = "Copy AI house style prompt",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyPromptItem.Click += (s, ev) => OnCopyHouseStylePromptClick(s, ev);
+        menu.Items.Add(copyPromptItem);
+
+        var pasteReplyItem = new MenuFlyoutItem
+        {
+            Text = "Paste AI JSON reply",
+            Icon = new FontIcon { Glyph = "\uE77F" }
+        };
+        pasteReplyItem.Click += async (_, _) =>
+        {
+            try
+            {
+                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                {
+                    var text = await content.GetTextAsync();
+                    if (!string.IsNullOrWhiteSpace(text))
+                        HouseStyleReplyBox.Text = text.Trim();
+                }
+            }
+            catch { }
+        };
+        menu.Items.Add(pasteReplyItem);
+
+        var clearReplyItem = new MenuFlyoutItem
+        {
+            Text = "Clear AI JSON reply",
+            Icon = new FontIcon { Glyph = "\uE894" }
+        };
+        clearReplyItem.Click += (_, _) => HouseStyleReplyBox.Text = "";
+        menu.Items.Add(clearReplyItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnApplyThemeButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? ApplyThemeButton;
+        var menu = new MenuFlyout();
+
+        var applyItem = new MenuFlyoutItem
+        {
+            Text = "Apply house style theme",
+            Icon = new FontIcon { Glyph = "\uE73E" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
+            IsEnabled = ApplyThemeButton.IsEnabled
+        };
+        applyItem.Click += (s, ev) => OnApplyHouseStyleJsonClick(s, ev);
+        menu.Items.Add(applyItem);
+
+        var pasteAndApplyItem = new MenuFlyoutItem
+        {
+            Text = "Paste and apply AI theme",
+            Icon = new FontIcon { Glyph = "\uE77F" }
+        };
+        pasteAndApplyItem.Click += async (s, ev) =>
+        {
+            try
+            {
+                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                {
+                    var text = await content.GetTextAsync();
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        HouseStyleReplyBox.Text = text.Trim();
+                        OnApplyHouseStyleJsonClick(s, ev);
+                    }
+                }
+            }
+            catch { }
+        };
+        menu.Items.Add(pasteAndApplyItem);
+
+        var clearReplyItem = new MenuFlyoutItem
+        {
+            Text = "Clear reply text",
+            Icon = new FontIcon { Glyph = "\uE894" }
+        };
+        clearReplyItem.Click += (_, _) => HouseStyleReplyBox.Text = "";
+        menu.Items.Add(clearReplyItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
     private void OnUpdateStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)

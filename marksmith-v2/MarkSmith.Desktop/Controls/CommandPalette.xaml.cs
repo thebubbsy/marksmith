@@ -528,6 +528,140 @@ public sealed partial class CommandPalette : UserControl
             menu.ShowAt(SearchBox);
     }
 
+    private void OnClearSearchButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? ClearSearchButton;
+        var menu = new MenuFlyout();
+
+        var clearItem = new MenuFlyoutItem
+        {
+            Text = "Clear search query",
+            Icon = new FontIcon { Glyph = "\uE894" },
+            KeyboardAcceleratorTextOverride = "Esc"
+        };
+        clearItem.Click += (s, ev) => OnClearSearchClick(s, ev);
+        menu.Items.Add(clearItem);
+
+        var pasteItem = new MenuFlyoutItem
+        {
+            Text = "Paste into search",
+            Icon = new FontIcon { Glyph = "\uE77F" },
+            KeyboardAcceleratorTextOverride = "Ctrl+V"
+        };
+        pasteItem.Click += async (_, _) =>
+        {
+            try
+            {
+                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                {
+                    var text = await content.GetTextAsync();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        SearchBox.Text = text;
+                        SearchBox.SelectionStart = SearchBox.Text.Length;
+                    }
+                }
+            }
+            catch { }
+        };
+        menu.Items.Add(pasteItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var closeItem = new MenuFlyoutItem
+        {
+            Text = "Close command palette",
+            Icon = new FontIcon { Glyph = "\uE711" },
+            KeyboardAcceleratorTextOverride = "Esc"
+        };
+        closeItem.Click += (_, _) => Close(null);
+        menu.Items.Add(closeItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnEscButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? EscButton;
+        var menu = new MenuFlyout();
+
+        var closeItem = new MenuFlyoutItem
+        {
+            Text = "Close command palette",
+            Icon = new FontIcon { Glyph = "\uE711" },
+            KeyboardAcceleratorTextOverride = "Esc"
+        };
+        closeItem.Click += (_, _) => Close(null);
+        menu.Items.Add(closeItem);
+
+        var clearItem = new MenuFlyoutItem
+        {
+            Text = "Clear search query",
+            Icon = new FontIcon { Glyph = "\uE894" }
+        };
+        clearItem.Click += (s, ev) => OnClearSearchClick(s, ev);
+        menu.Items.Add(clearItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnResetSearchButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? ResetSearchButton;
+        var menu = new MenuFlyout();
+
+        var showAllItem = new MenuFlyoutItem
+        {
+            Text = "Show all commands",
+            Icon = new FontIcon { Glyph = "\uE8A5" },
+            KeyboardAcceleratorTextOverride = "Esc"
+        };
+        showAllItem.Click += (s, ev) => OnClearSearchClick(s, ev);
+        menu.Items.Add(showAllItem);
+
+        var pasteItem = new MenuFlyoutItem
+        {
+            Text = "Paste into search",
+            Icon = new FontIcon { Glyph = "\uE77F" },
+            KeyboardAcceleratorTextOverride = "Ctrl+V"
+        };
+        pasteItem.Click += async (_, _) =>
+        {
+            try
+            {
+                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                {
+                    var text = await content.GetTextAsync();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        SearchBox.Text = text;
+                        SearchBox.SelectionStart = SearchBox.Text.Length;
+                    }
+                }
+            }
+            catch { }
+        };
+        menu.Items.Add(pasteItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var closeItem = new MenuFlyoutItem
+        {
+            Text = "Close command palette",
+            Icon = new FontIcon { Glyph = "\uE711" },
+            KeyboardAcceleratorTextOverride = "Esc"
+        };
+        closeItem.Click += (_, _) => Close(null);
+        menu.Items.Add(closeItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
     // ---- Keyboard ----
 
     private void OnPreviewKeyDown(object sender, KeyRoutedEventArgs e)

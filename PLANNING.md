@@ -7824,9 +7824,65 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 12888, `Alive: True`, `Responding: True`, clean exit.
 
+### 2026-10-16 (scheduled routine run #101 — WinUI 3 Desktop Polish: OCR Studio Nav & CTA Menus Parity, Settings Action Buttons Menus, Command Palette Header Menus, Extension Setup Button Menus)
 
+- **Surface / Component Targets:** `OcrInspectionStudioWindow`, `SettingsView`, `CommandPalette`, `ExtensionSetupView`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
 
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #100:
+    * Target A: `OcrInspectionStudioWindow` navigation and CTA buttons (`PrevPageButton`, `NextPageButton`, `DiscardButton`, `ImportCtaButton`) context menu parity.
+    * Target B: `OcrInspectionStudioWindow` inspector actions (`ResetPageButton`, `ResetElementButton`, `CopyMarkdownButton`) right-click accelerator menus.
+  - Generated:
+    1. `OcrInspectionStudioWindow` Navigation & CTA Buttons Right-Click Context Menus Parity (`Views/Ocr/OcrInspectionStudioWindow.xaml` & `.xaml.cs`)
+    2. `OcrInspectionStudioWindow` Inspector & Markdown Action Buttons Right-Click Context Menus (`Views/Ocr/OcrInspectionStudioWindow.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Wired `PrevPageButton` and `NextPageButton` to `ShowPageNavContextMenu` offering Previous page `\uE76B`, Next page `\uE76C`, First page `\uE892`, Last page `\uE893`, and Import document `\uE898`. Wired `DiscardButton` with Cancel `\uE711`, Reset page `\uE777`, and Import `\uE898`. Wired `ImportCtaButton` with Import `\uE898`, Copy preview `\uE8C8`, Copy full document `\uE8C8`, and Cancel `\uE711`. Attached `RightTapped` on `ResetPageButton` (Reset page `\uE777`, Reset element `\uE7A7`, Reclassify presets: Picture `\uEB9F`, Table `\uE8A5`, Heading `\uE8D2`, Text `\uE8D2`), `ResetElementButton` (Reset element `\uE7A7`, Reset page `\uE777`, Reclassify presets 1–8), and `CopyMarkdownButton` (Copy preview `\uE8C8`, Copy page `\uE8C8`, Copy full doc `\uE8C8`, Toggle scope `\uE8FD`/`\uE8A5`, Import `\uE898`).
+  - Generated:
+    3. `SettingsView` License & Updates Action Buttons Right-Click Menus (`Views/SettingsView.xaml` & `.xaml.cs`)
+    4. `SettingsView` Automation & House Style Action Buttons Context Menus (`Views/SettingsView.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Attached `RightTapped` on `CheckButton` (Check for updates `\uE895`, Copy version info `\uE8C8`, Release notes `\uE81C`, Report issue `\uEBE8`), `BuyButton` (Buy Pro `\uE719`, Start trial `\uE734`, Copy purchase link `\uE8C8`), `StartTrialButton`, `ActivateButton` (Activate license `\uE8D7`, Paste key `\uE77F`, Clear key `\uE894`), and `DeactivateButton` (Remove license `\uE74D`, Copy key `\uE8C8`). Attached `RightTapped` on `RescanCloudButton` (Rescan folder `\uE72C`, Copy subfolder `\uE8C8`), `CopyPromptButton` (Copy prompt `\uE8C8`, Paste reply `\uE77F`, Clear reply `\uE894`), and `ApplyThemeButton` (Apply theme `\uE73E`, Paste and apply `\uE77F`, Clear theme `\uE894`).
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `CommandPalette` Search Action Buttons & Empty State Context Menus (`Controls/CommandPalette.xaml` & `.xaml.cs`)
+    6. `ExtensionSetupView` Buttons Context Menus Parity (`Views/ExtensionSetupView.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Attached `RightTapped="OnClearSearchRightTapped"` on `ClearSearchButton` (Clear query `\uE894`, Paste into search `\uE77F`, Close palette `\uE711`), `RightTapped="OnEscButtonRightTapped"` on `EscButton` (Close palette `\uE711`, Clear query `\uE894`), and `RightTapped="OnResetSearchRightTapped"` on `ResetSearchButton` in empty state (Show all commands `\uE8A5`, Paste `\uE77F`, Close `\uE711`). In `ExtensionSetupView`, attached `RightTapped` on `CopyFolderButton` (Copy folder path `\uE8C8`, Show in File Explorer `\uE838`, Read guide `\uE8A7`), `OpenFolderButton` (Show in File Explorer `\uE838`, Copy folder path `\uE8C8`, Read guide `\uE8A7`), and `TurnOnButton` (Turn on Local API `\uE968`, Check connection `\uE72C`, Read guide `\uE8A7`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #102 (`WelcomeTour` step action buttons context menus, `ImageInsertControl` action buttons context parity, `SmartArtInsertControl` quick action context menus).
 
+**Shipped:**
+1. **`OcrInspectionStudioWindow` Navigation & CTA Buttons Parity (`Views/Ocr/OcrInspectionStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnPrevPageRightTapped"` and `RightTapped="OnNextPageRightTapped"` on `PrevPageButton` and `NextPageButton` routing to `ShowPageNavContextMenu` offering Previous page `PageUp` (`\uE76B`), Next page `PageDown` (`\uE76C`), First page `Home` (`\uE892`), Last page `End` (`\uE893`), and Import document `Ctrl+Enter` (`\uE898`).
+   - Attached `RightTapped="OnDiscardRightTapped"` on `DiscardButton` offering Cancel / Close `Esc` (`\uE711`), Reset current page (`\uE777`), and Import document `Ctrl+Enter` (`\uE898`).
+   - Attached `RightTapped="OnImportCtaRightTapped"` on `ImportCtaButton` offering Import into document `Ctrl+Enter` (`\uE898`), Copy preview Markdown `Ctrl+C` (`\uE8C8`), Copy full document Markdown `Ctrl+Shift+C` (`\uE8C8`), and Cancel / Close `Esc` (`\uE711`).
+2. **`OcrInspectionStudioWindow` Inspector & Markdown Action Buttons Parity (`Views/Ocr/OcrInspectionStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnResetPageRightTapped"` on `ResetPageButton` offering Reset current page (`\uE777`), Reset selected element (`\uE7A7`), and Reclassify presets (Picture `\uEB9F`, Table `\uE8A5`, Heading `\uE8D2`, Text paragraph `\uE8D2`).
+   - Attached `RightTapped="OnResetElementRightTapped"` on `ResetElementButton` offering Reset selected element (`\uE7A7`), Reset current page (`\uE777`), and quick reclassify options 1–8 with full icon parity.
+   - Attached `RightTapped="OnCopyMarkdownRightTapped"` on `CopyMarkdownButton` offering Copy preview Markdown `Ctrl+C` (`\uE8C8`), Copy current page Markdown (`\uE8C8`), Copy full document Markdown `Ctrl+Shift+C` (`\uE8C8`), Toggle preview scope (`\uE8FD`/`\uE8A5`), and Import into document `Ctrl+Enter` (`\uE898`).
+3. **`SettingsView` License & Updates Action Buttons Right-Click Menus (`Views/SettingsView.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnCheckButtonRightTapped"` on `CheckButton` offering Check for updates `F5` (`\uE895`), Copy version info `Ctrl+C` (`\uE8C8`), View release notes (`\uE81C`), and Report an issue (`\uEBE8`).
+   - Attached `RightTapped="OnBuyButtonRightTapped"` on `BuyButton` offering Buy Pro license (`\uE719`), Start 3-export trial (`\uE734`), and Copy purchase link (`\uE8C8`).
+   - Attached `RightTapped="OnStartTrialRightTapped"` on `StartTrialButton` offering Start 3-export trial (`\uE734`), Buy Pro license (`\uE719`), and Copy purchase link (`\uE8C8`).
+   - Attached `RightTapped="OnActivateButtonRightTapped"` on `ActivateButton` offering Activate license `Enter` (`\uE8D7`), Paste license key `Ctrl+V` (`\uE77F`), and Clear license key (`\uE894`).
+   - Attached `RightTapped="OnDeactivateButtonRightTapped"` on `DeactivateButton` offering Remove license (`\uE74D`), and Copy license key `Ctrl+C` (`\uE8C8`).
+4. **`SettingsView` Automation & House Style Action Buttons Context Menus (`Views/SettingsView.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnRescanCloudButtonRightTapped"` on `RescanCloudButton` offering Rescan watched folder `F5` (`\uE72C`), and Copy cloud subfolder path (`\uE8C8`).
+   - Attached `RightTapped="OnCopyPromptButtonRightTapped"` on `CopyPromptButton` offering Copy system prompt `Ctrl+C` (`\uE8C8`), Paste LLM response `Ctrl+V` (`\uE77F`), and Clear response text (`\uE894`).
+   - Attached `RightTapped="OnApplyThemeButtonRightTapped"` on `ApplyThemeButton` offering Apply custom theme `Ctrl+Enter` (`\uE73E`), Paste and apply theme `Ctrl+V` (`\uE77F`), and Clear response text (`\uE894`).
+5. **`CommandPalette` Search Action Buttons & Empty State (`Controls/CommandPalette.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnClearSearchRightTapped"` on `ClearSearchButton` offering Clear query `Esc` (`\uE894`), Paste into search `Ctrl+V` (`\uE77F`), and Close command palette `Esc` (`\uE711`).
+   - Attached `RightTapped="OnEscButtonRightTapped"` on `EscButton` offering Close command palette `Esc` (`\uE711`), and Clear search query (`\uE894`).
+   - Attached `RightTapped="OnResetSearchRightTapped"` on `ResetSearchButton` in empty search state offering Show all commands `Esc` (`\uE8A5`), Paste into search `Ctrl+V` (`\uE77F`), and Close command palette `Esc` (`\uE711`).
+6. **`ExtensionSetupView` Buttons Context Menus Parity (`Views/ExtensionSetupView.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnCopyFolderRightTapped"` on `CopyFolderButton` offering Copy folder path `Ctrl+C` (`\uE8C8`), Show in File Explorer (`\uE838`), and Read setup guide (`\uE8A7`).
+   - Attached `RightTapped="OnOpenFolderRightTapped"` on `OpenFolderButton` offering Show in File Explorer `Enter` (`\uE838`), Copy folder path `Ctrl+C` (`\uE8C8`), and Read setup guide (`\uE8A7`).
+   - Attached `RightTapped="OnTurnOnRightTapped"` on `TurnOnButton` offering Turn on Local API `Enter` (`\uE968`), Check connection status `F5` (`\uE72C`), and Read setup guide (`\uE8A7`).
 
-
-
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 18 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 30464, `Alive: True`, `Responding: True`, clean exit.

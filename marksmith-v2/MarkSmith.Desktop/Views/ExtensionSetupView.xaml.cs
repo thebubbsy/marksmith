@@ -383,6 +383,121 @@ public sealed partial class ExtensionSetupView : UserControl
         catch (Exception ex) { ShowError($"Couldn't open the guide: {ex.Message}"); }
     }
 
+    private void OnCopyFolderButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? CopyFolderButton;
+        var menu = new MenuFlyout();
+
+        if (_folder is not null)
+        {
+            var copyItem = new MenuFlyoutItem
+            {
+                Text = "Copy folder path",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C"
+            };
+            copyItem.Click += (s, ev) => OnCopyFolderClick(s, ev);
+            menu.Items.Add(copyItem);
+
+            var openItem = new MenuFlyoutItem
+            {
+                Text = "Show in File Explorer",
+                Icon = new FontIcon { Glyph = "\uE838" },
+                KeyboardAcceleratorTextOverride = "Ctrl+O"
+            };
+            openItem.Click += (s, ev) => OnOpenFolderClick(s, ev);
+            menu.Items.Add(openItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+        }
+
+        var guideItem = new MenuFlyoutItem
+        {
+            Text = "Read extension guide",
+            Icon = new FontIcon { Glyph = "\uE8A7" }
+        };
+        guideItem.Click += (s, ev) => OnOpenGuideClick(s, ev);
+        menu.Items.Add(guideItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnOpenFolderButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? OpenFolderButton;
+        var menu = new MenuFlyout();
+
+        if (_folder is not null)
+        {
+            var openItem = new MenuFlyoutItem
+            {
+                Text = "Show in File Explorer",
+                Icon = new FontIcon { Glyph = "\uE838" },
+                KeyboardAcceleratorTextOverride = "Ctrl+O"
+            };
+            openItem.Click += (s, ev) => OnOpenFolderClick(s, ev);
+            menu.Items.Add(openItem);
+
+            var copyItem = new MenuFlyoutItem
+            {
+                Text = "Copy folder path",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C"
+            };
+            copyItem.Click += (s, ev) => OnCopyFolderClick(s, ev);
+            menu.Items.Add(copyItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+        }
+
+        var guideItem = new MenuFlyoutItem
+        {
+            Text = "Read extension guide",
+            Icon = new FontIcon { Glyph = "\uE8A7" }
+        };
+        guideItem.Click += (s, ev) => OnOpenGuideClick(s, ev);
+        menu.Items.Add(guideItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnTurnOnButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? TurnOnButton;
+        var menu = new MenuFlyout();
+
+        var turnOnItem = new MenuFlyoutItem
+        {
+            Text = "Turn on Local API server",
+            Icon = new FontIcon { Glyph = "\uE968" }
+        };
+        turnOnItem.Click += (s, ev) => OnTurnOnClick(s, ev);
+        menu.Items.Add(turnOnItem);
+
+        var checkItem = new MenuFlyoutItem
+        {
+            Text = "Check connection status",
+            Icon = new FontIcon { Glyph = "\uE72C" }
+        };
+        checkItem.Click += (_, _) => Refresh(force: true);
+        menu.Items.Add(checkItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var guideItem = new MenuFlyoutItem
+        {
+            Text = "Read extension guide",
+            Icon = new FontIcon { Glyph = "\uE8A7" }
+        };
+        guideItem.Click += (s, ev) => OnOpenGuideClick(s, ev);
+        menu.Items.Add(guideItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
     private void ShowError(string message)
     {
         _error = (message, CurrentPhase);

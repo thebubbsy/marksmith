@@ -50,7 +50,8 @@
                 <Button x:Name="PrevPageButton" Click="OnPrevPageClick"
                         Padding="8,4" CornerRadius="4"
                         AutomationProperties.Name="Previous page"
-                        ToolTipService.ToolTip="Previous page (Left Arrow or Page Up)">
+                        ToolTipService.ToolTip="Previous page (Left Arrow or Page Up) · Right-click for page navigation"
+                        RightTapped="OnPrevPageButtonRightTapped">
                     <StackPanel Orientation="Horizontal" Spacing="5">
                         <FontIcon Glyph="&#xE76B;" FontSize="10" />
                         <TextBlock x:Name="PrevPageLabelText" Text="Previous" FontSize="11.5" />
@@ -71,7 +72,8 @@
                 <Button x:Name="NextPageButton" Click="OnNextPageClick"
                         Padding="8,4" CornerRadius="4"
                         AutomationProperties.Name="Next page"
-                        ToolTipService.ToolTip="Next page (Right Arrow or Page Down)">
+                        ToolTipService.ToolTip="Next page (Right Arrow or Page Down) · Right-click for page navigation"
+                        RightTapped="OnNextPageButtonRightTapped">
                     <StackPanel Orientation="Horizontal" Spacing="5">
                         <TextBlock x:Name="NextPageLabelText" Text="Next" FontSize="11.5" />
                         <FontIcon Glyph="&#xE76C;" FontSize="10" />
@@ -126,7 +128,8 @@
                     <Button x:Name="DiscardButton" Click="OnDiscardClick"
                             Padding="12,7" CornerRadius="6"
                             AutomationProperties.Name="Cancel and discard"
-                            ToolTipService.ToolTip="Close studio without importing changes into the application (Esc)">
+                            ToolTipService.ToolTip="Close studio without importing changes into the application (Esc) · Right-click for options"
+                            RightTapped="OnDiscardButtonRightTapped">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE711;" FontSize="12" />
                             <TextBlock Text="Cancel &amp; Discard" FontSize="12" />
@@ -138,7 +141,8 @@
                             Padding="18,7" CornerRadius="6"
                             FontWeight="SemiBold"
                             AutomationProperties.Name="Import into MarkSmith"
-                            ToolTipService.ToolTip="Finalize import and open assembled Markdown in the main editor (Ctrl+Enter)">
+                            ToolTipService.ToolTip="Finalize import and open assembled Markdown in the main editor (Ctrl+Enter) · Right-click for options"
+                            RightTapped="OnImportCtaButtonRightTapped">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE898;" FontSize="13" />
                             <TextBlock Text="Import into MarkSmith" FontSize="12.5" FontWeight="SemiBold" />
@@ -244,7 +248,8 @@
                                 IsEnabled="False" Padding="6,2" CornerRadius="4" FontSize="10.5"
                                 Content="Reset Page"
                                 AutomationProperties.Name="Reset all elements on page"
-                                ToolTipService.ToolTip="Reset all elements on this page to their original OCR classification (Ctrl+Shift+R)" />
+                                ToolTipService.ToolTip="Reset all elements on this page to their original OCR classification (Ctrl+Shift+R) · Right-click for options"
+                                RightTapped="OnResetPageButtonRightTapped" />
                     </Grid>
 
                     <!-- Scrollable Element Cards List & Empty State -->
@@ -299,7 +304,8 @@
                                         IsEnabled="False"
                                         Padding="8,5"
                                         AutomationProperties.Name="Reset selected element to original classification"
-                                        ToolTipService.ToolTip="Reset selected element to original engine interpretation (R)">
+                                        ToolTipService.ToolTip="Reset selected element to original engine interpretation (R) · Right-click for options"
+                                        RightTapped="OnResetElementButtonRightTapped">
                                     <FontIcon Glyph="&#xE7A7;" FontSize="11" />
                                 </Button>
                             </Grid>
@@ -334,7 +340,8 @@
                         <Button x:Name="CopyMarkdownButton" Grid.Column="2" Click="OnCopyMarkdownClick"
                                 Padding="8,4" CornerRadius="4" FontSize="11.5"
                                 AutomationProperties.Name="Copy live Markdown preview"
-                                ToolTipService.ToolTip="Copy live Markdown preview to clipboard (Ctrl+Shift+C)">
+                                ToolTipService.ToolTip="Copy live Markdown preview to clipboard (Ctrl+Shift+C) · Right-click for export options"
+                                RightTapped="OnCopyMarkdownButtonRightTapped">
                             <StackPanel Orientation="Horizontal" Spacing="5">
                                 <FontIcon x:Name="CopyMarkdownIcon" Glyph="&#xE8C8;" FontSize="11" />
                                 <TextBlock Text="Copy" FontSize="11.5" />

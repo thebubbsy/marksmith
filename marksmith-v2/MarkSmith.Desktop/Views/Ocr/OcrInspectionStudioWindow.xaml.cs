@@ -1187,6 +1187,357 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         menu.ShowAt(FooterBarGrid, e.GetPosition(FooterBarGrid));
     }
 
+    private void OnPrevPageButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowPageNavContextMenu(sender as FrameworkElement ?? PrevPageButton, e.GetPosition(sender as UIElement ?? PrevPageButton));
+    }
+
+    private void OnNextPageButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowPageNavContextMenu(sender as FrameworkElement ?? NextPageButton, e.GetPosition(sender as UIElement ?? NextPageButton));
+    }
+
+    private void ShowPageNavContextMenu(FrameworkElement target, Windows.Foundation.Point? position)
+    {
+        var menu = new MenuFlyout();
+
+        var prevItem = new MenuFlyoutItem
+        {
+            Text = "Previous page",
+            Icon = new FontIcon { Glyph = "\uE76B" },
+            KeyboardAcceleratorTextOverride = "Left / PgUp",
+            IsEnabled = _session.CurrentPageIndex > 0
+        };
+        prevItem.Click += (s, ev) => OnPrevPageClick(s, ev);
+        menu.Items.Add(prevItem);
+
+        var nextItem = new MenuFlyoutItem
+        {
+            Text = "Next page",
+            Icon = new FontIcon { Glyph = "\uE76C" },
+            KeyboardAcceleratorTextOverride = "Right / PgDn",
+            IsEnabled = _session.CurrentPageIndex < _session.Pages.Count - 1
+        };
+        nextItem.Click += (s, ev) => OnNextPageClick(s, ev);
+        menu.Items.Add(nextItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var firstItem = new MenuFlyoutItem
+        {
+            Text = "First page",
+            Icon = new FontIcon { Glyph = "\uE892" },
+            KeyboardAcceleratorTextOverride = "Home",
+            IsEnabled = _session.CurrentPageIndex > 0
+        };
+        firstItem.Click += (_, _) =>
+        {
+            if (_session.Pages.Count > 0)
+            {
+                _session.CurrentPageIndex = 0;
+                RenderCurrentPage();
+            }
+        };
+        menu.Items.Add(firstItem);
+
+        var lastItem = new MenuFlyoutItem
+        {
+            Text = "Last page",
+            Icon = new FontIcon { Glyph = "\uE893" },
+            KeyboardAcceleratorTextOverride = "End",
+            IsEnabled = _session.CurrentPageIndex < _session.Pages.Count - 1
+        };
+        lastItem.Click += (_, _) =>
+        {
+            if (_session.Pages.Count > 0)
+            {
+                _session.CurrentPageIndex = _session.Pages.Count - 1;
+                RenderCurrentPage();
+            }
+        };
+        menu.Items.Add(lastItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var importItem = new MenuFlyoutItem
+        {
+            Text = "Import into MarkSmith",
+            Icon = new FontIcon { Glyph = "\uE898" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter"
+        };
+        importItem.Click += (s, ev) => OnImportCtaClick(s, ev);
+        menu.Items.Add(importItem);
+
+        if (position.HasValue)
+            menu.ShowAt(target, position.Value);
+        else
+            menu.ShowAt(target);
+    }
+
+    private void OnDiscardButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? DiscardButton;
+        var menu = new MenuFlyout();
+
+        var discardItem = new MenuFlyoutItem
+        {
+            Text = "Cancel & Discard",
+            Icon = new FontIcon { Glyph = "\uE711" },
+            KeyboardAcceleratorTextOverride = "Esc"
+        };
+        discardItem.Click += (s, ev) => OnDiscardClick(s, ev);
+        menu.Items.Add(discardItem);
+
+        var resetPageItem = new MenuFlyoutItem
+        {
+            Text = "Reset page classifications",
+            Icon = new FontIcon { Glyph = "\uE777" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+R"
+        };
+        resetPageItem.Click += (s, ev) => OnResetPageClick(s, ev);
+        menu.Items.Add(resetPageItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var importItem = new MenuFlyoutItem
+        {
+            Text = "Import into MarkSmith",
+            Icon = new FontIcon { Glyph = "\uE898" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter"
+        };
+        importItem.Click += (s, ev) => OnImportCtaClick(s, ev);
+        menu.Items.Add(importItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnImportCtaButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? ImportCtaButton;
+        var menu = new MenuFlyout();
+
+        var importItem = new MenuFlyoutItem
+        {
+            Text = "Import into MarkSmith",
+            Icon = new FontIcon { Glyph = "\uE898" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter"
+        };
+        importItem.Click += (s, ev) => OnImportCtaClick(s, ev);
+        menu.Items.Add(importItem);
+
+        var copyMarkdownItem = new MenuFlyoutItem
+        {
+            Text = "Copy live Markdown preview",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C"
+        };
+        copyMarkdownItem.Click += (s, ev) => OnCopyMarkdownClick(s, ev);
+        menu.Items.Add(copyMarkdownItem);
+
+        var copyAllItem = new MenuFlyoutItem
+        {
+            Text = "Copy full document Markdown",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyAllItem.Click += async (_, _) =>
+        {
+            var fullDoc = _session.GetDocumentMarkdown();
+            await ClipboardWriter.TrySetTextAsync(fullDoc);
+        };
+        menu.Items.Add(copyAllItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var discardItem = new MenuFlyoutItem
+        {
+            Text = "Cancel & Discard",
+            Icon = new FontIcon { Glyph = "\uE711" },
+            KeyboardAcceleratorTextOverride = "Esc"
+        };
+        discardItem.Click += (s, ev) => OnDiscardClick(s, ev);
+        menu.Items.Add(discardItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnResetPageButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? ResetPageButton;
+        var menu = new MenuFlyout();
+
+        var resetPageItem = new MenuFlyoutItem
+        {
+            Text = "Reset all elements on page",
+            Icon = new FontIcon { Glyph = "\uE777" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+R"
+        };
+        resetPageItem.Click += (s, ev) => OnResetPageClick(s, ev);
+        menu.Items.Add(resetPageItem);
+
+        if (_selectedElement is not null)
+        {
+            var resetElemItem = new MenuFlyoutItem
+            {
+                Text = "Reset selected element",
+                Icon = new FontIcon { Glyph = "\uE7A7" },
+                KeyboardAcceleratorTextOverride = "R"
+            };
+            resetElemItem.Click += (s, ev) => OnResetElementClick(s, ev);
+            menu.Items.Add(resetElemItem);
+        }
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var reclassPic = new MenuFlyoutItem
+        {
+            Text = "Reclassify as Picture",
+            Icon = new FontIcon { Glyph = "\uEB9F" },
+            KeyboardAcceleratorTextOverride = "1"
+        };
+        reclassPic.Click += (_, _) => { if (_selectedElement is not null) ReclassifyElement(_selectedElement, OcrBlockKind.Picture); };
+        menu.Items.Add(reclassPic);
+
+        var reclassTable = new MenuFlyoutItem
+        {
+            Text = "Reclassify as Table",
+            Icon = new FontIcon { Glyph = "\uE8A5" },
+            KeyboardAcceleratorTextOverride = "4"
+        };
+        reclassTable.Click += (_, _) => { if (_selectedElement is not null) ReclassifyElement(_selectedElement, OcrBlockKind.Table); };
+        menu.Items.Add(reclassTable);
+
+        var reclassHeading = new MenuFlyoutItem
+        {
+            Text = "Reclassify as Heading",
+            Icon = new FontIcon { Glyph = "\uE8D2" },
+            KeyboardAcceleratorTextOverride = "6"
+        };
+        reclassHeading.Click += (_, _) => { if (_selectedElement is not null) ReclassifyElement(_selectedElement, OcrBlockKind.Heading); };
+        menu.Items.Add(reclassHeading);
+
+        var reclassText = new MenuFlyoutItem
+        {
+            Text = "Reclassify as Text Block",
+            Icon = new FontIcon { Glyph = "\uE8D2" },
+            KeyboardAcceleratorTextOverride = "8"
+        };
+        reclassText.Click += (_, _) => { if (_selectedElement is not null) ReclassifyElement(_selectedElement, OcrBlockKind.Paragraph); };
+        menu.Items.Add(reclassText);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnResetElementButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? ResetElementButton;
+        var menu = new MenuFlyout();
+
+        var resetElemItem = new MenuFlyoutItem
+        {
+            Text = "Reset selected element",
+            Icon = new FontIcon { Glyph = "\uE7A7" },
+            KeyboardAcceleratorTextOverride = "R"
+        };
+        resetElemItem.Click += (s, ev) => OnResetElementClick(s, ev);
+        menu.Items.Add(resetElemItem);
+
+        var resetPageItem = new MenuFlyoutItem
+        {
+            Text = "Reset all elements on page",
+            Icon = new FontIcon { Glyph = "\uE777" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+R"
+        };
+        resetPageItem.Click += (s, ev) => OnResetPageClick(s, ev);
+        menu.Items.Add(resetPageItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        foreach (var opt in ReclassifyKindOptions)
+        {
+            var item = new MenuFlyoutItem
+            {
+                Text = $"Reclassify as {opt.Label}",
+                Icon = new FontIcon { Glyph = opt.Kind == OcrBlockKind.Picture ? "\uEB9F" : opt.Kind == OcrBlockKind.Table ? "\uE8A5" : "\uE8D2" },
+                KeyboardAcceleratorTextOverride = opt.ShortcutNumber.ToString()
+            };
+            var kind = opt.Kind;
+            item.Click += (_, _) => { if (_selectedElement is not null) ReclassifyElement(_selectedElement, kind); };
+            menu.Items.Add(item);
+        }
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
+    private void OnCopyMarkdownButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var target = sender as FrameworkElement ?? CopyMarkdownButton;
+        var menu = new MenuFlyout();
+
+        var copyPreviewItem = new MenuFlyoutItem
+        {
+            Text = "Copy live Markdown preview",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C"
+        };
+        copyPreviewItem.Click += (s, ev) => OnCopyMarkdownClick(s, ev);
+        menu.Items.Add(copyPreviewItem);
+
+        var copyPageItem = new MenuFlyoutItem
+        {
+            Text = "Copy current page Markdown",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyPageItem.Click += async (_, _) =>
+        {
+            var md = _session.CurrentPage?.AssembledPageMarkdown ?? string.Empty;
+            await ClipboardWriter.TrySetTextAsync(md);
+        };
+        menu.Items.Add(copyPageItem);
+
+        var copyDocItem = new MenuFlyoutItem
+        {
+            Text = "Copy full document Markdown",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyDocItem.Click += async (_, _) =>
+        {
+            var fullDoc = _session.GetDocumentMarkdown();
+            await ClipboardWriter.TrySetTextAsync(fullDoc);
+        };
+        menu.Items.Add(copyDocItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var toggleScopeItem = new MenuFlyoutItem
+        {
+            Text = _markdownScopeIsDocument ? "Switch to Current Page view" : "Switch to Full Document view",
+            Icon = new FontIcon { Glyph = _markdownScopeIsDocument ? "\uE8FD" : "\uE8A5" }
+        };
+        toggleScopeItem.Click += (_, _) =>
+        {
+            MarkdownScopeComboBox.SelectedIndex = _markdownScopeIsDocument ? 0 : 1;
+        };
+        menu.Items.Add(toggleScopeItem);
+
+        var importItem = new MenuFlyoutItem
+        {
+            Text = "Import into MarkSmith",
+            Icon = new FontIcon { Glyph = "\uE898" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter"
+        };
+        importItem.Click += (s, ev) => OnImportCtaClick(s, ev);
+        menu.Items.Add(importItem);
+
+        menu.ShowAt(target, e.GetPosition(target));
+    }
+
     private void ClearElementSelection()
     {
         _selectedElement = null;

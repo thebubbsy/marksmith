@@ -395,8 +395,9 @@
                                                   PlaceholderText="Select a cloud drive…"
                                                   HorizontalAlignment="Stretch" />
                                         <Button x:Name="RescanCloudButton" Grid.Column="1" Click="OnRescanCloud" VerticalAlignment="Bottom"
-                                                ToolTipService.ToolTip="Look for cloud sync folders on this PC again"
-                                                AutomationProperties.Name="Rescan for cloud drives">
+                                                ToolTipService.ToolTip="Look for cloud sync folders on this PC again · Right-click for options"
+                                                AutomationProperties.Name="Rescan for cloud drives"
+                                                RightTapped="OnRescanCloudButtonRightTapped">
                                             <FontIcon x:Name="RescanCloudIcon" Glyph="&#xE72C;" FontSize="14" RenderTransformOrigin="0.5,0.5">
                                                 <FontIcon.RenderTransform>
                                                     <RotateTransform x:Name="RescanCloudRotate" Angle="0" />
@@ -455,7 +456,8 @@
                                                      IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
                                                      MaxHeight="140" FontSize="12" IsSpellCheckEnabled="False" />
                                             <Button x:Name="CopyPromptButton" Grid.Column="1" VerticalAlignment="Bottom" Click="OnCopyHouseStylePromptClick"
-                                                    ToolTipService.ToolTip="Copy the prompt" AutomationProperties.Name="Copy the prompt">
+                                                    ToolTipService.ToolTip="Copy the prompt · Right-click for options" AutomationProperties.Name="Copy the prompt"
+                                                    RightTapped="OnCopyPromptButtonRightTapped">
                                                 <FontIcon x:Name="CopyPromptIcon" Glyph="&#xE8C8;" FontSize="14" />
                                             </Button>
                                         </Grid>
@@ -469,8 +471,9 @@
                                                  PlaceholderText="Paste the JSON your web AI returned, then Apply theme (Ctrl+Enter)" />
                                         <Button x:Name="ApplyThemeButton" Content="Apply theme" Click="OnApplyHouseStyleJsonClick"
                                                 AutomationProperties.Name="Apply house style theme"
-                                                ToolTipService.ToolTip="Apply the pasted JSON theme (Ctrl+Enter)"
-                                                HorizontalAlignment="Left" IsEnabled="False" />
+                                                ToolTipService.ToolTip="Apply the pasted JSON theme (Ctrl+Enter) · Right-click for options"
+                                                HorizontalAlignment="Left" IsEnabled="False"
+                                                RightTapped="OnApplyThemeButtonRightTapped" />
                                     </StackPanel>
                                 </StackPanel>
                             </controls:SettingsCard.Details>
@@ -563,12 +566,14 @@
                                                Description="Pro adds Word and PowerPoint export (with editable equations), batch conversion and hands-free automation, and takes the MarkSmith footer off your exports. PDF, web page, EPUB, Markdown and email stay free.">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <ProgressRing x:Name="DeactivateRing" IsActive="False" Width="16" Height="16" Visibility="Collapsed" />
-                                <Button x:Name="DeactivateButton" Content="Remove license" Click="OnDeactivateLicense" Visibility="Collapsed"
+                                 <Button x:Name="DeactivateButton" Content="Remove license" Click="OnDeactivateLicense" Visibility="Collapsed"
                                         AutomationProperties.Name="Remove license"
-                                        ToolTipService.ToolTip="Deactivate this PC — the key can then be used on another machine" />
+                                        ToolTipService.ToolTip="Deactivate this PC — the key can then be used on another machine · Right-click for options"
+                                        RightTapped="OnDeactivateButtonRightTapped" />
                                 <Button x:Name="BuyButton" Click="OnBuyPro"
                                         AutomationProperties.Name="Buy MarkSmith Pro"
-                                        ToolTipService.ToolTip="Open the MarkSmith Pro purchase page in your browser">
+                                        ToolTipService.ToolTip="Open the MarkSmith Pro purchase page in your browser · Right-click for options"
+                                        RightTapped="OnBuyButtonRightTapped">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE719;" FontSize="14" />
                                         <TextBlock Text="Buy Pro" />
@@ -577,7 +582,8 @@
                                 <Button x:Name="StartTrialButton" Content="Start free trial" Click="OnStartTrialClick"
                                         AutomationProperties.Name="Start free trial"
                                         Style="{ThemeResource AccentButtonStyle}"
-                                        ToolTipService.ToolTip="The free trial unlocks everything in Pro until you've made 3 Word exports." />
+                                        ToolTipService.ToolTip="The free trial unlocks everything in Pro until you've made 3 Word exports · Right-click for options"
+                                        RightTapped="OnStartTrialButtonRightTapped" />
                             </StackPanel>
                         </controls:SettingsCard>
                         <controls:SettingsCard x:Name="KeyEntryRow" Glyph="&#xE8D7;" Header="License key"
@@ -590,7 +596,8 @@
                                         <ProgressRing x:Name="LicenseActionRing" IsActive="False" Width="16" Height="16" Visibility="Collapsed" />
                                         <Button x:Name="ActivateButton" Content="Activate" Click="OnActivateLicense" IsEnabled="False"
                                                 AutomationProperties.Name="Activate license key"
-                                                ToolTipService.ToolTip="Check the key and unlock Pro" />
+                                                ToolTipService.ToolTip="Check the key and unlock Pro · Right-click for options"
+                                                RightTapped="OnActivateButtonRightTapped" />
                                     </StackPanel>
                                 </Grid>
                             </controls:SettingsCard.Details>
@@ -689,7 +696,8 @@
                                     <ProgressRing x:Name="CheckRing" IsActive="False" Width="18" Height="18" Visibility="Collapsed" />
                                     <Button x:Name="CheckButton" Click="OnCheckForUpdates"
                                             AutomationProperties.Name="Check for updates"
-                                            ToolTipService.ToolTip="Check GitHub for a newer MarkSmith release">
+                                            ToolTipService.ToolTip="Check GitHub for a newer MarkSmith release · Right-click for options"
+                                            RightTapped="OnCheckButtonRightTapped">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xE895;" FontSize="14" />
                                             <TextBlock Text="Check for updates" />
