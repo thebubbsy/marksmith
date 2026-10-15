@@ -50,7 +50,7 @@ public static class OcrMarkdown
 
     // Checkbox OCR artifacts next to Yes/No or option labels.
     private static readonly Regex YesNoEmptyBox = new(
-        @"\b(Yes|No)\s+(?:\|g|\[g|g\]|\[0|\|0|0\]|\[O|\|O|\[\s*\]|\[_\]|\[[Il1|]\]|\|\]|\[\|)(?=\s|$)",
+        @"\b(Yes|No)\s+(?:\|g|\[g|g\]|\[0|\|0|0\]|\[O|\|O|\[9|9\]|Z\)|g|\[\s*\]|\[_\]|\[[Il1|]\]|\|\]|\[\|)(?=\s|$)",
         RegexOptions.Compiled);
 
     private static readonly Regex YesNoCheckedBox = new(
@@ -58,7 +58,7 @@ public static class OcrMarkdown
         RegexOptions.Compiled);
 
     private static readonly Regex StandaloneEmptyBox = new(
-        @"(?<=^|\s)(?:\|g|\[g|\[0|\|0|\[\s*\]|\[_\])(?=\s|$)",
+        @"(?<=^|\s)(?:\|g|\[g|\[0|\|0|\[9|\[\s*\]|\[_\])(?=\s|$)",
         RegexOptions.Compiled);
 
     private static readonly Regex StandaloneCheckedBox = new(
@@ -190,13 +190,13 @@ public static class OcrMarkdown
 
     private static bool IsHeadingLine(string text, float lineHeight, float bodyHeight)
     {
-        if (text.Length < 2 || text.Length >= 95) return false;
+        if (text.Length < 3 || text.Length >= 95) return false;
         if (text.EndsWith('.') || text.EndsWith(':') || text.EndsWith(',') || text.EndsWith(';')) return false;
-        if (text.Contains("[ ]") || text.Contains("[x]")) return false;
+        if (text.Contains('[') || text.Contains(']') || text.Contains('~') || text.Contains('|')) return false;
         if (char.IsLower(text[0])) return false;
 
         int letters = text.Count(char.IsLetter);
-        if (letters < 2) return false;
+        if (letters < 3) return false;
 
         // Form instructions and routing prompts are never headings even if set in larger/bold type.
         if (Regex.IsMatch(text, @"\b(Go to \d|Give details|if known|attach a|tick all|Please read)\b", RegexOptions.IgnoreCase))
@@ -219,9 +219,13 @@ public static class OcrMarkdown
         s = StandaloneEmptyBox.Replace(s, "[ ]");
         s = StandaloneCheckedBox.Replace(s, "[x]");
 
-        // Repair common split/mangled form phrases.
+        // Repair common split/mangled form phrases and sentence-initial 'l' for 'I'.
+        s = Regex.Replace(s, @"(?:^|(?<=[.?!]\s+))l([stfn])\b", "I$1");
         s = Regex.Replace(s, @"\bEx-partner\s+s\b", "Ex-partner's");
         s = Regex.Replace(s, @"\bCustomer\s+eference\s+umber\s*\(\s*nown\)", "Customer Reference Number (if known)");
+        s = Regex.Replace(s, @"\bYouth\s*A(?:ii|ll)owance\b", "Youth Allowance");
+        s = Regex.Replace(s, @"\b([Cc])ali(?=\s+\d)", "$1all");
+        s = Regex.Replace(s, @"(?<=\s|^)[—\-_]{2,}[EIl1|](?=\s|$)", "");
 
         // Collapse multiple spaces.
         s = Regex.Replace(s, @"\s{2,}", " ").Trim();
@@ -242,12 +246,16 @@ public static class OcrMarkdown
         if (text.Contains("|||") || Regex.IsMatch(text, @"[|Il1!]{6,}"))
             return true;
 
+        // Empty date/character comb boxes and border artifacts (e.g. "[i~ [iE", "[iE", "iii]", "---l").
+        if (Regex.IsMatch(text, @"^[\[\]|iIeE1l~_\-\s]{1,14}$") && text != "[ ]" && text != "[x]")
+            return true;
+
         // Tiny isolated noise fragments from logos/borders (e.g. "(D", "gbQ", "*", "—").
         if (nonSpace.Count <= 3 && text != "[ ]" && text != "[x]")
         {
             int lettersOrDigits = nonSpace.Count(char.IsLetterOrDigit);
             if (lettersOrDigits == 0) return true;
-            if (text is "(D" or "gbQ" or "gZ)" or "Zl)" or "|g" or "[g")
+            if (text is "(D" or "gbQ" or "gZ)" or "Zl)" or "|g" or "[g" or "Z)" or "[9")
                 return true;
         }
 

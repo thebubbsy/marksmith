@@ -342,6 +342,16 @@ public sealed class MsLexicon
                     result[i] = result[i] with { Text = "l" };
                 }
             }
+            else if (t == "i" && i > 0 && i + 2 < result.Count && result[i + 1].Text == "i")
+            {
+                char prev = result[i - 1].Text.FirstOrDefault();
+                char next = result[i + 2].Text.FirstOrDefault();
+                if ("AaEeOoUu".Contains(prev) && "oaeu".Contains(next))
+                {
+                    result[i] = result[i] with { Text = "l" };
+                    result[i + 1] = result[i + 1] with { Text = "l" };
+                }
+            }
         }
         return result;
     }

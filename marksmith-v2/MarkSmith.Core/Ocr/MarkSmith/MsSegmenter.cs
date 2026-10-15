@@ -241,11 +241,11 @@ public static class MsSegmenter
             }
         }
 
-        // If a spanning header or footer currently blocks a true 2-column vertical split in the body,
+        // If a spanning header and/or footer currently blocks a true 2-column vertical split in the body,
         // find the horizontal gap that separates the spanning header/footer from the 2-column body first.
         if (!isTrueColumnSplit && blobs.Count >= 12)
         {
-            var hGaps = AllGaps(blobs.Select(b => (b.Top, b.Bottom + 1)), typical * 0.95f);
+            var hGaps = AllGaps(blobs.Select(b => (b.Top, b.Bottom + 1)), typical * 0.55f);
             foreach (var hg in hGaps)
             {
                 var topPart = blobs.Where(b => b.CenterY < hg.At).ToList();
@@ -256,6 +256,32 @@ public static class MsSegmenter
                     CutBlocks(topPart, typical, gutter, pageMinX, pageSpanW, output, depth + 1);
                     CutBlocks(botPart, typical, gutter, pageMinX, pageSpanW, output, depth + 1);
                     return;
+                }
+            }
+
+            // When BOTH a top header and bottom footer span across the page, check if removing both reveals a 2-column body.
+            int minY = blobs.Min(b => b.Top);
+            int maxY = blobs.Max(b => b.Bottom);
+            float spanH = Math.Max(1f, maxY - minY);
+            var topCandidates = hGaps.Where(g => g.At <= minY + spanH * 0.38f).OrderByDescending(g => g.Size).ToList();
+            var botCandidates = hGaps.Where(g => g.At >= minY + spanH * 0.72f).OrderByDescending(g => g.Size).ToList();
+            foreach (var tg in topCandidates)
+            {
+                foreach (var bg in botCandidates)
+                {
+                    if (bg.At <= tg.At + typical * 4f) continue;
+                    var midPart = blobs.Where(b => b.CenterY >= tg.At && b.CenterY < bg.At).ToList();
+                    if (HasTrueColumnSplit(midPart, gutter, pageSpanW, typical))
+                    {
+                        var topPart = blobs.Where(b => b.CenterY < tg.At).ToList();
+                        var botPart = blobs.Where(b => b.CenterY >= tg.At).ToList();
+                        if (topPart.Count > 0 && botPart.Count > 0)
+                        {
+                            CutBlocks(topPart, typical, gutter, pageMinX, pageSpanW, output, depth + 1);
+                            CutBlocks(botPart, typical, gutter, pageMinX, pageSpanW, output, depth + 1);
+                            return;
+                        }
+                    }
                 }
             }
         }

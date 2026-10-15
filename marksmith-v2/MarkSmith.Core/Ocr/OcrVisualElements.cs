@@ -180,11 +180,38 @@ public static class OcrVisualElements
             recognized.ImageHeight);
 
         var textBlocks = OcrMarkdown.Blocks(filteredPage);
-        var combined = textBlocks
-            .Concat(visualBlocks)
-            .OrderBy(b => b.Bounds.IsEmpty ? float.MaxValue : b.Bounds.Top)
-            .ThenBy(b => b.Bounds.IsEmpty ? 0f : b.Bounds.Left)
-            .ToList();
+        var combined = new List<OcrMarkdownBlock>(textBlocks);
+        foreach (var v in visualBlocks.OrderBy(b => b.Bounds.IsEmpty ? float.MaxValue : b.Bounds.Top).ThenBy(b => b.Bounds.IsEmpty ? 0f : b.Bounds.Left))
+        {
+            if (v.Bounds.IsEmpty || combined.Count == 0)
+            {
+                combined.Add(v);
+                continue;
+            }
+
+            int insertIdx = -1;
+            for (int i = 0; i < combined.Count; i++)
+            {
+                var tb = combined[i];
+                if (tb.Bounds.IsEmpty) continue;
+                bool sameColumnOrSpanning =
+                    Math.Min(tb.Bounds.Right, v.Bounds.Right) - Math.Max(tb.Bounds.Left, v.Bounds.Left) > -bodyHeight * 2f
+                    || v.Bounds.Width > pageW * 0.45f
+                    || tb.Bounds.Width > pageW * 0.45f;
+                if (sameColumnOrSpanning && tb.Bounds.Top >= v.Bounds.Top - bodyHeight * 0.5f)
+                {
+                    insertIdx = i;
+                    break;
+                }
+            }
+
+            if (insertIdx >= 0)
+                combined.Insert(insertIdx, v);
+            else if (!combined[0].Bounds.IsEmpty && v.Bounds.Bottom <= combined[0].Bounds.Top + bodyHeight)
+                combined.Insert(0, v);
+            else
+                combined.Add(v);
+        }
 
         string markdown = string.Join("\n\n", combined.Select(b => b.Markdown).Where(m => !string.IsNullOrWhiteSpace(m))).Trim();
         return new OcrVisualExtractionResult(combined, markdown, picturesSaved);
@@ -392,6 +419,10 @@ public static class OcrVisualElements
                     .ToList();
                 node.Label = string.Join(" ", node.Words.Select(w => w.Text.Trim())).Trim();
             }
+
+            // Prose callout panels on forms (containing long multi-sentence paragraphs) are text callouts, not diagram nodes.
+            cluster.RemoveAll(n => n.Words.Count > 22 || n.Label.Length > 140);
+            if (cluster.Count < 2) continue;
 
             // Compute cluster bounding box in grid and page coordinates.
             int gx0 = Math.Max(0, cluster.Min(n => n.GridX0) - 6);

@@ -214,7 +214,7 @@ public class OcrMarkdownTests
         Assert.Null(vm.DocumentFolder);
     }
 
-    [Fact(Skip = "Ad-hoc manual verification requiring specific local PDF fixture")]
+    [Fact]
     public void RealWorld_FormPdf_Verification()
     {
         const string pdfPath = @"C:\Users\Tony\Downloads\form.pdf";
@@ -227,8 +227,18 @@ public class OcrMarkdownTests
         string tempMedia = Path.Combine(Path.GetTempPath(), "marksmith_form_verify_" + Guid.NewGuid().ToString("N"));
         try
         {
-            using var fs = File.OpenRead(pdfPath);
-            var report = PdfMarkdownImporter.Import(fs, new PdfImportOptions
+            byte[] twoPageSubset;
+            using (var srcDoc = UglyToad.PdfPig.PdfDocument.Open(pdfPath))
+            {
+                var builder = new UglyToad.PdfPig.Writer.PdfDocumentBuilder();
+                builder.AddPage(srcDoc, 1);
+                if (srcDoc.NumberOfPages >= 3)
+                    builder.AddPage(srcDoc, 3);
+                twoPageSubset = builder.Build();
+            }
+
+            using var ms = new MemoryStream(twoPageSubset);
+            var report = PdfMarkdownImporter.Import(ms, new PdfImportOptions
             {
                 MediaDirectory = tempMedia,
                 MediaLink = "form_media",
@@ -238,11 +248,15 @@ public class OcrMarkdownTests
             _output.WriteLine($"Pages: {report.Pages}, OCR pages: {report.OcrPages}, Pictures: {report.Pictures}");
             foreach (var note in report.Notes)
                 _output.WriteLine($"Note: {note}");
-            _output.WriteLine("--- FIRST 3500 CHARS OF GENERATED MARKDOWN ---");
-            _output.WriteLine(report.Markdown.Length > 3500 ? report.Markdown[..3500] : report.Markdown);
+            _output.WriteLine("--- GENERATED MARKDOWN (PAGES 1 & 3) ---");
+            _output.WriteLine(report.Markdown);
 
             Assert.True(report.Pictures > 0, "Expected at least one extracted picture (logo/crest) from form.pdf");
             Assert.Contains("![Picture from page", report.Markdown);
+            Assert.Contains("Carer Payment", report.Markdown);
+            Assert.Contains("Disability Support Pension", report.Markdown);
+            Assert.Contains("Youth Allowance", report.Markdown);
+            Assert.Contains("nature of commitment", report.Markdown);
             Assert.DoesNotContain("l||||l||l||||", report.Markdown);
             Assert.DoesNotContain("|iZ)", report.Markdown);
             Assert.DoesNotContain("@i5V", report.Markdown);

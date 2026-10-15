@@ -7175,5 +7175,34 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Live WinUI 3 UIAutomation smoke launch (`Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR`):
   - Verified `WinUIDesktopWin32WindowClass` main window (PID 26488), verified `Alive: True`, `Responding: True`, and closed cleanly.
 
+### 2026-10-15 (OCR & Scanned/Vector PDF Import Pipeline Overhaul + OcrInspectionStudioWindow Emoji Removal)
 
+#### Agent / Execution Metadata
+- **Model:** `Gemini 4 Argon (Medium)`
+- **Identity:** `Antigravity AI Agent (Google DeepMind)`
+- **Trigger:** Overhaul MarkSmith OCR + PDF import quality (`form.pdf` / `ss293-2607en-f.pdf` recovery output audit) and remove all emojis and decorative symbols from `OcrInspectionStudioWindow`.
 
+**Shipped:**
+1. **`OcrInspectionStudioWindow` Emoji & Decorative Symbol Removal (`Views/Ocr/OcrInspectionStudioWindow.xaml` & `.xaml.cs`):**
+   - Removed all emojis and decorative Unicode symbols (`🖼`, `✨`, `📐`, `📊`, `🔑`, `📌`, `📑`, `📝`, `✦`, `✓`, `⚠`) from XAML text runs and C# code-behind (`GetKindEmoji` now returns `""`, stage completion and warning strings use clean plain text).
+2. **Picture & Coat-of-Arms Extraction + Relative `_media` Preview/Export Resolution (`OcrVisualElements.cs`, `MainViewModel.cs`, `MainWindow.xaml.cs`, `DocumentImages.cs`):**
+   - Updated `OcrVisualElements.DetectPictures` to mask only genuine text words (allowing non-text graphic/crest clusters with garbage OCR tokens like `(D`, `gbQ`, `J`, `ff'` to remain intact in the foreground mask and get claimed/suppressed when enclosed by a detected picture), detect monochrome/grayscale crests/logos, and save extracted `.png` files (`![Picture from page N](...)`) whenever `!PreferShapeMosaicForPictures && !string.IsNullOrWhiteSpace(MediaDirectory)`.
+   - Preserved `textBlocks` column reading order when inserting `visualBlocks` in `OcrVisualElements.ExtractPage` instead of globally re-sorting all blocks by `Bounds.Top`, keeping 2-column reading order intact even on pages with extracted pictures or diagrams.
+   - Excluded multi-sentence prose callout boxes (`Words.Count > 22 || Label.Length > 140`) from `DetectStructuredDiagrams` so boxed form instructions remain readable prose paragraphs.
+   - Extended `MainViewModel.DetachFromOpenFile(string? importedDocumentFolder = null)` and `MainWindow.BuildPreviewCanvasHtml` (`DocumentImages.InlineLocalImages`) so relative `*_media/...` links resolve in live preview and Word/PDF exports after PDF import.
+3. **Cross-Platform Vector-Path PDF Page Rendering Fallback & 1-Bit/8-Bit Stream Decoding (`PdfMarkdownImporter.cs`):**
+   - Added `RenderVectorPageFallback(Page page)` using `SkiaSharp` `SKPath` at 180 DPI so vector-outlined PDFs (`page.Paths.Count > 200` with 0 embedded images and 0 font text, such as `form.pdf`) render and OCR cleanly even when `options.RenderPage` (`WindowsPdfRenderer`) is not supplied.
+   - Updated `Decode(IPdfImage)` to use `img.TryGetBytesAsMemory` for 1-bit and 8-bit raw stream images.
+4. **Multi-Column & Sidebar Reading Order Segmentation (`MsSegmenter.cs` & `OcrLayout.cs`):**
+   - Added 1D vertical barcode cluster filtering (`IsVerticalBarcodeCluster`) and thin horizontal/vertical border line stripping (`IsThinRule`) before recursive XY-cut layout segmentation.
+   - Added single and simultaneous top-header + bottom-footer horizontal cut detection (`TryFindDualHorizontalCutForVerticalSplit`) in `MsSegmenter.SplitRecursive` and `OcrLayout.SplitRecursive` so full-width header and footer banners are separated first, exposing clean 2-column vertical cuts.
+   - Prioritized horizontal cuts on narrow left-sidebar layouts (`< 25%` page width) so sidebar section titles stay paired with their right-hand paragraphs, guarded narrow margin question numbers (`13`) against vertical splitting, and joined interleaved same-line letter fragments.
+5. **Word Spacing, Look-Alike Normalization & Recursive DP Joined-Word Splitting (`MsRecognizer.cs` & `MsLexicon.cs`):**
+   - Filtered wide tab/column outlier gaps (`> 1.15f`) before Otsu thresholding in `MsRecognizer.SpaceThreshold` and clamped the upper space threshold to `0.46f`.
+   - Expanded `MsLexicon` with government/form vocabulary, `ii`/`ll`/`it`/`rt` confusion pairs (`paitner` -> `partner`, `suppoit` -> `support`, `wiii` -> `will`), internal `I`/`1`/`|` -> `l` normalization (`toId` -> `told`, `Iive` -> `live`), and recursive multi-word dynamic programming segmentation (`TryDpSplit`) to split 2–6+ concatenated words (`Carerpayment` -> `Carer payment`, `Disabilitysupportpension` -> `Disability support pension`, `YouthAiiowance` -> `Youth Allowance`, `natureofcommitment` -> `nature of commitment`, `HaveyoutoIdusaboutyourseparation` -> `Have you told us about your separation`).
+6. **Clean Markdown Reconstruction & Multi-Column Table Extraction (`OcrMarkdown.cs`):**
+   - Added checkbox/arrow artifact cleanup (`|g`, `[g`, `[0`, `|0`, `[9`, `Z)`, `|iZ)`, `|iX)`, `@i5V`, `[T`, `[X` -> `- [ ]` / `- [x]` or stripped), 1D barcode and empty comb-box line filtering (`l||||l||l||...`, `[i~ [iE`, `[iE`, `iii]`, `---l`), median alphabetic word-height calculation per line so tall noise glyphs don't promote body lines into `# H1` headings, sentence-initial `ls`/`lt`/`lf` -> `Is`/`It`/`If` repair, and multi-column aligned table reconstruction (`OcrBlockKind.Table`).
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:OutDir=...`: **0 errors**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "FullyQualifiedName~OcrMarkdownTests|FullyQualifiedName~OcrExperienceAndVisualsTests"`: **25 passed, 0 failed, 0 skipped** (including `RealWorld_FormPdf_Verification` on `C:\Users\Tony\Downloads\form.pdf`).

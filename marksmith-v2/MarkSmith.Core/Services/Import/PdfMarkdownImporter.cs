@@ -379,7 +379,7 @@ public static class PdfMarkdownImporter
             var paths = page.Paths;
             if (paths is null || paths.Count <= 200) return null;
 
-            const double dpi = 240.0;
+            const double dpi = 180.0;
             double scale = dpi / 72.0;
             int w = Math.Clamp((int)Math.Round(page.Width * scale), 64, 3600);
             int h = Math.Clamp((int)Math.Round(page.Height * scale), 64, 3600);
