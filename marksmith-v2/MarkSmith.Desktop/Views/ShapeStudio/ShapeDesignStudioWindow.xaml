@@ -69,14 +69,17 @@
                 </StackPanel>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Click="OnClearClick" IsEnabled="{Binding HasShapes}"
-                        ToolTipService.ToolTip="Remove every shape from the canvas (Ctrl+Z brings them back)">
+                <Button x:Name="ClearCanvasButton" Click="OnClearClick" IsEnabled="{Binding HasShapes}"
+                        RightTapped="OnClearCanvasButtonRightTapped"
+                        ToolTipService.ToolTip="Remove every shape from the canvas (Ctrl+Z brings them back, Right-click for options)">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE894;" FontSize="14" />
                         <TextBlock Text="Clear" />
                     </StackPanel>
                 </Button>
-                <DropDownButton x:Name="ExportDropDownButton" AutomationProperties.Name="Export" ToolTipService.ToolTip="Save the diagram as a Word file, or move it in and out as Markdown">
+                <DropDownButton x:Name="ExportDropDownButton" AutomationProperties.Name="Export"
+                                RightTapped="OnExportDropDownButtonRightTapped"
+                                ToolTipService.ToolTip="Save the diagram as a Word file, or move it in and out as Markdown (Right-click for options)">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xEDE1;" FontSize="14" />
                         <TextBlock Text="Export" />

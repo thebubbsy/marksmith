@@ -7768,6 +7768,63 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 28148, `Alive: True`, `Responding: True`, clean exit.
 
+### 2026-10-16 (scheduled routine run #100 — Milestone WinUI 3 Desktop Polish: Zoom Stepper Menus Parity, Mermaid Studio Action Buttons Menus, MindMap Zoom Controls Parity, Shape Studio Header Actions Menus, History Filter Empty State Menus, Suite Hub Launch Buttons Menus)
+
+- **Surface / Component Targets:** `MainWindow`, `MermaidDiagramStudioControl`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #99:
+    * Target A: `MainWindow` Zoom stepper buttons (`EditorZoomOutButton`, `EditorZoomInButton`, `PreviewZoomOutButton`, `PreviewZoomInButton`) context menu routing parity.
+    * Target B: `MermaidDiagramStudioControl` toolbar action buttons (`AutoLayoutButton`, `GridSnapToggle`, `ExportSvgButton`, `CopySvgButton`, `SyncToMarkdownButton`) right-click accelerator menus.
+  - Generated:
+    1. `MainWindow` Editor & Preview Zoom Stepper Buttons Right-Click Context Menu Parity (`MainWindow.xaml` & `.xaml.cs`)
+    2. `MermaidDiagramStudioControl` Toolbar Action Buttons Right-Click Context Menus (`Views/Mermaid/MermaidDiagramStudioControl.xaml` & `.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Wired `EditorZoomOutButton` and `EditorZoomInButton` with `RightTapped="OnEditorZoomOutRightTapped"` and `RightTapped="OnEditorZoomInRightTapped"`, routing to `ShowEditorZoomContextMenu` with 100% Fluent icon coverage. Wired `PreviewZoomOutButton` and `PreviewZoomInButton` with `RightTapped="OnPreviewZoomOutRightTapped"` and `RightTapped="OnPreviewZoomInRightTapped"`, routing to `ShowPreviewZoomContextMenu`. Added full right-tapped context menu handlers in `MermaidDiagramStudioControl.xaml.cs` for AutoLayout (offering Top-Down `\uE81E`, Left-Right `\uE8A9`, Bottom-Up `\uE74A`, Right-Left `\uE76B`, Fit in window `\uE9A6`), GridSnap (toggle grid snap, elbow, straight, and curved routing), Export SVG (`\uEDE1`), Copy SVG (`\uE8C8`), and Sync to Markdown (`\uE72C`).
+  - Generated:
+    3. `MindMapGalaxyWindow` Zoom Stepper Buttons & Search Controls Right-Click Menu Parity (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`)
+    4. `ShapeDesignStudioWindow` Header `ClearCanvasButton` & `ExportDropDownButton` Context Menus (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Attached `x:Name="ZoomOutButton"`, `x:Name="ZoomInButton"`, and `x:Name="FitToWindowButton"` with `RightTapped="OnZoomResetRightTapped"` in `MindMapGalaxyWindow.xaml`, giving unified right-click zoom presets across all zoom buttons. Attached `x:Name="ClearCanvasButton"` with `RightTapped="OnClearCanvasButtonRightTapped"` and `RightTapped="OnExportDropDownButtonRightTapped"` on `ExportDropDownButton` in `ShapeDesignStudioWindow.xaml` & `.xaml.cs` offering Clear canvas (`\uE74D`), Undo clear `Ctrl+Z` (`\uE7A7`), Select all shapes `Ctrl+A` (`\uE8B3`), Fit diagram in window `Ctrl+0` (`\uE9A6`), Word document `.docx` (`\uE8A5`), Word template `.dotx` (`\uE8F1`), and Markdown clipboard transfer.
+  - Refined Block 1 (Pass 2 - Final): Ensured all context menus meet the strict Fluent icon catalog and test assertions in `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+  - Generated:
+    5. `HistoryWindow` Filter Empty State `ClearFiltersButton` Context Menu (`Views/History/HistoryWindow.xaml` & `.xaml.cs`)
+    6. `SuiteHubView` Settings Folder & Studio Launch Buttons Right-Click Menus (`Views/SuiteHubView.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Attached `x:Name="ClearFiltersButton"` and `RightTapped="OnClearFiltersButtonRightTapped"` in `HistoryWindow.xaml` & `.xaml.cs` offering Clear search and filters (`\uE894`), Show all versions (`\uE734`), Show starred only (`\uE735`), and Reload version history (`\uE72C`). Attached `RightTapped="OnOpenConfigFolderRightTapped"` on `OpenConfigFolderButton` and `RightTapped="OnCard1ButtonRightTapped"` on Card 1 studio buttons (`Card1DiagramButton`, `Card1ShapeButton`, `Card1SmartArtButton`) in `SuiteHubView.xaml` & `.xaml.cs` routing directly to the polished card context menus with full icon parity.
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #101.
+
+**Shipped:**
+1. **`MainWindow` Editor & Preview Zoom Stepper Buttons Context Menu Parity (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnEditorZoomOutRightTapped"` and `RightTapped="OnEditorZoomInRightTapped"` on `EditorZoomOutButton` and `EditorZoomInButton` routing to `ShowEditorZoomContextMenu`.
+   - Attached `RightTapped="OnPreviewZoomOutRightTapped"` and `RightTapped="OnPreviewZoomInRightTapped"` on `PreviewZoomOutButton` and `PreviewZoomInButton` routing to `ShowPreviewZoomContextMenu`.
+2. **`MermaidDiagramStudioControl` Toolbar Action Buttons Right-Click Context Menus (`Views/Mermaid/MermaidDiagramStudioControl.xaml` & `.xaml.cs`):**
+   - Attached `x:Name="AutoLayoutButton"` and `RightTapped="OnAutoLayoutButtonRightTapped"` offering Auto-arrange (`\uECA5`), Top-Down `TD` (`\uE81E`), Left-Right `LR` (`\uE8A9`), Bottom-Up `BT` (`\uE74A`), Right-Left `RL` (`\uE76B`), and Fit in window `Ctrl+0` (`\uE9A6`).
+   - Attached `RightTapped="OnGridSnapToggleRightTapped"` on `GridSnapToggle` offering Toggle grid snap (`\uE80A`), Elbow connector routing (`\uE8A5`), Straight routing (`\uE8A5`), and Curved routing (`\uE8A5`).
+   - Attached `RightTapped="OnExportSvgButtonRightTapped"` on `ExportSvgButton` offering Export SVG file `Ctrl+Shift+E` (`\uEDE1`), Copy diagram as SVG `Ctrl+Shift+C` (`\uE8C8`), and Sync to Markdown `Ctrl+Enter` (`\uE72C`).
+   - Attached `RightTapped="OnCopySvgButtonRightTapped"` on `CopySvgButton` offering Copy diagram as SVG `Ctrl+Shift+C` (`\uE8C8`), Copy Mermaid source code (`\uE8C8`), and Export SVG file (`\uEDE1`).
+   - Attached `x:Name="SyncToMarkdownButton"` and `RightTapped="OnSyncToMarkdownButtonRightTapped"` on `SyncToMarkdownButton` offering Sync to Markdown `Ctrl+Enter` (`\uE72C`), Copy Mermaid source code (`\uE8C8`), Copy diagram as SVG (`\uE8C8`), and Export SVG file (`\uEDE1`).
+3. **`MindMapGalaxyWindow` Zoom Controls Right-Click Context Menu Parity (`Views/MindMap/MindMapGalaxyWindow.xaml`):**
+   - Attached `x:Name="ZoomOutButton"`, `x:Name="ZoomInButton"`, and `x:Name="FitToWindowButton"` with `RightTapped="OnZoomResetRightTapped"`, ensuring all zoom steppers present the full zoom presets flyout with 100% icon coverage (`\uE9A6`, `\uE71E`, `\uE73E`, `\uE71F`).
+4. **`ShapeDesignStudioWindow` Header Clear & Export Context Menus (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `x:Name="ClearCanvasButton"` and `RightTapped="OnClearCanvasButtonRightTapped"` offering Clear canvas (`\uE74D`), Undo clear `Ctrl+Z` (`\uE7A7`), Select all shapes `Ctrl+A` (`\uE8B3`), Fit diagram in window `Ctrl+0` (`\uE9A6`), and Copy shapes as Markdown `Ctrl+Shift+C` (`\uE8C8`).
+   - Attached `RightTapped="OnExportDropDownButtonRightTapped"` on `ExportDropDownButton` offering Word document `.docx` (`\uE8A5`), Word template `.dotx` (`\uE8F1`), Copy as Markdown `Ctrl+Shift+C` (`\uE8C8`), and Load Markdown from clipboard `Ctrl+V` (`\uE77F`).
+5. **`HistoryWindow` Filter Empty State `ClearFiltersButton` Context Menu (`Views/History/HistoryWindow.xaml` & `.xaml.cs`):**
+   - Attached `x:Name="ClearFiltersButton"` and `RightTapped="OnClearFiltersButtonRightTapped"` offering Clear search and filters (`\uE894`), Show all versions (`\uE734`), Show starred versions only (`\uE735`), and Reload version history (`\uE72C`).
+6. **`SuiteHubView` Settings Folder & Studio Launch Buttons Right-Click Menus (`Views/SuiteHubView.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnOpenConfigFolderRightTapped"` on `OpenConfigFolderButton` routing directly to the Card 0 settings folder context menu.
+   - Attached `RightTapped="OnCard1ButtonRightTapped"` on `Card1DiagramButton`, `Card1ShapeButton`, and `Card1SmartArtButton` routing directly to the Card 1 Drawing studios context menu.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 18 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 12888, `Alive: True`, `Responding: True`, clean exit.
+
+
 
 
 

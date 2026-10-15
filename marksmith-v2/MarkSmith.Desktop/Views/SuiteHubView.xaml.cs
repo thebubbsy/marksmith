@@ -604,6 +604,20 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private void OnOpenConfigFolderRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement fe)
+            ShowCardContextMenu(0, fe, e.GetPosition(fe));
+    }
+
+    private void OnCard1ButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement fe)
+            ShowCardContextMenu(1, fe, e.GetPosition(fe));
+    }
+
     private void OnVersionInfoTapped(object sender, TappedRoutedEventArgs e)
     {
         var info = $"{VersionText.Text} · {LicenseText.Text}";

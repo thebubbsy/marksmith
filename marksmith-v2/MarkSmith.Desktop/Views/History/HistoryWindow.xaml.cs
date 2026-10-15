@@ -1506,5 +1506,61 @@ public sealed partial class HistoryWindow : Window
             ShowDiffAreaContextMenu(fe, e.GetPosition(fe));
         }
     }
+
+    private void OnClearFiltersButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var clearFilter = new MenuFlyoutItem
+        {
+            Text = "Clear search and filters",
+            Icon = new FontIcon { Glyph = "\uE894" }
+        };
+        clearFilter.Click += (_, _) =>
+        {
+            _vm.ClearFiltersCommand.Execute(null);
+            SearchBox.Text = "";
+        };
+        menu.Items.Add(clearFilter);
+
+        var showAll = new MenuFlyoutItem
+        {
+            Text = "Show all versions",
+            Icon = new FontIcon { Glyph = "\uE734" }
+        };
+        showAll.Click += (_, _) =>
+        {
+            _vm.IsStarredOnlyFilter = false;
+        };
+        menu.Items.Add(showAll);
+
+        var showStarred = new MenuFlyoutItem
+        {
+            Text = "Show starred versions only",
+            Icon = new FontIcon { Glyph = "\uE735" }
+        };
+        showStarred.Click += (_, _) =>
+        {
+            _vm.IsStarredOnlyFilter = true;
+        };
+        menu.Items.Add(showStarred);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var reloadHistory = new MenuFlyoutItem
+        {
+            Text = "Reload version history",
+            Icon = new FontIcon { Glyph = "\uE72C" }
+        };
+        reloadHistory.Click += async (_, _) =>
+        {
+            await _vm.LoadCommand.ExecuteAsync(null);
+        };
+        menu.Items.Add(reloadHistory);
+
+        var anchor = sender as FrameworkElement ?? (FrameworkElement)ClearFiltersButton;
+        menu.ShowAt(anchor, e.GetPosition(anchor));
+    }
 }
 

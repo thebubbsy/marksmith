@@ -7804,6 +7804,18 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ShowEditorZoomContextMenu(EditorZoomResetButton, e.GetPosition(EditorZoomResetButton));
     }
 
+    private void OnEditorZoomInRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowEditorZoomContextMenu(sender as FrameworkElement ?? EditorZoomResetButton, e.GetPosition(sender as UIElement));
+    }
+
+    private void OnEditorZoomOutRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowEditorZoomContextMenu(sender as FrameworkElement ?? EditorZoomResetButton, e.GetPosition(sender as UIElement));
+    }
+
     private void ShowEditorZoomContextMenu(FrameworkElement anchor, Windows.Foundation.Point? position)
     {
         var menu = new MenuFlyout();
@@ -10015,6 +10027,18 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         e.Handled = true;
         ShowPreviewZoomContextMenu(PreviewZoomResetButton, e.GetPosition(PreviewZoomResetButton));
+    }
+
+    private void OnPreviewZoomInRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowPreviewZoomContextMenu(sender as FrameworkElement ?? PreviewZoomResetButton, e.GetPosition(sender as UIElement));
+    }
+
+    private void OnPreviewZoomOutRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowPreviewZoomContextMenu(sender as FrameworkElement ?? PreviewZoomResetButton, e.GetPosition(sender as UIElement));
     }
 
     private void ShowPreviewZoomContextMenu(FrameworkElement anchor, Windows.Foundation.Point? position)

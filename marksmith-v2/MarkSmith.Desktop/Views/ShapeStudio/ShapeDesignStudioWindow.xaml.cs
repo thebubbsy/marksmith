@@ -2358,6 +2358,43 @@ namespace MarkSmith.Views.ShapeStudio
                 flyout.ShowAt(ConvertButton, e.GetPosition(ConvertButton));
         }
 
+        private void OnClearCanvasButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            bool any = ViewModel.Shapes.Count > 0;
+
+            flyout.Items.Add(ShapeMenuItem("Clear canvas", "\uE74D", () => OnClearClick(this, new RoutedEventArgs()), enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Undo clear", "\uE7A7", () => ViewModel.UndoCommand.Execute(null), "Ctrl+Z", enabled: ViewModel.CanUndo));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Select all shapes", "\uE8B3", () => ViewModel.SelectAllCommand.Execute(null), "Ctrl+A", enabled: any && !ViewModel.IsDense));
+            flyout.Items.Add(ShapeMenuItem("Fit diagram in window", "\uE9A6", FitCanvasToContent, "Ctrl+0", enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Copy shapes as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), "Ctrl+Shift+C", enabled: any));
+
+            var anchor = sender as FrameworkElement ?? (FrameworkElement)ClearCanvasButton;
+            flyout.ShowAt(anchor, e.GetPosition(anchor));
+        }
+
+        private void OnExportDropDownButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            bool any = ViewModel.Shapes.Count > 0;
+
+            flyout.Items.Add(ShapeMenuItem("Word document (.docx)…", "\uE8A5", () => OnExportDocxClick(this, new RoutedEventArgs()), enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Word template (.dotx)…", "\uE8F1", () => OnExportDotxClick(this, new RoutedEventArgs()), enabled: any));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Copy as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), "Ctrl+Shift+C", enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Load Markdown from clipboard", "\uE77F", () => OnLoadMarkdownClick(this, new RoutedEventArgs()), "Ctrl+V"));
+
+            var anchor = sender as FrameworkElement ?? (FrameworkElement)ExportDropDownButton;
+            flyout.ShowAt(anchor, e.GetPosition(anchor));
+        }
+
         private async void OnFuseImageClick(object sender, RoutedEventArgs e)        {
             if (string.IsNullOrWhiteSpace(_composeImagePath))
             {

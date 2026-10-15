@@ -118,8 +118,9 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto-arrange nodes"
+                    <Button x:Name="AutoLayoutButton" Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto-arrange nodes (Right-click for layout options)"
                             AutomationProperties.Name="Auto-arrange nodes"
+                            RightTapped="OnAutoLayoutButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon Glyph="&#xECA5;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
@@ -128,8 +129,9 @@
                          labelled toggle button in the same family as the rest of the toolbar. -->
                     <ToggleButton x:Name="GridSnapToggle"
                                   IsChecked="{Binding IsGridSnapEnabled, Mode=TwoWay}"
-                                  ToolTipService.ToolTip="Snap nodes to a 10 px grid while dragging"
+                                  ToolTipService.ToolTip="Snap nodes to a 10 px grid while dragging (Right-click for options)"
                                   AutomationProperties.Name="Snap to grid"
+                                  RightTapped="OnGridSnapToggleRightTapped"
                                   Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE80A;" FontSize="14" />
@@ -226,18 +228,21 @@
 
                 <!-- Right Actions (Export/Copy are icon-only; Sync keeps its label as the primary action) -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <Button x:Name="ExportSvgButton" Click="OnExportSvgClick" ToolTipService.ToolTip="Export the canvas as an SVG file (Ctrl+Shift+E)" AutomationProperties.Name="Export SVG (Ctrl+Shift+E)"
+                    <Button x:Name="ExportSvgButton" Click="OnExportSvgClick" ToolTipService.ToolTip="Export the canvas as an SVG file (Ctrl+Shift+E, Right-click for options)" AutomationProperties.Name="Export SVG (Ctrl+Shift+E)"
+                            RightTapped="OnExportSvgButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon Glyph="&#xEDE1;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
 
-                    <Button x:Name="CopySvgButton" Click="OnCopySvgClick" ToolTipService.ToolTip="Copy the diagram as SVG to the clipboard (Ctrl+Shift+C)" AutomationProperties.Name="Copy SVG (Ctrl+Shift+C)"
+                    <Button x:Name="CopySvgButton" Click="OnCopySvgClick" ToolTipService.ToolTip="Copy the diagram as SVG to the clipboard (Ctrl+Shift+C, Right-click for options)" AutomationProperties.Name="Copy SVG (Ctrl+Shift+C)"
+                            RightTapped="OnCopySvgButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon x:Name="CopySvgIcon" Glyph="&#xE8C8;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
 
                     <!-- The window's one primary action: filled in the studio's cyan accent. -->
-                    <Button Click="OnSyncToMarkdownClick" ToolTipService.ToolTip="Write the diagram back into the document's Mermaid block (Ctrl+Enter)"
+                    <Button x:Name="SyncToMarkdownButton" Click="OnSyncToMarkdownClick" ToolTipService.ToolTip="Write the diagram back into the document's Mermaid block (Ctrl+Enter, Right-click for options)"
+                            RightTapped="OnSyncToMarkdownButtonRightTapped"
                             Style="{StaticResource AccentButtonStyle}" Foreground="#0D1B2A">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE72C;" FontSize="14" />

@@ -94,12 +94,12 @@
                                    RightTapped="OnSearchMatchLabelRightTapped"
                                    ToolTipService.ToolTip="Search match count · Double-click to copy, right-click for navigation options"
                                    Visibility="{Binding HasSearchQuery, Converter={StaticResource BoolToVis}}" />
-                        <Button Click="OnZoomOutClick" ToolTipService.ToolTip="Zoom out (Ctrl+−)" AutomationProperties.Name="Zoom out" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE71F;" FontSize="13" /></Button>
+                        <Button x:Name="ZoomOutButton" Click="OnZoomOutClick" RightTapped="OnZoomResetRightTapped" ToolTipService.ToolTip="Zoom out (Ctrl+−, Right-click for zoom presets)" AutomationProperties.Name="Zoom out" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE71F;" FontSize="13" /></Button>
                         <Button x:Name="ZoomResetButton" Click="OnZoomResetClick" DoubleTapped="OnZoomResetDoubleTapped" RightTapped="OnZoomResetRightTapped" Content="{Binding ZoomLevelText}" MinWidth="52" Height="32" Padding="6,0" FontSize="12"
                                 Background="Transparent" BorderThickness="0"
                                 ToolTipService.ToolTip="Zoom to 100% · Double-click to reset, right-click for zoom presets" AutomationProperties.Name="Zoom to 100 percent" />
-                        <Button Click="OnZoomInClick" ToolTipService.ToolTip="Zoom in (Ctrl++)" AutomationProperties.Name="Zoom in" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE8A3;" FontSize="13" /></Button>
-                        <Button Click="OnFitToWindowClick" ToolTipService.ToolTip="Fit the whole map in the window (Ctrl+0)" AutomationProperties.Name="Fit to window" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE9A6;" FontSize="13" /></Button>
+                        <Button x:Name="ZoomInButton" Click="OnZoomInClick" RightTapped="OnZoomResetRightTapped" ToolTipService.ToolTip="Zoom in (Ctrl++, Right-click for zoom presets)" AutomationProperties.Name="Zoom in" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE8A3;" FontSize="13" /></Button>
+                        <Button x:Name="FitToWindowButton" Click="OnFitToWindowClick" RightTapped="OnZoomResetRightTapped" ToolTipService.ToolTip="Fit the whole map in the window (Ctrl+0, Right-click for zoom presets)" AutomationProperties.Name="Fit to window" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE9A6;" FontSize="13" /></Button>
                     </StackPanel>
                 </Grid>
 

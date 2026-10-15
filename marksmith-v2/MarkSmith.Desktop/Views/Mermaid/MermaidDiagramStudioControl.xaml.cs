@@ -828,6 +828,248 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             menu.ShowAt(CodeEditorTextBox);
     }
 
+    private void OnAutoLayoutButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var autoItem = new MenuFlyoutItem
+        {
+            Text = "Auto-arrange nodes",
+            Icon = new FontIcon { Glyph = "\uECA5" }
+        };
+        autoItem.Click += (_, _) => OnAutoLayoutClick(this, new RoutedEventArgs());
+        menu.Items.Add(autoItem);
+
+        var tdItem = new MenuFlyoutItem
+        {
+            Text = "Top-Down layout (TD)",
+            Icon = new FontIcon { Glyph = "\uE81E" }
+        };
+        tdItem.Click += (_, _) =>
+        {
+            if (DirectionComboBox != null) DirectionComboBox.SelectedIndex = 0;
+            OnAutoLayoutClick(this, new RoutedEventArgs());
+        };
+        menu.Items.Add(tdItem);
+
+        var lrItem = new MenuFlyoutItem
+        {
+            Text = "Left-Right layout (LR)",
+            Icon = new FontIcon { Glyph = "\uE8A9" }
+        };
+        lrItem.Click += (_, _) =>
+        {
+            if (DirectionComboBox != null) DirectionComboBox.SelectedIndex = 1;
+            OnAutoLayoutClick(this, new RoutedEventArgs());
+        };
+        menu.Items.Add(lrItem);
+
+        var buItem = new MenuFlyoutItem
+        {
+            Text = "Bottom-Up layout (BT)",
+            Icon = new FontIcon { Glyph = "\uE74A" }
+        };
+        buItem.Click += (_, _) =>
+        {
+            if (DirectionComboBox != null) DirectionComboBox.SelectedIndex = 2;
+            OnAutoLayoutClick(this, new RoutedEventArgs());
+        };
+        menu.Items.Add(buItem);
+
+        var rlItem = new MenuFlyoutItem
+        {
+            Text = "Right-Left layout (RL)",
+            Icon = new FontIcon { Glyph = "\uE76B" }
+        };
+        rlItem.Click += (_, _) =>
+        {
+            if (DirectionComboBox != null) DirectionComboBox.SelectedIndex = 3;
+            OnAutoLayoutClick(this, new RoutedEventArgs());
+        };
+        menu.Items.Add(rlItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var fitItem = new MenuFlyoutItem
+        {
+            Text = "Fit diagram in window (Ctrl+0)",
+            Icon = new FontIcon { Glyph = "\uE9A6" }
+        };
+        fitItem.Click += (_, _) => _canvas.FitToContentAfterLayout();
+        menu.Items.Add(fitItem);
+
+        var anchor = sender as FrameworkElement ?? (FrameworkElement)AutoLayoutButton;
+        menu.ShowAt(anchor, e.GetPosition(anchor));
+    }
+
+    private void OnGridSnapToggleRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var snapItem = new MenuFlyoutItem
+        {
+            Text = GridSnapToggle.IsChecked == true ? "Disable grid snap" : "Enable grid snap (10 px)",
+            Icon = new FontIcon { Glyph = "\uE80A" }
+        };
+        snapItem.Click += (_, _) =>
+        {
+            GridSnapToggle.IsChecked = !(GridSnapToggle.IsChecked == true);
+        };
+        menu.Items.Add(snapItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var elbowItem = new MenuFlyoutItem
+        {
+            Text = "Connector routing: Elbow (90°)",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        elbowItem.Click += (_, _) => { if (RoutingComboBox != null) RoutingComboBox.SelectedIndex = 0; };
+        menu.Items.Add(elbowItem);
+
+        var straightItem = new MenuFlyoutItem
+        {
+            Text = "Connector routing: Straight",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        straightItem.Click += (_, _) => { if (RoutingComboBox != null) RoutingComboBox.SelectedIndex = 1; };
+        menu.Items.Add(straightItem);
+
+        var curvedItem = new MenuFlyoutItem
+        {
+            Text = "Connector routing: Curved",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        curvedItem.Click += (_, _) => { if (RoutingComboBox != null) RoutingComboBox.SelectedIndex = 2; };
+        menu.Items.Add(curvedItem);
+
+        var anchor = sender as FrameworkElement ?? (FrameworkElement)GridSnapToggle;
+        menu.ShowAt(anchor, e.GetPosition(anchor));
+    }
+
+    private void OnExportSvgButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var exportItem = new MenuFlyoutItem
+        {
+            Text = "Export SVG file (Ctrl+Shift+E)",
+            Icon = new FontIcon { Glyph = "\uEDE1" }
+        };
+        exportItem.Click += (_, _) => OnExportSvgClick(this, new RoutedEventArgs());
+        menu.Items.Add(exportItem);
+
+        var copySvgItem = new MenuFlyoutItem
+        {
+            Text = "Copy diagram as SVG (Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copySvgItem.Click += (_, _) => OnCopySvgClick(this, new RoutedEventArgs());
+        menu.Items.Add(copySvgItem);
+
+        var syncItem = new MenuFlyoutItem
+        {
+            Text = "Sync to Markdown (Ctrl+Enter)",
+            Icon = new FontIcon { Glyph = "\uE72C" }
+        };
+        syncItem.Click += (_, _) => OnSyncToMarkdownClick(this, new RoutedEventArgs());
+        menu.Items.Add(syncItem);
+
+        var anchor = sender as FrameworkElement ?? (FrameworkElement)ExportSvgButton;
+        menu.ShowAt(anchor, e.GetPosition(anchor));
+    }
+
+    private void OnCopySvgButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var copySvgItem = new MenuFlyoutItem
+        {
+            Text = "Copy diagram as SVG (Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copySvgItem.Click += (_, _) => OnCopySvgClick(this, new RoutedEventArgs());
+        menu.Items.Add(copySvgItem);
+
+        var copyCodeItem = new MenuFlyoutItem
+        {
+            Text = "Copy Mermaid source code",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyCodeItem.Click += (_, _) =>
+        {
+            var code = CodePaneText();
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(code);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+            AnnounceLiveRegion(StatusBarText, "Copied Mermaid source code to clipboard.");
+        };
+        menu.Items.Add(copyCodeItem);
+
+        var exportItem = new MenuFlyoutItem
+        {
+            Text = "Export SVG file (Ctrl+Shift+E)",
+            Icon = new FontIcon { Glyph = "\uEDE1" }
+        };
+        exportItem.Click += (_, _) => OnExportSvgClick(this, new RoutedEventArgs());
+        menu.Items.Add(exportItem);
+
+        var anchor = sender as FrameworkElement ?? (FrameworkElement)CopySvgButton;
+        menu.ShowAt(anchor, e.GetPosition(anchor));
+    }
+
+    private void OnSyncToMarkdownButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var syncItem = new MenuFlyoutItem
+        {
+            Text = "Sync to Markdown (Ctrl+Enter)",
+            Icon = new FontIcon { Glyph = "\uE72C" }
+        };
+        syncItem.Click += (_, _) => OnSyncToMarkdownClick(this, new RoutedEventArgs());
+        menu.Items.Add(syncItem);
+
+        var copyCodeItem = new MenuFlyoutItem
+        {
+            Text = "Copy Mermaid source code",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyCodeItem.Click += (_, _) =>
+        {
+            var code = CodePaneText();
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(code);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+            AnnounceLiveRegion(StatusBarText, "Copied Mermaid source code to clipboard.");
+        };
+        menu.Items.Add(copyCodeItem);
+
+        var copySvgItem = new MenuFlyoutItem
+        {
+            Text = "Copy diagram as SVG (Ctrl+Shift+C)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copySvgItem.Click += (_, _) => OnCopySvgClick(this, new RoutedEventArgs());
+        menu.Items.Add(copySvgItem);
+
+        var exportItem = new MenuFlyoutItem
+        {
+            Text = "Export SVG file (Ctrl+Shift+E)",
+            Icon = new FontIcon { Glyph = "\uEDE1" }
+        };
+        exportItem.Click += (_, _) => OnExportSvgClick(this, new RoutedEventArgs());
+        menu.Items.Add(exportItem);
+
+        var anchor = sender as FrameworkElement ?? (FrameworkElement)SyncToMarkdownButton;
+        menu.ShowAt(anchor, e.GetPosition(anchor));
+    }
+
     /// <summary>
     /// Listens for ViewModel.ZoomFactor changes (driven by the toolbar slider) and pushes
     /// the new zoom level into the canvas ScrollViewer.

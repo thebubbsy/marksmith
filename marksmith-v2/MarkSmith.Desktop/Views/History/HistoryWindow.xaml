@@ -234,7 +234,9 @@
                                 <TextBlock x:Name="NoMatchesTextBlock" Text="{Binding NoMatchesText}" TextWrapping="Wrap" FontSize="12"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                            AutomationProperties.LiveSetting="Polite" />
-                                <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" Padding="12,5" />
+                                <Button x:Name="ClearFiltersButton" Content="Clear filters" Command="{Binding ClearFiltersCommand}" Padding="12,5"
+                                        RightTapped="OnClearFiltersButtonRightTapped"
+                                        ToolTipService.ToolTip="Reset search query and starred filter (Right-click for options)" />
                             </StackPanel>
                             <ItemsControl ItemsSource="{Binding Bands}"
                                           Visibility="{Binding ShowTimeline, Converter={StaticResource BoolToVis}}">
