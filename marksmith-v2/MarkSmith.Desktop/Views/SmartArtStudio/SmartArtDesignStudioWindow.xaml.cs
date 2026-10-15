@@ -791,7 +791,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.StatusMessage = "Copied outline bullets to clipboard.";
                 if (CopyOutlineMarkdownButton is not null)
                 {
-                    Services.CopyFeedback.CopyWithTick(CopyOutlineMarkdownButton, md);
+                    Services.CopyFeedback.ApplyButtonTick(CopyOutlineMarkdownButton, null);
                 }
             }
             catch { }
@@ -812,7 +812,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.StatusMessage = $"Copied {name} SmartArt Markdown block to clipboard.";
                 if (CopySmartArtBlockButton is not null)
                 {
-                    Services.CopyFeedback.CopyWithTick(CopySmartArtBlockButton, block.Trim());
+                    Services.CopyFeedback.ApplyButtonTick(CopySmartArtBlockButton, null);
                 }
             }
             catch { }

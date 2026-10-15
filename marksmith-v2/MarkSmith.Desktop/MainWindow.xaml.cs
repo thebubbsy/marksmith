@@ -778,7 +778,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (HistoryEmptyText is null || HistoryList is null) return;
         var count = ViewModel.History.Count;
         var empty = count == 0;
-        if (empty && ClearHistoryButton is not null && ClearHistoryButton.FocusState != FocusState.Unfocused)
+        if (empty && ((ClearHistoryButton is not null && ClearHistoryButton.FocusState != FocusState.Unfocused)
+                      || HistoryList.FocusState != FocusState.Unfocused))
         {
             MoreMenuButton?.Focus(FocusState.Programmatic);
         }
@@ -1938,6 +1939,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (ViewModel.RemoveHistoryEntry(entry))
         {
             UpdateExportHistoryFlyoutState();
+            if (ViewModel.History.Count > 0)
+            {
+                HistoryList?.Focus(FocusState.Programmatic);
+            }
             ViewModel.StatusText = $"Removed {Path.GetFileName(entry.OutputPath)} from recent exports.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
         }
@@ -2091,6 +2096,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (TocFilterBox is not null && TocFilterBox.Visibility == Visibility.Visible)
         {
             TocFilterBox.Focus(FocusState.Programmatic);
+            TocFilterBox.SelectAll();
         }
         else if (TocList is not null && TocList.Visibility == Visibility.Visible)
         {
@@ -2147,14 +2153,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnTocListKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        var entry = FindListItemFromSource<Services.TocEntry>(e.OriginalSource as DependencyObject, TocList)
-                    ?? (TocList?.ItemsSource as IEnumerable<Services.TocEntry>)?.FirstOrDefault();
-        if (entry is null) return;
-
         bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        if (e.Key == Windows.System.VirtualKey.F && ctrl && !shift && TocFilterBox is not null && TocFilterBox.Visibility == Visibility.Visible)
+        {
+            e.Handled = true;
+            TocFilterBox.Focus(FocusState.Programmatic);
+            TocFilterBox.SelectAll();
+            return;
+        }
+
+        var entry = FindListItemFromSource<Services.TocEntry>(e.OriginalSource as DependencyObject, TocList)
+                    ?? (TocList?.ItemsSource as IEnumerable<Services.TocEntry>)?.FirstOrDefault();
+        if (entry is null) return;
 
         if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
         {

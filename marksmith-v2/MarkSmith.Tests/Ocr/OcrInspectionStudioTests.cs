@@ -492,7 +492,15 @@ public class OcrInspectionStudioTests
     [Fact]
     public void WinUI3_Polish_Contracts_For_OcrStudio_Flyouts_InsertDialogs_And_ShapeStudioPreviewCap()
     {
-        var repoRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null &&
+               (!System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "MarkSmith.Core")) ||
+                !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "MarkSmith.Desktop"))))
+        {
+            dir = dir.Parent;
+        }
+        Assert.NotNull(dir);
+        var repoRoot = dir!.FullName;
 
         // 1. ShapeDesignStudioViewModel must use previewCap: 0 (no artificial 24,000 cap)
         var shapeVmCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
@@ -511,6 +519,11 @@ public class OcrInspectionStudioTests
         var ocrCs = System.IO.File.ReadAllText(System.IO.Path.Combine(
             repoRoot, "MarkSmith.Desktop", "Views", "Ocr", "OcrInspectionStudioWindow.xaml.cs"));
         Assert.Contains("HoverPolish.Apply(RootGrid)", ocrCs);
+        Assert.Contains("HoverPolish.Apply(cardBorder)", ocrCs);
+        Assert.Contains("ApplyOverlayBounds(frame, elem.Box)", ocrCs);
+        Assert.Contains("CopyMarkdownButton.FocusState != FocusState.Unfocused", ocrCs);
+        Assert.Contains("ComboBoxItem or SelectorItem or MenuFlyoutItemBase", ocrCs);
+        Assert.Contains("refreshPreviewAndTelemetry: false", ocrCs);
         Assert.Contains("BuildElementContextMenu", ocrCs);
         Assert.Contains("TryMapShortcutNumberToKind", ocrCs);
         Assert.Contains("IsTextOrComboInputFocused", ocrCs);
@@ -529,6 +542,7 @@ public class OcrInspectionStudioTests
             repoRoot, "MarkSmith.Desktop", "Views", "InsertDialogControls.cs"));
         Assert.Contains("_copySnippetButton", insertControlsCs);
         Assert.Contains("CopyCurrentSnippet", insertControlsCs);
+        Assert.Contains("ComboBox or ComboBoxItem or SelectorItem or ButtonBase", insertControlsCs);
 
         var imageInsertCs = System.IO.File.ReadAllText(System.IO.Path.Combine(
             repoRoot, "MarkSmith.Desktop", "Views", "ImageInsertControl.cs"));

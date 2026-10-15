@@ -20,7 +20,7 @@
         </Grid.RowDefinitions>
 
         <!-- Row 0: Window Title Bar -->
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="48" Padding="14,0"
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="48" Padding="14,0" ColumnSpacing="12"
               Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
               BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
@@ -34,11 +34,12 @@
                 <Image Source="ms-appx:///Assets/logo.png" Width="22" Height="22" VerticalAlignment="Center" />
                 <TextBlock Text="OCR Inspection Studio" FontSize="13" FontWeight="SemiBold"
                            Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-                <Border x:Name="EngineBadgeBorder" CornerRadius="4" Padding="6,1,6,2"
+                <Border x:Name="EngineBadgeBorder" CornerRadius="4" Padding="6,1,6,2" MaxWidth="190"
                         Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
                         VerticalAlignment="Center">
                     <TextBlock x:Name="EngineBadgeText" Text="MarkSmith OCR" FontSize="11"
+                               TextTrimming="CharacterEllipsis"
                                Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" FontWeight="SemiBold" />
                 </Border>
             </StackPanel>
@@ -52,7 +53,7 @@
                         ToolTipService.ToolTip="Previous page (Left Arrow or Page Up)">
                     <StackPanel Orientation="Horizontal" Spacing="5">
                         <FontIcon Glyph="&#xE76B;" FontSize="10" />
-                        <TextBlock Text="Previous Page" FontSize="11.5" />
+                        <TextBlock x:Name="PrevPageLabelText" Text="Previous" FontSize="11.5" />
                     </StackPanel>
                 </Button>
 
@@ -72,15 +73,15 @@
                         AutomationProperties.Name="Next page"
                         ToolTipService.ToolTip="Next page (Right Arrow or Page Down)">
                     <StackPanel Orientation="Horizontal" Spacing="5">
-                        <TextBlock Text="Next Page" FontSize="11.5" />
+                        <TextBlock x:Name="NextPageLabelText" Text="Next" FontSize="11.5" />
                         <FontIcon Glyph="&#xE76C;" FontSize="10" />
                     </StackPanel>
                 </Button>
             </StackPanel>
 
-            <!-- Right: Session Telemetry Counters -->
+            <!-- Right: Session Telemetry Counters (TitleBarInsets.Reserve pads the right caption button inset) -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
-                        HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,140,0">
+                        HorizontalAlignment="Right" VerticalAlignment="Center">
                 <Border CornerRadius="4" Padding="8,3" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                         ToolTipService.ToolTip="Total detected blocks across all pages">
                     <StackPanel Orientation="Horizontal" Spacing="5">
@@ -228,15 +229,15 @@
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                 <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
                     <!-- Pane Header -->
-                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <Ellipse Width="7" Height="7" Fill="{ThemeResource SystemFillColorCautionBrush}" />
-                            <TextBlock Text="ELEMENT INSPECTOR" FontSize="11" FontWeight="SemiBold"
+                            <TextBlock Text="INSPECTOR" FontSize="11" FontWeight="SemiBold"
                                        CharacterSpacing="30" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                         <TextBlock x:Name="SelectedElementBadgeText" Grid.Column="1" Text="Click box to edit"
                                    FontSize="10.5" FontFamily="Consolas" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                    AutomationProperties.LiveSetting="Polite" />
                         <Button x:Name="ResetPageButton" Grid.Column="2" Click="OnResetPageClick"
                                 IsEnabled="False" Padding="6,2" CornerRadius="4" FontSize="10.5"

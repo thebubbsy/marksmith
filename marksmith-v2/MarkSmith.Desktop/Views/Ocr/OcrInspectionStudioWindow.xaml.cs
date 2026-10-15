@@ -636,6 +636,28 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         ToolTipService.SetToolTip(border, DescribeElementToolTip(elem));
         border.ContextFlyout = BuildElementContextMenu(elem);
 
+        var badgeStack = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 3,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        badgeStack.Children.Add(new FontIcon
+        {
+            Glyph = elem.KindIconGlyph,
+            FontSize = 9,
+            Foreground = new SolidColorBrush(Colors.White),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        badgeStack.Children.Add(new TextBlock
+        {
+            Text = $"#{elem.Id} {elem.KindDisplayName}",
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Colors.White),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
         var badge = new Border
         {
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -644,13 +666,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Padding = new Thickness(4, 1, 4, 1),
             Margin = new Thickness(2),
             Background = new SolidColorBrush(strokeColor),
-            Child = new TextBlock
-            {
-                Text = $"{elem.KindIconGlyph} {elem.KindDisplayName}",
-                FontSize = 9.5,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Colors.White),
-            }
+            Child = badgeStack,
         };
 
         border.Child = badge;
@@ -822,6 +838,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         cardBorder.RightTapped += (_, _) => SelectElement(elem);
 
+        HoverPolish.Apply(cardBorder);
         return cardBorder;
     }
 
@@ -1009,7 +1026,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         }
     }
 
-    private void ReclassifyElement(OcrInspectionElement elem, OcrBlockKind newKind)
+    private void ReclassifyElement(OcrInspectionElement elem, OcrBlockKind newKind, bool refreshPreviewAndTelemetry = true)
     {
         elem.Reclassify(newKind);
 
@@ -1023,10 +1040,20 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             frame.Background = new SolidColorBrush(isSel
                 ? Color.FromArgb(70, sc.R, sc.G, sc.B)
                 : fc);
-            if (frame.Child is Border badge && badge.Child is TextBlock badgeText)
+            if (frame.Child is Border badge)
             {
                 badge.Background = new SolidColorBrush(sc);
-                badgeText.Text = $"{elem.KindIconGlyph} {elem.KindDisplayName}";
+                if (badge.Child is StackPanel badgeStack)
+                {
+                    if (badgeStack.Children.Count > 0 && badgeStack.Children[0] is FontIcon badgeIcon)
+                        badgeIcon.Glyph = elem.KindIconGlyph;
+                    if (badgeStack.Children.Count > 1 && badgeStack.Children[1] is TextBlock badgeLabel)
+                        badgeLabel.Text = $"#{elem.Id} {elem.KindDisplayName}";
+                }
+                else if (badge.Child is TextBlock badgeText)
+                {
+                    badgeText.Text = $"#{elem.Id} {elem.KindDisplayName}";
+                }
             }
             AutomationProperties.SetName(frame, DescribeElementForAccessibility(elem));
             ToolTipService.SetToolTip(frame, DescribeElementToolTip(elem));
@@ -1098,10 +1125,13 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             }
         }
 
-        UpdateSessionTelemetry();
-        UpdateLiveMarkdownPreview();
-        UpdateActionButtonsState();
-        SetFooterStatusText($"Reclassified Element #{elem.Id} to {elem.KindDisplayName}. Preview updated live.");
+        if (refreshPreviewAndTelemetry)
+        {
+            UpdateSessionTelemetry();
+            UpdateLiveMarkdownPreview();
+            UpdateActionButtonsState();
+            SetFooterStatusText($"Reclassified Element #{elem.Id} to {elem.KindDisplayName}. Preview updated live.");
+        }
     }
 
     private void UpdateLiveMarkdownPreview()
@@ -1111,7 +1141,17 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         if (_session.Pages.Count == 0)
         {
             MarkdownPreviewTextBox.Text = string.Empty;
-            if (CopyMarkdownButton is not null) CopyMarkdownButton.IsEnabled = false;
+            if (CopyMarkdownButton is not null)
+            {
+                if (CopyMarkdownButton.FocusState != FocusState.Unfocused)
+                {
+                    if (MarkdownScopeComboBox is not null && MarkdownScopeComboBox.IsEnabled)
+                        MarkdownScopeComboBox.Focus(FocusState.Programmatic);
+                    else
+                        ImportCtaButton?.Focus(FocusState.Programmatic);
+                }
+                CopyMarkdownButton.IsEnabled = false;
+            }
             return;
         }
 
@@ -1122,7 +1162,15 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         MarkdownPreviewTextBox.Text = md;
         if (CopyMarkdownButton is not null)
         {
-            CopyMarkdownButton.IsEnabled = !string.IsNullOrWhiteSpace(md);
+            bool canCopy = !string.IsNullOrWhiteSpace(md);
+            if (!canCopy && CopyMarkdownButton.FocusState != FocusState.Unfocused)
+            {
+                if (MarkdownScopeComboBox is not null && MarkdownScopeComboBox.IsEnabled)
+                    MarkdownScopeComboBox.Focus(FocusState.Programmatic);
+                else
+                    ImportCtaButton?.Focus(FocusState.Programmatic);
+            }
+            CopyMarkdownButton.IsEnabled = canCopy;
         }
     }
 
@@ -1202,10 +1250,14 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         {
             ElementsCanvas.Width = PageSheetGrid.Width;
             ElementsCanvas.Height = PageSheetGrid.Height;
+            foreach (var (elem, frame) in _canvasElementFrames)
+            {
+                ApplyOverlayBounds(frame, elem.Box);
+            }
         }
     }
 
-    private void AddPositionedOverlay(FrameworkElement element, OcrNormRect box)
+    private void ApplyOverlayBounds(FrameworkElement element, OcrNormRect box)
     {
         if (double.IsNaN(box.X) || double.IsNaN(box.Y) || double.IsNaN(box.Width) || double.IsNaN(box.Height)) return;
         double cw = ElementsCanvas.Width > 0 ? ElementsCanvas.Width : Math.Max(100, PageViewportGrid.ActualWidth);
@@ -1227,7 +1279,12 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         Canvas.SetTop(element, top);
         element.Width = width;
         element.Height = height;
+    }
 
+    private void AddPositionedOverlay(FrameworkElement element, OcrNormRect box)
+    {
+        if (double.IsNaN(box.X) || double.IsNaN(box.Y) || double.IsNaN(box.Width) || double.IsNaN(box.Height)) return;
+        ApplyOverlayBounds(element, box);
         ElementsCanvas.Children.Add(element);
     }
 
@@ -1367,12 +1424,15 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         {
             if (elem.IsReclassified)
             {
-                ReclassifyElement(elem, elem.OriginalKind);
+                ReclassifyElement(elem, elem.OriginalKind, refreshPreviewAndTelemetry: false);
                 resetCount++;
             }
         }
         if (resetCount > 0)
         {
+            UpdateSessionTelemetry();
+            UpdateLiveMarkdownPreview();
+            UpdateActionButtonsState();
             SetFooterStatusText($"Reset {resetCount} element{(resetCount == 1 ? "" : "s")} on Page {page.PageNumber} to original OCR classification.");
         }
     }
@@ -1436,6 +1496,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             while (focused is not null)
             {
                 if (focused is TextBox) return true;
+                if (focused is ComboBoxItem or SelectorItem or MenuFlyoutItemBase) return true;
                 if (focused is ComboBox cb && cb.IsDropDownOpen) return true;
                 focused = VisualTreeHelper.GetParent(focused);
             }

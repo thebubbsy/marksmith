@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.System;
@@ -184,7 +185,7 @@ public abstract class InsertDialogBody : UserControl
         var root = XamlRoot;
         var focused = root is null ? null : FocusManager.GetFocusedElement(root) as DependencyObject;
         if (focused is TextBox { AcceptsReturn: true }) return; // Do not commit inside multiline text editors
-        if (focused is ComboBox) return; // Do not commit when interacting with dropdowns
+        if (focused is ComboBox or ComboBoxItem or SelectorItem or ButtonBase) return; // Do not commit when interacting with dropdowns or buttons
         if (IsValid)
         {
             e.Handled = true;
