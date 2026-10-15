@@ -32,15 +32,65 @@ public static class OcrLayout
         if (depth > 24 || pieces.Count == 1) { output.Add(pieces); return; }
 
         float medianH = Median(pieces.Select(p => p.Box.Height));
-        // Horizontal cut first (top-to-bottom blocks) at a gap taller than ~0.8 line.
+        float minVGap = Math.Max(medianH * 1.2f, pageWidth * 0.015f);
         var hGap = LargestGap(pieces.Select(p => (p.Box.Top, p.Box.Bottom)).ToList());
-        // Vertical cut: a gutter at least ~1.2 line heights wide that no piece crosses.
         var vGap = LargestGap(pieces.Select(p => (p.Box.Left, p.Box.Right)).ToList());
 
-        bool canV = vGap.Size > Math.Max(medianH * 1.2f, pageWidth * 0.015f);
+        bool canV = vGap.Size > minVGap;
         bool canH = hGap.Size > medianH * 0.8f;
+
+        bool isTrueColumnSplit = false;
+        bool isSidebarSplit = false;
+        if (canV)
+        {
+            var left = pieces.Where(p => p.Box.MidX < vGap.At).ToList();
+            var right = pieces.Where(p => p.Box.MidX >= vGap.At).ToList();
+            if (left.Count > 0 && right.Count > 0)
+            {
+                float leftW = left.Max(p => p.Box.Right) - left.Min(p => p.Box.Left);
+                float rightW = right.Max(p => p.Box.Right) - right.Min(p => p.Box.Left);
+                if (leftW < medianH * 3.2f && left.Count <= 2)
+                {
+                    canV = false;
+                }
+                else if (leftW >= pageWidth * 0.22f && rightW >= pageWidth * 0.22f)
+                {
+                    isTrueColumnSplit = true;
+                }
+                else if (leftW < pageWidth * 0.22f && rightW > leftW * 1.6f)
+                {
+                    isSidebarSplit = true;
+                }
+            }
+        }
+
+        // If a spanning header/footer blocks a central 2-column gutter, split horizontally at the header/footer gap first.
+        if (!isTrueColumnSplit && pieces.Count >= 4)
+        {
+            var hGaps = AllGaps(pieces.Select(p => (p.Box.Top, p.Box.Bottom)).ToList(), medianH * 0.75f);
+            foreach (var hg in hGaps)
+            {
+                var topPart = pieces.Where(p => p.Box.MidY < hg.At).ToList();
+                var botPart = pieces.Where(p => p.Box.MidY >= hg.At).ToList();
+                if (topPart.Count == 0 || botPart.Count == 0) continue;
+                if (HasColumnSplit(botPart, minVGap, pageWidth) || HasColumnSplit(topPart, minVGap, pageWidth))
+                {
+                    Cut(topPart, pageWidth, output, depth + 1);
+                    Cut(botPart, pageWidth, output, depth + 1);
+                    return;
+                }
+            }
+        }
+
+        if (isSidebarSplit && canH && hGap.Size > medianH * 0.9f)
+        {
+            Cut(pieces.Where(p => p.Box.MidY < hGap.At).ToList(), pageWidth, output, depth + 1);
+            Cut(pieces.Where(p => p.Box.MidY >= hGap.At).ToList(), pageWidth, output, depth + 1);
+            return;
+        }
+
         // Columns win when both exist: a page's two columns share every horizontal band.
-        if (canV && (!canH || vGap.Size > medianH * 2))
+        if (canV && (isTrueColumnSplit || !canH || vGap.Size > medianH * 2))
         {
             Cut(pieces.Where(p => p.Box.MidX < vGap.At).ToList(), pageWidth, output, depth + 1);
             Cut(pieces.Where(p => p.Box.MidX >= vGap.At).ToList(), pageWidth, output, depth + 1);
@@ -53,6 +103,34 @@ public static class OcrLayout
             return;
         }
         output.Add(pieces);
+    }
+
+    private static bool HasColumnSplit(List<(SKRect Box, string Text)> pieces, float minVGap, float pageWidth)
+    {
+        if (pieces.Count < 2) return false;
+        var vGap = LargestGap(pieces.Select(p => (p.Box.Left, p.Box.Right)).ToList());
+        if (vGap.Size <= minVGap) return false;
+        var left = pieces.Where(p => p.Box.MidX < vGap.At).ToList();
+        var right = pieces.Where(p => p.Box.MidX >= vGap.At).ToList();
+        if (left.Count == 0 || right.Count == 0) return false;
+        float leftW = left.Max(p => p.Box.Right) - left.Min(p => p.Box.Left);
+        float rightW = right.Max(p => p.Box.Right) - right.Min(p => p.Box.Left);
+        return leftW >= pageWidth * 0.22f && rightW >= pageWidth * 0.22f;
+    }
+
+    private static List<(float Size, float At)> AllGaps(List<(float Start, float End)> spans, float minSize)
+    {
+        var sorted = spans.OrderBy(s => s.Start).ToList();
+        var gaps = new List<(float Size, float At)>();
+        if (sorted.Count == 0) return gaps;
+        float reach = sorted[0].End;
+        foreach (var (start, end) in sorted.Skip(1))
+        {
+            if (start > reach && start - reach >= minSize)
+                gaps.Add((start - reach, (start + reach) / 2));
+            reach = Math.Max(reach, end);
+        }
+        return gaps.OrderByDescending(g => g.Size).ToList();
     }
 
     /// <summary>The widest empty stretch between intervals, and where it is.</summary>

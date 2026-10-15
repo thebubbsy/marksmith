@@ -286,14 +286,14 @@
                                           HorizontalAlignment="Stretch"
                                           AutomationProperties.Name="Quick reclassify selected element"
                                           ToolTipService.ToolTip="Reclassify the selected element (Keys 1–8)">
-                                    <ComboBoxItem Content="1 · 🖼 Picture" Tag="Picture" />
-                                    <ComboBoxItem Content="2 · ✨ Mosaic / Shape" Tag="ShapeMosaic" />
-                                    <ComboBoxItem Content="3 · 📐 Diagram" Tag="Diagram" />
-                                    <ComboBoxItem Content="4 · 📊 Table" Tag="Table" />
-                                    <ComboBoxItem Content="5 · 🔑 Key-Value" Tag="KeyValue" />
-                                    <ComboBoxItem Content="6 · 📌 Heading" Tag="Heading" />
-                                    <ComboBoxItem Content="7 · 📑 List" Tag="List" />
-                                    <ComboBoxItem Content="8 · 📝 Text Block" Tag="Paragraph" />
+                                    <ComboBoxItem Content="1 · Picture" Tag="Picture" />
+                                    <ComboBoxItem Content="2 · Mosaic / Shape" Tag="ShapeMosaic" />
+                                    <ComboBoxItem Content="3 · Diagram" Tag="Diagram" />
+                                    <ComboBoxItem Content="4 · Table" Tag="Table" />
+                                    <ComboBoxItem Content="5 · Key-Value" Tag="KeyValue" />
+                                    <ComboBoxItem Content="6 · Heading" Tag="Heading" />
+                                    <ComboBoxItem Content="7 · List" Tag="List" />
+                                    <ComboBoxItem Content="8 · Text Block" Tag="Paragraph" />
                                 </ComboBox>
                                 <Button x:Name="ResetElementButton" Grid.Column="1" Click="OnResetElementClick"
                                         IsEnabled="False"

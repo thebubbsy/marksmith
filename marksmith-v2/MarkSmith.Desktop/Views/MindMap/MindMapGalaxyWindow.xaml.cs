@@ -2484,11 +2484,127 @@ namespace MarkSmith.Views.MindMap
                 e.Handled = true;
                 GalaxyCanvas.Focus(FocusState.Programmatic);
             }
+            else if (e.Key == Windows.System.VirtualKey.Down)
+            {
+                e.Handled = true;
+                GalaxyCanvas.Focus(FocusState.Programmatic);
+            }
             else if (e.Key == Windows.System.VirtualKey.F3)
             {
                 e.Handled = true;
                 ViewModel.FocusNextMatch(!IsShiftDown());
             }
+        }
+
+        private void OnSearchBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var nextItem = new MenuFlyoutItem
+            {
+                Text = "Next match (Enter / F3)",
+                Icon = new FontIcon { Glyph = "\uE70D" },
+                IsEnabled = ViewModel.HasSearchQuery
+            };
+            nextItem.Click += (_, _) => ViewModel.FocusNextMatch(forward: true);
+            menu.Items.Add(nextItem);
+
+            var prevItem = new MenuFlyoutItem
+            {
+                Text = "Previous match (Shift+F3)",
+                Icon = new FontIcon { Glyph = "\uE70E" },
+                IsEnabled = ViewModel.HasSearchQuery
+            };
+            prevItem.Click += (_, _) => ViewModel.FocusNextMatch(forward: false);
+            menu.Items.Add(prevItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var clearItem = new MenuFlyoutItem
+            {
+                Text = "Clear search (Esc)",
+                Icon = new FontIcon { Glyph = "\uE894" },
+                IsEnabled = !string.IsNullOrEmpty(SearchBox.Text)
+            };
+            clearItem.Click += (_, _) =>
+            {
+                SearchBox.Text = "";
+                ViewModel.SearchQuery = "";
+                GalaxyCanvas.Focus(FocusState.Programmatic);
+            };
+            menu.Items.Add(clearItem);
+
+            var focusSearchItem = new MenuFlyoutItem
+            {
+                Text = "Focus search box",
+                Icon = new FontIcon { Glyph = "\uE721" }
+            };
+            focusSearchItem.Click += (_, _) => SearchBox.Focus(FocusState.Programmatic);
+            menu.Items.Add(focusSearchItem);
+
+            var returnCanvasItem = new MenuFlyoutItem
+            {
+                Text = "Return to galaxy map (Esc)",
+                Icon = new FontIcon { Glyph = "\uE790" }
+            };
+            returnCanvasItem.Click += (_, _) => GalaxyCanvas.Focus(FocusState.Programmatic);
+            menu.Items.Add(returnCanvasItem);
+
+            menu.ShowAt(SearchBox, e.GetPosition(SearchBox));
+        }
+
+        private void OnZoomResetRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var anchor = sender as FrameworkElement ?? (FrameworkElement)GalaxyCanvas;
+            var menu = new MenuFlyout();
+
+            var fitItem = new MenuFlyoutItem
+            {
+                Text = "Fit all nodes in window (Ctrl+0)",
+                Icon = new FontIcon { Glyph = "\uE9A6" }
+            };
+            fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
+            menu.Items.Add(fitItem);
+
+            var actualItem = new MenuFlyoutItem
+            {
+                Text = "Reset zoom to 100% (Ctrl+1)",
+                Icon = new FontIcon { Glyph = "\uE71E" }
+            };
+            actualItem.Click += (_, _) => OnZoomResetClick(this, new RoutedEventArgs());
+            menu.Items.Add(actualItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var stops = new (string label, double factor)[]
+            {
+                ("25%", 0.25),
+                ("50%", 0.50),
+                ("75%", 0.75),
+                ("100%", 1.00),
+                ("125%", 1.25),
+                ("150%", 1.50),
+                ("200%", 2.00)
+            };
+
+            foreach (var (lbl, factor) in stops)
+            {
+                var item = new MenuFlyoutItem
+                {
+                    Text = lbl,
+                    Icon = Math.Abs(ViewModel.ZoomLevel - factor) < 0.02 ? new FontIcon { Glyph = "\uE73E" } : null
+                };
+                double target = factor;
+                item.Click += (_, _) =>
+                {
+                    ZoomAbout(new Point(CanvasWidth / 2.0, CanvasHeight / 2.0), target / Math.Max(ViewModel.ZoomLevel, 0.0001));
+                };
+                menu.Items.Add(item);
+            }
+
+            menu.ShowAt(anchor, e.GetPosition(anchor));
         }
 
         private void OnTagPillClick(object sender, RoutedEventArgs e)

@@ -92,7 +92,8 @@
                                        HorizontalAlignment="Right" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
                         </Grid>
                         <AutoSuggestBox x:Name="LayoutSearch" AutomationProperties.Name="Search layouts" PlaceholderText="Search layouts"
-                                        QueryIcon="Find" TextChanged="OnLayoutSearchTextChanged" KeyDown="OnLayoutSearchKeyDown" />
+                                        QueryIcon="Find" TextChanged="OnLayoutSearchTextChanged" KeyDown="OnLayoutSearchKeyDown"
+                                        RightTapped="OnLayoutSearchRightTapped" />
                         <ComboBox x:Name="LayoutCategoryCombo" AutomationProperties.Name="Layout type" HorizontalAlignment="Stretch"
                                   ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
                                   KeyDown="OnLayoutCategoryComboKeyDown" />
@@ -297,7 +298,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Grid Grid.Row="0" Padding="14,8,10,8" ColumnSpacing="8" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8,8,0,0">
+                    <Grid Grid.Row="0" Padding="14,8,10,8" ColumnSpacing="8" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8,8,0,0"
+                          RightTapped="OnPreviewPaneRightTapped">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />

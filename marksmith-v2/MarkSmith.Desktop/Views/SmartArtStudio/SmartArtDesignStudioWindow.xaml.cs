@@ -184,6 +184,45 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnLayoutSearchRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            var clearItem = new MenuFlyoutItem
+            {
+                Text = "Clear search (Esc)",
+                Icon = new FontIcon { Glyph = "\uE894" },
+                IsEnabled = !string.IsNullOrEmpty(LayoutSearch.Text)
+            };
+            clearItem.Click += (_, _) =>
+            {
+                LayoutSearch.Text = string.Empty;
+                LayoutSearch.Focus(FocusState.Programmatic);
+            };
+            menu.Items.Add(clearItem);
+
+            var focusSearchItem = new MenuFlyoutItem
+            {
+                Text = "Focus search box",
+                Icon = new FontIcon { Glyph = "\uE721" }
+            };
+            focusSearchItem.Click += (_, _) => LayoutSearch.Focus(FocusState.Programmatic);
+            menu.Items.Add(focusSearchItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var focusOutlineItem = new MenuFlyoutItem
+            {
+                Text = "Focus outline editor (F6)",
+                Icon = new FontIcon { Glyph = "\uE8FD" }
+            };
+            focusOutlineItem.Click += (_, _) => OutlineScroll.Focus(FocusState.Keyboard);
+            menu.Items.Add(focusOutlineItem);
+
+            menu.ShowAt(LayoutSearch, e.GetPosition(LayoutSearch));
+        }
+
         private void OnLayoutCategoryComboKeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (e.Key == VirtualKey.Escape && !LayoutCategoryCombo.IsDropDownOpen)
@@ -803,9 +842,21 @@ namespace MarkSmith.Views.SmartArtStudio
             if (sender is not UIElement target) return;
             var menu = new MenuFlyout();
 
+            var refreshItem = new MenuFlyoutItem
+            {
+                Text = "Refresh preview (F5)",
+                Icon = new FontIcon { Glyph = "\uE72C" }
+            };
+            refreshItem.Click += (_, _) =>
+            {
+                RefreshWebView();
+                ViewModel.StatusMessage = "Preview refreshed.";
+            };
+            menu.Items.Add(refreshItem);
+
             var copyBlockItem = new MenuFlyoutItem
             {
-                Text = "Copy SmartArt Markdown block",
+                Text = "Copy SmartArt Markdown block (Ctrl+Shift+C)",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -814,7 +865,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyOutlineItem = new MenuFlyoutItem
             {
-                Text = "Copy outline as Markdown",
+                Text = "Copy outline as Markdown (Ctrl+C)",
                 Icon = new FontIcon { Glyph = "\uE8FD" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -825,7 +876,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var insertItem = new MenuFlyoutItem
             {
-                Text = "Insert into document",
+                Text = "Insert into document (Ctrl+Enter)",
                 Icon = new FontIcon { Glyph = "\uE8A5" },
                 KeyboardAcceleratorTextOverride = "Ctrl+Enter",
                 IsEnabled = !ViewModel.IsOutlineEmpty

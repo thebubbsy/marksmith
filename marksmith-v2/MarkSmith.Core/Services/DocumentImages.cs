@@ -111,6 +111,22 @@ public static class DocumentImages
                 var full = Path.GetFullPath(Path.Combine(root, relative));
                 if (File.Exists(full)) return full;
             }
+            if (relative.Contains("_media", StringComparison.OrdinalIgnoreCase))
+            {
+                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var commonDirs = new[]
+                {
+                    string.IsNullOrWhiteSpace(userProfile) ? null : Path.Combine(userProfile, "Downloads"),
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+                };
+                foreach (var root in commonDirs)
+                {
+                    if (string.IsNullOrWhiteSpace(root)) continue;
+                    var full = Path.GetFullPath(Path.Combine(root, relative));
+                    if (File.Exists(full)) return full;
+                }
+            }
         }
         catch
         {

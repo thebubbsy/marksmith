@@ -412,8 +412,14 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty]
     private bool _isEditingOpenFile;
 
+    private string? _importedDocumentFolder;
+
     /// <summary>Call whenever the editor is given text that didn't come from the open file.</summary>
-    public void DetachFromOpenFile() => IsEditingOpenFile = false;
+    public void DetachFromOpenFile(string? importedDocumentFolder = null)
+    {
+        IsEditingOpenFile = false;
+        _importedDocumentFolder = importedDocumentFolder;
+    }
 
     // Switching back to the file source (picking the same file again after a paste) shows the
     // file's own text, which is the open file's document again.
@@ -468,6 +474,7 @@ private readonly MarkdownExportService _mdExport = new();
         _openFileStamp = null;
         if (!string.IsNullOrWhiteSpace(value) && File.Exists(value))
         {
+            _importedDocumentFolder = null;
             var syncContext = SynchronizationContext.Current;
             LastFileReadTask = ReadInputFileAsync(value, token, syncContext);
         }
@@ -1471,12 +1478,18 @@ private readonly MarkdownExportService _mdExport = new();
     /// <summary>The folder of the open file, which relative image paths resolve against; null
     /// for pasted text.</summary>
     // The file source (!UsePasteSource) is the file itself; the paste source is the file only
-    // while it is the open file's text being edited.
-    public string? DocumentFolder => (!UsePasteSource || IsEditingOpenFile) && HasInputFile ? DocumentImages.FolderOf(InputFilePath) : null;
+    // while it is the open file's text being edited, or when a file was imported with its media folder.
+    public string? DocumentFolder =>
+        (!UsePasteSource || IsEditingOpenFile) && HasInputFile
+            ? DocumentImages.FolderOf(InputFilePath)
+            : _importedDocumentFolder;
 
     /// <summary>Canvas-only render for the live in-place swap path — skips the HTML shell.</summary>
-    public string? BuildPreviewCanvasHtml(string markdown) =>
-        _markdownHtml.RenderCanvasOnly(markdown, _settingsService.Current, CurrentTheme, LastClassification);
+    public string? BuildPreviewCanvasHtml(string markdown)
+    {
+        using var images = DocumentImages.UseFolder(DocumentFolder);
+        return _markdownHtml.RenderCanvasOnly(markdown, _settingsService.Current, CurrentTheme, LastClassification);
+    }
 
     private string? _lastPreparedInput;
     private string? _lastPreparedOutput;

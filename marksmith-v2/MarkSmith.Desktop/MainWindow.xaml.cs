@@ -2276,6 +2276,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(copyTextItem);
 
+        var copyHeadingMdItem = new MenuFlyoutItem
+        {
+            Text = "Copy as Markdown heading",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        copyHeadingMdItem.Click += (_, _) =>
+        {
+            var hashes = new string('#', Math.Clamp(entry.Level, 1, 6));
+            var md = $"{hashes} {entry.Text}";
+            CopyTextToStatusBar(md, $"Copied heading Markdown: {md}");
+        };
+        menu.Items.Add(copyHeadingMdItem);
+
         var copyLinkItem = new MenuFlyoutItem
         {
             Text = "Copy Markdown link (Ctrl+Shift+C)",
@@ -2289,10 +2302,88 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(copyLinkItem);
 
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyAllTocItem = new MenuFlyoutItem
+        {
+            Text = $"Copy all headings as TOC ({ViewModel?.TocEntries?.Count ?? 0})",
+            Icon = new FontIcon { Glyph = "\uE8FD" },
+            IsEnabled = (ViewModel?.TocEntries?.Count ?? 0) > 0
+        };
+        copyAllTocItem.Click += (_, _) => CopyAllHeadingsAsToc();
+        menu.Items.Add(copyAllTocItem);
+
         if (position.HasValue)
             menu.ShowAt(anchor, position.Value);
         else
             menu.ShowAt(anchor);
+    }
+
+    private void OnTocFilterRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (TocFilterBox is null) return;
+        if (TocFilterBox.SelectionLength > 0) return; // preserve native selection context menu
+        e.Handled = true;
+
+        var menu = new MenuFlyout();
+
+        var clearItem = new MenuFlyoutItem
+        {
+            Text = "Clear filter (Esc)",
+            Icon = new FontIcon { Glyph = "\uE894" },
+            IsEnabled = !string.IsNullOrEmpty(TocFilterBox.Text)
+        };
+        clearItem.Click += (_, _) =>
+        {
+            TocFilterBox.Text = string.Empty;
+            TocFilterBox.Focus(FocusState.Programmatic);
+        };
+        menu.Items.Add(clearItem);
+
+        var selectAllItem = new MenuFlyoutItem
+        {
+            Text = "Select all (Ctrl+A)",
+            Icon = new FontIcon { Glyph = "\uE8B3" },
+            IsEnabled = !string.IsNullOrEmpty(TocFilterBox.Text)
+        };
+        selectAllItem.Click += (_, _) => TocFilterBox.SelectAll();
+        menu.Items.Add(selectAllItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyAllTocItem = new MenuFlyoutItem
+        {
+            Text = $"Copy all headings as TOC ({ViewModel?.TocEntries?.Count ?? 0})",
+            Icon = new FontIcon { Glyph = "\uE8FD" },
+            IsEnabled = (ViewModel?.TocEntries?.Count ?? 0) > 0
+        };
+        copyAllTocItem.Click += (_, _) => CopyAllHeadingsAsToc();
+        menu.Items.Add(copyAllTocItem);
+
+        menu.ShowAt(TocFilterBox, e.GetPosition(TocFilterBox));
+    }
+
+    private void CopyAllHeadingsAsToc()
+    {
+        var entries = ViewModel?.TocEntries;
+        if (entries is null || entries.Count == 0)
+        {
+            AnnounceStatus("No headings to copy.");
+            return;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        foreach (var entry in entries)
+        {
+            int indent = Math.Max(0, entry.Level - 1);
+            string indentStr = new string(' ', indent * 2);
+            if (!string.IsNullOrWhiteSpace(entry.Anchor))
+                sb.AppendLine($"{indentStr}- [{entry.Text}](#{entry.Anchor})");
+            else
+                sb.AppendLine($"{indentStr}- {entry.Text}");
+        }
+
+        CopyTextToStatusBar(sb.ToString().TrimEnd(), $"Copied {entries.Count} headings as Markdown TOC.");
     }
 
     private async void OnBrowseWatchFolderClick(object sender, RoutedEventArgs e)
@@ -3104,7 +3195,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 var decision = await studio.WaitForDecisionAsync();
                 if (decision.Imported && !string.IsNullOrWhiteSpace(decision.Markdown))
                 {
-                    ViewModel.DetachFromOpenFile();
+                    ViewModel.DetachFromOpenFile(Services.DocumentImages.FolderOf(path));
                     ViewModel.PastedMarkdown = decision.Markdown;
                     ViewModel.UsePasteSource = true;
                     ViewModel.SourceImportKind = importedKind;
@@ -4712,9 +4803,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }, keywords: "gutter line numbers margin"),
             Do("Reset editor zoom (100%)", "View", () => OnEditorZoomResetClick(this, click), keywords: "font zoom 100 default size reset"),
             Do("Reset preview zoom (100%)", "View", () => OnPreviewZoomResetClick(this, click), keywords: "preview zoom 100 default reset"),
+            Do("Set preview zoom to 50%", "View", () => { ApplyPreviewZoom(0.50); AnnounceStatus("Preview zoom: 50%"); }, keywords: "preview zoom 50 scale half"),
             Do("Set preview zoom to 75%", "View", () => { ApplyPreviewZoom(0.75); AnnounceStatus("Preview zoom: 75%"); }, keywords: "preview zoom 75 scale"),
             Do("Set preview zoom to 125%", "View", () => { ApplyPreviewZoom(1.25); AnnounceStatus("Preview zoom: 125%"); }, keywords: "preview zoom 125 scale"),
             Do("Set preview zoom to 150%", "View", () => { ApplyPreviewZoom(1.50); AnnounceStatus("Preview zoom: 150%"); }, keywords: "preview zoom 150 scale"),
+            Do("Set preview zoom to 200%", "View", () => { ApplyPreviewZoom(2.00); AnnounceStatus("Preview zoom: 200%"); }, keywords: "preview zoom 200 scale double"),
             Do("Fit preview to window width", "View", () => { SetPreviewFit(true); AnnounceStatus("Preview zoom: Fit to width"); }, keywords: "preview fit width zoom auto"),
             Do("Toggle word wrap", "View", () =>
             {
@@ -4724,6 +4817,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 AnnounceStatus($"Word wrap: {(newWrap ? "On" : "Off")}");
             }, keywords: "alt+z wrap editor line soft wrap break"),
             Do("Document outline", "View", () => OutlineButton.Flyout?.ShowAt(OutlineButton)),
+            Do("Copy all document headings as TOC", "View", CopyAllHeadingsAsToc, keywords: "toc outline headings list markdown copy"),
+            Do("Copy all lint issues", "View", () => OnCopyAllLintIssuesClick(this, click), keywords: "lint diagnostics issues warnings errors copy"),
 
             Do("Open Diagram Studio", "Studio", () => OnOpenMermaidStudioClick(this, click), "studio.diagram", "mermaid flowchart chart"),
             Do("Open Shape Studio", "Studio", () => OnOpenShapeDesignStudioClick(this, click), keywords: "vector shapes drawing"),
@@ -5689,6 +5784,87 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnEditorZoomOutClick(object sender, RoutedEventArgs e) => ApplyEditorFontSize(PasteTextBox.FontSize - 1, persist: true);
 
     private void OnEditorZoomResetClick(object sender, RoutedEventArgs e) => ApplyEditorFontSize(EditorFontBase, persist: true);
+
+    private void OnEditorZoomResetRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowEditorZoomContextMenu(EditorZoomResetButton, e.GetPosition(EditorZoomResetButton));
+    }
+
+    private void ShowEditorZoomContextMenu(FrameworkElement anchor, Windows.Foundation.Point? position)
+    {
+        var menu = new MenuFlyout();
+
+        var resetItem = new MenuFlyoutItem
+        {
+            Text = $"Reset font size (100% · {EditorFontBase:0}pt)",
+            Icon = new FontIcon { Glyph = "\uE71E" }
+        };
+        resetItem.Click += (_, _) => OnEditorZoomResetClick(this, new RoutedEventArgs());
+        menu.Items.Add(resetItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var stops = new (string label, double size)[]
+        {
+            ("Small (80% · 10pt)", 10),
+            ("Normal (100% · 13pt)", 13),
+            ("Medium (120% · 16pt)", 16),
+            ("Large (150% · 20pt)", 20),
+            ("Extra Large (180% · 24pt)", 24)
+        };
+
+        foreach (var (label, sz) in stops)
+        {
+            var item = new MenuFlyoutItem
+            {
+                Text = label,
+                Icon = Math.Abs(PasteTextBox.FontSize - sz) < 0.5 ? new FontIcon { Glyph = "\uE73E" } : null
+            };
+            double targetSize = sz;
+            item.Click += (_, _) =>
+            {
+                ApplyEditorFontSize(targetSize, persist: true);
+                AnnounceStatus($"Editor font size: {targetSize:0}pt ({Math.Round(targetSize / EditorFontBase * 100):0}%)");
+            };
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var toggleWrapItem = new ToggleMenuFlyoutItem
+        {
+            Text = "Word wrap (Alt+Z)",
+            Icon = new FontIcon { Glyph = "\uE8FD" },
+            IsChecked = WordWrapToggle?.IsChecked == true
+        };
+        toggleWrapItem.Click += (_, _) =>
+        {
+            var newWrap = !(WordWrapToggle?.IsChecked == true);
+            if (WordWrapToggle != null) WordWrapToggle.IsChecked = newWrap;
+            ApplyWordWrap(newWrap, persist: true);
+            AnnounceStatus($"Word wrap: {(newWrap ? "On" : "Off")}");
+        };
+        menu.Items.Add(toggleWrapItem);
+
+        var toggleLinesItem = new ToggleMenuFlyoutItem
+        {
+            Text = "Line numbers gutter",
+            Icon = new FontIcon { Glyph = "\uE8EC" },
+            IsChecked = LineNumbersToggle?.IsChecked == true
+        };
+        toggleLinesItem.Click += (_, _) =>
+        {
+            if (LineNumbersToggle != null) LineNumbersToggle.IsChecked = !(LineNumbersToggle.IsChecked == true);
+            OnLineNumbersToggled(this, new RoutedEventArgs());
+        };
+        menu.Items.Add(toggleLinesItem);
+
+        if (position.HasValue)
+            menu.ShowAt(anchor, position.Value);
+        else
+            menu.ShowAt(anchor);
+    }
 
     // Ctrl+wheel over the editor zooms the source font; a bare wheel still scrolls the text.
     private void OnEditorPointerWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -7509,6 +7685,84 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Clicking the percentage goes back to 100%, the size the page will print at.
     private void OnPreviewZoomResetClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(1.0);
 
+    private void OnPreviewZoomResetRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowPreviewZoomContextMenu(PreviewZoomResetButton, e.GetPosition(PreviewZoomResetButton));
+    }
+
+    private void ShowPreviewZoomContextMenu(FrameworkElement anchor, Windows.Foundation.Point? position)
+    {
+        var menu = new MenuFlyout();
+
+        var resetItem = new MenuFlyoutItem
+        {
+            Text = "Reset preview zoom (100%)",
+            Icon = new FontIcon { Glyph = "\uE71E" }
+        };
+        resetItem.Click += (_, _) => OnPreviewZoomResetClick(this, new RoutedEventArgs());
+        menu.Items.Add(resetItem);
+
+        var fitItem = new MenuFlyoutItem
+        {
+            Text = "Fit to window width",
+            Icon = new FontIcon { Glyph = "\uE8A9" }
+        };
+        fitItem.Click += (_, _) =>
+        {
+            SetPreviewFit(true);
+            AnnounceStatus("Preview zoom: Fit to width");
+        };
+        menu.Items.Add(fitItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var stops = new (string label, double scale)[]
+        {
+            ("50%", 0.50),
+            ("75%", 0.75),
+            ("100% (Actual size)", 1.00),
+            ("125%", 1.25),
+            ("150%", 1.50),
+            ("200%", 2.00)
+        };
+
+        foreach (var (label, scale) in stops)
+        {
+            var item = new MenuFlyoutItem
+            {
+                Text = label,
+                Icon = Math.Abs(_lastPreviewZoom - scale) < 0.02 ? new FontIcon { Glyph = "\uE73E" } : null
+            };
+            double targetScale = scale;
+            item.Click += (_, _) =>
+            {
+                ApplyPreviewZoom(targetScale);
+                AnnounceStatus($"Preview zoom: {Math.Round(targetScale * 100):0}%");
+            };
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyZoomItem = new MenuFlyoutItem
+        {
+            Text = "Copy zoom level",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyZoomItem.Click += (_, _) =>
+        {
+            var text = PreviewZoomText?.Text ?? $"{Math.Round(_lastPreviewZoom * 100):0}%";
+            CopyTextToStatusBar(text, $"Copied preview zoom: {text}");
+        };
+        menu.Items.Add(copyZoomItem);
+
+        if (position.HasValue)
+            menu.ShowAt(anchor, position.Value);
+        else
+            menu.ShowAt(anchor);
+    }
+
     // Fit page width: the page fills the pane and follows it as the window, splitter or drawer
     // changes its width. Turning it off holds the current scale, so nothing jumps.
     private void OnPreviewFitClick(object sender, RoutedEventArgs e)
@@ -8496,7 +8750,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                         return;
                     }
 
-                    ViewModel.DetachFromOpenFile();
+                    ViewModel.DetachFromOpenFile(Services.DocumentImages.FolderOf(filePath));
                     ViewModel.PastedMarkdown = decision.Markdown;
                     ViewModel.UsePasteSource = true;
                     SyncEditorFromDocument();
@@ -8548,7 +8802,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
                     return;
                 }
-                ViewModel.DetachFromOpenFile();
+                ViewModel.DetachFromOpenFile(Services.DocumentImages.FolderOf(filePath));
                 ViewModel.PastedMarkdown = decisionPlugin.Markdown;
                 ViewModel.UsePasteSource = true;
                 SyncEditorFromDocument();
@@ -8597,7 +8851,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
                 return;
             }
-            ViewModel.DetachFromOpenFile();
+            ViewModel.DetachFromOpenFile(Services.DocumentImages.FolderOf(filePath));
             ViewModel.PastedMarkdown = decision.Markdown;
             ViewModel.UsePasteSource = true;
             SyncEditorFromDocument();

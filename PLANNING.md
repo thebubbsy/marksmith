@@ -7062,3 +7062,61 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Live WinUI 3 UIAutomation smoke launch (`Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR`):
   - Verified `WinUIDesktopWin32WindowClass` main window (PID 2496, HWND 265278), verified `Alive: True`, `Responding: True`, and closed cleanly.
 
+### 2026-10-15 (scheduled routine run #88)
+
+- **Surface / Component Targets:** `MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `CommandIcons`, `OcrInspectionStudioWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #87:
+    * Target A: Status bar editor/preview zoom reset right-click menus & stops.
+    * Target B: Document TOC & Lint issue copy clipboard affordances.
+  - Generated:
+    1. Status Bar Editor & Preview Zoom Reset Context Menus & Preset Stops (`MainWindow.xaml` & `.xaml.cs`)
+    2. Document Outline / TOC & Lint Issue Clipboard Actions (`MainWindow.xaml`, `.xaml.cs`, `CommandIcons.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): Wired font-size presets (10pt..24pt), word-wrap toggle (`Alt+Z`), and line-numbers toggle to editor zoom reset button; wired zoom stops (50%..200%) and "Copy zoom level" to preview zoom reset button.
+  - Generated:
+    3. `MindMapGalaxyWindow` Search Box Context Menu & Down-Arrow Focus Handoff (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`)
+    4. `MindMapGalaxyWindow` Zoom Reset Context Menu & Preset Stops (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): Added `Down` arrow key handling in search box to seamlessly transition keyboard focus onto the galaxy canvas; added `Ctrl+0` (fit all) and `Ctrl+1` (100%) to galaxy zoom reset flyout.
+  - Refined Block 1 (Pass 2 - Final): Ensured all palette command icons match the strict Fluent icon catalog and test assertions in `CommandIconsTests`.
+  - Generated:
+    5. `ShapeDesignStudioWindow` Zoom Button Context Menu & SubItem Preset Hierarchy (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`)
+    6. `SmartArtDesignStudioWindow` Search Box Context Menu & Preview Header Refresh (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): Nested shape studio zoom presets into `MenuFlyoutSubItem` with icon to maintain 100% compliance with `Every_menu_gives_all_its_items_an_icon_or_none`; attached preview pane context menu with F5 refresh.
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward Block 3 ideas (5 & 6) into the next cycle as baseline refinement targets.
+
+**Shipped:**
+1. **Status Bar Editor & Preview Zoom Reset Context Menus & Preset Stops (`MainWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnEditorZoomResetRightTapped"` to `EditorZoomResetButton` offering editor font size presets (10pt, 13pt, 16pt, 20pt, 24pt), reset to 100%, and quick toggles for Word Wrap (`Alt+Z`) and Line Numbers.
+   - Attached `RightTapped="OnPreviewZoomResetRightTapped"` to `PreviewZoomResetButton` displaying zoom presets (50%, 75%, 100%, 125%, 150%, 200%), fit to window width, and "Copy zoom level".
+2. **Document Outline / TOC & Lint Issue Clipboard Actions (`MainWindow.xaml`, `.xaml.cs`, `CommandIcons.cs`):**
+   - Attached `RightTapped="OnTocFilterRightTapped"` to `TocFilterBox` offering "Clear filter (Esc)", "Select all (Ctrl+A)", and "Copy all headings as TOC".
+   - Added "Copy as Markdown heading" (`# ...`) and "Copy all headings as TOC" to TOC entry context menu.
+   - Added palette commands for copying TOC and lint issues, and zoom stops for 50% and 200%.
+3. **`MindMapGalaxyWindow` Search Box Context Menu & Keyboard Navigation (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnSearchBoxRightTapped"` on `SearchBox` offering Next match (`Enter`/`F3`), Previous match (`Shift+F3`), Clear search (`Esc`), and Return to galaxy map (`Esc`).
+   - Wired `Down` arrow key on `SearchBox` to seamlessly transfer keyboard focus onto `GalaxyCanvas`.
+4. **`MindMapGalaxyWindow` Zoom Reset Context Menu & Preset Stops (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnZoomResetRightTapped"` to `ZoomResetButton` offering Fit all nodes (`Ctrl+0`), Reset to 100% (`Ctrl+1`), and preset stops (25%, 50%, 75%, 100%, 125%, 150%, 200%).
+5. **`ShapeDesignStudioWindow` Zoom Button Context Menu & SubItem Presets (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnZoomButtonRightTapped"` to `ZoomButton`.
+   - Structured presets within `MenuFlyoutSubItem` ("Preset zoom levels") preserving icon alignment and passing `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`.
+   - Implemented `OnZoom50Click`, `OnZoom75Click`, `OnZoom100Click`, `OnZoom150Click`, `OnZoom200Click`.
+6. **`SmartArtDesignStudioWindow` Search Box Context Menu & Preview Refresh (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnLayoutSearchRightTapped"` on `LayoutSearch` with Clear search (`Esc`), Focus search box, and Focus outline editor (`F6`).
+   - Attached `RightTapped="OnPreviewPaneRightTapped"` on preview header grid with "Refresh preview (F5)" calling `RefreshWebView()`.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 13 warnings**.
+- Full test suite & targeted suites (`CommandIconsTests`, `OcrExperienceAndVisualsTests`, `KeyboardShortcutsTests`, `OcrInspectionStudioTests`, `ShapeStudioTests`): **114 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 UIAutomation smoke launch (`Marksmith.exe` with isolated `MARKSMITH_CONFIG_DIR`):
+  - Verified `WinUIDesktopWin32WindowClass` main window (PID 960, HWND 2427956), verified `Alive: True`, `Responding: True`, and closed cleanly.
+
+

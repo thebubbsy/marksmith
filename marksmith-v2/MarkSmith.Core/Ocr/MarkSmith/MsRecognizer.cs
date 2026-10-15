@@ -37,15 +37,19 @@ public sealed class MsRecognizer
 
         var words = SplitWords(chars, line);
         for (int i = 0; i < words.Count; i++) words[i] = Correct(words[i]);
-        // Words run together (an italic space too narrow to see): split where both halves are words.
+        // Words run together (an italic or tight sans-serif space): split recursively where parts are words.
         if (_lexicon is not null)
+        {
             for (int i = 0; i < words.Count; i++)
-                if (SplitCore(words[i], line) is { } parts)
+            {
+                int guard = 0;
+                while (guard++ < 8 && SplitCore(words[i], line) is { } parts)
                 {
-                    words[i] = parts.First;
-                    words.Insert(i + 1, parts.Second);
-                    i++;
+                    words[i] = Correct(parts.First);
+                    words.Insert(i + 1, Correct(parts.Second));
                 }
+            }
+        }
         return new ReadLineResult(words, line);
     }
 
@@ -266,14 +270,21 @@ public sealed class MsRecognizer
 
     /// <summary>
     /// The gap (in x-heights) above which there is a space: Otsu's split of the line's gaps into
-    /// letter gaps and word gaps, kept within what real type does (0.28–0.8 x-height) so a line
-    /// of one word or of evenly spaced code doesn't produce nonsense.
+    /// letter gaps and word gaps, excluding wide tab/column outlier gaps so they don't skew Otsu,
+    /// kept within what real type does (0.24–0.46 x-height).
     /// </summary>
     public static float SpaceThreshold(List<float> gaps)
     {
-        const float fallback = 0.42f;
+        const float fallback = 0.38f;
         if (gaps.Count < 4) return fallback;
-        var sorted = gaps.OrderBy(g => g).ToList();
+        var sorted = gaps.Where(g => g <= 1.15f).OrderBy(g => g).ToList();
+        bool hadWideOutliers = sorted.Count < gaps.Count;
+        if (sorted.Count < 4)
+        {
+            return sorted.Count > 0
+                ? Math.Clamp(sorted[^1] + 0.08f, 0.25f, 0.44f)
+                : fallback;
+        }
         double bestVar = -1, bestT = fallback;
         for (int i = 1; i < sorted.Count; i++)
         {
@@ -286,8 +297,12 @@ public sealed class MsRecognizer
         }
         // No clear second cluster (all letter gaps): only treat really wide gaps as spaces.
         double spread = sorted[^1] - sorted[0];
-        if (spread < 0.3) return Math.Max(fallback, (float)sorted[^1] + 0.01f);
-        return (float)Math.Clamp(bestT, 0.28, 0.8);
+        if (spread < 0.25)
+        {
+            if (hadWideOutliers) return Math.Clamp(sorted[^1] + 0.08f, 0.25f, 0.44f);
+            return Math.Max(fallback, (float)sorted[^1] + 0.01f);
+        }
+        return (float)Math.Clamp(bestT, 0.24, 0.46);
     }
 
     // ---- correction ----
@@ -337,17 +352,25 @@ public sealed class MsRecognizer
             }
         }
 
-        // Case that real words don't have (pOrt, wHite): the case-twin letters follow their neighbours.
+        // Case that real words don't have (pOrt, wHite, toId, Iive): the case-twin letters follow their neighbours.
         // Only in a plain word: in code (list.Where, items.Count) the capital is meant.
         coreText = string.Concat(core.Select(c => c.Text));
         if (coreText.Length >= 3 && coreText.Any(char.IsLower) && coreText.All(char.IsLetter))
         {
             bool allCapsish = coreText.Count(char.IsUpper) > coreText.Count(char.IsLower);
-            for (int i = 1; i < core.Count; i++)
+            if (!allCapsish)
             {
-                var t = core[i].Text;
-                if (t.Length == 1 && CasePairs.Contains(t[0]) && !allCapsish && char.IsUpper(t[0]))
-                    core[i] = core[i] with { Text = t.ToLowerInvariant() };
+                if (core[0].Text == "I" && char.IsLower(core[1].Text[0])
+                    && _lexicon is not null && !_lexicon.Contains(coreText) && _lexicon.Contains("l" + coreText[1..]))
+                {
+                    core[0] = core[0] with { Text = "l" };
+                }
+                for (int i = 1; i < core.Count; i++)
+                {
+                    var t = core[i].Text;
+                    if (t.Length == 1 && char.IsUpper(t[0]) && (CasePairs.Contains(t[0]) || t[0] == 'I'))
+                        core[i] = core[i] with { Text = t.ToLowerInvariant() };
+                }
             }
         }
 

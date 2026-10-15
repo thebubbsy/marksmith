@@ -128,6 +128,10 @@ public static class OcrVisualElements
         var visualBlocks = new List<OcrMarkdownBlock>();
         var claimedWords = new HashSet<OcrWord>();
         var claimedGrid = new bool[gw * gh];
+        var genuineTextWords = new HashSet<OcrWord>(
+            recognized.Lines
+                .Where(l => l.Words.Count >= 2 || (l.Words.Count == 1 && l.Words[0].Text.Trim().Length >= 3))
+                .SelectMany(l => l.Words));
 
         // 2. Phase A: Detect structured box-and-connector diagrams (Mermaid + ShapeForge).
         var diagrams = DetectStructuredDiagrams(
@@ -140,7 +144,7 @@ public static class OcrVisualElements
         int picturesSaved = DetectPicturesAndMosaics(
             page, gw, gh, invScaleX, invScaleY, bodyHeight, pageW, pageH,
             nonWordFg, satGrid, claimedGrid,
-            allWords, claimedWords, options, visualBlocks);
+            allWords, genuineTextWords, claimedWords, options, visualBlocks);
 
         // 4. Phase C: Build text blocks from remaining unclaimed OCR lines and merge in reading order.
         if (visualBlocks.Count == 0)
@@ -882,7 +886,7 @@ public static class OcrVisualElements
         SKBitmap page,
         int gw, int gh, float invScaleX, float invScaleY, float bodyHeight, int pageW, int pageH,
         bool[] nonWordFg, byte[] satGrid, bool[] claimedGrid,
-        List<OcrWord> allWords, HashSet<OcrWord> claimedWords,
+        List<OcrWord> allWords, HashSet<OcrWord> genuineTextWords, HashSet<OcrWord> claimedWords,
         OcrVisualOptions options,
         List<OcrMarkdownBlock> visualBlocks)
     {
@@ -898,9 +902,9 @@ public static class OcrVisualElements
         var visited = new bool[gw * gh];
         var queue = new Queue<int>();
 
-        float minPicW = Math.Max(76f, bodyHeight * 2.8f);
-        float minPicH = Math.Max(64f, bodyHeight * 2.5f);
-        float minArea = pageW * pageH * 0.012f;
+        float minPicW = Math.Max(64f, bodyHeight * 2.4f);
+        float minPicH = Math.Max(44f, bodyHeight * 1.9f);
+        float minArea = pageW * pageH * 0.0038f;
 
         for (int y = 0; y < gh; y++)
         {
@@ -945,30 +949,37 @@ public static class OcrVisualElements
 
                 if (pw < minPicW || ph < minPicH || pw * ph < minArea) continue;
                 if (pw > pageW * 0.94f && ph > pageH * 0.94f) continue;
+                if (pw / Math.Max(1f, ph) > 8.5f || ph / Math.Max(1f, pw) > 6.5f) continue;
 
                 var rect = new SKRect(px0, py0, px1, py1);
+                var claimRect = new SKRect(Math.Max(0f, px0 - 6f), Math.Max(0f, py0 - 6f), Math.Min(pageW, px1 + 6f), Math.Min(pageH, py1 + 6f));
 
-                // Ensure this region isn't mostly covered by recognised body text.
+                // Ensure this region isn't mostly covered by genuine recognised body text.
                 float wordArea = 0f;
                 var wordsInside = new List<OcrWord>();
                 foreach (var w in allWords)
                 {
                     if (claimedWords.Contains(w)) continue;
                     var wRect = new SKRect(w.X, w.Y, w.X + w.Width, w.Y + w.Height);
-                    if (rect.IntersectsWith(wRect))
+                    if (claimRect.IntersectsWith(wRect))
                     {
-                        var inter = SKRect.Intersect(rect, wRect);
-                        wordArea += Math.Max(0f, inter.Width * inter.Height);
                         wordsInside.Add(w);
+                        if (genuineTextWords.Contains(w) && rect.IntersectsWith(wRect))
+                        {
+                            var inter = SKRect.Intersect(rect, wRect);
+                            wordArea += Math.Max(0f, inter.Width * inter.Height);
+                        }
                     }
                 }
                 if (wordArea / (pw * ph) > 0.14f) continue;
 
-                // Measure foreground density, colour richness, and 2D solid-patch density inside the region.
-                // Text glyphs and scanner noise are thin 1D strokes with 0 colour and 0 solid 3x3 patches.
+                // Measure foreground density, colour richness, interior detail, and 2D solid-patch density.
                 int rw = maxX - minX + 1, rh = maxY - minY + 1;
                 int totalCells = Math.Max(1, rw * rh);
                 int fgCells = 0, colorfulCells = 0, solidPatchCells = 0;
+                int inX0 = minX + Math.Max(2, rw / 5), inX1 = maxX - Math.Max(2, rw / 5);
+                int inY0 = minY + Math.Max(2, rh / 5), inY1 = maxY - Math.Max(2, rh / 5);
+                int interiorTotal = 0, interiorFg = 0;
 
                 for (int gy = minY; gy <= maxY; gy++)
                 {
@@ -980,15 +991,23 @@ public static class OcrVisualElements
                         if (satGrid[idx] > 28) colorfulCells++;
                         if (gy > minY && gy < maxY && gx > minX && gx < maxX && IsSolid3x3(available, gw, gx, gy))
                             solidPatchCells++;
+                        if (gx >= inX0 && gx <= inX1 && gy >= inY0 && gy <= inY1)
+                        {
+                            interiorTotal++;
+                            if (available[idx]) interiorFg++;
+                        }
                     }
                 }
 
                 float fgRatio = fgCells / (float)totalCells;
                 float colorRatio = colorfulCells / (float)totalCells;
                 float solidRatio = solidPatchCells / (float)totalCells;
+                float interiorFgRatio = interiorTotal > 0 ? interiorFg / (float)interiorTotal : 0f;
 
-                if (fgRatio < 0.10f) continue;
-                if (colorRatio < 0.04f && solidRatio < 0.08f) continue;
+                if (fgRatio < 0.06f || fgCells < 24) continue;
+                bool isGraphicOrPhoto = (colorRatio >= 0.04f || solidRatio >= 0.08f)
+                    || (interiorFgRatio >= 0.055f && solidRatio >= 0.012f && fgCells >= 32);
+                if (!isGraphicOrPhoto) continue;
 
                 using var cropped = CropBitmap(page, rect);
                 if (cropped is null) continue;
@@ -996,13 +1015,12 @@ public static class OcrVisualElements
                 foreach (var w in wordsInside)
                     claimedWords.Add(w);
 
-                // Decide between a continuous-tone raster Picture vs. a ShapeForge Mosaic of Word shapes.
-                bool isContinuousTonePhoto = !options.PreferShapeMosaicForPictures
-                    && !string.IsNullOrWhiteSpace(options.MediaDirectory)
-                    && fgRatio > 0.78f
-                    && CountDistinctColors(cropped) >= 18;
+                // When a MediaDirectory is provided and PreferShapeMosaicForPictures is false,
+                // always save detected pictures, logos, and graphics as PNG images.
+                bool saveAsPicture = !options.PreferShapeMosaicForPictures
+                    && !string.IsNullOrWhiteSpace(options.MediaDirectory);
 
-                if (isContinuousTonePhoto)
+                if (saveAsPicture)
                 {
                     Directory.CreateDirectory(options.MediaDirectory!);
                     int picIndex = options.StartingPictureCount + picturesSaved + 1;

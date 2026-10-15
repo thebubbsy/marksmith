@@ -62,6 +62,15 @@ public static class CommandIcons
     public const string Shortcuts = "\uE765";
     public const string Theme = "\uE790";
     public const string Document = "\uE8A5";
+    public const string RevealInExplorer = "\uED25";
+    public const string DocumentStats = "\uE9F9";
+    public const string GoToLine = "\uE8EC";
+    public const string LineNumbers = "\uE8EC";
+    public const string WordWrap = "\uE8FD";
+    public const string ZoomReset = "\uE71E";
+    public const string ZoomOut = "\uE71F";
+    public const string ZoomIn = "\uE8A3";
+    public const string ZoomFit = "\uE8A9";
 
     private static readonly Dictionary<string, string> ByLabel = new(StringComparer.Ordinal)
     {
@@ -84,9 +93,13 @@ public static class CommandIcons
         ["Import Word, PDF, HTML or email as a new document"] = Import,
         ["Save (converted files save as a Markdown copy)"] = Save,
         ["Version history"] = VersionHistory,
+        ["Copy current file path"] = Copy,
+        ["Show current file in File Explorer"] = RevealInExplorer,
+        ["Copy document statistics"] = DocumentStats,
 
         ["Find"] = Find,
         ["Find and replace"] = Replace,
+        ["Go to line…"] = GoToLine,
         ["Bold"] = Bold,
         ["Italic"] = Italic,
         ["Strikethrough"] = Strikethrough,
@@ -123,6 +136,18 @@ public static class CommandIcons
         ["Toggle focus mode"] = FocusMode,
         ["Toggle Looking Glass portal"] = LookingGlass,
         ["Toggle preview as email"] = Email,
+        ["Toggle line numbers"] = LineNumbers,
+        ["Copy all document headings as TOC"] = Outline,
+        ["Copy all lint issues"] = Copy,
+        ["Reset editor zoom (100%)"] = ZoomReset,
+        ["Reset preview zoom (100%)"] = ZoomReset,
+        ["Set preview zoom to 50%"] = ZoomOut,
+        ["Set preview zoom to 75%"] = ZoomOut,
+        ["Set preview zoom to 125%"] = ZoomIn,
+        ["Set preview zoom to 150%"] = ZoomIn,
+        ["Set preview zoom to 200%"] = ZoomIn,
+        ["Fit preview to window width"] = ZoomFit,
+        ["Toggle word wrap"] = WordWrap,
         ["Document outline"] = Outline,
 
         ["Open Diagram Studio"] = DiagramStudio,

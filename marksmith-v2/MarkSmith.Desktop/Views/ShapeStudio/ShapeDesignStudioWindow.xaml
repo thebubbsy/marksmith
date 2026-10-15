@@ -775,14 +775,15 @@
                  a way back. Presets now open fitted to the canvas. -->
             <DropDownButton x:Name="ZoomButton" Grid.Column="2" Padding="8,0" Height="24" MinWidth="70" FontSize="12"
                             Margin="0,-4" AutomationProperties.Name="Zoom"
-                            ToolTipService.ToolTip="Zoom — Ctrl+scroll to zoom, Ctrl+0 to fit the diagram">
+                            ToolTipService.ToolTip="Zoom — Ctrl+scroll to zoom, Ctrl+0 to fit the diagram, right-click for preset stops"
+                            RightTapped="OnZoomButtonRightTapped">
                 <TextBlock x:Name="ZoomText" Text="100%" FontSize="12" />
                 <DropDownButton.Flyout>
                     <MenuFlyout Placement="TopEdgeAlignedRight">
                         <MenuFlyoutItem Text="Fit diagram" Click="OnZoomFitClick" KeyboardAcceleratorTextOverride="Ctrl+0">
                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9A6;" /></MenuFlyoutItem.Icon>
                         </MenuFlyoutItem>
-                        <MenuFlyoutItem Text="Actual size" Click="OnZoomActualClick" KeyboardAcceleratorTextOverride="Ctrl+1">
+                        <MenuFlyoutItem Text="Actual size (100%)" Click="OnZoomActualClick" KeyboardAcceleratorTextOverride="Ctrl+1">
                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71E;" /></MenuFlyoutItem.Icon>
                         </MenuFlyoutItem>
                         <MenuFlyoutSeparator />
@@ -792,6 +793,15 @@
                         <MenuFlyoutItem Text="Zoom out" Click="OnZoomOutClick" KeyboardAcceleratorTextOverride="Ctrl+−">
                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71F;" /></MenuFlyoutItem.Icon>
                         </MenuFlyoutItem>
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutSubItem Text="Preset zoom levels">
+                            <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE71E;" /></MenuFlyoutSubItem.Icon>
+                            <MenuFlyoutItem Text="50%" Click="OnZoom50Click" />
+                            <MenuFlyoutItem Text="75%" Click="OnZoom75Click" />
+                            <MenuFlyoutItem Text="100%" Click="OnZoom100Click" />
+                            <MenuFlyoutItem Text="150%" Click="OnZoom150Click" />
+                            <MenuFlyoutItem Text="200%" Click="OnZoom200Click" />
+                        </MenuFlyoutSubItem>
                     </MenuFlyout>
                 </DropDownButton.Flyout>
             </DropDownButton>

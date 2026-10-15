@@ -789,9 +789,10 @@
                                     </Button>
                                     <Button x:Name="EditorZoomResetButton" Height="24" MinWidth="42" Padding="4,0"
                                             Background="Transparent" BorderThickness="0"
-                                            ToolTipService.ToolTip="Editor font size · Click for 100%; Ctrl+wheel zooms."
+                                            ToolTipService.ToolTip="Editor font size · Click for 100%; Ctrl+wheel zooms; right-click for sizes."
                                             AutomationProperties.Name="Reset editor font size to 100%"
-                                            Click="OnEditorZoomResetClick">
+                                            Click="OnEditorZoomResetClick"
+                                            RightTapped="OnEditorZoomResetRightTapped">
                                         <TextBlock x:Name="EditorZoomText" Text="100%" VerticalAlignment="Center" FontSize="11"
                                                    Opacity="0.7" TextAlignment="Center" />
                                     </Button>
@@ -955,9 +956,10 @@
                                              still reads as a label; the hover fill shows it's clickable. -->
                                         <Button x:Name="PreviewZoomResetButton" Height="22" MinWidth="44" Padding="4,0"
                                                 Background="Transparent" BorderThickness="0"
-                                                ToolTipService.ToolTip="Preview zoom. Click for 100%; Ctrl+wheel zooms."
+                                                ToolTipService.ToolTip="Preview zoom. Click for 100%; Ctrl+wheel zooms; right-click for preset stops."
                                                 AutomationProperties.Name="Reset preview zoom to 100%"
-                                                Click="OnPreviewZoomResetClick">
+                                                Click="OnPreviewZoomResetClick"
+                                                RightTapped="OnPreviewZoomResetRightTapped">
                                             <TextBlock x:Name="PreviewZoomText" Text="100%" FontSize="11"
                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Center" />
                                         </Button>
@@ -1310,6 +1312,7 @@
                                                  FontSize="12" Visibility="Collapsed"
                                                  TextChanged="OnTocFilterTextChanged"
                                                  PreviewKeyDown="OnTocFilterKeyDown"
+                                                 RightTapped="OnTocFilterRightTapped"
                                                  AutomationProperties.Name="Filter document outline headings" />
                                         <TextBlock x:Name="TocEmptyText" Grid.Row="2" TextWrapping="Wrap" FontSize="12"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"

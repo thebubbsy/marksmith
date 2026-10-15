@@ -36,14 +36,14 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
     private static readonly (OcrBlockKind Kind, string Label, int ShortcutNumber)[] ReclassifyKindOptions =
     {
-        (OcrBlockKind.Picture, "🖼 Picture", 1),
-        (OcrBlockKind.ShapeMosaic, "✨ Mosaic / Shape", 2),
-        (OcrBlockKind.Diagram, "📐 Diagram", 3),
-        (OcrBlockKind.Table, "📊 Table", 4),
-        (OcrBlockKind.KeyValue, "🔑 Key-Value", 5),
-        (OcrBlockKind.Heading, "📌 Heading", 6),
-        (OcrBlockKind.List, "📑 List", 7),
-        (OcrBlockKind.Paragraph, "📝 Text Block", 8),
+        (OcrBlockKind.Picture, "Picture", 1),
+        (OcrBlockKind.ShapeMosaic, "Mosaic / Shape", 2),
+        (OcrBlockKind.Diagram, "Diagram", 3),
+        (OcrBlockKind.Table, "Table", 4),
+        (OcrBlockKind.KeyValue, "Key-Value", 5),
+        (OcrBlockKind.Heading, "Heading", 6),
+        (OcrBlockKind.List, "List", 7),
+        (OcrBlockKind.Paragraph, "Text Block", 8),
     };
 
     private readonly OcrInspectionSession _session = new();
@@ -507,7 +507,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             StatusBannerIcon.Glyph = "\uE73E"; // Checkmark
             StatusBannerIcon.Foreground = ThemeBrush.Get("SystemFillColorSuccessBrush", RootGrid.ActualTheme);
         }
-        SetStatusBannerText("✓ Document Scan Complete — Inspect Detected Elements & Choose Import Settings");
+        SetStatusBannerText("Document Scan Complete — Inspect Detected Elements & Choose Import Settings");
         if (StatusSubtext is not null)
             StatusSubtext.Text = "Flick through pages (←/→), navigate elements (↑/↓), or press 1–8 to reclassify the selected block. Hit 'Import into MarkSmith' (Ctrl+Enter) to apply.";
 
@@ -722,7 +722,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var titleText = new TextBlock
         {
-            Text = $"#{elem.Id} · {elem.KindDisplayName}" + (elem.IsReclassified ? " ✦" : string.Empty),
+            Text = $"#{elem.Id} · {elem.KindDisplayName}" + (elem.IsReclassified ? " (Reclassified)" : string.Empty),
             FontSize = 11.5,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(strokeColor),
@@ -1202,7 +1202,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             if (cardStack.Children.Count > 0 && cardStack.Children[0] is Grid headerGrid &&
                 headerGrid.Children.Count > 0 && headerGrid.Children[0] is TextBlock titleText)
             {
-                titleText.Text = $"#{elem.Id} · {elem.KindDisplayName}" + (elem.IsReclassified ? " ✦" : string.Empty);
+                titleText.Text = $"#{elem.Id} · {elem.KindDisplayName}" + (elem.IsReclassified ? " (Reclassified)" : string.Empty);
                 titleText.Foreground = new SolidColorBrush(strokeColor);
             }
             if (cardStack.Children.Count > 1 && cardStack.Children[1] is ComboBox cardCombo)
@@ -1504,7 +1504,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             _ = ClipboardWriter.TrySetTextAsync(md);
         }
         string scopeLabel = _markdownScopeIsDocument ? "full document" : "current page";
-        SetFooterStatusText($"✓ Copied {scopeLabel} Markdown ({md.Length:N0} chars) to clipboard.");
+        SetFooterStatusText($"Copied {scopeLabel} Markdown ({md.Length:N0} chars) to clipboard.");
     }
 
     private async void CopySelectedElementMarkdown()
@@ -1515,11 +1515,11 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         var error = await ClipboardWriter.TrySetTextAsync(_selectedElement.CurrentMarkdown);
         if (error is null)
         {
-            SetFooterStatusText($"✓ Copied Element #{id} ({kindName}) Markdown to clipboard.");
+            SetFooterStatusText($"Copied Element #{id} ({kindName}) Markdown to clipboard.");
         }
         else
         {
-            SetFooterStatusText($"⚠ {error}");
+            SetFooterStatusText(error);
         }
     }
 

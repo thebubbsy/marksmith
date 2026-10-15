@@ -191,6 +191,17 @@ namespace MarkSmith.Views.ShapeStudio
         private void OnZoomActualClick(object sender, RoutedEventArgs e) => ZoomTo(1);
         private void OnZoomInClick(object sender, RoutedEventArgs e) => ZoomStep(+1);
         private void OnZoomOutClick(object sender, RoutedEventArgs e) => ZoomStep(-1);
+        private void OnZoom50Click(object sender, RoutedEventArgs e) => ZoomTo(0.50);
+        private void OnZoom75Click(object sender, RoutedEventArgs e) => ZoomTo(0.75);
+        private void OnZoom100Click(object sender, RoutedEventArgs e) => ZoomTo(1.00);
+        private void OnZoom150Click(object sender, RoutedEventArgs e) => ZoomTo(1.50);
+        private void OnZoom200Click(object sender, RoutedEventArgs e) => ZoomTo(2.00);
+
+        private void OnZoomButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ZoomButton.Flyout?.ShowAt(ZoomButton);
+        }
 
         // ---- preset miniatures ----
 
