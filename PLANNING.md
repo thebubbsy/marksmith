@@ -6758,4 +6758,4 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
   - Opened `OutlineFlyout`, verified `TocFilterBox` (`Name="Filter document outline headings"`), `TocCountText` (`(3)` -> `(1 of 3)` when filtered to `"Telemetry"`), and `TocList`; inspected `verify_outline_flyout.png`.
   - Dismissed first-run tour via `Skip`, opened `LintFlyout`, verified `CopyAllLintButton` (`Name="Copy all Markdown issues"`, `Enabled=True`), `LintFlyoutCountText` (`(3)`), and `LintList`; inspected `verify_lint_populated.png`.
   - Cleanly stopped only the test process PID.
-
+- **GitHub Release `v3.34.0`:** Published and verified at https://github.com/thebubbsy/marksmith/releases/tag/v3.34.0 (`isDraft: false`, assets: `Marksmith-Setup-x64.exe`, `Marksmith-Setup-arm64.exe`, `Marksmith-win-x64.zip`, `Marksmith-win-arm64.zip`, `checksums.txt`, user-facing release notes prepended above `---`). Bumped `<MarksmithBaseVersion>` to `3.35.0` in `marksmith-v2/Directory.Build.props`.
