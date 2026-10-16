@@ -1219,6 +1219,13 @@ public sealed partial class HistoryWindow : Window
         SearchBox.SelectAll();
     }
 
+    private void OnTimelineClearSearchClick(object sender, RoutedEventArgs e)
+    {
+        _vm.SearchQuery = string.Empty;
+        SearchBox.Text = string.Empty;
+        SearchBox.Focus(FocusState.Programmatic);
+    }
+
     private void OnSearchBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;

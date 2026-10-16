@@ -48,15 +48,37 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Search Input -->
-                <TextBox AutomationProperties.Name="Search versions" x:Name="SearchBox" Grid.Column="1"
-                         Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                         PlaceholderText="Search labels, kinds, days… (Ctrl+F)" MaxWidth="280" MinWidth="160"
-                         HorizontalAlignment="Stretch" IsSpellCheckEnabled="False" KeyDown="OnSearchBoxKeyDown"
-                         DoubleTapped="OnSearchBoxDoubleTapped"
-                         RightTapped="OnSearchBoxRightTapped"
-                         CornerRadius="6" VerticalAlignment="Center" Margin="0,0,4,0"
-                         ToolTipService.ToolTip="Filter the timeline by label, kind (Auto-Save, Checkpoint, Export · PDF…), weekday or time · Right-click for options" />
+                <!-- Search Input with Live Match Indicator -->
+                <Grid Grid.Column="1" VerticalAlignment="Center" Margin="0,0,4,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox AutomationProperties.Name="Search versions" x:Name="SearchBox" Grid.Column="0"
+                             Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             PlaceholderText="Search labels, kinds, days… (Ctrl+F)" MaxWidth="280" MinWidth="160"
+                             HorizontalAlignment="Stretch" IsSpellCheckEnabled="False" KeyDown="OnSearchBoxKeyDown"
+                             DoubleTapped="OnSearchBoxDoubleTapped"
+                             RightTapped="OnSearchBoxRightTapped"
+                             CornerRadius="6" VerticalAlignment="Center"
+                             ToolTipService.ToolTip="Filter the timeline by label, kind (Auto-Save, Checkpoint, Export · PDF…), weekday or time · Right-click for options" />
+                    <Border x:Name="TimelineSearchMatchPill" Grid.Column="1" Margin="6,0,0,0"
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1" CornerRadius="6" Padding="6,2" VerticalAlignment="Center"
+                            Visibility="{Binding HasSearchQuery, Converter={StaticResource BoolToVis}}"
+                            ToolTipService.ToolTip="Search match count · Click to clear filter">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock x:Name="TimelineSearchMatchText" Text="{Binding SearchMatchText}" FontSize="11"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                            <Button x:Name="TimelineClearSearchBtn" Width="18" Height="18" Padding="0"
+                                    Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
+                                    Click="OnTimelineClearSearchClick" ToolTipService.ToolTip="Clear search filter (Esc)">
+                                <FontIcon Glyph="&#xE711;" FontSize="9" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
                 <!-- Filter Starred -->
                 <ToggleButton x:Name="StarredFilterToggle" Grid.Column="2" IsChecked="{Binding IsStarredOnlyFilter, Mode=TwoWay}"

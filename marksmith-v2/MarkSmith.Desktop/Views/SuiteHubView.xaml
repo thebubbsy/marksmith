@@ -157,6 +157,48 @@
                 </Grid>
             </Border>
 
+            <!-- Quick-Start Starter Templates Strip -->
+            <Border x:Name="StarterTemplatesStrip" Background="{ThemeResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="12,8">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE8A5;" FontSize="13" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Quick Start" FontWeight="SemiBold" FontSize="12.5" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel x:Name="StarterTemplatesPanel" Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Button x:Name="TemplateMeetingNotesBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
+                                Click="OnTemplateMeetingNotesClick" ToolTipService.ToolTip="Create a structured meeting minutes document with agenda and action items">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE77B;" FontSize="11" />
+                                <TextBlock Text="Meeting Notes" FontSize="11.5" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="TemplateTechSpecBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
+                                Click="OnTemplateTechSpecClick" ToolTipService.ToolTip="Create a technical specification with architecture diagrams and API contracts">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE943;" FontSize="11" />
+                                <TextBlock Text="Technical Spec" FontSize="11.5" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="TemplateSmartArtBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
+                                Click="OnTemplateSmartArtClick" ToolTipService.ToolTip="Create a SmartArt showcase document with ready-to-edit layout blocks">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xF003;" FontSize="11" />
+                                <TextBlock Text="SmartArt Showcase" FontSize="11.5" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="TemplateMindMapBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
+                                Click="OnTemplateMindMapClick" ToolTipService.ToolTip="Create a knowledge base document with mindmap mermaid outline">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xEC26;" FontSize="11" />
+                                <TextBlock Text="MindMap Note" FontSize="11.5" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
             <!-- 2-Column Grid of Suite Components (reflows to 1 column when narrow) -->
             <Grid x:Name="CardsGrid" ColumnSpacing="12" RowSpacing="12">
                 <Grid.ColumnDefinitions>

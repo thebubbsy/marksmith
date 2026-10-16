@@ -9057,3 +9057,74 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 24160, responsive startup, clean exit.
 
+### 2026-10-17 00:45 AEST (run #120: MindMap Galaxy search glow halo & match stepper pill, Shape Studio multi-selection alignment & distribute ribbon, SmartArt Studio custom hex accent override & preview recoloring, MainWindow status bar document encoding & line endings pill, History Window timeline search match pill & quick clear, SuiteHubView starter template cards)
+
+- **Surface:** `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `MainWindow`, `HistoryWindow`, `SuiteHubView`.
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering search node glow halo & match stepper pill, multi-shape alignment & distribution ribbon, custom hex palette accent override with live SVG recoloring, status bar document encoding & line endings toggle pill, timeline search match counter pill & quick clear, and suite hub starter templates strip under the AI-Executable 3-Block Cycle + Execution Phase Protocol (`GEMINI.md` Rule 7).
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #119:
+    * Target A: `MindMapGalaxyWindow` dynamic node search filter with glowing matching halos and dimmed non-matching nodes.
+    * Target B: `ShapeDesignStudioWindow` multi-selection group alignment ribbon with quick distribute evenly actions.
+    * Target C: `SmartArtDesignStudioWindow` color palette custom hex override input fields with live validation.
+  - Generated:
+    1. `MindMapGalaxyWindow`: Dynamic node search filter with luminous glow halos, match stepper navigation pill (`SearchStepperPill`, `SearchMatchCountText`, `SearchPrevMatchBtn`, `SearchNextMatchBtn`, `SearchClearMatchBtn`), and viewport camera pan centering (`OnSearchPrevMatchClick`, `OnSearchNextMatchClick`, `OnSearchClearClick`).
+    2. `ShapeDesignStudioWindow`: Multi-selection alignment & distribution quick action ribbon (`MultiAlignRibbon`) docked above `MultiSelectionAdorner` with 8 one-click alignment and distribution commands (`AlignLeft`, `AlignCenter`, `AlignRight`, `AlignTop`, `AlignMiddle`, `AlignBottom`, `DistributeHorizontally`, `DistributeVertically`).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `MindMapGalaxyWindow` search from a static text match count to an interactive match stepper HUD pill. Matching nodes receive a luminous 3.0px accent halo border (`HighlightBorder`), high-contrast card fill tint, elevated `Canvas.SetZIndex(100)`, and non-matching nodes are dimmed to 30% opacity. Stepper buttons (`▲`/`▼`) cycle through matches and smoothly center the camera viewport (`CenterOnNodeAnimated`), with a dedicated clear button (`✕`).
+    * For Idea 2: Mounted `MultiAlignRibbon` directly inside the multi-selection adorner container. Positioned dynamically 40px above bounding box top edge with automatic viewport clamping. Includes 6 alignment buttons and 2 distribution buttons (automatically disabled when fewer than 3 shapes are selected).
+  - Generated:
+    3. `SmartArtDesignStudioWindow`: Custom palette hex accent color override with live preview recoloring (`CustomPaletteHexBox`, `CustomPaletteSwatch`, `ApplyCustomPaletteButton`, `ResetCustomPaletteButton`, `_customHexOverride`, `ApplyCustomHexToSvgHtml`).
+    4. `MainWindow`: Document encoding and line endings status bar pill (`StatusEncodingButton`, `StatusEncodingText`, `UpdateStatusEncoding`, `ToggleLineEndings`, `ShowEncodingFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Added dedicated custom accent hex override section in `PaletteFlyout`. Validates `#RRGGBB` / `#RGB` strings in real-time, displays interactive live swatch preview, applies accent override to SVG output by dynamically recoloring CSS classes and stroke/fill attributes (`ApplyCustomHexToSvgHtml`), and persists across template layout switching with a reset button.
+    * For Idea 4: Integrated document encoding and line endings indicator in `MainWindow` status bar (`UTF-8 · CRLF` / `UTF-8 · LF`). Double-click toggles CRLF/LF line endings throughout `PasteTextBox` with full undo burst isolation and preview re-render; left-click/right-click surfaces quick conversion menu flyout with format clipboard copy.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified WinUI 3 XAML compiler safety: ensured no `MaxWidth` is defined on `ColumnDefinition` elements to avoid `WMC9999` crashes.
+    * Enforced boundary clamping and z-index ordering across multi-selection adorner ribbon in `ShapeDesignStudioWindow`.
+  - Generated:
+    5. `HistoryWindow`: Timeline search match counter pill & quick clear button (`TimelineSearchMatchPill`, `TimelineSearchMatchCountText`, `TimelineClearSearchBtn`, `HasSearchQuery`, `SearchMatchText`).
+    6. `SuiteHubView`: Quick-start starter templates strip (`StarterTemplatesStrip`, Meeting Notes, Technical Spec, SmartArt Showcase, MindMap Note).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Added floating search match pill in timeline header indicating filtered commit matches (`X matches found`), with one-click clear button (`✕`) resetting the search query and restoring full commit list.
+    * For Idea 6: Implemented starter templates strip below recent documents in `SuiteHubView` offering 4 curated Markdown templates with icons, generating boilerplate documents in temp directory and opening them directly in `MainWindow` editor while adding them to recent files.
+  - Executed all 6 refined targets into 100% production code.
+  - Verification:
+    * `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `MarkSmith.Tests.dll`: **Passed: 4,802, Failed: 0, Skipped: 1, Total: 4,803**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 25356, responsive startup (`Responding: True`), clean exit.
+  - Carried forward ideas / next targets into Run #121:
+    * Target A: `MindMapGalaxyWindow` node tag / badge filter bar with multi-tag filtering chips.
+    * Target B: `ShapeDesignStudioWindow` shape geometry morphing presets and corner radius rounding handles.
+    * Target C: `SmartArtDesignStudioWindow` SVG export resolution presets & DPI scaling selector (1x, 2x, 4x, Print 300DPI).
+
+**Shipped:**
+1. **`MindMapGalaxyWindow` Search Glow Halo & Match Stepper HUD Pill (`Views/MindMap/MindMapGalaxyWindow.xaml`, `Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Luminous 3.0px halo border (`HighlightBorder`), high-contrast card fill tint, and dimmed opacity for non-matching nodes during search.
+   - Stepper HUD pill (`SearchStepperPill`) with live match index readout (`X of Y`), Prev (`▲`), Next (`▼`), and Clear (`✕`) buttons with automatic camera viewport centering on active match.
+2. **`ShapeDesignStudioWindow` Multi-Selection Alignment & Distribute Ribbon (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Quick action floating ribbon (`MultiAlignRibbon`) docked atop `MultiSelectionAdorner` with 8 one-click alignment/distribute buttons.
+   - Dynamic canvas position clamping and automatic distribute button enablement based on shape count (disabled when < 3 shapes).
+3. **`SmartArtDesignStudioWindow` Custom Hex Accent Override & Live SVG Recoloring (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Custom hex color input section in `PaletteFlyout` with real-time regex validation, live color swatch preview, Apply, and Reset actions.
+   - Live SVG preview recoloring engine (`ApplyCustomHexToSvgHtml`) updating preview on the fly.
+4. **`MainWindow` Status Bar Document Encoding & Line Endings Pill (`MainWindow.xaml`, `MainWindow.xaml.cs`):**
+   - Status bar format pill (`StatusEncodingButton`) displaying active encoding and line endings (`UTF-8 · CRLF` / `UTF-8 · LF`).
+   - Double-click toggles CRLF/LF line endings with clean undo isolation; click/right-click opens flyout with explicit conversion options and clipboard summary copy.
+5. **`HistoryWindow` Timeline Search Match Pill & Quick Clear (`Views/History/HistoryWindow.xaml`, `Views/History/HistoryWindow.xaml.cs`, `MarkSmith.Core/ViewModels/History/HistoryWindowViewModel.cs`):**
+   - Search match indicator pill (`TimelineSearchMatchPill`) displaying `X matches found` when filtering commits.
+   - One-click clear search button (`✕`) immediately restoring full commit history view.
+6. **`SuiteHubView` Quick-Start Starter Templates Strip (`Views/SuiteHubView.xaml`, `Views/SuiteHubView.xaml.cs`):**
+   - Sleek starter template strip (`StarterTemplatesStrip`) featuring 4 curated Markdown templates (Meeting Notes, Technical Spec, SmartArt Showcase, MindMap Note).
+   - Instant template file generation, registration into `RecentFilesService`, and launching into `MainWindow`.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 25356, responsive startup, clean exit.
+
+

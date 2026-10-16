@@ -89,12 +89,43 @@
                                         KeyDown="OnSearchBoxKeyDown" RightTapped="OnSearchBoxRightTapped"
                                         DoubleTapped="OnSearchBoxDoubleTapped"
                                         ToolTipService.ToolTip="Search map (Ctrl+F) · Enter/F3 next, Shift+F3 prev, Esc clears, Double-click selects all, Right-click for options" />
-                        <TextBlock x:Name="SearchMatchLabel" Text="{Binding SearchMatchText}" VerticalAlignment="Center" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   IsHitTestVisible="True"
-                                   DoubleTapped="OnSearchMatchLabelDoubleTapped"
-                                   RightTapped="OnSearchMatchLabelRightTapped"
-                                   ToolTipService.ToolTip="Search match count · Double-click to copy, right-click for navigation options"
-                                   Visibility="{Binding HasSearchQuery, Converter={StaticResource BoolToVis}}" />
+                        <Border x:Name="SearchStepperPill"
+                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="6" Padding="6,2"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding HasSearchQuery, Converter={StaticResource BoolToVis}}"
+                                ToolTipService.ToolTip="Search navigation (Enter/F3 next, Shift+F3 prev, Esc clears, Right-click for options)"
+                                RightTapped="OnSearchMatchLabelRightTapped">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock x:Name="SearchMatchLabel" Text="{Binding SearchMatchText}" VerticalAlignment="Center" FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           IsHitTestVisible="True"
+                                           DoubleTapped="OnSearchMatchLabelDoubleTapped"
+                                           ToolTipService.ToolTip="Search match count · Double-click to copy" />
+                                <Button x:Name="SearchPrevMatchButton" Width="20" Height="20" Padding="0"
+                                        Style="{StaticResource DefaultButtonStyle}"
+                                        Background="Transparent" BorderThickness="0"
+                                        Click="OnSearchPrevMatchClick"
+                                        ToolTipService.ToolTip="Previous match (Shift+F3)">
+                                    <FontIcon Glyph="&#xE70E;" FontSize="9" />
+                                </Button>
+                                <Button x:Name="SearchNextMatchButton" Width="20" Height="20" Padding="0"
+                                        Style="{StaticResource DefaultButtonStyle}"
+                                        Background="Transparent" BorderThickness="0"
+                                        Click="OnSearchNextMatchClick"
+                                        ToolTipService.ToolTip="Next match (F3 / Enter)">
+                                    <FontIcon Glyph="&#xE70D;" FontSize="9" />
+                                </Button>
+                                <Button x:Name="SearchClearButton" Width="20" Height="20" Padding="0"
+                                        Style="{StaticResource DefaultButtonStyle}"
+                                        Background="Transparent" BorderThickness="0"
+                                        Click="OnSearchClearClick"
+                                        ToolTipService.ToolTip="Clear search (Esc)">
+                                    <FontIcon Glyph="&#xE711;" FontSize="9" />
+                                </Button>
+                            </StackPanel>
+                        </Border>
                         <Button x:Name="ZoomOutButton" Click="OnZoomOutClick" RightTapped="OnZoomResetRightTapped" ToolTipService.ToolTip="Zoom out (Ctrl+−, Right-click for zoom presets)" AutomationProperties.Name="Zoom out" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE71F;" FontSize="13" /></Button>
                         <Button x:Name="ZoomResetButton" Click="OnZoomResetClick" DoubleTapped="OnZoomResetDoubleTapped" RightTapped="OnZoomResetRightTapped" Content="{Binding ZoomLevelText}" MinWidth="52" Height="32" Padding="6,0" FontSize="12"
                                 Background="Transparent" BorderThickness="0"

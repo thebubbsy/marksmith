@@ -247,7 +247,11 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     private string _checkpointTooltip = "Save the editor's current text as a named, starred version (Ctrl+Shift+S)";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSearchQuery), nameof(SearchMatchText))]
     private string _searchQuery = "";
+
+    public bool HasSearchQuery => !string.IsNullOrWhiteSpace(SearchQuery);
+    public string SearchMatchText => HasSearchQuery ? $"{VisibleVersions.Count} match{(VisibleVersions.Count == 1 ? "" : "es")}" : "";
 
     partial void OnSearchQueryChanged(string value) => ApplyTimelineFilter();
 
@@ -583,6 +587,9 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             : filterStarred
                 ? $"No starred versions match “{q}”."
                 : $"No versions match “{q}”.";
+
+        OnPropertyChanged(nameof(HasSearchQuery));
+        OnPropertyChanged(nameof(SearchMatchText));
 
         if (autoSelectFirst && !keptSelection)
         {

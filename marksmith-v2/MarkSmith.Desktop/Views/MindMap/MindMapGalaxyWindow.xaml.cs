@@ -1758,7 +1758,7 @@ namespace MarkSmith.Views.MindMap
                 Color borderColor;
                 double borderThickness;
                 if (node.IsSelected) { borderColor = _palette.SelectionInk; borderThickness = 2.6; }
-                else if (node.IsHighlighted) { borderColor = _palette.HighlightBorder; borderThickness = 2.4; }
+                else if (node.IsHighlighted) { borderColor = _palette.HighlightBorder; borderThickness = 3.0; }
                 else if (node.IsNeighbor) { borderColor = accent; borderThickness = 2.2; }
                 else { borderColor = accent; borderThickness = node.IsHub ? 2.2 : 1.4; }
 
@@ -1775,7 +1775,7 @@ namespace MarkSmith.Views.MindMap
                 v.BorderStroke.Color = borderColor;
                 v.Root.BorderThickness = new Thickness(borderThickness);
                 v.Root.Opacity = node.IsDimmed ? (hovered ? 0.6 : 0.22) : 1.0;
-                Canvas.SetZIndex(v.Root, node.IsSelected ? 2 : hovered ? 1 : 0);
+                Canvas.SetZIndex(v.Root, node.IsSelected ? 3 : node.IsHighlighted ? 2 : hovered ? 1 : 0);
                 SetLift(v, hovered);
                 string summary = node.AccessibleSummary;
                 if (AutomationProperties.GetName(v.Root) != summary)
@@ -2000,7 +2000,9 @@ namespace MarkSmith.Views.MindMap
         private Color CardFillFor(MindMapNodeViewModel node)
         {
             bool hovered = node.IsHovered && !node.IsSelected && _draggedNode == null;
-            return hovered ? Blend(_palette.CardBackground, ColorFromHex(node.ColorHex), 0.12) : _palette.CardBackground;
+            if (hovered) return Blend(_palette.CardBackground, ColorFromHex(node.ColorHex), 0.12);
+            if (node.IsHighlighted && !node.IsSelected) return Blend(_palette.CardBackground, _palette.HighlightBorder, 0.16);
+            return _palette.CardBackground;
         }
 
         private static Color Blend(Color from, Color to, double amount) => Color.FromArgb(
@@ -5056,6 +5058,23 @@ namespace MarkSmith.Views.MindMap
                 e.Handled = true;
                 ViewModel.FocusNextMatch(!IsShiftDown());
             }
+        }
+
+        private void OnSearchPrevMatchClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.FocusNextMatch(forward: false);
+        }
+
+        private void OnSearchNextMatchClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.FocusNextMatch(forward: true);
+        }
+
+        private void OnSearchClearClick(object sender, RoutedEventArgs e)
+        {
+            SearchBox.Text = "";
+            ViewModel.SearchQuery = "";
+            SearchBox.Focus(FocusState.Programmatic);
         }
 
         private void OnSearchBoxRightTapped(object sender, RightTappedRoutedEventArgs e)

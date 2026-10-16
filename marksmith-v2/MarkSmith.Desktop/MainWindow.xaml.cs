@@ -7624,6 +7624,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         CursorPosText.Text = DocumentStatsService.FormatCursorAndSelection(line, col, text.AsSpan(start, sel));
         UpdateStatusSectionBreadcrumb(text, start);
         UpdateStatusReadingTime(text);
+        UpdateStatusEncoding(text);
     }
 
     private void UpdateStatusSectionBreadcrumb(string text, int caretPos)
@@ -7835,6 +7836,147 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.Items.Add(copyStatsItem);
 
         menu.ShowAt(StatusReadingTimeButton, e.GetPosition(StatusReadingTimeButton));
+    }
+
+    private void UpdateStatusEncoding(string? text)
+    {
+        if (StatusEncodingText is null || StatusEncodingButton is null) return;
+        string lineEndings = "CRLF";
+        if (!string.IsNullOrEmpty(text))
+        {
+            int crlfCount = 0;
+            int lfCount = 0;
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (text[i] == '\r' && i + 1 < text.Length && text[i + 1] == '\n') { crlfCount++; i++; }
+                else if (text[i] == '\n') { lfCount++; }
+            }
+            if (lfCount > crlfCount) lineEndings = "LF";
+            else if (crlfCount == 0 && lfCount == 0) lineEndings = Environment.NewLine == "\r\n" ? "CRLF" : "LF";
+        }
+        string encodingText = $"UTF-8 · {lineEndings}";
+        StatusEncodingText.Text = encodingText;
+        ToolTipService.SetToolTip(StatusEncodingButton,
+            $"Document Format: {encodingText}\nEncoding: UTF-8 (No BOM)\nLine endings: {lineEndings} ({(lineEndings == "CRLF" ? "Windows \\r\\n" : "Unix/macOS \\n")})\nClick to change format, double-click to toggle CRLF/LF, right-click for options");
+    }
+
+    private void OnStatusEncodingButtonClick(object sender, RoutedEventArgs e)
+    {
+        ShowEncodingFlyout(sender as FrameworkElement ?? StatusEncodingButton);
+    }
+
+    private void OnStatusEncodingButtonDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ToggleLineEndings();
+    }
+
+    private void OnStatusEncodingButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowEncodingFlyout(StatusEncodingButton);
+    }
+
+    private void ToggleLineEndings()
+    {
+        if (PasteTextBox is null) return;
+        string text = PasteTextBox.Text ?? "";
+        bool currentlyCrlf = text.Contains("\r\n");
+        int caret = PasteTextBox.SelectionStart;
+        if (currentlyCrlf)
+        {
+            string newText = text.Replace("\r\n", "\n");
+            ViewModel.BreakUndoBurst();
+            PasteTextBox.Text = newText;
+            PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
+            SyncDocumentFromEditor();
+            ViewModel.BreakUndoBurst();
+            UpdateCursorPosition();
+            UpdateStatusEncoding(newText);
+            _ = RefreshPreviewAsync();
+            AnnounceStatus("Converted line endings to LF (Unix/macOS \\n)");
+        }
+        else
+        {
+            string newText = text.Replace("\r\n", "\n").Replace("\n", "\r\n");
+            ViewModel.BreakUndoBurst();
+            PasteTextBox.Text = newText;
+            PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
+            SyncDocumentFromEditor();
+            ViewModel.BreakUndoBurst();
+            UpdateCursorPosition();
+            UpdateStatusEncoding(newText);
+            _ = RefreshPreviewAsync();
+            AnnounceStatus("Converted line endings to CRLF (Windows \\r\\n)");
+        }
+    }
+
+    private void ShowEncodingFlyout(FrameworkElement target)
+    {
+        var menu = new MenuFlyout();
+
+        var toCrlfItem = new MenuFlyoutItem
+        {
+            Text = "Convert to Windows CRLF (\\r\\n)",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        toCrlfItem.Click += (_, _) =>
+        {
+            if (PasteTextBox is null) return;
+            string text = PasteTextBox.Text ?? "";
+            int caret = PasteTextBox.SelectionStart;
+            string newText = text.Replace("\r\n", "\n").Replace("\n", "\r\n");
+            ViewModel.BreakUndoBurst();
+            PasteTextBox.Text = newText;
+            PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
+            SyncDocumentFromEditor();
+            ViewModel.BreakUndoBurst();
+            UpdateCursorPosition();
+            UpdateStatusEncoding(newText);
+            _ = RefreshPreviewAsync();
+            AnnounceStatus("Converted document line endings to CRLF (Windows)");
+        };
+        menu.Items.Add(toCrlfItem);
+
+        var toLfItem = new MenuFlyoutItem
+        {
+            Text = "Convert to Unix/macOS LF (\\n)",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        toLfItem.Click += (_, _) =>
+        {
+            if (PasteTextBox is null) return;
+            string text = PasteTextBox.Text ?? "";
+            int caret = PasteTextBox.SelectionStart;
+            string newText = text.Replace("\r\n", "\n");
+            ViewModel.BreakUndoBurst();
+            PasteTextBox.Text = newText;
+            PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
+            SyncDocumentFromEditor();
+            ViewModel.BreakUndoBurst();
+            UpdateCursorPosition();
+            UpdateStatusEncoding(newText);
+            _ = RefreshPreviewAsync();
+            AnnounceStatus("Converted document line endings to LF (Unix/macOS)");
+        };
+        menu.Items.Add(toLfItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyFormatItem = new MenuFlyoutItem
+        {
+            Text = "Copy encoding and line endings info",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyFormatItem.Click += (_, _) =>
+        {
+            string summary = StatusEncodingText?.Text ?? "UTF-8 · CRLF";
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus($"Copied document format: {summary}");
+        };
+        menu.Items.Add(copyFormatItem);
+
+        menu.ShowAt(target);
     }
 
     private sealed record HeadingLocation(int Level, string Title, int Offset, int EndOffset);

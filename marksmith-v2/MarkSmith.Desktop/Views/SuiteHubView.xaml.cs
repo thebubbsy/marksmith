@@ -1061,5 +1061,140 @@ public sealed partial class SuiteHubView : UserControl
         SetNotification("Refreshed recent documents.", success: true);
     }
 
+    private void OnTemplateMeetingNotesClick(object sender, RoutedEventArgs e)
+    {
+        CreateAndOpenStarterDocument("Meeting_Notes", """
+# Meeting Notes: [Topic]
+
+**Date:** [Date] | **Attendees:** [Names] | **Facilitator:** [Name]
+
+## 1. Objectives & Agenda
+- Item 1: Review project status
+- Item 2: Technical architecture alignment
+- Item 3: Next sprint commitments
+
+## 2. Discussion & Key Decisions
+- Key discussion point A
+- Decision reached: [Summary]
+
+## 3. Action Items
+
+| Owner | Action Item | Due Date | Status |
+| :--- | :--- | :--- | :--- |
+| @owner | Complete design doc review | YYYY-MM-DD | In Progress |
+| @owner | Ship production verification | YYYY-MM-DD | Pending |
+""");
+    }
+
+    private void OnTemplateTechSpecClick(object sender, RoutedEventArgs e)
+    {
+        CreateAndOpenStarterDocument("Technical_Spec", """
+# Technical Specification: [Feature Name]
+
+**Status:** Draft | **Author:** [Author] | **Created:** [Date]
+
+## 1. Overview & Goals
+Brief summary of the proposed solution and target outcomes.
+
+## 2. Architecture & System Flow
+
+```mermaid
+graph TD
+    Client[Client App] --> Gateway[API Gateway]
+    Gateway --> Service[Core Service]
+    Service --> Database[(Document Store)]
+```
+
+## 3. Interfaces & Data Models
+Details on contracts, endpoints, and storage schemas.
+
+## 4. Verification & Testing
+Empirical test matrix and automated verification gates.
+""");
+    }
+
+    private void OnTemplateSmartArtClick(object sender, RoutedEventArgs e)
+    {
+        CreateAndOpenStarterDocument("SmartArt_Showcase", """
+# SmartArt Diagram Showcase
+
+Visual presentation diagrams using native Word SmartArt conversion:
+
+:::smartart
+layout: process
+palette: Office Blue
+title: Product Engineering Pipeline
+
+- Requirements Gathering
+  - User feedback & telemetry
+  - Architectural constraints
+- Design & Prototyping
+  - Multi-agent review
+  - Interactive canvas layout
+- Implementation & Polish
+  - Production code
+  - Zero placeholder standard
+- Verification Gate
+  - Automated test pass
+  - Live smoke test
+:::
+""");
+    }
+
+    private void OnTemplateMindMapClick(object sender, RoutedEventArgs e)
+    {
+        CreateAndOpenStarterDocument("MindMap_Note", """
+# Knowledge Base & Mind Map
+
+Vault architecture and cross-topic connections:
+
+```mermaid
+mindmap
+  root((MarkSmith Suite))
+    Drawing Studios
+      Mermaid
+      Shape Design
+      SmartArt
+    Desktop Core
+      Markdown AST
+      Native OpenXML
+      Live Preview
+    Ecosystem
+      CLI
+      MCP Assistant
+      Web Companion
+```
+""");
+    }
+
+    private void CreateAndOpenStarterDocument(string baseName, string content)
+    {
+        try
+        {
+            string docsFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            string marksmithFolder = System.IO.Path.Combine(docsFolder, "MarkSmith");
+            if (!System.IO.Directory.Exists(marksmithFolder)) System.IO.Directory.CreateDirectory(marksmithFolder);
+
+            string fileName = $"{baseName}_{DateTime.Now:yyyyMMdd_HHmmss}.md";
+            string filePath = System.IO.Path.Combine(marksmithFolder, fileName);
+            System.IO.File.WriteAllText(filePath, content, System.Text.Encoding.UTF8);
+
+            App.RecentFiles?.AddToRecent(filePath);
+            LoadRecentFiles();
+
+            var p = new ProcessStartInfo
+            {
+                FileName = filePath,
+                UseShellExecute = true
+            };
+            Process.Start(p);
+            SetNotification($"Created starter document: {fileName}", success: true);
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't create starter document: {ex.Message}", success: false);
+        }
+    }
+
     #endregion
 }

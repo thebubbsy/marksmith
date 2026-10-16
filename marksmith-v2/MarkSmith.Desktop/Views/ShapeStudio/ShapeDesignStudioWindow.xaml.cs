@@ -2222,6 +2222,23 @@ namespace MarkSmith.Views.ShapeStudio
             Canvas.SetLeft(MultiSelectionBadge, minX);
             Canvas.SetTop(MultiSelectionBadge, Math.Max(0, minY - 28 / z));
 
+            if (MultiAlignRibbon != null)
+            {
+                MultiAlignRibbon.Visibility = Visibility.Visible;
+                double ribbonW = 230;
+                double ribbonX = minX + Math.Max(0, (totalW - ribbonW) / 2.0);
+                double ribbonY = minY + totalH + 8 / z;
+                if (ribbonY + 32 / z > MainCanvas.Height && minY - 36 / z > 0)
+                {
+                    ribbonY = Math.Max(0, minY - 36 / z);
+                }
+                Canvas.SetLeft(MultiAlignRibbon, Math.Max(0, ribbonX));
+                Canvas.SetTop(MultiAlignRibbon, Math.Max(0, ribbonY));
+
+                if (MultiDistributeHBtn != null) MultiDistributeHBtn.IsEnabled = selected.Count >= 3;
+                if (MultiDistributeVBtn != null) MultiDistributeVBtn.IsEnabled = selected.Count >= 3;
+            }
+
             if (DistributionSpacingBadgesCanvas != null)
             {
                 if (selected.Count < 3)
@@ -2414,6 +2431,54 @@ namespace MarkSmith.Views.ShapeStudio
         {
             e.Handled = true;
             ShowMultiSelectionContextMenu(e.GetPosition(MainCanvas));
+        }
+
+        private void OnMultiAlignLeftClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.AlignLeft();
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void OnMultiAlignCenterClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.AlignCenter();
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void OnMultiAlignRightClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.AlignRight();
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void OnMultiAlignTopClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.AlignTop();
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void OnMultiAlignMiddleClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.AlignMiddle();
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void OnMultiAlignBottomClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.AlignBottom();
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void OnMultiDistributeHClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.DistributeHorizontal();
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void OnMultiDistributeVClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.DistributeVertical();
+            UpdateMultiSelectionAdorner();
         }
 
         private void ShowMultiSelectionContextMenu(Point position)

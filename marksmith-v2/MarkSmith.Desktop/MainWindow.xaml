@@ -2247,6 +2247,18 @@
                                RightTapped="OnCursorPosTextRightTapped"
                                ToolTipService.ToolTip="Cursor position · Click or double-click to jump to line (Ctrl+G), right-click for options" />
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                    <HyperlinkButton x:Name="StatusEncodingButton" Click="OnStatusEncodingButtonClick"
+                                     DoubleTapped="OnStatusEncodingButtonDoubleTapped"
+                                     RightTapped="OnStatusEncodingButtonRightTapped"
+                                     Padding="4,1" FontSize="11.5" Opacity="0.85"
+                                     ToolTipService.ToolTip="Document encoding &amp; line endings · Click to change format, double-click to toggle CRLF/LF, right-click for options"
+                                     AutomationProperties.Name="Document encoding and line endings">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE8B9;" FontSize="10.5" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock x:Name="StatusEncodingText" Text="UTF-8 · CRLF" />
+                        </StackPanel>
+                    </HyperlinkButton>
+                    <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <HyperlinkButton x:Name="StatusZoomButton" Click="OnStatusZoomButtonClick"
                                      DoubleTapped="OnStatusZoomButtonDoubleTapped"
                                      RightTapped="OnStatusZoomButtonRightTapped"

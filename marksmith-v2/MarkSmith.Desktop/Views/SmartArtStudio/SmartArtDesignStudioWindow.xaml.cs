@@ -14,6 +14,7 @@ namespace MarkSmith.Views.SmartArtStudio
     {
         public SmartArtDesignStudioViewModel ViewModel { get; }
         private bool _isWebViewReady;
+        private string? _customHexOverride;
 
         public sealed class SmartArtPaletteChoice
         {
@@ -606,9 +607,26 @@ namespace MarkSmith.Views.SmartArtStudio
             if (_isWebViewReady && PreviewWebView.CoreWebView2 != null)
             {
                 bool isDark = RootGrid.ActualTheme == ElementTheme.Dark;
-                string html = BuildWrapperHtml(ViewModel.PreviewHtml, isDark);
+                string body = ViewModel.PreviewHtml;
+                if (!string.IsNullOrEmpty(_customHexOverride))
+                {
+                    body = ApplyCustomHexToSvgHtml(body, _customHexOverride);
+                }
+                string html = BuildWrapperHtml(body, isDark);
                 PreviewWebView.CoreWebView2.NavigateToString(html);
             }
+        }
+
+        private string ApplyCustomHexToSvgHtml(string html, string hex)
+        {
+            if (string.IsNullOrWhiteSpace(html) || string.IsNullOrWhiteSpace(hex)) return html;
+            var (accents, _) = MarkSmith.Core.Preview.HtmlPreviewRenderer.GetPaletteColors(ViewModel.SelectedPalette);
+            string targetHex = "#" + hex.Trim().TrimStart('#').ToLowerInvariant();
+            if (accents.Length > 0 && !string.Equals(accents[0], targetHex, StringComparison.OrdinalIgnoreCase))
+            {
+                html = System.Text.RegularExpressions.Regex.Replace(html, System.Text.RegularExpressions.Regex.Escape(accents[0]), targetHex, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            }
+            return html;
         }
 
         private void SyncSvgSelectedNode()
@@ -3382,6 +3400,11 @@ namespace MarkSmith.Views.SmartArtStudio
                 }
                 finally { _syncingSmartArtPalette = false; }
             }
+            if (CustomPaletteHexBox != null && !string.IsNullOrEmpty(_customHexOverride))
+            {
+                CustomPaletteHexBox.Text = "#" + _customHexOverride;
+                if (CustomPaletteSwatch != null) CustomPaletteSwatch.Background = BrushFromHex(_customHexOverride);
+            }
         }
 
         private void OnPaletteFlyoutOpening(object? sender, object e)
@@ -3395,6 +3418,85 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.SelectedPalette = choice.Name;
             RefreshWebView();
             ViewModel.StatusMessage = $"Applied SmartArt color palette: {choice.Name}";
+            if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);
+            PaletteFlyout?.Hide();
+        }
+
+        private void OnCustomPaletteHexBoxTextChanged(object sender, TextChangedEventArgs e)
+        {
+            var hex = CustomPaletteHexBox?.Text?.Trim() ?? "";
+            if (hex.StartsWith('#')) hex = hex.Substring(1);
+            bool isValid = hex.Length == 6 && System.Text.RegularExpressions.Regex.IsMatch(hex, "^[0-9a-fA-F]{6}$");
+            if (isValid && CustomPaletteSwatch != null)
+            {
+                CustomPaletteSwatch.Background = BrushFromHex(hex);
+                if (CustomPaletteStatusText != null)
+                {
+                    CustomPaletteStatusText.Text = "Valid hex color";
+                    CustomPaletteStatusText.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
+                    CustomPaletteStatusText.Visibility = Visibility.Visible;
+                }
+            }
+            else if (CustomPaletteStatusText != null)
+            {
+                if (string.IsNullOrEmpty(hex))
+                {
+                    CustomPaletteStatusText.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    CustomPaletteStatusText.Text = "Enter 6 hex characters (#RRGGBB)";
+                    CustomPaletteStatusText.Foreground = (Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
+                    CustomPaletteStatusText.Visibility = Visibility.Visible;
+                }
+            }
+        }
+
+        private void OnCustomPaletteHexBoxKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                e.Handled = true;
+                OnApplyCustomPaletteClick(sender, new RoutedEventArgs());
+            }
+        }
+
+        private void OnApplyCustomPaletteClick(object sender, RoutedEventArgs e)
+        {
+            var hex = CustomPaletteHexBox?.Text?.Trim() ?? "";
+            if (hex.StartsWith('#')) hex = hex.Substring(1);
+            if (hex.Length != 6 || !System.Text.RegularExpressions.Regex.IsMatch(hex, "^[0-9a-fA-F]{6}$"))
+            {
+                if (CustomPaletteStatusText != null)
+                {
+                    CustomPaletteStatusText.Text = "Invalid hex color";
+                    CustomPaletteStatusText.Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+                    CustomPaletteStatusText.Visibility = Visibility.Visible;
+                }
+                return;
+            }
+
+            _customHexOverride = hex.ToUpperInvariant();
+            RefreshWebView();
+            if (CustomPaletteStatusText != null)
+            {
+                CustomPaletteStatusText.Text = $"Applied #{_customHexOverride}";
+                CustomPaletteStatusText.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
+                CustomPaletteStatusText.Visibility = Visibility.Visible;
+            }
+            ViewModel.StatusMessage = $"Applied custom accent color: #{_customHexOverride}";
+            if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);
+            PaletteFlyout?.Hide();
+        }
+
+        private void OnResetCustomPaletteClick(object sender, RoutedEventArgs e)
+        {
+            _customHexOverride = null;
+            if (CustomPaletteHexBox != null) CustomPaletteHexBox.Text = "";
+            if (CustomPaletteSwatch != null) CustomPaletteSwatch.Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+            if (CustomPaletteStatusText != null) CustomPaletteStatusText.Visibility = Visibility.Collapsed;
+            RefreshWebView();
+            ViewModel.StatusMessage = $"Reset to default palette: {ViewModel.SelectedPalette}";
             if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);
             PaletteFlyout?.Hide();
         }
