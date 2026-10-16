@@ -54,6 +54,9 @@ namespace MarkSmith.Views.ShapeStudio
         private (double X, double Y, double W, double H) _resizeFrom;
         private Point _resizeStart;
         private bool _resized;
+        private Border? _resizeDimensionBadge;
+        private TextBlock? _resizeDimensionBadgeText;
+        private Microsoft.UI.Xaml.Shapes.Line? _resizeAspectGuide;
 
         // Drag-to-draw with an armed tool
         private bool _drawing;
@@ -1037,6 +1040,15 @@ namespace MarkSmith.Views.ShapeStudio
         private void OnShapeDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
             if (sender is not FrameworkElement fe || fe.DataContext is not ShapeCanvasItemViewModel shape) return;
+            if (IsDown(VirtualKey.Menu))
+            {
+                e.Handled = true;
+                ViewModel.RecordUndo();
+                shape.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle(360 - shape.Rotation);
+                ViewModel.StatusMessage = $"Flipped {shape.DisplayName.ToLowerInvariant()} horizontally ({shape.Rotation}°) · Ctrl+Z to undo";
+                UpdateAdorner();
+                return;
+            }
             ViewModel.ClickSelect(shape);
             if (LabelTextBox is not null)
             {
@@ -1690,7 +1702,9 @@ namespace MarkSmith.Views.ShapeStudio
                 h.PointerPressed += OnHandlePointerPressed;
                 h.PointerMoved += OnHandlePointerMoved;
                 h.PointerReleased += OnHandlePointerReleased;
-                h.PointerCaptureLost += (_, _) => _resizeEdges = ShapeDesignStudioViewModel.ResizeEdges.None;
+                h.DoubleTapped += OnHandleDoubleTapped;
+                h.RightTapped += OnHandleRightTapped;
+                h.PointerCaptureLost += (_, _) => { _resizeEdges = ShapeDesignStudioViewModel.ResizeEdges.None; HideResizeVisuals(); };
                 SelectionAdorner.Children.Add(h);
                 _handles.Add((h, edges));
             }
@@ -1758,6 +1772,37 @@ namespace MarkSmith.Views.ShapeStudio
                 Child = _rotateAngleBadgeText
             };
             SelectionAdorner.Children.Add(_rotateAngleBadge);
+
+            _resizeAspectGuide = new Microsoft.UI.Xaml.Shapes.Line
+            {
+                Stroke = new SolidColorBrush(AccentColor(0x80)),
+                StrokeThickness = 1.0,
+                StrokeDashArray = new DoubleCollection { 2, 2 },
+                IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed
+            };
+            SelectionAdorner.Children.Add(_resizeAspectGuide);
+
+            _resizeDimensionBadgeText = new TextBlock
+            {
+                FontSize = 10.5,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            _resizeDimensionBadge = new Border
+            {
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xEE, 0x18, 0x20, 0x2C)),
+                BorderBrush = new SolidColorBrush(AccentColor(0xCC)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(7, 2, 7, 2),
+                IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed,
+                Child = _resizeDimensionBadgeText
+            };
+            SelectionAdorner.Children.Add(_resizeDimensionBadge);
         }
 
         private void TrackAdornedShape(ShapeCanvasItemViewModel? shape)
@@ -2021,14 +2066,17 @@ namespace MarkSmith.Views.ShapeStudio
                 _resized = true;
                 ViewModel.RecordUndo();
             }
-            ViewModel.ResizeShape(s, _resizeFrom, _resizeEdges, dx, dy, keepAspect: IsDown(VirtualKey.Shift));
+            bool keepAspect = IsDown(VirtualKey.Shift);
+            ViewModel.ResizeShape(s, _resizeFrom, _resizeEdges, dx, dy, keepAspect: keepAspect);
             ViewModel.StatusMessage = ShapeDesignStudioViewModel.FormatResizeStatus(s, completed: false);
+            UpdateResizeVisuals(s, cur, keepAspect);
             e.Handled = true;
         }
 
         private void OnHandlePointerReleased(object sender, PointerRoutedEventArgs e)
         {
             if (_resizeEdges == ShapeDesignStudioViewModel.ResizeEdges.None) return;
+            HideResizeVisuals();
             if (sender is UIElement h) h.ReleasePointerCapture(e.Pointer);
             if (_resized && _adornedShape is { } s)
                 ViewModel.StatusMessage = ShapeDesignStudioViewModel.FormatResizeStatus(s, completed: true);
@@ -2102,9 +2150,25 @@ namespace MarkSmith.Views.ShapeStudio
 
             ViewModel.RecordUndo();
             int curAngle = ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation);
-            int nextAngle = ShapeDesignStudioViewModel.WrapRotationAngle(curAngle + change);
+            int rawNext = ShapeDesignStudioViewModel.WrapRotationAngle(curAngle + change);
+            int nextAngle = rawNext;
+            bool snapped = false;
+
+            int[] detents = { 0, 45, 90, 135, 180, 225, 270, 315, 360 };
+            foreach (var d in detents)
+            {
+                int normD = d % 360;
+                if (Math.Abs(rawNext - normD) <= 2 || Math.Abs(rawNext - (normD + 360)) <= 2)
+                {
+                    nextAngle = normD;
+                    snapped = true;
+                    break;
+                }
+            }
+
             s.Rotation = nextAngle;
-            ViewModel.StatusMessage = $"Turned {s.DisplayName.ToLowerInvariant()} to {nextAngle}° via wheel{(shift ? " (15° snap)" : (alt ? " (fine 1°)" : " (5° step)"))} · Ctrl+Z to undo";
+            UpdateRotateVisuals(s, nextAngle, snapped || shift);
+            ViewModel.StatusMessage = $"Turned {s.DisplayName.ToLowerInvariant()} to {nextAngle}° via wheel{(snapped ? " (magnetic snap)" : (shift ? " (15° snap)" : (alt ? " (fine 1°)" : " (5° step)")))} · Ctrl+Z to undo";
         }
 
         private void OnRotateHandleRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -2240,6 +2304,117 @@ namespace MarkSmith.Views.ShapeStudio
             _rotateArcOverlay.Data = geo;
             _rotateArcOverlay.StrokeThickness = 1.25 / z;
             _rotateArcOverlay.Visibility = Visibility.Visible;
+        }
+
+        private void OnHandleDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (sender is not Microsoft.UI.Xaml.Shapes.Rectangle h || _adornedShape is not { } s) return;
+            e.Handled = true;
+            ViewModel.RecordUndo();
+            double avg = Math.Round((s.Width + s.Height) / 2.0);
+            s.Width = avg;
+            s.Height = avg;
+            ViewModel.StatusMessage = $"Snapped {s.DisplayName.ToLowerInvariant()} to 1:1 square ({avg:F0} × {avg:F0} px) · Ctrl+Z to undo";
+            UpdateAdorner();
+        }
+
+        private void OnHandleRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (sender is not Microsoft.UI.Xaml.Shapes.Rectangle h || _adornedShape is not { } s) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            flyout.Items.Add(ShapeMenuItem("Square 1:1", "\uE739", () =>
+            {
+                ViewModel.RecordUndo();
+                double sz = Math.Round((s.Width + s.Height) / 2.0);
+                s.Width = s.Height = sz;
+                ViewModel.StatusMessage = $"Set {s.DisplayName.ToLowerInvariant()} to 1:1 aspect ({sz:F0} × {sz:F0} px)";
+                UpdateAdorner();
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Standard 4:3", "\uE7C3", () =>
+            {
+                ViewModel.RecordUndo();
+                s.Height = Math.Round(s.Width * 0.75);
+                ViewModel.StatusMessage = $"Set {s.DisplayName.ToLowerInvariant()} to 4:3 aspect ({s.Width:F0} × {s.Height:F0} px)";
+                UpdateAdorner();
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Widescreen 16:9", "\uE7F4", () =>
+            {
+                ViewModel.RecordUndo();
+                s.Height = Math.Round(s.Width * 9.0 / 16.0);
+                ViewModel.StatusMessage = $"Set {s.DisplayName.ToLowerInvariant()} to 16:9 aspect ({s.Width:F0} × {s.Height:F0} px)";
+                UpdateAdorner();
+            }));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Double size (200%)", "\uE71F", () =>
+            {
+                ViewModel.RecordUndo();
+                s.Width = Math.Round(s.Width * 2.0);
+                s.Height = Math.Round(s.Height * 2.0);
+                ViewModel.StatusMessage = $"Scaled {s.DisplayName.ToLowerInvariant()} to 200% ({s.Width:F0} × {s.Height:F0} px)";
+                UpdateAdorner();
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Half size (50%)", "\uE740", () =>
+            {
+                ViewModel.RecordUndo();
+                s.Width = Math.Max(10.0, Math.Round(s.Width * 0.5));
+                s.Height = Math.Max(10.0, Math.Round(s.Height * 0.5));
+                ViewModel.StatusMessage = $"Scaled {s.DisplayName.ToLowerInvariant()} to 50% ({s.Width:F0} × {s.Height:F0} px)";
+                UpdateAdorner();
+            }));
+
+            flyout.ShowAt(h, e.GetPosition(h));
+        }
+
+        private void UpdateResizeVisuals(ShapeCanvasItemViewModel s, Point cur, bool keepAspect)
+        {
+            if (_resizeDimensionBadge == null || _resizeDimensionBadgeText == null || _resizeAspectGuide == null) return;
+            double z = Math.Max(0.05, CanvasScroller.ZoomFactor);
+
+            string ratioText = "";
+            if (s.Height > 0)
+            {
+                double ratio = s.Width / s.Height;
+                if (Math.Abs(ratio - 1.0) < 0.04) ratioText = " (1:1)";
+                else if (Math.Abs(ratio - 4.0 / 3.0) < 0.04) ratioText = " (4:3)";
+                else if (Math.Abs(ratio - 16.0 / 9.0) < 0.04) ratioText = " (16:9)";
+                else if (Math.Abs(ratio - 2.0) < 0.04) ratioText = " (2:1)";
+            }
+
+            _resizeDimensionBadgeText.Text = $"{(int)Math.Round(s.Width)} × {(int)Math.Round(s.Height)} px{ratioText}";
+            _resizeDimensionBadgeText.FontSize = Math.Max(9.0, 10.5 / Math.Sqrt(z));
+            _resizeDimensionBadge.BorderThickness = new Thickness(1.0 / z);
+            _resizeDimensionBadge.CornerRadius = new CornerRadius(10.0 / z);
+            _resizeDimensionBadge.Padding = new Thickness(7.0 / z, 2.0 / z, 7.0 / z, 2.0 / z);
+            _resizeDimensionBadge.Visibility = Visibility.Visible;
+            Canvas.SetLeft(_resizeDimensionBadge, cur.X + (12.0 / z));
+            Canvas.SetTop(_resizeDimensionBadge, cur.Y - (24.0 / z));
+
+            if (keepAspect)
+            {
+                _resizeAspectGuide.X1 = s.X;
+                _resizeAspectGuide.Y1 = s.Y;
+                _resizeAspectGuide.X2 = s.X + s.Width;
+                _resizeAspectGuide.Y2 = s.Y + s.Height;
+                _resizeAspectGuide.StrokeThickness = 1.0 / z;
+                _resizeAspectGuide.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                _resizeAspectGuide.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void HideResizeVisuals()
+        {
+            if (_resizeDimensionBadge != null) _resizeDimensionBadge.Visibility = Visibility.Collapsed;
+            if (_resizeAspectGuide != null) _resizeAspectGuide.Visibility = Visibility.Collapsed;
         }
 
         private void OnAlignLeftDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

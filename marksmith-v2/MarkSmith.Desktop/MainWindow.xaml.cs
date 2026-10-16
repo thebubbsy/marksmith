@@ -9662,8 +9662,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnCursorPosTextDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
     {
-        _ = ShowGoToLineDialogAsync();
         e.Handled = true;
+        if (_viewMode == ViewMode.Split)
+        {
+            if (FindEditorScrollViewer() is { } sv)
+            {
+                var frac = sv.ScrollableHeight > 0 ? Math.Clamp(sv.VerticalOffset / sv.ScrollableHeight, 0.0, 1.0) : 0.0;
+                var fracStr = frac.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+                _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync($"if(window.__msSyncScrollFromEditor)window.__msSyncScrollFromEditor({fracStr});");
+                AnnounceStatus($"Split View synced: Preview aligned to current position ({CursorPosText?.Text})");
+                return;
+            }
+        }
+        _ = ShowGoToLineDialogAsync();
     }
 
     private void OnCursorPosTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -9834,6 +9845,27 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
         };
         menu.Items.Add(jumpEndItem);
+
+        if (_viewMode == ViewMode.Split)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var syncPreviewItem = new MenuFlyoutItem
+            {
+                Text = "Align Preview to cursor position",
+                Icon = new FontIcon { Glyph = "\uE72A" }
+            };
+            syncPreviewItem.Click += (_, _) =>
+            {
+                if (FindEditorScrollViewer() is { } sv)
+                {
+                    var frac = sv.ScrollableHeight > 0 ? Math.Clamp(sv.VerticalOffset / sv.ScrollableHeight, 0.0, 1.0) : 0.0;
+                    var fracStr = frac.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+                    _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync($"if(window.__msSyncScrollFromEditor)window.__msSyncScrollFromEditor({fracStr});");
+                    AnnounceStatus($"Aligned Preview to {pos}");
+                }
+            };
+            menu.Items.Add(syncPreviewItem);
+        }
 
         if (menu.Items.Count > 0)
         {

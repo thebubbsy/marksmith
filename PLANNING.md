@@ -8697,3 +8697,77 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 12792, `Alive: True`, `Responding: True`, clean exit.
 
+### 2026-10-16 19:30 AEST (run #115: MindMap Galaxy multi-selection bounding frame & group alignment pill, Shape Studio live resize floating dimensions badge & aspect overlay, SmartArt Studio bidirectional SVG node highlight & hover glow, MindMap Galaxy cluster drag alignment detents, Shape Studio magnetic wheel detents)
+
+- **Surface:** `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `MainWindow`.
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, pointer gestures, keyboard parity, split view synchronization, and diagram direct manipulation.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #114:
+    * Target A: `MindMapGalaxyWindow` multi-selection bounding box visual frame & drag group alignment detents.
+    * Target B: `ShapeDesignStudioWindow` rotation snap angle detents on wheel and resize handle gestures.
+    * Target C: `SmartArtDesignStudioWindow` direct visual feedback & outline sync / palette interaction.
+  - Generated:
+    1. `MindMapGalaxyWindow` Multi-Selection Bounding Frame & Interactive Group Pill (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`)
+    2. `ShapeDesignStudioWindow` Live Resize Floating Dimensions Badge & Aspect Ratio Overlay (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Added `_multiSelectFrame` (dashed rectangle in `GuideLayer` encompassing bounds of all selected nodes) and acrylic `_multiSelectBadge` pill (`"{count} nodes · {W} × {H} pt"`). Double-tapping the badge auto-aligns horizontally and distributes spacing. Right-tapping opens full context menu (Align H/V, Distribute H/V, Duplicate, Delete, Clear).
+    * For Idea 2: Added `_resizeDimensionBadge` and `_resizeAspectGuide` line in `SelectionAdorner`. Dragging any resize handle displays live dimensions and common aspect ratio tags (1:1, 4:3, 16:9, 2:1) right beside the handle. Double-tapping corner handle snaps to 1:1 square. Right-tapping opens ratio and scale presets.
+  - Generated:
+    3. `SmartArtDesignStudioWindow` Bidirectional Selection Highlight & SVG Visual Hover Glow (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`)
+    4. `MindMapGalaxyWindow` Cluster Drag Alignment Snapping & Guide Lines (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Injected `window.__msHighlightSmartArtNode` in `BuildWrapperHtml` and wired `SelectedNode` property changes to execute script, highlighting corresponding SVG group with accent glow and outline. Added SVG hover feedback for interactive shapes.
+    * For Idea 4: Extended drag alignment snapping to group dragging, testing cluster leading/center edges against unselected nodes and drawing live dashed alignment lines during multi-node translation.
+  - Refined Block 1 (Pass 2 - Final):
+    * Ensured `_multiSelectFrame` and `_multiSelectBadge` scale their stroke and font inversely with `zoom` and collapse cleanly when count < 2.
+    * Handled resize dimension badge clamp and auto-flip when near canvas edges.
+  - Generated:
+    5. `ShapeDesignStudioWindow` Rotation Snap Angle Detents on Wheel & Alt+Double-Tap Flip (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`)
+    6. `MainWindow` Split View Line Indicator & Direct Alignment Feedback (`MainWindow.xaml`, `MainWindow.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Magnetic detents on mouse wheel within ±2° of major angles (0°, 45°, 90°, 135°, 180°, 225°, 270°, 315°), snapping into place with status confirmation. Double-tapping canvas with Alt flips shape horizontally.
+    * For Idea 6: Double-clicking status bar line/col indicator triggers Split View alignment with preview and shows sync lock status.
+  - Executed all 6 refined ideas into 100% production code.
+  - Verification:
+    * `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`
+    * `MarkSmith.Tests.dll` test suite execution
+    * Live WinUI 3 smoke launch
+  - Carried forward ideas / next targets into Run #116 (`MindMapGalaxyWindow` lasso selection gesture, `SmartArtDesignStudioWindow` SVG direct node drag-to-reparent, `ShapeDesignStudioWindow` multi-shape group rotation pivot).
+
+**Shipped:**
+1. **`MindMapGalaxyWindow` Multi-Selection Bounding Frame & Interactive Group Pill (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Renders a live dashed bounding frame (`_multiSelectFrame`) in `GuideLayer` around all selected nodes with inverted zoom stroke scaling.
+   - Interactive acrylic pill (`_multiSelectBadge`) displays `"{count} nodes · {W} × {H} pt"` directly above the selection.
+   - Double-tapping badge auto-aligns selected nodes horizontally and spaces them evenly with full undo support.
+   - Right-tapping badge opens a rich context menu with "Align horizontally", "Align vertically", "Distribute evenly horizontally/vertically", "Copy titles as Markdown bullets (Ctrl+C)", "Delete selected nodes (Del)", and "Deselect all (Esc)".
+   - Supports individual Shift/Ctrl click multi-selection toggling alongside empty space click-to-clear.
+2. **`MindMapGalaxyWindow` Cluster Drag Alignment Snapping & Guide Lines (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - When dragging a selected cluster, snapping automatically ignores nodes within the moving group and anchors against static landmarks in the galaxy.
+   - Shows live dashed alignment guide lines (`_snapGuideX`, `_snapGuideY`) during cluster translation and updates the multi-selection bounding frame on gesture release.
+3. **`ShapeDesignStudioWindow` Live Resize Floating Dimensions Badge & Aspect Ratio Overlay (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Displays an acrylic floating dimensions badge (`_resizeDimensionBadge`) beside the active handle showing `"{W} × {H} px"` with automatic aspect tags (`(1:1)`, `(4:3)`, `(16:9)`, `(2:1)`).
+   - Draws a live dashed diagonal aspect guide line (`_resizeAspectGuide`) across the shape when Shift (aspect ratio lock) is held.
+   - Double-tapping any corner resize handle snaps the shape to a 1:1 square/circle.
+   - Right-tapping any resize handle opens a context menu with aspect ratio presets (Square 1:1, 4:3, 16:9) and scale multipliers (200%, 50%).
+4. **`ShapeDesignStudioWindow` Magnetic Rotation Wheel Detents & Alt+Double-Tap Flip (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Rolling the mouse wheel over the rotate handle snaps magnetically into major angles (0°, 45°, 90°, 135°, 180°, 225°, 270°, 315°) within ±2° and updates the live sector arc and degrees badge in lockstep.
+   - Double-tapping a shape while holding Alt flips the shape horizontally (360° - rotation).
+5. **`SmartArtDesignStudioWindow` Bidirectional Selection Highlight & SVG Visual Hover Glow (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Injected `window.__msHighlightSmartArtNode` into preview WebView2, illuminating the corresponding SVG diagram element with an accent glow and outline whenever an outline row is selected.
+   - Added interactive hover brightness transitions on preview SVG groups and double-click empty space reset to auto-fit view.
+6. **`MainWindow` Split View Line Indicator & Direct Alignment Feedback (`MainWindow.xaml.cs`):**
+   - Double-clicking `CursorPosText` ("Ln X, Col Y") in Split View mode forces instant scroll alignment between the editor position and preview.
+   - Right-clicking `CursorPosText` in Split View surfaces an "Align Preview to cursor position" quick action.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 19084, `Alive: True`, clean exit.
+
+
+

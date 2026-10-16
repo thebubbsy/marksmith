@@ -42,6 +42,9 @@ namespace MarkSmith.Views.MindMap
         private Microsoft.UI.Xaml.Shapes.Line? _snapGuideX;
         private Microsoft.UI.Xaml.Shapes.Line? _snapGuideY;
         private Microsoft.UI.Xaml.Shapes.Rectangle? _marqueeBox;
+        private Microsoft.UI.Xaml.Shapes.Rectangle? _multiSelectFrame;
+        private Border? _multiSelectBadge;
+        private TextBlock? _multiSelectBadgeText;
         private bool _isMarquee;
         private Point _marqueeStartScreen;
         private bool _marqueeAdditive;
@@ -117,6 +120,39 @@ namespace MarkSmith.Views.MindMap
                 IsHitTestVisible = false
             };
             GuideLayer.Children.Add(_marqueeBox);
+
+            _multiSelectFrame = new Microsoft.UI.Xaml.Shapes.Rectangle
+            {
+                Stroke = new SolidColorBrush(_palette.HighlightBorder),
+                StrokeThickness = 1.0,
+                StrokeDashArray = new DoubleCollection { 3, 2 },
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false
+            };
+            GuideLayer.Children.Add(_multiSelectFrame);
+
+            _multiSelectBadgeText = new TextBlock
+            {
+                FontSize = 10.5,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            _multiSelectBadge = new Border
+            {
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xEE, 0x18, 0x20, 0x2C)),
+                BorderBrush = new SolidColorBrush(_palette.HighlightBorder),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(8, 2, 8, 2),
+                IsHitTestVisible = true,
+                Visibility = Visibility.Collapsed,
+                Child = _multiSelectBadgeText
+            };
+            _multiSelectBadge.DoubleTapped += OnMultiSelectBadgeDoubleTapped;
+            _multiSelectBadge.RightTapped += OnMultiSelectBadgeRightTapped;
+            GuideLayer.Children.Add(_multiSelectBadge);
         }
 
         private void SizeForDisplay()
@@ -739,6 +775,242 @@ namespace MarkSmith.Views.MindMap
                 RedrawMinimapContent();
             }
             UpdateMinimapLens();
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void UpdateMultiSelectionAdorner()
+        {
+            if (_multiSelectFrame is null || _multiSelectBadge is null || _multiSelectBadgeText is null) return;
+            if (_isMarquee)
+            {
+                _multiSelectFrame.Visibility = Visibility.Collapsed;
+                _multiSelectBadge.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var selected = ViewModel.Nodes.Where(n => n.IsSelected).ToList();
+            if (selected.Count < 2)
+            {
+                _multiSelectFrame.Visibility = Visibility.Collapsed;
+                _multiSelectBadge.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            double minX = double.MaxValue, minY = double.MaxValue;
+            double maxX = double.MinValue, maxY = double.MinValue;
+            foreach (var n in selected)
+            {
+                if (n.X < minX) minX = n.X;
+                if (n.Y < minY) minY = n.Y;
+                if (n.X + n.Width > maxX) maxX = n.X + n.Width;
+                if (n.Y + n.Height > maxY) maxY = n.Y + n.Height;
+            }
+
+            double totalW = Math.Max(0, maxX - minX);
+            double totalH = Math.Max(0, maxY - minY);
+            double zoom = Math.Max(0.05, ViewModel.ZoomLevel);
+
+            Canvas.SetLeft(_multiSelectFrame, minX - 6);
+            Canvas.SetTop(_multiSelectFrame, minY - 6);
+            _multiSelectFrame.Width = totalW + 12;
+            _multiSelectFrame.Height = totalH + 12;
+            _multiSelectFrame.StrokeThickness = 1.25 / zoom;
+            _multiSelectFrame.Visibility = Visibility.Visible;
+
+            string badgeSummary = $"{selected.Count} nodes · {(int)Math.Round(totalW)} × {(int)Math.Round(totalH)} pt";
+            _multiSelectBadgeText.Text = badgeSummary;
+            _multiSelectBadgeText.FontSize = Math.Max(9.0, 11.0 / Math.Sqrt(zoom));
+            string fullTip = $"Selection: {badgeSummary} · Double-click to auto-align & space horizontally, Right-click for group options";
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_multiSelectBadge, fullTip);
+            ToolTipService.SetToolTip(_multiSelectBadge, fullTip);
+
+            Canvas.SetLeft(_multiSelectBadge, minX - 6);
+            Canvas.SetTop(_multiSelectBadge, Math.Max(-10000, minY - 6 - (28 / zoom)));
+            _multiSelectBadge.Visibility = Visibility.Visible;
+        }
+
+        private void OnMultiSelectBadgeDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var selected = ViewModel.Nodes.Where(n => n.IsSelected).OrderBy(n => n.X).ToList();
+            if (selected.Count < 2) return;
+
+            ViewModel.PushUndo($"Align {selected.Count} nodes");
+            double targetCenterY = selected[0].Y + selected[0].Height / 2.0;
+            double currentX = selected[0].X;
+
+            for (int i = 0; i < selected.Count; i++)
+            {
+                var n = selected[i];
+                n.Y = targetCenterY - n.Height / 2.0;
+                if (i > 0)
+                {
+                    currentX += 30.0;
+                    n.X = currentX;
+                }
+                currentX = n.X + n.Width;
+                n.SyncToModel();
+            }
+
+            ViewModel.IsDirty = true;
+            ViewModel.StatusMessage = $"Aligned & spaced {selected.Count} nodes horizontally · Ctrl+Z to undo";
+            RequestRedraw(RedrawScope.All);
+        }
+
+        private void OnMultiSelectBadgeRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var selected = ViewModel.Nodes.Where(n => n.IsSelected).ToList();
+            if (selected.Count < 2) return;
+
+            var flyout = new MenuFlyout();
+
+            var alignHItem = new MenuFlyoutItem
+            {
+                Text = "Align horizontally (center Y)",
+                Icon = new FontIcon { Glyph = "\uE8E3" }
+            };
+            alignHItem.Click += (_, _) =>
+            {
+                ViewModel.PushUndo($"Align {selected.Count} nodes horizontally");
+                double avgCenterY = selected.Average(n => n.Y + n.Height / 2.0);
+                foreach (var n in selected)
+                {
+                    n.Y = avgCenterY - n.Height / 2.0;
+                    n.SyncToModel();
+                }
+                ViewModel.IsDirty = true;
+                ViewModel.StatusMessage = $"Aligned {selected.Count} nodes horizontally";
+                RequestRedraw(RedrawScope.All);
+            };
+            flyout.Items.Add(alignHItem);
+
+            var alignVItem = new MenuFlyoutItem
+            {
+                Text = "Align vertically (center X)",
+                Icon = new FontIcon { Glyph = "\uE8E4" }
+            };
+            alignVItem.Click += (_, _) =>
+            {
+                ViewModel.PushUndo($"Align {selected.Count} nodes vertically");
+                double avgCenterX = selected.Average(n => n.X + n.Width / 2.0);
+                foreach (var n in selected)
+                {
+                    n.X = avgCenterX - n.Width / 2.0;
+                    n.SyncToModel();
+                }
+                ViewModel.IsDirty = true;
+                ViewModel.StatusMessage = $"Aligned {selected.Count} nodes vertically";
+                RequestRedraw(RedrawScope.All);
+            };
+            flyout.Items.Add(alignVItem);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var distHItem = new MenuFlyoutItem
+            {
+                Text = "Distribute evenly horizontally",
+                Icon = new FontIcon { Glyph = "\uE8E2" }
+            };
+            distHItem.Click += (_, _) =>
+            {
+                if (selected.Count < 3) return;
+                ViewModel.PushUndo($"Distribute {selected.Count} nodes horizontally");
+                var ordered = selected.OrderBy(n => n.X).ToList();
+                double startX = ordered.First().X;
+                double endX = ordered.Last().X + ordered.Last().Width;
+                double totalNodeWidth = ordered.Sum(n => n.Width);
+                double gap = Math.Max(20.0, (endX - startX - totalNodeWidth) / (ordered.Count - 1));
+                double curr = startX;
+                for (int i = 0; i < ordered.Count; i++)
+                {
+                    ordered[i].X = curr;
+                    curr += ordered[i].Width + gap;
+                    ordered[i].SyncToModel();
+                }
+                ViewModel.IsDirty = true;
+                ViewModel.StatusMessage = $"Distributed {selected.Count} nodes horizontally";
+                RequestRedraw(RedrawScope.All);
+            };
+            distHItem.IsEnabled = selected.Count >= 3;
+            flyout.Items.Add(distHItem);
+
+            var distVItem = new MenuFlyoutItem
+            {
+                Text = "Distribute evenly vertically",
+                Icon = new FontIcon { Glyph = "\uE74B" }
+            };
+            distVItem.Click += (_, _) =>
+            {
+                if (selected.Count < 3) return;
+                ViewModel.PushUndo($"Distribute {selected.Count} nodes vertically");
+                var ordered = selected.OrderBy(n => n.Y).ToList();
+                double startY = ordered.First().Y;
+                double endY = ordered.Last().Y + ordered.Last().Height;
+                double totalNodeHeight = ordered.Sum(n => n.Height);
+                double gap = Math.Max(20.0, (endY - startY - totalNodeHeight) / (ordered.Count - 1));
+                double curr = startY;
+                for (int i = 0; i < ordered.Count; i++)
+                {
+                    ordered[i].Y = curr;
+                    curr += ordered[i].Height + gap;
+                    ordered[i].SyncToModel();
+                }
+                ViewModel.IsDirty = true;
+                ViewModel.StatusMessage = $"Distributed {selected.Count} nodes vertically";
+                RequestRedraw(RedrawScope.All);
+            };
+            distVItem.IsEnabled = selected.Count >= 3;
+            flyout.Items.Add(distVItem);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var copyTitlesItem = new MenuFlyoutItem
+            {
+                Text = $"Copy {selected.Count} titles as Markdown bullets (Ctrl+C)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyTitlesItem.Click += (_, _) =>
+            {
+                var md = string.Join(Environment.NewLine, selected.Select(n => $"- {n.Title}"));
+                _ = Services.ClipboardWriter.TrySetTextAsync(md);
+                ViewModel.StatusMessage = $"Copied {selected.Count} node titles to clipboard";
+            };
+            flyout.Items.Add(copyTitlesItem);
+
+            var deleteItem = new MenuFlyoutItem
+            {
+                Text = $"Delete {selected.Count} selected nodes (Del)",
+                Icon = new FontIcon { Glyph = "\uE74D" }
+            };
+            deleteItem.Click += (_, _) =>
+            {
+                ViewModel.PushUndo($"Delete {selected.Count} nodes");
+                foreach (var n in selected)
+                {
+                    ViewModel.DeleteNode(n);
+                }
+                ViewModel.StatusMessage = $"Deleted {selected.Count} nodes";
+                RequestRedraw(RedrawScope.All);
+            };
+            flyout.Items.Add(deleteItem);
+
+            var clearItem = new MenuFlyoutItem
+            {
+                Text = "Deselect all (Esc)",
+                Icon = new FontIcon { Glyph = "\uE711" }
+            };
+            clearItem.Click += (_, _) =>
+            {
+                foreach (var n in selected) n.IsSelected = false;
+                UpdateMultiSelectionAdorner();
+                RequestRedraw(RedrawScope.Appearance);
+                ViewModel.StatusMessage = "Cleared selection";
+            };
+            flyout.Items.Add(clearItem);
+
+            if (_multiSelectBadge != null)
+                flyout.ShowAt(_multiSelectBadge, e.GetPosition(_multiSelectBadge));
         }
 
         /// <summary>Kept for callers that just want "something changed, redraw".</summary>
@@ -1659,7 +1931,21 @@ namespace MarkSmith.Views.MindMap
             {
                 e.Handled = true;
                 GalaxyCanvas.Focus(FocusState.Programmatic);
-                ViewModel.SelectedNode = node;
+                if (IsShiftDown() || IsCtrlDown())
+                {
+                    node.IsSelected = !node.IsSelected;
+                    ViewModel.SelectedNode = node;
+                }
+                else if (!node.IsSelected)
+                {
+                    foreach (var n in ViewModel.Nodes) n.IsSelected = false;
+                    node.IsSelected = true;
+                    ViewModel.SelectedNode = node;
+                }
+                else
+                {
+                    ViewModel.SelectedNode = node;
+                }
                 _ = node.RefreshVersionHistoryAsync(AppServices.VersionHistory);
 
                 // A right-click selects the card and opens its menu; it mustn't also start a drag
@@ -2427,7 +2713,7 @@ namespace MarkSmith.Views.MindMap
                 {
                     foreach (var other in ViewModel.Nodes)
                     {
-                        if (other.Id == _draggedNode.Id) continue;
+                        if (other.Id == _draggedNode.Id || (_draggedNode.IsSelected && other.IsSelected)) continue;
                         double otherCenterX = other.X + other.Width / 2.0;
                         double otherCenterY = other.Y + other.Height / 2.0;
 
@@ -2615,6 +2901,7 @@ namespace MarkSmith.Views.MindMap
             _dragMovedNode = false;
             SetCursor(GalaxyCanvas, Microsoft.UI.Input.InputSystemCursorShape.Arrow);
             if (wasDragging) RequestRedraw(RedrawScope.Appearance);
+            UpdateMultiSelectionAdorner();
         }
 
         private void ShowNodeConnectionsContextMenu(MindMapNodeViewModel node, UIElement target, Point position)

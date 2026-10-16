@@ -73,6 +73,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 else if (e.PropertyName == nameof(ViewModel.SelectedNode))
                 {
                     ScrollSelectedOutlineRowIntoView();
+                    SyncSvgSelectedNode();
                 }
             };
             this.Activated += OnWindowActivated;
@@ -575,6 +576,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 await PreviewWebView.EnsureCoreWebView2Async(env);
                 _isWebViewReady = true;
                 PreviewWebView.CoreWebView2.WebMessageReceived += OnPreviewWebMessageReceived;
+                PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => SyncSvgSelectedNode();
                 RefreshWebView();
             }
             catch { /* preview unavailable — insert path still works */ }
@@ -588,6 +590,14 @@ namespace MarkSmith.Views.SmartArtStudio
                 string html = BuildWrapperHtml(ViewModel.PreviewHtml, isDark);
                 PreviewWebView.CoreWebView2.NavigateToString(html);
             }
+        }
+
+        private void SyncSvgSelectedNode()
+        {
+            if (PreviewWebView?.CoreWebView2 == null) return;
+            string text = ViewModel.SelectedNode?.Text ?? "";
+            string esc = text.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\r", "").Replace("\n", " ");
+            _ = PreviewWebView.CoreWebView2.ExecuteScriptAsync($"if(window.__msHighlightSmartArtNode) window.__msHighlightSmartArtNode('{esc}');");
         }
 
         // The renderer emits a card sized for documents (800 wide, as tall as the layout needs) with
@@ -607,6 +617,13 @@ namespace MarkSmith.Views.SmartArtStudio
   .smartart-container{{width:100%!important;max-width:none!important;height:100%!important;display:flex;flex-direction:column;padding:12px;box-sizing:border-box;background:{cardBg}!important;border:1px solid {cardBorder}!important;border-radius:8px!important;box-shadow:{cardShadow}!important}}
   .smartart-container > .smartart-caption{{display:none}}
   .smartart-container > svg{{flex:1;min-height:0;width:100%!important;height:100%!important}}
+  .smartart-container svg g {{ transition: filter 0.12s ease, opacity 0.15s ease; }}
+  .smartart-container svg g:hover {{ filter: brightness(1.08); }}
+  .smartart-selected {{
+    outline: 2.5px solid #0078D4 !important;
+    outline-offset: 3px !important;
+    filter: drop-shadow(0 0 8px rgba(0,120,212,0.65)) !important;
+  }}
 </style></head>
 <body>
   {body}
@@ -635,12 +652,39 @@ namespace MarkSmith.Views.SmartArtStudio
     }});
     s.addEventListener('dblclick', function(e) {{
       var el = e.target.closest('g, text, rect, circle, polygon, path');
-      if (!el) return;
-      var text = (el.textContent || '').trim();
-      if (text) {{
-        try {{ window.chrome.webview.postMessage(JSON.stringify({{ type: 'node-edit', text: text }})); }} catch(err) {{}}
+      if (el) {{
+        var text = (el.textContent || '').trim();
+        if (text) {{
+          try {{ window.chrome.webview.postMessage(JSON.stringify({{ type: 'node-edit', text: text }})); }} catch(err) {{}}
+          return;
+        }}
+      }}
+      if (s.getBBox) {{
+        var b = s.getBBox(), pad = 20;
+        if (b.width && b.height) {{
+          var w = Math.max(b.width + pad * 2, 560), h = Math.max(b.height + pad * 2, 340);
+          var cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+          s.setAttribute('viewBox', (cx - w / 2) + ' ' + (cy - h / 2) + ' ' + w + ' ' + h);
+        }}
       }}
     }});
+
+    window.__msHighlightSmartArtNode = function(text) {{
+      var prevs = document.querySelectorAll('.smartart-selected');
+      for (var p = 0; p < prevs.length; p++) {{
+        prevs[p].classList.remove('smartart-selected');
+      }}
+      if (!text) return;
+      var targets = s.querySelectorAll('g, text, rect, circle, polygon, path');
+      for (var i = 0; i < targets.length; i++) {{
+        var t = (targets[i].textContent || '').trim();
+        if (t && (t === text || t.indexOf(text) !== -1 || text.indexOf(t) !== -1)) {{
+          var parentG = targets[i].closest('g') || targets[i];
+          parentG.classList.add('smartart-selected');
+          break;
+        }}
+      }}
+    }};
   }})();
 </script>
 </body></html>";
@@ -664,6 +708,7 @@ namespace MarkSmith.Views.SmartArtStudio
                         if (match != null)
                         {
                             ViewModel.Select(match);
+                            SyncSvgSelectedNode();
                             if (type == "node-edit")
                             {
                                 BeginRenameAndFocus(match);
