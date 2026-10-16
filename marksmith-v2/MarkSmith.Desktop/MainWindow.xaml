@@ -2223,6 +2223,18 @@
                                Tapped="OnCursorPosTextTapped" DoubleTapped="OnCursorPosTextDoubleTapped"
                                RightTapped="OnCursorPosTextRightTapped"
                                ToolTipService.ToolTip="Cursor position · Click or double-click to jump to line (Ctrl+G), right-click for options" />
+                    <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                    <HyperlinkButton x:Name="StatusZoomButton" Click="OnStatusZoomButtonClick"
+                                     DoubleTapped="OnStatusZoomButtonDoubleTapped"
+                                     RightTapped="OnStatusZoomButtonRightTapped"
+                                     Padding="4,1" FontSize="11.5" Opacity="0.85"
+                                     ToolTipService.ToolTip="Preview zoom: 100% · Click to change, Double-click to reset (100%), Right-click for presets"
+                                     AutomationProperties.Name="Preview zoom level">
+                        <StackPanel Orientation="Horizontal" Spacing="3">
+                            <FontIcon Glyph="&#xE71E;" FontSize="10.5" />
+                            <TextBlock x:Name="StatusZoomText" Text="100%" />
+                        </StackPanel>
+                    </HyperlinkButton>
                 </StackPanel>
             </Grid>
         </Border>

@@ -510,8 +510,8 @@ namespace MarkSmith.Core.Preview
                 for (int d = 0; d < depth; d++)
                 {
                     double bx = Pad + d * colW;
-                    sb.Append($"<rect x=\"{F(bx + 2)}\" y=\"{F(Pad)}\" width=\"{F(colW - 4)}\" height=\"{F(h - Pad * 2)}\" rx=\"6\" fill=\"{Tint(LevelColors[0], d % 2 == 0 ? 0.9 : 0.82)}\"/>");
-                    sb.Append($"<rect x=\"{F(bx + 2)}\" y=\"{F(Pad)}\" width=\"{F(colW - 4)}\" height=\"30\" rx=\"6\" fill=\"{Tint(LevelColors[0], 0.55)}\"/>");
+                    sb.Append($"<rect x=\"{F(bx + 2)}\" y=\"{F(Pad)}\" width=\"{F(colW - 4)}\" height=\"{F(h - Pad * 2)}\" rx=\"6\" fill=\"{Tint(CurrentLevelColors[0], d % 2 == 0 ? 0.9 : 0.82)}\"/>");
+                    sb.Append($"<rect x=\"{F(bx + 2)}\" y=\"{F(Pad)}\" width=\"{F(colW - 4)}\" height=\"30\" rx=\"6\" fill=\"{Tint(CurrentLevelColors[0], 0.55)}\"/>");
                     sb.Append($"<text x=\"{F(bx + colW / 2)}\" y=\"{F(Pad + 20)}\" text-anchor=\"middle\" font-size=\"12\" font-weight=\"600\" fill=\"{Ink}\">Level {d + 1}</text>");
                 }
             }
@@ -520,7 +520,7 @@ namespace MarkSmith.Core.Preview
             var nodes = new StringBuilder();
             foreach (var n in All(roots))
             {
-                string color = LevelColors[n.Depth % LevelColors.Length];
+                string color = CurrentLevelColors[n.Depth % CurrentLevelColors.Length];
                 if (style == HTreeStyle.MultiLevel)
                 {
                     double bx = Pad + n.Depth * colW + 6, bw = colW - 12;

@@ -8842,3 +8842,81 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
 - `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 4024, responsive startup, clean exit.
+
+
+
+
+### 2026-10-16 21:45 AEST (run #117: MindMap Galaxy dynamic subtree weight allocation & expand/collapse branch folding, Shape Studio distribution spacing badges & magnetic alignment snap guides, SmartArt Studio live palette engine colorization & 6-color swatch flyout, MainWindow status bar zoom indicator)
+
+- **Surface:** `MindMapGalaxyWindow`, `MindMapLayoutEngine`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HtmlPreviewRenderer`, `MainWindow`.
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering layout optimization, geometric distribution affordances, palette preview fidelity, and status bar zoom controls under the AI-Executable 3-Block Cycle + Execution Phase Protocol (`GEMINI.md` Rule 7).
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #116:
+    * Target A: `MindMapGalaxyWindow` radial layout arrangement algorithm & animated tree expansion.
+    * Target B: `ShapeDesignStudioWindow` shape alignment distribution spacing badges & smart snap guides.
+    * Target C: `SmartArtDesignStudioWindow` color palette live preset preview chips.
+  - Generated:
+    1. `MindMapLayoutEngine`: Dynamic Subtree Weight Allocation in `PlaceRadial` (`marksmith-v2/MarkSmith.Core/Services/MindMap/MindMapLayoutEngine.cs`)
+    2. `MindMapGalaxyWindow`: Subtree Expand/Collapse Toggle Badges & Branch Folding (`marksmith-v2/MarkSmith.Desktop/Views/MindMap/MindMapGalaxyWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `PlaceRadial` from static uniform circular distribution ($2\pi / N$) to dynamic subtree weight allocation based on descendant branch leaf count. Heavy branches receive proportional angular sectors so sub-nodes never collide or overlap, while single-child branches remain compact.
+    * For Idea 2: Surfaced subtree expand/collapse toggle pill on node cards when child nodes exist (`v.CollapseToggle`). Displays `+N` badge when collapsed and `−` when expanded. Culls descendants and connecting edges from view in `UpdateAppearance` when any ancestor is collapsed. Added radial fan-out branch action and keyboard accelerators (`Space` to toggle subtree collapse, `Alt+R` to apply radial layout).
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Multi-Shape Distribution Spacing Badges (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`)
+    4. `ShapeDesignStudioWindow`: Magnetic Alignment Snap Guides (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Added interactive spacing dimension badges (`[ = 24 px ]` / `[ d = 24 px ]`) rendered between adjacent shapes in a multi-selection inside `MultiSelectionAdorner`. Badges display equal spacing or differing spacing with delta, support double-tap to equalize distribution, and right-tap to apply standard spacing presets (0, 8, 16, 24, 32, 48 px) or custom exact spacing.
+    * For Idea 4: Introduced magnetic alignment snap guides (`_snapGuideX`, `_snapGuideY`) during shape and cluster dragging. Automatically snaps moving shape edges and centers to neighboring shape bounds within 6 px threshold and draws live dashed alignment guide lines.
+  - Refined Block 1 (Pass 2 - Final):
+    * Preserved full backward compatibility across `HtmlPreviewRenderer` with `[ThreadStatic]` palette ramp storage and optional parameters.
+    * Connected `NodeVisual` and `EdgeVisual` visibility propagation with recursive ancestor hierarchy checks.
+  - Generated:
+    5. `HtmlPreviewRenderer` & `SmartArtDesignStudioViewModel`: Real Palette Engine Colorization (`MarkSmith.Core/Preview/HtmlPreviewRenderer.cs`, `HtmlPreviewRenderer.Variants.*.cs`, `SmartArtDesignStudioViewModel.cs`)
+    6. `SmartArtDesignStudioWindow`: Rich 6-Color Swatch Block Palette Flyout (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`)
+    7. `MainWindow`: Status Bar Live Zoom Indicator & Quick Presets (`MainWindow.xaml`, `MainWindow.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Added color ramp resolution for 6 standard themes (`Modern Teal`, `Deep Blue`, `Forest Green`, `Sunset Amber`, `Warm Earth`, `Monochrome Slate`) across both Core rendering and Desktop studio views.
+    * For Idea 6: Replaced simple dropdown text list with rich `PaletteFlyout` displaying 6-color swatch tiles per theme card, active checkmark, double-click cycling, and status feedback.
+    * For Idea 7: Added `StatusZoomButton` to status bar right panel with live zoom percentage, double-click 100% reset, and context menu with stops (50%, 75%, 100%, 125%, 150%, 200%) and fit-width toggle.
+  - Executed all refined targets into 100% production code.
+  - Verification:
+    * `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `MarkSmith.Tests.dll`: **Passed: 4,802, Failed: 0, Skipped: 1, Total: 4,803**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, `Process alive: True`, responsive startup, clean exit.
+  - Carried forward ideas / next targets into Run #118 (`MindMapGalaxyWindow` branch spring physics animation on collapse/expand, `ShapeDesignStudioWindow` smart shape connector routing with automatic elbow avoidance, `SmartArtDesignStudioWindow` quick layout thumbnail visual carousel).
+
+**Shipped:**
+1. **`MindMapLayoutEngine` Dynamic Subtree Weight Allocation (`MarkSmith.Core/Services/MindMap/MindMapLayoutEngine.cs`):**
+   - Implemented dynamic subtree angular sector weighting in `PlaceRadial`.
+   - Traverses subtree depth and leaf count, allocating angular sectors proportionally so complex subtrees receive wider arcs while compact nodes remain tight, eliminating node collisions in radial layouts.
+2. **`MindMapGalaxyWindow` Subtree Expand/Collapse & Radial Branch Fan-Out (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Interactive `v.CollapseToggle` badge on cards with descendant counts (`+N` when collapsed, `−` when expanded).
+   - Descendants and connecting edges are culled in `UpdateAppearance` when any ancestor is collapsed.
+   - Context menu item and keyboard shortcut (`Space`) to fold/unfold subtrees.
+   - Radial branch fan-out context action and `Alt+R` shortcut for instant radial map arrangement.
+3. **`ShapeDesignStudioWindow` Multi-Shape Distribution Spacing Badges (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Renders interactive spacing badges between adjacent shapes in multi-selection.
+   - Double-tapping a badge equalizes spacing along that axis; right-tapping surfaces spacing presets (0, 8, 16, 24, 32, 48 px).
+4. **`ShapeDesignStudioWindow` Magnetic Alignment Snap Guides (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Magnetic alignment snapping during shape and group drags with 6 px detent.
+   - Draws live dashed guide lines (`_snapGuideX`, `_snapGuideY`) when aligning to left, center, right, top, or bottom edges of surrounding shapes.
+5. **`HtmlPreviewRenderer` & `SmartArtDesignStudioViewModel` Palette Engine (`MarkSmith.Core/Preview/HtmlPreviewRenderer.cs`, `HtmlPreviewRenderer.Variants.*.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - Thread-static palette color ramp resolution supporting 6 theme palettes (`Modern Teal`, `Deep Blue`, `Forest Green`, `Sunset Amber`, `Warm Earth`, `Monochrome Slate`).
+   - Applies active theme colors directly to generated SVGs in both linear and picture variants.
+6. **`SmartArtDesignStudioWindow` 6-Color Swatch Palette Flyout (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Rich palette selector presenting 6-color swatch tiles with active checkmarks and keyboard navigation.
+   - Double-click cycling to next theme palette and live visual refresh.
+7. **`MainWindow` Status Bar Zoom Button & Presets (`MainWindow.xaml`, `MainWindow.xaml.cs`):**
+   - Dedicated `StatusZoomButton` in status bar right cluster beside `CursorPosText`.
+   - Displays live zoom readout (e.g. `100%`), double-click reset to 100%, and quick menu flyout with stops (50% to 200%), zoom in/out, and fit-width.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, `Process alive: True`, responsive startup, clean exit.
+

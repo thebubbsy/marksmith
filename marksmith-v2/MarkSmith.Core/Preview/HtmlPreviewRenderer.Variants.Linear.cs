@@ -699,7 +699,7 @@ namespace MarkSmith.Core.Preview
 
             void Node(StringBuilder s, double x, double y, double nw, double nh, int d, Item item)
             {
-                string c = LevelColors[d % LevelColors.Length];
+                string c = CurrentLevelColors[d % CurrentLevelColors.Length];
                 switch (style)
                 {
                     case TreeStyle.Org:
@@ -773,7 +773,7 @@ namespace MarkSmith.Core.Preview
                 {
                     // A pale band per level, the labelled tiers of Word's Labeled Hierarchy.
                     double by = Pad + d * (boxH + gapY) - gapY * 0.3;
-                    sb.Append($"<rect x=\"{F(Pad / 2)}\" y=\"{F(by)}\" width=\"{F(w - Pad)}\" height=\"{F(boxH + gapY * 0.6)}\" rx=\"8\" fill=\"{Tint(LevelColors[d % LevelColors.Length], 0.9)}\"/>");
+                    sb.Append($"<rect x=\"{F(Pad / 2)}\" y=\"{F(by)}\" width=\"{F(w - Pad)}\" height=\"{F(boxH + gapY * 0.6)}\" rx=\"8\" fill=\"{Tint(CurrentLevelColors[d % CurrentLevelColors.Length], 0.9)}\"/>");
                 }
 
             foreach (var n in All(roots))

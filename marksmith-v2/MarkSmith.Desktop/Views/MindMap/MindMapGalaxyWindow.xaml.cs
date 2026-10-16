@@ -1112,6 +1112,8 @@ namespace MarkSmith.Views.MindMap
             public TextBlock VersionText = null!;
             public Microsoft.UI.Xaml.Documents.Run VersionCount = null!;
             public TextBlock MissingMark = null!;
+            public Border CollapseToggle = null!;
+            public TextBlock CollapseToggleText = null!;
 
             public ScaleTransform Lift = null!;
             public bool Lifted;
@@ -1335,6 +1337,41 @@ namespace MarkSmith.Views.MindMap
             };
             Grid.SetColumn(v.BadgeHost, 2);
             topPanel.Children.Add(v.BadgeHost);
+
+            topPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            v.CollapseToggleText = new TextBlock
+            {
+                FontSize = 9,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = v.BadgeInk,
+                Text = "−",
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            v.CollapseToggle = new Border
+            {
+                Background = v.BadgeFill,
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(4, 1, 4, 1),
+                Margin = new Thickness(4, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = true,
+                Child = v.CollapseToggleText
+            };
+            v.CollapseToggle.Tapped += (s, e) =>
+            {
+                e.Handled = true;
+                ToggleSubtreeCollapsed(node);
+            };
+            v.CollapseToggle.DoubleTapped += (s, e) =>
+            {
+                e.Handled = true;
+                ToggleSubtreeCollapsed(node);
+            };
+            Grid.SetColumn(v.CollapseToggle, 3);
+            topPanel.Children.Add(v.CollapseToggle);
 
             Grid.SetRow(topPanel, 0);
             v.Detail.Children.Add(topPanel);
@@ -1705,6 +1742,10 @@ namespace MarkSmith.Views.MindMap
             {
                 if (!_nodeIndex.TryGetValue(id, out var node)) continue;
 
+                bool isHidden = IsNodeHiddenByCollapsedAncestor(node);
+                v.Root.Visibility = isHidden ? Visibility.Collapsed : Visibility.Visible;
+                if (isHidden) continue;
+
                 var accent = ColorFromHex(node.ColorHex);
 
                 Color borderColor;
@@ -1751,6 +1792,26 @@ namespace MarkSmith.Views.MindMap
                 v.Title.Text = node.Title;
                 v.BadgeText.Text = node.FormatBadge;
 
+                int descendants = CountDescendants(node);
+                if (descendants > 0)
+                {
+                    v.CollapseToggle.Visibility = Visibility.Visible;
+                    v.CollapseToggleText.Text = node.IsCollapsed ? $"+{descendants}" : "−";
+                    v.CollapseToggle.Background = node.IsCollapsed
+                        ? new SolidColorBrush(accent)
+                        : new SolidColorBrush(Color.FromArgb(32, 128, 128, 128));
+                    v.CollapseToggleText.Foreground = node.IsCollapsed
+                        ? new SolidColorBrush(ReadableOn(accent))
+                        : new SolidColorBrush(_palette.Muted);
+                    ToolTipService.SetToolTip(v.CollapseToggle, node.IsCollapsed
+                        ? $"Subtree collapsed ({descendants} hidden nodes) · Click to expand"
+                        : "Subtree expanded · Click to collapse branch");
+                }
+                else
+                {
+                    v.CollapseToggle.Visibility = Visibility.Collapsed;
+                }
+
                 bool hasProgress = node.Progress > 0;
                 v.ProgressTrack.Visibility = hasProgress ? Visibility.Visible : Visibility.Collapsed;
                 v.ProgressText.Visibility = hasProgress ? Visibility.Visible : Visibility.Collapsed;
@@ -1786,7 +1847,26 @@ namespace MarkSmith.Views.MindMap
             foreach (var e in _edgeVisuals.Values)
             {
                 bool hasEndpoints = _nodeIndex.TryGetValue(e.SourceId, out var s) & _nodeIndex.TryGetValue(e.TargetId, out var t);
-                bool faded = hasEndpoints && s!.IsDimmed && t!.IsDimmed;
+                bool eitherHidden = !hasEndpoints || IsNodeHiddenByCollapsedAncestor(s!) || IsNodeHiddenByCollapsedAncestor(t!);
+                if (eitherHidden)
+                {
+                    e.Line.Visibility = Visibility.Collapsed;
+                    if (e.Hit != null) e.Hit.Visibility = Visibility.Collapsed;
+                    if (e.ArrowForward != null) e.ArrowForward.Visibility = Visibility.Collapsed;
+                    if (e.ArrowBackward != null) e.ArrowBackward.Visibility = Visibility.Collapsed;
+                    if (e.Label != null) e.Label.Visibility = Visibility.Collapsed;
+                    continue;
+                }
+                else
+                {
+                    e.Line.Visibility = Visibility.Visible;
+                    if (e.Hit != null) e.Hit.Visibility = Visibility.Visible;
+                    if (e.ArrowForward != null) e.ArrowForward.Visibility = Visibility.Visible;
+                    if (e.ArrowBackward != null) e.ArrowBackward.Visibility = Visibility.Visible;
+                    if (e.Label != null) e.Label.Visibility = Visibility.Visible;
+                }
+
+                bool faded = s!.IsDimmed && t!.IsDimmed;
 
                 if (e.Link == null)
                 {
@@ -2120,6 +2200,14 @@ namespace MarkSmith.Views.MindMap
             };
             flyout.Items.Add(focusItem);
 
+            var radialBranchItem = MenuItem("Radial fan-out branch", "\uEC26");
+            radialBranchItem.Click += (s, e) => FanOutBranchRadial(node);
+            flyout.Items.Add(radialBranchItem);
+
+            var toggleCollapseItem = MenuItem(node.IsCollapsed ? "Expand subtree (Space)" : "Collapse subtree (Space)", node.IsCollapsed ? "\uE70E" : "\uE70D");
+            toggleCollapseItem.Click += (s, e) => ToggleSubtreeCollapsed(node);
+            flyout.Items.Add(toggleCollapseItem);
+
             var duplicateItem = MenuItem("Duplicate", "\uE8C8", "Ctrl+D");
             duplicateItem.Click += (s, e) =>
             {
@@ -2141,12 +2229,92 @@ namespace MarkSmith.Views.MindMap
                 histItem.IsEnabled = hasFile;
                 moveItem.IsEnabled = ViewModel.ReparentCandidates(node).Count > 0 || node.ParentId != null;
                 linkItem.IsEnabled = ViewModel.Nodes.Count > 1;
+                radialBranchItem.IsEnabled = ViewModel.Nodes.Any(n => n.ParentId == node.Id);
+                toggleCollapseItem.IsEnabled = ViewModel.Nodes.Any(n => n.ParentId == node.Id);
+                toggleCollapseItem.Text = node.IsCollapsed ? "Expand subtree (Space)" : "Collapse subtree (Space)";
                 focusItem.Text = ViewModel.IsFocusModeEnabled && ViewModel.SelectedNode == node
                     ? "Show whole map"
                     : "Focus on its connections";
             };
 
             return flyout;
+        }
+
+        private void ToggleSubtreeCollapsed(MindMapNodeViewModel node)
+        {
+            ViewModel.PushUndo($"{(node.IsCollapsed ? "Expand" : "Collapse")} '{node.Title}'");
+            node.IsCollapsed = !node.IsCollapsed;
+            UpdateAppearance();
+            UpdateGeometry();
+            ViewModel.StatusMessage = node.IsCollapsed
+                ? $"Collapsed branch '{node.Title}' · Subtree hidden"
+                : $"Expanded branch '{node.Title}' · Subtree visible";
+        }
+
+        private bool IsNodeHiddenByCollapsedAncestor(MindMapNodeViewModel node)
+        {
+            var current = node;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            while (current?.ParentId != null && _nodeIndex.TryGetValue(current.ParentId, out var parent))
+            {
+                if (!seen.Add(parent.Id)) break;
+                if (parent.IsCollapsed) return true;
+                current = parent;
+            }
+            return false;
+        }
+
+        private int CountDescendants(MindMapNodeViewModel node, HashSet<string>? seen = null)
+        {
+            seen ??= new HashSet<string>(StringComparer.Ordinal) { node.Id };
+            int count = 0;
+            foreach (var n in ViewModel.Nodes)
+            {
+                if (n.ParentId == node.Id && seen.Add(n.Id))
+                {
+                    count += 1 + CountDescendants(n, seen);
+                }
+            }
+            return count;
+        }
+
+        private void FanOutBranchRadial(MindMapNodeViewModel parent)
+        {
+            var children = ViewModel.Nodes.Where(n => n.ParentId == parent.Id).ToList();
+            if (children.Count == 0)
+            {
+                ViewModel.StatusMessage = $"'{parent.Title}' has no child nodes to fan out";
+                return;
+            }
+
+            ViewModel.PushUndo($"Fan out '{parent.Title}'");
+            if (parent.IsCollapsed) parent.IsCollapsed = false;
+
+            double radius = 240.0;
+            double baseAngle = 0.0;
+            double angleSpan = 2 * Math.PI;
+
+            if (parent.ParentId != null && _nodeIndex.TryGetValue(parent.ParentId, out var grandParent))
+            {
+                double gdx = parent.X - grandParent.X;
+                double gdy = parent.Y - grandParent.Y;
+                baseAngle = Math.Atan2(gdy, gdx);
+                angleSpan = Math.Min(Math.PI * 1.2, (children.Count * 0.35) * Math.PI);
+            }
+
+            double startAngle = baseAngle - (angleSpan / 2.0);
+            double step = angleSpan / Math.Max(1, children.Count);
+
+            for (int i = 0; i < children.Count; i++)
+            {
+                double a = children.Count == 1 ? baseAngle : startAngle + (i * step) + (step / 2.0);
+                children[i].X = parent.X + (radius * Math.Cos(a));
+                children[i].Y = parent.Y + (radius * Math.Sin(a));
+            }
+
+            UpdateGeometry();
+            UpdateAppearance();
+            ViewModel.StatusMessage = $"Fanned out {children.Count} child nodes around '{parent.Title}' · Ctrl+Z to undo";
         }
 
         private MenuFlyout BuildLinkContextMenu(MindMapLinkViewModel link)
@@ -3312,6 +3480,14 @@ namespace MarkSmith.Views.MindMap
                 case Windows.System.VirtualKey.F when !ctrl && canvasFocused:
                     // Advertised on the focus-mode button's tooltip.
                     OnToggleFocusModeClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
+                case Windows.System.VirtualKey.R when alt:
+                    ApplyLayoutAndFit("radial");
+                    e.Handled = true;
+                    return;
+                case Windows.System.VirtualKey.Space when canvasFocused && !ctrl && !alt && ViewModel.SelectedNode != null:
+                    ToggleSubtreeCollapsed(ViewModel.SelectedNode);
                     e.Handled = true;
                     return;
                 case Windows.System.VirtualKey.Escape:

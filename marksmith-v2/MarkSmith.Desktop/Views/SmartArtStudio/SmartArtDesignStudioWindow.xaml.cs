@@ -15,6 +15,13 @@ namespace MarkSmith.Views.SmartArtStudio
         public SmartArtDesignStudioViewModel ViewModel { get; }
         private bool _isWebViewReady;
 
+        public sealed class SmartArtPaletteChoice
+        {
+            public string Name { get; init; } = "";
+            public List<SolidColorBrush> Swatches { get; init; } = new();
+            public bool IsSelected { get; set; }
+        }
+
         /// <summary>Raised with the full <c>:::smartart</c> markdown block when the user chooses
         /// "Insert into document" — the MainWindow inserts it at the editor caret.</summary>
         public event EventHandler<string>? InsertToDocumentRequested;
@@ -3305,64 +3312,60 @@ namespace MarkSmith.Views.SmartArtStudio
                 menu.ShowAt(fe, e.GetPosition(fe));
         }
 
-        private void OnPaletteMenuFlyoutOpening(object? sender, object e)
-        {
-            if (PaletteMenuFlyout is null) return;
-            PaletteMenuFlyout.Items.Clear();
+        private readonly List<SmartArtPaletteChoice> _smartArtPaletteChoices = new();
+        private bool _syncingSmartArtPalette;
 
+        private static SolidColorBrush BrushFromHex(string hex)
+        {
+            if (hex.StartsWith('#')) hex = hex.Substring(1);
+            if (hex.Length != 6) return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+            byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+            byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+            return new SolidColorBrush(Windows.UI.Color.FromArgb(255, r, g, b));
+        }
+
+        private void BuildSmartArtPaletteChoices()
+        {
+            _smartArtPaletteChoices.Clear();
             foreach (var palette in ViewModel.Palettes)
             {
-                bool isSelected = string.Equals(palette, ViewModel.SelectedPalette, StringComparison.OrdinalIgnoreCase);
-                var pItem = new MenuFlyoutItem
+                var (accents, _) = MarkSmith.Core.Preview.HtmlPreviewRenderer.GetPaletteColors(palette);
+                var swatches = accents.Select(BrushFromHex).ToList();
+                bool isSel = string.Equals(palette, ViewModel.SelectedPalette, StringComparison.OrdinalIgnoreCase);
+                _smartArtPaletteChoices.Add(new SmartArtPaletteChoice
                 {
-                    Text = isSelected ? $"{palette} ✓" : palette,
-                    Icon = new FontIcon { Glyph = isSelected ? "\uE73E" : "\uEA3B" }
-                };
-                pItem.Click += (_, _) =>
-                {
-                    ViewModel.SelectedPalette = palette;
-                    RefreshWebView();
-                    ViewModel.StatusMessage = $"Applied SmartArt color palette: {palette}";
-                    if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);
-                };
-                PaletteMenuFlyout.Items.Add(pItem);
+                    Name = palette,
+                    Swatches = swatches,
+                    IsSelected = isSel
+                });
             }
+            if (PaletteList != null)
+            {
+                _syncingSmartArtPalette = true;
+                try
+                {
+                    PaletteList.ItemsSource = null;
+                    PaletteList.ItemsSource = _smartArtPaletteChoices;
+                    PaletteList.SelectedItem = _smartArtPaletteChoices.FirstOrDefault(p => p.IsSelected);
+                }
+                finally { _syncingSmartArtPalette = false; }
+            }
+        }
 
-            PaletteMenuFlyout.Items.Add(new MenuFlyoutSeparator());
+        private void OnPaletteFlyoutOpening(object? sender, object e)
+        {
+            BuildSmartArtPaletteChoices();
+        }
 
-            var cycleItem = new MenuFlyoutItem
-            {
-                Text = "Next palette",
-                Icon = new FontIcon { Glyph = "\uE76C" }
-            };
-            cycleItem.Click += (_, _) => CyclePalette();
-            PaletteMenuFlyout.Items.Add(cycleItem);
-
-            var resetItem = new MenuFlyoutItem
-            {
-                Text = "Reset to Office Blue",
-                Icon = new FontIcon { Glyph = "\uE72C" }
-            };
-            resetItem.Click += (_, _) =>
-            {
-                ViewModel.SelectedPalette = "Office Blue";
-                RefreshWebView();
-                ViewModel.StatusMessage = "Reset color palette to Office Blue.";
-                if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);
-            };
-            PaletteMenuFlyout.Items.Add(resetItem);
-
-            var copyItem = new MenuFlyoutItem
-            {
-                Text = "Copy palette name",
-                Icon = new FontIcon { Glyph = "\uE8C8" }
-            };
-            copyItem.Click += (_, _) =>
-            {
-                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.SelectedPalette);
-                ViewModel.StatusMessage = $"Copied palette: {ViewModel.SelectedPalette}";
-            };
-            PaletteMenuFlyout.Items.Add(copyItem);
+        private void OnPaletteListSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_syncingSmartArtPalette || PaletteList?.SelectedItem is not SmartArtPaletteChoice choice) return;
+            ViewModel.SelectedPalette = choice.Name;
+            RefreshWebView();
+            ViewModel.StatusMessage = $"Applied SmartArt color palette: {choice.Name}";
+            if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);
+            PaletteFlyout?.Hide();
         }
 
         private void CyclePalette()

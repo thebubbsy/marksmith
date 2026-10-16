@@ -367,7 +367,35 @@
                                     ToolTipService.ToolTip="Color palette (Double-click to cycle palettes, Right-click for options)">
                                 <FontIcon Glyph="&#xEA3B;" FontSize="12" />
                                 <Button.Flyout>
-                                    <MenuFlyout x:Name="PaletteMenuFlyout" Opening="OnPaletteMenuFlyoutOpening" />
+                                    <Flyout x:Name="PaletteFlyout" Placement="BottomEdgeAlignedRight" Opening="OnPaletteFlyoutOpening">
+                                        <StackPanel Spacing="8" Width="260">
+                                            <TextBlock Text="SmartArt colour palette" FontWeight="SemiBold" FontSize="13" />
+                                            <TextBlock Text="Recolours the diagram SVG preview to match your document theme." FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                            <ListView x:Name="PaletteList" SelectionMode="Single" Margin="-12,0" SelectionChanged="OnPaletteListSelectionChanged" AutomationProperties.Name="SmartArt colour palettes">
+                                                <ListView.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Padding="0,6" Spacing="6" AutomationProperties.Name="{Binding Name}">
+                                                            <Grid ColumnDefinitions="*,Auto">
+                                                                <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" />
+                                                                <TextBlock Grid.Column="1" Text="✓" FontSize="12" FontWeight="Bold" Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                                                           Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                            </Grid>
+                                                            <ItemsControl ItemsSource="{Binding Swatches}">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="3" /></ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Width="26" Height="12" CornerRadius="3" Background="{Binding}" BorderThickness="1" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListView.ItemTemplate>
+                                            </ListView>
+                                        </StackPanel>
+                                    </Flyout>
                                 </Button.Flyout>
                             </Button>
                             <Button x:Name="CopyOutlineMarkdownButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"

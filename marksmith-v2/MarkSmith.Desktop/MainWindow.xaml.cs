@@ -11030,8 +11030,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void UpdatePreviewZoomReadout(double scale)
     {
-        if (PreviewZoomText is null) return;
         var percent = (int)Math.Round(scale * 100.0);
+        if (StatusZoomText != null)
+        {
+            StatusZoomText.Text = $"{percent}%";
+            var statusTip = _previewFit
+                ? $"Preview zoom: {percent}% (fit-width) · Click to change, Double-click to reset (100%), Right-click for presets"
+                : $"Preview zoom: {percent}% · Click to change, Double-click to reset (100%), Right-click for presets";
+            ToolTipService.SetToolTip(StatusZoomButton, statusTip);
+        }
+        if (PreviewZoomText is null) return;
         PreviewZoomText.Text = $"{percent}%";
         var tip = _previewFit
             ? $"Preview zoom: {percent}%, fitted to the pane's width. Click for 100%; Ctrl+wheel zooms."
@@ -11043,6 +11051,24 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         PreviewZoomInButton.IsEnabled = Services.ZoomSteps.CanZoomIn(scale);
         PreviewZoomOutButton.IsEnabled = Services.ZoomSteps.CanZoomOut(scale);
     }
+
+    private void OnStatusZoomButtonClick(object sender, RoutedEventArgs e)
+    {
+        ShowPreviewZoomContextMenu(StatusZoomButton, null);
+    }
+
+    private void OnStatusZoomButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        OnPreviewZoomResetClick(sender, e);
+    }
+
+    private void OnStatusZoomButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowPreviewZoomContextMenu(StatusZoomButton, e.GetPosition(StatusZoomButton));
+    }
+
 
     // The page-side value of window.__msZoom: 'fit' or the absolute scale.
     private string PreviewZoomArg() => _previewFit

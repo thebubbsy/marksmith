@@ -583,6 +583,7 @@
                                             ToolTipService.ToolTip="Selection group · Double-click to auto-align &amp; distribute, Right-click for group options">
                                         <TextBlock x:Name="MultiSelectionBadgeText" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </Border>
+                                    <Canvas x:Name="DistributionSpacingBadgesCanvas" IsHitTestVisible="True" />
                                 </Canvas>
                             </Canvas>
                         </Grid>

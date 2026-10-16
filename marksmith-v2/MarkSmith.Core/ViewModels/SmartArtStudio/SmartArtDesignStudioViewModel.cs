@@ -215,6 +215,8 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [ObservableProperty]
     private string _selectedPalette = "Office Blue";
 
+    partial void OnSelectedPaletteChanged(string value) => UpdatePreview();
+
     [ObservableProperty]
     private ObservableCollection<string> _palettes = new()
     {
@@ -994,7 +996,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
                 ?? MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.TryResolve(alias)?.Title
                 ?? StudioLayoutItem.Humanize(alias);
 
-            PreviewHtml = HtmlPreviewRenderer.RenderHtml(ast, alias, title);
+            PreviewHtml = HtmlPreviewRenderer.RenderHtml(ast, alias, title, SelectedPalette);
             PreviewTitle = title;
             PreviewHint = SingleShapeHint(ast, alias, title);
             OnPropertyChanged(nameof(OutlineSummaryText));

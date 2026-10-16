@@ -48,6 +48,8 @@ namespace MarkSmith.Views.ShapeStudio
         private Microsoft.UI.Xaml.Shapes.Path? _rotateArcOverlay;
         private Border? _rotateAngleBadge;
         private TextBlock? _rotateAngleBadgeText;
+        private Microsoft.UI.Xaml.Shapes.Line? _snapGuideX;
+        private Microsoft.UI.Xaml.Shapes.Line? _snapGuideY;
         private bool _rotating;
         private bool _rotated;
         private bool _multiRotating;
@@ -1405,6 +1407,34 @@ namespace MarkSmith.Views.ShapeStudio
             e.Handled = true;
         }
 
+        private void EnsureSnapGuides()
+        {
+            if (_snapGuideX == null)
+            {
+                _snapGuideX = new Microsoft.UI.Xaml.Shapes.Line
+                {
+                    Stroke = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+                    StrokeThickness = 1,
+                    StrokeDashArray = new DoubleCollection { 3, 2 },
+                    IsHitTestVisible = false,
+                    Visibility = Visibility.Collapsed
+                };
+                MainCanvas.Children.Add(_snapGuideX);
+            }
+            if (_snapGuideY == null)
+            {
+                _snapGuideY = new Microsoft.UI.Xaml.Shapes.Line
+                {
+                    Stroke = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+                    StrokeThickness = 1,
+                    StrokeDashArray = new DoubleCollection { 3, 2 },
+                    IsHitTestVisible = false,
+                    Visibility = Visibility.Collapsed
+                };
+                MainCanvas.Children.Add(_snapGuideY);
+            }
+        }
+
         private void OnShapePointerMoved(object sender, PointerRoutedEventArgs e)
         {
             if (_dragShape == null) return;
@@ -1429,6 +1459,98 @@ namespace MarkSmith.Views.ShapeStudio
             var (mx, my) = ViewModel.NudgeSelection(dx - _dragAppliedX, dy - _dragAppliedY);
             _dragAppliedX += mx;
             _dragAppliedY += my;
+
+            EnsureSnapGuides();
+            double z = Math.Max(0.05, CanvasScroller.ZoomFactor);
+            double snapThreshold = 6.0 / z;
+
+            var others = ViewModel.Shapes.Where(s => !s.IsSelected).ToList();
+            bool snappedX = false;
+            bool snappedY = false;
+
+            if (others.Count > 0)
+            {
+                double targetLeft = _dragShape.X;
+                double targetCenter = _dragShape.X + _dragShape.Width / 2.0;
+                double targetRight = _dragShape.X + _dragShape.Width;
+                double targetTop = _dragShape.Y;
+                double targetMiddle = _dragShape.Y + _dragShape.Height / 2.0;
+                double targetBottom = _dragShape.Y + _dragShape.Height;
+
+                foreach (var o in others)
+                {
+                    double oLeft = o.X;
+                    double oCenter = o.X + o.Width / 2.0;
+                    double oRight = o.X + o.Width;
+                    double oTop = o.Y;
+                    double oMiddle = o.Y + o.Height / 2.0;
+                    double oBottom = o.Y + o.Height;
+
+                    if (!snappedX)
+                    {
+                        double[] dragX = { targetLeft, targetCenter, targetRight };
+                        double[] otherX = { oLeft, oCenter, oRight };
+                        foreach (var dxVal in dragX)
+                        {
+                            foreach (var oxVal in otherX)
+                            {
+                                if (Math.Abs(dxVal - oxVal) <= snapThreshold)
+                                {
+                                    double deltaX = oxVal - dxVal;
+                                    var (smx, _) = ViewModel.NudgeSelection(deltaX, 0);
+                                    _dragAppliedX += smx;
+                                    if (_snapGuideX != null)
+                                    {
+                                        _snapGuideX.X1 = _snapGuideX.X2 = oxVal;
+                                        _snapGuideX.Y1 = Math.Min(targetTop, oTop) - 30;
+                                        _snapGuideX.Y2 = Math.Max(targetBottom, oBottom) + 30;
+                                        _snapGuideX.StrokeThickness = 1.0 / z;
+                                        _snapGuideX.Visibility = Visibility.Visible;
+                                    }
+                                    snappedX = true;
+                                    break;
+                                }
+                            }
+                            if (snappedX) break;
+                        }
+                    }
+
+                    if (!snappedY)
+                    {
+                        double[] dragY = { targetTop, targetMiddle, targetBottom };
+                        double[] otherY = { oTop, oMiddle, oBottom };
+                        foreach (var dyVal in dragY)
+                        {
+                            foreach (var oyVal in otherY)
+                            {
+                                if (Math.Abs(dyVal - oyVal) <= snapThreshold)
+                                {
+                                    double deltaY = oyVal - dyVal;
+                                    var (_, smy) = ViewModel.NudgeSelection(0, deltaY);
+                                    _dragAppliedY += smy;
+                                    if (_snapGuideY != null)
+                                    {
+                                        _snapGuideY.Y1 = _snapGuideY.Y2 = oyVal;
+                                        _snapGuideY.X1 = Math.Min(targetLeft, oLeft) - 30;
+                                        _snapGuideY.X2 = Math.Max(targetRight, oRight) + 30;
+                                        _snapGuideY.StrokeThickness = 1.0 / z;
+                                        _snapGuideY.Visibility = Visibility.Visible;
+                                    }
+                                    snappedY = true;
+                                    break;
+                                }
+                            }
+                            if (snappedY) break;
+                        }
+                    }
+
+                    if (snappedX && snappedY) break;
+                }
+            }
+
+            if (!snappedX && _snapGuideX != null) _snapGuideX.Visibility = Visibility.Collapsed;
+            if (!snappedY && _snapGuideY != null) _snapGuideY.Visibility = Visibility.Collapsed;
+
             UpdateMultiSelectionAdorner();
             e.Handled = true;
         }
@@ -1437,6 +1559,8 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (_dragShape == null) return;
             if (sender is FrameworkElement fe) fe.ReleasePointerCapture(e.Pointer);
+            if (_snapGuideX != null) _snapGuideX.Visibility = Visibility.Collapsed;
+            if (_snapGuideY != null) _snapGuideY.Visibility = Visibility.Collapsed;
             if (_dragMoved)
             {
                 int n = ViewModel.SelectionCount;
@@ -1989,6 +2113,178 @@ namespace MarkSmith.Views.ShapeStudio
 
             Canvas.SetLeft(MultiSelectionBadge, minX);
             Canvas.SetTop(MultiSelectionBadge, Math.Max(0, minY - 28 / z));
+
+            if (DistributionSpacingBadgesCanvas != null)
+            {
+                if (selected.Count < 3)
+                {
+                    DistributionSpacingBadgesCanvas.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    DistributionSpacingBadgesCanvas.Visibility = Visibility.Visible;
+                    UpdateDistributionSpacingBadges(selected, totalW, totalH, z);
+                }
+            }
+        }
+
+        private void UpdateDistributionSpacingBadges(List<ShapeCanvasItemViewModel> selected, double totalW, double totalH, double z)
+        {
+            if (DistributionSpacingBadgesCanvas == null) return;
+
+            bool isHorizontal = totalW >= totalH;
+            var ordered = isHorizontal
+                ? selected.Select(s => (Shape: s, Bounds: ShapeDesignStudioViewModel.RotatedBounds(s)))
+                          .OrderBy(t => t.Bounds.Left + (t.Bounds.Right - t.Bounds.Left) / 2.0).ToList()
+                : selected.Select(s => (Shape: s, Bounds: ShapeDesignStudioViewModel.RotatedBounds(s)))
+                          .OrderBy(t => t.Bounds.Top + (t.Bounds.Bottom - t.Bounds.Top) / 2.0).ToList();
+
+            int pairs = ordered.Count - 1;
+            if (pairs <= 0)
+            {
+                DistributionSpacingBadgesCanvas.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var gaps = new double[pairs];
+            double sumGap = 0;
+            for (int i = 0; i < pairs; i++)
+            {
+                gaps[i] = isHorizontal
+                    ? ordered[i + 1].Bounds.Left - ordered[i].Bounds.Right
+                    : ordered[i + 1].Bounds.Top - ordered[i].Bounds.Bottom;
+                sumGap += gaps[i];
+            }
+            double avgGap = sumGap / pairs;
+            bool isEquidistant = gaps.All(g => Math.Abs(g - avgGap) <= 1.5);
+
+            while (DistributionSpacingBadgesCanvas.Children.Count < pairs)
+            {
+                var badge = new Border
+                {
+                    Background = (Brush)Application.Current.Resources["AcrylicBackgroundFillColorDefaultBrush"],
+                    BorderBrush = (Brush)Application.Current.Resources["SurfaceStrokeColorDefaultBrush"],
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(3),
+                    Padding = new Thickness(4, 1, 4, 1)
+                };
+                var tb = new TextBlock
+                {
+                    FontSize = 10,
+                    Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                };
+                badge.Child = tb;
+                badge.DoubleTapped += (s, e) =>
+                {
+                    e.Handled = true;
+                    if (totalW >= totalH) ViewModel.DistributeHorizontalCommand.Execute(null);
+                    else ViewModel.DistributeVerticalCommand.Execute(null);
+                    UpdateMultiSelectionAdorner();
+                    ViewModel.StatusMessage = $"Distributed {selected.Count} shapes evenly · Ctrl+Z to undo";
+                };
+                badge.RightTapped += (s, e) =>
+                {
+                    e.Handled = true;
+                    ShowSpacingPresetsMenu(e.GetPosition(MainCanvas), totalW >= totalH, avgGap);
+                };
+                DistributionSpacingBadgesCanvas.Children.Add(badge);
+            }
+
+            for (int i = 0; i < DistributionSpacingBadgesCanvas.Children.Count; i++)
+            {
+                var b = (Border)DistributionSpacingBadgesCanvas.Children[i];
+                if (i >= pairs)
+                {
+                    b.Visibility = Visibility.Collapsed;
+                    continue;
+                }
+                b.Visibility = Visibility.Visible;
+                var tb = (TextBlock)b.Child;
+                double gap = gaps[i];
+                tb.Text = isEquidistant ? $"= {gap:F0} px" : $"d = {gap:F0} px";
+
+                if (isEquidistant)
+                {
+                    b.BorderBrush = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+                    tb.Foreground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+                }
+                else
+                {
+                    b.BorderBrush = (Brush)Application.Current.Resources["SurfaceStrokeColorDefaultBrush"];
+                    tb.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+                }
+
+                ToolTipService.SetToolTip(b, $"Spacing: {gap:F0} px · Double-click to equalize spacing, Right-click for spacing presets");
+
+                double midX = isHorizontal
+                    ? (ordered[i].Bounds.Right + ordered[i + 1].Bounds.Left) / 2.0
+                    : (ordered[i].Bounds.Left + ordered[i].Bounds.Right) / 2.0;
+                double midY = isHorizontal
+                    ? (ordered[i].Bounds.Top + ordered[i].Bounds.Bottom) / 2.0
+                    : (ordered[i].Bounds.Bottom + ordered[i + 1].Bounds.Top) / 2.0;
+
+                Canvas.SetLeft(b, midX - 20);
+                Canvas.SetTop(b, midY - 10);
+            }
+        }
+
+        private void ShowSpacingPresetsMenu(Point position, bool isHorizontal, double currentGap)
+        {
+            var menu = new MenuFlyout();
+            var title = new MenuFlyoutItem
+            {
+                Text = $"Equalize {(isHorizontal ? "horizontal" : "vertical")} spacing",
+                Icon = new FontIcon { Glyph = "\uE8E3" }
+            };
+            title.Click += (_, _) =>
+            {
+                if (isHorizontal) ViewModel.DistributeHorizontalCommand.Execute(null);
+                else ViewModel.DistributeVerticalCommand.Execute(null);
+                UpdateMultiSelectionAdorner();
+            };
+            menu.Items.Add(title);
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            int[] presets = { 8, 16, 24, 32, 48, 64 };
+            foreach (var p in presets)
+            {
+                var item = new MenuFlyoutItem
+                {
+                    Text = $"Set spacing: {p} px",
+                    Icon = new FontIcon { Glyph = Math.Abs(currentGap - p) < 1.5 ? "\uE73E" : "\uE71F" }
+                };
+                item.Click += (_, _) =>
+                {
+                    ApplyExactSpacing(isHorizontal, p);
+                };
+                menu.Items.Add(item);
+            }
+            menu.ShowAt(MainCanvas, position);
+        }
+
+        private void ApplyExactSpacing(bool isHorizontal, double targetSpacing)
+        {
+            var selected = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (selected.Count < 2) return;
+            ViewModel.RecordUndo();
+
+            var ordered = isHorizontal
+                ? selected.OrderBy(s => s.X).ToList()
+                : selected.OrderBy(s => s.Y).ToList();
+
+            for (int i = 1; i < ordered.Count; i++)
+            {
+                if (isHorizontal)
+                {
+                    ordered[i].X = ordered[i - 1].X + ordered[i - 1].Width + targetSpacing;
+                }
+                else
+                {
+                    ordered[i].Y = ordered[i - 1].Y + ordered[i - 1].Height + targetSpacing;
+                }
+            }
+            UpdateMultiSelectionAdorner();
+            ViewModel.StatusMessage = $"Set {targetSpacing} px spacing across {selected.Count} shapes · Ctrl+Z to undo";
         }
 
         private void OnMultiSelectionBadgeDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

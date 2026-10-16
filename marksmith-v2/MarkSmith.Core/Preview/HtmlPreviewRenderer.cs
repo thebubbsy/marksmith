@@ -52,6 +52,38 @@ namespace MarkSmith.Core.Preview
         // Fluent accent ramp; every one carries white bold text at >= 3:1.
         private static readonly string[] Accents = { "#0078d4", "#107c41", "#ca5010", "#8764b8", "#038387", "#c239b3", "#986f0b", "#d13438" };
         private static readonly string[] LevelColors = { "#0078d4", "#107c41", "#8764b8", "#038387", "#ca5010" };
+
+        [ThreadStatic]
+        private static string[]? _activeAccents;
+        [ThreadStatic]
+        private static string[]? _activeLevelColors;
+
+        private static string[] CurrentAccents => _activeAccents ?? Accents;
+        private static string[] CurrentLevelColors => _activeLevelColors ?? LevelColors;
+
+        public static (string[] Accents, string[] LevelColors) GetPaletteColors(string? paletteName)
+        {
+            if (string.IsNullOrWhiteSpace(paletteName)) return (Accents, LevelColors);
+            return paletteName.Trim().ToLowerInvariant() switch
+            {
+                "emerald forest" => (
+                    new[] { "#107c41", "#008272", "#2d7d9a", "#6b8e23", "#4a7c59", "#13a10e", "#038387", "#2e7d32" },
+                    new[] { "#107c41", "#008272", "#2d7d9a", "#6b8e23", "#4a7c59" }),
+                "sunset coral" or "sunset warmth" => (
+                    new[] { "#d13438", "#ff8c00", "#f7630c", "#e81123", "#ea005e", "#ffb900", "#ca5010", "#c239b3" },
+                    new[] { "#d13438", "#ff8c00", "#f7630c", "#e81123", "#ea005e" }),
+                "ocean gradient" or "ocean cyan" => (
+                    new[] { "#0078d4", "#00b7c3", "#0099bc", "#005a9e", "#2886de", "#038387", "#0078d7", "#004e8c" },
+                    new[] { "#0078d4", "#00b7c3", "#0099bc", "#005a9e", "#2886de" }),
+                "modern violet" or "purple modern" => (
+                    new[] { "#5c2d91", "#8764b8", "#b146c2", "#744da9", "#881798", "#6b69d6", "#9b59b6", "#673ab7" },
+                    new[] { "#5c2d91", "#8764b8", "#b146c2", "#744da9", "#881798" }),
+                "slate monochrome" or "monochrome dark" => (
+                    new[] { "#24292f", "#32383f", "#424a53", "#57606a", "#6e7781", "#8c959f", "#495057", "#343a40" },
+                    new[] { "#24292f", "#32383f", "#424a53", "#57606a", "#6e7781" }),
+                _ => (Accents, LevelColors)
+            };
+        }
         private const string Ink = "#201f1e";
         private const string SubInk = "#484644";
         private const string Connector = "#8a8886";
@@ -65,34 +97,50 @@ namespace MarkSmith.Core.Preview
             public IReadOnlyList<string> Bullets => Children.SelectMany(c => new[] { c.Text }.Concat(c.Children.Select(g => "–\u00A0" + g.Text))).ToList();
         }
 
-        public static string RenderHtml(CanonicalAst ast, string layoutAlias, string layoutTitle = "SmartArt Diagram")
+        public static string RenderHtml(CanonicalAst ast, string layoutAlias, string layoutTitle = "SmartArt Diagram", string? paletteName = null)
         {
-            var family = ResolveFamily(layoutAlias);
-            var variant = ResolveVariant(layoutAlias);
-            var items = ToItems(ast?.Root);
-
-            string svg;
-            if (items.Count == 0)
+            var prevAccents = _activeAccents;
+            var prevLevelColors = _activeLevelColors;
+            try
             {
-                svg = Svg(BaseW, 240, $"<text x=\"400\" y=\"120\" text-anchor=\"middle\" font-size=\"15\" fill=\"#605e5c\">Add items to the outline to see this layout.</text>", out _);
-            }
-            else
-            {
-                svg = DrawUniform(family, variant, items);
-            }
+                if (!string.IsNullOrWhiteSpace(paletteName))
+                {
+                    var (a, l) = GetPaletteColors(paletteName);
+                    _activeAccents = a;
+                    _activeLevelColors = l;
+                }
+                var family = ResolveFamily(layoutAlias);
+                var variant = ResolveVariant(layoutAlias);
+                var items = ToItems(ast?.Root);
 
-            // Only append the alias when it adds something (an untitled layout's title *is* its alias).
-            // A blank title used to print as "Layout:  (process)".
-            var layoutLabel = string.IsNullOrWhiteSpace(layoutTitle) ? layoutAlias
-                : string.Equals(layoutTitle, layoutAlias, StringComparison.OrdinalIgnoreCase)
-                ? layoutTitle
-                : $"{layoutTitle} ({layoutAlias})";
+                string svg;
+                if (items.Count == 0)
+                {
+                    svg = Svg(BaseW, 240, $"<text x=\"400\" y=\"120\" text-anchor=\"middle\" font-size=\"15\" fill=\"#605e5c\">Add items to the outline to see this layout.</text>", out _);
+                }
+                else
+                {
+                    svg = DrawUniform(family, variant, items);
+                }
 
-            return $@"
+                // Only append the alias when it adds something (an untitled layout's title *is* its alias).
+                // A blank title used to print as "Layout:  (process)".
+                var layoutLabel = string.IsNullOrWhiteSpace(layoutTitle) ? layoutAlias
+                    : string.Equals(layoutTitle, layoutAlias, StringComparison.OrdinalIgnoreCase)
+                    ? layoutTitle
+                    : $"{layoutTitle} ({layoutAlias})";
+
+                return $@"
 <div class=""smartart-container"" data-family=""{family}"" data-variant=""{variant}"" style=""width: 100%; max-width: 800px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,0.05); box-sizing: border-box;"">
   <div class=""smartart-caption"" style=""padding: 10px 14px 0; font-size: 12px; font-weight: 600; color: #605e5c; text-align: left;"">Layout: {WebUtility.HtmlEncode(layoutLabel)}</div>
   {svg}
 </div>";
+            }
+            finally
+            {
+                _activeAccents = prevAccents;
+                _activeLevelColors = prevLevelColors;
+            }
         }
 
         // Word syncs the text size across shapes of the same kind, so a row of process boxes never
@@ -502,7 +550,7 @@ namespace MarkSmith.Core.Preview
             return $"#{M(r):x2}{M(g):x2}{M(b):x2}";
         }
 
-        private static string Accent(int i) => Accents[((i % Accents.Length) + Accents.Length) % Accents.Length];
+        private static string Accent(int i) => CurrentAccents[((i % CurrentAccents.Length) + CurrentAccents.Length) % CurrentAccents.Length];
 
         private static double CharW(double fs, bool bold) => fs * (bold ? 0.58 : 0.52);
 
@@ -788,7 +836,7 @@ namespace MarkSmith.Core.Preview
                     double midX = X(n) + boxW + (colW - boxW) / 2;
                     edges.Append($"<path d=\"M{F(X(n) + boxW)} {F(Y(n))}H{F(midX)}V{F(Y(k))}H{F(X(k))}\" fill=\"none\" stroke=\"{Connector}\" stroke-width=\"1.5\"/>");
                 }
-                Box(nodes, X(n), Y(n) - boxH / 2, boxW, boxH, LevelColors[n.Depth % LevelColors.Length], n.Item, withBullets: false);
+                Box(nodes, X(n), Y(n) - boxH / 2, boxW, boxH, CurrentLevelColors[n.Depth % CurrentLevelColors.Length], n.Item, withBullets: false);
             }
             sb.Append(edges).Append(nodes);
             return (BaseW, h);
@@ -812,8 +860,8 @@ namespace MarkSmith.Core.Preview
                 double y = Pad + n.Depth * (rowH + gap);
                 // Leaves stretch down to the bottom row so the blocks read as a solid stack.
                 double bh = n.Kids.Count == 0 ? rowH + (depth - 1 - n.Depth) * (rowH + gap) : rowH;
-                if (table) Box(sb, x, y, n.Leaves * slot - gap, bh, Tint(LevelColors[0], Math.Min(0.6, n.Depth * 0.2)), n.Item, withBullets: false, rx: 0, textColor: n.Depth >= 3 ? Ink : null);
-                else Box(sb, x, y, n.Leaves * slot - gap, bh, LevelColors[n.Depth % LevelColors.Length], n.Item, withBullets: false, rx: 4);
+                if (table) Box(sb, x, y, n.Leaves * slot - gap, bh, Tint(CurrentLevelColors[0], Math.Min(0.6, n.Depth * 0.2)), n.Item, withBullets: false, rx: 0, textColor: n.Depth >= 3 ? Ink : null);
+                else Box(sb, x, y, n.Leaves * slot - gap, bh, CurrentLevelColors[n.Depth % CurrentLevelColors.Length], n.Item, withBullets: false, rx: 4);
             }
             return (w, h);
         }

@@ -191,33 +191,63 @@ namespace MarkSmith.Services.MindMap
             }
         }
 
+        private static int SubtreeWeight(Dictionary<string, MindMapNode> byId, MindMapNode node, HashSet<string> seen)
+        {
+            int weight = 1;
+            var children = ChildrenOf(byId, node, seen);
+            foreach (var child in children)
+            {
+                var nextSeen = new HashSet<string>(seen, StringComparer.Ordinal) { child.Id };
+                weight += SubtreeWeight(byId, child, nextSeen);
+            }
+            return weight;
+        }
+
         private static void PlaceRadial(Dictionary<string, MindMapNode> byId, MindMapNode node, double angleStart, double angleEnd, int depth, HashSet<string> visited)
         {
             var children = ChildrenOf(byId, node, visited);
             if (children.Count == 0) return;
 
-            // Radius scales with the widest possible ring occupancy so crowded levels spread out
-            // instead of overlapping.
+            // Radius scales with tree depth and occupancy
             double radius = 300 * depth + (children.Count > 8 ? (children.Count - 8) * 14 : 0);
-            double sweep = (angleEnd - angleStart) / children.Count;
+
+            // Subtree weight allocation: apportion angular wedge proportional to branch weight
+            var weights = new int[children.Count];
+            int totalWeight = 0;
+            for (int i = 0; i < children.Count; i++)
+            {
+                var seenSub = new HashSet<string>(visited, StringComparer.Ordinal) { children[i].Id };
+                weights[i] = SubtreeWeight(byId, children[i], seenSub);
+                totalWeight += weights[i];
+            }
+            if (totalWeight <= 0) totalWeight = children.Count;
+
+            double totalAngle = angleEnd - angleStart;
+            double currentAngle = angleStart;
+
+            var sweeps = new double[children.Count];
+            var childStarts = new double[children.Count];
 
             for (int i = 0; i < children.Count; i++)
             {
-                var child = children[i];
-                double childStart = angleStart + (i * sweep);
-                double angle = childStart + (sweep / 2.0);
+                sweeps[i] = totalAngle * ((double)weights[i] / totalWeight);
+                childStarts[i] = currentAngle;
+                double angle = currentAngle + (sweeps[i] / 2.0);
 
+                var child = children[i];
                 child.X = radius * Math.Cos(angle) - (child.Width / 2.0);
                 child.Y = radius * Math.Sin(angle) - (child.Height / 2.0);
                 visited.Add(child.Id);
+
+                currentAngle += sweeps[i];
             }
 
             for (int i = 0; i < children.Count; i++)
             {
-                double childStart = angleStart + (i * sweep);
-                PlaceRadial(byId, children[i], childStart, childStart + sweep, depth + 1, visited);
+                PlaceRadial(byId, children[i], childStarts[i], childStarts[i] + sweeps[i], depth + 1, visited);
             }
         }
+
 
         private static int MaxDepth(Dictionary<string, MindMapNode> byId, MindMapNode root)
         {
