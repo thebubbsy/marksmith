@@ -184,10 +184,60 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnLayoutSearchDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (FindDescendant<TextBox>(LayoutSearch) is { } tb)
+            {
+                tb.SelectAll();
+            }
+        }
+
         private void OnLayoutSearchRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
             var menu = new MenuFlyout();
+
+            var copyQueryItem = new MenuFlyoutItem
+            {
+                Text = "Copy search query",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !string.IsNullOrEmpty(LayoutSearch.Text)
+            };
+            copyQueryItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(LayoutSearch.Text);
+                ViewModel.StatusMessage = $"Copied search query: {LayoutSearch.Text}";
+            };
+            menu.Items.Add(copyQueryItem);
+
+            var pasteQueryItem = new MenuFlyoutItem
+            {
+                Text = "Paste search query",
+                Icon = new FontIcon { Glyph = "\uE77F" }
+            };
+            pasteQueryItem.Click += async (_, _) =>
+            {
+                try
+                {
+                    var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var text = await pkg.GetTextAsync();
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            LayoutSearch.Text = text.Trim();
+                            LayoutSearch.Focus(FocusState.Programmatic);
+                            ViewModel.StatusMessage = $"Pasted search query: {LayoutSearch.Text}";
+                        }
+                    }
+                }
+                catch
+                {
+                    // Clipboard may be unavailable or locked
+                }
+            };
+            menu.Items.Add(pasteQueryItem);
 
             var clearItem = new MenuFlyoutItem
             {
@@ -202,15 +252,41 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             menu.Items.Add(clearItem);
 
-            var focusSearchItem = new MenuFlyoutItem
-            {
-                Text = "Focus search box",
-                Icon = new FontIcon { Glyph = "\uE721" }
-            };
-            focusSearchItem.Click += (_, _) => LayoutSearch.Focus(FocusState.Programmatic);
-            menu.Items.Add(focusSearchItem);
-
             menu.Items.Add(new MenuFlyoutSeparator());
+
+            var categorySubmenu = new MenuFlyoutSubItem
+            {
+                Text = "Filter by category",
+                Icon = new FontIcon { Glyph = "\uE8EC" }
+            };
+            foreach (var category in ViewModel.Categories)
+            {
+                var catItem = new MenuFlyoutItem
+                {
+                    Text = category == ViewModel.SelectedCategory ? $"{category} ✓" : category,
+                    Icon = new FontIcon { Glyph = "\uE8EC" }
+                };
+                catItem.Click += (_, _) =>
+                {
+                    ViewModel.SelectedCategory = category;
+                    ViewModel.StatusMessage = $"Switched category filter to {category}.";
+                };
+                categorySubmenu.Items.Add(catItem);
+            }
+            menu.Items.Add(categorySubmenu);
+
+            var focusListItem = new MenuFlyoutItem
+            {
+                Text = "Browse layouts (Down / Enter)",
+                Icon = new FontIcon { Glyph = "\uE8B3" }
+            };
+            focusListItem.Click += (_, _) =>
+            {
+                LayoutList.Focus(FocusState.Keyboard);
+                if (ViewModel.SelectedLayout is { } layout)
+                    LayoutList.ScrollIntoView(layout, ScrollIntoViewAlignment.Leading);
+            };
+            menu.Items.Add(focusListItem);
 
             var focusOutlineItem = new MenuFlyoutItem
             {
@@ -1500,6 +1576,9 @@ namespace MarkSmith.Views.SmartArtStudio
             insertItem.Click += (_, _) => ViewModel.InsertIntoDocumentCommand.Execute(null);
             menu.Items.Add(insertItem);
 
+            menu.Items.Add(new MenuFlyoutSeparator());
+            AddPaletteSubmenu(menu);
+
             menu.ShowAt(target, e.GetPosition(target));
             e.Handled = true;
         }
@@ -2008,6 +2087,9 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             menu.Items.Add(switchEditorItem);
 
+            menu.Items.Add(new MenuFlyoutSeparator());
+            AddPaletteSubmenu(menu);
+
             menu.ShowAt(PreviewTitleLabel, e.GetPosition(PreviewTitleLabel));
         }
 
@@ -2062,6 +2144,74 @@ namespace MarkSmith.Views.SmartArtStudio
             menu.Items.Add(addRootItem);
 
             menu.ShowAt(EditorTabs, e.GetPosition(EditorTabs));
+        }
+
+        private void AddPaletteSubmenu(MenuFlyout menu)
+        {
+            var paletteSubmenu = new MenuFlyoutSubItem
+            {
+                Text = $"Color palette ({ViewModel.SelectedPalette})",
+                Icon = new FontIcon { Glyph = "\uEA3B" }
+            };
+
+            foreach (var palette in ViewModel.Palettes)
+            {
+                bool isSelected = string.Equals(palette, ViewModel.SelectedPalette, StringComparison.OrdinalIgnoreCase);
+                var pItem = new MenuFlyoutItem
+                {
+                    Text = isSelected ? $"{palette} ✓" : palette,
+                    Icon = new FontIcon { Glyph = isSelected ? "\uE73E" : "\uEA3B" }
+                };
+                pItem.Click += (_, _) =>
+                {
+                    ViewModel.SelectedPalette = palette;
+                    RefreshWebView();
+                    ViewModel.StatusMessage = $"Applied SmartArt color palette: {palette}";
+                };
+                paletteSubmenu.Items.Add(pItem);
+            }
+
+            paletteSubmenu.Items.Add(new MenuFlyoutSeparator());
+
+            var resetPaletteItem = new MenuFlyoutItem
+            {
+                Text = "Reset to Office Blue",
+                Icon = new FontIcon { Glyph = "\uE72C" }
+            };
+            resetPaletteItem.Click += (_, _) =>
+            {
+                ViewModel.SelectedPalette = "Office Blue";
+                RefreshWebView();
+                ViewModel.StatusMessage = "Reset color palette to Office Blue.";
+            };
+            paletteSubmenu.Items.Add(resetPaletteItem);
+
+            var copyPaletteItem = new MenuFlyoutItem
+            {
+                Text = "Copy palette name",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyPaletteItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.SelectedPalette);
+                ViewModel.StatusMessage = $"Copied palette: {ViewModel.SelectedPalette}";
+            };
+            paletteSubmenu.Items.Add(copyPaletteItem);
+
+            menu.Items.Add(paletteSubmenu);
+        }
+
+        private static T? FindDescendant<T>(DependencyObject? parent) where T : DependencyObject
+        {
+            if (parent == null) return null;
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typed) return typed;
+                if (FindDescendant<T>(child) is { } found) return found;
+            }
+            return null;
         }
     }
 }

@@ -426,10 +426,11 @@
 
                             <!-- Copy Action Button -->
                             <Button x:Name="CopyToolbarButton" Grid.Column="3" Click="OnCopyToolbarButtonClick"
+                                    DoubleTapped="OnCopyToolbarButtonDoubleTapped"
                                     VerticalAlignment="Center" Padding="8,4" CornerRadius="6"
                                     Background="{ThemeResource SubtleFillColorTransparentBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                    ToolTipService.ToolTip="Copy diff patch (Ctrl+Shift+C)"
+                                    ToolTipService.ToolTip="Copy diff patch (Ctrl+Shift+C · Double-click to copy, Right-click for options)"
                                     AutomationProperties.Name="Copy diff patch (Ctrl+Shift+C)"
                                     Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
                                 <Button.ContextFlyout>
@@ -474,10 +475,11 @@
                                   RightTapped="OnDiffAreaRightTapped"
                                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto"
                                   Visibility="{Binding ShowUnifiedRows, Converter={StaticResource BoolToVis}}">
-                        <ItemsRepeater ItemsSource="{Binding UnifiedDiffRows}">
+                        <ItemsRepeater x:Name="UnifiedDiffRepeater" ItemsSource="{Binding UnifiedDiffRows}"
+                                       ElementPrepared="OnUnifiedDiffRepeaterElementPrepared">
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid>
+                                    <Grid Background="Transparent">
                                         <!-- Tints are ThemeResource layers, not a converted brush: rows are recycled with the
                                              same data, so a converter's brush never followed a light/dark switch. -->
                                         <Grid Visibility="{Binding IsLine, Converter={StaticResource BoolToVis}}">
@@ -525,10 +527,11 @@
                                   RightTapped="OnDiffAreaRightTapped"
                                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                   Visibility="{Binding ShowSplitRows, Converter={StaticResource BoolToVis}}">
-                        <ItemsRepeater ItemsSource="{Binding DiffRows}">
+                        <ItemsRepeater x:Name="SplitDiffRepeater" ItemsSource="{Binding DiffRows}"
+                                       ElementPrepared="OnSplitDiffRepeaterElementPrepared">
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid>
+                                    <Grid Background="Transparent">
                                         <Grid Visibility="{Binding IsLine, Converter={StaticResource BoolToVis}}">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -538,7 +541,8 @@
                                                     Visibility="{Binding Left.Kind, Converter={StaticResource DiffIs}, ConverterParameter=Removed}" />
                                             <Border Background="{ThemeResource SystemFillColorSuccessBackgroundBrush}"
                                                     Visibility="{Binding Left.Kind, Converter={StaticResource DiffIs}, ConverterParameter=Added}" />
-                                            <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0" Padding="4,1">
+                                            <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0" Padding="4,1"
+                                                    Background="Transparent">
                                                 <Grid ColumnSpacing="6">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="38" />
@@ -554,7 +558,8 @@
                                                     Visibility="{Binding Right.Kind, Converter={StaticResource DiffIs}, ConverterParameter=Removed}" />
                                             <Border Grid.Column="1" Background="{ThemeResource SystemFillColorSuccessBackgroundBrush}"
                                                     Visibility="{Binding Right.Kind, Converter={StaticResource DiffIs}, ConverterParameter=Added}" />
-                                            <Border Grid.Column="1" Padding="4,1">
+                                            <Border Grid.Column="1" Padding="4,1"
+                                                    Background="Transparent">
                                                 <Grid ColumnSpacing="6">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="38" />

@@ -8231,3 +8231,64 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 3420, `Alive: True`, `Responding: True`, clean exit.
+
+
+### 2026-10-16 (scheduled routine run #108 — WinUI 3 Desktop Polish: Shape Studio Rotation & Stroke Weight Sliders/Inputs Right-Click Menus & Double-Tap Parity, Shape Studio Inspector Position & Size NumberBox Gesture Parity, SmartArt Studio Layout Search Double-Tap & Right-Click Category Menu, SmartArt Studio Preview Color Palette Context Menu Parity, HistoryWindow Diff Rows Double-Tap Copy & Right-Click Actions Menu, HistoryWindow Copy Toolbar Button Double-Tap Parity)
+
+- **Surface / Component Targets:** `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, pointer gesture quarantine, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #107:
+    * Target A: `ShapeDesignStudioWindow` rotation & stroke weight sliders/inputs right-click menus & double-tap parity.
+    * Target B: `SmartArtDesignStudioWindow` color palette presets menu & layout search gesture parity.
+  - Generated:
+    1. `ShapeDesignStudioWindow` Rotation Slider & Stroke Weight NumberBox Right-Click Presets & Double-Tap Parity (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+    2. `ShapeDesignStudioWindow` Inspector Position (X/Y) & Size (W/H) NumberBoxes Gesture Parity (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): In `ShapeDesignStudioWindow.xaml` & `.xaml.cs`, attached `DoubleTapped="OnRotationSliderDoubleTapped"` and `RightTapped="OnRotationSliderRightTapped"` to both the rotation `Slider` and `RotationDegreeText`, with full angle presets (0°, 45°, 90°, 180°, -90°, -45°, copy); attached `DoubleTapped="OnStrokeWeightDoubleTapped"` and `RightTapped="OnStrokeWeightRightTapped"` to `StrokeWeightNumberBox` offering drafting weights (Hairline 0.5 pt, 1.0 pt, 1.5 pt, 2.0 pt, 3.0 pt, 4.5 pt, 6.0 pt, reset, copy); attached `DoubleTapped="OnNumberBoxDoubleTapped"` to Position X/Y and Size W/H `NumberBox`es (selects all text via `FindDescendant<TextBox>`), `RightTapped="OnPositionNumberBoxRightTapped"` (align left, align top, center horizontal, center vertical, copy position) and `RightTapped="OnSizeNumberBoxRightTapped"` (make square, compact 120×80, standard 160×100, wide 220×100, reset 140×90, copy dimensions).
+  - Generated:
+    3. `SmartArtDesignStudioWindow` Layout Search AutoSuggestBox Double-Tap & Right-Click Category Filter Menu (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+    4. `SmartArtDesignStudioWindow` Preview Pane Color Palette Context Menu Parity (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): In `SmartArtDesignStudioWindow.xaml` & `.xaml.cs`, attached `DoubleTapped="OnLayoutSearchDoubleTapped"` on `LayoutSearch` AutoSuggestBox to select all text via `FindDescendant<TextBox>`; expanded `OnLayoutSearchRightTapped` to offer Copy search query, Paste query from clipboard (using error-bounded `Clipboard.GetContent()`), Clear search (`\uE894`), Filter by category submenu with all 10 categories, Browse layouts (`\uE8B3`), and Focus outline editor (`\uE8FD`); implemented `AddPaletteSubmenu` surfacing all 6 SmartArt color palettes (`Office Blue`, `Emerald Forest`, `Sunset Warmth`, `Ocean Cyan`, `Purple Modern`, `Monochrome Dark`) with active checkmarks, live preview refresh, and status announcements; wired `AddPaletteSubmenu` into `OnPreviewTitleLabelRightTapped` and `OnPreviewPaneRightTapped`.
+  - Refined Block 1 (Pass 2 - Final): In `ShapeDesignStudioWindow.xaml.cs`, ensured visual tree helper `FindDescendant<T>` reliably recurses through template visual trees for selection; ensured rotation slider right-click preset updates the bound `SelectedShape.Rotation` and updates UI status telemetry.
+  - Generated:
+    5. `HistoryWindow` Diff Rows Double-Tap Copy & Right-Click Context Menu Parity (`Views/History/HistoryWindow.xaml` & `HistoryWindow.xaml.cs`)
+    6. `HistoryWindow` Copy Toolbar Button Double-Tap Parity & Starred Filter Submenu Polish (`Views/History/HistoryWindow.xaml` & `HistoryWindow.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): In `HistoryWindow.xaml` & `.xaml.cs`, resolved WinUI 3 XAML compiler crash (`WMC9999`) caused by direct template event hooks by routing pointer events cleanly through `ElementPrepared` on `UnifiedDiffRepeater` and `SplitDiffRepeater`; double-tap on unified diff row copies clean line text to clipboard with notification; right-tap presents Copy line text (`\uE8C8`), Copy line with prefix (`\uE943`), Copy diff patch (`\uE943`), Copy version Markdown (`\uE8C8`), Side-by-side diff (`\uE8D3`), Preview (`\uE7B3`), and Restore to editor (`\uE7A7`); in split diff, pointer position coordinate checking accurately distinguishes left (previous) and right (current) column clicks, copying or displaying options for the exact clicked cell; attached `DoubleTapped="OnCopyToolbarButtonDoubleTapped"` for immediate diff patch copy; expanded `OnStarredFilterToggleRightTapped` with "Filter checkpoints only" (`\uE74E`) and "Clear all filters" (`\uE894`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #109 (`ShapeDesignStudioWindow` Picture to vector density and padding slider right-click preset stops, `SmartArtDesignStudioWindow` outline empty panel first node type selection menu, `MindMapGalaxyWindow` canvas background right-click vault export presets).
+
+**Shipped:**
+1. **`ShapeDesignStudioWindow` Rotation Slider & Stroke Weight NumberBox Right-Click Presets & Double-Tap Parity (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `DoubleTapped="OnRotationSliderDoubleTapped"` and `RightTapped="OnRotationSliderRightTapped"` to both the rotation `Slider` and `RotationDegreeText`.
+   - Context menu presents Reset 0° (`\uE777`), 45° (`\uE7AD`), 90° (`\uE7AD`), 180° (`\uE7AD`), -90° (`\uE80C`), -45° (`\uE80C`), and Copy rotation angle (`\uE8C8`).
+   - Attached `DoubleTapped="OnStrokeWeightDoubleTapped"` and `RightTapped="OnStrokeWeightRightTapped"` to `StrokeWeightNumberBox` offering drafting weights (Hairline 0.5 pt, 1.0 pt, 1.5 pt, 2.0 pt, 3.0 pt, 4.5 pt, 6.0 pt, Reset 1.5 pt, Copy weight).
+2. **`ShapeDesignStudioWindow` Inspector Position (X/Y) & Size (W/H) NumberBoxes Gesture Parity (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `DoubleTapped="OnNumberBoxDoubleTapped"` across Position X/Y and Size W/H `NumberBox`es (selects all text via `FindDescendant<TextBox>`).
+   - Attached `RightTapped="OnPositionNumberBoxRightTapped"` (Align left X=0, Align top Y=0, Center horizontal X=150, Center vertical Y=150, Copy position).
+   - Attached `RightTapped="OnSizeNumberBoxRightTapped"` (Make square, Compact 120×80, Standard 160×100, Wide 220×100, Reset default 140×90, Copy dimensions).
+3. **`SmartArtDesignStudioWindow` Layout Search AutoSuggestBox Double-Tap & Right-Click Category Filter Menu (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `DoubleTapped="OnLayoutSearchDoubleTapped"` on `LayoutSearch` AutoSuggestBox to select all query text.
+   - Expanded `OnLayoutSearchRightTapped` to offer Copy search query (`\uE8C8`), Paste query from clipboard (`\uE77F`), Clear search (`\uE894`), dynamic "Filter by category" submenu (`\uE8EC`) with all 10 categories, Browse layouts (`\uE8B3`), and Focus outline editor (`\uE8FD`).
+4. **`SmartArtDesignStudioWindow` Preview Pane Color Palette Context Menu Parity (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Implemented `AddPaletteSubmenu` surfacing all 6 SmartArt color palettes (`Office Blue`, `Emerald Forest`, `Sunset Warmth`, `Ocean Cyan`, `Purple Modern`, `Monochrome Dark`) with active checkmarks, live preview refresh, and status notifications.
+   - Wired `AddPaletteSubmenu` into `OnPreviewTitleLabelRightTapped` and `OnPreviewPaneRightTapped`.
+   - Added Reset to Office Blue (`\uE72C`) and Copy palette name (`\uE8C8`).
+5. **`HistoryWindow` Diff Rows Double-Tap Copy & Right-Click Context Menu Parity (`Views/History/HistoryWindow.xaml` & `HistoryWindow.xaml.cs`):**
+   - Wired `ElementPrepared` on `UnifiedDiffRepeater` and `SplitDiffRepeater` for virtualized row gesture handling.
+   - Double-tap on unified diff row copies clean line text to clipboard; right-tap presents Copy line text (`\uE8C8`), Copy line with prefix (`\uE943`), Copy diff patch (`\uE943`), Copy version Markdown (`\uE8C8`), Side-by-side diff (`\uE8D3`), Preview (`\uE7B3`), and Restore to editor (`\uE7A7`).
+   - In split diff rows, coordinate detection (`e.GetPosition(fe).X < fe.ActualWidth / 2.0`) accurately determines left vs right column clicks with null-safe cell access.
+6. **`HistoryWindow` Copy Toolbar Button Double-Tap Parity & Starred Filter Submenu Polish (`Views/History/HistoryWindow.xaml` & `HistoryWindow.xaml.cs`):**
+   - Attached `DoubleTapped="OnCopyToolbarButtonDoubleTapped"` on `CopyToolbarButton` for instant diff patch copying without opening the dropdown.
+   - Expanded `OnStarredFilterToggleRightTapped` with "Filter checkpoints only" (`\uE74E`) and "Clear all filters" (`\uE894`).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 25676, `Alive: True`, `Responding: True`, clean exit.
+

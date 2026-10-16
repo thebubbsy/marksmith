@@ -103,7 +103,9 @@
                         </Grid>
                         <AutoSuggestBox x:Name="LayoutSearch" AutomationProperties.Name="Search layouts" PlaceholderText="Search layouts"
                                         QueryIcon="Find" TextChanged="OnLayoutSearchTextChanged" KeyDown="OnLayoutSearchKeyDown"
-                                        RightTapped="OnLayoutSearchRightTapped" />
+                                        DoubleTapped="OnLayoutSearchDoubleTapped"
+                                        RightTapped="OnLayoutSearchRightTapped"
+                                        ToolTipService.ToolTip="Search layouts by name or category (Double-click to select all, Right-click for options)" />
                         <ComboBox x:Name="LayoutCategoryCombo" AutomationProperties.Name="Layout type" HorizontalAlignment="Stretch"
                                   ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
                                   KeyDown="OnLayoutCategoryComboKeyDown"

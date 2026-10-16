@@ -2080,6 +2080,190 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.ShowAt(target, e.GetPosition(target));
         }
 
+        private void OnRotationSliderDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ViewModel.ResetRotation();
+        }
+
+        private void OnRotationSliderRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (sender is not FrameworkElement target) return;
+            OnResetRotationButtonRightTapped(target, e);
+        }
+
+        private void OnStrokeWeightDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (sender is DependencyObject d && FindDescendant<TextBox>(d) is { } tb)
+            {
+                tb.SelectAll();
+            }
+        }
+
+        private void OnStrokeWeightRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (sender is not FrameworkElement target) return;
+            var flyout = new MenuFlyout();
+
+            void SetWeight(double pt)
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    ViewModel.RecordUndo();
+                    s.StrokeWidthPt = pt;
+                    ViewModel.StatusMessage = $"Set line weight to {pt:0.##} pt";
+                }
+            }
+
+            flyout.Items.Add(ShapeMenuItem("Hairline (0.5 pt)", "\uE8FD", () => SetWeight(0.5)));
+            flyout.Items.Add(ShapeMenuItem("Thin (1.0 pt)", "\uE8FD", () => SetWeight(1.0)));
+            flyout.Items.Add(ShapeMenuItem("Regular (1.5 pt)", "\uE8FD", () => SetWeight(1.5)));
+            flyout.Items.Add(ShapeMenuItem("Medium (2.0 pt)", "\uE8FD", () => SetWeight(2.0)));
+            flyout.Items.Add(ShapeMenuItem("Thick (3.0 pt)", "\uE8FD", () => SetWeight(3.0)));
+            flyout.Items.Add(ShapeMenuItem("Extra Thick (4.5 pt)", "\uE8FD", () => SetWeight(4.5)));
+            flyout.Items.Add(ShapeMenuItem("Heavy (6.0 pt)", "\uE8FD", () => SetWeight(6.0)));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Reset default (1.5 pt)", "\uE777", () => SetWeight(1.5)));
+            flyout.Items.Add(ShapeMenuItem("Copy line weight", "\uE8C8", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"{s.StrokeWidthPt:0.##} pt");
+                    ViewModel.StatusMessage = $"Copied line weight {s.StrokeWidthPt:0.##} pt to clipboard.";
+                }
+            }));
+
+            flyout.ShowAt(target, e.GetPosition(target));
+        }
+
+        private void OnNumberBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (sender is DependencyObject d && FindDescendant<TextBox>(d) is { } tb)
+            {
+                tb.SelectAll();
+            }
+        }
+
+        private void OnPositionNumberBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (sender is not FrameworkElement target) return;
+            var flyout = new MenuFlyout();
+
+            flyout.Items.Add(ShapeMenuItem("Align to left edge (X = 0)", "\uE8E4", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    ViewModel.RecordUndo();
+                    s.X = 0;
+                    ViewModel.StatusMessage = "Moved shape to left edge (X = 0)";
+                }
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Align to top edge (Y = 0)", "\uE74A", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    ViewModel.RecordUndo();
+                    s.Y = 0;
+                    ViewModel.StatusMessage = "Moved shape to top edge (Y = 0)";
+                }
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Center horizontally", "\uE8E3", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    ViewModel.RecordUndo();
+                    s.X = Math.Max(0, (1200 - s.Width) / 2);
+                    ViewModel.StatusMessage = $"Centered horizontally at X = {s.X:0}";
+                }
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Center vertically", "\uE8E3", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    ViewModel.RecordUndo();
+                    s.Y = Math.Max(0, (800 - s.Height) / 2);
+                    ViewModel.StatusMessage = $"Centered vertically at Y = {s.Y:0}";
+                }
+            }));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Copy position", "\uE8C8", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"X={s.X:0}, Y={s.Y:0}");
+                    ViewModel.StatusMessage = $"Copied position (X={s.X:0}, Y={s.Y:0})";
+                }
+            }));
+
+            flyout.ShowAt(target, e.GetPosition(target));
+        }
+
+        private void OnSizeNumberBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (sender is not FrameworkElement target) return;
+            var flyout = new MenuFlyout();
+
+            void SetSize(double w, double h)
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    ViewModel.RecordUndo();
+                    s.Width = Math.Max(4, w);
+                    s.Height = Math.Max(4, h);
+                    ViewModel.StatusMessage = $"Resized shape to {w:0} × {h:0} px";
+                }
+            }
+
+            flyout.Items.Add(ShapeMenuItem("Make square (equal width & height)", "\uE737", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    var side = Math.Max(s.Width, s.Height);
+                    SetSize(side, side);
+                }
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Compact preset (120 × 80)", "\uE737", () => SetSize(120, 80)));
+            flyout.Items.Add(ShapeMenuItem("Standard preset (160 × 100)", "\uE737", () => SetSize(160, 100)));
+            flyout.Items.Add(ShapeMenuItem("Wide preset (220 × 100)", "\uE737", () => SetSize(220, 100)));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Reset default size (140 × 90)", "\uE777", () => SetSize(140, 90)));
+            flyout.Items.Add(ShapeMenuItem("Copy dimensions", "\uE8C8", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"W={s.Width:0}, H={s.Height:0}");
+                    ViewModel.StatusMessage = $"Copied dimensions ({s.Width:0} × {s.Height:0})";
+                }
+            }));
+
+            flyout.ShowAt(target, e.GetPosition(target));
+        }
+
+        private static T? FindDescendant<T>(DependencyObject? parent) where T : DependencyObject
+        {
+            if (parent == null) return null;
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typed) return typed;
+                if (FindDescendant<T>(child) is { } found) return found;
+            }
+            return null;
+        }
+
         private void OnAlignButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;

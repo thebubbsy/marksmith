@@ -1375,6 +1375,12 @@ public sealed partial class HistoryWindow : Window
         menu.ShowAt(anchor, position);
     }
 
+    private void OnCopyToolbarButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        OnCopyToolbarButtonClick(sender, new RoutedEventArgs());
+    }
+
     private void OnStarredFilterToggleRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
@@ -1396,14 +1402,27 @@ public sealed partial class HistoryWindow : Window
         showAll.Click += (_, _) => _vm.IsStarredOnlyFilter = false;
         menu.Items.Add(showAll);
 
+        var checkpointsOnly = new MenuFlyoutItem
+        {
+            Text = "Filter checkpoints only",
+            Icon = new FontIcon { Glyph = "\uE74E" }
+        };
+        checkpointsOnly.Click += (_, _) =>
+        {
+            _vm.SearchQuery = "Checkpoint";
+            SearchBox.Text = "Checkpoint";
+        };
+        menu.Items.Add(checkpointsOnly);
+
         var clearFilter = new MenuFlyoutItem
         {
-            Text = "Clear search filter",
+            Text = "Clear all filters",
             Icon = new FontIcon { Glyph = "\uE894" },
-            IsEnabled = !string.IsNullOrEmpty(_vm.SearchQuery) || !string.IsNullOrEmpty(SearchBox.Text)
+            IsEnabled = _vm.IsStarredOnlyFilter || !string.IsNullOrEmpty(_vm.SearchQuery) || !string.IsNullOrEmpty(SearchBox.Text)
         };
         clearFilter.Click += (_, _) =>
         {
+            _vm.IsStarredOnlyFilter = false;
             _vm.SearchQuery = "";
             SearchBox.Text = "";
             SearchBox.Focus(FocusState.Programmatic);
@@ -1422,6 +1441,265 @@ public sealed partial class HistoryWindow : Window
 
         if (sender is FrameworkElement fe)
             menu.ShowAt(fe, e.GetPosition(fe));
+    }
+
+    private void OnUnifiedDiffRowDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if ((sender as FrameworkElement)?.DataContext is LineDiff.UnifiedRow row)
+        {
+            if (!row.IsGap && !string.IsNullOrEmpty(row.Text))
+            {
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText(row.Text);
+                ClipboardWriter.Set(dp);
+                _vm.ShowNotice($"Copied line: {row.Text}");
+            }
+        }
+    }
+
+    private void OnUnifiedDiffRowRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement fe) return;
+        var row = fe.DataContext as LineDiff.UnifiedRow;
+        var menu = new MenuFlyout();
+
+        if (row != null && !row.IsGap)
+        {
+            var copyLine = new MenuFlyoutItem
+            {
+                Text = "Copy line text",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyLine.Click += (_, _) =>
+            {
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText(row.Text);
+                ClipboardWriter.Set(dp);
+                _vm.ShowNotice($"Copied line: {row.Text}");
+            };
+            menu.Items.Add(copyLine);
+
+            var lineWithPrefix = $"{row.Prefix} {row.Text}".Trim();
+            var copyWithPrefix = new MenuFlyoutItem
+            {
+                Text = $"Copy line with prefix ({row.Prefix})",
+                Icon = new FontIcon { Glyph = "\uE943" }
+            };
+            copyWithPrefix.Click += (_, _) =>
+            {
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText(lineWithPrefix);
+                ClipboardWriter.Set(dp);
+                _vm.ShowNotice($"Copied line with prefix: {lineWithPrefix}");
+            };
+            menu.Items.Add(copyWithPrefix);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+        }
+
+        var copyPatch = new MenuFlyoutItem
+        {
+            Text = "Copy diff patch",
+            Icon = new FontIcon { Glyph = "\uE943" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
+            IsEnabled = _vm.HasSelection
+        };
+        copyPatch.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await CopyDiffPatchAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+        };
+        menu.Items.Add(copyPatch);
+
+        var copyMarkdown = new MenuFlyoutItem
+        {
+            Text = "Copy version Markdown",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = _vm.HasSelection
+        };
+        copyMarkdown.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await CopyVersionMarkdownAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+        };
+        menu.Items.Add(copyMarkdown);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var splitMode = new MenuFlyoutItem
+        {
+            Text = "Side by side diff view",
+            Icon = new FontIcon { Glyph = "\uE8D3" },
+            KeyboardAcceleratorTextOverride = "Ctrl+2"
+        };
+        splitMode.Click += (_, _) => SetMode(HistoryDiffMode.Split);
+        menu.Items.Add(splitMode);
+
+        var previewMode = new MenuFlyoutItem
+        {
+            Text = "Rendered document preview",
+            Icon = new FontIcon { Glyph = "\uE7B3" },
+            KeyboardAcceleratorTextOverride = "Ctrl+3"
+        };
+        previewMode.Click += (_, _) => SetMode(HistoryDiffMode.Preview);
+        menu.Items.Add(previewMode);
+
+        var restoreItem = new MenuFlyoutItem
+        {
+            Text = "Restore version to editor",
+            Icon = new FontIcon { Glyph = "\uE7A7" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
+            IsEnabled = _vm.HasSelection
+        };
+        restoreItem.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await ConfirmAndRestoreAsync();
+        };
+        menu.Items.Add(restoreItem);
+
+        menu.ShowAt(fe, e.GetPosition(fe));
+    }
+
+    private void OnUnifiedDiffRepeaterElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+    {
+        if (args.Element is FrameworkElement fe)
+        {
+            fe.DoubleTapped -= OnUnifiedDiffRowDoubleTapped;
+            fe.DoubleTapped += OnUnifiedDiffRowDoubleTapped;
+            fe.RightTapped -= OnUnifiedDiffRowRightTapped;
+            fe.RightTapped += OnUnifiedDiffRowRightTapped;
+        }
+    }
+
+    private void OnSplitDiffRepeaterElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+    {
+        if (args.Element is FrameworkElement fe)
+        {
+            fe.DoubleTapped -= OnSplitRowDoubleTapped;
+            fe.DoubleTapped += OnSplitRowDoubleTapped;
+            fe.RightTapped -= OnSplitRowRightTapped;
+            fe.RightTapped += OnSplitRowRightTapped;
+        }
+    }
+
+    private void OnSplitRowDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement fe) return;
+        if (fe.DataContext is not DiffRowViewModel row || row.IsGap) return;
+
+        var pos = e.GetPosition(fe);
+        bool isLeft = pos.X < (fe.ActualWidth / 2.0);
+        var cell = isLeft ? row.Left : row.Right;
+        if (cell != null && !string.IsNullOrEmpty(cell.Text))
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(cell.Text);
+            ClipboardWriter.Set(dp);
+            _vm.ShowNotice($"Copied {(isLeft ? "previous" : "current")} line: {cell.Text}");
+        }
+    }
+
+    private void OnSplitRowRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement fe) return;
+        if (fe.DataContext is not DiffRowViewModel row || row.IsGap) return;
+
+        var pos = e.GetPosition(fe);
+        bool isLeft = pos.X < (fe.ActualWidth / 2.0);
+        var cell = isLeft ? row.Left : row.Right;
+        ShowSplitRowContextMenu(fe, pos, cell?.Text, isLeft);
+    }
+
+    private void ShowSplitRowContextMenu(FrameworkElement fe, Windows.Foundation.Point position, string? lineText, bool isLeft)
+    {
+        var menu = new MenuFlyout();
+
+        if (!string.IsNullOrEmpty(lineText))
+        {
+            var copyLine = new MenuFlyoutItem
+            {
+                Text = isLeft ? "Copy previous line text" : "Copy current line text",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyLine.Click += (_, _) =>
+            {
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText(lineText);
+                ClipboardWriter.Set(dp);
+                _vm.ShowNotice($"Copied line: {lineText}");
+            };
+            menu.Items.Add(copyLine);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+        }
+
+        var copyPatch = new MenuFlyoutItem
+        {
+            Text = "Copy diff patch",
+            Icon = new FontIcon { Glyph = "\uE943" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
+            IsEnabled = _vm.HasSelection
+        };
+        copyPatch.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await CopyDiffPatchAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+        };
+        menu.Items.Add(copyPatch);
+
+        var copyMarkdown = new MenuFlyoutItem
+        {
+            Text = "Copy version Markdown",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = _vm.HasSelection
+        };
+        copyMarkdown.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await CopyVersionMarkdownAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+        };
+        menu.Items.Add(copyMarkdown);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var unifiedMode = new MenuFlyoutItem
+        {
+            Text = "Unified diff view",
+            Icon = new FontIcon { Glyph = "\uE8D2" },
+            KeyboardAcceleratorTextOverride = "Ctrl+1"
+        };
+        unifiedMode.Click += (_, _) => SetMode(HistoryDiffMode.Unified);
+        menu.Items.Add(unifiedMode);
+
+        var previewMode = new MenuFlyoutItem
+        {
+            Text = "Rendered document preview",
+            Icon = new FontIcon { Glyph = "\uE7B3" },
+            KeyboardAcceleratorTextOverride = "Ctrl+3"
+        };
+        previewMode.Click += (_, _) => SetMode(HistoryDiffMode.Preview);
+        menu.Items.Add(previewMode);
+
+        var restoreItem = new MenuFlyoutItem
+        {
+            Text = "Restore version to editor",
+            Icon = new FontIcon { Glyph = "\uE7A7" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
+            IsEnabled = _vm.HasSelection
+        };
+        restoreItem.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await ConfirmAndRestoreAsync();
+        };
+        menu.Items.Add(restoreItem);
+
+        menu.ShowAt(fe, position);
     }
 
     private void OnTakeCheckpointButtonRightTapped(object sender, RightTappedRoutedEventArgs e)

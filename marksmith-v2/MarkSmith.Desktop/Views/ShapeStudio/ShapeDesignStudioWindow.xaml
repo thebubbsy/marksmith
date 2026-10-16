@@ -633,11 +633,13 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="X" Style="{StaticResource InspectorAxis}" />
-                                <NumberBox Grid.Column="1" AutomationProperties.Name="X position" ToolTipService.ToolTip="X — distance from the left edge (px)" Minimum="0"
-                                           Value="{Binding SelectedShape.X, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
+                                <NumberBox x:Name="PositionXNumberBox" Grid.Column="1" AutomationProperties.Name="X position" ToolTipService.ToolTip="X — distance from the left edge in px (Double-click to select all, Right-click for options)" Minimum="0"
+                                           Value="{Binding SelectedShape.X, Mode=TwoWay}" SmallChange="1" LargeChange="10"
+                                           DoubleTapped="OnNumberBoxDoubleTapped" RightTapped="OnPositionNumberBoxRightTapped" />
                                 <TextBlock Grid.Column="2" Text="Y" Style="{StaticResource InspectorAxis}" Margin="4,0,0,0" />
-                                <NumberBox Grid.Column="3" AutomationProperties.Name="Y position" ToolTipService.ToolTip="Y — distance from the top edge (px)" Minimum="0"
-                                           Value="{Binding SelectedShape.Y, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
+                                <NumberBox x:Name="PositionYNumberBox" Grid.Column="3" AutomationProperties.Name="Y position" ToolTipService.ToolTip="Y — distance from the top edge in px (Double-click to select all, Right-click for options)" Minimum="0"
+                                           Value="{Binding SelectedShape.Y, Mode=TwoWay}" SmallChange="1" LargeChange="10"
+                                           DoubleTapped="OnNumberBoxDoubleTapped" RightTapped="OnPositionNumberBoxRightTapped" />
                             </Grid>
 
                             <TextBlock Grid.Row="2" Text="Size" Style="{StaticResource InspectorLabel}" />
@@ -651,11 +653,13 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="W" Style="{StaticResource InspectorAxis}" />
-                                <NumberBox Grid.Column="1" AutomationProperties.Name="Width" ToolTipService.ToolTip="Width (px)" Minimum="4"
-                                           Value="{Binding SelectedShape.Width, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
+                                <NumberBox x:Name="SizeWidthNumberBox" Grid.Column="1" AutomationProperties.Name="Width" ToolTipService.ToolTip="Width in px (Double-click to select all, Right-click for size presets)" Minimum="4"
+                                           Value="{Binding SelectedShape.Width, Mode=TwoWay}" SmallChange="1" LargeChange="10"
+                                           DoubleTapped="OnNumberBoxDoubleTapped" RightTapped="OnSizeNumberBoxRightTapped" />
                                 <TextBlock Grid.Column="2" Text="H" Style="{StaticResource InspectorAxis}" Margin="4,0,0,0" />
-                                <NumberBox Grid.Column="3" AutomationProperties.Name="Height" ToolTipService.ToolTip="Height (px)" Minimum="4"
-                                           Value="{Binding SelectedShape.Height, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
+                                <NumberBox x:Name="SizeHeightNumberBox" Grid.Column="3" AutomationProperties.Name="Height" ToolTipService.ToolTip="Height in px (Double-click to select all, Right-click for size presets)" Minimum="4"
+                                           Value="{Binding SelectedShape.Height, Mode=TwoWay}" SmallChange="1" LargeChange="10"
+                                           DoubleTapped="OnNumberBoxDoubleTapped" RightTapped="OnSizeNumberBoxRightTapped" />
                             </Grid>
 
                             <TextBlock Grid.Row="3" Text="{Binding SelectedShape.ColourLabel}" Style="{StaticResource InspectorLabel}" />
@@ -713,9 +717,12 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <NumberBox AutomationProperties.Name="Line weight in points" ToolTipService.ToolTip="Line weight (pt)"
+                                <NumberBox x:Name="StrokeWeightNumberBox" AutomationProperties.Name="Line weight in points"
+                                           ToolTipService.ToolTip="Line weight in points (Double-click to select all, Right-click for weight presets)"
                                            Minimum="0.25" Maximum="24" SmallChange="0.5" LargeChange="2" SpinButtonPlacementMode="Inline"
-                                           Value="{Binding SelectedShape.StrokeWidthPt, Mode=TwoWay}" />
+                                           Value="{Binding SelectedShape.StrokeWidthPt, Mode=TwoWay}"
+                                           DoubleTapped="OnStrokeWeightDoubleTapped"
+                                           RightTapped="OnStrokeWeightRightTapped" />
                                 <TextBlock Grid.Column="1" Text="pt" Style="{StaticResource InspectorAxis}" />
                             </Grid>
 
@@ -726,11 +733,17 @@
                                     <ColumnDefinition Width="38" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Slider Minimum="-180" Maximum="180" StepFrequency="1" AutomationProperties.Name="Rotation" VerticalAlignment="Center"
-                                        ToolTipService.ToolTip="Rotation angle (−180° to 180° · Alt+Left / Alt+Right steps by 15°)"
-                                        Value="{Binding SelectedShape.Rotation, Mode=TwoWay}" />
-                                <TextBlock Grid.Column="1" VerticalAlignment="Center" TextAlignment="Right" FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                                <Slider x:Name="RotationSlider" Minimum="-180" Maximum="180" StepFrequency="1" AutomationProperties.Name="Rotation" VerticalAlignment="Center"
+                                        ToolTipService.ToolTip="Rotation angle (−180° to 180° · Alt+Left / Alt+Right steps by 15° · Double-click for 0°, Right-click for presets)"
+                                        Value="{Binding SelectedShape.Rotation, Mode=TwoWay}"
+                                        DoubleTapped="OnRotationSliderDoubleTapped"
+                                        RightTapped="OnRotationSliderRightTapped" />
+                                <TextBlock x:Name="RotationDegreeText" Grid.Column="1" VerticalAlignment="Center" TextAlignment="Right" FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           IsHitTestVisible="True"
+                                           DoubleTapped="OnRotationSliderDoubleTapped"
+                                           RightTapped="OnRotationSliderRightTapped"
+                                           ToolTipService.ToolTip="Rotation readout (Double-click for 0°, Right-click for angle presets)">
                                     <Run Text="{Binding SelectedShape.Rotation}" /><Run Text="°" />
                                 </TextBlock>
                                 <Button x:Name="ResetRotationButton" Grid.Column="2" Content="0°" Padding="6,2" FontSize="11"
