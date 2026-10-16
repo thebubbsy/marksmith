@@ -2070,5 +2070,16 @@ namespace MarkSmith.ViewModels.MindMap
 
             return (startX, startY, c1X, c1Y, c2X, c2Y, endX, endY);
         }
+
+        /// <summary>
+        /// Returns the stroke dash array intervals for a connection line style (solid = empty, dashed = 4, 3, dotted = 1.5, 2).
+        /// </summary>
+        public static double[] GetDashArrayPattern(string styleName) =>
+            styleName?.ToLowerInvariant() switch
+            {
+                "dashed" => new double[] { 4.0, 3.0 },
+                "dotted" => new double[] { 1.5, 2.0 },
+                _ => Array.Empty<double>()
+            };
     }
 }

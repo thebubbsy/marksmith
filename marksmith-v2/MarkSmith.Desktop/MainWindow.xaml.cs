@@ -8527,6 +8527,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(matchCaseItem);
 
+        var matchWholeWordItem = new ToggleMenuFlyoutItem
+        {
+            Text = "Match whole word (Alt+W)",
+            IsChecked = MatchWholeWordCheck?.IsChecked == true
+        };
+        matchWholeWordItem.Click += (_, _) =>
+        {
+            if (MatchWholeWordCheck != null)
+            {
+                MatchWholeWordCheck.IsChecked = !(MatchWholeWordCheck.IsChecked == true);
+                RecomputeFindMatches();
+            }
+        };
+        menu.Items.Add(matchWholeWordItem);
+
         menu.Items.Add(new MenuFlyoutSeparator());
 
         var toggleReplaceItem = new MenuFlyoutItem
@@ -8712,19 +8727,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var text = PasteTextBox?.Text ?? string.Empty;
         var query = FindTextBox?.Text ?? string.Empty;
         var cmp = FindComparison;
+        var wholeWord = MatchWholeWordCheck?.IsChecked == true;
         _findMatches.Clear();
         _findMatchIndex = -1;
-        _findMatches.AddRange(MarkSmith.Services.TextSearch.FindAll(text, query, cmp));
+        _findMatches.AddRange(MarkSmith.Services.TextSearch.FindAll(text, query, cmp, wholeWord));
         if (previous >= 0 && query.Length > 0
             && previous + query.Length <= text.Length
             && string.Compare(text, previous, query, 0, query.Length, cmp) == 0
+            && (!wholeWord || MarkSmith.Services.TextSearch.IsWholeWordBoundary(text, previous, query.Length))
             && !_findMatches.Contains(previous))
         {
             // `previous` is a valid match shadowed in FindAll by an earlier overlapping match
             // (e.g. after replacing the first "aa" in "aaaaaa" with "a", `previous` is 1).
             _findMatches.RemoveAll(m => m > previous - query.Length);
             _findMatchIndex = _findMatches.Count;
-            foreach (var m in MarkSmith.Services.TextSearch.FindAll(text.Substring(previous), query, cmp))
+            foreach (var m in MarkSmith.Services.TextSearch.FindAll(text.Substring(previous), query, cmp, wholeWord))
                 _findMatches.Add(previous + m);
         }
         else if (previous >= 0 && _findMatches.Count > 0)
@@ -8736,6 +8753,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     private void OnMatchCaseChanged(object sender, RoutedEventArgs e) => RecomputeFindMatches();
+
+    private void OnMatchWholeWordChanged(object sender, RoutedEventArgs e) => RecomputeFindMatches();
 
     private void UpdateFindCount()
     {
@@ -8826,6 +8845,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             MatchCaseCheck.IsChecked = !(MatchCaseCheck.IsChecked == true);
             e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.W && AltDown() && !CtrlDown())
+        {
+            if (MatchWholeWordCheck != null)
+            {
+                MatchWholeWordCheck.IsChecked = !(MatchWholeWordCheck.IsChecked == true);
+                e.Handled = true;
+            }
         }
     }
 
@@ -8945,8 +8972,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var query = FindTextBox?.Text ?? string.Empty;
         if (query.Length == 0) return;
         var replacement = ReplaceTextBox?.Text ?? string.Empty;
+        var wholeWord = MatchWholeWordCheck?.IsChecked == true;
         var (newText, count, caret) = MarkSmith.Services.TextSearch.ReplaceAll(
-            PasteTextBox.Text ?? string.Empty, query, replacement, FindComparison, PasteTextBox.SelectionStart);
+            PasteTextBox.Text ?? string.Empty, query, replacement, FindComparison, PasteTextBox.SelectionStart, wholeWord);
 
         if (count > 0)
         {

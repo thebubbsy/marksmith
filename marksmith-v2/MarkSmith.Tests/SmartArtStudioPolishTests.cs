@@ -348,4 +348,16 @@ public class SmartArtStudioPolishTests
         vm.CommitRename();
         Assert.Contains("Renamed to 'Global Operations'", vm.StatusMessage);
     }
+
+    [Fact]
+    public void ComputeOutlineMetrics_CalculatesAccurateWordsCharactersAndNodes()
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        vm.Preload("- Executive Leader\n  - Senior Engineering Director\n- Global Operations", "orgChart1");
+
+        var (words, chars, nodes) = SmartArtDesignStudioViewModel.ComputeOutlineMetrics(vm.OutlineRows);
+        Assert.Equal(3, nodes);
+        Assert.Equal(7, words); // Executive (1) + Leader (1) + Senior (1) + Engineering (1) + Director (1) + Global (1) + Operations (1) = 7
+        Assert.Equal("Executive Leader".Length + "Senior Engineering Director".Length + "Global Operations".Length, chars);
+    }
 }

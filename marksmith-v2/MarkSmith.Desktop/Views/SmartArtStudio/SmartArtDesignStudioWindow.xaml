@@ -226,6 +226,33 @@
                                 </Border.ContextFlyout>
                             </Border>
 
+                            <!-- Outline Word & Character Metrics Pill -->
+                            <Border x:Name="OutlineMetricsPill" VerticalAlignment="Center"
+                                    Padding="8,3" CornerRadius="12"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    IsHitTestVisible="True"
+                                    Tapped="OnOutlineMetricsPillTapped"
+                                    DoubleTapped="OnOutlineMetricsPillDoubleTapped"
+                                    RightTapped="OnOutlineMetricsPillRightTapped"
+                                    ToolTipService.ToolTip="Outline text volume (words and characters) · Tap to view, double-click to copy metrics, right-click for options">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE8D2;" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                    <TextBlock x:Name="OutlineMetricsText" Text="0 words · 0 chars" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Border.ContextFlyout>
+                                    <MenuFlyout x:Name="OutlineMetricsFlyout">
+                                        <MenuFlyoutItem Text="Copy outline text volume" Click="OnCopyOutlineMetricsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Copy plain outline text" Click="OnCopyPlainOutlineTextClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Border.ContextFlyout>
+                            </Border>
+
                             <!-- Outline Real-Time Search & Match Stepper Pill -->
                             <Border x:Name="OutlineSearchPill"
                                     Background="{ThemeResource ControlAltFillColorSecondaryBrush}"

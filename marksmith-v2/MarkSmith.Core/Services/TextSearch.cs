@@ -12,17 +12,35 @@ namespace MarkSmith.Services;
 /// </summary>
 public static class TextSearch
 {
+    /// <summary>Checks whether a match at [index, index + length) forms a whole word boundary.</summary>
+    public static bool IsWholeWordBoundary(string text, int index, int length)
+    {
+        if (index > 0 && IsWordChar(text[index - 1])) return false;
+        if (index + length < text.Length && IsWordChar(text[index + length])) return false;
+        return true;
+    }
+
+    private static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c == '_';
+
     /// <summary>Start offsets of every non-overlapping match, in document order.</summary>
-    public static List<int> FindAll(string text, string query, StringComparison comparison)
+    public static List<int> FindAll(string text, string query, StringComparison comparison, bool matchWholeWord = false)
     {
         var matches = new List<int>();
         if (string.IsNullOrEmpty(query) || string.IsNullOrEmpty(text)) return matches;
         var idx = text.IndexOf(query, comparison);
         while (idx >= 0)
         {
-            matches.Add(idx);
-            if (idx + query.Length >= text.Length) break;
-            idx = text.IndexOf(query, idx + query.Length, comparison);
+            if (!matchWholeWord || IsWholeWordBoundary(text, idx, query.Length))
+            {
+                matches.Add(idx);
+                if (idx + query.Length >= text.Length) break;
+                idx = text.IndexOf(query, idx + query.Length, comparison);
+            }
+            else
+            {
+                if (idx + 1 >= text.Length) break;
+                idx = text.IndexOf(query, idx + 1, comparison);
+            }
         }
         return matches;
     }
@@ -63,10 +81,10 @@ public static class TextSearch
     /// match's replacement.
     /// </summary>
     public static (string Text, int Count, int Caret) ReplaceAll(
-        string text, string query, string replacement, StringComparison comparison, int caret)
+        string text, string query, string replacement, StringComparison comparison, int caret, bool matchWholeWord = false)
     {
         caret = Math.Clamp(caret, 0, text.Length);
-        var matches = FindAll(text, query, comparison);
+        var matches = FindAll(text, query, comparison, matchWholeWord);
         if (matches.Count == 0) return (text, 0, caret);
 
         var sb = new StringBuilder(text.Length + matches.Count * Math.Max(0, replacement.Length - query.Length));

@@ -826,10 +826,12 @@ namespace MarkSmith.Views.ShapeStudio
                     TrackAdornedShape(ViewModel.SelectedShape);
                     UpdateCornerRadiusButtonState();
                     UpdateInspectorLayerUi();
+                    UpdateSelectionBoundsPill();
                     return;
                 case nameof(ShapeDesignStudioViewModel.SelectionCount):
                 case nameof(ShapeDesignStudioViewModel.IsDense):
                     UpdateAdorner();
+                    UpdateSelectionBoundsPill();
                     return;
                 case nameof(ShapeDesignStudioViewModel.SelectionSummary):
                     if (SelectionSummaryText != null)
@@ -5639,6 +5641,146 @@ namespace MarkSmith.Views.ShapeStudio
             if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
             else if (CanvasEmptyStatePanel is not null) flyout.ShowAt(CanvasEmptyStatePanel, e.GetPosition(CanvasEmptyStatePanel));
             else flyout.ShowAt(this.Content, e.GetPosition(this.Content));
+        }
+
+        private void UpdateSelectionBoundsPill()
+        {
+            if (SelectionBoundsText is null) return;
+            var count = ViewModel.SelectionCount;
+            if (count == 0)
+            {
+                var total = ViewModel.Shapes.Count;
+                SelectionBoundsText.Text = $"Shapes: {total} · Canvas 2200×1800";
+            }
+            else if (count == 1 && ViewModel.SelectedShape is { } s)
+            {
+                int w = (int)Math.Round(s.Width);
+                int h = (int)Math.Round(s.Height);
+                int x = (int)Math.Round(s.X);
+                int y = (int)Math.Round(s.Y);
+                SelectionBoundsText.Text = $"1 shape · {w}×{h} at ({x},{y})";
+            }
+            else
+            {
+                var sel = ViewModel.Shapes.Where(sh => sh.IsSelected).ToList();
+                if (sel.Count > 0)
+                {
+                    double minX = sel.Min(sh => sh.X);
+                    double minY = sel.Min(sh => sh.Y);
+                    double maxX = sel.Max(sh => sh.X + sh.Width);
+                    double maxY = sel.Max(sh => sh.Y + sh.Height);
+                    int bw = (int)Math.Round(maxX - minX);
+                    int bh = (int)Math.Round(maxY - minY);
+                    SelectionBoundsText.Text = $"{sel.Count} shapes · {bw}×{bh} bounds";
+                }
+                else
+                {
+                    SelectionBoundsText.Text = $"{count} shapes selected";
+                }
+            }
+        }
+
+        private void OnSelectionBoundsPillTapped(object sender, TappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OnSelectionCenterCanvasClick(this, new RoutedEventArgs());
+        }
+
+        private void OnSelectionBoundsPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OnSelectionMakeSquareClick(this, new RoutedEventArgs());
+        }
+
+        private void OnSelectionBoundsPillRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (SelectionBoundsFlyout != null && SelectionBoundsPill != null)
+            {
+                SelectionBoundsFlyout.ShowAt(SelectionBoundsPill, e.GetPosition(SelectionBoundsPill));
+            }
+        }
+
+        private void OnSelectionCenterCanvasClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0) return;
+
+            ViewModel.RecordUndo();
+            double minX = sel.Min(s => s.X);
+            double minY = sel.Min(s => s.Y);
+            double maxX = sel.Max(s => s.X + s.Width);
+            double maxY = sel.Max(s => s.Y + s.Height);
+            double currentCenterX = (minX + maxX) / 2.0;
+            double currentCenterY = (minY + maxY) / 2.0;
+
+            const double canvasCenterX = 1100.0;
+            const double canvasCenterY = 900.0;
+            double dx = canvasCenterX - currentCenterX;
+            double dy = canvasCenterY - currentCenterY;
+
+            foreach (var s in sel)
+            {
+                s.X += dx;
+                s.Y += dy;
+            }
+            UpdateAdorner();
+            UpdateSelectionBoundsPill();
+            ViewModel.StatusMessage = $"Centered {sel.Count} shape(s) on canvas.";
+        }
+
+        private void OnSelectionMakeSquareClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0 && ViewModel.SelectedShape != null) sel.Add(ViewModel.SelectedShape);
+            if (sel.Count == 0) return;
+
+            ViewModel.RecordUndo();
+            foreach (var s in sel)
+            {
+                double side = Math.Max(s.Width, s.Height);
+                s.Width = side;
+                s.Height = side;
+            }
+            UpdateAdorner();
+            UpdateSelectionBoundsPill();
+            ViewModel.StatusMessage = $"Squared {sel.Count} shape(s) to equal width and height.";
+        }
+
+        private void OnSelectionResetRotationClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0 && ViewModel.SelectedShape != null) sel.Add(ViewModel.SelectedShape);
+            if (sel.Count == 0) return;
+
+            ViewModel.RecordUndo();
+            foreach (var s in sel)
+            {
+                s.Rotation = 0;
+            }
+            UpdateAdorner();
+            UpdateSelectionBoundsPill();
+            ViewModel.StatusMessage = $"Reset rotation to 0° for {sel.Count} shape(s).";
+        }
+
+        private void OnSelectionCopyBoundsClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0)
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync("Canvas 2200x1800");
+                return;
+            }
+
+            double minX = sel.Min(s => s.X);
+            double minY = sel.Min(s => s.Y);
+            double maxX = sel.Max(s => s.X + s.Width);
+            double maxY = sel.Max(s => s.Y + s.Height);
+            string geom = $"X: {minX:F0}, Y: {minY:F0}, Width: {(maxX - minX):F0}, Height: {(maxY - minY):F0}";
+            _ = Services.ClipboardWriter.TrySetTextAsync(geom);
+            ViewModel.StatusMessage = $"Copied geometry: {geom}";
         }
     }
 }

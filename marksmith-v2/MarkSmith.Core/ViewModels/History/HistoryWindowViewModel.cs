@@ -319,6 +319,17 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     [ObservableProperty]
     private int _diffContextLines = 3;
 
+    [ObservableProperty]
+    private bool _ignoreWhitespace = false;
+
+    partial void OnIgnoreWhitespaceChanged(bool value)
+    {
+        if (Selected != null)
+        {
+            _ = RefreshDiffAsync(Selected, ++_selectionToken);
+        }
+    }
+
     private List<LineDiff.Line>? _lastDiffLines;
 
     public string DiffContextLabel => DiffContextLines switch
@@ -796,7 +807,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             : "";
 
         var lines = hasPrevious
-            ? await Task.Run(() => LineDiff.Diff(prevContent, selectedContent))
+            ? await Task.Run(() => LineDiff.Diff(prevContent, selectedContent, IgnoreWhitespace))
             : LineDiff.AllAdded(selectedContent);
         var segments = LineDiff.Collapse(lines);
         var unifiedRows = BuildUnifiedRows(segments);
@@ -979,7 +990,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             // A first version is all additions. Diffing it against "" also listed a phantom
             // removed blank line, so every first version opened with "- (blank)" and "1 removed".
             var lines = hasPrevious
-                ? await Task.Run(() => LineDiff.Diff(prevContent, selectedContent))
+                ? await Task.Run(() => LineDiff.Diff(prevContent, selectedContent, IgnoreWhitespace))
                 : LineDiff.AllAdded(selectedContent);
             if (token != _selectionToken) return;
             _lastDiffLines = lines;

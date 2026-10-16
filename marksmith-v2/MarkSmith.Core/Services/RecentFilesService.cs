@@ -57,4 +57,15 @@ public sealed class RecentFilesService
         }
         catch { /* non-critical feature */ }
     }
+
+    public static IEnumerable<string> FilterRecentFiles(IEnumerable<string>? files, string? filter)
+    {
+        if (files is null) return Enumerable.Empty<string>();
+        if (string.IsNullOrWhiteSpace(filter)) return files;
+
+        var term = filter.Trim();
+        return files.Where(f =>
+            (Path.GetFileName(f)?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            f.Contains(term, StringComparison.OrdinalIgnoreCase));
+    }
 }

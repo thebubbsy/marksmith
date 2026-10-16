@@ -987,6 +987,17 @@ public sealed partial class HistoryWindow : Window
         if (DiffWrapButton != null) CopyFeedback.ApplyButtonTick(DiffWrapButton, null);
     }
 
+    private void OnDiffIgnoreWhitespaceButtonClick(object sender, RoutedEventArgs e)
+    {
+        _vm.IgnoreWhitespace = !_vm.IgnoreWhitespace;
+        if (DiffIgnoreWhitespaceLabel != null)
+        {
+            DiffIgnoreWhitespaceLabel.Text = _vm.IgnoreWhitespace ? "Ignore WS: On" : "Ignore WS: Off";
+        }
+        _vm.ShowNotice(_vm.IgnoreWhitespace ? "Ignoring whitespace-only changes in diff" : "Showing all whitespace changes in diff");
+        if (DiffIgnoreWhitespaceButton != null) CopyFeedback.ApplyButtonTick(DiffIgnoreWhitespaceButton, null);
+    }
+
     private void ApplyDiffTextWrap(bool wrap)
     {
         var wrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;

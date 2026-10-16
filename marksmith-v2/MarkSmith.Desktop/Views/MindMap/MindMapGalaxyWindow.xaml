@@ -253,8 +253,9 @@
                         </ToggleButton>
 
                         <DropDownButton x:Name="ConnectionStyleDropDownButton" Padding="10,5" MinHeight="32"
-                                        ToolTipService.ToolTip="Connection line style and arrowheads (Curved, Straight, Orthogonal · Double-click to cycle)"
+                                        ToolTipService.ToolTip="Connection line style and arrowheads (Curved, Straight, Orthogonal · Double-click to cycle, Right-click for options)"
                                         DoubleTapped="OnConnectionStyleDropDownDoubleTapped"
+                                        RightTapped="OnConnectionStyleDropDownRightTapped"
                                         AutomationProperties.Name="Connection style">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE71B;" FontSize="12" />
@@ -270,6 +271,16 @@
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="ConnStyleOrthogonalItem" Text="Stepped (Orthogonal)" Click="OnConnectionStyleOrthogonalClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem x:Name="ConnDashSolidItem" Text="Solid stroke style" Click="OnConnectionDashSolidClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="ConnDashDashedItem" Text="Dashed stroke style (4, 3)" Click="OnConnectionDashDashedClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="ConnDashDottedItem" Text="Dotted stroke style (1.5, 2)" Click="OnConnectionDashDottedClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE947;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutSeparator />
                                     <MenuFlyoutItem x:Name="ToggleArrowsItem" Text="Toggle arrowheads" Click="OnToggleArrowsClick">

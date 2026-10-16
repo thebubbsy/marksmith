@@ -443,5 +443,78 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnTemplatePrdClick", suiteCs);
         Assert.Contains("OnTemplateApiDocClick", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_FilterRecentFiles_FiltersByExtensionAndSubstring()
+    {
+        var sampleFiles = new[]
+        {
+            @"C:\Users\Docs\Report.md",
+            @"C:\Users\Docs\Summary.txt",
+            @"C:\Users\Docs\Meeting_Notes.markdown",
+            @"C:\Users\Docs\Quarterly_Review.MD"
+        };
+
+        // Null or whitespace filter returns all items
+        Assert.Equal(4, RecentFilesService.FilterRecentFiles(sampleFiles, null).Count());
+        Assert.Equal(4, RecentFilesService.FilterRecentFiles(sampleFiles, "   ").Count());
+
+        // Null collection returns empty
+        Assert.Empty(RecentFilesService.FilterRecentFiles(null, ".md"));
+
+        // Extension filter
+        var mdOnly = RecentFilesService.FilterRecentFiles(sampleFiles, ".md").ToList();
+        Assert.Equal(2, mdOnly.Count);
+        Assert.Contains(@"C:\Users\Docs\Report.md", mdOnly);
+        Assert.Contains(@"C:\Users\Docs\Quarterly_Review.MD", mdOnly);
+
+        // Substring filter
+        var notes = RecentFilesService.FilterRecentFiles(sampleFiles, "notes").ToList();
+        Assert.Single(notes);
+        Assert.Equal(@"C:\Users\Docs\Meeting_Notes.markdown", notes[0]);
+    }
+
+    [Fact]
+    public void Run130_Polish_Elements_Wired_Across_Surfaces()
+    {
+        var mainXaml = File.ReadAllText(DesktopPath("MainWindow.xaml"));
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"MatchWholeWordCheck\"", mainXaml);
+        Assert.Contains("OnMatchWholeWordChanged", mainCs);
+        Assert.Contains("IsWholeWordBoundary", mainCs);
+
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"ConnDashSolidItem\"", galaxyXaml);
+        Assert.Contains("x:Name=\"ConnDashDashedItem\"", galaxyXaml);
+        Assert.Contains("x:Name=\"ConnDashDottedItem\"", galaxyXaml);
+        Assert.Contains("ConnectionDashStyle", galaxyCs);
+        Assert.Contains("SetConnectionDashStyle", galaxyCs);
+
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"SelectionBoundsPill\"", shapeXaml);
+        Assert.Contains("x:Name=\"SelectionBoundsFlyout\"", shapeXaml);
+        Assert.Contains("UpdateSelectionBoundsPill", shapeCs);
+        Assert.Contains("OnSelectionCenterCanvasClick", shapeCs);
+
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"OutlineMetricsPill\"", smartArtXaml);
+        Assert.Contains("x:Name=\"OutlineMetricsFlyout\"", smartArtXaml);
+        Assert.Contains("OnOutlineMetricsPillTapped", smartArtCs);
+        Assert.Contains("OnCopyPlainOutlineTextClick", smartArtCs);
+
+        var historyXaml = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml"));
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"DiffIgnoreWhitespaceButton\"", historyXaml);
+        Assert.Contains("OnDiffIgnoreWhitespaceButtonClick", historyCs);
+
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("x:Name=\"RecentSearchBox\"", suiteXaml);
+        Assert.Contains("OnRecentSearchBoxTextChanged", suiteCs);
+        Assert.Contains("OnFilterMarkdownRecentClick", suiteCs);
+    }
 }
 

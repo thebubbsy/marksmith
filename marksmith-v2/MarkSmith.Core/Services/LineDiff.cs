@@ -25,53 +25,56 @@ public static class LineDiff
     // Beyond this many LCS cells we fall back to a whole-block replace rather than O(n*m) DP.
     private const long MaxLcsCells = 4_000_000;
 
+    private static bool LinesEqual(string s1, string s2, bool ignoreWhitespace) =>
+        ignoreWhitespace ? string.Equals(s1.Trim(), s2.Trim(), StringComparison.Ordinal) : s1 == s2;
+
     /// <summary>Unified diff of two texts: removed/added/same lines with source and target line numbers.</summary>
-    public static List<Line> Diff(string before, string after)
+    public static List<Line> Diff(string before, string after, bool ignoreWhitespace = false)
     {
         var a = SplitLines(before);
         var b = SplitLines(after);
 
         // Trim the common prefix and suffix so the LCS only runs over the changed middle.
         int pre = 0;
-        while (pre < a.Length && pre < b.Length && a[pre] == b[pre]) pre++;
+        while (pre < a.Length && pre < b.Length && LinesEqual(a[pre], b[pre], ignoreWhitespace)) pre++;
         int suf = 0;
         while (suf < a.Length - pre && suf < b.Length - pre &&
-               a[a.Length - 1 - suf] == b[b.Length - 1 - suf]) suf++;
+               LinesEqual(a[a.Length - 1 - suf], b[b.Length - 1 - suf], ignoreWhitespace)) suf++;
 
         var aMid = a.AsSpan(pre, a.Length - pre - suf).ToArray();
         var bMid = b.AsSpan(pre, b.Length - pre - suf).ToArray();
 
         var result = new List<Line>(pre + suf + aMid.Length + bMid.Length);
-        for (int i = 0; i < pre; i++) result.Add(new Line(Kind.Same, i + 1, i + 1, a[i]));
+        for (int i = 0; i < pre; i++) result.Add(new Line(Kind.Same, i + 1, i + 1, b[i]));
 
         if ((long)aMid.Length * bMid.Length <= MaxLcsCells)
-            AppendLcs(result, aMid, bMid, pre, pre);
+            AppendLcs(result, aMid, bMid, pre, pre, ignoreWhitespace);
         else
             AppendReplace(result, aMid, bMid, pre, pre);
 
         int aTail = a.Length - suf;
         int bTail = b.Length - suf;
         for (int i = 0; i < suf; i++)
-            result.Add(new Line(Kind.Same, aTail + i + 1, bTail + i + 1, a[aTail + i]));
+            result.Add(new Line(Kind.Same, aTail + i + 1, bTail + i + 1, b[bTail + i]));
 
         return result;
     }
 
-    private static void AppendLcs(List<Line> result, string[] a, string[] b, int aBase, int bBase)
+    private static void AppendLcs(List<Line> result, string[] a, string[] b, int aBase, int bBase, bool ignoreWhitespace = false)
     {
         // Classic LCS DP (row-optimized) then walk back to emit ops in order.
         int n = a.Length, m = b.Length;
         var dp = new int[n + 1, m + 1];
         for (int i = n - 1; i >= 0; i--)
             for (int j = m - 1; j >= 0; j--)
-                dp[i, j] = a[i] == b[j] ? dp[i + 1, j + 1] + 1 : Math.Max(dp[i + 1, j], dp[i, j + 1]);
+                dp[i, j] = LinesEqual(a[i], b[j], ignoreWhitespace) ? dp[i + 1, j + 1] + 1 : Math.Max(dp[i + 1, j], dp[i, j + 1]);
 
         int x = 0, y = 0;
         while (x < n && y < m)
         {
-            if (a[x] == b[y])
+            if (LinesEqual(a[x], b[y], ignoreWhitespace))
             {
-                result.Add(new Line(Kind.Same, aBase + x + 1, bBase + y + 1, a[x]));
+                result.Add(new Line(Kind.Same, aBase + x + 1, bBase + y + 1, b[y]));
                 x++; y++;
             }
             else if (dp[x + 1, y] >= dp[x, y + 1])

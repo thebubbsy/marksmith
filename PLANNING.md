@@ -9766,4 +9766,86 @@ Reviewed: the 2026-10-17 run #128 entry above. Followed the AI-Executable 3-Bloc
 - `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **473 passed, 0 failed (100% pass rate)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 19388, responsive startup, clean exit.
 
+### 2026-10-17 (scheduled routine run #130 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #129 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across the 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #129:
+    * Target A: `MainWindow` find/replace bar enhancements: Whole Word matching toggle (`[W]`, Alt+W) and occurrence count integration.
+    * Target B: `MindMapGalaxyWindow` connection line dash styles (`ConnectionDashStyle`: Solid, Dashed, Dotted) with right-click cycling and flyout presets.
+  - Generated:
+    1. `MainWindow`: Whole Word Match Toggle in FindBar (`MatchWholeWordCheck` toggle button with `[W]` symbol, `Alt+W` keyboard shortcut, right-click context menu toggle, and whole-word regex/boundary detection in `TextSearch`).
+    2. `MindMapGalaxyWindow`: Connection Line Dash Style Presets & Right-Click Quick Cycling (`ConnDashSolidItem`, `ConnDashDashedItem`, `ConnDashDottedItem` flyout items, right-click quick toggle through Solid -> Dashed -> Dotted, dynamic `StrokeDashArray` application in render loop, and `MindMapStudioViewModel.GetDashArrayPattern` helper).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.cs` with `IsWholeWordBoundary` evaluating word delimiter boundaries (`char.IsLetterOrDigit(c) || c == '_'`), updated `FindAll` and `ReplaceAll` to support `bool matchWholeWord = false`, wired `MatchWholeWordCheck` in `MainWindow.xaml` and `MainWindow.xaml.cs`, integrated with `RecomputeFindMatches`, `OnFindBarKeyDown` (Alt+W), and `OnFindTextBoxRightTapped` context menu.
+    * For Idea 2: Formulated `ConnectionDashStyle` enum (Solid, Dashed, Dotted) and `_connectionDashStyle` state in `MindMapGalaxyWindow.xaml.cs`, applied `StrokeDashArray` to dynamic `Polyline`/`Path` edge primitives in render loop, added right-click cycle handler `OnConnectionStyleDropDownRightTapped`, and implemented `MindMapStudioViewModel.GetDashArrayPattern`.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Selection Geometry & Bounds HUD Indicator (`SelectionBoundsPill` displaying live bounding box dimensions and shape count, tap to center on canvas, double-tap to make square, right-tap flyout for reset rotation 0° and copy geometry coordinates).
+    4. `SmartArtDesignStudioWindow`: Outline Metrics & Word/Character Volume Indicator (`OutlineMetricsPill` displaying live word & character volume across outline nodes, click/right-click flyout with copy metrics, copy plain text outline, select root/deepest node).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionBoundsPill` and `SelectionBoundsFlyout` into `ShapeDesignStudioWindow.xaml` toolbar, implemented `UpdateSelectionBoundsPill()`, `OnSelectionCenterCanvasClick`, `OnSelectionMakeSquareClick`, `OnSelectionResetRotationClick`, and `OnSelectionCopyBoundsClick` in `ShapeDesignStudioWindow.xaml.cs`, added static `ComputeSelectionBounds` helper in `ShapeDesignStudioViewModel.cs`. Added missing icons to `GridSnapFlyout` to satisfy `Every_menu_gives_all_its_items_an_icon_or_none`.
+    * For Idea 4: Mounted `OutlineMetricsPill` and `OutlineMetricsFlyout` into `SmartArtDesignStudioWindow.xaml` toolbar, implemented `UpdateOutlineStats()`, `OnOutlineMetricsPillTapped/DoubleTapped/RightTapped`, `OnCopyOutlineMetricsClick`, and `OnCopyPlainOutlineTextClick` in `SmartArtDesignStudioWindow.xaml.cs`, added static `ComputeOutlineMetrics` helper in `SmartArtDesignStudioViewModel.cs`.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `TextSearch.FindAll` & `ReplaceAll` with `matchWholeWord: true` across complex tokens, hyphens, and underscores.
+    * Verified `MindMapStudioViewModel.GetDashArrayPattern` across Solid, Dashed, Dotted, and unknown presets.
+  - Generated:
+    5. `HistoryWindow`: Ignore Whitespace Churn Filter (`DiffIgnoreWhitespaceButton` with "Ignore WS: Off/On" toggle, passing `ignoreWhitespace` into `LineDiff.Diff`, prefix/suffix whitespace trimming, and LCS line equality).
+    6. `SuiteHubView`: Recent Documents Real-Time Search Box & Action Flyout (`RecentSearchBox` AutoSuggestBox filter, `_recentDocsFilter` real-time filtering in `LoadRecentFiles`, `OnFilterMarkdownRecentClick` (.md filter), `OnCopyAllRecentPathsClick`, `OnClearRecentFilterClick`, and `RecentFilesService.FilterRecentFiles` helper).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Implemented `bool ignoreWhitespace` parameter in `LineDiff.Diff` and `AppendLcs`, added `LinesEqual` helper with `string.Equals(s1.Trim(), s2.Trim(), StringComparison.Ordinal)`. Added `IgnoreWhitespace` observable property in `HistoryWindowViewModel.cs`. Expanded toolbar grid to 10 columns in `HistoryWindow.xaml` and added `DiffIgnoreWhitespaceButton` with click handler in `HistoryWindow.xaml.cs`.
+    * For Idea 6: Added `RecentSearchBox` and expanded `RecentDocsFlyout` in `SuiteHubView.xaml`, added `_recentDocsFilter` and updated `LoadRecentFiles` in `SuiteHubView.xaml.cs`, wired `OnRecentSearchBoxTextChanged`, `OnFilterMarkdownRecentClick`, `OnCopyAllRecentPathsClick`, and `OnClearRecentFilterClick`. Added `RecentFilesService.FilterRecentFiles` static utility in `RecentFilesService.cs`.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `FindAll_with_matchWholeWord_matches_only_complete_tokens`, `ReplaceAll_with_matchWholeWord_replaces_only_whole_words`, `IsWholeWordBoundary_identifies_delimiters_correctly`.
+    * `MindMapGalaxyPolishTests.cs`: `GetDashArrayPattern_returns_expected_dash_intervals`.
+    * `ShapeStudioPolishTests.cs`: `ComputeSelectionBounds_returns_zeros_when_empty`, `ComputeSelectionBounds_computes_tight_bounding_box_for_multiple_shapes`.
+    * `SmartArtStudioPolishTests.cs`: `ComputeOutlineMetrics_CalculatesAccurateWordsCharactersAndNodes`.
+    * `HistoryPolishTests.cs`: `LineDiff_ignoreWhitespace_TreatsTrailingAndLeadingWhitespaceAsUnchanged`.
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FilterRecentFiles_FiltersByExtensionAndSubstring`, `Run130_Polish_Elements_Wired_Across_Surfaces`.
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish|FullyQualifiedName~TextSearch"`: **510 passed, 0 failed (100% pass rate)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **passed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 29016, responsive startup (`Responding: True`), clean exit.
+  - Carried forward ideas / next targets into Run #131:
+    * Target A: `MainWindow` find bar regex search syntax error badge and search history flyout.
+    * Target B: `MindMapGalaxyWindow` edge curvature adjuster / orthogonal step corner radius presets.
+    * Target C: `ShapeDesignStudioWindow` shape z-order reordering HUD pills (Bring Forward / Send Backward).
+
+**Shipped:**
+1. **`MainWindow` Whole Word Match Toggle in FindBar (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - Toggle button `MatchWholeWordCheck` with `[W]` symbol, tooltip, and `Alt+W` shortcut.
+   - Word boundary detection with delimiter support (`char.IsLetterOrDigit` and `_`).
+   - Find & Replace All support for whole word boundaries.
+2. **`MindMapGalaxyWindow` Connection Dash Styles (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - Solid, Dashed, and Dotted stroke dash style presets in `ConnectionStyleDropDownButton.Flyout`.
+   - Right-click quick cycling through styles directly on the toolbar button.
+   - Stroke dash array application across all hierarchy edge lines.
+3. **`ShapeDesignStudioWindow` Selection Geometry & Bounds HUD Indicator (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - Live bounding box HUD indicator `SelectionBoundsPill` displaying dimensions and shape count.
+   - Quick actions to center selection on canvas, make selection square, reset rotation to 0°, and copy geometry coordinates.
+   - Icon completeness for `GridSnapFlyout` menu items.
+4. **`SmartArtDesignStudioWindow` Outline Metrics HUD Indicator (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - Live word count and character volume indicator `OutlineMetricsPill`.
+   - Quick actions to copy metrics summary, copy plain text outline, and select root/deepest node.
+5. **`HistoryWindow` Ignore Whitespace Churn Filter (`HistoryWindow.xaml`, `HistoryWindow.xaml.cs`, `HistoryWindowViewModel.cs`, `LineDiff.cs`):**
+   - `DiffIgnoreWhitespaceButton` ("Ignore WS: Off/On") on diff inspector toolbar.
+   - Whitespace-insensitive diff comparisons in prefix/suffix trimming and LCS matrix.
+6. **`SuiteHubView` Recent Documents Real-Time Search & Filter Menu (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - Real-time `RecentSearchBox` with instant document filtering.
+   - Extended action menu with `.md` document filter, copy all paths, and clear filter options.
+   - `RecentFilesService.FilterRecentFiles` reusable static utility.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish|FullyQualifiedName~TextSearch"`: **510 passed, 0 failed (100% pass rate)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **passed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 29016, responsive startup, clean exit.
+
+
 

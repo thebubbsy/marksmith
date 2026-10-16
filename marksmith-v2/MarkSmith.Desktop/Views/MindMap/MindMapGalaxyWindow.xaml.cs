@@ -61,7 +61,15 @@ namespace MarkSmith.Views.MindMap
             Orthogonal
         }
 
+        public enum ConnectionDashStyle
+        {
+            Solid,
+            Dashed,
+            Dotted
+        }
+
         private ConnectionRoutingStyle _connectionRoutingStyle = ConnectionRoutingStyle.Curved;
+        private ConnectionDashStyle _connectionDashStyle = ConnectionDashStyle.Solid;
         private bool _showConnectionArrows = true;
 
         public event EventHandler<string>? OpenDocumentRequested;
@@ -1912,6 +1920,12 @@ namespace MarkSmith.Views.MindMap
                     e.Stroke.Color = e.IsHovered ? _palette.SelectionInk : ColorFromHex(_palette.HierarchyLine);
                     e.Line.StrokeThickness = e.IsHovered ? 2.8 : 1.8;
                     e.Line.Opacity = faded ? (e.IsHovered ? 0.6 : 0.18) : (e.IsHovered ? 1.0 : 0.75);
+                    e.Line.StrokeDashArray = _connectionDashStyle switch
+                    {
+                        ConnectionDashStyle.Dashed => new DoubleCollection { 4, 3 },
+                        ConnectionDashStyle.Dotted => new DoubleCollection { 1.5, 2 },
+                        _ => new DoubleCollection()
+                    };
                     continue;
                 }
 
@@ -1921,13 +1935,13 @@ namespace MarkSmith.Views.MindMap
                 e.Line.StrokeThickness = link.IsSelected ? 3.6 : (link.IsInferred ? 1.6 : 2.6) + (linkHovered ? 1.4 : 0);
                 e.Line.Opacity = faded ? 0.15 : linkHovered ? 1.0 : (link.IsInferred ? 0.62 : 0.95);
                 bool wantDashed = link.Style == MindMapLinkStyle.Dashed || link.IsInferred;
-                if (wantDashed != e.Dashed)
+                e.Dashed = wantDashed;
+                e.Line.StrokeDashArray = _connectionDashStyle switch
                 {
-                    e.Dashed = wantDashed;
-                    // An empty collection is a solid stroke; assigning null would be a nullable
-                    // warning for no benefit.
-                    e.Line.StrokeDashArray = wantDashed ? new DoubleCollection { 3, 2.5 } : new DoubleCollection();
-                }
+                    ConnectionDashStyle.Dashed => new DoubleCollection { 4, 3 },
+                    ConnectionDashStyle.Dotted => new DoubleCollection { 1.5, 2 },
+                    _ => wantDashed ? new DoubleCollection { 3, 2.5 } : new DoubleCollection()
+                };
 
                 if (e.ArrowFill != null) e.ArrowFill.Color = e.Stroke.Color;
 
@@ -3986,6 +4000,38 @@ namespace MarkSmith.Views.MindMap
                 _ => ConnectionRoutingStyle.Curved
             };
             SetConnectionRoutingStyle(next);
+        }
+
+        private void OnConnectionDashSolidClick(object sender, RoutedEventArgs e) => SetConnectionDashStyle(ConnectionDashStyle.Solid);
+        private void OnConnectionDashDashedClick(object sender, RoutedEventArgs e) => SetConnectionDashStyle(ConnectionDashStyle.Dashed);
+        private void OnConnectionDashDottedClick(object sender, RoutedEventArgs e) => SetConnectionDashStyle(ConnectionDashStyle.Dotted);
+
+        private void OnConnectionStyleDropDownRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var next = _connectionDashStyle switch
+            {
+                ConnectionDashStyle.Solid => ConnectionDashStyle.Dashed,
+                ConnectionDashStyle.Dashed => ConnectionDashStyle.Dotted,
+                _ => ConnectionDashStyle.Solid
+            };
+            SetConnectionDashStyle(next);
+        }
+
+        private void SetConnectionDashStyle(ConnectionDashStyle dashStyle)
+        {
+            _connectionDashStyle = dashStyle;
+            if (ConnectionStyleDropDownButton != null)
+            {
+                var label = dashStyle switch
+                {
+                    ConnectionDashStyle.Dashed => "Dashed",
+                    ConnectionDashStyle.Dotted => "Dotted",
+                    _ => "Solid"
+                };
+                CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");
+            }
+            RequestRedraw(RedrawScope.Appearance);
         }
 
         private void SetConnectionRoutingStyle(ConnectionRoutingStyle style)

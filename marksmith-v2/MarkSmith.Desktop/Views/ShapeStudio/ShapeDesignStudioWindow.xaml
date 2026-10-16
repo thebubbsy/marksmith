@@ -475,9 +475,15 @@
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <ToggleMenuFlyoutItem x:Name="ToggleVisualGridItem" Text="Show dot grid on canvas" Click="OnToggleVisualGridClick" IsChecked="False" />
-                                        <ToggleMenuFlyoutItem x:Name="ToggleSnapToCenterItem" Text="Snap to canvas center guidelines" Click="OnToggleSnapToCenterClick" IsChecked="True" />
-                                        <ToggleMenuFlyoutItem x:Name="ToggleSnapToShapesItem" Text="Snap to adjacent shape guidelines" Click="OnToggleSnapToShapesClick" IsChecked="True" />
+                                        <ToggleMenuFlyoutItem x:Name="ToggleVisualGridItem" Text="Show dot grid on canvas" Click="OnToggleVisualGridClick" IsChecked="False">
+                                            <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></ToggleMenuFlyoutItem.Icon>
+                                        </ToggleMenuFlyoutItem>
+                                        <ToggleMenuFlyoutItem x:Name="ToggleSnapToCenterItem" Text="Snap to canvas center guidelines" Click="OnToggleSnapToCenterClick" IsChecked="True">
+                                            <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></ToggleMenuFlyoutItem.Icon>
+                                        </ToggleMenuFlyoutItem>
+                                        <ToggleMenuFlyoutItem x:Name="ToggleSnapToShapesItem" Text="Snap to adjacent shape guidelines" Click="OnToggleSnapToShapesClick" IsChecked="True">
+                                            <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xE740;" /></ToggleMenuFlyoutItem.Icon>
+                                        </ToggleMenuFlyoutItem>
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
@@ -534,6 +540,37 @@
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
+                            <!-- Selection Geometry & Bounds HUD Pill -->
+                            <Border x:Name="SelectionBoundsPill" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    CornerRadius="6" Padding="7,3" VerticalAlignment="Center"
+                                    Tapped="OnSelectionBoundsPillTapped"
+                                    DoubleTapped="OnSelectionBoundsPillDoubleTapped"
+                                    RightTapped="OnSelectionBoundsPillRightTapped"
+                                    ToolTipService.ToolTip="Selection geometry &amp; bounds · Click to center, double-click to square, right-click for options">
+                                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE740;" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                    <TextBlock x:Name="SelectionBoundsText" Text="Shapes: 0 · Canvas 2200×1800" FontSize="11"
+                                               FontFamily="Cascadia Mono, Consolas, monospace" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Border.ContextFlyout>
+                                    <MenuFlyout x:Name="SelectionBoundsFlyout">
+                                        <MenuFlyoutItem Text="Center selection on canvas" Click="OnSelectionCenterCanvasClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Make square (equal width &amp; height)" Click="OnSelectionMakeSquareClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Reset rotation (0°)" Click="OnSelectionResetRotationClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Copy bounds geometry" Click="OnSelectionCopyBoundsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Border.ContextFlyout>
+                            </Border>
                             <DropDownButton x:Name="PaletteButton" Padding="8,4" AutomationProperties.Name="Colour scheme"
                                             RightTapped="OnPaletteButtonRightTapped"
                                             ToolTipService.ToolTip="Colour scheme for presets and new shapes (Right-click for options)">

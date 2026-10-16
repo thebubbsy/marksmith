@@ -4195,6 +4195,72 @@ namespace MarkSmith.Views.SmartArtStudio
                 string layoutName = ViewModel.SelectedLayout?.DisplayName ?? "SmartArt";
                 ToolTipService.SetToolTip(OutlineStatsPill, $"Outline hierarchy: {count} nodes, max depth {maxDepth} ({layoutName}) · Tap to view details, double-click to copy summary, right-click for navigation options");
             }
+
+            int totalWords = 0;
+            int totalChars = 0;
+            foreach (var row in ViewModel.OutlineRows)
+            {
+                var txt = row.Text ?? "";
+                totalChars += txt.Length;
+                if (!string.IsNullOrWhiteSpace(txt))
+                {
+                    var words = txt.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+                    totalWords += words.Length;
+                }
+            }
+            if (OutlineMetricsText != null)
+            {
+                OutlineMetricsText.Text = $"{totalWords} words · {totalChars} chars";
+            }
+            if (OutlineMetricsPill != null)
+            {
+                ToolTipService.SetToolTip(OutlineMetricsPill, $"Outline metrics: {totalWords} words, {totalChars} characters across {count} items · Tap to view, double-click to copy metrics, right-click for options");
+            }
+        }
+
+        private void OnOutlineMetricsPillTapped(object sender, TappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OutlineMetricsFlyout?.ShowAt(OutlineMetricsPill);
+        }
+
+        private void OnOutlineMetricsPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OnCopyOutlineMetricsClick(this, new RoutedEventArgs());
+        }
+
+        private void OnOutlineMetricsPillRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OutlineMetricsFlyout?.ShowAt(OutlineMetricsPill, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = e.GetPosition(OutlineMetricsPill) });
+        }
+
+        private void OnCopyOutlineMetricsClick(object sender, RoutedEventArgs e)
+        {
+            int totalWords = 0;
+            int totalChars = 0;
+            foreach (var row in ViewModel.OutlineRows)
+            {
+                var txt = row.Text ?? "";
+                totalChars += txt.Length;
+                if (!string.IsNullOrWhiteSpace(txt))
+                {
+                    var words = txt.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+                    totalWords += words.Length;
+                }
+            }
+            string summary = $"{totalWords} words, {totalChars} characters, {ViewModel.OutlineRows.Count} nodes";
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = $"Copied outline metrics: {summary}";
+        }
+
+        private void OnCopyPlainOutlineTextClick(object sender, RoutedEventArgs e)
+        {
+            var plainLines = ViewModel.OutlineRows.Select(r => new string(' ', r.Depth * 2) + (r.Text ?? "")).ToList();
+            string plainText = string.Join(Environment.NewLine, plainLines);
+            _ = Services.ClipboardWriter.TrySetTextAsync(plainText);
+            ViewModel.StatusMessage = $"Copied plain text outline ({plainLines.Count} lines).";
         }
 
         private void OnOutlineStatsPillTapped(object sender, TappedRoutedEventArgs e)

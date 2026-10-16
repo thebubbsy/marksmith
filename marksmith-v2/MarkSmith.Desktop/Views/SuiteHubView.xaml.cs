@@ -943,13 +943,18 @@ public sealed partial class SuiteHubView : UserControl
 
     #region Recent Documents Quick Strip
 
-    private void LoadRecentFiles()
+    private string _recentDocsFilter = "";
+
+    private void LoadRecentFiles(string? filter = null)
     {
+        if (filter != null) _recentDocsFilter = filter;
         try
         {
             RecentFilesPanel.Children.Clear();
             var files = App.RecentFiles?.Load() ?? new List<string>();
-            var items = files.Where(File.Exists).Take(4).ToList();
+            var existingFiles = files.Where(File.Exists);
+            var filtered = RecentFilesService.FilterRecentFiles(existingFiles, _recentDocsFilter);
+            var items = filtered.Take(4).ToList();
             if (items.Count > 0)
             {
                 foreach (var fullPath in items)
@@ -1096,6 +1101,49 @@ public sealed partial class SuiteHubView : UserControl
         {
             RecentDocsFlyout.ShowAt(fe);
         }
+    }
+
+    private void OnRecentSearchBoxTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        LoadRecentFiles(sender.Text);
+    }
+
+    private void OnFilterMarkdownRecentClick(object sender, RoutedEventArgs e)
+    {
+        RecentSearchBox.Text = ".md";
+        LoadRecentFiles(".md");
+        SetNotification("Filtered recent documents for .md files.", success: true);
+    }
+
+    private async void OnCopyAllRecentPathsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var existingFiles = files.Where(File.Exists);
+            var list = RecentFilesService.FilterRecentFiles(existingFiles, _recentDocsFilter).ToList();
+            if (list.Count > 0)
+            {
+                var text = string.Join(Environment.NewLine, list);
+                await Services.ClipboardWriter.TrySetTextAsync(text);
+                SetNotification($"Copied {list.Count} recent document path(s) to clipboard.", success: true);
+            }
+            else
+            {
+                SetNotification("No recent document paths to copy.", success: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't copy paths: {ex.Message}", success: false);
+        }
+    }
+
+    private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
+    {
+        RecentSearchBox.Text = "";
+        LoadRecentFiles("");
+        SetNotification("Cleared recent document filter.", success: true);
     }
 
     private async void OnBrowseFileToOpenClick(object sender, RoutedEventArgs e)

@@ -579,5 +579,23 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal(3, vm.DiffContextLines);
         Assert.Equal("3 lines context", vm.DiffContextLabel);
     }
+
+    [Fact]
+    public void LineDiff_ignoreWhitespace_TreatsTrailingAndLeadingWhitespaceAsUnchanged()
+    {
+        var before = "hello world\nalpha beta";
+        var after = "  hello world  \nalpha beta";
+
+        // Default: detects modification as removed + added
+        var diffNormal = LineDiff.Diff(before, after, ignoreWhitespace: false);
+        Assert.Contains(diffNormal, d => d.Kind == LineDiff.Kind.Removed);
+        Assert.Contains(diffNormal, d => d.Kind == LineDiff.Kind.Added);
+
+        // With ignoreWhitespace: treats as same line
+        var diffIgnore = LineDiff.Diff(before, after, ignoreWhitespace: true);
+        Assert.DoesNotContain(diffIgnore, d => d.Kind == LineDiff.Kind.Removed);
+        Assert.DoesNotContain(diffIgnore, d => d.Kind == LineDiff.Kind.Added);
+        Assert.All(diffIgnore, d => Assert.Equal(LineDiff.Kind.Same, d.Kind));
+    }
 }
 

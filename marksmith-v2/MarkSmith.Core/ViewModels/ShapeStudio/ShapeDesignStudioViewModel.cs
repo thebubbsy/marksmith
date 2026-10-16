@@ -3190,4 +3190,27 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         Text = string.IsNullOrWhiteSpace(s.Text) ? null : s.Text,
         TextColor = s.TextColor
     };
+
+    /// <summary>
+    /// Computes the collective bounding box (MinX, MinY, MaxX, MaxY, Width, Height) of a set of items.
+    /// </summary>
+    public static (double MinX, double MinY, double MaxX, double MaxY, double Width, double Height) ComputeSelectionBounds(
+        IEnumerable<(double X, double Y, double Width, double Height)> shapes)
+    {
+        var list = shapes?.ToList() ?? new List<(double X, double Y, double Width, double Height)>();
+        if (list.Count == 0) return (0, 0, 0, 0, 0, 0);
+
+        double minX = list.Min(s => s.X);
+        double minY = list.Min(s => s.Y);
+        double maxX = list.Max(s => s.X + s.Width);
+        double maxY = list.Max(s => s.Y + s.Height);
+        return (minX, minY, maxX, maxY, maxX - minX, maxY - minY);
+    }
+
+    public static (double MinX, double MinY, double MaxX, double MaxY, double Width, double Height) ComputeSelectionBounds(
+        IEnumerable<ShapeCanvasItemViewModel> shapes)
+    {
+        if (shapes is null) return (0, 0, 0, 0, 0, 0);
+        return ComputeSelectionBounds(shapes.Select(s => (s.X, s.Y, s.Width, s.Height)));
+    }
 }

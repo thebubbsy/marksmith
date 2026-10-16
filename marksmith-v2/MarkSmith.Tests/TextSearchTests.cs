@@ -182,4 +182,35 @@ public class TextSearchTests
         Assert.Equal("BETA one BETA two", redoSnap!.Text);
         Assert.Equal(clampedCaret, redoSnap.Caret);
     }
+
+    [Fact]
+    public void FindAll_with_matchWholeWord_matches_only_complete_tokens()
+    {
+        var text = "The cat in the catch concatenation cat.";
+        var normal = TextSearch.FindAll(text, "cat", Any, matchWholeWord: false);
+        Assert.Equal(new[] { 4, 15, 24, 35 }, normal);
+
+        var whole = TextSearch.FindAll(text, "cat", Any, matchWholeWord: true);
+        Assert.Equal(new[] { 4, 35 }, whole);
+    }
+
+    [Fact]
+    public void ReplaceAll_with_matchWholeWord_replaces_only_whole_words()
+    {
+        var text = "The cat in the catch concatenation cat.";
+        var (result, count, _) = TextSearch.ReplaceAll(text, "cat", "dog", Any, 0, matchWholeWord: true);
+        Assert.Equal("The dog in the catch concatenation dog.", result);
+        Assert.Equal(2, count);
+    }
+
+    [Theory]
+    [InlineData("hello world", 0, 5, true)]
+    [InlineData("hello world", 6, 5, true)]
+    [InlineData("hello world", 1, 3, false)]
+    [InlineData("foo_bar", 0, 3, false)] // underscore is treated as word character
+    [InlineData("foo-bar", 0, 3, true)]  // hyphen is a delimiter
+    public void IsWholeWordBoundary_identifies_delimiters_correctly(string text, int index, int length, bool expected)
+    {
+        Assert.Equal(expected, TextSearch.IsWholeWordBoundary(text, index, length));
+    }
 }

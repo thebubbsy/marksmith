@@ -1085,4 +1085,30 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             SmartArtPreviewFamily.Pictures => "Picture List",
             _ => "List",
         };
+
+    /// <summary>
+    /// Computes the word count and character count across an outline item collection.
+    /// </summary>
+    public static (int WordCount, int CharCount) ComputeOutlineMetrics(IEnumerable<string> items)
+    {
+        if (items is null) return (0, 0);
+        int words = 0;
+        int chars = 0;
+        foreach (var item in items)
+        {
+            if (string.IsNullOrEmpty(item)) continue;
+            chars += item.Length;
+            var parts = item.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            words += parts.Length;
+        }
+        return (words, chars);
+    }
+
+    public static (int WordCount, int CharCount, int NodeCount) ComputeOutlineMetrics(IEnumerable<StudioNodeViewModel> nodes)
+    {
+        if (nodes is null) return (0, 0, 0);
+        var list = nodes.ToList();
+        var (words, chars) = ComputeOutlineMetrics(list.Select(n => n.Text ?? ""));
+        return (words, chars, list.Count);
+    }
 }

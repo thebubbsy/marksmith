@@ -377,4 +377,32 @@ public class ShapeStudioPolishTests
         Assert.Equal(850, deltaX);
         Assert.Equal(720, deltaY);
     }
+
+    [Fact]
+    public void ComputeSelectionBounds_returns_zeros_when_empty()
+    {
+        var (minX, minY, maxX, maxY, w, h) = ShapeDesignStudioViewModel.ComputeSelectionBounds(new List<ShapeCanvasItemViewModel>());
+        Assert.Equal(0, minX);
+        Assert.Equal(0, minY);
+        Assert.Equal(0, maxX);
+        Assert.Equal(0, maxY);
+        Assert.Equal(0, w);
+        Assert.Equal(0, h);
+    }
+
+    [Fact]
+    public void ComputeSelectionBounds_computes_tight_bounding_box_for_multiple_shapes()
+    {
+        var s1 = new ShapeCanvasItemViewModel { X = 50, Y = 100, Width = 150, Height = 80, IsSelected = true };
+        var s2 = new ShapeCanvasItemViewModel { X = 300, Y = 250, Width = 100, Height = 50, IsSelected = true };
+        var list = new List<ShapeCanvasItemViewModel> { s1, s2 };
+
+        var (minX, minY, maxX, maxY, w, h) = ShapeDesignStudioViewModel.ComputeSelectionBounds(list);
+        Assert.Equal(50, minX);
+        Assert.Equal(100, minY);
+        Assert.Equal(400, maxX);
+        Assert.Equal(300, maxY);
+        Assert.Equal(350, w); // 400 - 50
+        Assert.Equal(200, h); // 300 - 100
+    }
 }

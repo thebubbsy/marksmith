@@ -1092,5 +1092,16 @@ namespace MarkSmith.Tests
             Assert.Equal(300, up.startY); // Top of parent
             Assert.Equal(150, up.endY);   // Bottom of child (100 + 50)
         }
+
+        [Theory]
+        [InlineData("Solid", new double[0])]
+        [InlineData("Dashed", new[] { 4.0, 3.0 })]
+        [InlineData("Dotted", new[] { 1.5, 2.0 })]
+        [InlineData("Unknown", new double[0])]
+        public void GetDashArrayPattern_returns_expected_dash_intervals(string style, double[] expected)
+        {
+            var pattern = MindMapStudioViewModel.GetDashArrayPattern(style);
+            Assert.Equal(expected, pattern);
+        }
     }
 }
