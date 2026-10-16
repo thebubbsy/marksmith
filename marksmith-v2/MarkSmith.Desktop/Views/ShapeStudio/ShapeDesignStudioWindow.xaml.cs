@@ -44,6 +44,10 @@ namespace MarkSmith.Views.ShapeStudio
         private readonly List<(Microsoft.UI.Xaml.Shapes.Rectangle Handle, ShapeDesignStudioViewModel.ResizeEdges Edges)> _handles = new();
         private Microsoft.UI.Xaml.Shapes.Line? _rotateStem;
         private Microsoft.UI.Xaml.Shapes.Ellipse? _rotateHandle;
+        private Microsoft.UI.Xaml.Shapes.Line? _rotateReferenceGuide;
+        private Microsoft.UI.Xaml.Shapes.Path? _rotateArcOverlay;
+        private Border? _rotateAngleBadge;
+        private TextBlock? _rotateAngleBadgeText;
         private bool _rotating;
         private bool _rotated;
         private ShapeDesignStudioViewModel.ResizeEdges _resizeEdges;
@@ -1710,8 +1714,50 @@ namespace MarkSmith.Views.ShapeStudio
             _rotateHandle.PointerWheelChanged += OnRotateHandlePointerWheelChanged;
             _rotateHandle.DoubleTapped += OnRotateHandleDoubleTapped;
             _rotateHandle.RightTapped += OnRotateHandleRightTapped;
-            _rotateHandle.PointerCaptureLost += (_, _) => _rotating = false;
+            _rotateHandle.PointerCaptureLost += (_, _) => { _rotating = false; HideRotateVisuals(); };
             SelectionAdorner.Children.Add(_rotateHandle);
+
+            _rotateReferenceGuide = new Microsoft.UI.Xaml.Shapes.Line
+            {
+                Stroke = new SolidColorBrush(AccentColor(0x80)),
+                StrokeThickness = 1.0,
+                StrokeDashArray = new DoubleCollection { 2, 2 },
+                IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed
+            };
+            SelectionAdorner.Children.Add(_rotateReferenceGuide);
+
+            _rotateArcOverlay = new Microsoft.UI.Xaml.Shapes.Path
+            {
+                Stroke = new SolidColorBrush(AccentColor(0xFF)),
+                Fill = new SolidColorBrush(AccentColor(0x22)),
+                StrokeThickness = 1.25,
+                StrokeDashArray = new DoubleCollection { 3, 2 },
+                IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed
+            };
+            SelectionAdorner.Children.Add(_rotateArcOverlay);
+
+            _rotateAngleBadgeText = new TextBlock
+            {
+                FontSize = 10.5,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            _rotateAngleBadge = new Border
+            {
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xEE, 0x18, 0x20, 0x2C)),
+                BorderBrush = new SolidColorBrush(AccentColor(0xCC)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(7, 2, 7, 2),
+                IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed,
+                Child = _rotateAngleBadgeText
+            };
+            SelectionAdorner.Children.Add(_rotateAngleBadge);
         }
 
         private void TrackAdornedShape(ShapeCanvasItemViewModel? shape)
@@ -1739,7 +1785,11 @@ namespace MarkSmith.Views.ShapeStudio
                         && s.PathPoints is not { Count: >= 2 } && ViewModel.Shapes.Contains(s);
             SelectionAdorner.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
             UpdatePointHandles(s);
-            if (!show || s is null) return;
+            if (!show || s is null)
+            {
+                HideRotateVisuals();
+                return;
+            }
 
             double z = Math.Max(0.05, CanvasScroller.ZoomFactor);
             double size = HandleSize / z, half = size / 2;
@@ -2010,6 +2060,7 @@ namespace MarkSmith.Views.ShapeStudio
                 ViewModel.RecordUndo();
             }
             s.Rotation = nextAngle;
+            UpdateRotateVisuals(s, nextAngle, snap);
             ViewModel.StatusMessage = $"Rotating {s.DisplayName.ToLowerInvariant()}: {nextAngle}°{(snap ? " (15° snap)" : "")}";
             e.Handled = true;
         }
@@ -2017,6 +2068,7 @@ namespace MarkSmith.Views.ShapeStudio
         private void OnRotateHandlePointerReleased(object sender, PointerRoutedEventArgs e)
         {
             if (!_rotating) return;
+            HideRotateVisuals();
             if (sender is UIElement h) h.ReleasePointerCapture(e.Pointer);
             if (_rotated && _adornedShape is { } s)
                 ViewModel.StatusMessage = $"Rotated {s.DisplayName.ToLowerInvariant()} to {ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation)}° · Ctrl+Z to undo";
@@ -2027,6 +2079,7 @@ namespace MarkSmith.Views.ShapeStudio
         private void OnRotateHandleDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
             _rotating = false;
+            HideRotateVisuals();
             if (_adornedShape is not null)
             {
                 ViewModel.ResetRotation();
@@ -2112,6 +2165,81 @@ namespace MarkSmith.Views.ShapeStudio
             }));
 
             flyout.ShowAt(_rotateHandle, e.GetPosition(_rotateHandle));
+        }
+
+        private void HideRotateVisuals()
+        {
+            if (_rotateArcOverlay != null) _rotateArcOverlay.Visibility = Visibility.Collapsed;
+            if (_rotateAngleBadge != null) _rotateAngleBadge.Visibility = Visibility.Collapsed;
+            if (_rotateReferenceGuide != null) _rotateReferenceGuide.Visibility = Visibility.Collapsed;
+        }
+
+        private void UpdateRotateVisuals(ShapeCanvasItemViewModel s, int angle, bool snapped)
+        {
+            if (_rotateArcOverlay == null || _rotateAngleBadge == null || _rotateReferenceGuide == null || _rotateAngleBadgeText == null) return;
+            double z = Math.Max(0.1, CanvasScroller.ZoomFactor);
+            double cx = s.X + s.Width / 2.0;
+            double cy = s.Y + s.Height / 2.0;
+
+            int wrapped = ShapeDesignStudioViewModel.WrapRotationAngle(angle);
+            double radius = Math.Max(24.0, (s.Height / 2.0) + (ShapeDesignStudioViewModel.RotationHandleStemLength / z));
+
+            // Reference top guide (0°)
+            _rotateReferenceGuide.X1 = cx;
+            _rotateReferenceGuide.Y1 = cy;
+            _rotateReferenceGuide.X2 = cx;
+            _rotateReferenceGuide.Y2 = cy - radius;
+            _rotateReferenceGuide.StrokeThickness = 1.0 / z;
+            _rotateReferenceGuide.Visibility = Visibility.Visible;
+
+            // Rotation angle badge
+            var (rotX, rotY) = ShapeDesignStudioViewModel.RotationHandlePosition(
+                s.X, s.Y, s.Width, s.Height, angle, ShapeDesignStudioViewModel.RotationHandleStemLength / z);
+
+            _rotateAngleBadgeText.Text = $"{wrapped}°{(snapped ? " (15°)" : "")}";
+            _rotateAngleBadgeText.FontSize = Math.Max(9.0, 10.5 / Math.Sqrt(z));
+            Canvas.SetLeft(_rotateAngleBadge, rotX - 26 / z);
+            Canvas.SetTop(_rotateAngleBadge, rotY - 32 / z);
+            _rotateAngleBadge.BorderThickness = new Thickness(1.0 / z);
+            _rotateAngleBadge.Visibility = Visibility.Visible;
+
+            if (wrapped == 0)
+            {
+                _rotateArcOverlay.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            // Arc overlay geometry from 0° (top: -90°) to angle
+            double startAngleRad = -Math.PI / 2.0; // 0° is straight up
+            double endAngleRad = startAngleRad + (wrapped * Math.PI / 180.0);
+
+            double startX = cx + radius * Math.Cos(startAngleRad);
+            double startY = cy + radius * Math.Sin(startAngleRad);
+            double endX = cx + radius * Math.Cos(endAngleRad);
+            double endY = cy + radius * Math.Sin(endAngleRad);
+
+            bool isLargeArc = wrapped > 180;
+
+            var fig = new PathFigure
+            {
+                StartPoint = new Point(cx, cy),
+                IsClosed = true
+            };
+            fig.Segments.Add(new LineSegment { Point = new Point(startX, startY) });
+            fig.Segments.Add(new ArcSegment
+            {
+                Point = new Point(endX, endY),
+                Size = new Size(radius, radius),
+                IsLargeArc = isLargeArc,
+                SweepDirection = SweepDirection.Clockwise
+            });
+
+            var geo = new PathGeometry();
+            geo.Figures.Add(fig);
+
+            _rotateArcOverlay.Data = geo;
+            _rotateArcOverlay.StrokeThickness = 1.25 / z;
+            _rotateArcOverlay.Visibility = Visibility.Visible;
         }
 
         private void OnAlignLeftDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

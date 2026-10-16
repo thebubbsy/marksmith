@@ -8627,3 +8627,73 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `ShapeStudioSelectionTests`: **19 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 25448, `Alive: True`, clean exit.
 
+### 2026-10-16 19:00 AEST (run #114: Shape Studio rotation angle arc overlay & degree badge, MindMap Galaxy marquee multi-node drag & connection hover pulse, SmartArt Studio SVG visual click-to-edit & outline drag reorder, Split View sync double-tap align)
+
+- **Surface:** `MainWindow`, `ShapeDesignStudioWindow`, `MindMapGalaxyWindow`, `SmartArtDesignStudioWindow`, `MarkdownHtmlService`.
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, pointer gestures, keyboard parity, split view synchronization, and diagram direct manipulation.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #113:
+    * Target A: `ShapeDesignStudioWindow` rotation handle snap angle arc overlay and degrees readout badge.
+    * Target B: `MindMapGalaxyWindow` marquee multi-node selection bounding box and multi-node group dragging.
+    * Target C: `SmartArtDesignStudioWindow` visual diagram SVG node click/double-click to outline row sync and direct editing.
+  - Generated:
+    1. `ShapeDesignStudioWindow` Rotation Angle Arc Overlay & Interactive Degrees Readout Badge (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`)
+    2. `MindMapGalaxyWindow` Marquee Multi-Node Rubberband Box Selection & Multi-Node Group Dragging (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Added `_rotateReferenceGuide`, `_rotateArcOverlay` (pie sector `PathGeometry` with arc segment spanning from 0° north to current angle), and acrylic `_rotateAngleBadge`. Dynamically updates during pointer drag and mouse-wheel adjustments, with degree readout and `(15° snap)` visual indicator. Safely collapses on pointer release or cancellation.
+    * For Idea 2: Added `_marqueeBox` in `GuideLayer` inside `WorldCanvas`. Shift+drag or Ctrl+drag on empty canvas draws a dashed bounding box in world space and selects all intersecting nodes. Moving any selected node translates all selected nodes in unison, syncing final positions on pointer release.
+  - Generated:
+    3. `MindMapGalaxyWindow` Node Connection Anchor Hover Illumination & Edge Pulse (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`)
+    4. `SmartArtDesignStudioWindow` Visual Diagram SVG Node Click-to-Outline Sync & In-Place Editing (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Attached `PointerEntered` and `PointerExited` handlers to `v.ConnectionText` on each node. Hovering illuminates all connected edge lines (`StrokeThickness = 3.8`) and partner node borders (`BorderThickness = 2.4`), restoring previous styles on exit.
+    * For Idea 4: Injected click and double-click event delegation in preview SVG inside `BuildWrapperHtml`. Messages (`node-select` and `node-edit`) post to WebView2, selecting the corresponding row in `ViewModel.OutlineRows` or activating `BeginRenameAndFocus()` on double-click.
+  - Refined Block 1 (Pass 2 - Final):
+    * Ensured marquee drag box handles inverse zoom scaling and properly commits all selected nodes in `EndCanvasGesture()`.
+    * Tested rotate arc overlay sector geometry calculation across all four quadrants (0° to 360°).
+  - Generated:
+    5. `SmartArtDesignStudioWindow` Outline Row Drag-and-Drop Reordering with Drop Cue Indicators (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+    6. `MainWindow` Split View Bidirectional Sync & Forced Align Double-Tap (`MainWindow.xaml`, `MainWindow.xaml.cs`, `MarkdownHtmlService.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Dynamically wired drag-and-drop events (`DragStarting`, `DragOver`, `DragLeave`, `Drop`) in code-behind upon row enter (avoiding WinUI 3 XAML compiler bug WMC9999). Top/bottom half hit-testing shows 2.5px accent line indicator and executes clean hierarchy reparenting/sibling repositioning with undo support (`ViewModel.PushUndo()`).
+    * For Idea 6: Added `SplitSyncToggle` with double-tap forced align (`DoubleTapped="OnSplitSyncToggleDoubleTapped"`). Wired bidirectional scroll syncing (`preview-scroll` and editor scroll viewer) and selection highlighting (`preview-selection`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Verification:
+    * `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 12792, `Alive: True`, `Responding: True`, clean exit.
+  - Carried forward ideas / next targets into Run #115 (`MindMapGalaxyWindow` multi-selection bounding box visual frame & drag group alignment detents, `ShapeDesignStudioWindow` rotation snap angle detents on wheel, `SmartArtDesignStudioWindow` visual drag-and-drop node placement from palette into diagram hierarchy).
+
+**Shipped:**
+1. **`MainWindow` Split View Bidirectional Sync & Forced Align Double-Tap (`MainWindow.xaml`, `MainWindow.xaml.cs`, `MarkdownHtmlService.cs`):**
+   - Added `SplitSyncToggle` in toolbar with bidirectional synchronization for scrolling and text selection.
+   - Double-tapping `SplitSyncToggle` forces instant scroll and selection alignment between editor and preview.
+   - Bridge in `MarkdownHtmlService.cs` sends throttled `preview-scroll` and `preview-selection` web messages and handles incoming editor scroll fractions.
+2. **`ShapeDesignStudioWindow` Rotation Angle Arc Overlay & Interactive Degrees Readout Badge (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Renders live pie sector arc geometry from 0° (top) to the current angle while dragging the rotate handle or rolling mouse wheel.
+   - Acrylic badge shows current degrees and `(15° snap)` indicator when near 15° multiples.
+   - Automatically collapses guide line, arc overlay, and badge on release or gesture reset.
+3. **`MindMapGalaxyWindow` Marquee Multi-Node Rubberband Box Selection & Multi-Node Group Dragging (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Shift+drag (or Ctrl+drag for additive) on empty canvas renders dashed marquee rectangle in world coordinates.
+   - Intersecting nodes are added to `SelectedNodes`.
+   - Dragging any selected node moves the entire group in lockstep, committing all node positions upon gesture end.
+4. **`MindMapGalaxyWindow` Node Connection Anchor Hover Illumination (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Pointer hovering over a node's connection badge highlights all connected edge lines (`StrokeThickness = 3.8`) and target nodes (`BorderThickness = 2.4`).
+   - Restores original stroke styling smoothly on pointer exit.
+5. **`SmartArtDesignStudioWindow` Visual Diagram SVG Node Click-to-Outline Sync & In-Place Editing (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Preview SVG click selects the corresponding row in the outline hierarchy.
+   - Double-clicking an SVG node immediately activates inline rename editing in the outline editor (`BeginRenameAndFocus`).
+6. **`SmartArtDesignStudioWindow` Outline Row Drag-and-Drop Reordering (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - Outline rows support drag-and-drop reordering with visual top/bottom accent drop lines.
+   - Reorders siblings or moves nodes across parent branches, pushing an undo state (`ViewModel.PushUndo()`) and updating Markdown live.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 12792, `Alive: True`, `Responding: True`, clean exit.
+

@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.Web.WebView2.Core;
 using MarkSmith.Services;
 using MarkSmith.ViewModels.SmartArtStudio;
 using Windows.System;
@@ -573,6 +574,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 var env = await WebView2EnvironmentFactory.CreateAsync();
                 await PreviewWebView.EnsureCoreWebView2Async(env);
                 _isWebViewReady = true;
+                PreviewWebView.CoreWebView2.WebMessageReceived += OnPreviewWebMessageReceived;
                 RefreshWebView();
             }
             catch { /* preview unavailable — insert path still works */ }
@@ -613,15 +615,165 @@ namespace MarkSmith.Views.SmartArtStudio
   // fills the pane like an org chart does — but never zoom a lone shape up to poster size.
   (function () {{
     var s = document.querySelector('.smartart-container > svg');
-    if (!s || !s.getBBox) return;
-    var b = s.getBBox(), pad = 20;
-    if (!b.width || !b.height) return;
-    var w = Math.max(b.width + pad * 2, 560), h = Math.max(b.height + pad * 2, 340);
-    var cx = b.x + b.width / 2, cy = b.y + b.height / 2;
-    s.setAttribute('viewBox', (cx - w / 2) + ' ' + (cy - h / 2) + ' ' + w + ' ' + h);
+    if (!s) return;
+    if (s.getBBox) {{
+      var b = s.getBBox(), pad = 20;
+      if (b.width && b.height) {{
+        var w = Math.max(b.width + pad * 2, 560), h = Math.max(b.height + pad * 2, 340);
+        var cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+        s.setAttribute('viewBox', (cx - w / 2) + ' ' + (cy - h / 2) + ' ' + w + ' ' + h);
+      }}
+    }}
+    s.style.cursor = 'pointer';
+    s.addEventListener('click', function(e) {{
+      var el = e.target.closest('g, text, rect, circle, polygon, path');
+      if (!el) return;
+      var text = (el.textContent || '').trim();
+      if (text) {{
+        try {{ window.chrome.webview.postMessage(JSON.stringify({{ type: 'node-select', text: text }})); }} catch(err) {{}}
+      }}
+    }});
+    s.addEventListener('dblclick', function(e) {{
+      var el = e.target.closest('g, text, rect, circle, polygon, path');
+      if (!el) return;
+      var text = (el.textContent || '').trim();
+      if (text) {{
+        try {{ window.chrome.webview.postMessage(JSON.stringify({{ type: 'node-edit', text: text }})); }} catch(err) {{}}
+      }}
+    }});
   }})();
 </script>
 </body></html>";
+        }
+
+        private void OnPreviewWebMessageReceived(CoreWebView2 sender, CoreWebView2WebMessageReceivedEventArgs e)
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(e.WebMessageAsJson);
+                var root = doc.RootElement;
+                if (!root.TryGetProperty("type", out var typeProp)) return;
+                var type = typeProp.GetString();
+                if (root.TryGetProperty("text", out var textProp))
+                {
+                    var text = textProp.GetString()?.Trim();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        var match = ViewModel.OutlineRows.FirstOrDefault(r => string.Equals(r.Text.Trim(), text, StringComparison.OrdinalIgnoreCase))
+                                 ?? ViewModel.OutlineRows.FirstOrDefault(r => r.Text.Contains(text, StringComparison.OrdinalIgnoreCase));
+                        if (match != null)
+                        {
+                            ViewModel.Select(match);
+                            if (type == "node-edit")
+                            {
+                                BeginRenameAndFocus(match);
+                            }
+                            ViewModel.StatusMessage = type == "node-edit"
+                                ? $"Editing '{match.Text}' in outline (Enter to commit)"
+                                : $"Selected '{match.Text}' in outline";
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private StudioNodeViewModel? _draggedOutlineNode;
+
+        private void OnRowDragStarting(UIElement sender, DragStartingEventArgs args)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is StudioNodeViewModel node)
+            {
+                _draggedOutlineNode = node;
+                args.Data.SetText(node.Text);
+                args.DragUI.SetContentFromDataPackage();
+            }
+        }
+
+        private void OnRowDragOver(object sender, DragEventArgs e)
+        {
+            if (_draggedOutlineNode == null) return;
+            if (sender is FrameworkElement fe && fe.DataContext is StudioNodeViewModel targetNode)
+            {
+                if (targetNode == _draggedOutlineNode)
+                {
+                    e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.None;
+                    return;
+                }
+                e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
+                e.DragUIOverride.Caption = $"Move {_draggedOutlineNode.Text} near {targetNode.Text}";
+                e.DragUIOverride.IsCaptionVisible = true;
+
+                var pos = e.GetPosition(fe);
+                bool topHalf = pos.Y < (fe.ActualHeight / 2.0);
+                if (fe is Border border)
+                {
+                    border.BorderBrush = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+                    border.BorderThickness = topHalf ? new Thickness(0, 2.5, 0, 0) : new Thickness(0, 0, 0, 2.5);
+                }
+            }
+        }
+
+        private void OnRowDragLeave(object sender, DragEventArgs e)
+        {
+            if (sender is Border border)
+            {
+                border.BorderThickness = new Thickness(0);
+                border.BorderBrush = null;
+            }
+        }
+
+        private void OnRowDrop(object sender, DragEventArgs e)
+        {
+            if (sender is Border border)
+            {
+                border.BorderThickness = new Thickness(0);
+                border.BorderBrush = null;
+            }
+
+            if (_draggedOutlineNode == null) return;
+            if (sender is FrameworkElement fe && fe.DataContext is StudioNodeViewModel targetNode)
+            {
+                if (targetNode == _draggedOutlineNode) return;
+
+                var pos = e.GetPosition(fe);
+                bool topHalf = pos.Y < (fe.ActualHeight / 2.0);
+
+                ReorderOutlineNodes(_draggedOutlineNode, targetNode, insertBefore: topHalf);
+            }
+            _draggedOutlineNode = null;
+        }
+
+        private void ReorderOutlineNodes(StudioNodeViewModel source, StudioNodeViewModel target, bool insertBefore)
+        {
+            ViewModel.PushUndo();
+
+            if (source.Parent == target.Parent)
+            {
+                var siblings = source.Parent == null ? ViewModel.RootNodes : source.Parent.Children;
+                int oldIdx = siblings.IndexOf(source);
+                int targetIdx = siblings.IndexOf(target);
+                if (oldIdx >= 0 && targetIdx >= 0)
+                {
+                    int newIdx = insertBefore ? (oldIdx < targetIdx ? targetIdx - 1 : targetIdx) : (oldIdx < targetIdx ? targetIdx : targetIdx + 1);
+                    siblings.Move(oldIdx, Math.Clamp(newIdx, 0, siblings.Count - 1));
+                }
+            }
+            else
+            {
+                if (source.Parent == null) ViewModel.RootNodes.Remove(source);
+                else source.Parent.Children.Remove(source);
+
+                source.Parent = target.Parent;
+                var targetSiblings = target.Parent == null ? ViewModel.RootNodes : target.Parent.Children;
+                int targetIdx = targetSiblings.IndexOf(target);
+                int insertIdx = insertBefore ? Math.Max(0, targetIdx) : Math.Min(targetSiblings.Count, targetIdx + 1);
+                targetSiblings.Insert(insertIdx, source);
+            }
+
+            ViewModel.Select(source);
+            ViewModel.SyncTreeToMarkdown();
+            ViewModel.StatusMessage = $"Moved '{source.Text}' {(insertBefore ? "before" : "after")} '{target.Text}'";
         }
 
         // ------------------------------------------------------------------ outline editor
@@ -701,7 +853,20 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnRowPointerEntered(object sender, PointerRoutedEventArgs e)
         {
-            if (sender is Border b) ThemeBrush.Set(b, Border.BackgroundProperty, "SubtleFillColorSecondaryBrush");
+            if (sender is Border b)
+            {
+                ThemeBrush.Set(b, Border.BackgroundProperty, "SubtleFillColorSecondaryBrush");
+                if (b.Tag as string != "DragWired")
+                {
+                    b.Tag = "DragWired";
+                    b.CanDrag = true;
+                    b.AllowDrop = true;
+                    b.DragStarting += OnRowDragStarting;
+                    b.DragOver += OnRowDragOver;
+                    b.DragLeave += OnRowDragLeave;
+                    b.Drop += OnRowDrop;
+                }
+            }
         }
 
         private void OnRowPointerExited(object sender, PointerRoutedEventArgs e)

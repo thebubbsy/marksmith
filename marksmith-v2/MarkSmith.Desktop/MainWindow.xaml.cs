@@ -365,7 +365,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             if (FindEditorScrollViewer() is { } sv)
             {
-                sv.ViewChanged += (_, _) => SyncLineGutterScroll();
+                sv.ViewChanged += (_, _) =>
+                {
+                    SyncLineGutterScroll();
+                    OnEditorScrollViewerViewChanged(sv);
+                };
             }
         };
 
@@ -1242,12 +1246,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
 
         // PageBorder is a preview-affecting setting: toggling it must refresh the preview
-        // immediately (it renders the page frame) without waiting for a manual re-render.
-        if (e.PropertyName == nameof(ViewModels.MainViewModel.PageBorder))
-        {
-            _ = RefreshPreviewAsync();
-        }
-
         if (e.PropertyName is not null && AutomationProperties.Contains(e.PropertyName))
         {
             ApplyAutomationSettings();
@@ -1269,10 +1267,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     }
                 }
                 _lastMarkdownLen = len;
+                _previewDebounce.Interval = TimeSpan.FromMilliseconds(140);
             }
             else
             {
-                _nextRefreshHeavy = true; // theme / width / TOC / formatting — a visible re-render
+                _nextRefreshHeavy = true; // theme / width / TOC / formatting — updated in-place via TryHotSwapPreviewHtmlAsync
+                // Right-hand side option changes coalesce in 8ms (so multi-property preset changes batch
+                // into one update while individual toggles like NoEmoji execute virtually instantaneously).
+                _previewDebounce.Interval = TimeSpan.FromMilliseconds(8);
             }
             _previewDebounce.Stop();
             if (!ocrActive)
@@ -4992,6 +4994,36 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 return;
             }
 
+            // Split View synchronized scrolling: right-hand preview scrolled -> sync left-hand editor.
+            if (type == "preview-scroll")
+            {
+                if (_viewMode == ViewMode.Split && SplitSyncToggle?.IsChecked == true &&
+                    root.TryGetProperty("frac", out var fracProp))
+                {
+                    var frac = Math.Clamp(fracProp.GetDouble(), 0.0, 1.0);
+                    if (FindEditorScrollViewer() is { } sv && sv.ScrollableHeight > 0)
+                    {
+                        _suppressEditorToPreviewScrollUntil = Environment.TickCount64 + 160;
+                        sv.ChangeView(null, frac * sv.ScrollableHeight, null, disableAnimation: true);
+                    }
+                }
+                return;
+            }
+
+            // Split View synchronized highlighting: text highlighted in preview -> highlight in editor.
+            if (type == "preview-selection")
+            {
+                if (_viewMode == ViewMode.Split && SplitSyncToggle?.IsChecked == true &&
+                    root.TryGetProperty("text", out var selProp))
+                {
+                    var selText = selProp.GetString() ?? "";
+                    var blockText = root.TryGetProperty("blockText", out var blkProp) ? blkProp.GetString() ?? "" : "";
+                    var approxFrac = root.TryGetProperty("approxFrac", out var afProp) ? Math.Clamp(afProp.GetDouble(), 0.0, 1.0) : 0.0;
+                    HighlightPreviewSelectionInEditor(selText, blockText, approxFrac);
+                }
+                return;
+            }
+
             // Looking Glass portal (ISS-004): a portal just opened in the preview — hand it the
             // editor's current Markdown so it can reveal (and edit) the source behind the preview.
             if (type == "portal-open")
@@ -5415,34 +5447,27 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         return RefreshPreviewAsync(false);
     }
 
+    private bool _lastRenderedLookingGlass;
+    private bool _lastRenderedEmailMode;
+
     private async Task RefreshPreviewAsync(bool heavy = true)
     {
         if (PreviewWebView.CoreWebView2 is null) return;
         if (_mermaidHarvestActive) return; // snapshot renderer owns the WebView right now
 
-        // ISS-004: any refresh re-navigates the preview, which tears down any open portal's DOM —
-        // clear the portal flags so they don't go stale and block future typing refreshes.
-        _portalOpen = false;
-        _portalDirty = false;
-
-        // The loading sprite + blur treatment is retired: the user wants to literally watch the
-        // preview render — no blur, no loading symbols. The pre-paint scroll restore below keeps
-        // the re-render from visibly jumping, so a bare refresh reads as an in-place repaint.
-        // (`heavy` is kept for call-site compatibility / future intensity signalling.)
         _ = heavy;
 
         var vm = ViewModel;
         var markdown = await ResolvePreviewMarkdownAsync();
 
         var prepared = vm.PrepareMarkdown(markdown, forPreview: true);
-        var html = vm.PreviewAsEmail ? vm.BuildEmailPreviewHtml(prepared) : vm.BuildPreviewHtml(prepared, interactive: true);
+        var isEmail = vm.PreviewAsEmail;
+        var isLookingGlass = App.Settings.Current.LookingGlassMode;
+        var html = isEmail ? vm.BuildEmailPreviewHtml(prepared) : vm.BuildPreviewHtml(prepared, interactive: true);
 
-        // Essential refresh check: skip re-navigating WebView2 if content is identical and not heavy
-        if (!heavy && markdown == _lastLiveCanvasMd && _lastRenderedHtml != null && html == _lastRenderedHtml)
+        // Skip if the rendered HTML is already identical and no explicit scroll target is pending.
+        if (_pendingPreviewScroll is null && markdown == _lastLiveCanvasMd && _lastRenderedHtml != null && html == _lastRenderedHtml)
             return;
-
-        _lastLiveCanvasMd = markdown;
-        _lastRenderedHtml = html;
 
         if (vm.IsDebugModeEnabled)
         {
@@ -5458,6 +5483,28 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
             catch { }
         }
+
+        // Zero-flash, zero-scroll-jump in-place hot-swap: when staying in normal interactive page mode
+        // (not transitioning into/out of Email table view or Looking Glass portal mode), swap the <style>,
+        // body class, and #canvas DOM in a single synchronous JS frame while preserving exact scroll
+        // position, already-decoded <img> nodes, and unchanged rendered Mermaid diagrams.
+        if (!isEmail && !_lastRenderedEmailMode &&
+            isLookingGlass == _lastRenderedLookingGlass &&
+            _pendingPreviewScroll is null &&
+            await TryHotSwapPreviewHtmlAsync(html))
+        {
+            _lastLiveCanvasMd = markdown;
+            _lastRenderedHtml = html;
+            return;
+        }
+
+        // Full navigation fallback (first load, Email view toggle, Looking Glass mode toggle, or new <head> dependency)
+        _portalOpen = false;
+        _portalDirty = false;
+        _lastLiveCanvasMd = markdown;
+        _lastRenderedHtml = html;
+        _lastRenderedLookingGlass = isLookingGlass;
+        _lastRenderedEmailMode = isEmail;
 
         if (_pendingPreviewScroll is null)
             _pendingPreviewScroll = await CapturePreviewScrollPositionAsync();
@@ -5475,7 +5522,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 "var maxY=document.documentElement.scrollHeight-window.innerHeight;" +
                 $"var tx=maxX>0?Math.round({fxStr}*maxX):{pxStr};" +
                 $"var ty=maxY>0?Math.round({fyStr}*maxY):{pyStr};" +
-                "if(tx>0||ty>0){window.scrollTo(tx,ty);}" +
+                "if(tx>0||ty>0){window.__msSuppressScrollSendUntil=performance.now()+200;window.scrollTo(tx,ty);}" +
                 "})();</script></body>");
         }
 
@@ -5494,6 +5541,120 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             System.Diagnostics.Debug.WriteLine($"[WebView2] NavigateToString skipped: {ex.Message}");
         }
+    }
+
+    private async Task<bool> TryHotSwapPreviewHtmlAsync(string fullHtml)
+    {
+        var core = PreviewWebView.CoreWebView2;
+        if (core is null || _mermaidHarvestActive) return false;
+
+        const string startMarker = "<!--ms-canvas-start-->";
+        const string endMarker = "<!--ms-canvas-end-->";
+        var startIdx = fullHtml.IndexOf(startMarker, StringComparison.Ordinal);
+        if (startIdx < 0) return false;
+        startIdx += startMarker.Length;
+        var endIdx = fullHtml.IndexOf(endMarker, startIdx, StringComparison.Ordinal);
+        if (endIdx < 0) return false;
+
+        var innerCanvas = fullHtml.Substring(startIdx, endIdx - startIdx);
+
+        // Extract the main <style>...</style> block right before </head><body
+        string? mainCss = null;
+        var headEndIdx = fullHtml.IndexOf("</style></head><body", StringComparison.Ordinal);
+        if (headEndIdx > 0)
+        {
+            var styleStartIdx = fullHtml.LastIndexOf("<style>", headEndIdx, StringComparison.Ordinal);
+            if (styleStartIdx >= 0)
+            {
+                styleStartIdx += "<style>".Length;
+                mainCss = fullHtml.Substring(styleStartIdx, headEndIdx - styleStartIdx);
+            }
+        }
+
+        string? bodyClass = null;
+        var bodyTagIdx = fullHtml.IndexOf("<body class=\"", StringComparison.Ordinal);
+        if (bodyTagIdx >= 0)
+        {
+            bodyTagIdx += "<body class=\"".Length;
+            var quoteEnd = fullHtml.IndexOf('"', bodyTagIdx);
+            if (quoteEnd > bodyTagIdx)
+                bodyClass = fullHtml.Substring(bodyTagIdx, quoteEnd - bodyTagIdx);
+        }
+
+        var js = BuildHotSwapCanvasJs(innerCanvas, mainCss, bodyClass);
+        string result;
+        try { result = await core.ExecuteScriptAsync(js); } catch { return false; }
+        return result == "\"ok\"";
+    }
+
+    private string BuildHotSwapCanvasJs(string innerCanvas, string? mainCss, string? bodyClass)
+    {
+        var settings = App.Settings.Current;
+        var themeSig = $"{ViewModel.SelectedThemeName}|{settings.ThemeLightInfluence}";
+        var paper = Services.PdfExportService.PaperSize(settings);
+        var paperW = (int)Math.Round(paper.WidthIn * 96);
+        var paperH = (int)Math.Round(paper.HeightIn * 96);
+        var unlimitedStr = settings.UnlimitedHeight ? "true" : "false";
+
+        var hJson = System.Text.Json.JsonSerializer.Serialize(innerCanvas);
+        var cssJson = mainCss != null ? System.Text.Json.JsonSerializer.Serialize(mainCss) : "null";
+        var bodyClsJson = bodyClass != null ? System.Text.Json.JsonSerializer.Serialize(bodyClass) : "null";
+        var themeSigJson = System.Text.Json.JsonSerializer.Serialize(themeSig);
+
+        return "(function(){" +
+               "var c=document.getElementById('canvas');if(!c)return 'nav';" +
+               "var h=" + hJson + ";" +
+               "if(h.indexOf('class=\"math\"')>=0&&!window.__msRenderMath)return 'nav';" +
+               "if(h.indexOf('language-')>=0&&!window.hljs)return 'nav';" +
+               "if(h.indexOf('class=\"mermaid')>=0&&!window.mermaid)return 'nav';" +
+               "var css=" + cssJson + ";" +
+               "var bodyCls=" + bodyClsJson + ";" +
+               "var themeSig=" + themeSigJson + ";" +
+               "var sameTheme=(window.__msThemeSig=== undefined || window.__msThemeSig===themeSig);" +
+               "if(!sameTheme && c.querySelector('.mermaid') && h.indexOf('class=\"mermaid')>=0)return 'nav';" +
+               "window.__msThemeSig=themeSig;" +
+               "var sx=window.scrollX||window.pageXOffset||document.documentElement.scrollLeft||0;" +
+               "var sy=window.scrollY||window.pageYOffset||document.documentElement.scrollTop||0;" +
+               "window.__msSuppressScrollSendUntil=performance.now()+180;" +
+               // Cache already-decoded <img> elements so they don't re-decode or flash
+               "var oldImgs=new Map();" +
+               "c.querySelectorAll('img').forEach(function(img){" +
+               "if(img.complete&&img.naturalHeight>0){" +
+               "var k=(img.getAttribute('src')||'')+'|'+(img.getAttribute('width')||'')+'|'+(img.getAttribute('alt')||'');" +
+               "if(!oldImgs.has(k))oldImgs.set(k,[]);oldImgs.get(k).push(img);}});" +
+               // Cache already-rendered .mermaid[data-processed] elements by source text
+               "var oldMermaids=new Map();" +
+               "if(sameTheme){c.querySelectorAll('.mermaid[data-processed]').forEach(function(m){" +
+               "var src=m.getAttribute('data-ms-src');if(src&&m.querySelector('svg')){" +
+               "if(!oldMermaids.has(src))oldMermaids.set(src,[]);oldMermaids.get(src).push(m);}});}" +
+               // Cache open <details> state
+               "var openDetails=new Set();" +
+               "c.querySelectorAll('details').forEach(function(d,i){if(d.open)openDetails.add(i);});" +
+               // Update <style> and body class synchronously
+               "if(css!==null){var styles=document.head.querySelectorAll('style');" +
+               "if(styles.length>0){var ms=styles[styles.length-1];if(ms.textContent!==css)ms.textContent=css;}}" +
+               "if(bodyCls!==null&&document.body.className!==bodyCls){document.body.className=bodyCls;}" +
+               // Swap #canvas innerHTML and graft back decoded images & rendered Mermaid SVGs before layout
+               "c.innerHTML=h;" +
+               "if(oldImgs.size>0){c.querySelectorAll('img').forEach(function(ni){" +
+               "var k=(ni.getAttribute('src')||'')+'|'+(ni.getAttribute('width')||'')+'|'+(ni.getAttribute('alt')||'');" +
+               "var arr=oldImgs.get(k);if(arr&&arr.length>0){ni.replaceWith(arr.shift());}});}" +
+               "if(oldMermaids.size>0){c.querySelectorAll('.mermaid').forEach(function(nm){" +
+               "var src=(nm.textContent||'').trim();" +
+               "var arr=oldMermaids.get(src);if(arr&&arr.length>0){nm.replaceWith(arr.shift());}});}" +
+               "if(openDetails.size>0){c.querySelectorAll('details').forEach(function(d,i){if(openDetails.has(i))d.open=true;});}" +
+               "window.__msUnlimitedHeight=" + unlimitedStr + ";" +
+               "window.__msPaperWidthPx=" + paperW + ";" +
+               "window.__msPaperHeightPx=" + paperH + ";" +
+               "try{if(window.__msRenderMath){window.__msRenderMath(c);}}catch(x){}" +
+               "try{if(window.hljs){c.querySelectorAll('pre code').forEach(function(el){window.hljs.highlightElement(el);});}}catch(x){}" +
+               "try{if(window.mermaid&&window.mermaid.run&&c.querySelector('.mermaid:not([data-processed])')){" +
+               "window.mermaid.run().then(function(){window.__msSuppressScrollSendUntil=performance.now()+140;window.scrollTo(sx,sy);}).catch(function(){});}}catch(x){}" +
+               "try{if(window.__msSetZoom){window.__msSetZoom(window.__msZoom);}}catch(x){}" +
+               "try{if(typeof updatePageBreaks==='function')updatePageBreaks();}catch(x){}" +
+               "try{if(typeof checkPageOverflow==='function')checkPageOverflow();}catch(x){}" +
+               "window.scrollTo(sx, sy);" +
+               "return 'ok';})();";
     }
 
     private async Task<string> ResolvePreviewMarkdownAsync()
@@ -5537,17 +5698,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var inner = vm.BuildPreviewCanvasHtml(vm.PrepareMarkdown(markdown, forPreview: true));
         if (inner is null) return false;
 
-        var js = "(function(){var c=document.getElementById('canvas');if(!c)return 'nav';" +
-                 "var h=" + System.Text.Json.JsonSerializer.Serialize(inner) + ";" +
-                 "if(h.indexOf('class=\"math\"')>=0&&!window.__msRenderMath)return 'nav';" +
-                 "if(h.indexOf('language-')>=0&&!window.hljs)return 'nav';" +
-                 "var sx=window.scrollX||0, sy=window.scrollY||0;" +
-                 "c.innerHTML=h;" +
-                 "try{if(window.mermaid&&window.mermaid.run){window.mermaid.run();}}catch(x){}" +
-                 "try{if(window.__msRenderMath){window.__msRenderMath(c);}}catch(x){}" +
-                 "try{if(window.hljs){c.querySelectorAll('pre code').forEach(function(el){window.hljs.highlightElement(el);});}}catch(x){}" +
-                 "window.scrollTo(sx, sy);" +
-                 "return 'ok';})();";
+        var js = BuildHotSwapCanvasJs(inner, mainCss: null, bodyClass: null);
         string result;
         try { result = await core.ExecuteScriptAsync(js); } catch { return false; }
         if (result != "\"ok\"") return false;
@@ -6736,6 +6887,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // message, so they'd be dead controls there.
         if (PreviewWidthContainer != null) PreviewWidthContainer.Visibility = showPreview && !ViewModel.PreviewAsEmail ? Visibility.Visible : Visibility.Collapsed;
         if (SplitViewSplitter != null) SplitViewSplitter.Visibility = mode == ViewMode.Split ? Visibility.Visible : Visibility.Collapsed;
+        if (SplitSyncToggle != null) SplitSyncToggle.Visibility = mode == ViewMode.Split ? Visibility.Visible : Visibility.Collapsed;
 
         // Column widths: give all the space to the visible pane(s); split shares it.
         if (SplitLeftCol != null) SplitLeftCol.Width = mode == ViewMode.Preview ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
@@ -7178,6 +7330,255 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var sv = FindEditorScrollViewer();
         if (sv is null || sv.ScrollableHeight <= 0) return;
         sv.ChangeView(null, Math.Clamp(frac, 0.0, 1.0) * sv.ScrollableHeight, null, disableAnimation: true);
+    }
+
+    private long _suppressEditorToPreviewScrollUntil;
+    private double _lastEditorToPreviewScrollFrac = -1;
+
+    private void OnSplitSyncToggled(object sender, RoutedEventArgs e)
+    {
+        if (_viewMode != ViewMode.Split) return;
+        var isOn = SplitSyncToggle?.IsChecked == true;
+        AnnounceStatus(isOn
+            ? "Split View sync enabled (scrolling & text highlighting linked)"
+            : "Split View sync disabled");
+        if (isOn && FindEditorScrollViewer() is { } sv)
+        {
+            _lastEditorToPreviewScrollFrac = -1;
+            OnEditorScrollViewerViewChanged(sv);
+        }
+    }
+
+    private void OnSplitSyncToggleRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var isOn = SplitSyncToggle?.IsChecked == true;
+        var toggleItem = new MenuFlyoutItem
+        {
+            Text = isOn ? "Disable Split View sync" : "Enable Split View sync",
+            Icon = new FontIcon { Glyph = "\uE8AB" }
+        };
+        toggleItem.Click += (_, _) =>
+        {
+            if (SplitSyncToggle != null) SplitSyncToggle.IsChecked = !isOn;
+        };
+        menu.Items.Add(toggleItem);
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var syncToPreview = new MenuFlyoutItem
+        {
+            Text = "Align Preview scroll to Editor now",
+            Icon = new FontIcon { Glyph = "\uE72A" }
+        };
+        syncToPreview.Click += (_, _) =>
+        {
+            if (FindEditorScrollViewer() is { } sv)
+            {
+                var frac = sv.ScrollableHeight > 0 ? Math.Clamp(sv.VerticalOffset / sv.ScrollableHeight, 0.0, 1.0) : 0.0;
+                var fracStr = frac.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+                _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync($"if(window.__msSyncScrollFromEditor)window.__msSyncScrollFromEditor({fracStr});");
+            }
+        };
+        menu.Items.Add(syncToPreview);
+
+        var syncToEditor = new MenuFlyoutItem
+        {
+            Text = "Align Editor scroll to Preview now",
+            Icon = new FontIcon { Glyph = "\uE72B" }
+        };
+        syncToEditor.Click += (_, _) =>
+        {
+            _suppressEditorToPreviewScrollUntil = Environment.TickCount64 + 200;
+            _ = CapturePreviewScrollAndApplyToEditorAsync();
+        };
+        menu.Items.Add(syncToEditor);
+
+        if (sender is FrameworkElement fe)
+            menu.ShowAt(fe, e.GetPosition(fe));
+    }
+
+    private void OnSplitSyncToggleDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (_viewMode != ViewMode.Split) return;
+        if (SplitSyncToggle != null && SplitSyncToggle.IsChecked != true)
+        {
+            SplitSyncToggle.IsChecked = true;
+        }
+
+        if (FindEditorScrollViewer() is { } sv)
+        {
+            var frac = sv.ScrollableHeight > 0 ? Math.Clamp(sv.VerticalOffset / sv.ScrollableHeight, 0.0, 1.0) : 0.0;
+            var fracStr = frac.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+            _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync($"if(window.__msSyncScrollFromEditor)window.__msSyncScrollFromEditor({fracStr});");
+        }
+        AnnounceStatus("Split View aligned: Preview synchronized with Editor position");
+    }
+
+    private void OnEditorScrollViewerViewChanged(ScrollViewer sv)
+    {
+        if (_viewMode != ViewMode.Split || SplitSyncToggle?.IsChecked != true) return;
+        if (Environment.TickCount64 < _suppressEditorToPreviewScrollUntil) return;
+        var core = PreviewWebView?.CoreWebView2;
+        if (core is null || _mermaidHarvestActive) return;
+
+        var frac = sv.ScrollableHeight > 0 ? Math.Clamp(sv.VerticalOffset / sv.ScrollableHeight, 0.0, 1.0) : 0.0;
+        if (Math.Abs(frac - _lastEditorToPreviewScrollFrac) < 0.0005) return;
+        _lastEditorToPreviewScrollFrac = frac;
+
+        var fracStr = frac.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+        _ = core.ExecuteScriptAsync($"if(window.__msSyncScrollFromEditor)window.__msSyncScrollFromEditor({fracStr});");
+    }
+
+    private void HighlightPreviewSelectionInEditor(string selectedText, string blockText, double approxFrac)
+    {
+        if (_viewMode != ViewMode.Split || SplitSyncToggle?.IsChecked != true) return;
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        var editorText = tb.Text;
+        if (string.IsNullOrEmpty(editorText)) return;
+
+        var needle = selectedText.Trim();
+        if (needle.Length == 0) return;
+
+        var (bestStart, bestLen) = FindBestEditorMatchForPreviewSelection(editorText, needle, blockText, approxFrac);
+        if (bestStart < 0 || bestLen <= 0) return;
+
+        // Suppress editor->preview scroll echo while selecting and scrolling the editor into view.
+        _suppressEditorToPreviewScrollUntil = Environment.TickCount64 + 260;
+
+        try
+        {
+            tb.Select(bestStart, bestLen);
+            UpdateCursorPosition();
+
+            if (FindEditorScrollViewer() is { } sv && sv.ScrollableHeight > 0 && editorText.Length > 0)
+            {
+                // Count logical line ratio of bestStart so the editor scrolls smoothly to show the highlighted span
+                // without stealing focus from PreviewWebView.
+                int totalLines = 1, matchLine = 0;
+                for (int i = 0; i < editorText.Length; i++)
+                {
+                    if (editorText[i] == '\r' || (editorText[i] == '\n' && (i == 0 || editorText[i - 1] != '\r')))
+                    {
+                        totalLines++;
+                        if (i < bestStart) matchLine++;
+                    }
+                }
+                double lineFrac = totalLines > 1 ? Math.Clamp((double)matchLine / (totalLines - 1), 0.0, 1.0) : 0.0;
+                double targetOffset = lineFrac * sv.ScrollableHeight;
+                // Scroll only if the match sits outside the middle 70% of the visible editor viewport
+                double currentTop = sv.VerticalOffset;
+                double viewportH = sv.ViewportHeight;
+                double estimatedContentY = lineFrac * Math.Max(1.0, sv.ExtentHeight - viewportH * 0.5);
+                if (estimatedContentY < currentTop + viewportH * 0.15 || estimatedContentY > currentTop + viewportH * 0.85)
+                {
+                    sv.ChangeView(null, targetOffset, null, disableAnimation: true);
+                }
+            }
+        }
+        catch { }
+    }
+
+    private static (int Start, int Length) FindBestEditorMatchForPreviewSelection(
+        string editorText, string needle, string blockText, double approxFrac)
+    {
+        // Normalize line endings in needle to try both raw and \r / \r\n variants used by TextBox.
+        var candidates = new List<(int Start, int Length)>();
+
+        void CollectExactMatches(string searchNeedle)
+        {
+            if (string.IsNullOrEmpty(searchNeedle)) return;
+            int idx = 0;
+            while (idx <= editorText.Length - searchNeedle.Length)
+            {
+                int found = editorText.IndexOf(searchNeedle, idx, StringComparison.OrdinalIgnoreCase);
+                if (found < 0) break;
+                candidates.Add((found, searchNeedle.Length));
+                idx = found + Math.Max(1, searchNeedle.Length);
+            }
+        }
+
+        CollectExactMatches(needle);
+        if (candidates.Count == 0 && needle.Contains('\n'))
+        {
+            var crNeedle = needle.Replace("\r\n", "\n").Replace("\n", "\r");
+            CollectExactMatches(crNeedle);
+            if (candidates.Count == 0)
+            {
+                var crlfNeedle = needle.Replace("\r\n", "\n").Replace("\n", "\r\n");
+                CollectExactMatches(crlfNeedle);
+            }
+        }
+
+        // If the selection spans across inline Markdown formatting (e.g. **bold**, *italic*, `code`, [link](url)),
+        // match the sequence of words allowing optional Markdown punctuation between words.
+        if (candidates.Count == 0)
+        {
+            var words = System.Text.RegularExpressions.Regex.Matches(needle, @"[\p{L}\p{N}_]+")
+                .Select(m => m.Value)
+                .ToList();
+            if (words.Count > 0 && words.Count <= 24)
+            {
+                var pattern = string.Join(@"[\s\*_~`\[\]\(\)#>\|!\-:""']+", words.Select(System.Text.RegularExpressions.Regex.Escape));
+                try
+                {
+                    var rx = new System.Text.RegularExpressions.Regex(pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(50));
+                    foreach (System.Text.RegularExpressions.Match m in rx.Matches(editorText))
+                    {
+                        if (m.Success && m.Length > 0)
+                            candidates.Add((m.Index, m.Length));
+                    }
+                }
+                catch { }
+            }
+        }
+
+        if (candidates.Count == 0) return (-1, 0);
+        if (candidates.Count == 1) return candidates[0];
+
+        // Disambiguate multiple occurrences using surrounding block text overlap and vertical fraction proximity.
+        var blockWords = string.IsNullOrWhiteSpace(blockText)
+            ? Array.Empty<string>()
+            : System.Text.RegularExpressions.Regex.Matches(blockText, @"[\p{L}\p{N}]{3,}")
+                .Select(m => m.Value)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(16)
+                .ToArray();
+
+        double bestScore = double.NegativeInfinity;
+        (int Start, int Length) best = candidates[0];
+        int textLen = Math.Max(1, editorText.Length);
+
+        foreach (var c in candidates)
+        {
+            double cFrac = (double)c.Start / textLen;
+            double distScore = -Math.Abs(cFrac - approxFrac) * 4.0;
+
+            double contextScore = 0;
+            if (blockWords.Length > 0)
+            {
+                int ctxStart = Math.Max(0, c.Start - 160);
+                int ctxEnd = Math.Min(editorText.Length, c.Start + c.Length + 160);
+                var slice = editorText.AsSpan(ctxStart, ctxEnd - ctxStart);
+                foreach (var bw in blockWords)
+                {
+                    if (slice.IndexOf(bw.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0)
+                        contextScore += 0.35;
+                }
+            }
+
+            double total = distScore + contextScore;
+            if (total > bestScore)
+            {
+                bestScore = total;
+                best = c;
+            }
+        }
+
+        return best;
     }
 
     // Editor cursor readout: "Ln 12, Col 8" plus rich selection telemetry ("(3 words, 18 chars selected)"

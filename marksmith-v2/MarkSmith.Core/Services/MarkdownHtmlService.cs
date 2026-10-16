@@ -583,6 +583,9 @@ public sealed partial class MarkdownHtmlService
             (function () {
                 const run = mermaid.run.bind(mermaid);
                 mermaid.run = async function (options) {
+                    document.querySelectorAll(".mermaid:not([data-processed])").forEach(el => {
+                        if (!el.hasAttribute("data-ms-src")) el.setAttribute("data-ms-src", (el.textContent || "").trim());
+                    });
                     const canvas = document.getElementById("canvas");
                     const scale = canvas && canvas.offsetWidth
                         ? canvas.getBoundingClientRect().width / canvas.offsetWidth : 1;
@@ -631,11 +634,13 @@ public sealed partial class MarkdownHtmlService
                     lens.classList.add("open"); bar.style.display = "flex"; apply();
                 };
                 const closeLens = () => { lens.classList.remove("open"); bar.style.display = "none"; };
-                document.querySelectorAll(".mermaid, .plugin-diagram, .smartart, [class*=\"-diagram\"]").forEach(m =>
-                    m.addEventListener("click", (e) => {
-                        if (e.target.closest(".mermaid-edit-btn") || e.target.closest(".smartart-error")) return;
-                        const s = m.querySelector("svg"); if (s) openLens(s);
-                    }));
+                document.addEventListener("click", (e) => {
+                    if (!e.target || !e.target.closest) return;
+                    const m = e.target.closest(".mermaid, .plugin-diagram, .smartart, [class*=\"-diagram\"]");
+                    if (!m) return;
+                    if (e.target.closest(".mermaid-edit-btn") || e.target.closest(".smartart-error")) return;
+                    const s = m.querySelector("svg"); if (s) openLens(s);
+                });
                 lens.addEventListener("wheel", (e) => {
                     e.preventDefault();
                     const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
@@ -746,19 +751,21 @@ public sealed partial class MarkdownHtmlService
                     banner.style.display = "none";
                 }
             }
+            window.__msUnlimitedHeight = {{settings.UnlimitedHeight.ToString().ToLower()}};
+            window.__msPaperWidthPx = {{(int)Math.Round(PdfExportService.PaperSize(settings).WidthIn * 96)}};
+            window.__msPaperHeightPx = {{(int)Math.Round(PdfExportService.PaperSize(settings).HeightIn * 96)}};
             function updatePageBreaks() {
-                if ({{settings.UnlimitedHeight.ToString().ToLower()}}) return;
+                document.querySelectorAll(".page-break-gap").forEach(el => el.remove());
+                if (window.__msUnlimitedHeight) return;
                 const canvas = document.getElementById("canvas");
                 if (!canvas) return;
-
-                document.querySelectorAll(".page-break-gap").forEach(el => el.remove());
 
                 // The PDF's paper (PdfExportService.PaperSize) at the canvas's width, less the
                 // text inset every printed page repeats at its top and bottom: each page holds
                 // `usable` pixels of the document, so the markers fall about where the PDF breaks.
                 // A document that fits on one page shows none.
-                const scale = canvas.offsetWidth / {{(int)Math.Round(PdfExportService.PaperSize(settings).WidthIn * 96)}};
-                const pageHeight = {{(int)Math.Round(PdfExportService.PaperSize(settings).HeightIn * 96)}} * scale;
+                const scale = canvas.offsetWidth / (window.__msPaperWidthPx || 794);
+                const pageHeight = (window.__msPaperHeightPx || 1123) * scale;
                 const inset = {{(int)Math.Round(PdfExportService.PageInsetIn * 96)}} * scale;
                 const usable = pageHeight - 2 * inset;
                 const style = getComputedStyle(canvas);
@@ -779,6 +786,61 @@ public sealed partial class MarkdownHtmlService
             function makeMermaidInteractive() {
                 // No upper-right button overlay — long-press water-fill gesture handles Studio launch
             }
+
+            // Split View bidirectional scroll & text selection synchronization bridge
+            window.__msSuppressScrollSendUntil = 0;
+            window.__msSyncScrollFromEditor = function(frac) {
+                window.__msSuppressScrollSendUntil = performance.now() + 140;
+                const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+                window.scrollTo(window.scrollX || 0, Math.max(0, Math.min(1, +frac || 0)) * maxY);
+            };
+            (function() {
+                let scrollRaf = 0;
+                window.addEventListener("scroll", () => {
+                    if (performance.now() < (window.__msSuppressScrollSendUntil || 0)) return;
+                    if (scrollRaf) return;
+                    scrollRaf = requestAnimationFrame(() => {
+                        scrollRaf = 0;
+                        if (performance.now() < (window.__msSuppressScrollSendUntil || 0)) return;
+                        const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+                        const frac = maxY > 0 ? Math.max(0, Math.min(1, (window.scrollY || 0) / maxY)) : 0;
+                        try { window.chrome.webview.postMessage(JSON.stringify({ type: "preview-scroll", frac: frac })); } catch(e) {}
+                    });
+                }, { passive: true });
+
+                let lastSentSel = "";
+                const sendSelection = () => {
+                    const sel = window.getSelection ? window.getSelection() : null;
+                    if (!sel || sel.isCollapsed || sel.rangeCount === 0) { lastSentSel = ""; return; }
+                    const canvas = document.getElementById("canvas");
+                    const anchorEl = sel.anchorNode ? (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
+                    if (!canvas || !anchorEl || !canvas.contains(anchorEl)) return;
+                    if (anchorEl.closest && anchorEl.closest("#portal-aperture")) return;
+                    const text = sel.toString();
+                    if (!text || !text.trim()) return;
+                    const block = anchorEl.closest ? anchorEl.closest("p,h1,h2,h3,h4,h5,h6,li,pre,blockquote,td,th,summary,dt,dd") : null;
+                    const blockText = block ? (block.innerText || block.textContent || "") : "";
+                    let approxFrac = 0;
+                    try {
+                        const r = sel.getRangeAt(0).getBoundingClientRect();
+                        const cr = canvas.getBoundingClientRect();
+                        if (cr.height > 0) approxFrac = Math.max(0, Math.min(1, (r.top - cr.top) / cr.height));
+                    } catch(e) {}
+                    const sig = text + "|" + Math.round(approxFrac * 1000);
+                    if (sig === lastSentSel) return;
+                    lastSentSel = sig;
+                    try {
+                        window.chrome.webview.postMessage(JSON.stringify({
+                            type: "preview-selection",
+                            text: text,
+                            blockText: blockText,
+                            approxFrac: approxFrac
+                        }));
+                    } catch(e) {}
+                };
+                document.addEventListener("mouseup", () => setTimeout(sendSelection, 10), { passive: true });
+                document.addEventListener("keyup", () => setTimeout(sendSelection, 10), { passive: true });
+            })();
 
             window.addEventListener("load", () => {
                 setTimeout(checkPageOverflow, 800);
@@ -801,10 +863,10 @@ public sealed partial class MarkdownHtmlService
             </script>
             """ : "";
 
-        // Mini-TOC scroll-spy (live preview only, and only when a TOC was emitted): as the document
-        // scrolls, the TOC entry for the heading nearest the top of the viewport gets .active. The
-        // heading ids come from Markdig's AutoIdentifiers — the same ids BuildToc links to.
-        var scrollSpyScript = interactive && toc.Length > 0 ? """
+        // Mini-TOC scroll-spy (live preview only): as the document scrolls, the TOC entry for the
+        // heading nearest the top of the viewport gets .active. Always included in interactive mode
+        // so toggling IncludeToc on/off in place immediately activates scroll-spy.
+        var scrollSpyScript = interactive ? """
             <script>
             window.addEventListener("DOMContentLoaded", () => {
                 // Re-query #toc and the headings on every pass: live in-place canvas swaps

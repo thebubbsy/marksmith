@@ -240,7 +240,7 @@
                                                   Background="{Binding IsSelected, Converter={StaticResource SelectedBrushConverter}, ConverterParameter=subtle}"
                                                   PointerPressed="OnRowPointerPressed" DoubleTapped="OnRowDoubleTapped" RightTapped="OnRowRightTapped"
                                                   PointerWheelChanged="OnRowPointerWheelChanged"
-                                                  ToolTipService.ToolTip="Outline item · Double-click to rename · Alt+Wheel to move up/down · Shift+Wheel to indent · Right-click for options"
+                                                  ToolTipService.ToolTip="Outline item · Drag to reorder · Double-click to rename · Alt+Wheel to move · Shift+Wheel to indent · Right-click for options"
                                                   AutomationProperties.Name="{Binding Text}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />

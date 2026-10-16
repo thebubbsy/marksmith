@@ -638,7 +638,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     // ------------------------------------------------------------------ design operations
 
-    private void PushUndo()
+    public void PushUndo()
     {
         _undoStack.Add(MarkdownText ?? "");
         if (_undoStack.Count > MaxUndo) _undoStack.RemoveAt(0);

@@ -41,6 +41,10 @@ namespace MarkSmith.Views.MindMap
         private GalaxyPalette _palette = GalaxyPalette.MidnightGalaxy;
         private Microsoft.UI.Xaml.Shapes.Line? _snapGuideX;
         private Microsoft.UI.Xaml.Shapes.Line? _snapGuideY;
+        private Microsoft.UI.Xaml.Shapes.Rectangle? _marqueeBox;
+        private bool _isMarquee;
+        private Point _marqueeStartScreen;
+        private bool _marqueeAdditive;
 
         public event EventHandler<string>? OpenDocumentRequested;
 
@@ -102,6 +106,17 @@ namespace MarkSmith.Views.MindMap
             };
             GuideLayer.Children.Add(_snapGuideX);
             GuideLayer.Children.Add(_snapGuideY);
+
+            _marqueeBox = new Microsoft.UI.Xaml.Shapes.Rectangle
+            {
+                Stroke = new SolidColorBrush(_palette.HighlightBorder),
+                StrokeThickness = 1.25,
+                StrokeDashArray = new DoubleCollection { 3, 2 },
+                Fill = new SolidColorBrush(Windows.UI.Color.FromArgb(0x28, 0x00, 0x78, 0xD7)),
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false
+            };
+            GuideLayer.Children.Add(_marqueeBox);
         }
 
         private void SizeForDisplay()
@@ -1107,9 +1122,29 @@ namespace MarkSmith.Views.MindMap
                 ViewModel.SelectedNode = node;
                 ShowNodeConnectionsContextMenu(node, v.ConnectionText, e.GetPosition(v.ConnectionText));
             };
+            v.ConnectionText.PointerEntered += (s, e) => HighlightNodeConnections(node, true);
+            v.ConnectionText.PointerExited += (s, e) => HighlightNodeConnections(node, false);
             ToolTipService.SetToolTip(v.ConnectionText, $"Connections ({node.ConnectionCount}) · Double-click to link to another node, Right-click for options");
 
             return v;
+        }
+
+        private void HighlightNodeConnections(MindMapNodeViewModel node, bool highlight)
+        {
+            foreach (var edge in _edgeVisuals.Values)
+            {
+                if (edge.SourceId == node.Id || edge.TargetId == node.Id)
+                {
+                    edge.Line.StrokeThickness = highlight ? 3.8 : (edge.Dashed ? 2.6 : 2.0);
+                    edge.Line.Opacity = highlight ? 1.0 : 0.85;
+
+                    string partnerId = edge.SourceId == node.Id ? edge.TargetId : edge.SourceId;
+                    if (_nodeVisuals.TryGetValue(partnerId, out var partnerVisual))
+                    {
+                        partnerVisual.Root.BorderThickness = highlight ? new Thickness(2.4) : new Thickness(1.4);
+                    }
+                }
+            }
         }
 
         private EdgeVisual BuildHierarchyEdge(string parentId, string childId)
@@ -2160,8 +2195,23 @@ namespace MarkSmith.Views.MindMap
                 return;
             }
 
+            if (IsShiftDown() || IsCtrlDown())
+            {
+                _isMarquee = true;
+                _marqueeStartScreen = pt.Position;
+                _marqueeAdditive = IsCtrlDown();
+                if (!_marqueeAdditive)
+                {
+                    foreach (var n in ViewModel.Nodes) n.IsSelected = false;
+                }
+                GalaxyCanvas.CapturePointer(e.Pointer);
+                e.Handled = true;
+                return;
+            }
+
             // Clicking empty space clears the selection, which is also how you get back out of a
             // link selection without deleting anything.
+            foreach (var n in ViewModel.Nodes) n.IsSelected = false;
             ViewModel.SelectedNode = null;
             ViewModel.SelectedLink = null;
             // A selected node keeps its preview card after the pointer leaves it; once nothing is
@@ -2302,6 +2352,48 @@ namespace MarkSmith.Views.MindMap
         {
             var cur = e.GetCurrentPoint(GalaxyCanvas).Position;
 
+            if (_isMarquee)
+            {
+                double zoom = Math.Max(0.1, ViewModel.ZoomLevel);
+                double sx1 = Math.Min(_marqueeStartScreen.X, cur.X);
+                double sy1 = Math.Min(_marqueeStartScreen.Y, cur.Y);
+                double sx2 = Math.Max(_marqueeStartScreen.X, cur.X);
+                double sy2 = Math.Max(_marqueeStartScreen.Y, cur.Y);
+
+                // Convert screen corners to world coords
+                double wx1 = ((sx1 - CanvasWidth / 2.0) / zoom) - ViewModel.ViewportOffsetX;
+                double wy1 = ((sy1 - CanvasHeight / 2.0) / zoom) - ViewModel.ViewportOffsetY;
+                double wx2 = ((sx2 - CanvasWidth / 2.0) / zoom) - ViewModel.ViewportOffsetX;
+                double wy2 = ((sy2 - CanvasHeight / 2.0) / zoom) - ViewModel.ViewportOffsetY;
+
+                if (_marqueeBox != null)
+                {
+                    Canvas.SetLeft(_marqueeBox, wx1);
+                    Canvas.SetTop(_marqueeBox, wy1);
+                    _marqueeBox.Width = Math.Max(1.0, wx2 - wx1);
+                    _marqueeBox.Height = Math.Max(1.0, wy2 - wy1);
+                    _marqueeBox.StrokeThickness = 1.25 / zoom;
+                    _marqueeBox.Visibility = Visibility.Visible;
+                }
+
+                foreach (var n in ViewModel.Nodes)
+                {
+                    bool inside = n.X < wx2 && (n.X + n.Width) > wx1 &&
+                                  n.Y < wy2 && (n.Y + n.Height) > wy1;
+                    if (inside)
+                    {
+                        n.IsSelected = true;
+                    }
+                    else if (!_marqueeAdditive)
+                    {
+                        n.IsSelected = false;
+                    }
+                }
+                RequestRedraw(RedrawScope.Appearance);
+                e.Handled = true;
+                return;
+            }
+
             if (_draggedNode != null)
             {
                 double rawDx = (cur.X - _dragStartPointerPoint.X) / ViewModel.ZoomLevel;
@@ -2403,8 +2495,22 @@ namespace MarkSmith.Views.MindMap
                     _dragMovedNode = true;
                 }
 
+                double actualDx = targetX - _draggedNode.X;
+                double actualDy = targetY - _draggedNode.Y;
                 _draggedNode.X = targetX;
                 _draggedNode.Y = targetY;
+
+                if (_draggedNode.IsSelected)
+                {
+                    foreach (var selNode in ViewModel.Nodes)
+                    {
+                        if (selNode.IsSelected && selNode.Id != _draggedNode.Id)
+                        {
+                            selNode.X += actualDx;
+                            selNode.Y += actualDy;
+                        }
+                    }
+                }
 
                 // Update guide lines
                 double zoom = Math.Max(0.1, ViewModel.ZoomLevel);
@@ -2467,12 +2573,38 @@ namespace MarkSmith.Views.MindMap
 
         private void EndCanvasGesture()
         {
+            if (_isMarquee)
+            {
+                _isMarquee = false;
+                if (_marqueeBox != null) _marqueeBox.Visibility = Visibility.Collapsed;
+                var sel = ViewModel.Nodes.Where(n => n.IsSelected).ToList();
+                if (sel.Count == 1)
+                {
+                    ViewModel.SelectedNode = sel[0];
+                }
+                else if (sel.Count > 1)
+                {
+                    ViewModel.SelectedNode = sel[0];
+                    ViewModel.StatusMessage = $"Selected {sel.Count} nodes · Drag any to move group, Del to remove";
+                }
+            }
+
             if (_snapGuideX != null) _snapGuideX.Visibility = Visibility.Collapsed;
             if (_snapGuideY != null) _snapGuideY.Visibility = Visibility.Collapsed;
 
             if (_draggedNode != null && _dragMovedNode)
             {
                 _draggedNode.SyncToModel();
+                if (_draggedNode.IsSelected)
+                {
+                    foreach (var selNode in ViewModel.Nodes)
+                    {
+                        if (selNode.IsSelected && selNode.Id != _draggedNode.Id)
+                        {
+                            selNode.SyncToModel();
+                        }
+                    }
+                }
                 ViewModel.IsDirty = true;
                 ViewModel.StatusMessage = $"Moved '{_draggedNode.Title}'.";
             }

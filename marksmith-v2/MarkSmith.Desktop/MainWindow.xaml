@@ -601,6 +601,16 @@
                                       Checked="OnEmailPreviewToggled" Unchecked="OnEmailPreviewToggled">
                             <FontIcon Glyph="&#xE715;" FontSize="13" />
                         </ToggleButton>
+                        <!-- Split View synchronized scrolling & selection highlighting toggle (visible only in Split view). -->
+                        <ToggleButton x:Name="SplitSyncToggle" Height="32" Width="32" Padding="0" VerticalAlignment="Center"
+                                      Visibility="Collapsed" IsChecked="True"
+                                      AutomationProperties.Name="Synchronize Split View scroll and selection"
+                                      ToolTipService.ToolTip="Synchronize scrolling and text selection highlighting between Editor and Preview in Split view (Double-click to force instant alignment, Right-click for options)"
+                                      DoubleTapped="OnSplitSyncToggleDoubleTapped"
+                                      RightTapped="OnSplitSyncToggleRightTapped"
+                                      Checked="OnSplitSyncToggled" Unchecked="OnSplitSyncToggled">
+                            <FontIcon Glyph="&#xE8AB;" FontSize="13" />
+                        </ToggleButton>
                         <SelectorBar x:Name="CenterViewSelector" SelectionChanged="OnCenterViewSelectorChanged"
                                      RightTapped="OnCenterViewSelectorRightTapped"
                                      ToolTipService.ToolTip="Switch between Code (Ctrl+1), Split (Ctrl+2), and Preview (Ctrl+3) — Right-click for view options">
