@@ -505,6 +505,7 @@
                             <Canvas x:Name="MainCanvas" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
                                     PointerPressed="OnCanvasPointerPressed" PointerMoved="OnCanvasPointerMoved"
                                     PointerReleased="OnCanvasPointerReleased" PointerCaptureLost="OnCanvasPointerCaptureLost"
+                                    DoubleTapped="OnCanvasDoubleTapped"
                                     RightTapped="OnCanvasRightTapped">
                                 <ItemsControl ItemsSource="{Binding Shapes}">
                                     <ItemsControl.ItemsPanel>
@@ -562,6 +563,20 @@
                                 <Canvas x:Name="SelectionAdorner" Visibility="Collapsed">
                                     <Rectangle x:Name="SelectionFrame" IsHitTestVisible="False" StrokeThickness="1"
                                                Stroke="{ThemeResource AccentFillColorDefaultBrush}" />
+                                </Canvas>
+                                <!-- multi-selection bounding frame and dimensions badge for 2+ shapes -->
+                                <Canvas x:Name="MultiSelectionAdorner" Visibility="Collapsed">
+                                    <Rectangle x:Name="MultiSelectionFrame" IsHitTestVisible="False" StrokeThickness="1"
+                                               StrokeDashArray="4,2" Stroke="{ThemeResource AccentFillColorDefaultBrush}" />
+                                    <Border x:Name="MultiSelectionBadge"
+                                            Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                                            BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}" BorderThickness="1"
+                                            CornerRadius="4" Padding="6,2"
+                                            DoubleTapped="OnMultiSelectionBadgeDoubleTapped"
+                                            RightTapped="OnMultiSelectionBadgeRightTapped"
+                                            ToolTipService.ToolTip="Selection group · Double-click to auto-align &amp; distribute, Right-click for group options">
+                                        <TextBlock x:Name="MultiSelectionBadgeText" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Border>
                                 </Canvas>
                             </Canvas>
                         </Grid>

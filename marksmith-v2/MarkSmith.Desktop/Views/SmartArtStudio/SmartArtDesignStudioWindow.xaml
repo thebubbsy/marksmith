@@ -238,7 +238,10 @@
                                             </Border.BackgroundTransition>
                                             <Grid Padding="8,2,4,2" MinHeight="36" CornerRadius="4"
                                                   Background="{Binding IsSelected, Converter={StaticResource SelectedBrushConverter}, ConverterParameter=subtle}"
-                                                  PointerPressed="OnRowPointerPressed" DoubleTapped="OnRowDoubleTapped" RightTapped="OnRowRightTapped" AutomationProperties.Name="{Binding Text}">
+                                                  PointerPressed="OnRowPointerPressed" DoubleTapped="OnRowDoubleTapped" RightTapped="OnRowRightTapped"
+                                                  PointerWheelChanged="OnRowPointerWheelChanged"
+                                                  ToolTipService.ToolTip="Outline item · Double-click to rename · Alt+Wheel to move up/down · Shift+Wheel to indent · Right-click for options"
+                                                  AutomationProperties.Name="{Binding Text}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
@@ -248,7 +251,7 @@
                                                 <Ellipse Grid.Column="0" Width="6" Height="6" Margin="0,0,10,0" VerticalAlignment="Center"
                                                          Fill="{ThemeResource AccentFillColorDefaultBrush}" IsHitTestVisible="True"
                                                          DoubleTapped="OnRowBulletDoubleTapped" RightTapped="OnRowBulletRightTapped"
-                                                         ToolTipService.ToolTip="Hierarchy bullet (Double-click to toggle indent, Right-click for node actions)" />
+                                                         ToolTipService.ToolTip="Hierarchy bullet (Double-click to toggle indent, Right-click for reorder &amp; hierarchy options)" />
                                                 <TextBlock Grid.Column="1" Text="{Binding Text}" VerticalAlignment="Center"
                                                            TextWrapping="Wrap" FontSize="13"
                                                            Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />

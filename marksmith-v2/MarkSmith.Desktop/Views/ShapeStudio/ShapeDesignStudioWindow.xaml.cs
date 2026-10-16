@@ -1389,6 +1389,7 @@ namespace MarkSmith.Views.ShapeStudio
             var (mx, my) = ViewModel.NudgeSelection(dx - _dragAppliedX, dy - _dragAppliedY);
             _dragAppliedX += mx;
             _dragAppliedY += my;
+            UpdateMultiSelectionAdorner();
             e.Handled = true;
         }
 
@@ -1798,6 +1799,153 @@ namespace MarkSmith.Views.ShapeStudio
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_rotateHandle, rotTip);
                 ToolTipService.SetToolTip(_rotateHandle, rotTip);
             }
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void UpdateMultiSelectionAdorner()
+        {
+            if (MultiSelectionAdorner is null || MultiSelectionFrame is null || MultiSelectionBadge is null || MultiSelectionBadgeText is null) return;
+
+            bool show = !ViewModel.IsDense && !ViewModel.IsPlacing && ViewModel.SelectionCount >= 2;
+            if (!show)
+            {
+                MultiSelectionAdorner.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var selected = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (selected.Count < 2)
+            {
+                MultiSelectionAdorner.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            double minX = double.MaxValue, minY = double.MaxValue;
+            double maxX = double.MinValue, maxY = double.MinValue;
+            foreach (var s in selected)
+            {
+                var (l, t, r, b) = ShapeDesignStudioViewModel.RotatedBounds(s);
+                if (l < minX) minX = l;
+                if (t < minY) minY = t;
+                if (r > maxX) maxX = r;
+                if (b > maxY) maxY = b;
+            }
+
+            double totalW = Math.Max(0, maxX - minX);
+            double totalH = Math.Max(0, maxY - minY);
+            double z = Math.Max(0.05, CanvasScroller.ZoomFactor);
+
+            MultiSelectionAdorner.Visibility = Visibility.Visible;
+            Canvas.SetLeft(MultiSelectionFrame, minX);
+            Canvas.SetTop(MultiSelectionFrame, minY);
+            MultiSelectionFrame.Width = totalW;
+            MultiSelectionFrame.Height = totalH;
+            MultiSelectionFrame.StrokeThickness = 1.0 / z;
+
+            string badgeSummary = $"{selected.Count} shapes · {(int)Math.Round(totalW)} × {(int)Math.Round(totalH)} px";
+            MultiSelectionBadgeText.Text = badgeSummary;
+            string fullTip = $"Selection: {badgeSummary} · Double-click to auto-align & distribute, Right-click for options";
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(MultiSelectionBadge, fullTip);
+            ToolTipService.SetToolTip(MultiSelectionBadge, fullTip);
+
+            Canvas.SetLeft(MultiSelectionBadge, minX);
+            Canvas.SetTop(MultiSelectionBadge, Math.Max(0, minY - 28 / z));
+        }
+
+        private void OnMultiSelectionBadgeDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (ViewModel.CanAlign)
+            {
+                ViewModel.AlignCenterCommand.Execute(null);
+                if (ViewModel.CanDistribute)
+                {
+                    ViewModel.DistributeVerticalCommand.Execute(null);
+                }
+                UpdateMultiSelectionAdorner();
+                ViewModel.StatusMessage = $"Aligned & distributed {ViewModel.SelectionCount} shapes · Ctrl+Z to undo";
+            }
+        }
+
+        private void OnMultiSelectionBadgeRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ShowMultiSelectionContextMenu(e.GetPosition(MainCanvas));
+        }
+
+        private void ShowMultiSelectionContextMenu(Point position)
+        {
+            var flyout = new MenuFlyout();
+
+            if (ViewModel.CanAlign)
+            {
+                var alignSub = new MenuFlyoutSubItem
+                {
+                    Text = "Align shapes",
+                    Icon = new FontIcon { Glyph = "\uE8E4" }
+                };
+                alignSub.Items.Add(ShapeMenuItem("Align left", "\uE8E4", () => { ViewModel.AlignLeftCommand.Execute(null); UpdateMultiSelectionAdorner(); }));
+                alignSub.Items.Add(ShapeMenuItem("Align centre", "\uE8E3", () => { ViewModel.AlignCenterCommand.Execute(null); UpdateMultiSelectionAdorner(); }));
+                alignSub.Items.Add(ShapeMenuItem("Align right", "\uE8E2", () => { ViewModel.AlignRightCommand.Execute(null); UpdateMultiSelectionAdorner(); }));
+                alignSub.Items.Add(new MenuFlyoutSeparator());
+                alignSub.Items.Add(ShapeMenuItem("Align top", "\uE74A", () => { ViewModel.AlignTopCommand.Execute(null); UpdateMultiSelectionAdorner(); }));
+                alignSub.Items.Add(ShapeMenuItem("Align middle", "\uE8E3", () => { ViewModel.AlignMiddleCommand.Execute(null); UpdateMultiSelectionAdorner(); }));
+                alignSub.Items.Add(ShapeMenuItem("Align bottom", "\uE74B", () => { ViewModel.AlignBottomCommand.Execute(null); UpdateMultiSelectionAdorner(); }));
+                flyout.Items.Add(alignSub);
+            }
+
+            if (ViewModel.CanDistribute)
+            {
+                var distSub = new MenuFlyoutSubItem
+                {
+                    Text = "Distribute shapes",
+                    Icon = new FontIcon { Glyph = "\uE8E3" }
+                };
+                distSub.Items.Add(ShapeMenuItem("Distribute horizontally", "\uE8E3", () => { ViewModel.DistributeHorizontalCommand.Execute(null); UpdateMultiSelectionAdorner(); }));
+                distSub.Items.Add(ShapeMenuItem("Distribute vertically", "\uE8E3", () => { ViewModel.DistributeVerticalCommand.Execute(null); UpdateMultiSelectionAdorner(); }));
+                flyout.Items.Add(distSub);
+            }
+
+            var rotSub = new MenuFlyoutSubItem
+            {
+                Text = "Rotate group",
+                Icon = new FontIcon { Glyph = "\uE7AD" }
+            };
+            rotSub.Items.Add(ShapeMenuItem("Rotate 90° CW", "\uE7AD", () => { ViewModel.RotateClockwise(); UpdateMultiSelectionAdorner(); }, "Ctrl+]"));
+            rotSub.Items.Add(ShapeMenuItem("Rotate 90° CCW", "\uE7AD", () => { ViewModel.RotateCounterClockwise(); UpdateMultiSelectionAdorner(); }, "Ctrl+["));
+            rotSub.Items.Add(ShapeMenuItem("Reset rotation (0°)", "\uE777", () => { ViewModel.ResetRotation(); UpdateMultiSelectionAdorner(); }));
+            flyout.Items.Add(rotSub);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Duplicate selection", "\uE8C8", () => ViewModel.DuplicateSelectedCommand.Execute(null), "Ctrl+D"));
+            flyout.Items.Add(ShapeMenuItem("Delete selection", "\uE74D", () => ViewModel.RemoveSelectedCommand.Execute(null), "Del"));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Deselect all", "\uE894", () => { ViewModel.ClearSelection(); UpdateAdorner(); }, "Esc"));
+
+            flyout.ShowAt(MainCanvas, position);
+        }
+
+        private void OnCanvasDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (e.OriginalSource is not FrameworkElement fe || !ReferenceEquals(fe, MainCanvas))
+            {
+                return;
+            }
+            e.Handled = true;
+            if (!ViewModel.HasShapes || ViewModel.IsDense) return;
+
+            if (ViewModel.SelectionCount == 0)
+            {
+                ViewModel.SelectAll();
+                ViewModel.StatusMessage = $"Selected all {ViewModel.Shapes.Count} shapes · Double-click canvas to clear";
+            }
+            else
+            {
+                ViewModel.ClearSelection();
+                ViewModel.StatusMessage = "Cleared selection.";
+            }
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
         }
 
         private void OnHandlePointerPressed(object sender, PointerRoutedEventArgs e)

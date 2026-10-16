@@ -8549,3 +8549,81 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped (2.6s)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 23704, `Alive: True`, `Responding: True`, clean exit.
 
+### 2026-10-16 18:00 AEST (run #113: Shape Studio multi-shape bounding box adorner & group dimensions badge, canvas empty double-tap toggle select all, MindMap Galaxy node drag axis constraint & center/edge snapping guide lines, connection badge quick-link gestures, SmartArt Studio outline row mouse wheel reorder & indent gestures, row context menu movement parity)
+
+- **Surface:** `ShapeDesignStudioWindow`, `MindMapGalaxyWindow`, `SmartArtDesignStudioWindow`.
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, pointer gesture quarantine, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #112:
+    * Target A: `ShapeDesignStudioWindow` multi-shape bounding box visual adorner & marquee select gesture.
+    * Target B: `MindMapGalaxyWindow` node connection anchor snapping highlights & alignment guide lines.
+    * Target C: `SmartArtDesignStudioWindow` outline drag-and-drop live reorder indicators.
+  - Generated:
+    1. `ShapeDesignStudioWindow` Multi-Shape Bounding Box Visual Adorner & Interactive Dimensions Badge (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+    2. `MindMapGalaxyWindow` Node Drag Axis-Constraint & Center/Edge Alignment Snapping with Visual Guide Lines (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Calculated union rotated bounds (`RotatedBounds`) across all selected items for accurate pixel bounds even with rotated shapes; scaled bounding rectangle stroke thickness and badge position inversely with `CanvasScroller.ZoomFactor`; rendered acrylic badge with shape count and dimensions; wired double-tap on badge to trigger align-and-distribute combo, and right-tap to open multi-selection context menu. Updated live bounds during shape drag so adorner moves in lockstep with group.
+    * For Idea 2: In `MindMapGalaxyWindow`, added `GuideLayer` inside `WorldCanvas`; implemented Shift-key dominant-axis locking (pure horizontal or vertical drag); implemented center-to-center, left-to-left, right-to-right, and top/bottom alignment snapping to nearby nodes (within 12 screen px converted to world coordinates); rendered transient dashed guide lines (`_snapGuideX`, `_snapGuideY`) spanning the aligned nodes; supported Alt key to disable snapping for free micro-placement.
+  - Generated:
+    3. `SmartArtDesignStudioWindow` Outline Row Mouse-Wheel Dynamic Reordering & Hierarchical Indent Gestures (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+    4. `SmartArtDesignStudioWindow` Outline Row Context Menu Hierarchy & Movement Parity with Toolbar (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Attached `PointerWheelChanged` to outline row `Grid`. Alt+WheelUp moves item up, Alt+WheelDown moves item down; Shift+WheelUp promotes (outdents), Shift+WheelDown demotes (indents). Normal vertical scrolling of `OutlineScroll` is completely preserved when Alt/Shift are not held. Added trackpad multi-fire guard (threshold >= 60 delta) and ignored wheel reordering while active inline rename typing is underway.
+    * For Idea 4: Expanded `ShowRowContextMenu` with extreme movement options (`Move to top (Alt+Home)`, `Move to bottom (Alt+End)`, and `Promote to root`), displaying step count announcements and synchronizing with toolbar context menu.
+  - Refined Block 1 (Pass 2 - Final):
+    * Tested `RotatedBounds` and multi-selection bounding calculations in unit tests (`ShapeStudioSelectionTests.cs`).
+    * Ensured `MindMapGalaxyWindow` collapses guide lines upon drag release or pointer capture lost.
+  - Generated:
+    5. `MindMapGalaxyWindow` Node Connection Badge & Legend Quick-Link Double-Tap & Right-Click Presets (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`)
+    6. `ShapeDesignStudioWindow` Canvas Empty Space Double-Tap Auto-Select & Marquee Modifier Refinements (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: In `MindMapGalaxyWindow`, enabled hit testing on node's `ConnectionText` badge; double-tapping opens `ShowConnectDialogAsync()`, right-tapping opens quick connections context menu (link to another document, select connected neighbors, reverse connected links via `ViewModel.ReverseLink`, version history). Made `ConnectionLegend` interactive with double-tap to toggle fade/collapse and right-tap for arrangement shortcuts.
+    * For Idea 6: Added `DoubleTapped="OnCanvasDoubleTapped"` on `MainCanvas`: double-tapping empty canvas toggles between Select All (Ctrl+A parity) when unselected and Deselect All (Esc parity) when selected, with status announcements.
+  - Executed all 6 refined ideas into 100% production code.
+  - Verification:
+    * `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `MarkSmith.Tests.dll`: **4,799 passed, 0 failed, 1 skipped**.
+    * `ShapeStudioSelectionTests`: **19 passed, 0 failed, 0 skipped**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 25448, `Alive: True`, clean exit.
+  - Carried forward ideas / next targets into Run #114 (`ShapeDesignStudioWindow` rotation handle snap angle arc overlay, `MindMapGalaxyWindow` marquee multi-node drag box, `SmartArtDesignStudioWindow` visual diagram node double-tap highlight to outline row sync).
+
+**Shipped:**
+1. **`ShapeDesignStudioWindow` Multi-Shape Bounding Box Visual Adorner & Interactive Dimensions Badge (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`):**
+   - Added `MultiSelectionAdorner` with dashed `MultiSelectionFrame` and acrylic `MultiSelectionBadge`.
+   - Computes union rotated bounds across all selected items, scaling stroke thickness and badge offset with zoom.
+   - Badge displays shape count and dimensions (`"{N} shapes · {W} × {H} px"`).
+   - Double-tapping badge aligns and distributes shapes (Center + Distribute combo).
+   - Right-tapping badge opens `ShowMultiSelectionContextMenu` with Align, Distribute, Rotate group, Duplicate, Delete, and Deselect options.
+2. **`ShapeDesignStudioWindow` Canvas Empty Space Double-Tap Auto-Select (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`):**
+   - Added `DoubleTapped="OnCanvasDoubleTapped"` on `MainCanvas`.
+   - Double-tapping empty canvas toggles Select All (`ViewModel.SelectAll()`) when unselected and Clear Selection (`ViewModel.ClearSelection()`) when selected, announcing status with keyboard shortcut parity hints.
+3. **`MindMapGalaxyWindow` Node Drag Axis-Constraint & Alignment Snapping with Visual Guide Lines (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`):**
+   - Added `GuideLayer` in `WorldCanvas` and instantiated `_snapGuideX` and `_snapGuideY` dashed lines using palette highlight border color.
+   - Holding `Shift` while dragging a node constrains motion strictly to horizontal or vertical axis.
+   - Snaps dragged node center and edges to nearby nodes within 12 screen pixels (converted to world units).
+   - Alt key bypasses snapping for continuous micro-placement.
+   - Live dashed guide lines span between aligned nodes during drag and collapse on gesture release.
+4. **`MindMapGalaxyWindow` Node Connection Badge & Legend Quick-Link Double-Tap & Right-Click Presets (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`):**
+   - Enabled hit testing on node's `ConnectionText` badge with tooltip.
+   - Double-tapping node connection badge opens `ShowConnectDialogAsync` pre-linked from that node.
+   - Right-tapping connection badge opens quick connections menu with "Link to another document… (Ctrl+L)", "Select connected neighbors", "Reverse connected links" (via `ViewModel.ReverseLink`), and "Version history".
+   - Enabled hit testing on `ConnectionLegend` with double-tap to fade/restore and right-tap for layout shortcuts.
+5. **`SmartArtDesignStudioWindow` Outline Row Mouse-Wheel Dynamic Reordering & Hierarchical Indent Gestures (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`):**
+   - Added `PointerWheelChanged` on outline row `Grid`.
+   - Alt + Mouse Wheel moves row Up or Down in the outline hierarchy with live status announcements.
+   - Shift + Mouse Wheel promotes (outdents) or demotes (indents) row.
+   - Plain wheel scrolling continues to scroll `OutlineScroll` normally without interruption. Throttled for trackpad safety and disabled during active rename typing.
+6. **`SmartArtDesignStudioWindow` Outline Row Context Menu Hierarchy & Movement Parity (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Enhanced `ShowRowContextMenu` with `Move to top (Alt+Home)`, `Move to bottom (Alt+End)`, and `Promote to root` with step count announcements, achieving complete parity with toolbar context menus.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `MarkSmith.Tests.dll`: **4,799 passed, 0 failed, 1 skipped**.
+- `ShapeStudioSelectionTests`: **19 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 25448, `Alive: True`, clean exit.
+

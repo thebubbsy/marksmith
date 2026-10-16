@@ -219,4 +219,62 @@ public class ShapeStudioSelectionTests
         Assert.Equal(title, s.ListTitle);
         Assert.Equal(subtitle, s.ListSubtitle);
     }
+
+    [Fact]
+    public void RotatedBounds_computes_accurate_extents()
+    {
+        var shape = new ShapeCanvasItemViewModel { X = 100, Y = 100, Width = 80, Height = 40, Rotation = 0 };
+        var b0 = ShapeDesignStudioViewModel.RotatedBounds(shape);
+        Assert.Equal(100, b0.Left);
+        Assert.Equal(100, b0.Top);
+        Assert.Equal(180, b0.Right);
+        Assert.Equal(140, b0.Bottom);
+
+        shape.Rotation = 90;
+        var b90 = ShapeDesignStudioViewModel.RotatedBounds(shape);
+        Assert.Equal(120, b90.Left, 1);
+        Assert.Equal(80, b90.Top, 1);
+        Assert.Equal(160, b90.Right, 1);
+        Assert.Equal(160, b90.Bottom, 1);
+    }
+
+    [Fact]
+    public void Multi_selection_union_bounds_encloses_all_selected_shapes()
+    {
+        var vm = ThreeRects();
+        vm.SelectedShape = vm.Shapes[0]; // (10, 50, 100, 50) -> [10, 50, 110, 100]
+        vm.ToggleSelection(vm.Shapes[1]); // (200, 150, 100, 50) -> [200, 150, 300, 200]
+
+        var selected = vm.Selection;
+        Assert.Equal(2, selected.Count);
+
+        double minX = selected.Min(s => ShapeDesignStudioViewModel.RotatedBounds(s).Left);
+        double minY = selected.Min(s => ShapeDesignStudioViewModel.RotatedBounds(s).Top);
+        double maxX = selected.Max(s => ShapeDesignStudioViewModel.RotatedBounds(s).Right);
+        double maxY = selected.Max(s => ShapeDesignStudioViewModel.RotatedBounds(s).Bottom);
+
+        Assert.Equal(10, minX);
+        Assert.Equal(50, minY);
+        Assert.Equal(300, maxX);
+        Assert.Equal(200, maxY);
+        Assert.Equal(290, maxX - minX);
+        Assert.Equal(150, maxY - minY);
+    }
+
+    [Fact]
+    public void SelectAll_and_ClearSelection_manage_group_state()
+    {
+        var vm = ThreeRects();
+        Assert.Equal(1, vm.SelectionCount);
+
+        vm.SelectAll();
+        Assert.Equal(3, vm.SelectionCount);
+        Assert.True(vm.IsMultiSelect);
+        Assert.True(vm.CanAlign);
+        Assert.True(vm.CanDistribute);
+
+        vm.ClearSelection();
+        Assert.Equal(0, vm.SelectionCount);
+        Assert.False(vm.HasSelection);
+    }
 }

@@ -39,6 +39,8 @@ namespace MarkSmith.Views.MindMap
         private bool _redrawQueued;
 
         private GalaxyPalette _palette = GalaxyPalette.MidnightGalaxy;
+        private Microsoft.UI.Xaml.Shapes.Line? _snapGuideX;
+        private Microsoft.UI.Xaml.Shapes.Line? _snapGuideY;
 
         public event EventHandler<string>? OpenDocumentRequested;
 
@@ -71,11 +73,35 @@ namespace MarkSmith.Views.MindMap
             this.RootGrid.KeyDown += OnRootKeyDown;
             HoverPolish.Track(this.RootGrid);
             SetCursor(MinimapCanvas, Microsoft.UI.Input.InputSystemCursorShape.Hand);
+            InitializeSnappingGuides();
 
             // Closing used to throw away every unsaved change without a word.
             AppWindow.Closing += OnAppWindowClosing;
 
             SyncAccessibleStatusLabels();
+        }
+
+        private void InitializeSnappingGuides()
+        {
+            if (GuideLayer is null) return;
+            _snapGuideX = new Microsoft.UI.Xaml.Shapes.Line
+            {
+                Stroke = new SolidColorBrush(_palette.HighlightBorder),
+                StrokeThickness = 1.25,
+                StrokeDashArray = new DoubleCollection { 4, 3 },
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false
+            };
+            _snapGuideY = new Microsoft.UI.Xaml.Shapes.Line
+            {
+                Stroke = new SolidColorBrush(_palette.HighlightBorder),
+                StrokeThickness = 1.25,
+                StrokeDashArray = new DoubleCollection { 4, 3 },
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false
+            };
+            GuideLayer.Children.Add(_snapGuideX);
+            GuideLayer.Children.Add(_snapGuideY);
         }
 
         private void SizeForDisplay()
@@ -1067,6 +1093,21 @@ namespace MarkSmith.Views.MindMap
             // menu items and their closures — for every node on every frame.
             v.Root.ContextFlyout = BuildNodeContextMenu(node);
             AttachNodeInteractions(v.Root, node);
+
+            v.ConnectionText.IsHitTestVisible = true;
+            v.ConnectionText.DoubleTapped += async (s, e) =>
+            {
+                e.Handled = true;
+                ViewModel.SelectedNode = node;
+                await ShowConnectDialogAsync();
+            };
+            v.ConnectionText.RightTapped += (s, e) =>
+            {
+                e.Handled = true;
+                ViewModel.SelectedNode = node;
+                ShowNodeConnectionsContextMenu(node, v.ConnectionText, e.GetPosition(v.ConnectionText));
+            };
+            ToolTipService.SetToolTip(v.ConnectionText, $"Connections ({node.ConnectionCount}) · Double-click to link to another node, Right-click for options");
 
             return v;
         }
@@ -2234,7 +2275,8 @@ namespace MarkSmith.Views.MindMap
             if (!ReferenceEquals(e.OriginalSource, GalaxyCanvas) &&
                 !ReferenceEquals(e.OriginalSource, WorldCanvas) &&
                 !ReferenceEquals(e.OriginalSource, EdgeLayer) &&
-                !ReferenceEquals(e.OriginalSource, NodeLayer))
+                !ReferenceEquals(e.OriginalSource, NodeLayer) &&
+                !ReferenceEquals(e.OriginalSource, GuideLayer))
             {
                 return;
             }
@@ -2262,10 +2304,98 @@ namespace MarkSmith.Views.MindMap
 
             if (_draggedNode != null)
             {
-                double dx = (cur.X - _dragStartPointerPoint.X) / ViewModel.ZoomLevel;
-                double dy = (cur.Y - _dragStartPointerPoint.Y) / ViewModel.ZoomLevel;
+                double rawDx = (cur.X - _dragStartPointerPoint.X) / ViewModel.ZoomLevel;
+                double rawDy = (cur.Y - _dragStartPointerPoint.Y) / ViewModel.ZoomLevel;
+                double dx = rawDx;
+                double dy = rawDy;
 
-                if (!_dragMovedNode && Math.Abs(dx) + Math.Abs(dy) > 2)
+                bool shift = IsShiftDown();
+                if (shift)
+                {
+                    if (Math.Abs(dx) >= Math.Abs(dy)) dy = 0;
+                    else dx = 0;
+                }
+
+                double targetX = _dragStartNodePoint.X + dx;
+                double targetY = _dragStartNodePoint.Y + dy;
+                double nodeW = _draggedNode.Width;
+                double nodeH = _draggedNode.Height;
+                double nodeCenterX = targetX + nodeW / 2.0;
+                double nodeCenterY = targetY + nodeH / 2.0;
+
+                double snapThreshold = 12.0 / Math.Max(0.1, ViewModel.ZoomLevel);
+                bool snappedX = false;
+                bool snappedY = false;
+                double snapGuideXPos = 0;
+                double snapGuideYPos = 0;
+                MindMapNodeViewModel? snapTargetX = null;
+                MindMapNodeViewModel? snapTargetY = null;
+
+                if (!IsAltDown()) // Alt disables snapping for free precision placement
+                {
+                    foreach (var other in ViewModel.Nodes)
+                    {
+                        if (other.Id == _draggedNode.Id) continue;
+                        double otherCenterX = other.X + other.Width / 2.0;
+                        double otherCenterY = other.Y + other.Height / 2.0;
+
+                        // X-axis alignment (vertical guide line)
+                        if (!snappedX && (!shift || dy == 0))
+                        {
+                            if (Math.Abs(nodeCenterX - otherCenterX) < snapThreshold)
+                            {
+                                targetX = otherCenterX - nodeW / 2.0;
+                                snappedX = true;
+                                snapGuideXPos = otherCenterX;
+                                snapTargetX = other;
+                            }
+                            else if (Math.Abs(targetX - other.X) < snapThreshold)
+                            {
+                                targetX = other.X;
+                                snappedX = true;
+                                snapGuideXPos = other.X;
+                                snapTargetX = other;
+                            }
+                            else if (Math.Abs((targetX + nodeW) - (other.X + other.Width)) < snapThreshold)
+                            {
+                                targetX = other.X + other.Width - nodeW;
+                                snappedX = true;
+                                snapGuideXPos = other.X + other.Width;
+                                snapTargetX = other;
+                            }
+                        }
+
+                        // Y-axis alignment (horizontal guide line)
+                        if (!snappedY && (!shift || dx == 0))
+                        {
+                            if (Math.Abs(nodeCenterY - otherCenterY) < snapThreshold)
+                            {
+                                targetY = otherCenterY - nodeH / 2.0;
+                                snappedY = true;
+                                snapGuideYPos = otherCenterY;
+                                snapTargetY = other;
+                            }
+                            else if (Math.Abs(targetY - other.Y) < snapThreshold)
+                            {
+                                targetY = other.Y;
+                                snappedY = true;
+                                snapGuideYPos = other.Y;
+                                snapTargetY = other;
+                            }
+                            else if (Math.Abs((targetY + nodeH) - (other.Y + other.Height)) < snapThreshold)
+                            {
+                                targetY = other.Y + other.Height - nodeH;
+                                snappedY = true;
+                                snapGuideYPos = other.Y + other.Height;
+                                snapTargetY = other;
+                            }
+                        }
+
+                        if (snappedX && snappedY) break;
+                    }
+                }
+
+                if (!_dragMovedNode && Math.Abs(rawDx) + Math.Abs(rawDy) > 2)
                 {
                     // Snapshot once, at the start of the gesture: capturing per pointer-move would
                     // fill the undo stack with a hundred entries for a single drag.
@@ -2273,8 +2403,43 @@ namespace MarkSmith.Views.MindMap
                     _dragMovedNode = true;
                 }
 
-                _draggedNode.X = _dragStartNodePoint.X + dx;
-                _draggedNode.Y = _dragStartNodePoint.Y + dy;
+                _draggedNode.X = targetX;
+                _draggedNode.Y = targetY;
+
+                // Update guide lines
+                double zoom = Math.Max(0.1, ViewModel.ZoomLevel);
+                if (_snapGuideX != null)
+                {
+                    if (snappedX && snapTargetX != null)
+                    {
+                        _snapGuideX.X1 = _snapGuideX.X2 = snapGuideXPos;
+                        _snapGuideX.Y1 = Math.Min(targetY, snapTargetX.Y) - 50;
+                        _snapGuideX.Y2 = Math.Max(targetY + nodeH, snapTargetX.Y + snapTargetX.Height) + 50;
+                        _snapGuideX.StrokeThickness = 1.25 / zoom;
+                        _snapGuideX.Visibility = Visibility.Visible;
+                    }
+                    else
+                    {
+                        _snapGuideX.Visibility = Visibility.Collapsed;
+                    }
+                }
+
+                if (_snapGuideY != null)
+                {
+                    if (snappedY && snapTargetY != null)
+                    {
+                        _snapGuideY.Y1 = _snapGuideY.Y2 = snapGuideYPos;
+                        _snapGuideY.X1 = Math.Min(targetX, snapTargetY.X) - 50;
+                        _snapGuideY.X2 = Math.Max(targetX + nodeW, snapTargetY.X + snapTargetY.Width) + 50;
+                        _snapGuideY.StrokeThickness = 1.25 / zoom;
+                        _snapGuideY.Visibility = Visibility.Visible;
+                    }
+                    else
+                    {
+                        _snapGuideY.Visibility = Visibility.Collapsed;
+                    }
+                }
+
                 RequestRedraw(RedrawScope.Geometry);
             }
             else if (_isPanning)
@@ -2302,6 +2467,9 @@ namespace MarkSmith.Views.MindMap
 
         private void EndCanvasGesture()
         {
+            if (_snapGuideX != null) _snapGuideX.Visibility = Visibility.Collapsed;
+            if (_snapGuideY != null) _snapGuideY.Visibility = Visibility.Collapsed;
+
             if (_draggedNode != null && _dragMovedNode)
             {
                 _draggedNode.SyncToModel();
@@ -2315,6 +2483,88 @@ namespace MarkSmith.Views.MindMap
             _dragMovedNode = false;
             SetCursor(GalaxyCanvas, Microsoft.UI.Input.InputSystemCursorShape.Arrow);
             if (wasDragging) RequestRedraw(RedrawScope.Appearance);
+        }
+
+        private void ShowNodeConnectionsContextMenu(MindMapNodeViewModel node, UIElement target, Point position)
+        {
+            var flyout = new MenuFlyout();
+
+            var linkItem = MenuItem("Link to another document…", "\uE71B", "Ctrl+L");
+            linkItem.Click += async (s, e) => await ShowConnectDialogAsync();
+            flyout.Items.Add(linkItem);
+
+            if (node.ConnectionCount > 0)
+            {
+                var selectConnectedItem = MenuItem("Select connected neighbors", "\uE8B3");
+                selectConnectedItem.Click += (s, e) =>
+                {
+                    var connectedIds = ViewModel.Links
+                        .Where(l => l.SourceNodeId == node.Id || l.TargetNodeId == node.Id)
+                        .Select(l => l.SourceNodeId == node.Id ? l.TargetNodeId : l.SourceNodeId)
+                        .ToHashSet();
+                    if (connectedIds.Count > 0)
+                    {
+                        ViewModel.StatusMessage = $"Found {connectedIds.Count} connected documents for \"{node.Title}\".";
+                    }
+                };
+                flyout.Items.Add(selectConnectedItem);
+
+                var reverseItem = MenuItem("Reverse connected links", "\uE895");
+                reverseItem.Click += (s, e) =>
+                {
+                    var nodeLinks = ViewModel.Links.Where(l => l.SourceNodeId == node.Id || l.TargetNodeId == node.Id).ToList();
+                    if (nodeLinks.Count > 0)
+                    {
+                        foreach (var link in nodeLinks)
+                        {
+                            ViewModel.ReverseLink(link);
+                        }
+                        ViewModel.StatusMessage = $"Reversed {nodeLinks.Count} links for \"{node.Title}\".";
+                    }
+                };
+                flyout.Items.Add(reverseItem);
+            }
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            var histItem = MenuItem("Version history", "\uE81C");
+            histItem.Click += (s, e) => OpenVersionHistoryForNode(node);
+            flyout.Items.Add(histItem);
+
+            flyout.ShowAt(target, position);
+        }
+
+        private void OnConnectionLegendDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ConnectionLegend.Opacity = ConnectionLegend.Opacity < 0.9 ? 1.0 : 0.35;
+            ViewModel.StatusMessage = ConnectionLegend.Opacity < 0.9
+                ? "Connection legend faded · Double-click to restore"
+                : "Connection legend visible · Double-click to fade";
+        }
+
+        private void OnConnectionLegendRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            var treeItem = MenuItem("Arrange as Tree (left to right)", "\uE80A");
+            treeItem.Click += OnLayoutTreeClick;
+            flyout.Items.Add(treeItem);
+
+            var hierItem = MenuItem("Arrange as Hierarchy (top to bottom)", "\uE80A");
+            hierItem.Click += OnLayoutHierarchyClick;
+            flyout.Items.Add(hierItem);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var toggleLegendItem = MenuItem(ConnectionLegend.Visibility == Visibility.Visible ? "Hide legend" : "Show legend", "\uE890");
+            toggleLegendItem.Click += (s, args) =>
+            {
+                ConnectionLegend.Visibility = ConnectionLegend.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+            };
+            flyout.Items.Add(toggleLegendItem);
+
+            flyout.ShowAt(ConnectionLegend, e.GetPosition(ConnectionLegend));
         }
 
         private void OnCanvasPointerWheelChanged(object sender, PointerRoutedEventArgs e)

@@ -277,6 +277,7 @@
                         </Canvas.RenderTransform>
                         <Canvas x:Name="EdgeLayer" />
                         <Canvas x:Name="NodeLayer" />
+                        <Canvas x:Name="GuideLayer" IsHitTestVisible="False" />
                     </Canvas>
                 </Canvas>
 
@@ -383,7 +384,10 @@
                 <!-- CONNECTION LEGEND (bottom-centre, offset clear of the bottom-left minimap) -->
                 <Border x:Name="ConnectionLegend" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="216,0,24,18"
                         Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="12,6"
-                        IsHitTestVisible="False">
+                        IsHitTestVisible="True"
+                        DoubleTapped="OnConnectionLegendDoubleTapped"
+                        RightTapped="OnConnectionLegendRightTapped"
+                        ToolTipService.ToolTip="Connection legend · Double-click to toggle, Right-click for options">
                     <StackPanel Orientation="Horizontal" Spacing="14">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <Rectangle Width="16" Height="2" Fill="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />

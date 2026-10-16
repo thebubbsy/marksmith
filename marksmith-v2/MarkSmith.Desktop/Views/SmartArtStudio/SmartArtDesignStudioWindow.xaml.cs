@@ -733,6 +733,55 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private static bool IsDown(VirtualKey key) =>
+            (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(key) & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+
+        private void OnRowPointerWheelChanged(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement fe || fe.DataContext is not StudioNodeViewModel node) return;
+            if (node.IsEditing) return; // Don't interrupt active typing
+
+            bool alt = IsDown(VirtualKey.Menu);
+            bool shift = IsDown(VirtualKey.Shift);
+            if (!alt && !shift) return; // Allow ordinary vertical scrolling when neither modifier is held
+
+            var pt = e.GetCurrentPoint(fe);
+            int delta = pt.Properties.MouseWheelDelta;
+            if (Math.Abs(delta) < 60) return;
+
+            e.Handled = true;
+            ViewModel.Select(node);
+
+            if (alt)
+            {
+                // Alt+Wheel moves item Up or Down in outline
+                if (delta > 0 && ViewModel.CanMoveUp)
+                {
+                    ViewModel.MoveUp();
+                    ViewModel.StatusMessage = $"Moved \"{node.Text}\" up · Alt+Wheel to reorder";
+                }
+                else if (delta < 0 && ViewModel.CanMoveDown)
+                {
+                    ViewModel.MoveDown();
+                    ViewModel.StatusMessage = $"Moved \"{node.Text}\" down · Alt+Wheel to reorder";
+                }
+            }
+            else if (shift)
+            {
+                // Shift+Wheel indents (demote) or outdents (promote)
+                if (delta > 0 && ViewModel.CanPromote)
+                {
+                    ViewModel.Promote();
+                    ViewModel.StatusMessage = $"Promoted \"{node.Text}\" (level {node.Depth}) · Shift+Wheel to indent";
+                }
+                else if (delta < 0 && ViewModel.CanDemote)
+                {
+                    ViewModel.Demote();
+                    ViewModel.StatusMessage = $"Demoted \"{node.Text}\" (level {node.Depth}) · Shift+Wheel to indent";
+                }
+            }
+        }
+
         private void OnToolbarAddNodeClick(object sender, RoutedEventArgs e)
         {
             FocusRenameBox();
@@ -1853,6 +1902,21 @@ namespace MarkSmith.Views.SmartArtStudio
 
             menu.Items.Add(new MenuFlyoutSeparator());
 
+            var moveToTopItem = new MenuFlyoutItem
+            {
+                Text = "Move to top",
+                Icon = new FontIcon { Glyph = "\uE898" },
+                KeyboardAcceleratorTextOverride = "Alt+Home",
+                IsEnabled = ViewModel.CanMoveUp
+            };
+            moveToTopItem.Click += (_, _) =>
+            {
+                int c = 0;
+                while (ViewModel.CanMoveUp) { ViewModel.MoveUp(); c++; }
+                ViewModel.StatusMessage = $"Moved \"{node.Text}\" to top of outline ({c} steps)";
+            };
+            menu.Items.Add(moveToTopItem);
+
             var moveUpItem = new MenuFlyoutItem
             {
                 Text = "Move up",
@@ -1872,6 +1936,35 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             moveDownItem.Click += (_, _) => ViewModel.MoveDown();
             menu.Items.Add(moveDownItem);
+
+            var moveToBottomItem = new MenuFlyoutItem
+            {
+                Text = "Move to bottom",
+                Icon = new FontIcon { Glyph = "\uE896" },
+                KeyboardAcceleratorTextOverride = "Alt+End",
+                IsEnabled = ViewModel.CanMoveDown
+            };
+            moveToBottomItem.Click += (_, _) =>
+            {
+                int c = 0;
+                while (ViewModel.CanMoveDown) { ViewModel.MoveDown(); c++; }
+                ViewModel.StatusMessage = $"Moved \"{node.Text}\" to bottom of outline ({c} steps)";
+            };
+            menu.Items.Add(moveToBottomItem);
+
+            var promoteToRootItem = new MenuFlyoutItem
+            {
+                Text = "Promote to root",
+                Icon = new FontIcon { Glyph = "\uE898" },
+                IsEnabled = ViewModel.CanPromote
+            };
+            promoteToRootItem.Click += (_, _) =>
+            {
+                int c = 0;
+                while (ViewModel.CanPromote) { ViewModel.Promote(); c++; }
+                ViewModel.StatusMessage = $"Promoted \"{node.Text}\" to root level ({c} steps)";
+            };
+            menu.Items.Add(promoteToRootItem);
 
             var promoteItem = new MenuFlyoutItem
             {
