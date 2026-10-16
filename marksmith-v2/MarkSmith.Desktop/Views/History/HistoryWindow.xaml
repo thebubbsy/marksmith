@@ -360,10 +360,11 @@
 
                     <!-- Top Inspector Toolbar -->
                     <Border Padding="14,10" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnSpacing="12">
+                        <Grid ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
@@ -415,19 +416,42 @@
                                            TextTrimming="CharacterEllipsis" />
                             </StackPanel>
 
+                            <!-- Change Stepper Navigation Pill -->
+                            <Border x:Name="DiffChangeStepperPill" Grid.Column="2"
+                                    Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    CornerRadius="6" Padding="2" VerticalAlignment="Center"
+                                    Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                    <Button x:Name="PrevChangeButton" Click="OnPrevChangeButtonClick" Style="{StaticResource SubtleButtonStyle}"
+                                            Width="24" Height="24" Padding="0"
+                                            ToolTipService.ToolTip="Previous change hunk (Shift+F7)" AutomationProperties.Name="Previous change">
+                                        <FontIcon Glyph="&#xE70E;" FontSize="10" />
+                                    </Button>
+                                    <TextBlock x:Name="ChangeStepperLabel" Text="Hunks: 0" FontSize="11" VerticalAlignment="Center" Margin="4,0"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               Tapped="OnChangeStepperLabelTapped" ToolTipService.ToolTip="Change hunk index · Click to step to next hunk (F7)" />
+                                    <Button x:Name="NextChangeButton" Click="OnNextChangeButtonClick" Style="{StaticResource SubtleButtonStyle}"
+                                            Width="24" Height="24" Padding="0"
+                                            ToolTipService.ToolTip="Next change hunk (F7)" AutomationProperties.Name="Next change">
+                                        <FontIcon Glyph="&#xE70D;" FontSize="10" />
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+
                             <!-- Delta Meter -->
-                            <Border x:Name="DeltaMeterBorder" Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center"
+                            <Border x:Name="DeltaMeterBorder" Grid.Column="3" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center"
                                     IsHitTestVisible="True"
                                     DoubleTapped="OnDeltaMeterDoubleTapped"
                                     RightTapped="OnDeltaMeterRightTapped"
                                     ToolTipService.ToolTip="Lines added and removed compared with the version before · Double-click to copy stats, right-click for options"
                                     Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
                                 <TextBlock x:Name="DiffStatsText" Text="{Binding DiffStats}" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </Border>
 
                             <!-- Copy Action Button -->
-                            <Button x:Name="CopyToolbarButton" Grid.Column="3" Click="OnCopyToolbarButtonClick"
+                            <Button x:Name="CopyToolbarButton" Grid.Column="4" Click="OnCopyToolbarButtonClick"
                                     DoubleTapped="OnCopyToolbarButtonDoubleTapped"
                                     VerticalAlignment="Center" Padding="8,4" CornerRadius="6"
                                     Background="{ThemeResource SubtleFillColorTransparentBrush}"

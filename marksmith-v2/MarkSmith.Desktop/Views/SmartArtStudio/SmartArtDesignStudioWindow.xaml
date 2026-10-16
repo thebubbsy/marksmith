@@ -342,6 +342,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0" Padding="14,8,10,8" ColumnSpacing="8" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8,8,0,0"
@@ -416,9 +417,60 @@
                             </Button>
                         </StackPanel>
                     </Grid>
-                    <InfoBar x:Name="PreviewHintBar" Grid.Row="1" Margin="12,10,12,0" Severity="Informational" IsClosable="False"
+                    <!-- Quick Layout Visual Thumbnail Strip -->
+                    <Border x:Name="QuickLayoutCarouselBorder" Grid.Row="1"
+                            Background="{ThemeResource LayerFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1"
+                            Padding="8,4">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
+                            <Button x:Name="CarouselPrevButton" Click="OnCarouselPrevClick" Style="{StaticResource SubtleButtonStyle}"
+                                    Width="24" Height="44" Padding="0" VerticalAlignment="Center"
+                                    ToolTipService.ToolTip="Scroll layouts left" AutomationProperties.Name="Scroll layouts left">
+                                <FontIcon Glyph="&#xE76B;" FontSize="10" />
+                            </Button>
+                            <ListView x:Name="QuickLayoutCarouselList" Grid.Column="1"
+                                      ItemsSource="{Binding Layouts}"
+                                      SelectedItem="{Binding SelectedLayout, Mode=TwoWay}"
+                                      SelectionMode="Single"
+                                      IsItemClickEnabled="True"
+                                      ItemClick="OnCarouselLayoutItemClick"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                                      ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                      ScrollViewer.HorizontalScrollMode="Enabled"
+                                      ScrollViewer.VerticalScrollMode="Disabled">
+                                <ListView.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <ItemsStackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ListView.ItemsPanel>
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Width="64" Height="42" Padding="2" Margin="2,0" CornerRadius="6"
+                                              Background="{ThemeResource SmartArtThumbTileBrush}"
+                                              BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                              ToolTipService.ToolTip="{Binding DisplayName}"
+                                              AutomationProperties.Name="{Binding DisplayName}">
+                                            <Image Source="{Binding ThumbnailSvg, Converter={StaticResource SvgMarkupToImageSourceConverter}, ConverterParameter=96}"
+                                                   Stretch="Uniform" AutomationProperties.AccessibilityView="Raw" />
+                                            <Border VerticalAlignment="Bottom" Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                                                    CornerRadius="0,0,5,5" Margin="-2,0,-2,-2" Padding="2,1">
+                                                <TextBlock Text="{Binding DisplayName}" FontSize="8.5" TextAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                            <Button x:Name="CarouselNextButton" Grid.Column="2" Click="OnCarouselNextClick" Style="{StaticResource SubtleButtonStyle}"
+                                    Width="24" Height="44" Padding="0" VerticalAlignment="Center"
+                                    ToolTipService.ToolTip="Scroll layouts right" AutomationProperties.Name="Scroll layouts right">
+                                <FontIcon Glyph="&#xE76C;" FontSize="10" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <InfoBar x:Name="PreviewHintBar" Grid.Row="2" Margin="12,10,12,0" Severity="Informational" IsClosable="False"
                              IsOpen="{Binding HasPreviewHint}" Message="{Binding PreviewHint}" AutomationProperties.LiveSetting="Polite" />
-                    <WebView2 x:Name="PreviewWebView" Grid.Row="2" Margin="0" />
+                    <WebView2 x:Name="PreviewWebView" Grid.Row="3" Margin="0" />
                 </Grid>
             </Border>
         </Grid>

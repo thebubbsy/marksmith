@@ -3368,6 +3368,30 @@ namespace MarkSmith.Views.SmartArtStudio
             PaletteFlyout?.Hide();
         }
 
+        private void OnCarouselPrevClick(object sender, RoutedEventArgs e)
+        {
+            var sv = FindDescendant<ScrollViewer>(QuickLayoutCarouselList);
+            if (sv is null) return;
+            sv.ChangeView(Math.Max(0, sv.HorizontalOffset - 210), null, null);
+        }
+
+        private void OnCarouselNextClick(object sender, RoutedEventArgs e)
+        {
+            var sv = FindDescendant<ScrollViewer>(QuickLayoutCarouselList);
+            if (sv is null) return;
+            sv.ChangeView(sv.HorizontalOffset + 210, null, null);
+        }
+
+        private void OnCarouselLayoutItemClick(object sender, ItemClickEventArgs e)
+        {
+            if (e.ClickedItem is StudioLayoutItem layout)
+            {
+                ViewModel.SelectedLayout = layout;
+                RefreshWebView();
+                ViewModel.StatusMessage = $"Selected SmartArt layout: {layout.DisplayName}";
+            }
+        }
+
         private void CyclePalette()
         {
             var palettes = ViewModel.Palettes;

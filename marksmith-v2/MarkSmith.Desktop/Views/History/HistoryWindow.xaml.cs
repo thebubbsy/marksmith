@@ -242,6 +242,11 @@ public sealed partial class HistoryWindow : Window
         else if (e.PropertyName == nameof(HistoryWindowViewModel.Selected))
         {
             UpdateCopyToolbarButton(_vm.DiffMode);
+            ResetChangeStepper();
+        }
+        else if (e.PropertyName == nameof(HistoryWindowViewModel.HasDiffStats))
+        {
+            ResetChangeStepper();
         }
     }
 
@@ -384,6 +389,122 @@ public sealed partial class HistoryWindow : Window
         }
 
         return menu;
+    }
+
+    private int _currentHunkIndex = -1;
+
+    private void ResetChangeStepper()
+    {
+        _currentHunkIndex = -1;
+        var hunks = GetChangeHunkIndices();
+        if (ChangeStepperLabel != null)
+        {
+            ChangeStepperLabel.Text = hunks.Count > 0 ? $"{hunks.Count} {(hunks.Count == 1 ? "hunk" : "hunks")}" : "0 hunks";
+            ToolTipService.SetToolTip(ChangeStepperLabel, hunks.Count > 0
+                ? $"{hunks.Count} change {(hunks.Count == 1 ? "hunk" : "hunks")} · Click or F7 to jump to next hunk, Shift+F7 for previous"
+                : "No change hunks in this version");
+        }
+    }
+
+    private List<int> GetChangeHunkIndices()
+    {
+        var indices = new List<int>();
+        if (_vm.DiffMode == HistoryDiffMode.Unified)
+        {
+            if (_vm.UnifiedDiffRows.Count == 0) return indices;
+            bool inHunk = false;
+            for (int i = 0; i < _vm.UnifiedDiffRows.Count; i++)
+            {
+                var row = _vm.UnifiedDiffRows[i];
+                if (row.IsAdded || row.IsRemoved)
+                {
+                    if (!inHunk)
+                    {
+                        indices.Add(i);
+                        inHunk = true;
+                    }
+                }
+                else
+                {
+                    inHunk = false;
+                }
+            }
+        }
+        else
+        {
+            if (_vm.DiffRows.Count == 0) return indices;
+            bool inHunk = false;
+            for (int i = 0; i < _vm.DiffRows.Count; i++)
+            {
+                var row = _vm.DiffRows[i];
+                bool isChanged = (row.Left != null && row.Left.IsRemoved) || (row.Right != null && row.Right.IsAdded);
+                if (isChanged)
+                {
+                    if (!inHunk)
+                    {
+                        indices.Add(i);
+                        inHunk = true;
+                    }
+                }
+                else
+                {
+                    inHunk = false;
+                }
+            }
+        }
+        return indices;
+    }
+
+    private void StepToChangeHunk(int direction)
+    {
+        var hunks = GetChangeHunkIndices();
+        if (hunks.Count == 0)
+        {
+            if (ChangeStepperLabel != null) ChangeStepperLabel.Text = "0 hunks";
+            return;
+        }
+
+        if (direction > 0)
+        {
+            _currentHunkIndex = (_currentHunkIndex + 1) % hunks.Count;
+        }
+        else
+        {
+            _currentHunkIndex = (_currentHunkIndex - 1 + hunks.Count) % hunks.Count;
+        }
+
+        int targetRow = hunks[_currentHunkIndex];
+        if (ChangeStepperLabel != null)
+        {
+            ChangeStepperLabel.Text = $"Hunk {_currentHunkIndex + 1}/{hunks.Count}";
+            ToolTipService.SetToolTip(ChangeStepperLabel, $"Hunk {_currentHunkIndex + 1} of {hunks.Count} (Line {targetRow + 1}) · F7 next, Shift+F7 prev");
+        }
+
+        double targetY = Math.Max(0, targetRow * 20.0);
+        if (_vm.DiffMode == HistoryDiffMode.Unified)
+        {
+            UnifiedScroll?.ChangeView(null, targetY, null);
+        }
+        else
+        {
+            SplitScroll?.ChangeView(null, targetY, null);
+        }
+    }
+
+    private void OnPrevChangeButtonClick(object sender, RoutedEventArgs e)
+    {
+        StepToChangeHunk(-1);
+    }
+
+    private void OnNextChangeButtonClick(object sender, RoutedEventArgs e)
+    {
+        StepToChangeHunk(1);
+    }
+
+    private void OnChangeStepperLabelTapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        StepToChangeHunk(1);
     }
 
     private void OnVersionClick(object sender, RoutedEventArgs e)
@@ -932,6 +1053,11 @@ public sealed partial class HistoryWindow : Window
         {
             e.Handled = true;
             _ = CopyVersionMarkdownAsync(copyTarget, CopyToolbarButton, CopyToolbarIcon);
+        }
+        else if (e.Key == VirtualKey.F7)
+        {
+            e.Handled = true;
+            StepToChangeHunk(isShift ? -1 : 1);
         }
         else if (e.Key == VirtualKey.Escape)
         {

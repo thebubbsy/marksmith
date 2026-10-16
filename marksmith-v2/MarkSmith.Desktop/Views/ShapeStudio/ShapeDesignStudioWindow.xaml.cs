@@ -734,6 +734,10 @@ namespace MarkSmith.Views.ShapeStudio
                     ViewModel.ClearSelection();
                     e.Handled = true;
                     return;
+                case VirtualKey.E when IsDown(VirtualKey.Menu) && ViewModel.SelectedShape is { } selLine && selLine.PathPoints is { Count: >= 2 }:
+                    AutoRouteConnectorAroundObstacles(selLine);
+                    e.Handled = true;
+                    return;
             }
 
             if (IsDown(VirtualKey.Menu) && ViewModel.HasSelection &&
@@ -3268,6 +3272,11 @@ namespace MarkSmith.Views.ShapeStudio
                 UpdatePointHandles(line);
             }));
 
+            flyout.Items.Add(ShapeMenuItem("Auto-route around obstacles (Elbow Corridor)", "\uE748", () =>
+            {
+                AutoRouteConnectorAroundObstacles(line);
+            }));
+
             if (!isEnd)
             {
                 flyout.Items.Add(ShapeMenuItem("Center bend between ends", "\uE790", () =>
@@ -3353,6 +3362,104 @@ namespace MarkSmith.Views.ShapeStudio
             }));
 
             flyout.ShowAt(h, e.GetPosition(h));
+        }
+
+        private void AutoRouteConnectorAroundObstacles(ShapeCanvasItemViewModel line)
+        {
+            var pts = ShapeDesignStudioViewModel.ConnectorPoints(line);
+            if (pts.Count < 2) return;
+
+            var pStart = pts[0];
+            var pEnd = pts[^1];
+
+            ShapeCanvasItemViewModel? startShape = ViewModel.SnapTarget(pStart.X, pStart.Y, line, radius: 24)?.Shape;
+            ShapeCanvasItemViewModel? endShape = ViewModel.SnapTarget(pEnd.X, pEnd.Y, line, radius: 24)?.Shape;
+
+            double clearance = 16.0;
+
+            double minX = Math.Min(pStart.X, pEnd.X);
+            double maxX = Math.Max(pStart.X, pEnd.X);
+            double minY = Math.Min(pStart.Y, pEnd.Y);
+            double maxY = Math.Max(pStart.Y, pEnd.Y);
+
+            var obstacles = ViewModel.Shapes
+                .Where(s => !ReferenceEquals(s, line) &&
+                            !ReferenceEquals(s, startShape) &&
+                            !ReferenceEquals(s, endShape) &&
+                            (s.PathPoints == null || s.PathPoints.Count < 2))
+                .Select(s => (Shape: s, Bounds: ShapeDesignStudioViewModel.RotatedBounds(s)))
+                .Where(t => t.Bounds.Right > minX + 5 && t.Bounds.Left < maxX - 5 &&
+                            t.Bounds.Bottom > minY + 5 && t.Bounds.Top < maxY - 5)
+                .ToList();
+
+            var newPoints = new List<(double X, double Y)>();
+            newPoints.Add(pStart);
+
+            if (obstacles.Count > 0)
+            {
+                var obs = obstacles.OrderByDescending(o => (o.Bounds.Right - o.Bounds.Left) * (o.Bounds.Bottom - o.Bounds.Top)).First();
+                var b = obs.Bounds;
+
+                bool isHorizontal = Math.Abs(pEnd.X - pStart.X) >= Math.Abs(pEnd.Y - pStart.Y);
+
+                if (isHorizontal)
+                {
+                    double detourYTop = b.Top - clearance;
+                    double detourYBottom = b.Bottom + clearance;
+
+                    double avgY = (pStart.Y + pEnd.Y) / 2.0;
+                    double chosenY = Math.Abs(detourYTop - avgY) <= Math.Abs(detourYBottom - avgY) ? detourYTop : detourYBottom;
+
+                    double midX1 = pStart.X < pEnd.X ? Math.Min(pStart.X + 24, b.Left - clearance) : Math.Max(pStart.X - 24, b.Right + clearance);
+                    double midX2 = pStart.X < pEnd.X ? Math.Max(pEnd.X - 24, b.Right + clearance) : Math.Min(pEnd.X + 24, b.Left - clearance);
+
+                    newPoints.Add((midX1, pStart.Y));
+                    newPoints.Add((midX1, chosenY));
+                    newPoints.Add((midX2, chosenY));
+                    newPoints.Add((midX2, pEnd.Y));
+                }
+                else
+                {
+                    double detourXLeft = b.Left - clearance;
+                    double detourXRight = b.Right + clearance;
+
+                    double avgX = (pStart.X + pEnd.X) / 2.0;
+                    double chosenX = Math.Abs(detourXLeft - avgX) <= Math.Abs(detourXRight - avgX) ? detourXLeft : detourXRight;
+
+                    double midY1 = pStart.Y < pEnd.Y ? Math.Min(pStart.Y + 24, b.Top - clearance) : Math.Max(pStart.Y - 24, b.Bottom + clearance);
+                    double midY2 = pStart.Y < pEnd.Y ? Math.Max(pEnd.Y - 24, b.Bottom + clearance) : Math.Min(pEnd.Y + 24, b.Top - clearance);
+
+                    newPoints.Add((pStart.X, midY1));
+                    newPoints.Add((chosenX, midY1));
+                    newPoints.Add((chosenX, midY2));
+                    newPoints.Add((pEnd.X, midY2));
+                }
+
+                ViewModel.StatusMessage = $"Auto-routed connector around '{obs.Shape.DisplayName}' with {clearance:F0} px corridor · Ctrl+Z to undo";
+            }
+            else
+            {
+                bool isHorizontal = Math.Abs(pEnd.X - pStart.X) >= Math.Abs(pEnd.Y - pStart.Y);
+                if (isHorizontal)
+                {
+                    double midX = (pStart.X + pEnd.X) / 2.0;
+                    newPoints.Add((midX, pStart.Y));
+                    newPoints.Add((midX, pEnd.Y));
+                }
+                else
+                {
+                    double midY = (pStart.Y + pEnd.Y) / 2.0;
+                    newPoints.Add((pStart.X, midY));
+                    newPoints.Add((pEnd.X, midY));
+                }
+                ViewModel.StatusMessage = "Auto-routed connector with clean orthogonal corridor · Ctrl+Z to undo";
+            }
+
+            newPoints.Add(pEnd);
+
+            ViewModel.RecordUndo();
+            ShapeDesignStudioViewModel.SetConnectorPoints(line, newPoints);
+            UpdatePointHandles(line);
         }
 
         // ---- cursors ----

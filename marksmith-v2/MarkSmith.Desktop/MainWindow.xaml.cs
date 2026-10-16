@@ -7622,6 +7622,183 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         line = _folds.DocumentLine(text, line); // past a fold, the document's line number
         var sel = Math.Clamp(tb.SelectionLength, 0, text.Length - start);
         CursorPosText.Text = DocumentStatsService.FormatCursorAndSelection(line, col, text.AsSpan(start, sel));
+        UpdateStatusSectionBreadcrumb(text, start);
+    }
+
+    private void UpdateStatusSectionBreadcrumb(string text, int caretPos)
+    {
+        if (StatusSectionBreadcrumbText is null || StatusSectionBreadcrumbButton is null) return;
+        if (string.IsNullOrEmpty(text) || caretPos < 0)
+        {
+            StatusSectionBreadcrumbText.Text = "§ Document start";
+            ToolTipService.SetToolTip(StatusSectionBreadcrumbButton, "Document section hierarchy · At start of document");
+            return;
+        }
+
+        var headings = new List<(int Level, string Title, int Offset)>();
+        int pos = Math.Min(caretPos, text.Length);
+        int linesScanned = 0;
+        int currentLevel = int.MaxValue;
+
+        while (pos > 0 && linesScanned < 300)
+        {
+            int lineEnd = pos;
+            int prevNewline = text.LastIndexOf('\n', Math.Max(0, pos - 1));
+            int lineStart = prevNewline >= 0 ? prevNewline + 1 : 0;
+            linesScanned++;
+
+            ReadOnlySpan<char> span = text.AsSpan(lineStart, lineEnd - lineStart).Trim();
+            if (span.StartsWith("#"))
+            {
+                int hashes = 0;
+                while (hashes < span.Length && span[hashes] == '#') hashes++;
+                if (hashes > 0 && hashes <= 6 && hashes < span.Length && span[hashes] == ' ')
+                {
+                    if (hashes < currentLevel)
+                    {
+                        string title = span.Slice(hashes + 1).Trim().ToString();
+                        headings.Add((hashes, title, lineStart));
+                        currentLevel = hashes;
+                        if (currentLevel == 1) break;
+                    }
+                }
+            }
+
+            pos = prevNewline >= 0 ? prevNewline : 0;
+        }
+
+        if (headings.Count == 0)
+        {
+            StatusSectionBreadcrumbText.Text = "§ Document start";
+            ToolTipService.SetToolTip(StatusSectionBreadcrumbButton, "Document section hierarchy · No preceding headings found");
+        }
+        else
+        {
+            headings.Reverse();
+            StatusSectionBreadcrumbText.Text = $"§ {headings[^1].Title}";
+            var pathStr = string.Join(" \u2192 ", headings.Select(h => $"H{h.Level} {h.Title}"));
+            ToolTipService.SetToolTip(StatusSectionBreadcrumbButton,
+                $"Section hierarchy:\n{pathStr}\nClick to jump to section headings, right-click for outline options");
+        }
+    }
+
+    private void OnStatusSectionBreadcrumbClick(object sender, RoutedEventArgs e)
+    {
+        var text = PasteTextBox?.Text ?? string.Empty;
+        var menu = new MenuFlyout();
+
+        var header = new MenuFlyoutItem
+        {
+            Text = "Document headings & sections",
+            Icon = new FontIcon { Glyph = "\uE8D2" },
+            IsEnabled = false
+        };
+        menu.Items.Add(header);
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var allHeadings = CollectDocumentHeadings(text);
+        if (allHeadings.Count == 0)
+        {
+            menu.Items.Add(new MenuFlyoutItem { Text = "No headings in document", IsEnabled = false });
+        }
+        else
+        {
+            int caret = Math.Min(PasteTextBox?.SelectionStart ?? 0, text.Length);
+            foreach (var h in allHeadings.Take(25))
+            {
+                string indent = new string(' ', (h.Level - 1) * 2);
+                bool isActive = caret >= h.Offset && caret < h.EndOffset;
+                var item = new MenuFlyoutItem
+                {
+                    Text = $"{indent}H{h.Level}: {h.Title}{(isActive ? " ✓" : "")}",
+                    Icon = new FontIcon { Glyph = isActive ? "\uE73E" : "\uE8FD" }
+                };
+                int targetOffset = h.Offset;
+                item.Click += (_, _) =>
+                {
+                    if (PasteTextBox is not null)
+                    {
+                        UnfoldAll();
+                        PasteTextBox.Select(targetOffset, 0);
+                        PasteTextBox.Focus(FocusState.Programmatic);
+                        UpdateCursorPosition();
+                        AnnounceStatus($"Jumped to H{h.Level}: {h.Title}");
+                    }
+                };
+                menu.Items.Add(item);
+            }
+        }
+
+        menu.ShowAt(StatusSectionBreadcrumbButton, new Windows.Foundation.Point(0, 0));
+    }
+
+    private void OnStatusSectionBreadcrumbRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var copyTitle = new MenuFlyoutItem
+        {
+            Text = "Copy current section title",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyTitle.Click += (_, _) =>
+        {
+            var title = StatusSectionBreadcrumbText?.Text?.TrimStart('§', ' ') ?? "";
+            _ = Services.ClipboardWriter.TrySetTextAsync(title);
+            AnnounceStatus($"Copied section title: {title}");
+        };
+        menu.Items.Add(copyTitle);
+
+        var copyAll = new MenuFlyoutItem
+        {
+            Text = "Copy all document headings",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        copyAll.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var headings = CollectDocumentHeadings(text);
+            var toc = string.Join("\n", headings.Select(h => $"{new string('#', h.Level)} {h.Title}"));
+            _ = Services.ClipboardWriter.TrySetTextAsync(toc);
+            AnnounceStatus($"Copied table of contents ({headings.Count} headings)");
+        };
+        menu.Items.Add(copyAll);
+
+        menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
+    }
+
+    private sealed record HeadingLocation(int Level, string Title, int Offset, int EndOffset);
+
+    private static List<HeadingLocation> CollectDocumentHeadings(string text)
+    {
+        var list = new List<HeadingLocation>();
+        if (string.IsNullOrEmpty(text)) return list;
+
+        int offset = 0;
+        int len = text.Length;
+
+        while (offset < len)
+        {
+            int nextNewline = text.IndexOf('\n', offset);
+            int lineEnd = nextNewline >= 0 ? nextNewline : len;
+            ReadOnlySpan<char> span = text.AsSpan(offset, lineEnd - offset).Trim();
+
+            if (span.StartsWith("#"))
+            {
+                int hashes = 0;
+                while (hashes < span.Length && span[hashes] == '#') hashes++;
+                if (hashes > 0 && hashes <= 6 && hashes < span.Length && span[hashes] == ' ')
+                {
+                    string title = span.Slice(hashes + 1).Trim().ToString();
+                    list.Add(new HeadingLocation(hashes, title, offset, lineEnd));
+                }
+            }
+
+            offset = nextNewline >= 0 ? nextNewline + 1 : len;
+        }
+
+        return list;
     }
 
     // The preview column mirrors the editor column's FindBar row so the two boxes stay the same

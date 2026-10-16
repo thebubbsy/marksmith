@@ -1613,27 +1613,33 @@ namespace MarkSmith.Views.MindMap
                 if (!_nodeIndex.TryGetValue(id, out var node)) continue;
                 v.Root.Width = Math.Max(24, node.Width);
                 v.Root.Height = Math.Max(18, node.Height);
-                Canvas.SetLeft(v.Root, node.X);
-                Canvas.SetTop(v.Root, node.Y);
+                if (!_activeBranchAnims.ContainsKey(id))
+                {
+                    Canvas.SetLeft(v.Root, node.X);
+                    Canvas.SetTop(v.Root, node.Y);
+                }
             }
 
             foreach (var e in _edgeVisuals.Values)
             {
                 if (!_nodeIndex.TryGetValue(e.SourceId, out var src) || !_nodeIndex.TryGetValue(e.TargetId, out var tgt)) continue;
 
+                double srcX = GetNodeRenderX(src), srcY = GetNodeRenderY(src);
+                double tgtX = GetNodeRenderX(tgt), tgtY = GetNodeRenderY(tgt);
+
                 Point start, end, c1, c2;
                 if (e.FromNodeEdge)
                 {
-                    start = new Point(src.X + src.Width, src.Y + (src.Height / 2.0));
-                    end = new Point(tgt.X, tgt.Y + (tgt.Height / 2.0));
+                    start = new Point(srcX + src.Width, srcY + (src.Height / 2.0));
+                    end = new Point(tgtX, tgtY + (tgt.Height / 2.0));
                     double ctrl = Math.Max(Math.Abs(end.X - start.X) * 0.5, 40);
                     c1 = new Point(start.X + ctrl, start.Y);
                     c2 = new Point(end.X - ctrl, end.Y);
                 }
                 else
                 {
-                    (start, c1, c2, end) = RouteCrossLink(src.X, src.Y, src.Width, src.Height,
-                        tgt.X, tgt.Y, tgt.Width, tgt.Height, e.LabelSize.Width);
+                    (start, c1, c2, end) = RouteCrossLink(srcX, srcY, src.Width, src.Height,
+                        tgtX, tgtY, tgt.Width, tgt.Height, e.LabelSize.Width);
                 }
 
                 e.Figure.StartPoint = start;
@@ -2240,15 +2246,263 @@ namespace MarkSmith.Views.MindMap
             return flyout;
         }
 
+        private readonly Dictionary<string, BranchNodeAnimationState> _activeBranchAnims = new(StringComparer.Ordinal);
+        private DispatcherTimer? _branchAnimTimer;
+
+        private sealed class BranchNodeAnimationState
+        {
+            public string NodeId { get; init; } = "";
+            public double StartX { get; init; }
+            public double StartY { get; init; }
+            public double TargetX { get; init; }
+            public double TargetY { get; init; }
+            public double StartOpacity { get; init; }
+            public double TargetOpacity { get; init; }
+            public double DelayMs { get; init; }
+            public double DurationMs { get; init; } = 220;
+            public double ElapsedMs { get; set; }
+            public bool IsCollapsing { get; init; }
+        }
+
+        private double GetNodeRenderX(MindMapNodeViewModel node)
+        {
+            if (_activeBranchAnims.ContainsKey(node.Id) && _nodeVisuals.TryGetValue(node.Id, out var v))
+            {
+                return Canvas.GetLeft(v.Root);
+            }
+            return node.X;
+        }
+
+        private double GetNodeRenderY(MindMapNodeViewModel node)
+        {
+            if (_activeBranchAnims.ContainsKey(node.Id) && _nodeVisuals.TryGetValue(node.Id, out var v))
+            {
+                return Canvas.GetTop(v.Root);
+            }
+            return node.Y;
+        }
+
         private void ToggleSubtreeCollapsed(MindMapNodeViewModel node)
         {
             ViewModel.PushUndo($"{(node.IsCollapsed ? "Expand" : "Collapse")} '{node.Title}'");
-            node.IsCollapsed = !node.IsCollapsed;
-            UpdateAppearance();
+            FinishBranchAnimations();
+
+            bool collapsing = !node.IsCollapsed;
+            node.IsCollapsed = collapsing;
+
+            if (collapsing)
+            {
+                var descendants = GetDescendantsList(node);
+                if (descendants.Count == 0)
+                {
+                    UpdateAppearance();
+                    UpdateGeometry();
+                    ViewModel.StatusMessage = $"Collapsed branch '{node.Title}' · Subtree hidden";
+                    return;
+                }
+
+                int index = 0;
+                foreach (var desc in descendants)
+                {
+                    _activeBranchAnims[desc.Id] = new BranchNodeAnimationState
+                    {
+                        NodeId = desc.Id,
+                        StartX = desc.X,
+                        StartY = desc.Y,
+                        TargetX = node.X + (node.Width / 2.0) - (desc.Width / 2.0),
+                        TargetY = node.Y + (node.Height / 2.0) - (desc.Height / 2.0),
+                        StartOpacity = 1.0,
+                        TargetOpacity = 0.0,
+                        DelayMs = Math.Min(60, index * 10),
+                        DurationMs = 210,
+                        IsCollapsing = true
+                    };
+                    index++;
+                }
+
+                StartBranchAnimationTimer();
+                ViewModel.StatusMessage = $"Collapsed branch '{node.Title}' ({descendants.Count} nodes hidden) · Ctrl+Z to undo";
+            }
+            else
+            {
+                UpdateAppearance();
+                var descendants = GetDirectlyRevealedDescendants(node);
+                if (descendants.Count == 0)
+                {
+                    UpdateGeometry();
+                    ViewModel.StatusMessage = $"Expanded branch '{node.Title}' · Subtree visible";
+                    return;
+                }
+
+                int index = 0;
+                foreach (var desc in descendants)
+                {
+                    if (_nodeVisuals.TryGetValue(desc.Id, out var v))
+                    {
+                        v.Root.Visibility = Visibility.Visible;
+                        v.Root.Opacity = 0.0;
+                        Canvas.SetLeft(v.Root, node.X + (node.Width / 2.0) - (desc.Width / 2.0));
+                        Canvas.SetTop(v.Root, node.Y + (node.Height / 2.0) - (desc.Height / 2.0));
+                    }
+
+                    _activeBranchAnims[desc.Id] = new BranchNodeAnimationState
+                    {
+                        NodeId = desc.Id,
+                        StartX = node.X + (node.Width / 2.0) - (desc.Width / 2.0),
+                        StartY = node.Y + (node.Height / 2.0) - (desc.Height / 2.0),
+                        TargetX = desc.X,
+                        TargetY = desc.Y,
+                        StartOpacity = 0.0,
+                        TargetOpacity = 1.0,
+                        DelayMs = Math.Min(80, index * 14),
+                        DurationMs = 230,
+                        IsCollapsing = false
+                    };
+                    index++;
+                }
+
+                StartBranchAnimationTimer();
+                UpdateGeometry();
+                ViewModel.StatusMessage = $"Expanded branch '{node.Title}' ({descendants.Count} nodes revealed) · Ctrl+Z to undo";
+            }
+        }
+
+        private List<MindMapNodeViewModel> GetDescendantsList(MindMapNodeViewModel node)
+        {
+            var list = new List<MindMapNodeViewModel>();
+            var queue = new Queue<MindMapNodeViewModel>();
+            queue.Enqueue(node);
+            var seen = new HashSet<string>(StringComparer.Ordinal) { node.Id };
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                foreach (var n in ViewModel.Nodes)
+                {
+                    if (n.ParentId == current.Id && seen.Add(n.Id))
+                    {
+                        list.Add(n);
+                        queue.Enqueue(n);
+                    }
+                }
+            }
+            return list;
+        }
+
+        private List<MindMapNodeViewModel> GetDirectlyRevealedDescendants(MindMapNodeViewModel node)
+        {
+            var list = new List<MindMapNodeViewModel>();
+            var queue = new Queue<MindMapNodeViewModel>();
+            queue.Enqueue(node);
+            var seen = new HashSet<string>(StringComparer.Ordinal) { node.Id };
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                foreach (var n in ViewModel.Nodes)
+                {
+                    if (n.ParentId == current.Id && seen.Add(n.Id))
+                    {
+                        list.Add(n);
+                        if (!n.IsCollapsed)
+                        {
+                            queue.Enqueue(n);
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+
+        private void StartBranchAnimationTimer()
+        {
+            if (_branchAnimTimer == null)
+            {
+                _branchAnimTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+                _branchAnimTimer.Tick += OnBranchAnimTick;
+            }
+            _branchAnimTimer.Start();
+        }
+
+        private void OnBranchAnimTick(object? sender, object e)
+        {
+            if (_activeBranchAnims.Count == 0)
+            {
+                _branchAnimTimer?.Stop();
+                return;
+            }
+
+            double dt = 16.0;
+            var finished = new List<string>();
+
+            foreach (var (id, anim) in _activeBranchAnims)
+            {
+                anim.ElapsedMs += dt;
+                if (anim.ElapsedMs < anim.DelayMs) continue;
+
+                double progress = Math.Clamp((anim.ElapsedMs - anim.DelayMs) / anim.DurationMs, 0.0, 1.0);
+                double ease = 1.0 - Math.Pow(1.0 - progress, 3);
+
+                double curX = anim.StartX + (anim.TargetX - anim.StartX) * ease;
+                double curY = anim.StartY + (anim.TargetY - anim.StartY) * ease;
+                double curOpacity = anim.StartOpacity + (anim.TargetOpacity - anim.StartOpacity) * ease;
+
+                if (_nodeVisuals.TryGetValue(id, out var v))
+                {
+                    Canvas.SetLeft(v.Root, curX);
+                    Canvas.SetTop(v.Root, curY);
+                    v.Root.Opacity = Math.Clamp(curOpacity, 0.0, 1.0);
+                    v.Root.Visibility = Visibility.Visible;
+                }
+
+                if (progress >= 1.0)
+                {
+                    finished.Add(id);
+                }
+            }
+
             UpdateGeometry();
-            ViewModel.StatusMessage = node.IsCollapsed
-                ? $"Collapsed branch '{node.Title}' · Subtree hidden"
-                : $"Expanded branch '{node.Title}' · Subtree visible";
+
+            foreach (var id in finished)
+            {
+                var anim = _activeBranchAnims[id];
+                _activeBranchAnims.Remove(id);
+                if (_nodeVisuals.TryGetValue(id, out var v) && _nodeIndex.TryGetValue(id, out var node))
+                {
+                    v.Root.Opacity = 1.0;
+                    Canvas.SetLeft(v.Root, node.X);
+                    Canvas.SetTop(v.Root, node.Y);
+                    if (anim.IsCollapsing)
+                    {
+                        v.Root.Visibility = Visibility.Collapsed;
+                    }
+                }
+            }
+
+            if (_activeBranchAnims.Count == 0)
+            {
+                _branchAnimTimer?.Stop();
+                UpdateAppearance();
+                UpdateGeometry();
+            }
+        }
+
+        private void FinishBranchAnimations()
+        {
+            if (_activeBranchAnims.Count == 0) return;
+            _branchAnimTimer?.Stop();
+            foreach (var (id, anim) in _activeBranchAnims)
+            {
+                if (_nodeVisuals.TryGetValue(id, out var v) && _nodeIndex.TryGetValue(id, out var node))
+                {
+                    v.Root.Opacity = 1.0;
+                    Canvas.SetLeft(v.Root, node.X);
+                    Canvas.SetTop(v.Root, node.Y);
+                    if (anim.IsCollapsing)
+                    {
+                        v.Root.Visibility = Visibility.Collapsed;
+                    }
+                }
+            }
+            _activeBranchAnims.Clear();
         }
 
         private bool IsNodeHiddenByCollapsedAncestor(MindMapNodeViewModel node)

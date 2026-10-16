@@ -41,15 +41,98 @@
                                    TextWrapping="Wrap" />
                     </StackPanel>
 
-                    <Button x:Name="OpenConfigFolderButton" Grid.Column="2" Click="OnOpenConfigFolderClick" VerticalAlignment="Center" Padding="10,6"
-                            RightTapped="OnOpenConfigFolderRightTapped"
-                            ToolTipService.ToolTip="Open the folder where MarkSmith keeps your settings, version history and templates (Ctrl+O · Right-click for options)"
-                            AutomationProperties.Name="Open settings folder (Ctrl+O)">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE8B7;" FontSize="12" AutomationProperties.AccessibilityView="Raw" />
-                            <TextBlock Text="Settings folder" FontSize="12" />
-                        </StackPanel>
-                    </Button>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Button x:Name="ShortcutsHelpButton" Click="OnShortcutsHelpClick" Padding="10,6"
+                                ToolTipService.ToolTip="MarkSmith keyboard shortcuts &amp; cheat sheet (? or F1)"
+                                AutomationProperties.Name="Keyboard shortcuts (? or F1)">
+                            <Button.Flyout>
+                                <Flyout x:Name="ShortcutsFlyout" Placement="BottomEdgeAlignedRight">
+                                    <StackPanel Width="360" Spacing="10" Padding="4">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="Keyboard Shortcuts Cheat Sheet" FontWeight="SemiBold" FontSize="13" />
+                                            <Border Grid.Column="1" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="6,1">
+                                                <TextBlock Text="MarkSmith v3" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                            </Border>
+                                        </Grid>
+                                        <TextBlock Text="Speed up your editing, studios, and navigation with these global shortcuts:" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+
+                                        <Border Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="10,8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Text="Hub &amp; Launching (Press 1–6)" FontWeight="SemiBold" FontSize="11.5" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="1" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Width="40" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="Open Drawing Studios (Mermaid, Shapes, SmartArt)" FontSize="11" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="2" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Width="40" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="Copy AI Assistant / MCP Config" FontSize="11" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="3" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Width="40" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="Open Browser Extension Folder" FontSize="11" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="4" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Width="40" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="Copy CLI Command" FontSize="11" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="5" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Width="40" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="Launch Web Companion" FontSize="11" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="6" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Width="40" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="Open Document Galaxy" FontSize="11" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="10,8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Text="Editor &amp; Navigation" FontWeight="SemiBold" FontSize="11.5" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="Ctrl+K" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Width="75" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="Command Palette (Actions, Recents)" FontSize="11" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="Ctrl+G" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Width="75" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="Go to Line dialog" FontSize="11" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="F7 / Shift+F7" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Width="75" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="Next / Previous Diff Hunk in History" FontSize="11" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="Alt+R" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Width="75" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="MindMap Radial Fan-Out layout" FontSize="11" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="Space" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Width="75" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="Fold / Unfold MindMap branch" FontSize="11" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="Alt+E" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Width="75" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="Auto-route shape connector around obstacles" FontSize="11" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Flyout>
+                            </Button.Flyout>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE765;" FontSize="12" AutomationProperties.AccessibilityView="Raw" />
+                                <TextBlock Text="Shortcuts" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="OpenConfigFolderButton" Click="OnOpenConfigFolderClick" Padding="10,6"
+                                RightTapped="OnOpenConfigFolderRightTapped"
+                                ToolTipService.ToolTip="Open the folder where MarkSmith keeps your settings, version history and templates (Ctrl+O · Right-click for options)"
+                                AutomationProperties.Name="Open settings folder (Ctrl+O)">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE8B7;" FontSize="12" AutomationProperties.AccessibilityView="Raw" />
+                                <TextBlock Text="Settings folder" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Border>
 

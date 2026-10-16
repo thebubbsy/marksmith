@@ -205,6 +205,41 @@ public sealed partial class SuiteHubView : UserControl
             return;
         }
 
+        if (!ctrl && !shift && !alt && e.OriginalSource is not TextBox)
+        {
+            switch (e.Key)
+            {
+                case VirtualKey.Number1 or VirtualKey.NumberPad1:
+                    OnOpenMermaidStudioClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
+                case VirtualKey.Number2 or VirtualKey.NumberPad2:
+                    OnCopyClaudeConfigClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
+                case VirtualKey.Number3 or VirtualKey.NumberPad3:
+                    OnOpenExtensionDocsClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
+                case VirtualKey.Number4 or VirtualKey.NumberPad4:
+                    OnCopyCliCommandClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
+                case VirtualKey.Number5 or VirtualKey.NumberPad5:
+                    OnLaunchExpressClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
+                case VirtualKey.Number6 or VirtualKey.NumberPad6:
+                    OnOpenGalaxyClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
+                case VirtualKey.F1 or (VirtualKey)191:
+                    ShortcutsFlyout?.ShowAt(ShortcutsHelpButton);
+                    e.Handled = true;
+                    return;
+            }
+        }
+
         if (ctrl && !shift && !alt)
         {
             if (e.Key == VirtualKey.O)
@@ -583,6 +618,11 @@ public sealed partial class SuiteHubView : UserControl
             CopyFeedback.ApplyButtonTick(anchorButton, error);
         }
         SetNotification(error is null ? successMessage : $"Nothing was copied. {error}", success: error is null);
+    }
+
+    private void OnShortcutsHelpClick(object sender, RoutedEventArgs e)
+    {
+        ShortcutsFlyout?.ShowAt(ShortcutsHelpButton);
     }
 
     private void OnOpenConfigFolderClick(object sender, RoutedEventArgs e)
