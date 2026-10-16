@@ -355,7 +355,7 @@ public static class ContrastGuard
             if (explicitColor is not null)
             {
                 var rawHex = NormalizeHex(explicitColor.Val?.Value);
-                var minRatio = (root is W.Header or W.Footer || IsDarkPage(effectiveBg)) ? MinimumContrastRatio : 3.0;
+                var minRatio = (root is W.Header or W.Footer || GetLuminance(effectiveBg) < 0.5) ? 4.5 : 3.0;
                 var guarded = rawHex is not null && GetContrastRatio(rawHex, effectiveBg) >= minRatio
                     ? rawHex
                     : localFallback;

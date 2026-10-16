@@ -1928,13 +1928,15 @@ namespace MarkSmith.Views.ShapeStudio
                     Fill = new SolidColorBrush(Microsoft.UI.Colors.White),
                     Stroke = new SolidColorBrush(AccentColor(0xFF)),
                 };
-                ToolTipService.SetToolTip(h, "Drag to re-route · it snaps to a shape's side or centre (Alt: no snap)");
+                ToolTipService.SetToolTip(h, "Drag to re-route · it snaps to a shape's side or centre (Alt: no snap) · Double-click to reset/reverse · Right-click for options");
                 SetCursor(h, Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
                 h.PointerEntered += (_, _) => h.Fill = new SolidColorBrush(AccentColor(0x38));
                 h.PointerExited += (_, _) => h.Fill = new SolidColorBrush(Microsoft.UI.Colors.White);
                 h.PointerPressed += OnPointHandlePressed;
                 h.PointerMoved += OnPointHandleMoved;
                 h.PointerReleased += OnPointHandleReleased;
+                h.DoubleTapped += OnPointHandleDoubleTapped;
+                h.RightTapped += OnPointHandleRightTapped;
                 h.PointerCaptureLost += (_, _) => { _pointIndex = -1; if (_snapRing is not null) _snapRing.Visibility = Visibility.Collapsed; };
                 _pointAdorner.Children.Add(h);
                 _pointHandles.Add(h);
@@ -2001,6 +2003,154 @@ namespace MarkSmith.Views.ShapeStudio
             if (_pointMoved) ViewModel.StatusMessage = "Line re-routed · Ctrl+Z to undo";
             _pointIndex = -1;
             e.Handled = true;
+        }
+
+        private void OnPointHandleDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (sender is not Microsoft.UI.Xaml.Shapes.Ellipse h || _adornedShape is not { } line) return;
+            int idx = _pointHandles.IndexOf(h);
+            var points = ShapeDesignStudioViewModel.ConnectorPoints(line);
+            if (idx < 0 || idx >= points.Count) return;
+
+            e.Handled = true;
+            ViewModel.RecordUndo();
+
+            bool isEnd = idx == 0 || idx == points.Count - 1;
+            if (isEnd)
+            {
+                points.Reverse();
+                ShapeDesignStudioViewModel.SetConnectorPoints(line, points);
+                ViewModel.StatusMessage = "Connector reversed (start and end swapped) · Ctrl+Z to undo";
+            }
+            else
+            {
+                if (points.Count == 3)
+                {
+                    double midX = (points[0].X + points[2].X) / 2.0;
+                    double midY = (points[0].Y + points[2].Y) / 2.0;
+                    points[idx] = (midX, midY);
+                    ShapeDesignStudioViewModel.SetConnectorPoints(line, points);
+                    ViewModel.StatusMessage = "Bend point centered between line ends · Ctrl+Z to undo";
+                }
+                else
+                {
+                    double midX = (points[idx - 1].X + points[idx + 1].X) / 2.0;
+                    double midY = (points[idx - 1].Y + points[idx + 1].Y) / 2.0;
+                    points[idx] = (midX, midY);
+                    ShapeDesignStudioViewModel.SetConnectorPoints(line, points);
+                    ViewModel.StatusMessage = $"Bend {idx} centered between neighbours · Ctrl+Z to undo";
+                }
+            }
+            UpdatePointHandles(line);
+        }
+
+        private void OnPointHandleRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (sender is not Microsoft.UI.Xaml.Shapes.Ellipse h || _adornedShape is not { } line) return;
+            int idx = _pointHandles.IndexOf(h);
+            var points = ShapeDesignStudioViewModel.ConnectorPoints(line);
+            if (idx < 0 || idx >= points.Count) return;
+
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            bool isEnd = idx == 0 || idx == points.Count - 1;
+            string ptLabel = idx == 0 ? "Line start" : idx == points.Count - 1 ? "Line end" : $"Bend {idx}";
+
+            flyout.Items.Add(ShapeMenuItem("Reverse direction (swap ends)", "\uE747", () =>
+            {
+                ViewModel.RecordUndo();
+                var pts = ShapeDesignStudioViewModel.ConnectorPoints(line);
+                pts.Reverse();
+                ShapeDesignStudioViewModel.SetConnectorPoints(line, pts);
+                ViewModel.StatusMessage = "Connector reversed · Ctrl+Z to undo";
+                UpdatePointHandles(line);
+            }));
+
+            if (!isEnd)
+            {
+                flyout.Items.Add(ShapeMenuItem("Center bend between ends", "\uE790", () =>
+                {
+                    ViewModel.RecordUndo();
+                    var pts = ShapeDesignStudioViewModel.ConnectorPoints(line);
+                    if (idx < pts.Count)
+                    {
+                        pts[idx] = ((pts[0].X + pts[^1].X) / 2.0, (pts[0].Y + pts[^1].Y) / 2.0);
+                        ShapeDesignStudioViewModel.SetConnectorPoints(line, pts);
+                        ViewModel.StatusMessage = "Bend centered · Ctrl+Z to undo";
+                        UpdatePointHandles(line);
+                    }
+                }));
+
+                flyout.Items.Add(ShapeMenuItem("Align horizontally with start", "\uE783", () =>
+                {
+                    ViewModel.RecordUndo();
+                    var pts = ShapeDesignStudioViewModel.ConnectorPoints(line);
+                    if (idx < pts.Count)
+                    {
+                        pts[idx] = (pts[idx].X, pts[0].Y);
+                        ShapeDesignStudioViewModel.SetConnectorPoints(line, pts);
+                        ViewModel.StatusMessage = "Bend aligned horizontally with start · Ctrl+Z to undo";
+                        UpdatePointHandles(line);
+                    }
+                }));
+
+                flyout.Items.Add(ShapeMenuItem("Align vertically with end", "\uE784", () =>
+                {
+                    ViewModel.RecordUndo();
+                    var pts = ShapeDesignStudioViewModel.ConnectorPoints(line);
+                    if (idx < pts.Count)
+                    {
+                        pts[idx] = (pts[^1].X, pts[idx].Y);
+                        ShapeDesignStudioViewModel.SetConnectorPoints(line, pts);
+                        ViewModel.StatusMessage = "Bend aligned vertically with end · Ctrl+Z to undo";
+                        UpdatePointHandles(line);
+                    }
+                }));
+
+                if (points.Count > 2)
+                {
+                    flyout.Items.Add(ShapeMenuItem("Straighten line (remove bend)", "\uE74D", () =>
+                    {
+                        ViewModel.RecordUndo();
+                        var pts = ShapeDesignStudioViewModel.ConnectorPoints(line);
+                        if (pts.Count > idx)
+                        {
+                            pts.RemoveAt(idx);
+                            ShapeDesignStudioViewModel.SetConnectorPoints(line, pts);
+                            ViewModel.StatusMessage = "Bend removed (straightened) · Ctrl+Z to undo";
+                            UpdatePointHandles(line);
+                        }
+                    }));
+                }
+            }
+            else
+            {
+                flyout.Items.Add(ShapeMenuItem("Snap to nearest shape anchor", "\uE71B", () =>
+                {
+                    var pt = points[idx];
+                    if (ViewModel.SnapTarget(pt.X, pt.Y, line, radius: 48) is { } target)
+                    {
+                        ViewModel.RecordUndo();
+                        var res = ViewModel.MoveConnectorPoint(line, idx, target.X, target.Y, snap: true);
+                        ViewModel.StatusMessage = res != null ? $"Snapped to {res.DisplayName.ToLowerInvariant()}" : "Snapped to shape";
+                        UpdatePointHandles(line);
+                    }
+                    else
+                    {
+                        ViewModel.StatusMessage = "No shape anchor found within 48 px";
+                    }
+                }));
+            }
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            var curPt = points[idx];
+            flyout.Items.Add(ShapeMenuItem($"Copy {ptLabel.ToLowerInvariant()} coordinates ({curPt.X:F0}, {curPt.Y:F0})", "\uE8C8", () =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync($"({curPt.X:F0}, {curPt.Y:F0})");
+                ViewModel.StatusMessage = $"Copied coordinates ({curPt.X:F0}, {curPt.Y:F0}) to clipboard";
+            }));
+
+            flyout.ShowAt(h, e.GetPosition(h));
         }
 
         // ---- cursors ----
@@ -2815,6 +2965,22 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.ShowAt(PresetList, e.GetPosition(PresetList));
         }
 
+        private void OnPaletteGridDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (PaletteGrid is null) return;
+            string currentTool = (PaletteGrid.SelectedItem as string) ?? ViewModel.ArmedTool ?? "roundrect";
+            e.Handled = true;
+
+            double cx = 220, cy = 160;
+            if (ViewModel.SelectedShape is { } sel)
+            {
+                cx = sel.X + sel.Width + 20;
+                cy = sel.Y;
+            }
+            ViewModel.AddShapeAt(currentTool, cx, cy);
+            ViewModel.StatusMessage = $"Inserted '{currentTool}' shape at ({cx:F0}, {cy:F0}) · Drag to position";
+        }
+
         private void OnPaletteGridRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             if (PaletteGrid is null) return;
@@ -2834,6 +3000,38 @@ namespace MarkSmith.Views.ShapeStudio
                 ViewModel.AddShapeAt(currentTool, 220, 160);
                 ViewModel.StatusMessage = $"Inserted '{currentTool}' shape.";
             }));
+
+            var insertPresetSubmenu = new MenuFlyoutSubItem
+            {
+                Text = $"Insert '{currentTool}' with preset dimensions",
+                Icon = new FontIcon { Glyph = "\uE790" }
+            };
+            insertPresetSubmenu.Items.Add(ShapeMenuItem("Standard (120 × 80)", "\uE710", () =>
+            {
+                ViewModel.AddShapeAt(currentTool, 220, 160, 120, 80);
+                ViewModel.StatusMessage = $"Inserted standard 120×80 '{currentTool}'.";
+            }));
+            insertPresetSubmenu.Items.Add(ShapeMenuItem("Square (100 × 100)", "\uE710", () =>
+            {
+                ViewModel.AddShapeAt(currentTool, 220, 160, 100, 100);
+                ViewModel.StatusMessage = $"Inserted square 100×100 '{currentTool}'.";
+            }));
+            insertPresetSubmenu.Items.Add(ShapeMenuItem("Wide Card (200 × 80)", "\uE710", () =>
+            {
+                ViewModel.AddShapeAt(currentTool, 220, 160, 200, 80);
+                ViewModel.StatusMessage = $"Inserted wide 200×80 '{currentTool}'.";
+            }));
+            insertPresetSubmenu.Items.Add(ShapeMenuItem("Compact (80 × 50)", "\uE710", () =>
+            {
+                ViewModel.AddShapeAt(currentTool, 220, 160, 80, 50);
+                ViewModel.StatusMessage = $"Inserted compact 80×50 '{currentTool}'.";
+            }));
+            insertPresetSubmenu.Items.Add(ShapeMenuItem("Banner (300 × 60)", "\uE710", () =>
+            {
+                ViewModel.AddShapeAt(currentTool, 220, 160, 300, 60);
+                ViewModel.StatusMessage = $"Inserted banner 300×60 '{currentTool}'.";
+            }));
+            flyout.Items.Add(insertPresetSubmenu);
 
             if (ViewModel.IsPlacing)
             {

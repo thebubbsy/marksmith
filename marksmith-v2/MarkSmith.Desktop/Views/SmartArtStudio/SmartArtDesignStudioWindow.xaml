@@ -215,10 +215,10 @@
                                 <FontIcon Glyph="&#xE74D;" FontSize="14" />
                             </Button>
                             <Rectangle Width="1" Height="20" Margin="4,0" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center" />
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding MoveUpCommand}" IsEnabled="{Binding CanMoveUp}" AutomationProperties.Name="Move up" RightTapped="OnOutlineToolbarRightTapped" ToolTipService.ToolTip="Move up (Alt+Up, Right-click for options)"><FontIcon Glyph="&#xE74A;" FontSize="14" /></Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding MoveDownCommand}" IsEnabled="{Binding CanMoveDown}" AutomationProperties.Name="Move down" RightTapped="OnOutlineToolbarRightTapped" ToolTipService.ToolTip="Move down (Alt+Down, Right-click for options)"><FontIcon Glyph="&#xE74B;" FontSize="14" /></Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding PromoteCommand}" IsEnabled="{Binding CanPromote}" AutomationProperties.Name="Promote" RightTapped="OnOutlineToolbarRightTapped" ToolTipService.ToolTip="Promote — move one level out (Shift+Tab or Alt+Left, Right-click for options)"><FontIcon Glyph="&#xE76B;" FontSize="14" /></Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DemoteCommand}" IsEnabled="{Binding CanDemote}" AutomationProperties.Name="Demote" RightTapped="OnOutlineToolbarRightTapped" ToolTipService.ToolTip="Demote — move one level in (Tab or Alt+Right, Right-click for options)"><FontIcon Glyph="&#xE76C;" FontSize="14" /></Button>
+                            <Button x:Name="MoveUpButton" Style="{StaticResource ToolIconButton}" Command="{Binding MoveUpCommand}" IsEnabled="{Binding CanMoveUp}" AutomationProperties.Name="Move up" DoubleTapped="OnMoveUpButtonDoubleTapped" RightTapped="OnMoveUpButtonRightTapped" ToolTipService.ToolTip="Move up (Alt+Up · Double-click to move to top · Right-click for options)"><FontIcon Glyph="&#xE74A;" FontSize="14" /></Button>
+                            <Button x:Name="MoveDownButton" Style="{StaticResource ToolIconButton}" Command="{Binding MoveDownCommand}" IsEnabled="{Binding CanMoveDown}" AutomationProperties.Name="Move down" DoubleTapped="OnMoveDownButtonDoubleTapped" RightTapped="OnMoveDownButtonRightTapped" ToolTipService.ToolTip="Move down (Alt+Down · Double-click to move to bottom · Right-click for options)"><FontIcon Glyph="&#xE74B;" FontSize="14" /></Button>
+                            <Button x:Name="PromoteButton" Style="{StaticResource ToolIconButton}" Command="{Binding PromoteCommand}" IsEnabled="{Binding CanPromote}" AutomationProperties.Name="Promote" DoubleTapped="OnPromoteButtonDoubleTapped" RightTapped="OnPromoteButtonRightTapped" ToolTipService.ToolTip="Promote — move one level out (Shift+Tab · Double-click to promote to root · Right-click for options)"><FontIcon Glyph="&#xE76B;" FontSize="14" /></Button>
+                            <Button x:Name="DemoteButton" Style="{StaticResource ToolIconButton}" Command="{Binding DemoteCommand}" IsEnabled="{Binding CanDemote}" AutomationProperties.Name="Demote" DoubleTapped="OnDemoteButtonDoubleTapped" RightTapped="OnDemoteButtonRightTapped" ToolTipService.ToolTip="Demote — move one level in (Tab · Double-click to demote to deepest level · Right-click for options)"><FontIcon Glyph="&#xE76C;" FontSize="14" /></Button>
                         </StackPanel>
 
                         <!-- One row per item, indented by depth; double-click or F2 renames inline. The
@@ -254,16 +254,16 @@
                                                          Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}"
                                                          KeyDown="OnRenameKeyDown" LostFocus="OnRenameLostFocus"
                                                          FontSize="13" Padding="6,3" MinHeight="28" />
-                                                <Button Grid.Column="2" Click="OnRowAddChildClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0" Margin="4,0,0,0"
+                                                <Button Grid.Column="2" Click="OnRowAddChildClick" DoubleTapped="OnRowAddChildDoubleTapped" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0" Margin="4,0,0,0"
                                                         Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"
                                                         RightTapped="OnRowRightTapped"
-                                                        AutomationProperties.Name="Add child" ToolTipService.ToolTip="Add child (Insert · Right-click for item options)" VerticalAlignment="Center">
+                                                        AutomationProperties.Name="Add child" ToolTipService.ToolTip="Add child (Insert · Double-click to add sibling · Right-click for options)" VerticalAlignment="Center">
                                                     <FontIcon Glyph="&#xE710;" FontSize="12" />
                                                 </Button>
-                                                <Button Grid.Column="3" Click="OnRowDeleteClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0"
+                                                <Button Grid.Column="3" Click="OnRowDeleteClick" DoubleTapped="OnRowDeleteDoubleTapped" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0"
                                                         Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"
                                                         RightTapped="OnRowRightTapped"
-                                                        AutomationProperties.Name="Delete item" ToolTipService.ToolTip="Delete (Del · Right-click for item options)" VerticalAlignment="Center">
+                                                        AutomationProperties.Name="Delete item" ToolTipService.ToolTip="Delete (Del · Double-click to delete item and all children · Right-click for options)" VerticalAlignment="Center">
                                                     <FontIcon Glyph="&#xE74D;" FontSize="12" />
                                                 </Button>
                                                 <Button Grid.Column="2" Click="OnRowCommitRenameClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0" Margin="4,0,0,0"

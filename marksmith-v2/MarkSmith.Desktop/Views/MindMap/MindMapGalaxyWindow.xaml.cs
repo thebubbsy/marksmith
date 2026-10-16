@@ -520,6 +520,105 @@ namespace MarkSmith.Views.MindMap
             menu.ShowAt(TagsBox, e.GetPosition(TagsBox));
         }
 
+        private void OnNodeIconBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (ViewModel.SelectedNode is not { } node) return;
+            e.Handled = true;
+
+            if (!string.IsNullOrEmpty(node.Icon))
+            {
+                node.Icon = string.Empty;
+                if (NodeIconBox != null) NodeIconBox.Text = string.Empty;
+                UpdateAppearance();
+                ViewModel.StatusMessage = $"Cleared icon for '{node.Title}' · Ctrl+Z to undo";
+            }
+            else
+            {
+                node.Icon = "\uE735"; // Default star
+                if (NodeIconBox != null) NodeIconBox.Text = node.Icon;
+                UpdateAppearance();
+                ViewModel.StatusMessage = $"Set default star icon for '{node.Title}'";
+            }
+        }
+
+        private void OnNodeIconBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (ViewModel.SelectedNode is null) return;
+            e.Handled = true;
+            ShowNodeIconPickerFlyout(sender as FrameworkElement ?? NodeIconBox ?? (FrameworkElement)this.Content, e.GetPosition(sender as UIElement));
+        }
+
+        private void OnNodeIconPickerButtonClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedNode is null) return;
+            ShowNodeIconPickerFlyout(NodeIconPickerButton ?? sender as FrameworkElement ?? (FrameworkElement)this.Content, new Point(0, 32));
+        }
+
+        private void ShowNodeIconPickerFlyout(FrameworkElement target, Point pos)
+        {
+            if (ViewModel.SelectedNode is not { } node) return;
+            var menu = new MenuFlyout();
+
+            void ApplyIcon(string glyph, string label)
+            {
+                node.Icon = glyph;
+                if (NodeIconBox != null) NodeIconBox.Text = glyph;
+                UpdateAppearance();
+                ViewModel.StatusMessage = string.IsNullOrEmpty(glyph) ? $"Cleared icon for '{node.Title}'" : $"Set icon to {label} for '{node.Title}'";
+            }
+
+            var docCategory = new MenuFlyoutSubItem { Text = "Documents & Files", Icon = new FontIcon { Glyph = "\uE8A5" } };
+            AddIconItem(docCategory, "Document (\uE8A5)", "\uE8A5", () => ApplyIcon("\uE8A5", "Document"));
+            AddIconItem(docCategory, "Note / Page (\uE70B)", "\uE70B", () => ApplyIcon("\uE70B", "Note"));
+            AddIconItem(docCategory, "Folder (\uE82D)", "\uE82D", () => ApplyIcon("\uE82D", "Folder"));
+            AddIconItem(docCategory, "Diagram (\uE8C8)", "\uE8C8", () => ApplyIcon("\uE8C8", "Diagram"));
+            AddIconItem(docCategory, "Book / Guide (\uE7BC)", "\uE7BC", () => ApplyIcon("\uE7BC", "Book"));
+            menu.Items.Add(docCategory);
+
+            var statusCategory = new MenuFlyoutSubItem { Text = "Status & Markers", Icon = new FontIcon { Glyph = "\uE73E" } };
+            AddIconItem(statusCategory, "Completed (\uE73E)", "\uE73E", () => ApplyIcon("\uE73E", "Completed"));
+            AddIconItem(statusCategory, "Star / Priority (\uE735)", "\uE735", () => ApplyIcon("\uE735", "Star"));
+            AddIconItem(statusCategory, "Milestone Flag (\uE7C1)", "\uE7C1", () => ApplyIcon("\uE7C1", "Flag"));
+            AddIconItem(statusCategory, "Warning / Risk (\uE7BA)", "\uE7BA", () => ApplyIcon("\uE7BA", "Warning"));
+            AddIconItem(statusCategory, "Pinned (\uE782)", "\uE782", () => ApplyIcon("\uE782", "Pinned"));
+            menu.Items.Add(statusCategory);
+
+            var conceptCategory = new MenuFlyoutSubItem { Text = "Concepts & System", Icon = new FontIcon { Glyph = "\uEA80" } };
+            AddIconItem(conceptCategory, "Lightbulb / Idea (\uEA80)", "\uEA80", () => ApplyIcon("\uEA80", "Idea"));
+            AddIconItem(conceptCategory, "Brain / AI (\uE945)", "\uE945", () => ApplyIcon("\uE945", "Brain"));
+            AddIconItem(conceptCategory, "Gear / Config (\uE71D)", "\uE71D", () => ApplyIcon("\uE71D", "Config"));
+            conceptCategory.Items.Add(new MenuFlyoutSeparator());
+            AddIconItem(conceptCategory, "Network / Globe (\uE774)", "\uE774", () => ApplyIcon("\uE774", "Network"));
+            AddIconItem(conceptCategory, "Link (\uE71B)", "\uE71B", () => ApplyIcon("\uE71B", "Link"));
+            menu.Items.Add(conceptCategory);
+
+            var emojiCategory = new MenuFlyoutSubItem { Text = "Popular Emojis", Icon = new FontIcon { Glyph = "\uE76E" } };
+            AddIconItem(emojiCategory, "💡 Idea", "", () => ApplyIcon("💡", "Idea"));
+            AddIconItem(emojiCategory, "⭐ Star", "", () => ApplyIcon("⭐", "Star"));
+            AddIconItem(emojiCategory, "🚀 Launch", "", () => ApplyIcon("🚀", "Launch"));
+            AddIconItem(emojiCategory, "🎯 Goal", "", () => ApplyIcon("🎯", "Goal"));
+            AddIconItem(emojiCategory, "🔥 Hot", "", () => ApplyIcon("🔥", "Hot"));
+            AddIconItem(emojiCategory, "📝 Notes", "", () => ApplyIcon("📝", "Notes"));
+            AddIconItem(emojiCategory, "✅ Done", "", () => ApplyIcon("✅", "Done"));
+            menu.Items.Add(emojiCategory);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var clearItem = MenuItem("Clear icon", "\uE74D");
+            clearItem.IsEnabled = !string.IsNullOrEmpty(node.Icon);
+            clearItem.Click += (_, _) => ApplyIcon(string.Empty, "Clear");
+            menu.Items.Add(clearItem);
+
+            menu.ShowAt(target, pos);
+
+            void AddIconItem(MenuFlyoutSubItem parent, string text, string glyph, Action act)
+            {
+                var item = MenuItem(text, glyph);
+                item.Click += (_, _) => act();
+                parent.Items.Add(item);
+            }
+        }
+
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)
         {
             if (!_initialized)
@@ -3989,6 +4088,13 @@ namespace MarkSmith.Views.MindMap
             RequestRedraw(RedrawScope.Transform);
         }
 
+        private void OnMinimapOverlayDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OnFitToWindowClick(sender, new RoutedEventArgs());
+            ViewModel.StatusMessage = "Fitted all nodes in window (double-click)";
+        }
+
         private void OnMinimapOverlayRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
@@ -4002,6 +4108,21 @@ namespace MarkSmith.Views.MindMap
             };
             fitItem.Click += OnFitToWindowClick;
             menu.Items.Add(fitItem);
+
+            if (ViewModel.SelectedNode is { } selNode)
+            {
+                var focusItem = new MenuFlyoutItem
+                {
+                    Text = $"Focus on selected node ({selNode.Title})",
+                    Icon = new FontIcon { Glyph = "\uE8A5" }
+                };
+                focusItem.Click += (_, _) =>
+                {
+                    ViewModel.CenterOn(selNode);
+                    ViewModel.StatusMessage = $"Centered view on '{selNode.Title}'";
+                };
+                menu.Items.Add(focusItem);
+            }
 
             var resetZoomItem = new MenuFlyoutItem
             {
@@ -4045,6 +4166,19 @@ namespace MarkSmith.Views.MindMap
                 ViewModel.HidePreviewCard();
             };
             menu.Items.Add(clearSelItem);
+
+            var copyStatsItem = new MenuFlyoutItem
+            {
+                Text = $"Copy map summary ({ViewModel.Nodes.Count} nodes, {ViewModel.Links.Count} links)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyStatsItem.Click += (_, _) =>
+            {
+                string summary = $"MarkSmith MindMap Galaxy: {ViewModel.Nodes.Count} nodes, {ViewModel.Links.Count} links";
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(summary);
+                ViewModel.StatusMessage = $"Copied: {summary}";
+            };
+            menu.Items.Add(copyStatsItem);
 
             if (sender is FrameworkElement fe)
                 menu.ShowAt(fe, e.GetPosition(fe));

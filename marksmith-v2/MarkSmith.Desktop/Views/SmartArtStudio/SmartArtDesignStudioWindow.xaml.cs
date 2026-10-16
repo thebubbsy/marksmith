@@ -660,6 +660,23 @@ namespace MarkSmith.Views.SmartArtStudio
                 e.Handled = true;
                 return;
             }
+            if (Down(VirtualKey.Menu))
+            {
+                if (e.Key == VirtualKey.Home && ViewModel.CanMoveUp)
+                {
+                    while (ViewModel.CanMoveUp) ViewModel.MoveUpCommand.Execute(null);
+                    ViewModel.StatusMessage = "Moved item to top of outline · Alt+Up to adjust";
+                    e.Handled = true;
+                    return;
+                }
+                if (e.Key == VirtualKey.End && ViewModel.CanMoveDown)
+                {
+                    while (ViewModel.CanMoveDown) ViewModel.MoveDownCommand.Execute(null);
+                    ViewModel.StatusMessage = "Moved item to bottom of outline · Alt+Down to adjust";
+                    e.Handled = true;
+                    return;
+                }
+            }
             SmartArtDesignStudioViewModel.OutlineKey? key = e.Key switch
             {
                 VirtualKey.Up => SmartArtDesignStudioViewModel.OutlineKey.Up,
@@ -730,10 +747,205 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnRowAddChildDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is StudioNodeViewModel node)
+            {
+                e.Handled = true;
+                ViewModel.AddSiblingCommand.Execute(node);
+                FocusRenameBox();
+                ViewModel.StatusMessage = "Added sibling item (double-click) · Enter text";
+            }
+        }
+
         private void OnRowDeleteClick(object sender, RoutedEventArgs e)
         {
             if ((sender as FrameworkElement)?.DataContext is StudioNodeViewModel node)
                 ViewModel.DeleteSelectedCommand.Execute(node);
+        }
+
+        private void OnRowDeleteDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is StudioNodeViewModel node)
+            {
+                e.Handled = true;
+                ViewModel.DeleteSelectedCommand.Execute(node);
+                ViewModel.StatusMessage = "Deleted item · Ctrl+Z to undo";
+            }
+        }
+
+        private void OnMoveUpButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (!ViewModel.CanMoveUp) return;
+            int count = 0;
+            while (ViewModel.CanMoveUp)
+            {
+                ViewModel.MoveUpCommand.Execute(null);
+                count++;
+            }
+            ViewModel.StatusMessage = $"Moved item to top of outline ({count} steps) · Alt+Up to adjust";
+        }
+
+        private void OnMoveUpButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+            var moveToTopItem = new MenuFlyoutItem
+            {
+                Text = "Move to top (Alt+Home / double-click)",
+                Icon = new FontIcon { Glyph = "\uE898" },
+                IsEnabled = ViewModel.CanMoveUp
+            };
+            moveToTopItem.Click += (_, _) =>
+            {
+                int c = 0;
+                while (ViewModel.CanMoveUp) { ViewModel.MoveUpCommand.Execute(null); c++; }
+                ViewModel.StatusMessage = $"Moved item to top of outline ({c} steps)";
+            };
+            menu.Items.Add(moveToTopItem);
+
+            var moveUpItem = new MenuFlyoutItem
+            {
+                Text = "Move up one (Alt+Up)",
+                Icon = new FontIcon { Glyph = "\uE74A" },
+                IsEnabled = ViewModel.CanMoveUp
+            };
+            moveUpItem.Click += (_, _) => ViewModel.MoveUpCommand.Execute(null);
+            menu.Items.Add(moveUpItem);
+
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
+            else if (MoveUpButton is not null) menu.ShowAt(MoveUpButton, e.GetPosition(MoveUpButton));
+        }
+
+        private void OnMoveDownButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (!ViewModel.CanMoveDown) return;
+            int count = 0;
+            while (ViewModel.CanMoveDown)
+            {
+                ViewModel.MoveDownCommand.Execute(null);
+                count++;
+            }
+            ViewModel.StatusMessage = $"Moved item to bottom of outline ({count} steps) · Alt+Down to adjust";
+        }
+
+        private void OnMoveDownButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+            var moveToBottomItem = new MenuFlyoutItem
+            {
+                Text = "Move to bottom (Alt+End / double-click)",
+                Icon = new FontIcon { Glyph = "\uE896" },
+                IsEnabled = ViewModel.CanMoveDown
+            };
+            moveToBottomItem.Click += (_, _) =>
+            {
+                int c = 0;
+                while (ViewModel.CanMoveDown) { ViewModel.MoveDownCommand.Execute(null); c++; }
+                ViewModel.StatusMessage = $"Moved item to bottom of outline ({c} steps)";
+            };
+            menu.Items.Add(moveToBottomItem);
+
+            var moveDownItem = new MenuFlyoutItem
+            {
+                Text = "Move down one (Alt+Down)",
+                Icon = new FontIcon { Glyph = "\uE74B" },
+                IsEnabled = ViewModel.CanMoveDown
+            };
+            moveDownItem.Click += (_, _) => ViewModel.MoveDownCommand.Execute(null);
+            menu.Items.Add(moveDownItem);
+
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
+            else if (MoveDownButton is not null) menu.ShowAt(MoveDownButton, e.GetPosition(MoveDownButton));
+        }
+
+        private void OnPromoteButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (!ViewModel.CanPromote) return;
+            int count = 0;
+            while (ViewModel.CanPromote)
+            {
+                ViewModel.PromoteCommand.Execute(null);
+                count++;
+            }
+            ViewModel.StatusMessage = "Promoted item to root level (depth 0) · Shift+Tab to adjust";
+        }
+
+        private void OnPromoteButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+            var promoteRootItem = new MenuFlyoutItem
+            {
+                Text = "Promote to root level (depth 0 / double-click)",
+                Icon = new FontIcon { Glyph = "\uE897" },
+                IsEnabled = ViewModel.CanPromote
+            };
+            promoteRootItem.Click += (_, _) =>
+            {
+                while (ViewModel.CanPromote) ViewModel.PromoteCommand.Execute(null);
+                ViewModel.StatusMessage = "Promoted item to root level (depth 0)";
+            };
+            menu.Items.Add(promoteRootItem);
+
+            var promoteOneItem = new MenuFlyoutItem
+            {
+                Text = "Promote one level out (Shift+Tab)",
+                Icon = new FontIcon { Glyph = "\uE76B" },
+                IsEnabled = ViewModel.CanPromote
+            };
+            promoteOneItem.Click += (_, _) => ViewModel.PromoteCommand.Execute(null);
+            menu.Items.Add(promoteOneItem);
+
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
+            else if (PromoteButton is not null) menu.ShowAt(PromoteButton, e.GetPosition(PromoteButton));
+        }
+
+        private void OnDemoteButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (!ViewModel.CanDemote) return;
+            int count = 0;
+            while (ViewModel.CanDemote)
+            {
+                ViewModel.DemoteCommand.Execute(null);
+                count++;
+            }
+            ViewModel.StatusMessage = $"Demoted item to deepest child level ({count} levels in) · Tab to adjust";
+        }
+
+        private void OnDemoteButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+            var demoteDeepestItem = new MenuFlyoutItem
+            {
+                Text = "Demote to deepest child level (double-click)",
+                Icon = new FontIcon { Glyph = "\uE895" },
+                IsEnabled = ViewModel.CanDemote
+            };
+            demoteDeepestItem.Click += (_, _) =>
+            {
+                while (ViewModel.CanDemote) ViewModel.DemoteCommand.Execute(null);
+                ViewModel.StatusMessage = "Demoted item to deepest child level";
+            };
+            menu.Items.Add(demoteDeepestItem);
+
+            var demoteOneItem = new MenuFlyoutItem
+            {
+                Text = "Demote one level in (Tab)",
+                Icon = new FontIcon { Glyph = "\uE76C" },
+                IsEnabled = ViewModel.CanDemote
+            };
+            demoteOneItem.Click += (_, _) => ViewModel.DemoteCommand.Execute(null);
+            menu.Items.Add(demoteOneItem);
+
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
+            else if (DemoteButton is not null) menu.ShowAt(DemoteButton, e.GetPosition(DemoteButton));
         }
 
         private void OnRowCommitRenameClick(object sender, RoutedEventArgs e)
@@ -1172,6 +1384,20 @@ namespace MarkSmith.Views.SmartArtStudio
 
             menu.Items.Add(new MenuFlyoutSeparator());
 
+            var moveToTopItem = new MenuFlyoutItem
+            {
+                Text = "Move to top (Alt+Home / double-click)",
+                Icon = new FontIcon { Glyph = "\uE898" },
+                IsEnabled = ViewModel.CanMoveUp
+            };
+            moveToTopItem.Click += (_, _) =>
+            {
+                int c = 0;
+                while (ViewModel.CanMoveUp) { ViewModel.MoveUpCommand.Execute(null); c++; }
+                ViewModel.StatusMessage = $"Moved item to top of outline ({c} steps)";
+            };
+            menu.Items.Add(moveToTopItem);
+
             var moveUpItem = new MenuFlyoutItem
             {
                 Text = "Move up (Alt+Up)",
@@ -1189,6 +1415,20 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             moveDownItem.Click += (_, _) => ViewModel.MoveDownCommand.Execute(null);
             menu.Items.Add(moveDownItem);
+
+            var moveToBottomItem = new MenuFlyoutItem
+            {
+                Text = "Move to bottom (Alt+End / double-click)",
+                Icon = new FontIcon { Glyph = "\uE896" },
+                IsEnabled = ViewModel.CanMoveDown
+            };
+            moveToBottomItem.Click += (_, _) =>
+            {
+                int c = 0;
+                while (ViewModel.CanMoveDown) { ViewModel.MoveDownCommand.Execute(null); c++; }
+                ViewModel.StatusMessage = $"Moved item to bottom of outline ({c} steps)";
+            };
+            menu.Items.Add(moveToBottomItem);
 
             var promoteItem = new MenuFlyoutItem
             {

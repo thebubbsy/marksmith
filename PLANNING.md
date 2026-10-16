@@ -8405,3 +8405,74 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 27012, clean startup and shutdown.
+
+
+
+
+### 2026-10-16 16:30 AEST (run #111: Shape Studio connector points editing gestures & palette double-tap drop, SmartArt Studio outline move/indent buttons extreme jump & row actions, MindMap Galaxy icon picker flyout & minimap double-tap re-center)
+
+- **Surface:** `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `MindMapGalaxyWindow` (and `ContrastGuard` in `MarkSmith.Core`).
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, pointer gesture quarantine, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #110:
+    * Target A: `ShapeDesignStudioWindow` connector bend points editing gestures.
+    * Target B: `SmartArtDesignStudioWindow` outline node move up/down double-tap jump to top/bottom.
+    * Target C: `MindMapGalaxyWindow` icon picker flyout & double-tap remove icon.
+  - Generated:
+    1. `ShapeDesignStudioWindow` Connector Point Handles Double-Tap Reset & Context Menu Route Controls (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`)
+    2. `SmartArtDesignStudioWindow` Outline Toolbar Move/Indent Buttons Double-Tap Extreme Jump & Right-Click Presets (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: In `ShapeDesignStudioWindow.xaml.cs`, attached `DoubleTapped` and `RightTapped` on point handles (`_pointHandles`). On double-tap of endpoint: swaps start and end points (`points.Reverse()`), updating layout and announcing reverse. On double-tap of bend point: centers the bend point between adjacent endpoints / straightens elbow. On right-tap: opens a contextual routing flyout with "Reverse direction (swap ends)", "Center bend between ends", "Align horizontally with start", "Align vertically with end", "Straighten line (remove bend)", "Snap to nearest shape anchor", and "Copy coordinates".
+    * For Idea 2: In `SmartArtDesignStudioWindow.xaml` & `.xaml.cs`, assigned `x:Name` and attached `DoubleTapped` and `RightTapped` on `MoveUpButton`, `MoveDownButton`, `PromoteButton`, and `DemoteButton`. Double-tap `MoveUp` jumps item directly to top of outline; double-tap `MoveDown` jumps item directly to bottom of outline; double-tap `Promote` promotes directly to root level (depth 0); double-tap `Demote` demotes directly to deepest valid child level. Right-tap on Move/Indent buttons presents contextual jump and step submenus.
+  - Generated:
+    3. `MindMapGalaxyWindow` Node Inspector Icon Quick Picker Flyout & Double-Tap Clear (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`)
+    4. `MindMapGalaxyWindow` Minimap Overlay Double-Tap Re-Center & Navigation Context Menu (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: In `MindMapGalaxyWindow.xaml` & `.xaml.cs`, enhanced the Icon inspector section with `NodeIconBox` and dedicated `NodeIconPickerButton` (`\uE790`). Double-tap on `NodeIconBox` clears the current icon or sets default star `\uE735`. Right-tap or single-click on picker button opens a categorized icon picker flyout (Documents & Files, Status & Markers, Concepts & System, Popular Emojis, Clear icon).
+    * For Idea 4: In `MindMapGalaxyWindow.xaml` & `.xaml.cs`, attached `DoubleTapped="OnMinimapOverlayDoubleTapped"` on `MinimapOverlay` to immediately fit all nodes in the window (`OnFitToWindowClick`). Enhanced `OnMinimapOverlayRightTapped` with "Focus on selected node" (`Space`) and "Copy map summary".
+  - Refined Block 1 (Pass 2 - Final): In `SmartArtDesignStudioWindow.xaml.cs`, added keyboard accelerator support for `Alt+Home` (move to top of outline) and `Alt+End` (move to bottom of outline) in `OnOutlineKeyDown`.
+  - Generated:
+    5. `ShapeDesignStudioWindow` Palette Grid Double-Tap Instant Canvas Placement & Preset Dimensions Menu (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+    6. `SmartArtDesignStudioWindow` Outline Row Add/Delete Buttons Double-Tap Sibling & Branch Actions (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: In `ShapeDesignStudioWindow.xaml` & `.xaml.cs`, attached `DoubleTapped="OnPaletteGridDoubleTapped"` on `PaletteGrid` to drop armed/selected shape directly at canvas viewport coordinates without requiring manual drag-drawing; enhanced `OnPaletteGridRightTapped` with "Insert with preset dimensions" submenu (Standard 120×80, Square 100×100, Wide 200×80, Compact 80×50, Banner 300×60).
+    * For Idea 6: In `SmartArtDesignStudioWindow.xaml` & `.xaml.cs`, attached `DoubleTapped="OnRowAddChildDoubleTapped"` on row `+` button (adds sibling instead of child on double-tap) and `DoubleTapped="OnRowDeleteDoubleTapped"` on row delete button (removes row with status announcement).
+  - Executed all 6 refined ideas into 100% production code.
+  - Baseline test verification: `MarkSmith.Tests` full test suite passed **4799 passed, 0 failed, 1 skipped (5m 55s)** including `ContrastGuard` updates.
+  - Carried forward ideas / next targets into Run #112 (`ShapeDesignStudioWindow` multi-selection group rotation wheel gestures, `SmartArtDesignStudioWindow` outline drag-and-drop reordering gesture preview, `MindMapGalaxyWindow` edge label double-tap inline rename & connector style presets).
+
+**Shipped:**
+1. **`ShapeDesignStudioWindow` Connector Point Handles Double-Tap Reset & Context Menu Route Controls (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Attached `DoubleTapped` and `RightTapped` on connector point handles (`_pointHandles`).
+   - Endpoint double-tap: reverses connector direction (swaps start and end coordinates) with undo support and status announcement.
+   - Bend point double-tap: centers bend point between endpoints (or adjacent bend neighbours) with undo support.
+   - Right-tap handle menu: offers "Reverse direction (swap ends)", "Center bend between ends", "Align horizontally with start", "Align vertically with end", "Straighten line (remove bend)", "Snap to nearest shape anchor", and "Copy coordinates".
+2. **`SmartArtDesignStudioWindow` Outline Toolbar Move/Indent Buttons Double-Tap Extreme Jump & Right-Click Presets (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`):**
+   - Attached `DoubleTapped` on `MoveUpButton` (jumps item all the way to top of outline) and `MoveDownButton` (jumps item all the way to bottom of outline).
+   - Attached `DoubleTapped` on `PromoteButton` (promotes to root level / depth 0) and `DemoteButton` (demotes to deepest valid child level).
+   - Attached right-tap menus on each toolbar button with contextual jump actions ("Move to top (Alt+Home / double-click)", "Move to bottom (Alt+End / double-click)", "Promote to root", "Demote to deepest child").
+   - Wired `Alt+Home` and `Alt+End` in `OnOutlineKeyDown`.
+3. **`MindMapGalaxyWindow` Node Inspector Icon Quick Picker Flyout & Double-Tap Clear (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`):**
+   - Enhanced Node Inspector Icon layout with `NodeIconBox` and `NodeIconPickerButton` (`\uE790`).
+   - `NodeIconBox`: Added `DoubleTapped` to toggle between clear and default star (`\uE735`) with status announcement and live appearance refresh.
+   - Right-tap and picker button: opens a categorized flyout featuring Documents & Files (`\uE8A5`, `\uE70B`, `\uE82D`, `\uE8C8`, `\uE7BC`), Status & Markers (`\uE73E`, `\uE735`, `\uE7C1`, `\uE7BA`, `\uE782`), Concepts & System (`\uEA80`, `\uE945`, `\uE71D`, `\uE774`, `\uE71B`), Popular Emojis (💡, ⭐, 🚀, 🎯, 🔥, 📝, ✅), and Clear icon.
+4. **`MindMapGalaxyWindow` Minimap Overlay Double-Tap Re-Center & Navigation Context Menu (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`):**
+   - Attached `DoubleTapped="OnMinimapOverlayDoubleTapped"` on `MinimapOverlay` to instantly fit all nodes into view.
+   - Enhanced `OnMinimapOverlayRightTapped` with "Focus on selected node" (`ViewModel.CenterOn(selNode)`) and "Copy map summary" with node and link counts.
+5. **`ShapeDesignStudioWindow` Palette Grid Double-Tap Instant Canvas Placement & Preset Dimensions Menu (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`):**
+   - Attached `DoubleTapped="OnPaletteGridDoubleTapped"` on `PaletteGrid` to drop the double-clicked shape at viewport coordinates adjacent to the selection without drag-drawing.
+   - Enhanced `OnPaletteGridRightTapped` with "Insert with preset dimensions" submenu: Standard (120×80), Square (100×100), Wide Card (200×80), Compact (80×50), and Banner (300×60).
+6. **`SmartArtDesignStudioWindow` Outline Row Add/Delete Buttons Double-Tap Sibling & Branch Actions (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`):**
+   - Attached `DoubleTapped="OnRowAddChildDoubleTapped"` on row Add button to insert a sibling at the same hierarchy level.
+   - Attached `DoubleTapped="OnRowDeleteDoubleTapped"` on row Delete button to delete the item with status announcement.
+
+**Verified:**
+- `dotnet test marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj`: **4799 passed, 0 failed, 1 skipped (5m 55s)**.
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 23812, `Alive: True`, `Responding: True`, clean exit.

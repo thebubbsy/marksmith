@@ -164,22 +164,38 @@ public class GoldenDocumentVerificationTests
     [Fact]
     public void GoldenDocument_DarkTheme_EnsuresLegibleHighContrastColors()
     {
-        var darkSettings = new AppSettings { Theme = "GitHub Dark" };
+        var darkSettings = new AppSettings { Theme = "GitHub Dark", ThemeLightInfluence = true };
         var (path, xml, xdoc) = ExportGoldenDocument(darkSettings);
         try
         {
             XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-            var textColors = xdoc.Descendants(w + "color")
-                .Select(c => c.Attribute(w + "val")?.Value)
-                .Where(v => !string.IsNullOrEmpty(v) && v != "auto")
-                .Distinct()
-                .ToList();
+            using var zip = ZipFile.OpenRead(path);
 
-            // None of the text run colors should be low-contrast dark values against dark background #0D1117
-            foreach (var col in textColors)
+            // Audit document.xml, styles.xml, header*.xml, and footer*.xml
+            foreach (var entry in zip.Entries.Where(e =>
+                e.FullName.Equals("word/document.xml", StringComparison.OrdinalIgnoreCase) ||
+                e.FullName.Equals("word/styles.xml", StringComparison.OrdinalIgnoreCase) ||
+                e.FullName.StartsWith("word/header", StringComparison.OrdinalIgnoreCase) ||
+                e.FullName.StartsWith("word/footer", StringComparison.OrdinalIgnoreCase)))
             {
-                var ratio = ContrastGuard.GetContrastRatio(col, "0D1117");
-                Assert.True(ratio >= 4.0, $"Color {col} has insufficient contrast ratio ({ratio:F2}:1) on dark theme background.");
+                using var sr = new StreamReader(entry.Open());
+                var partDoc = XDocument.Parse(sr.ReadToEnd());
+                foreach (var colorEl in partDoc.Descendants(w + "color"))
+                {
+                    var col = colorEl.Attribute(w + "val")?.Value;
+                    if (string.IsNullOrEmpty(col) || col == "auto") continue;
+
+                    // Resolve innermost shading fill if present (e.g., light code block or table cell under ThemeLightInfluence)
+                    var rShd = colorEl.Parent?.Element(w + "shd")?.Attribute(w + "fill")?.Value;
+                    var pShd = colorEl.Ancestors(w + "p").FirstOrDefault()?.Element(w + "pPr")?.Element(w + "shd")?.Attribute(w + "fill")?.Value;
+                    var tcShd = colorEl.Ancestors(w + "tc").FirstOrDefault()?.Element(w + "tcPr")?.Element(w + "shd")?.Attribute(w + "fill")?.Value;
+                    var effectiveBg = new[] { rShd, pShd, tcShd }
+                        .FirstOrDefault(s => !string.IsNullOrEmpty(s) && s != "auto" && s!.Length == 6)
+                        ?? "0D1117";
+
+                    var ratio = ContrastGuard.GetContrastRatio(col, effectiveBg);
+                    Assert.True(ratio >= 4.5, $"Part {entry.FullName}: color #{col} has insufficient contrast ({ratio:F2}:1) against #{effectiveBg}.");
+                }
             }
         }
         finally

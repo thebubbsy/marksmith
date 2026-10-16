@@ -201,8 +201,9 @@
                             <GridView x:Name="PaletteGrid" ItemsSource="{Binding PaletteItems}" SelectionMode="Single"
                                       SelectedItem="{Binding ArmedTool, Mode=TwoWay}" Margin="-4,0"
                                       SizeChanged="OnPaletteGridSizeChanged"
+                                      DoubleTapped="OnPaletteGridDoubleTapped"
                                       RightTapped="OnPaletteGridRightTapped"
-                                      ToolTipService.ToolTip="Shapes to draw · Click to arm shape, Right-click for options"
+                                      ToolTipService.ToolTip="Shapes to draw · Click to arm shape, Double-click to place, Right-click for options"
                                       AutomationProperties.Name="Shapes to draw">
                                 <!-- Tiles share the row evenly (OnPaletteGridSizeChanged). Fixed 84 px tiles fitted
                                      two to a row and left a third of the pane empty. -->
