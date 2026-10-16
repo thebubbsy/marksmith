@@ -1406,6 +1406,57 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Centers the diagram or the selected shapes within the canvas bounding box.</summary>
+    public void CenterDiagramOnCanvas(bool horizontal = true, bool vertical = true, double canvasW = 2200, double canvasH = 1800)
+    {
+        var targets = SelectionCount >= 2 ? Selection.ToList() : Shapes.ToList();
+        if (targets.Count == 0) return;
+        RecordUndo();
+        double minX = targets.Min(s => s.X);
+        double maxX = targets.Max(s => s.X + s.Width);
+        double minY = targets.Min(s => s.Y);
+        double maxY = targets.Max(s => s.Y + s.Height);
+
+        double boxCenterX = (minX + maxX) / 2.0;
+        double boxCenterY = (minY + maxY) / 2.0;
+
+        double dx = horizontal ? (canvasW / 2.0) - boxCenterX : 0;
+        double dy = vertical ? (canvasH / 2.0) - boxCenterY : 0;
+
+        foreach (var s in targets)
+        {
+            s.X += dx;
+            s.Y += dy;
+        }
+
+        StatusMessage = targets.Count == Shapes.Count
+            ? "Centered diagram on canvas"
+            : $"Centered {targets.Count} selected shapes";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Resets the diagram or selected shapes to a standard top-left padding.</summary>
+    public void ResetDiagramToTopLeft(double padX = 60, double padY = 60)
+    {
+        var targets = SelectionCount >= 2 ? Selection.ToList() : Shapes.ToList();
+        if (targets.Count == 0) return;
+        RecordUndo();
+        double minX = targets.Min(s => s.X);
+        double minY = targets.Min(s => s.Y);
+
+        double dx = padX - minX;
+        double dy = padY - minY;
+
+        foreach (var s in targets)
+        {
+            s.X += dx;
+            s.Y += dy;
+        }
+
+        StatusMessage = "Moved diagram to top-left margin";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Deletes every selected shape.</summary>
     [RelayCommand(CanExecute = nameof(HasSelection))]
     public async System.Threading.Tasks.Task RemoveSelectedAsync()

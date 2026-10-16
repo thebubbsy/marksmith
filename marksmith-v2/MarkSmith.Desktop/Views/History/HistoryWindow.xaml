@@ -471,6 +471,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <!-- Mode Selector -->
@@ -576,8 +577,34 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- Diff Line Search & Match Stepper Pill -->
+                            <Border x:Name="DiffSearchPill" Grid.Column="3"
+                                    Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    CornerRadius="6" Padding="4,2" VerticalAlignment="Center"
+                                    Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE721;" FontSize="11" Margin="4,0,2,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBox x:Name="DiffSearchBox" Width="105" Height="26" Padding="4,2" FontSize="11"
+                                             PlaceholderText="Find in diff..." BorderThickness="0" Background="Transparent"
+                                             TextChanged="OnDiffSearchBoxTextChanged" KeyDown="OnDiffSearchBoxKeyDown" />
+                                    <TextBlock x:Name="DiffMatchCountLabel" Text="" FontSize="10.5" VerticalAlignment="Center" Margin="2,0"
+                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                    <Button x:Name="DiffPrevMatchButton" Click="OnDiffPrevMatchClick" Style="{StaticResource SubtleButtonStyle}"
+                                            Width="22" Height="22" Padding="0" ToolTipService.ToolTip="Previous match (Shift+F3)"
+                                            AutomationProperties.Name="Previous search match">
+                                        <FontIcon Glyph="&#xE70E;" FontSize="9" />
+                                    </Button>
+                                    <Button x:Name="DiffNextMatchButton" Click="OnDiffNextMatchClick" Style="{StaticResource SubtleButtonStyle}"
+                                            Width="22" Height="22" Padding="0" ToolTipService.ToolTip="Next match (F3 or Enter)"
+                                            AutomationProperties.Name="Next search match">
+                                        <FontIcon Glyph="&#xE70D;" FontSize="9" />
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+
                             <!-- Delta Meter -->
-                            <Border x:Name="DeltaMeterBorder" Grid.Column="3" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center"
+                            <Border x:Name="DeltaMeterBorder" Grid.Column="4" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center"
                                     IsHitTestVisible="True"
                                     DoubleTapped="OnDeltaMeterDoubleTapped"
                                     RightTapped="OnDeltaMeterRightTapped"
@@ -599,7 +626,7 @@
                             </Border>
 
                             <!-- Word Delta Meter Pill -->
-                            <Border x:Name="DiffWordDeltaPill" Grid.Column="4" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center"
+                            <Border x:Name="DiffWordDeltaPill" Grid.Column="5" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center"
                                     IsHitTestVisible="True"
                                     Tapped="OnDiffWordDeltaPillTapped"
                                     DoubleTapped="OnDiffWordDeltaPillDoubleTapped"
@@ -614,7 +641,7 @@
                             </Border>
 
                             <!-- Copy Action Button -->
-                            <Button x:Name="CopyToolbarButton" Grid.Column="5" Click="OnCopyToolbarButtonClick"
+                            <Button x:Name="CopyToolbarButton" Grid.Column="6" Click="OnCopyToolbarButtonClick"
                                     DoubleTapped="OnCopyToolbarButtonDoubleTapped"
                                     VerticalAlignment="Center" Padding="8,4" CornerRadius="6"
                                     Background="{ThemeResource SubtleFillColorTransparentBrush}"

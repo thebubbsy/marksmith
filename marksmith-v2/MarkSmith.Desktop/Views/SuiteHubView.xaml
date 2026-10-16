@@ -263,10 +263,42 @@
                                     <TextBlock Text="Release Notes" FontSize="11.5" />
                                 </StackPanel>
                             </Button>
+                            <Button x:Name="TemplatePostmortemBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
+                                    Click="OnTemplatePostmortemClick" ToolTipService.ToolTip="Create an enterprise incident postmortem with timeline, root cause analysis and action items"
+                                    Tag="incident postmortem rca outage timeline severity post-mortem post mortem">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE7BA;" FontSize="11" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                    <TextBlock Text="Incident Postmortem" FontSize="11.5" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="TemplateRfcBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
+                                    Click="OnTemplateRfcClick" ToolTipService.ToolTip="Create a formal Request for Comments (RFC) proposal with goals, non-goals and alternative designs"
+                                    Tag="rfc request for comments proposal design spec architecture decision">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE8F1;" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="RFC Proposal" FontSize="11.5" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </ScrollViewer>
-                    <TextBlock x:Name="TemplateSearchStatusText" Grid.Column="3" Text="" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               VerticalAlignment="Center" Visibility="Collapsed" Margin="4,0,0,0" />
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Border x:Name="TemplateCountPill" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                CornerRadius="10" Padding="8,2" VerticalAlignment="Center" Margin="4,0,0,0"
+                                IsHitTestVisible="True"
+                                Tapped="OnTemplateCountPillTapped"
+                                DoubleTapped="OnTemplateCountPillDoubleTapped"
+                                RightTapped="OnTemplateCountPillRightTapped"
+                                ToolTipService.ToolTip="Starter templates count · Click to show all, double-click to focus search, right-click for options">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE8A5;" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <TextBlock x:Name="TemplateCountText" Text="8 templates" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock x:Name="TemplateSearchStatusText" Text="" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center" Visibility="Collapsed" Margin="2,0,0,0" />
+                    </StackPanel>
                 </Grid>
             </Border>
 

@@ -3910,8 +3910,10 @@ namespace MarkSmith.Views.MindMap
             e.Handled = true;
             string nextLayout = _currentLayoutMode switch
             {
-                "tree" => "vertical",
-                "vertical" => "radial",
+                "tree" => "tree-rtl",
+                "tree-rtl" => "vertical",
+                "vertical" => "bottomup",
+                "bottomup" => "radial",
                 "radial" => "clusters",
                 "clusters" => "force",
                 _ => "tree"
@@ -3926,20 +3928,24 @@ namespace MarkSmith.Views.MindMap
             {
                 string display = _currentLayoutMode switch
                 {
-                    "vertical" or "hierarchy" => "Hierarchy",
+                    "tree-rtl" or "rtl" => "Tree RTL",
+                    "vertical" or "hierarchy" or "topdown" => "Top Down",
+                    "bottomup" => "Bottom Up",
                     "radial" or "galaxy" => "Radial",
                     "clusters" or "constellation" => "Clusters",
                     "force" or "physics" => "Force",
-                    _ => "Tree"
+                    _ => "Tree LTR"
                 };
                 ArrangeModeLabel.Text = $"Arrange · {display}";
             }
         }
 
         private void OnLayoutTreeClick(object sender, RoutedEventArgs e) => ApplyLayoutAndFit("tree");
+        private void OnLayoutTreeRtlClick(object sender, RoutedEventArgs e) => ApplyLayoutAndFit("tree-rtl");
         private void OnLayoutRadialClick(object sender, RoutedEventArgs e) => ApplyLayoutAndFit("radial");
         private void OnLayoutForceClick(object sender, RoutedEventArgs e) => ApplyLayoutAndFit("force");
         private void OnLayoutHierarchyClick(object sender, RoutedEventArgs e) => ApplyLayoutAndFit("vertical");
+        private void OnLayoutHierarchyBottomUpClick(object sender, RoutedEventArgs e) => ApplyLayoutAndFit("bottomup");
         private void OnLayoutClustersClick(object sender, RoutedEventArgs e) => ApplyLayoutAndFit("clusters");
 
         private void ApplyLayoutAndFit(string layout)
@@ -4272,6 +4278,14 @@ namespace MarkSmith.Views.MindMap
             treeItem.Click += OnLayoutTreeClick;
             menu.Items.Add(treeItem);
 
+            var treeRtlItem = new MenuFlyoutItem
+            {
+                Text = "Tree layout, right to left",
+                Icon = new FontIcon { Glyph = "\uE81F" }
+            };
+            treeRtlItem.Click += OnLayoutTreeRtlClick;
+            menu.Items.Add(treeRtlItem);
+
             var hierItem = new MenuFlyoutItem
             {
                 Text = "Hierarchy layout, top down",
@@ -4279,6 +4293,14 @@ namespace MarkSmith.Views.MindMap
             };
             hierItem.Click += OnLayoutHierarchyClick;
             menu.Items.Add(hierItem);
+
+            var hierBottomUpItem = new MenuFlyoutItem
+            {
+                Text = "Hierarchy layout, bottom up",
+                Icon = new FontIcon { Glyph = "\uE74A" }
+            };
+            hierBottomUpItem.Click += OnLayoutHierarchyBottomUpClick;
+            menu.Items.Add(hierBottomUpItem);
 
             var radialItem = new MenuFlyoutItem
             {

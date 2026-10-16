@@ -9550,6 +9550,77 @@ Reviewed: the 2026-10-17 run #125 entry above. Followed the AI-Executable 3-Bloc
 - `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **461 passed, 0 failed (100% pass rate)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 23924, responsive startup, clean exit.
 
+### 2026-10-17 (scheduled routine run #127 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #126 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across the 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Generated:
+    1. `MainWindow`: Editor Status Bar Line & Column Jump Dialog (`Ctrl+G`, `line[:col]` syntax, live line preview, exact caret placement).
+    2. `MindMapGalaxyWindow`: 7-Direction Canvas Layout Engine & Selector (Left-to-Right, Right-to-Left, Top-Down, Bottom-Up, Radial, Clusters, Force).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `ShowGoToLineDialogAsync()` to parse `line:col` or `line,col`, added live line preview `GetLinePreview(line)` with truncation and line counter, added quick jump buttons (`Start 1:1`, `Mid`, `End`), and implemented `GoToDocumentPosition(int documentLine, int column = 1)`.
+    * For Idea 2: Extended `MindMapLayoutType` enum with `RightToLeftTree` and `BottomUpHierarchy`. Implemented `ApplyRightToLeftTreeLayout` and `ApplyBottomUpHierarchyLayout` in `MindMapLayoutEngine.cs` using inverted tree bounds and coordinate placement. Updated `MindMapStudioViewModel` to map `"tree-rtl"`, `"rtl"`, `"bottomup"`, `"topdown"`.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Canvas "Center Diagram" & Bounding Box Align (`CenterCanvasButton` + `CenterDiagramOnCanvas(bool horizontal, bool vertical)` and `ResetDiagramToTopLeft(padX, padY)`).
+    4. `SmartArtDesignStudioWindow`: Outline Hierarchy Stats & Quick Navigation Pill (`OutlineStatsPill`, node count & max depth, root/deepest node selector).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `CenterCanvasButton` on top toolbar in `ShapeDesignStudioWindow.xaml`. Added `CenterDiagramOnCanvas` and `ResetDiagramToTopLeft` in `ShapeDesignStudioViewModel.cs` computing collective bounding box of selection (or all shapes if <2 selected) and centering on 2200×1800 virtual canvas coordinates; double-click resets to top-left margin (60, 60), right-click opens preset flyout.
+    * For Idea 4: Mounted `OutlineStatsPill` in Row 0 opposite `EditorTabs` in `SmartArtDesignStudioWindow.xaml`. Added `UpdateOutlineStats()` dynamically reporting "N nodes · Depth D", double-click copies outline hierarchy summary to clipboard via `ClipboardWriter.TrySetTextAsync`, right-click flyout with "Select root node (Top)", "Select deepest node", and "Copy outline hierarchy summary".
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified WinUI 3 XAML compiler safety: used `Thickness(6, 2, 6, 2)` instead of 2-parameter constructor and `Border.ContextFlyout` instead of `Border.Flyout` to prevent compiler errors.
+    * Verified inverted tree layouts in MindMap properly account for child node widths and heights before global camera origin centering.
+  - Generated:
+    5. `HistoryWindow`: Diff Line Search & Match Stepper Pill (`DiffSearchBox` / `DiffSearchPill`, live diff keyword search, F3/Shift+F3 match stepper, Ctrl+Shift+F accelerator).
+    6. `SuiteHubView`: Enterprise Incident Postmortem & RFC Proposal Scaffolds with dynamic `TemplateCountPill`.
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Mounted `DiffSearchPill` in `HistoryWindow.xaml` Top Inspector Toolbar with `DiffSearchBox`, `DiffMatchCountLabel`, and previous/next match stepper buttons (`DiffPrevMatchButton`, `DiffNextMatchButton`). Implemented live row search across unified/split diff collections, row scrolling with target Y offset calculation, and hooked `F3`/`Shift+F3` and `Ctrl+Shift+F` global shortcuts.
+    * For Idea 6: Added `TemplatePostmortemBtn` (Sev-1 RCA, 5 Whys, UTC timeline, preventative actions) and `TemplateRfcBtn` (Goals, non-goals, architecture diagram, alternatives, security/privacy considerations) to `StarterTemplatesPanel`. Mounted `TemplateCountPill` dynamically updating `visibleCount/total templates`, with tap to clear filter and double-tap to focus search.
+  - Executed all 6 refined targets into 100% production code with zero placeholders.
+  - Added unit test coverage:
+    * `MindMapEngineTests.cs`: Added `RightToLeftTree` and `BottomUpHierarchy` to `LayoutEngine_ComputesFiniteNonZeroCoordinates`.
+    * `MindMapGalaxyPolishTests.cs`: Added `RightToLeftTree` and `BottomUpHierarchy` to `EveryLayoutPlacesOrphansInsteadOfLeavingThemAtStaleCoordinates`.
+    * `ShapeStudioPolishTests.cs`: Added `CenterDiagramOnCanvas_CentersAllShapesWithinVirtualBounds` and `ResetDiagramToTopLeft_RepositionsShapesToStandardMargin`.
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **465 passed, 0 failed (100% pass rate)**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~MindMap"`: **104 passed, 0 failed (100% pass rate)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, responsive startup, clean exit.
+  - Carried forward ideas / next targets into Run #128:
+    * Target A: `HistoryWindow` diff line jump and hunk bookmarking.
+    * Target B: `SuiteHubView` template custom user-defined template favoriting.
+    * Target C: `MainWindow` status bar encoding and line ending selector (UTF-8 / CRLF / LF).
+
+**Shipped:**
+1. **`MainWindow` Status Bar Line & Column Jump Dialog (`MainWindow.xaml.cs`):**
+   - Upgraded `ShowGoToLineDialogAsync()` (Ctrl+G) with `line[:col]` and `line,col` parsing, live document line preview snippet, and quick jump buttons (`Start 1:1`, `Mid`, `End`).
+   - Implemented exact caret placement and text selection via `GoToDocumentPosition(int documentLine, int column = 1)`.
+2. **`MindMapGalaxyWindow` 7-Direction Canvas Layout Engine (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MarkSmith.Core/Services/MindMap/MindMapLayoutEngine.cs`, `MarkSmith.Core/ViewModels/MindMap/MindMapStudioViewModel.cs`):**
+   - Added `RightToLeftTree` and `BottomUpHierarchy` to `MindMapLayoutType`.
+   - Wired into `ArrangeDropDownButton.Flyout`, context menu, and double-click cycle (tree -> tree-rtl -> vertical -> bottomup -> radial -> clusters -> force).
+3. **`ShapeDesignStudioWindow` Canvas "Center Diagram" & Bounding Box Align (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `MarkSmith.Core/ViewModels/ShapeStudio/ShapeDesignStudioViewModel.cs`):**
+   - Added `CenterCanvasButton` on top toolbar with presets for Center Both, Center H, Center V, and Reset Top-Left (60, 60).
+   - Added `CenterDiagramOnCanvas` and `ResetDiagramToTopLeft` with collective bounding box calculation and full undo support.
+4. **`SmartArtDesignStudioWindow` Outline Hierarchy Stats & Quick Navigation Pill (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`):**
+   - Mounted `OutlineStatsPill` in Row 0 opposite `EditorTabs` displaying dynamic `N nodes · Depth D`.
+   - Double-click copies outline hierarchy summary to clipboard; right-click flyout provides quick selection of root node (Top), deepest hierarchy node, or summary copy.
+5. **`HistoryWindow` Diff Line Search & Match Stepper Pill (`HistoryWindow.xaml`, `HistoryWindow.xaml.cs`):**
+   - Mounted `DiffSearchPill` in Top Inspector Toolbar with `DiffSearchBox`, `DiffMatchCountLabel`, and next/previous stepper buttons.
+   - Real-time row filtering across unified and split diffs with automatic row scrolling, F3/Shift+F3 navigation, and Ctrl+Shift+F accelerator.
+6. **`SuiteHubView` Enterprise Incident Postmortem & RFC Proposal Scaffolds (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`):**
+   - Added Incident Postmortem (Sev-1 RCA, 5 Whys, timeline, preventative actions) and RFC Proposal (goals, non-goals, architecture diagram, alternatives, security considerations) starter scaffolds.
+   - Mounted dynamic `TemplateCountPill` updating visible vs total template count in real-time, with tap to clear search filter and double-tap to focus search.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **465 passed, 0 failed (100% pass rate)**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~MindMap"`: **104 passed, 0 failed (100% pass rate)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, running cleanly for 3s, terminated cleanly.
+
 
 
 

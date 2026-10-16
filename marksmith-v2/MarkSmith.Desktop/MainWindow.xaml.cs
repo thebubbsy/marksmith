@@ -11158,84 +11158,110 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var start = Math.Min(PasteTextBox?.SelectionStart ?? 0, text.Length);
         var curLine = 1;
+        var lineStartOffset = 0;
         for (var i = 0; i < start; i++)
         {
-            if (IsLineBreak(text[i])) curLine++;
+            if (IsLineBreak(text[i]))
+            {
+                curLine++;
+                lineStartOffset = i + 1;
+            }
         }
+        var curCol = Math.Max(1, start - lineStartOffset + 1);
         var currentLine = Math.Clamp(_folds.DocumentLine(text, curLine), 1, totalLines);
 
-        var numberBox = new NumberBox
+        var container = new StackPanel { Spacing = 10, Width = 340 };
+
+        var lineColBox = new TextBox
         {
-            Header = $"Line number (1 – {totalLines}):",
-            Value = currentLine,
-            Minimum = 1,
-            Maximum = totalLines,
-            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline,
-            ValidationMode = NumberBoxValidationMode.InvalidInputOverwritten,
-            SmallChange = 1,
-            LargeChange = 10,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 8, 0, 0),
+            Header = $"Line and column (1 – {totalLines}[:col]):",
+            Text = $"{currentLine}:{curCol}",
+            PlaceholderText = "e.g. 42 or 42:15",
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
 
-        numberBox.DoubleTapped += (_, dte) =>
+        var previewText = new TextBlock
+        {
+            FontSize = 11.5,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            TextWrapping = TextWrapping.NoWrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono, Consolas, monospace"),
+            Margin = new Thickness(0, 2, 0, 0)
+        };
+
+        string GetLinePreview(int lineNum)
+        {
+            if (string.IsNullOrEmpty(text)) return "(empty document)";
+            int l = 1;
+            int offset = 0;
+            while (l < lineNum && offset < text.Length)
+            {
+                if (IsLineBreak(text[offset])) l++;
+                offset++;
+            }
+            int ls = Math.Clamp(offset, 0, text.Length);
+            int le = ls;
+            while (le < text.Length && text[le] != '\r' && text[le] != '\n') le++;
+            var preview = text.Substring(ls, le - ls).Trim();
+            return string.IsNullOrEmpty(preview) ? "(blank line)" : preview;
+        }
+
+        void UpdatePreview()
+        {
+            var raw = lineColBox.Text?.Trim() ?? string.Empty;
+            int targetLine = currentLine;
+            int targetCol = 1;
+            if (raw.Contains(':') || raw.Contains(','))
+            {
+                var parts = raw.Split(new[] { ':', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length > 0 && int.TryParse(parts[0].Trim(), out int l)) targetLine = l;
+                if (parts.Length > 1 && int.TryParse(parts[1].Trim(), out int c)) targetCol = c;
+            }
+            else if (int.TryParse(raw, out int l))
+            {
+                targetLine = l;
+            }
+            targetLine = Math.Clamp(targetLine, 1, totalLines);
+            targetCol = Math.Max(1, targetCol);
+            previewText.Text = $"Line {targetLine}, Col {targetCol}: {GetLinePreview(targetLine)}";
+        }
+
+        UpdatePreview();
+        lineColBox.TextChanged += (_, _) => UpdatePreview();
+
+        lineColBox.DoubleTapped += (_, dte) =>
         {
             dte.Handled = true;
-            if (FindDescendant<TextBox>(numberBox) is { } tb)
-            {
-                tb.SelectAll();
-            }
+            lineColBox.SelectAll();
         };
 
-        numberBox.RightTapped += (_, rte) =>
+        var quickButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        var startBtn = new Button { Content = "Start (1:1)", Padding = new Thickness(6, 2, 6, 2), FontSize = 11 };
+        startBtn.Click += (_, _) => lineColBox.Text = "1:1";
+        quickButtons.Children.Add(startBtn);
+
+        if (totalLines > 1)
         {
-            rte.Handled = true;
-            var flyout = new MenuFlyout();
-            var setStart = new MenuFlyoutItem { Text = "Set to Line 1 (Start of document)", Icon = new FontIcon { Glyph = "\uE898" } };
-            setStart.Click += (_, _) => numberBox.Value = 1;
-            flyout.Items.Add(setStart);
+            int mid = Math.Max(1, totalLines / 2);
+            var midBtn = new Button { Content = $"Mid ({mid})", Padding = new Thickness(6, 2, 6, 2), FontSize = 11 };
+            midBtn.Click += (_, _) => lineColBox.Text = $"{mid}:1";
+            quickButtons.Children.Add(midBtn);
 
-            if (totalLines > 1)
-            {
-                int mid = Math.Max(1, totalLines / 2);
-                var setMid = new MenuFlyoutItem { Text = $"Set to Line {mid} (Midpoint)", Icon = new FontIcon { Glyph = "\uE8E3" } };
-                setMid.Click += (_, _) => numberBox.Value = mid;
-                flyout.Items.Add(setMid);
+            var endBtn = new Button { Content = $"End ({totalLines})", Padding = new Thickness(6, 2, 6, 2), FontSize = 11 };
+            endBtn.Click += (_, _) => lineColBox.Text = $"{totalLines}:1";
+            quickButtons.Children.Add(endBtn);
+        }
 
-                var setEnd = new MenuFlyoutItem { Text = $"Set to Line {totalLines} (End of document)", Icon = new FontIcon { Glyph = "\uE896" } };
-                setEnd.Click += (_, _) => numberBox.Value = totalLines;
-                flyout.Items.Add(setEnd);
-            }
-
-            flyout.Items.Add(new MenuFlyoutSeparator());
-
-            var pasteItem = new MenuFlyoutItem { Text = "Paste line number from clipboard", Icon = new FontIcon { Glyph = "\uE77F" } };
-            pasteItem.Click += async (_, _) =>
-            {
-                try
-                {
-                    var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
-                    if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
-                    {
-                        var clipText = (await pkg.GetTextAsync())?.Trim();
-                        if (int.TryParse(clipText, out int parsed))
-                        {
-                            numberBox.Value = Math.Clamp(parsed, 1, totalLines);
-                        }
-                    }
-                }
-                catch { }
-            };
-            flyout.Items.Add(pasteItem);
-
-            flyout.ShowAt(numberBox, rte.GetPosition(numberBox));
-        };
+        container.Children.Add(lineColBox);
+        container.Children.Add(previewText);
+        container.Children.Add(quickButtons);
 
         var dialog = new ContentDialog
         {
             XamlRoot = xamlRoot,
-            Title = "Go to line",
-            Content = numberBox,
+            Title = "Go to line & column",
+            Content = container,
             PrimaryButtonText = "Go",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
@@ -11244,11 +11270,26 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         void Submit()
         {
             dialog.Hide();
-            var target = (int)Math.Clamp(double.IsNaN(numberBox.Value) ? 1 : numberBox.Value, 1, totalLines);
-            GoToDocumentLine(target);
+            var raw = lineColBox.Text?.Trim() ?? string.Empty;
+            int targetLine = currentLine;
+            int targetCol = 1;
+            if (raw.Contains(':') || raw.Contains(','))
+            {
+                var parts = raw.Split(new[] { ':', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length > 0 && int.TryParse(parts[0].Trim(), out int l)) targetLine = l;
+                if (parts.Length > 1 && int.TryParse(parts[1].Trim(), out int c)) targetCol = c;
+            }
+            else if (int.TryParse(raw, out int l))
+            {
+                targetLine = l;
+            }
+            targetLine = Math.Clamp(targetLine, 1, totalLines);
+            targetCol = Math.Max(1, targetCol);
+            GoToDocumentPosition(targetLine, targetCol);
+            AnnounceStatus($"Jumped to Line {targetLine}, Column {targetCol}");
         }
 
-        numberBox.KeyDown += (_, ke) =>
+        lineColBox.KeyDown += (_, ke) =>
         {
             if (ke.Key == Windows.System.VirtualKey.Enter)
             {
@@ -11259,7 +11300,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         dialog.Opened += (_, _) =>
         {
-            numberBox.Focus(FocusState.Programmatic);
+            lineColBox.Focus(FocusState.Programmatic);
+            lineColBox.SelectAll();
         };
 
         _isGoToLineDialogOpen = true;
@@ -11268,8 +11310,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
             if (result == ContentDialogResult.Primary)
             {
-                var target = (int)Math.Clamp(double.IsNaN(numberBox.Value) ? 1 : numberBox.Value, 1, totalLines);
-                GoToDocumentLine(target);
+                Submit();
             }
         }
         catch
@@ -11285,7 +11326,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Move the caret to the start of the given 1-based line, select the line, and bring it into view.
     // Moves the caret to a line of the DOCUMENT (lint issues, the outline): a folded line opens
     // first, and folds above it are counted.
-    private void GoToDocumentLine(int documentLine)
+    private void GoToDocumentLine(int documentLine) => GoToDocumentPosition(documentLine, 1);
+
+    private void GoToDocumentPosition(int documentLine, int column = 1)
     {
         if (_viewMode == ViewMode.Preview && ViewSplitTab is not null)
         {
@@ -11297,10 +11340,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             UnfoldAll();
             visible = documentLine;
         }
-        GoToLine(visible);
+        GoToPosition(visible, column);
     }
 
-    private void GoToLine(int lineNo)
+    private void GoToLine(int lineNo) => GoToPosition(lineNo, 1);
+
+    private void GoToPosition(int lineNo, int column = 1)
     {
         var text = PasteTextBox.Text ?? string.Empty;
         var offset = 0;
@@ -11319,7 +11364,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
 
         PasteTextBox.Focus(FocusState.Programmatic);
-        PasteTextBox.Select(lineStart, lineEnd - lineStart);
+        if (column > 1)
+        {
+            int targetColOffset = Math.Clamp(lineStart + column - 1, lineStart, lineEnd);
+            PasteTextBox.Select(targetColOffset, 0);
+        }
+        else
+        {
+            PasteTextBox.Select(lineStart, lineEnd - lineStart);
+        }
         UpdateCursorPosition();
 
         try

@@ -244,11 +244,13 @@ public sealed partial class HistoryWindow : Window
             UpdateCopyToolbarButton(_vm.DiffMode);
             ResetChangeStepper();
             UpdateVisualDiffStatsBar();
+            UpdateDiffSearchMatches();
         }
         else if (e.PropertyName is nameof(HistoryWindowViewModel.HasDiffStats) or nameof(HistoryWindowViewModel.DiffStats))
         {
             ResetChangeStepper();
             UpdateVisualDiffStatsBar();
+            UpdateDiffSearchMatches();
         }
         else if (e.PropertyName == nameof(HistoryWindowViewModel.SearchQuery) || e.PropertyName == nameof(HistoryWindowViewModel.IsStarredOnlyFilter))
         {
@@ -655,6 +657,126 @@ public sealed partial class HistoryWindow : Window
         }
     }
 
+    #region Diff Line Search & Match Stepper
+
+    private readonly List<int> _diffSearchMatches = new();
+    private int _currentDiffSearchIndex = -1;
+
+    private void UpdateDiffSearchMatches()
+    {
+        _diffSearchMatches.Clear();
+        _currentDiffSearchIndex = -1;
+        if (DiffSearchBox == null || DiffMatchCountLabel == null) return;
+        string query = DiffSearchBox.Text?.Trim() ?? "";
+        if (string.IsNullOrEmpty(query))
+        {
+            DiffMatchCountLabel.Text = "";
+            if (DiffSearchPill != null)
+                ToolTipService.SetToolTip(DiffSearchPill, "Search within diff rows (Enter/F3 next, Shift+F3 prev, Esc clear)");
+            return;
+        }
+
+        if (_vm.DiffMode == HistoryDiffMode.Unified)
+        {
+            for (int i = 0; i < _vm.UnifiedDiffRows.Count; i++)
+            {
+                var row = _vm.UnifiedDiffRows[i];
+                if (row.Text != null && row.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
+                {
+                    _diffSearchMatches.Add(i);
+                }
+            }
+        }
+        else
+        {
+            for (int i = 0; i < _vm.DiffRows.Count; i++)
+            {
+                var row = _vm.DiffRows[i];
+                bool matchLeft = row.Left?.Text != null && row.Left.Text.Contains(query, StringComparison.OrdinalIgnoreCase);
+                bool matchRight = row.Right?.Text != null && row.Right.Text.Contains(query, StringComparison.OrdinalIgnoreCase);
+                if (matchLeft || matchRight)
+                {
+                    _diffSearchMatches.Add(i);
+                }
+            }
+        }
+
+        if (_diffSearchMatches.Count == 0)
+        {
+            DiffMatchCountLabel.Text = "0/0";
+            if (DiffSearchPill != null)
+                ToolTipService.SetToolTip(DiffSearchPill, $"No matches for '{query}'");
+        }
+        else
+        {
+            _currentDiffSearchIndex = 0;
+            DiffMatchCountLabel.Text = $"1/{_diffSearchMatches.Count}";
+            if (DiffSearchPill != null)
+                ToolTipService.SetToolTip(DiffSearchPill, $"Match 1 of {_diffSearchMatches.Count} for '{query}' · F3 next, Shift+F3 prev");
+            ScrollToDiffRow(_diffSearchMatches[0]);
+        }
+    }
+
+    private void StepToSearchMatch(int direction)
+    {
+        if (_diffSearchMatches.Count == 0) return;
+        _currentDiffSearchIndex = (_currentDiffSearchIndex + direction + _diffSearchMatches.Count) % _diffSearchMatches.Count;
+        int targetRow = _diffSearchMatches[_currentDiffSearchIndex];
+        string query = DiffSearchBox?.Text?.Trim() ?? "";
+        if (DiffMatchCountLabel != null)
+        {
+            DiffMatchCountLabel.Text = $"{_currentDiffSearchIndex + 1}/{_diffSearchMatches.Count}";
+            if (DiffSearchPill != null)
+                ToolTipService.SetToolTip(DiffSearchPill, $"Match {_currentDiffSearchIndex + 1} of {_diffSearchMatches.Count} for '{query}' (Row {targetRow + 1}) · F3 next, Shift+F3 prev");
+        }
+        ScrollToDiffRow(targetRow);
+    }
+
+    private void ScrollToDiffRow(int targetRow)
+    {
+        double targetY = Math.Max(0, targetRow * 20.0);
+        if (_vm.DiffMode == HistoryDiffMode.Unified)
+        {
+            UnifiedScroll?.ChangeView(null, targetY, null);
+        }
+        else
+        {
+            SplitScroll?.ChangeView(null, targetY, null);
+        }
+    }
+
+    private void OnDiffSearchBoxTextChanged(object sender, TextChangedEventArgs e) => UpdateDiffSearchMatches();
+
+    private void OnDiffSearchBoxKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        var isShift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (e.Key == VirtualKey.Enter)
+        {
+            e.Handled = true;
+            StepToSearchMatch(isShift ? -1 : 1);
+        }
+        else if (e.Key == VirtualKey.Escape)
+        {
+            e.Handled = true;
+            if (DiffSearchBox != null) DiffSearchBox.Text = "";
+        }
+        else if (e.Key == VirtualKey.Down)
+        {
+            e.Handled = true;
+            StepToSearchMatch(1);
+        }
+        else if (e.Key == VirtualKey.Up)
+        {
+            e.Handled = true;
+            StepToSearchMatch(-1);
+        }
+    }
+
+    private void OnDiffPrevMatchClick(object sender, RoutedEventArgs e) => StepToSearchMatch(-1);
+    private void OnDiffNextMatchClick(object sender, RoutedEventArgs e) => StepToSearchMatch(1);
+
+    #endregion
+
     private void OnVersionClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: VersionItemViewModel item })
@@ -986,6 +1108,11 @@ public sealed partial class HistoryWindow : Window
         PreviewToggle.IsChecked = mode == HistoryDiffMode.Preview;
         _vm.SetDiffMode(mode);
         UpdateCopyToolbarButton(mode);
+        if (DiffSearchPill != null)
+        {
+            DiffSearchPill.Visibility = mode != HistoryDiffMode.Preview && _vm.HasDiffStats ? Visibility.Visible : Visibility.Collapsed;
+        }
+        UpdateDiffSearchMatches();
         // Wait one layout pass so the WebView has its real width before the page measures it.
         if (mode == HistoryDiffMode.Preview)
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, RenderPreview);
@@ -1206,6 +1333,17 @@ public sealed partial class HistoryWindow : Window
         {
             e.Handled = true;
             StepToChangeHunk(isShift ? -1 : 1);
+        }
+        else if (e.Key == VirtualKey.F3)
+        {
+            e.Handled = true;
+            StepToSearchMatch(isShift ? -1 : 1);
+        }
+        else if (isCtrl && isShift && e.Key == VirtualKey.F)
+        {
+            e.Handled = true;
+            DiffSearchBox?.Focus(FocusState.Programmatic);
+            DiffSearchBox?.SelectAll();
         }
         else if (e.Key == VirtualKey.Escape)
         {

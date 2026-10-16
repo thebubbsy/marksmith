@@ -479,6 +479,34 @@
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
+                            <Button x:Name="CenterCanvasButton" Style="{StaticResource ToolIconButton}" Padding="8,4"
+                                    Click="OnCenterCanvasButtonClick"
+                                    DoubleTapped="OnCenterCanvasButtonDoubleTapped"
+                                    RightTapped="OnCenterCanvasButtonRightTapped"
+                                    AutomationProperties.Name="Center diagram on canvas"
+                                    ToolTipService.ToolTip="Center diagram on canvas (Click to center, Double-click for top-left margin, Right-click for options)">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE898;" FontSize="13" />
+                                    <TextBlock Text="Center" FontSize="11.5" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Button.Flyout>
+                                    <MenuFlyout x:Name="CenterCanvasFlyout">
+                                        <MenuFlyoutItem Text="Center horizontally and vertically" Click="OnCenterBothClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE898;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Center horizontally only" Click="OnCenterHorizontallyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Center vertically only" Click="OnCenterVerticallyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Reset to top-left margin (60, 60)" Click="OnResetTopLeftClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
                             <DropDownButton x:Name="PaletteButton" Padding="8,4" AutomationProperties.Name="Colour scheme"
                                             RightTapped="OnPaletteButtonRightTapped"
                                             ToolTipService.ToolTip="Colour scheme for presets and new shapes (Right-click for options)">

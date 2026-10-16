@@ -170,16 +170,51 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <SelectorBar x:Name="EditorTabs" Margin="6,4,6,0" SelectionChanged="OnEditorTabsChanged"
-                                 DoubleTapped="OnEditorTabsDoubleTapped"
-                                 RightTapped="OnEditorTabsRightTapped">
-                        <SelectorBarItem x:Name="OutlineTab" Text="Outline" IsSelected="True">
-                            <SelectorBarItem.Icon><FontIcon Glyph="&#xE8FD;" /></SelectorBarItem.Icon>
-                        </SelectorBarItem>
-                        <SelectorBarItem x:Name="MarkdownTab" Text="Markdown">
-                            <SelectorBarItem.Icon><FontIcon Glyph="&#xE943;" /></SelectorBarItem.Icon>
-                        </SelectorBarItem>
-                    </SelectorBar>
+                    <Grid Grid.Row="0" Margin="6,4,6,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <SelectorBar x:Name="EditorTabs" Grid.Column="0" SelectionChanged="OnEditorTabsChanged"
+                                     DoubleTapped="OnEditorTabsDoubleTapped"
+                                     RightTapped="OnEditorTabsRightTapped">
+                            <SelectorBarItem x:Name="OutlineTab" Text="Outline" IsSelected="True">
+                                <SelectorBarItem.Icon><FontIcon Glyph="&#xE8FD;" /></SelectorBarItem.Icon>
+                            </SelectorBarItem>
+                            <SelectorBarItem x:Name="MarkdownTab" Text="Markdown">
+                                <SelectorBarItem.Icon><FontIcon Glyph="&#xE943;" /></SelectorBarItem.Icon>
+                            </SelectorBarItem>
+                        </SelectorBar>
+                        <Border x:Name="OutlineStatsPill" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,4,0"
+                                Padding="8,3" CornerRadius="12"
+                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                IsHitTestVisible="True"
+                                Tapped="OnOutlineStatsPillTapped"
+                                DoubleTapped="OnOutlineStatsPillDoubleTapped"
+                                RightTapped="OnOutlineStatsPillRightTapped"
+                                ToolTipService.ToolTip="Outline stats · Tap to view summary, Double-click to copy, Right-click to navigate root/deepest node">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <FontIcon Glyph="&#xE8EC;" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <TextBlock x:Name="OutlineStatsText" Text="0 nodes · Depth 0" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Border.ContextFlyout>
+                                <MenuFlyout x:Name="OutlineStatsFlyout">
+                                    <MenuFlyoutItem Text="Select root node (Top)" Click="OnSelectRootNodeClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74A;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Select deepest node" Click="OnSelectDeepestNodeClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74B;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem Text="Copy outline hierarchy summary" Click="OnCopyOutlineSummaryClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                </MenuFlyout>
+                            </Border.ContextFlyout>
+                        </Border>
+                    </Grid>
 
                     <!-- Outline editor -->
                     <Grid x:Name="OutlinePanel" Grid.Row="1" Padding="10,6,10,10" RowSpacing="8">

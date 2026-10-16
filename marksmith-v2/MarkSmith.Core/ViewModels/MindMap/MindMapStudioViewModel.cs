@@ -1317,7 +1317,9 @@ namespace MarkSmith.ViewModels.MindMap
             {
                 "radial" or "galaxy" => MindMapLayoutType.RadialGalaxy,
                 "force" or "physics" => MindMapLayoutType.ForceDirected,
-                "vertical" or "hierarchy" => MindMapLayoutType.VerticalHierarchy,
+                "vertical" or "hierarchy" or "topdown" => MindMapLayoutType.VerticalHierarchy,
+                "bottomup" or "inverted-hierarchy" => MindMapLayoutType.BottomUpHierarchy,
+                "tree-rtl" or "rtl" or "right-to-left" => MindMapLayoutType.RightToLeftTree,
                 "clusters" or "constellation" => MindMapLayoutType.ConstellationClusters,
                 _ => MindMapLayoutType.HorizontalTree
             };
@@ -1586,6 +1588,8 @@ namespace MarkSmith.ViewModels.MindMap
             MindMapLayoutType.RadialGalaxy => "a radial map",
             MindMapLayoutType.ForceDirected => "a force-directed web",
             MindMapLayoutType.VerticalHierarchy => "a top-down hierarchy",
+            MindMapLayoutType.BottomUpHierarchy => "a bottom-up hierarchy",
+            MindMapLayoutType.RightToLeftTree => "a right-to-left tree",
             MindMapLayoutType.ConstellationClusters => "clusters",
             _ => "a left-to-right tree"
         };

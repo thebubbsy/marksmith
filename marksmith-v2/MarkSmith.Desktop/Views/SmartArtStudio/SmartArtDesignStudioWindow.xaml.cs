@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -83,7 +84,13 @@ namespace MarkSmith.Views.SmartArtStudio
                     ScrollSelectedOutlineRowIntoView();
                     SyncSvgSelectedNode();
                 }
+                else if (e.PropertyName == nameof(ViewModel.MarkdownText) || e.PropertyName == nameof(ViewModel.SelectedLayout) || e.PropertyName == nameof(ViewModel.PreviewTitle))
+                {
+                    UpdateOutlineStats();
+                }
             };
+            ViewModel.OutlineRows.CollectionChanged += (_, _) => UpdateOutlineStats();
+            UpdateOutlineStats();
             this.Activated += OnWindowActivated;
             // Transparent page so the preview card's theme brush shows through in Light and Dark
             // (the rendered SmartArt is a self-contained light card either way).
@@ -4168,6 +4175,80 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             SetPreviewZoom(1.0);
             ViewModel.StatusMessage = "Fit diagram to preview width.";
+        }
+
+        #endregion
+
+        #region Outline Hierarchy Stats & Quick Navigation
+
+        private void UpdateOutlineStats()
+        {
+            if (OutlineStatsText == null) return;
+            int count = ViewModel.OutlineRows.Count;
+            int maxDepth = count > 0 ? ViewModel.OutlineRows.Max(r => r.Depth) : 0;
+            string text = count == 1
+                ? $"1 node · Depth {maxDepth}"
+                : $"{count} nodes · Depth {maxDepth}";
+            OutlineStatsText.Text = text;
+            if (OutlineStatsPill != null)
+            {
+                string layoutName = ViewModel.SelectedLayout?.DisplayName ?? "SmartArt";
+                ToolTipService.SetToolTip(OutlineStatsPill, $"Outline hierarchy: {count} nodes, max depth {maxDepth} ({layoutName}) · Tap to view details, double-click to copy summary, right-click for navigation options");
+            }
+        }
+
+        private void OnOutlineStatsPillTapped(object sender, TappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OutlineStatsFlyout?.ShowAt(OutlineStatsPill);
+        }
+
+        private void OnOutlineStatsPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            CopyOutlineSummary();
+        }
+
+        private void OnOutlineStatsPillRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OutlineStatsFlyout?.ShowAt(OutlineStatsPill, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = e.GetPosition(OutlineStatsPill) });
+        }
+
+        private void OnSelectRootNodeClick(object sender, RoutedEventArgs e)
+        {
+            var root = ViewModel.OutlineRows.FirstOrDefault(r => r.Depth == 0) ?? ViewModel.OutlineRows.FirstOrDefault();
+            if (root != null)
+            {
+                ViewModel.Select(root);
+                ViewModel.StatusMessage = $"Selected root node: {root.Text}";
+            }
+        }
+
+        private void OnSelectDeepestNodeClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.OutlineRows.Count > 0)
+            {
+                int maxDepth = ViewModel.OutlineRows.Max(r => r.Depth);
+                var deepest = ViewModel.OutlineRows.FirstOrDefault(r => r.Depth == maxDepth);
+                if (deepest != null)
+                {
+                    ViewModel.Select(deepest);
+                    ViewModel.StatusMessage = $"Selected deepest node (depth {deepest.Depth}): {deepest.Text}";
+                }
+            }
+        }
+
+        private void OnCopyOutlineSummaryClick(object sender, RoutedEventArgs e) => CopyOutlineSummary();
+
+        private void CopyOutlineSummary()
+        {
+            int count = ViewModel.OutlineRows.Count;
+            int maxDepth = count > 0 ? ViewModel.OutlineRows.Max(r => r.Depth) : 0;
+            string layoutName = ViewModel.SelectedLayout?.DisplayName ?? "SmartArt";
+            string summary = $"{count} nodes (max depth {maxDepth}) · {layoutName}";
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = $"Copied outline summary: {summary}";
         }
 
         #endregion

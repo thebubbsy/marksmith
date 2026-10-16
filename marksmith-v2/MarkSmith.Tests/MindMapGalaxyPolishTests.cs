@@ -339,7 +339,9 @@ namespace MarkSmith.Tests
 
         [Theory]
         [InlineData(MindMapLayoutType.HorizontalTree)]
+        [InlineData(MindMapLayoutType.RightToLeftTree)]
         [InlineData(MindMapLayoutType.VerticalHierarchy)]
+        [InlineData(MindMapLayoutType.BottomUpHierarchy)]
         [InlineData(MindMapLayoutType.RadialGalaxy)]
         [InlineData(MindMapLayoutType.ForceDirected)]
         [InlineData(MindMapLayoutType.ConstellationClusters)]

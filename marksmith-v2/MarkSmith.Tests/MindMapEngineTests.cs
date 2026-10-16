@@ -111,9 +111,11 @@ namespace MarkSmith.Tests
 
         [Theory]
         [InlineData(MindMapLayoutType.HorizontalTree)]
+        [InlineData(MindMapLayoutType.RightToLeftTree)]
         [InlineData(MindMapLayoutType.RadialGalaxy)]
         [InlineData(MindMapLayoutType.ForceDirected)]
         [InlineData(MindMapLayoutType.VerticalHierarchy)]
+        [InlineData(MindMapLayoutType.BottomUpHierarchy)]
         public void LayoutEngine_ComputesFiniteNonZeroCoordinates(MindMapLayoutType layoutType)
         {
             var engine = new MindMapLayoutEngine();

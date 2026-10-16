@@ -257,4 +257,38 @@ public class ShapeStudioPolishTests
         // Upright triangle text area is the bottom half (y 48..96); turned over it is 0..48.
         Assert.Contains("y=\"24.0\"", svg);
     }
+
+    [Fact]
+    public void CenterDiagramOnCanvas_CentersAllShapesWithinVirtualBounds()
+    {
+        var vm = NewVm();
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 0, Y = 0, Width = 200, Height = 100 });
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 200, Y = 100, Width = 200, Height = 100 });
+        // Collective bounding box: X: 0..400 (center 200), Y: 0..200 (center 100).
+        // Canvas size: 2200 x 1800 (center 1100, 900).
+        // dx = 1100 - 200 = 900. dy = 900 - 100 = 800.
+        vm.CenterDiagramOnCanvas(horizontal: true, vertical: true, canvasW: 2200, canvasH: 1800);
+
+        Assert.Equal(900, vm.Shapes[0].X);
+        Assert.Equal(800, vm.Shapes[0].Y);
+        Assert.Equal(1100, vm.Shapes[1].X);
+        Assert.Equal(900, vm.Shapes[1].Y);
+        Assert.Equal("Centered diagram on canvas", vm.StatusMessage);
+    }
+
+    [Fact]
+    public void ResetDiagramToTopLeft_RepositionsShapesToStandardMargin()
+    {
+        var vm = NewVm();
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 500, Y = 400, Width = 150, Height = 80 });
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 700, Y = 500, Width = 150, Height = 80 });
+
+        vm.ResetDiagramToTopLeft(padX: 60, padY: 60);
+
+        Assert.Equal(60, vm.Shapes[0].X);
+        Assert.Equal(60, vm.Shapes[0].Y);
+        Assert.Equal(260, vm.Shapes[1].X);
+        Assert.Equal(160, vm.Shapes[1].Y);
+        Assert.Equal("Moved diagram to top-left margin", vm.StatusMessage);
+    }
 }

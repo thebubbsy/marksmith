@@ -70,7 +70,7 @@ public sealed partial class SuiteHubView : UserControl
         SizeChanged += (_, e) => ApplyResponsiveLayout(e.NewSize.Width);
         AddHandler(KeyDownEvent, new KeyEventHandler(OnHubKeyDown), true);
         HoverPolish.Track(this);
-        Loaded += (_, _) => { LoadRecentFiles(); UpdateMemoryUsage(); UpdateUptimeAndCache(); };
+        Loaded += (_, _) => { LoadRecentFiles(); UpdateMemoryUsage(); UpdateUptimeAndCache(); FilterTemplates(""); };
     }
 
     private void WireCardPolish(Border card, int cardIndex)
@@ -1377,6 +1377,103 @@ Brief summary of key user-facing features, polish refinements, and performance u
 """);
     }
 
+    private void OnTemplatePostmortemClick(object sender, RoutedEventArgs e)
+    {
+        CreateAndOpenStarterDocument("Incident_Postmortem", """
+# Incident Postmortem: [INC-XXXX] [Brief Description]
+
+**Date of Incident:** YYYY-MM-DD | **Severity:** Sev-1 / Critical | **Incident Lead:** [Name]
+**Duration:** [X hours, Y minutes] | **Impacted Users/Services:** [Details]
+
+## 1. Executive Summary
+High-level summary of what broke, the business/user impact, how it was detected, and how service was restored.
+
+## 2. Incident Timeline (UTC)
+
+| Time | Event | Logged By |
+| :--- | :--- | :--- |
+| 14:15 | Automated alert triggers on elevated 5xx error rate | AlertBot |
+| 14:22 | On-call engineer initiates incident bridge | @engineer |
+| 14:40 | Root cause identified in deployment artifact v2.14 | @lead |
+| 14:52 | Safe rollback executed; error rates return to baseline | @engineer |
+| 15:10 | Verification complete; incident resolved | @lead |
+
+## 3. Root Cause Analysis (5 Whys)
+1. **Why?** - The service experienced memory exhaustion and restarted in a crash loop.
+2. **Why?** - An unindexed query produced a full table scan across millions of records.
+3. **Why?** - A new filter was merged without verifying composite index coverage.
+4. **Why?** - The CI verification suite used small fixture datasets that didn't reveal scale degradation.
+5. **Why?** - Large-scale benchmark verification was not an automated PR gating check.
+
+## 4. What Went Well & What Could Be Improved
+### What Went Well
+- Fast escalation: on-call acknowledged within 7 minutes.
+- Clean rollback: zero data corruption or uncommitted state.
+
+### Where We Got Lucky
+- Occurred during daylight on-call rotation with full engineering presence.
+
+### What Needs Improvement
+- Automated canary alerts did not block promotion to 100% traffic.
+
+## 5. Preventative Action Items
+
+| Item | Action | Type | Owner | Due Date |
+| :--- | :--- | :--- | :--- | :--- |
+| ACT-01 | Add query execution plan lint check to CI pipeline | Prevent | @owner | YYYY-MM-DD |
+| ACT-02 | Introduce 5% automated canary analysis gate | Mitigate | @owner | YYYY-MM-DD |
+| ACT-03 | Run synthetic load stress tests on staging | Detect | @owner | YYYY-MM-DD |
+""");
+    }
+
+    private void OnTemplateRfcClick(object sender, RoutedEventArgs e)
+    {
+        CreateAndOpenStarterDocument("RFC_Proposal", """
+# RFC: [Proposal Title]
+
+**RFC Number:** [00XX] | **Author:** [Author Name] | **Status:** Draft / Open for Review
+**Target Milestone:** [Version / Quarter] | **Reviewers:** [Architects, Tech Leads]
+
+## 1. Summary
+A concise one-paragraph explanation of what is proposed and why it matters.
+
+## 2. Motivation & Background
+Why are we doing this? What problems or limitations does this address? What use cases will this enable?
+
+## 3. Goals & Non-Goals
+### Goals
+- Goal 1: First-class native performance and predictability.
+- Goal 2: Backward-compatible upgrade path for existing users.
+
+### Non-Goals
+- Explicitly out of scope requirements that will not be addressed in this RFC.
+
+## 4. Proposed Architecture & Design
+
+```mermaid
+graph LR
+    Input[Proposal Input] --> Parser[Validation & Parse]
+    Parser --> Engine[Execution Engine]
+    Engine --> Output[Rendered Artifact]
+```
+
+### Detailed Design & Implementation
+- Specification of key interfaces, classes, and workflows.
+- Error handling, timeouts, and degradation modes.
+
+## 5. Alternatives Considered & Trade-offs
+- **Alternative A:** [Description and reason rejected]
+- **Alternative B:** [Description and reason rejected]
+
+## 6. Security, Privacy & Reliability Considerations
+- Impact on data isolation, telemetry, and privilege boundaries.
+- Failure domains and blast radius mitigation.
+
+## 7. Open Questions & Decision Log
+- [ ] Question 1: Unresolved architectural trade-off to be discussed in review.
+""");
+    }
+
     private void OnTemplateSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
         FilterTemplates(sender.Text);
@@ -1402,10 +1499,12 @@ Brief summary of key user-facing features, polish refinements, and performance u
         if (StarterTemplatesPanel == null) return;
         query = query.Trim().ToLowerInvariant();
         int visibleCount = 0;
+        int total = 0;
         foreach (var child in StarterTemplatesPanel.Children)
         {
             if (child is Button btn)
             {
+                total++;
                 var tag = (btn.Tag as string ?? "").ToLowerInvariant();
                 var text = "";
                 if (btn.Content is StackPanel sp)
@@ -1419,6 +1518,16 @@ Brief summary of key user-facing features, polish refinements, and performance u
                 if (matches) visibleCount++;
             }
         }
+        if (TemplateCountText != null)
+        {
+            TemplateCountText.Text = visibleCount == total ? $"{total} templates" : $"{visibleCount}/{total} templates";
+        }
+        if (TemplateCountPill != null)
+        {
+            ToolTipService.SetToolTip(TemplateCountPill, string.IsNullOrEmpty(query)
+                ? $"Starter templates ({total}) · Click to show all, double-click to filter, right-click for options"
+                : $"Filtered templates: {visibleCount} of {total} match '{query}' · Click to clear filter");
+        }
         if (TemplateSearchStatusText != null)
         {
             if (string.IsNullOrEmpty(query))
@@ -1430,6 +1539,33 @@ Brief summary of key user-facing features, polish refinements, and performance u
                 TemplateSearchStatusText.Text = visibleCount > 0 ? $"{visibleCount} match{(visibleCount == 1 ? "" : "es")}" : "No templates match";
                 TemplateSearchStatusText.Visibility = Visibility.Visible;
             }
+        }
+    }
+
+    private void OnTemplateCountPillTapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (TemplateSearchBox != null && !string.IsNullOrEmpty(TemplateSearchBox.Text))
+        {
+            TemplateSearchBox.Text = "";
+            FilterTemplates("");
+        }
+    }
+
+    private void OnTemplateCountPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        TemplateSearchBox?.Focus(FocusState.Programmatic);
+    }
+
+    private void OnTemplateCountPillRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (TemplateSearchBox != null)
+        {
+            TemplateSearchBox.Text = "";
+            FilterTemplates("");
+            TemplateSearchBox.Focus(FocusState.Programmatic);
         }
     }
 
@@ -1447,6 +1583,8 @@ Brief summary of key user-facing features, polish refinements, and performance u
                 else if (btn == TemplateMindMapBtn) OnTemplateMindMapClick(btn, new RoutedEventArgs());
                 else if (btn == TemplateAdrBtn) OnTemplateAdrClick(btn, new RoutedEventArgs());
                 else if (btn == TemplateReleaseNotesBtn) OnTemplateReleaseNotesClick(btn, new RoutedEventArgs());
+                else if (btn == TemplatePostmortemBtn) OnTemplatePostmortemClick(btn, new RoutedEventArgs());
+                else if (btn == TemplateRfcBtn) OnTemplateRfcClick(btn, new RoutedEventArgs());
                 break;
             }
         }

@@ -1573,6 +1573,29 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
+        private void OnCenterCanvasButtonClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.CenterDiagramOnCanvas(horizontal: true, vertical: true);
+            CenterCanvasFlyout?.Hide();
+        }
+
+        private void OnCenterCanvasButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ViewModel.ResetDiagramToTopLeft(padX: 60, padY: 60);
+        }
+
+        private void OnCenterCanvasButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            CenterCanvasFlyout?.ShowAt(sender as FrameworkElement ?? CenterCanvasButton);
+        }
+
+        private void OnCenterBothClick(object sender, RoutedEventArgs e) => ViewModel.CenterDiagramOnCanvas(horizontal: true, vertical: true);
+        private void OnCenterHorizontallyClick(object sender, RoutedEventArgs e) => ViewModel.CenterDiagramOnCanvas(horizontal: true, vertical: false);
+        private void OnCenterVerticallyClick(object sender, RoutedEventArgs e) => ViewModel.CenterDiagramOnCanvas(horizontal: false, vertical: true);
+        private void OnResetTopLeftClick(object sender, RoutedEventArgs e) => ViewModel.ResetDiagramToTopLeft(padX: 60, padY: 60);
+
         private void SetGridSnapMode(int interval, bool showGrid)
         {
             _gridSnapInterval = interval;

@@ -13,7 +13,9 @@ namespace MarkSmith.Services.MindMap
         VerticalHierarchy,
         /// <summary>Each connected component laid out on its own, then packed into a grid so
         /// separate islands of a vault never land on top of each other.</summary>
-        ConstellationClusters
+        ConstellationClusters,
+        RightToLeftTree,
+        BottomUpHierarchy
     }
 
     public sealed class MindMapLayoutEngine
@@ -31,6 +33,9 @@ namespace MarkSmith.Services.MindMap
                 case MindMapLayoutType.HorizontalTree:
                     ApplyHorizontalTreeLayout(doc);
                     break;
+                case MindMapLayoutType.RightToLeftTree:
+                    ApplyRightToLeftTreeLayout(doc);
+                    break;
                 case MindMapLayoutType.RadialGalaxy:
                     ApplyRadialGalaxyLayout(doc);
                     break;
@@ -40,6 +45,9 @@ namespace MarkSmith.Services.MindMap
                 case MindMapLayoutType.VerticalHierarchy:
                     ApplyVerticalHierarchyLayout(doc);
                     break;
+                case MindMapLayoutType.BottomUpHierarchy:
+                    ApplyBottomUpHierarchyLayout(doc);
+                    break;
                 case MindMapLayoutType.ConstellationClusters:
                     ApplyConstellationClusterLayout(doc);
                     break;
@@ -48,9 +56,13 @@ namespace MarkSmith.Services.MindMap
 
         // ---- Tree layouts ----
 
-        public void ApplyHorizontalTreeLayout(MindMapDocument doc) => ApplyTreeLayout(doc, vertical: false);
+        public void ApplyHorizontalTreeLayout(MindMapDocument doc) => ApplyTreeLayout(doc, vertical: false, inverted: false);
 
-        public void ApplyVerticalHierarchyLayout(MindMapDocument doc) => ApplyTreeLayout(doc, vertical: true);
+        public void ApplyRightToLeftTreeLayout(MindMapDocument doc) => ApplyTreeLayout(doc, vertical: false, inverted: true);
+
+        public void ApplyVerticalHierarchyLayout(MindMapDocument doc) => ApplyTreeLayout(doc, vertical: true, inverted: false);
+
+        public void ApplyBottomUpHierarchyLayout(MindMapDocument doc) => ApplyTreeLayout(doc, vertical: true, inverted: true);
 
         /// <summary>
         /// Classic tidy-tree placement. A node is positioned BEFORE its subtree is walked, because
@@ -58,7 +70,7 @@ namespace MarkSmith.Services.MindMap
         /// out afterwards (as this once did) meant every node below depth 2 was placed relative to
         /// wherever its parent happened to be sitting from the previous layout.
         /// </summary>
-        private void ApplyTreeLayout(MindMapDocument doc, bool vertical)
+        private void ApplyTreeLayout(MindMapDocument doc, bool vertical, bool inverted = false)
         {
             var byId = Index(doc);
             var roots = RootsOf(doc, byId);
@@ -74,7 +86,7 @@ namespace MarkSmith.Services.MindMap
                     root.X = cursor;
                     root.Y = 0;
                     double span = MeasureSubtree(byId, root, vertical: true, new HashSet<string>(visited, StringComparer.Ordinal));
-                    PlaceSubtree(byId, root, vertical: true, visited);
+                    PlaceSubtree(byId, root, vertical: true, inverted: inverted, visited);
                     cursor += span + HorizontalGap;
                 }
                 else
@@ -82,7 +94,7 @@ namespace MarkSmith.Services.MindMap
                     root.X = 0;
                     root.Y = cursor;
                     double span = MeasureSubtree(byId, root, vertical: false, new HashSet<string>(visited, StringComparer.Ordinal));
-                    PlaceSubtree(byId, root, vertical: false, visited);
+                    PlaceSubtree(byId, root, vertical: false, inverted: inverted, visited);
                     cursor += span + VerticalGap;
                 }
             }
@@ -109,7 +121,7 @@ namespace MarkSmith.Services.MindMap
             return Math.Max(own + SiblingGap, total);
         }
 
-        private static void PlaceSubtree(Dictionary<string, MindMapNode> byId, MindMapNode node, bool vertical, HashSet<string> visited)
+        private static void PlaceSubtree(Dictionary<string, MindMapNode> byId, MindMapNode node, bool vertical, bool inverted, HashSet<string> visited)
         {
             var children = ChildrenOf(byId, node, visited);
             if (children.Count == 0) return;
@@ -123,25 +135,29 @@ namespace MarkSmith.Services.MindMap
 
             if (vertical)
             {
-                double nextY = node.Y + node.Height + VerticalGap;
+                double nextY = inverted
+                    ? node.Y - VerticalGap
+                    : node.Y + node.Height + VerticalGap;
                 double cursor = node.X + (node.Width / 2.0) - (totalSpan / 2.0);
                 for (int i = 0; i < children.Count; i++)
                 {
                     var child = children[i];
                     child.X = cursor + (spans[i] / 2.0) - (child.Width / 2.0);
-                    child.Y = nextY;
+                    child.Y = inverted ? nextY - child.Height : nextY;
                     cursor += spans[i];
                     visited.Add(child.Id);
                 }
             }
             else
             {
-                double nextX = node.X + node.Width + HorizontalGap;
+                double nextX = inverted
+                    ? node.X - HorizontalGap
+                    : node.X + node.Width + HorizontalGap;
                 double cursor = node.Y + (node.Height / 2.0) - (totalSpan / 2.0);
                 for (int i = 0; i < children.Count; i++)
                 {
                     var child = children[i];
-                    child.X = nextX;
+                    child.X = inverted ? nextX - child.Width : nextX;
                     child.Y = cursor + (spans[i] / 2.0) - (child.Height / 2.0);
                     cursor += spans[i];
                     visited.Add(child.Id);
@@ -150,7 +166,7 @@ namespace MarkSmith.Services.MindMap
 
             foreach (var child in children)
             {
-                PlaceSubtree(byId, child, vertical, visited);
+                PlaceSubtree(byId, child, vertical, inverted, visited);
             }
         }
 

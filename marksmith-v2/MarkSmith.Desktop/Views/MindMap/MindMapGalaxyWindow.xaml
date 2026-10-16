@@ -218,8 +218,14 @@
                                     <MenuFlyoutItem Text="Tree, left to right" Click="OnLayoutTreeClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Tree, right to left" Click="OnLayoutTreeRtlClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81F;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Hierarchy, top down" Click="OnLayoutHierarchyClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Hierarchy, bottom up" Click="OnLayoutHierarchyBottomUpClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74A;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Radial, around the root" Click="OnLayoutRadialClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE707;" /></MenuFlyoutItem.Icon>
