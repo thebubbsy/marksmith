@@ -74,6 +74,7 @@
                      its tooltip can still explain why (disabled controls show no tooltip). -->
                 <Button x:Name="TakeCheckpointButton" Grid.Column="3" Click="OnTakeSnapshotClick" Padding="12,6" CornerRadius="6"
                         VerticalAlignment="Center" ToolTipService.ToolTip="{Binding CheckpointTooltip}"
+                        DoubleTapped="OnTakeCheckpointButtonDoubleTapped"
                         RightTapped="OnTakeCheckpointButtonRightTapped"
                         AutomationProperties.Name="Take checkpoint">
                     <StackPanel Orientation="Horizontal" Spacing="6">
@@ -86,9 +87,10 @@
                 <Button x:Name="RestoreButton" Grid.Column="4" Click="OnRestoreClick" Padding="16,6" CornerRadius="6"
                         Style="{ThemeResource AccentButtonStyle}" IsEnabled="{Binding HasSelection}"
                         FontWeight="SemiBold" VerticalAlignment="Center"
+                        DoubleTapped="OnRestoreButtonDoubleTapped"
                         RightTapped="OnRestoreButtonRightTapped"
                         AutomationProperties.Name="Restore to editor"
-                        ToolTipService.ToolTip="Put the selected version's text back in the editor (Ctrl+Enter · Right-click for options)">
+                        ToolTipService.ToolTip="Put the selected version's text back in the editor (Ctrl+Enter · Double-click to restore, Right-click for options)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE7A7;" FontSize="13" />
                         <TextBlock Text="Restore to Editor" FontSize="12" />

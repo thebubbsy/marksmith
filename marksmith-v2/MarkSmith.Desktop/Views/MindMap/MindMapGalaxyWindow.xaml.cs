@@ -1699,11 +1699,68 @@ namespace MarkSmith.Views.MindMap
 
             flyout.Items.Add(new MenuFlyoutSeparator());
 
+            var exportSub = new MenuFlyoutSubItem
+            {
+                Text = "Export & copy map",
+                Icon = new FontIcon { Glyph = "\uEDE1" },
+                IsEnabled = ViewModel.Nodes.Count > 0
+            };
+
+            var docxItem = MenuItem("Export as Word document…", "\uE8A5");
+            docxItem.Click += OnExportDocxClick;
+            exportSub.Items.Add(docxItem);
+
+            var saveCopyItem = MenuItem("Save a copy of map…", "\uEA35");
+            saveCopyItem.Click += OnSaveAsClick;
+            exportSub.Items.Add(saveCopyItem);
+
+            exportSub.Items.Add(new MenuFlyoutSeparator());
+
+            var copyFlowchartItem = MenuItem("Copy as Mermaid flowchart", "\uE8C8", "Ctrl+Shift+C");
+            copyFlowchartItem.Click += OnCopyMermaidFlowchartClick;
+            exportSub.Items.Add(copyFlowchartItem);
+
+            var copyMindmapItem = MenuItem("Copy as Mermaid mind map", "\uE8C8");
+            copyMindmapItem.Click += OnCopyMermaidMindmapClick;
+            exportSub.Items.Add(copyMindmapItem);
+
+            var copyStatsItem = MenuItem("Copy map statistics", "\uE946");
+            copyStatsItem.Click += (_, _) =>
+            {
+                var summary = $"{ViewModel.Title} · {ViewModel.NodesCountText} · {ViewModel.LinksCountText}";
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(summary);
+                ViewModel.StatusMessage = "Copied map statistics to clipboard";
+            };
+            exportSub.Items.Add(copyStatsItem);
+
+            flyout.Items.Add(exportSub);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
             var copyMermaidItem = MenuItem("Copy map as Mermaid", "\uE8C8", "Ctrl+Shift+C");
             copyMermaidItem.Click += (s, e) => CopyMermaid(asFlowchart: true, "flowchart");
             flyout.Items.Add(copyMermaidItem);
 
             flyout.ShowAt(GalaxyCanvas, screenPos);
+        }
+
+        private void OnCanvasDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            // Only fire if the double-tap happened directly on the canvas background or world layers,
+            // not when double-tapping a node card or link line.
+            if (!ReferenceEquals(e.OriginalSource, GalaxyCanvas) &&
+                !ReferenceEquals(e.OriginalSource, WorldCanvas) &&
+                !ReferenceEquals(e.OriginalSource, EdgeLayer) &&
+                !ReferenceEquals(e.OriginalSource, NodeLayer))
+            {
+                return;
+            }
+            e.Handled = true;
+            var pos = e.GetPosition(GalaxyCanvas);
+            double worldX = ((pos.X - CanvasWidth / 2.0) / ViewModel.ZoomLevel) - ViewModel.ViewportOffsetX;
+            double worldY = ((pos.Y - CanvasHeight / 2.0) / ViewModel.ZoomLevel) - ViewModel.ViewportOffsetY;
+            ViewModel.AddNodeAt(worldX - 95, worldY - 28);
+            ViewModel.StatusMessage = $"Added new thought at ({worldX:F0}, {worldY:F0}).";
         }
 
         private void OnCanvasRightTapped(object sender, RightTappedRoutedEventArgs e)

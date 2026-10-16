@@ -268,7 +268,9 @@
                         PointerReleased="OnCanvasPointerReleased"
                         PointerCaptureLost="OnCanvasPointerCaptureLost"
                         PointerWheelChanged="OnCanvasPointerWheelChanged"
-                        RightTapped="OnCanvasRightTapped">
+                        DoubleTapped="OnCanvasDoubleTapped"
+                        RightTapped="OnCanvasRightTapped"
+                        ToolTipService.ToolTip="Document Galaxy canvas · Double-click to add node here, Right-click for canvas &amp; export options">
                     <Canvas x:Name="WorldCanvas">
                         <Canvas.RenderTransform>
                             <CompositeTransform x:Name="WorldTransform" />

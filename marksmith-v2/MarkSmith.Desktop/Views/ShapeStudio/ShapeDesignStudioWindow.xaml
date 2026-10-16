@@ -261,7 +261,10 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBox x:Name="FuseImagePathBox" PlaceholderText="…or paste an image path here"
-                                                     AutomationProperties.Name="Image file path" />
+                                                     AutomationProperties.Name="Image file path"
+                                                     DoubleTapped="OnFuseImagePathBoxDoubleTapped"
+                                                     RightTapped="OnFuseImagePathBoxRightTapped"
+                                                     ToolTipService.ToolTip="Image file path · Double-click to select all, Right-click for options" />
                                             <Button Grid.Column="1" Content="Use" Click="OnUseImagePathClick" Padding="10,4"
                                                     ToolTipService.ToolTip="Use the pasted path (handy when the file dialog hangs on a cloud folder)" />
                                         </Grid>
@@ -277,14 +280,19 @@
                                     <TextBlock HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                                                Text="{Binding ElementName=FuseMosaicDensity, Path=Value}" />
                                 </Grid>
-                                <Slider AutomationProperties.Name="Mosaic density" x:Name="FuseMosaicDensity" Minimum="0" Maximum="120" Value="96" SmallChange="1" LargeChange="5" />
+                                <Slider AutomationProperties.Name="Mosaic density" x:Name="FuseMosaicDensity" Minimum="0" Maximum="120" Value="96" SmallChange="1" LargeChange="5"
+                                        DoubleTapped="OnFuseMosaicDensityDoubleTapped"
+                                        RightTapped="OnFuseMosaicDensityRightTapped"
+                                        ToolTipService.ToolTip="Shape mosaic density (0..120) · Double-click for default 96, Right-click for presets" />
                                 <Grid>
                                     <TextBlock Text="Tile spacing" Style="{StaticResource InspectorLabel}" />
                                     <TextBlock HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                                                Text="{Binding ElementName=FuseMosaicPadding, Path=Value}" />
                                 </Grid>
                                 <Slider AutomationProperties.Name="Tile spacing" x:Name="FuseMosaicPadding" Minimum="-20" Maximum="20" Value="-6" SmallChange="1" LargeChange="5" StepFrequency="1"
-                                        ToolTipService.ToolTip="Padding around each tile (-20..+20). Negative overlaps tiles until no white space remains; positive opens gaps." />
+                                        DoubleTapped="OnFuseMosaicPaddingDoubleTapped"
+                                        RightTapped="OnFuseMosaicPaddingRightTapped"
+                                        ToolTipService.ToolTip="Padding around each tile (-20..+20) · Double-click for default -6, Right-click for presets" />
                                 <CheckBox x:Name="CompAdaptive" Content="Smart tiles — pick each shape from the picture" MinWidth="0"
                                           Checked="OnCompAdaptiveChanged" Unchecked="OnCompAdaptiveChanged"
                                           ToolTipService.ToolTip="Flat areas become discs, edges become directional shapes, busy texture becomes hexagons. Overrides the tile-shape boxes below." />
@@ -319,7 +327,10 @@
                                     <TextBlock HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                                                Text="{Binding ElementName=FuseLineDensity, Path=Value}" />
                                 </Grid>
-                                <Slider AutomationProperties.Name="Line density" x:Name="FuseLineDensity" Minimum="0" Maximum="1200" Value="120" SmallChange="10" LargeChange="50" StepFrequency="10" />
+                                <Slider AutomationProperties.Name="Line density" x:Name="FuseLineDensity" Minimum="0" Maximum="1200" Value="120" SmallChange="10" LargeChange="50" StepFrequency="10"
+                                        DoubleTapped="OnFuseLineDensityDoubleTapped"
+                                        RightTapped="OnFuseLineDensityRightTapped"
+                                        ToolTipService.ToolTip="Traced line density (0..1200) · Double-click for default 120, Right-click for presets" />
                                 <ComboBox x:Name="FuseModePicker" Header="Line style" HorizontalAlignment="Stretch" SelectedIndex="0"
                                           AutomationProperties.Name="Line style">
                                     <ComboBoxItem Content="Cross-hatch — etching" Tag="CrossHatch" />
@@ -342,7 +353,9 @@
                                                        Text="{Binding ElementName=FuseEdgeSensitivity, Path=Value}" />
                                         </Grid>
                                         <Slider x:Name="FuseEdgeSensitivity" Minimum="5" Maximum="80" Value="30" AutomationProperties.Name="Detail threshold"
-                                                ToolTipService.ToolTip="Lower values pick up finer texture and subtle detail" />
+                                                DoubleTapped="OnFuseEdgeSensitivityDoubleTapped"
+                                                RightTapped="OnFuseEdgeSensitivityRightTapped"
+                                                ToolTipService.ToolTip="Detail threshold (5..80) · Double-click for default 30, Right-click for presets" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Spacing="0">
                                         <Grid>
@@ -350,7 +363,10 @@
                                             <TextBlock x:Name="StrokeWidthReadout" HorizontalAlignment="Right" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="1.5" />
                                         </Grid>
                                         <Slider x:Name="FuseStrokeWidth" Minimum="0.5" Maximum="5.0" Value="1.5" StepFrequency="0.1" AutomationProperties.Name="Stroke width"
-                                                ValueChanged="OnStrokeWidthChanged" ToolTipService.ToolTip="Thickness of the traced ink strokes" />
+                                                ValueChanged="OnStrokeWidthChanged"
+                                                DoubleTapped="OnFuseStrokeWidthDoubleTapped"
+                                                RightTapped="OnFuseStrokeWidthRightTapped"
+                                                ToolTipService.ToolTip="Thickness of traced ink strokes (0.5..5.0 pt) · Double-click for default 1.5 pt, Right-click for presets" />
                                     </StackPanel>
                                 </Grid>
                                 <CheckBox x:Name="FuseMonochrome" Content="Dark ink only (ignore the picture's colours)" IsChecked="True" MinWidth="0" />
@@ -548,7 +564,11 @@
                     </ScrollViewer>
 
                     <!-- empty state -->
-                    <StackPanel Grid.Row="1" Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" IsHitTestVisible="False"
+                    <StackPanel x:Name="CanvasEmptyStatePanel" Grid.Row="1" Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" IsHitTestVisible="True"
+                                Background="Transparent"
+                                DoubleTapped="OnCanvasEmptyStateDoubleTapped"
+                                RightTapped="OnCanvasEmptyStateRightTapped"
+                                ToolTipService.ToolTip="Canvas is empty · Double-click to place starter shape, Right-click for options"
                                 HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" MaxWidth="440">
                         <FontIcon Glyph="&#xE790;" FontSize="40" Foreground="{ThemeResource TextFillColorDisabledBrush}" HorizontalAlignment="Center" />
                         <TextBlock Text="Start with a preset or a shape" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />

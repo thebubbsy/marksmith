@@ -288,16 +288,18 @@
                         <!-- Empty state: shown once every item has been deleted. -->
                         <StackPanel x:Name="OutlineEmptyPanel" Grid.Row="1" Spacing="10" MaxWidth="300" HorizontalAlignment="Center" VerticalAlignment="Center"
                                     Background="Transparent" IsHitTestVisible="True"
+                                    DoubleTapped="OnOutlineEmptyPanelDoubleTapped"
                                     RightTapped="OnOutlineEmptyPanelRightTapped"
-                                    ToolTipService.ToolTip="The outline is empty · Right-click for options"
+                                    ToolTipService.ToolTip="The outline is empty · Double-click to add first item, Right-click for starter diagram options"
                                     Visibility="{Binding IsOutlineEmpty, Converter={StaticResource BoolToVisibilityConverter}}">
                             <FontIcon Glyph="&#xF003;" FontSize="36" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
                             <TextBlock Text="The outline is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
                             <TextBlock Text="Add a first item, then build it out with Child and Sibling — or paste bullets on the Markdown tab."
                                        Style="{StaticResource PaneCaption}" TextAlignment="Center" />
                             <Button Click="OnAddFirstNodeClick" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" Margin="0,4,0,0"
+                                    DoubleTapped="OnOutlineEmptyPanelDoubleTapped"
                                     RightTapped="OnOutlineEmptyPanelRightTapped"
-                                    ToolTipService.ToolTip="Add first item (Insert · Right-click for options)">
+                                    ToolTipService.ToolTip="Add first item (Insert · Double-click to add, Right-click for starter options)">
                                 <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Add first item" /></StackPanel>
                             </Button>
                         </StackPanel>
@@ -315,8 +317,9 @@
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                                  Text="{Binding MarkdownText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  KeyDown="OnMarkdownTextBoxKeyDown"
+                                 DoubleTapped="OnMarkdownTextBoxDoubleTapped"
                                  RightTapped="OnMarkdownTextBoxRightTapped"
-                                 ToolTipService.ToolTip="Indented Markdown bullets (Ctrl+Enter to insert into document, Right-click for options)"
+                                 ToolTipService.ToolTip="Indented Markdown bullets · Double-click to select all, Ctrl+Enter to insert into document, Right-click for options"
                                  FontFamily="Consolas" FontSize="13" />
                     </Grid>
                 </Grid>
@@ -349,16 +352,18 @@
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                             <Button x:Name="CopyOutlineMarkdownButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                     Click="OnCopyOutlineMarkdownClick"
+                                    DoubleTapped="OnCopyOutlineMarkdownButtonDoubleTapped"
                                     RightTapped="OnCopyOutlineMarkdownButtonRightTapped"
                                     AutomationProperties.Name="Copy outline bullets"
-                                    ToolTipService.ToolTip="Copy indented outline bullets (Ctrl+C, Right-click for options)">
+                                    ToolTipService.ToolTip="Copy indented outline bullets (Ctrl+C · Double-click to copy, Right-click for options)">
                                 <FontIcon Glyph="&#xE8FD;" FontSize="12" />
                             </Button>
                             <Button x:Name="CopySmartArtBlockButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                     Click="OnCopySmartArtBlockClick"
+                                    DoubleTapped="OnCopySmartArtBlockButtonDoubleTapped"
                                     RightTapped="OnCopySmartArtBlockButtonRightTapped"
                                     AutomationProperties.Name="Copy SmartArt Markdown"
-                                    ToolTipService.ToolTip="Copy :::smartart Markdown block (Ctrl+Shift+C, Right-click for options)">
+                                    ToolTipService.ToolTip="Copy :::smartart Markdown block (Ctrl+Shift+C · Double-click to copy, Right-click for options)">
                                 <FontIcon Glyph="&#xE8C8;" FontSize="12" />
                             </Button>
                         </StackPanel>

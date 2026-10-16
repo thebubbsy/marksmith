@@ -767,6 +767,12 @@ namespace MarkSmith.Views.SmartArtStudio
             FocusRenameBox();
         }
 
+        private void OnOutlineEmptyPanelDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OnAddFirstNodeClick(sender, new RoutedEventArgs());
+        }
+
         private void OnOutlineEmptyPanelRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
@@ -780,6 +786,70 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             addFirstItem.Click += OnAddFirstNodeClick;
             menu.Items.Add(addFirstItem);
+
+            var starterSub = new MenuFlyoutSubItem
+            {
+                Text = "Starter diagram structure",
+                Icon = new FontIcon { Glyph = "\uE8B3" }
+            };
+
+            var starterSingle = new MenuFlyoutItem
+            {
+                Text = "Single root item",
+                Icon = new FontIcon { Glyph = "\uE710" }
+            };
+            starterSingle.Click += OnAddFirstNodeClick;
+            starterSub.Items.Add(starterSingle);
+
+            var starterProcess = new MenuFlyoutItem
+            {
+                Text = "3-Step Process (Discover → Build → Deliver)",
+                Icon = new FontIcon { Glyph = "\uE80A" }
+            };
+            starterProcess.Click += (_, _) =>
+            {
+                ViewModel.MarkdownText = "- Step 1: Discover\n- Step 2: Build\n- Step 3: Deliver";
+                ViewModel.StatusMessage = "Applied 3-Step Process starter template.";
+            };
+            starterSub.Items.Add(starterProcess);
+
+            var starterHierarchy = new MenuFlyoutItem
+            {
+                Text = "Hierarchy / Org Chart (Lead → Teams)",
+                Icon = new FontIcon { Glyph = "\uF246" }
+            };
+            starterHierarchy.Click += (_, _) =>
+            {
+                ViewModel.MarkdownText = "- Executive Lead\n  - Engineering Team\n  - Product Design\n  - Operations";
+                ViewModel.StatusMessage = "Applied Hierarchy starter template.";
+            };
+            starterSub.Items.Add(starterHierarchy);
+
+            var starterCycle = new MenuFlyoutItem
+            {
+                Text = "Cycle (Plan → Do → Check → Act)",
+                Icon = new FontIcon { Glyph = "\uEC26" }
+            };
+            starterCycle.Click += (_, _) =>
+            {
+                ViewModel.MarkdownText = "- Plan\n- Do\n- Check\n- Act";
+                ViewModel.StatusMessage = "Applied 4-Stage Cycle starter template.";
+            };
+            starterSub.Items.Add(starterCycle);
+
+            var starterComparison = new MenuFlyoutItem
+            {
+                Text = "Comparison (Pros & Cons)",
+                Icon = new FontIcon { Glyph = "\uE8D3" }
+            };
+            starterComparison.Click += (_, _) =>
+            {
+                ViewModel.MarkdownText = "- Option Alpha\n  - Advantage 1\n  - Consideration 1\n- Option Beta\n  - Advantage 2\n  - Consideration 2";
+                ViewModel.StatusMessage = "Applied Comparison starter template.";
+            };
+            starterSub.Items.Add(starterComparison);
+
+            menu.Items.Add(starterSub);
 
             var switchMarkdownItem = new MenuFlyoutItem
             {
@@ -1585,7 +1655,19 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnCopyOutlineMarkdownClick(object sender, RoutedEventArgs e) => CopyOutlineMarkdown();
 
+        private void OnCopyOutlineMarkdownButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            CopyOutlineMarkdown();
+        }
+
         private void OnCopySmartArtBlockClick(object sender, RoutedEventArgs e) => CopySmartArtBlock();
+
+        private void OnCopySmartArtBlockButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            CopySmartArtBlock();
+        }
 
         private void CopyOutlineMarkdown()
         {
@@ -1700,6 +1782,12 @@ namespace MarkSmith.Views.SmartArtStudio
             else if (e.Key == VirtualKey.F2) { BeginRenameAndFocus(); e.Handled = true; }
         }
 
+        private void OnMarkdownTextBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            MarkdownTextBox?.SelectAll();
+        }
+
         private void OnMarkdownTextBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             if (MarkdownTextBox is null) return;
@@ -1740,6 +1828,64 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             copyBulletsItem.Click += (_, _) => CopyOutlineMarkdown();
             menu.Items.Add(copyBulletsItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var starterTemplatesSub = new MenuFlyoutSubItem
+            {
+                Text = "Insert starter template",
+                Icon = new FontIcon { Glyph = "\uE8B3" }
+            };
+
+            var tmplProcess = new MenuFlyoutItem
+            {
+                Text = "3-Step Process (Discover → Build → Deliver)",
+                Icon = new FontIcon { Glyph = "\uE80A" }
+            };
+            tmplProcess.Click += (_, _) =>
+            {
+                ViewModel.MarkdownText = "- Step 1: Discover\n- Step 2: Build\n- Step 3: Deliver";
+                ViewModel.StatusMessage = "Applied 3-Step Process template.";
+            };
+            starterTemplatesSub.Items.Add(tmplProcess);
+
+            var tmplHierarchy = new MenuFlyoutItem
+            {
+                Text = "Hierarchy / Org Chart (Lead → Teams)",
+                Icon = new FontIcon { Glyph = "\uF246" }
+            };
+            tmplHierarchy.Click += (_, _) =>
+            {
+                ViewModel.MarkdownText = "- Executive Lead\n  - Engineering Team\n  - Product Design\n  - Operations";
+                ViewModel.StatusMessage = "Applied Hierarchy template.";
+            };
+            starterTemplatesSub.Items.Add(tmplHierarchy);
+
+            var tmplCycle = new MenuFlyoutItem
+            {
+                Text = "Cycle (Plan → Do → Check → Act)",
+                Icon = new FontIcon { Glyph = "\uEC26" }
+            };
+            tmplCycle.Click += (_, _) =>
+            {
+                ViewModel.MarkdownText = "- Plan\n- Do\n- Check\n- Act";
+                ViewModel.StatusMessage = "Applied 4-Stage Cycle template.";
+            };
+            starterTemplatesSub.Items.Add(tmplCycle);
+
+            var tmplComparison = new MenuFlyoutItem
+            {
+                Text = "Comparison (Pros & Cons)",
+                Icon = new FontIcon { Glyph = "\uE8D3" }
+            };
+            tmplComparison.Click += (_, _) =>
+            {
+                ViewModel.MarkdownText = "- Option Alpha\n  - Advantage 1\n  - Consideration 1\n- Option Beta\n  - Advantage 2\n  - Consideration 2";
+                ViewModel.StatusMessage = "Applied Comparison template.";
+            };
+            starterTemplatesSub.Items.Add(tmplComparison);
+
+            menu.Items.Add(starterTemplatesSub);
 
             menu.Items.Add(new MenuFlyoutSeparator());
 

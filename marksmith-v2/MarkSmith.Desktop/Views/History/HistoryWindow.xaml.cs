@@ -1702,6 +1702,12 @@ public sealed partial class HistoryWindow : Window
         menu.ShowAt(fe, position);
     }
 
+    private void OnTakeCheckpointButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        OnTakeSnapshotClick(sender, new RoutedEventArgs());
+    }
+
     private void OnTakeCheckpointButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
@@ -1758,6 +1764,15 @@ public sealed partial class HistoryWindow : Window
 
         if (sender is FrameworkElement fe)
             menu.ShowAt(fe, e.GetPosition(fe));
+    }
+
+    private void OnRestoreButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (_vm.HasSelection)
+        {
+            OnRestoreClick(sender, new RoutedEventArgs());
+        }
     }
 
     private void OnRestoreButtonRightTapped(object sender, RightTappedRoutedEventArgs e)

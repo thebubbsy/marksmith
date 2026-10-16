@@ -2915,5 +2915,259 @@ namespace MarkSmith.Views.ShapeStudio
                 CompAdaptive.IsChecked == true);
             FitCanvasAfterLayout();
         }
+
+        private void OnFuseImagePathBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            FuseImagePathBox?.SelectAll();
+        }
+
+        private void OnFuseImagePathBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (FuseImagePathBox is null) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            flyout.Items.Add(ShapeMenuItem("Paste image path from clipboard", "\uE77F", async () =>
+            {
+                try
+                {
+                    var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var text = await pkg.GetTextAsync();
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            FuseImagePathBox.Text = text.Trim('\"', ' ');
+                            OnUseImagePathClick(this, new RoutedEventArgs());
+                        }
+                    }
+                }
+                catch { }
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Choose image file…", "\uE8B7", () => OnPickImageClick(this, new RoutedEventArgs())));
+            flyout.Items.Add(ShapeMenuItem("Select all text", "\uE8D2", () => FuseImagePathBox.SelectAll(), enabled: !string.IsNullOrEmpty(FuseImagePathBox.Text)));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Copy image path", "\uE8C8", () =>
+            {
+                if (!string.IsNullOrEmpty(FuseImagePathBox.Text))
+                {
+                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(FuseImagePathBox.Text);
+                    ViewModel.StatusMessage = "Copied image path to clipboard.";
+                }
+            }, enabled: !string.IsNullOrEmpty(FuseImagePathBox.Text)));
+
+            flyout.Items.Add(ShapeMenuItem("Clear image path", "\uE894", () =>
+            {
+                FuseImagePathBox.Text = string.Empty;
+                ViewModel.StatusMessage = "Cleared image path.";
+            }, enabled: !string.IsNullOrEmpty(FuseImagePathBox.Text)));
+
+            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
+            else flyout.ShowAt(FuseImagePathBox, e.GetPosition(FuseImagePathBox));
+        }
+
+        private void OnFuseMosaicDensityDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            FuseMosaicDensity.Value = 96;
+            ViewModel.StatusMessage = "Reset mosaic density to default 96.";
+        }
+
+        private void OnFuseMosaicDensityRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            flyout.Items.Add(ShapeMenuItem("Reset to default (96)", "\uE777", () => { FuseMosaicDensity.Value = 96; ViewModel.StatusMessage = "Set mosaic density to 96."; }));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Minimal mosaic (24)", "\uE80A", () => { FuseMosaicDensity.Value = 24; ViewModel.StatusMessage = "Set mosaic density to 24."; }));
+            flyout.Items.Add(ShapeMenuItem("Low density (48)", "\uE80A", () => { FuseMosaicDensity.Value = 48; ViewModel.StatusMessage = "Set mosaic density to 48."; }));
+            flyout.Items.Add(ShapeMenuItem("Medium density (72)", "\uE80A", () => { FuseMosaicDensity.Value = 72; ViewModel.StatusMessage = "Set mosaic density to 72."; }));
+            flyout.Items.Add(ShapeMenuItem("High density (96 - default)", "\uE80A", () => { FuseMosaicDensity.Value = 96; ViewModel.StatusMessage = "Set mosaic density to 96."; }));
+            flyout.Items.Add(ShapeMenuItem("Maximum density (120)", "\uE80A", () => { FuseMosaicDensity.Value = 120; ViewModel.StatusMessage = "Set mosaic density to 120."; }));
+            flyout.Items.Add(ShapeMenuItem("Skip mosaic layer (0)", "\uE711", () => { FuseMosaicDensity.Value = 0; ViewModel.StatusMessage = "Disabled shape mosaic layer (density 0)."; }));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Copy density value", "\uE8C8", () =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(FuseMosaicDensity.Value.ToString("F0"));
+                ViewModel.StatusMessage = $"Copied mosaic density {FuseMosaicDensity.Value:F0} to clipboard.";
+            }));
+            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
+            else flyout.ShowAt(FuseMosaicDensity, e.GetPosition(FuseMosaicDensity));
+        }
+
+        private void OnFuseMosaicPaddingDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            FuseMosaicPadding.Value = -6;
+            ViewModel.StatusMessage = "Reset tile spacing to default -6.";
+        }
+
+        private void OnFuseMosaicPaddingRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            flyout.Items.Add(ShapeMenuItem("Reset to default (-6)", "\uE777", () => { FuseMosaicPadding.Value = -6; ViewModel.StatusMessage = "Set tile spacing to -6."; }));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Maximum overlap (-20)", "\uE80A", () => { FuseMosaicPadding.Value = -20; ViewModel.StatusMessage = "Set tile spacing to -20."; }));
+            flyout.Items.Add(ShapeMenuItem("Strong overlap (-10)", "\uE80A", () => { FuseMosaicPadding.Value = -10; ViewModel.StatusMessage = "Set tile spacing to -10."; }));
+            flyout.Items.Add(ShapeMenuItem("Default tight overlap (-6)", "\uE80A", () => { FuseMosaicPadding.Value = -6; ViewModel.StatusMessage = "Set tile spacing to -6."; }));
+            flyout.Items.Add(ShapeMenuItem("Zero gap / touching (0)", "\uE80A", () => { FuseMosaicPadding.Value = 0; ViewModel.StatusMessage = "Set tile spacing to 0."; }));
+            flyout.Items.Add(ShapeMenuItem("Small gaps (+5)", "\uE80A", () => { FuseMosaicPadding.Value = 5; ViewModel.StatusMessage = "Set tile spacing to +5."; }));
+            flyout.Items.Add(ShapeMenuItem("Medium gaps (+10)", "\uE80A", () => { FuseMosaicPadding.Value = 10; ViewModel.StatusMessage = "Set tile spacing to +10."; }));
+            flyout.Items.Add(ShapeMenuItem("Wide gaps (+20)", "\uE80A", () => { FuseMosaicPadding.Value = 20; ViewModel.StatusMessage = "Set tile spacing to +20."; }));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Copy tile spacing value", "\uE8C8", () =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(FuseMosaicPadding.Value.ToString("F0"));
+                ViewModel.StatusMessage = $"Copied tile spacing {FuseMosaicPadding.Value:F0} to clipboard.";
+            }));
+            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
+            else flyout.ShowAt(FuseMosaicPadding, e.GetPosition(FuseMosaicPadding));
+        }
+
+        private void OnFuseLineDensityDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            FuseLineDensity.Value = 120;
+            ViewModel.StatusMessage = "Reset line density to default 120.";
+        }
+
+        private void OnFuseLineDensityRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            flyout.Items.Add(ShapeMenuItem("Reset to default (120)", "\uE777", () => { FuseLineDensity.Value = 120; ViewModel.StatusMessage = "Set line density to 120."; }));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Light tracing (60)", "\uE80A", () => { FuseLineDensity.Value = 60; ViewModel.StatusMessage = "Set line density to 60."; }));
+            flyout.Items.Add(ShapeMenuItem("Standard line art (120 - default)", "\uE80A", () => { FuseLineDensity.Value = 120; ViewModel.StatusMessage = "Set line density to 120."; }));
+            flyout.Items.Add(ShapeMenuItem("Dense contours (240)", "\uE80A", () => { FuseLineDensity.Value = 240; ViewModel.StatusMessage = "Set line density to 240."; }));
+            flyout.Items.Add(ShapeMenuItem("Fine etching (600)", "\uE80A", () => { FuseLineDensity.Value = 600; ViewModel.StatusMessage = "Set line density to 600."; }));
+            flyout.Items.Add(ShapeMenuItem("Ultra detailed (1200)", "\uE80A", () => { FuseLineDensity.Value = 1200; ViewModel.StatusMessage = "Set line density to 1200."; }));
+            flyout.Items.Add(ShapeMenuItem("Skip line-art layer (0)", "\uE711", () => { FuseLineDensity.Value = 0; ViewModel.StatusMessage = "Disabled line-art layer (density 0)."; }));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Copy line density value", "\uE8C8", () =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(FuseLineDensity.Value.ToString("F0"));
+                ViewModel.StatusMessage = $"Copied line density {FuseLineDensity.Value:F0} to clipboard.";
+            }));
+            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
+            else flyout.ShowAt(FuseLineDensity, e.GetPosition(FuseLineDensity));
+        }
+
+        private void OnFuseEdgeSensitivityDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            FuseEdgeSensitivity.Value = 30;
+            ViewModel.StatusMessage = "Reset detail threshold to default 30.";
+        }
+
+        private void OnFuseEdgeSensitivityRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            flyout.Items.Add(ShapeMenuItem("Reset to default (30)", "\uE777", () => { FuseEdgeSensitivity.Value = 30; ViewModel.StatusMessage = "Set detail threshold to 30."; }));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Ultra fine textures (10)", "\uE80A", () => { FuseEdgeSensitivity.Value = 10; ViewModel.StatusMessage = "Set detail threshold to 10."; }));
+            flyout.Items.Add(ShapeMenuItem("Balanced detail (20)", "\uE80A", () => { FuseEdgeSensitivity.Value = 20; ViewModel.StatusMessage = "Set detail threshold to 20."; }));
+            flyout.Items.Add(ShapeMenuItem("Standard outlines (30 - default)", "\uE80A", () => { FuseEdgeSensitivity.Value = 30; ViewModel.StatusMessage = "Set detail threshold to 30."; }));
+            flyout.Items.Add(ShapeMenuItem("Major contours (50)", "\uE80A", () => { FuseEdgeSensitivity.Value = 50; ViewModel.StatusMessage = "Set detail threshold to 50."; }));
+            flyout.Items.Add(ShapeMenuItem("Bold boundaries only (80)", "\uE80A", () => { FuseEdgeSensitivity.Value = 80; ViewModel.StatusMessage = "Set detail threshold to 80."; }));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Copy detail threshold", "\uE8C8", () =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(FuseEdgeSensitivity.Value.ToString("F0"));
+                ViewModel.StatusMessage = $"Copied detail threshold {FuseEdgeSensitivity.Value:F0} to clipboard.";
+            }));
+            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
+            else flyout.ShowAt(FuseEdgeSensitivity, e.GetPosition(FuseEdgeSensitivity));
+        }
+
+        private void OnFuseStrokeWidthDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            FuseStrokeWidth.Value = 1.5;
+            ViewModel.StatusMessage = "Reset stroke width to default 1.5 pt.";
+        }
+
+        private void OnFuseStrokeWidthRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            flyout.Items.Add(ShapeMenuItem("Reset to default (1.5 pt)", "\uE777", () => { FuseStrokeWidth.Value = 1.5; ViewModel.StatusMessage = "Set stroke width to 1.5 pt."; }));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Hairline (0.5 pt)", "\uE80A", () => { FuseStrokeWidth.Value = 0.5; ViewModel.StatusMessage = "Set stroke width to 0.5 pt."; }));
+            flyout.Items.Add(ShapeMenuItem("Fine (1.0 pt)", "\uE80A", () => { FuseStrokeWidth.Value = 1.0; ViewModel.StatusMessage = "Set stroke width to 1.0 pt."; }));
+            flyout.Items.Add(ShapeMenuItem("Medium (1.5 pt - default)", "\uE80A", () => { FuseStrokeWidth.Value = 1.5; ViewModel.StatusMessage = "Set stroke width to 1.5 pt."; }));
+            flyout.Items.Add(ShapeMenuItem("Heavy (2.0 pt)", "\uE80A", () => { FuseStrokeWidth.Value = 2.0; ViewModel.StatusMessage = "Set stroke width to 2.0 pt."; }));
+            flyout.Items.Add(ShapeMenuItem("Bold (3.0 pt)", "\uE80A", () => { FuseStrokeWidth.Value = 3.0; ViewModel.StatusMessage = "Set stroke width to 3.0 pt."; }));
+            flyout.Items.Add(ShapeMenuItem("Poster (5.0 pt)", "\uE80A", () => { FuseStrokeWidth.Value = 5.0; ViewModel.StatusMessage = "Set stroke width to 5.0 pt."; }));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Copy stroke width", "\uE8C8", () =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"{FuseStrokeWidth.Value:F1} pt");
+                ViewModel.StatusMessage = $"Copied stroke width {FuseStrokeWidth.Value:F1} pt to clipboard.";
+            }));
+            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
+            else flyout.ShowAt(FuseStrokeWidth, e.GetPosition(FuseStrokeWidth));
+        }
+
+        private void OnCanvasEmptyStateDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ViewModel.AddShapeAt("roundrect", 220, 160);
+            ViewModel.StatusMessage = "Added starter rounded rectangle to canvas.";
+        }
+
+        private void OnCanvasEmptyStateRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            flyout.Items.Add(ShapeMenuItem("Add starter rectangle", "\uE735", () =>
+            {
+                ViewModel.AddShapeAt("rect", 220, 160);
+                ViewModel.StatusMessage = "Added starter rectangle to canvas.";
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Add starter rounded rectangle", "\uE735", () =>
+            {
+                ViewModel.AddShapeAt("roundrect", 220, 160);
+                ViewModel.StatusMessage = "Added starter rounded rectangle to canvas.";
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Add starter circle", "\uE707", () =>
+            {
+                ViewModel.AddShapeAt("ellipse", 220, 160);
+                ViewModel.StatusMessage = "Added starter circle to canvas.";
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Add starter decision diamond", "\uF0E2", () =>
+            {
+                ViewModel.AddShapeAt("diamond", 220, 160);
+                ViewModel.StatusMessage = "Added starter diamond to canvas.";
+            }));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Browse preset diagrams…", "\uF0E2", () =>
+            {
+                if (LeftTabs != null && PresetsTab != null) LeftTabs.SelectedItem = PresetsTab;
+            }, "Ctrl+1"));
+
+            flyout.Items.Add(ShapeMenuItem("Convert picture to shapes…", "\uEB9F", () =>
+            {
+                if (LeftTabs != null && PictureTab != null) LeftTabs.SelectedItem = PictureTab;
+            }, "Ctrl+3"));
+
+            flyout.Items.Add(ShapeMenuItem("Paste :::shapes block from clipboard", "\uE77F", () => OnLoadMarkdownClick(this, new RoutedEventArgs()), "Ctrl+V"));
+
+            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
+            else if (CanvasEmptyStatePanel is not null) flyout.ShowAt(CanvasEmptyStatePanel, e.GetPosition(CanvasEmptyStatePanel));
+            else flyout.ShowAt(this.Content, e.GetPosition(this.Content));
+        }
     }
 }

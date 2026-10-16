@@ -8292,3 +8292,61 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 25676, `Alive: True`, `Responding: True`, clean exit.
 
+
+### 2026-10-16 (scheduled routine run #109 — WinUI 3 Desktop Polish: Shape Studio Picture-to-Vector Sliders Preset Stops & Empty State Quick Starters, SmartArt Studio Empty State Diagram Templates & Copy Buttons Gesture Parity, MindMap Galaxy Canvas Double-Tap Node Placement & Export Submenu, HistoryWindow Snapshot & Restore Buttons Double-Tap Parity)
+
+- **Surface / Component Targets:** `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `MindMapGalaxyWindow`, `HistoryWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, pointer gesture quarantine, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #108:
+    * Target A: `ShapeDesignStudioWindow` picture-to-vector sliders right-click drafting stops and double-tap reset presets.
+    * Target B: `ShapeDesignStudioWindow` picture path input and canvas empty state gesture parity.
+  - Generated:
+    1. `ShapeDesignStudioWindow` Picture-to-Vector Sliders Double-Tap Reset & Right-Click Preset Stops (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+    2. `ShapeDesignStudioWindow` Image Path Box & Canvas Empty State Quick Starter Context Menus (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): In `ShapeDesignStudioWindow.xaml` & `.xaml.cs`, attached `DoubleTapped` and `RightTapped` to `FuseMosaicDensitySlider` (Coarse 48, Default 96, Fine 160, Ultra 240), `FuseMosaicPaddingSlider` (Tight -10, Default -6, Standard 0, Relaxed 6, Wide 12), `FuseLineDensitySlider` (Sparse 60, Standard 120, Dense 180, Ultra 260), `FuseEdgeSensitivitySlider` (Low 15, Medium 30, High 50, Extreme 80), and `FuseStrokeWidthSlider` (Hairline 0.5 pt, 1.0 pt, Default 1.5 pt, 2.0 pt, Bold 3.0 pt); attached `DoubleTapped` on `FuseImagePathBox` (selects all) and `RightTapped` (Paste path from clipboard, Browse image file, Clear path, Copy path); attached `DoubleTapped` on `CanvasEmptyStatePanel` (drops starter rounded rectangle) and `RightTapped` (Add Rectangle, Rounded Rect, Ellipse, Diamond, Browse shape presets, Switch to Picture Vectorizer, Paste shapes from clipboard).
+  - Generated:
+    3. `SmartArtDesignStudioWindow` Outline Empty State Double-Tap & Right-Click Starter Diagram Menu (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+    4. `SmartArtDesignStudioWindow` Copy Outline & Copy SmartArt Block Buttons Double-Tap Parity & Markdown Editor Template Submenu (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): In `SmartArtDesignStudioWindow.xaml` & `.xaml.cs`, attached `DoubleTapped="OnOutlineEmptyPanelDoubleTapped"` (adds starter root item); expanded `OnOutlineEmptyPanelRightTapped` to offer Starter diagram structure submenu (Single root item, 3-Step Process, Hierarchy / Org Chart, 4-Stage Cycle, Comparison / Pros & Cons); attached `DoubleTapped` on `CopyOutlineMarkdownButton` and `CopySmartArtBlockButton` for instant clipboard copy with tactile feedback; attached `DoubleTapped` on `MarkdownTextBox` to select all text; added "Insert starter template" submenu to `ShowMarkdownTextBoxContextMenu`.
+  - Refined Block 1 (Pass 2 - Final): In `ShapeDesignStudioWindow.xaml.cs`, ensured slider double-tap resets directly synchronize to view model properties with live vector previews; verified clipboard interactions have full error isolation.
+  - Generated:
+    5. `MindMapGalaxyWindow` Canvas Double-Tap Quick Node Placement & Background Export Submenu Parity (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`)
+    6. `HistoryWindow` Snapshot & Restore Buttons Double-Tap Quick Action Parity (`Views/History/HistoryWindow.xaml` & `HistoryWindow.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): In `MindMapGalaxyWindow.xaml` & `.xaml.cs`, implemented `OnCanvasDoubleTapped` on `GalaxyCanvas` with strict hit-test isolation against child bubbling (`!ReferenceEquals(e.OriginalSource, GalaxyCanvas)`), calculating world pointer coordinates via `ScreenToWorld(pos)` and adding a node directly under the pointer with status notification; in `ShowCanvasContextMenu`, added "Export & copy map" submenu (Word document `.docx`, Save copy of map, Copy as Mermaid flowchart, Copy as Mermaid mind map, Copy map statistics); in `HistoryWindow.xaml` & `.xaml.cs`, attached `DoubleTapped="OnTakeCheckpointButtonDoubleTapped"` on `TakeCheckpointButton` (triggers instant snapshot) and `DoubleTapped="OnRestoreButtonDoubleTapped"` on `RestoreButton` (triggers restore confirmation).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #110 (`ShapeDesignStudioWindow` shape canvas marquee selection right-click grouping menu, `SmartArtDesignStudioWindow` color palette live hover preview tint, `MindMapGalaxyWindow` node inspector progress slider preset stops).
+
+**Shipped:**
+1. **`ShapeDesignStudioWindow` Picture-to-Vector Sliders Double-Tap Reset & Right-Click Preset Stops (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`):**
+   - Attached `DoubleTapped` (resets to defaults) and `RightTapped` preset menus with full drafting stops across all five picture vectorizer sliders: `FuseMosaicDensity` (Coarse 48, Default 96, Fine 160, Ultra 240), `FuseMosaicPadding` (Tight -10, Default -6, Standard 0, Relaxed 6, Wide 12), `FuseLineDensity` (Sparse 60, Standard 120, Dense 180, Ultra 260), `FuseEdgeSensitivity` (Low 15, Medium 30, High 50, Extreme 80), and `FuseStrokeWidth` (Hairline 0.5 pt, 1.0 pt, Default 1.5 pt, 2.0 pt, Bold 3.0 pt).
+   - Each right-tap menu includes Reset to default (`\uE777`) and Copy current value (`\uE8C8`).
+2. **`ShapeDesignStudioWindow` Image Path Box & Canvas Empty State Quick Starter Context Menus (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`):**
+   - `FuseImagePathBox`: Attached `DoubleTapped` (selects all path text) and `RightTapped` (Paste path from clipboard, Browse image file, Clear path, Copy path).
+   - `CanvasEmptyStatePanel`: Made hit-test visible with `DoubleTapped` (drops starter rounded rectangle at canvas center) and `RightTapped` starter preset menu (Add Rectangle, Rounded Rect, Ellipse, Diamond, Browse shape presets, Switch to Picture Vectorizer, Paste shapes from clipboard).
+3. **`SmartArtDesignStudioWindow` Outline Empty State Double-Tap & Right-Click Starter Diagram Menu (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`):**
+   - Attached `DoubleTapped` on `OutlineEmptyPanel` for instant addition of a starter root node.
+   - Expanded `OnOutlineEmptyPanelRightTapped` with rich "Starter diagram structure" submenu (`\uE8B3`): Single root item, 3-Step Process, Hierarchy / Org Chart, 4-Stage Cycle, Comparison / Pros & Cons.
+4. **`SmartArtDesignStudioWindow` Copy Outline & Copy SmartArt Block Buttons Double-Tap Parity & Markdown Editor Template Submenu (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`):**
+   - Attached `DoubleTapped` on `CopyOutlineMarkdownButton` and `CopySmartArtBlockButton` for immediate copy with tactile button feedback tick.
+   - Attached `DoubleTapped` on `MarkdownTextBox` to select all text.
+   - Added "Insert starter template" submenu to `ShowMarkdownTextBoxContextMenu` offering 3-Step Process, Hierarchy, 4-Stage Cycle, Comparison, and Feature Matrix.
+5. **`MindMapGalaxyWindow` Canvas Double-Tap Quick Node Placement & Background Export Submenu Parity (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`):**
+   - Implemented `OnCanvasDoubleTapped` on `GalaxyCanvas` with strict hit-test isolation against child bubbling (`!ReferenceEquals(e.OriginalSource, GalaxyCanvas)`), calculating world pointer coordinates via `ScreenToWorld(pos)` and adding a node directly under the pointer with status notification.
+   - In `ShowCanvasContextMenu`, added "Export & copy map" submenu (`\uEDE1`): Word document `.docx` (`\uE8A5`), Save copy of map (`\uE74E`), Copy as Mermaid flowchart (`\uE8C8`), Copy as Mermaid mind map (`\uE8C8`), and Copy map statistics (`\uE9F9`).
+6. **`HistoryWindow` Snapshot & Restore Buttons Double-Tap Quick Action Parity (`Views/History/HistoryWindow.xaml` & `HistoryWindow.xaml.cs`):**
+   - Attached `DoubleTapped` on `TakeCheckpointButton` (triggers instant snapshot checkpoint creation).
+   - Attached `DoubleTapped` on `RestoreButton` (triggers restore confirmation dialog immediately).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 26780, `Alive: True`, `Responding: True`, clean exit.
+
+
