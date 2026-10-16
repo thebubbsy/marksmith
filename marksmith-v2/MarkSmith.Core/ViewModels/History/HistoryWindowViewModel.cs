@@ -316,6 +316,35 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     public ObservableCollection<DiffRowViewModel> DiffRows { get; } = new();
     public ObservableCollection<LineDiff.UnifiedRow> UnifiedDiffRows { get; } = new();
 
+    [ObservableProperty]
+    private int _diffContextLines = 3;
+
+    private List<LineDiff.Line>? _lastDiffLines;
+
+    public string DiffContextLabel => DiffContextLines switch
+    {
+        0 => "Changes only",
+        1 => "1 line context",
+        3 => "3 lines context",
+        < 0 => "Full document",
+        var n => $"{n} lines context"
+    };
+
+    public void SetDiffContextLines(int contextLines)
+    {
+        DiffContextLines = contextLines;
+        OnPropertyChanged(nameof(DiffContextLabel));
+        if (_lastDiffLines is null || _lastDiffLines.Count == 0) return;
+
+        int ctx = contextLines < 0 ? int.MaxValue : contextLines;
+        var segments = LineDiff.Collapse(_lastDiffLines, ctx);
+
+        DiffRows.Clear();
+        UnifiedDiffRows.Clear();
+        foreach (var row in BuildSplitRows(segments)) DiffRows.Add(row);
+        foreach (var u in BuildUnifiedRows(segments)) UnifiedDiffRows.Add(u);
+    }
+
     [RelayCommand]
     public void SetDiffMode(HistoryDiffMode mode)
     {
@@ -453,6 +482,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     private void ClearSelectionDiffState()
     {
         _loadedDiffVersionId = "";
+        _lastDiffLines = null;
         DiffRows.Clear();
         UnifiedDiffRows.Clear();
         IsUnchanged = false;
@@ -952,7 +982,9 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
                 ? await Task.Run(() => LineDiff.Diff(prevContent, selectedContent))
                 : LineDiff.AllAdded(selectedContent);
             if (token != _selectionToken) return;
-            var segments = LineDiff.Collapse(lines);
+            _lastDiffLines = lines;
+            int ctx = DiffContextLines < 0 ? int.MaxValue : DiffContextLines;
+            var segments = LineDiff.Collapse(lines, ctx);
 
             DiffRows.Clear();
             UnifiedDiffRows.Clear();

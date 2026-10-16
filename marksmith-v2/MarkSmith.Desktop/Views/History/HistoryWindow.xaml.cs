@@ -617,6 +617,40 @@ public sealed partial class HistoryWindow : Window
         StepToChangeHunk(1);
     }
 
+    private void OnChangeStepperLabelDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        _currentHunkIndex = -1;
+        StepToChangeHunk(1);
+    }
+
+    private void OnChangeStepperLabelRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        DiffContextFlyout?.ShowAt(sender as FrameworkElement ?? ChangeStepperLabel);
+    }
+
+    private void OnDiffContextChangesOnlyClick(object sender, RoutedEventArgs e) => ApplyDiffContext(0);
+    private void OnDiffContextCompactClick(object sender, RoutedEventArgs e) => ApplyDiffContext(1);
+    private void OnDiffContextStandardClick(object sender, RoutedEventArgs e) => ApplyDiffContext(3);
+    private void OnDiffContextFullClick(object sender, RoutedEventArgs e) => ApplyDiffContext(-1);
+
+    private void ApplyDiffContext(int contextLines)
+    {
+        _vm.SetDiffContextLines(contextLines);
+        _currentHunkIndex = -1;
+        var hunks = GetChangeHunkIndices();
+        if (ChangeStepperLabel != null)
+        {
+            ChangeStepperLabel.Text = hunks.Count > 0 ? $"Hunk 1/{hunks.Count}" : "0 hunks";
+            ToolTipService.SetToolTip(ChangeStepperLabel, $"{_vm.DiffContextLabel} · {hunks.Count} hunk{(hunks.Count == 1 ? "" : "s")} · Click to step (F7), double-click for first, right-click to change context");
+        }
+        if (hunks.Count > 0)
+        {
+            StepToChangeHunk(1);
+        }
+    }
+
     private void OnVersionClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: VersionItemViewModel item })

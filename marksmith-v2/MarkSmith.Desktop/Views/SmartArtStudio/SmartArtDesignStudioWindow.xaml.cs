@@ -619,8 +619,18 @@ namespace MarkSmith.Views.SmartArtStudio
             ContrastBorder
         }
 
+        public enum SmartArtAspectRatioMode
+        {
+            Default,
+            Widescreen16x9,
+            Standard4x3,
+            Square1x1,
+            Ultrawide21x9
+        }
+
         private DiagramPreviewBgMode _currentDiagramBgMode = DiagramPreviewBgMode.DefaultCard;
         private SmartArtNodeGeometryMode _currentNodeGeomMode = SmartArtNodeGeometryMode.Default;
+        private SmartArtAspectRatioMode _currentAspectRatioMode = SmartArtAspectRatioMode.Default;
 
         private void RefreshWebView()
         {
@@ -632,7 +642,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 {
                     body = ApplyCustomHexToSvgHtml(body, _customHexOverride);
                 }
-                string html = BuildWrapperHtml(body, isDark, _currentDiagramBgMode, _currentNodeGeomMode);
+                string html = BuildWrapperHtml(body, isDark, _currentDiagramBgMode, _currentNodeGeomMode, _currentAspectRatioMode);
                 PreviewWebView.CoreWebView2.NavigateToString(html);
             }
         }
@@ -661,7 +671,7 @@ namespace MarkSmith.Views.SmartArtStudio
         // a "Layout: …" caption. In the studio the card fills the pane and the drawing scales to fit
         // it either way (the SVG's default xMidYMid meet), and the caption is dropped because the
         // pane header names the layout already.
-        private static string BuildWrapperHtml(string body, bool isDarkTheme = false, DiagramPreviewBgMode bgMode = DiagramPreviewBgMode.DefaultCard, SmartArtNodeGeometryMode geomMode = SmartArtNodeGeometryMode.Default)
+        private static string BuildWrapperHtml(string body, bool isDarkTheme = false, DiagramPreviewBgMode bgMode = DiagramPreviewBgMode.DefaultCard, SmartArtNodeGeometryMode geomMode = SmartArtNodeGeometryMode.Default, SmartArtAspectRatioMode aspectMode = SmartArtAspectRatioMode.Default)
         {
             string cardBg;
             string cardBorder;
@@ -704,12 +714,21 @@ namespace MarkSmith.Views.SmartArtStudio
                 _ => ""
             };
 
+            string aspectCss = aspectMode switch
+            {
+                SmartArtAspectRatioMode.Widescreen16x9 => " max-width: 960px !important; max-height: 100% !important; height: auto !important; aspect-ratio: 16 / 9 !important; margin: auto !important; ",
+                SmartArtAspectRatioMode.Standard4x3 => " max-width: 800px !important; max-height: 100% !important; height: auto !important; aspect-ratio: 4 / 3 !important; margin: auto !important; ",
+                SmartArtAspectRatioMode.Square1x1 => " max-width: 600px !important; max-height: 100% !important; height: auto !important; aspect-ratio: 1 / 1 !important; margin: auto !important; ",
+                SmartArtAspectRatioMode.Ultrawide21x9 => " max-width: 1100px !important; max-height: 100% !important; height: auto !important; aspect-ratio: 21 / 9 !important; margin: auto !important; ",
+                _ => ""
+            };
+
             return $@"<!DOCTYPE html>
 <html><head><meta charset=""utf-8""/>
 <style>
   html,body{{height:100%;margin:0}}
-  body{{padding:16px;box-sizing:border-box;background:transparent;display:flex}}
-  .smartart-container{{width:100%!important;max-width:none!important;height:100%!important;display:flex;flex-direction:column;padding:12px;box-sizing:border-box;background:{cardBg}!important;border:1px solid {cardBorder}!important;border-radius:8px!important;box-shadow:{cardShadow}!important;{customPatternCss}{geomCss}}}
+  body{{padding:16px;box-sizing:border-box;background:transparent;display:flex;align-items:center;justify-content:center}}
+  .smartart-container{{width:100%!important;max-width:none!important;height:100%!important;display:flex;flex-direction:column;padding:12px;box-sizing:border-box;background:{cardBg}!important;border:1px solid {cardBorder}!important;border-radius:8px!important;box-shadow:{cardShadow}!important;{customPatternCss}{geomCss}{aspectCss}}}
   .smartart-container > .smartart-caption{{display:none}}
   .smartart-container > svg{{flex:1;min-height:0;width:100%!important;height:100%!important}}
   .smartart-container svg g {{ transition: filter 0.12s ease, opacity 0.15s ease; }}
@@ -2838,6 +2857,53 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             ViewModel.StatusMessage = $"Diagram node geometry set to: {label}";
             if (NodeGeometryButton is not null) Services.CopyFeedback.ApplyButtonTick(NodeGeometryButton, null);
+        }
+
+        private void OnAspectRatioButtonClick(object sender, RoutedEventArgs e)
+        {
+            AspectRatioFlyout?.ShowAt(sender as FrameworkElement ?? AspectRatioButton);
+        }
+
+        private void OnAspectRatioButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            _currentAspectRatioMode = _currentAspectRatioMode switch
+            {
+                SmartArtAspectRatioMode.Default => SmartArtAspectRatioMode.Widescreen16x9,
+                SmartArtAspectRatioMode.Widescreen16x9 => SmartArtAspectRatioMode.Standard4x3,
+                SmartArtAspectRatioMode.Standard4x3 => SmartArtAspectRatioMode.Square1x1,
+                SmartArtAspectRatioMode.Square1x1 => SmartArtAspectRatioMode.Ultrawide21x9,
+                _ => SmartArtAspectRatioMode.Default
+            };
+            SetAspectRatioMode(_currentAspectRatioMode);
+        }
+
+        private void OnAspectRatioButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            AspectRatioFlyout?.ShowAt(sender as FrameworkElement ?? AspectRatioButton);
+        }
+
+        private void OnAspectDefaultClick(object sender, RoutedEventArgs e) => SetAspectRatioMode(SmartArtAspectRatioMode.Default);
+        private void OnAspect16x9Click(object sender, RoutedEventArgs e) => SetAspectRatioMode(SmartArtAspectRatioMode.Widescreen16x9);
+        private void OnAspect4x3Click(object sender, RoutedEventArgs e) => SetAspectRatioMode(SmartArtAspectRatioMode.Standard4x3);
+        private void OnAspect1x1Click(object sender, RoutedEventArgs e) => SetAspectRatioMode(SmartArtAspectRatioMode.Square1x1);
+        private void OnAspect21x9Click(object sender, RoutedEventArgs e) => SetAspectRatioMode(SmartArtAspectRatioMode.Ultrawide21x9);
+
+        private void SetAspectRatioMode(SmartArtAspectRatioMode mode)
+        {
+            _currentAspectRatioMode = mode;
+            RefreshWebView();
+            string label = mode switch
+            {
+                SmartArtAspectRatioMode.Widescreen16x9 => "16:9 Widescreen Slide (PowerPoint)",
+                SmartArtAspectRatioMode.Standard4x3 => "4:3 Standard Document Figure",
+                SmartArtAspectRatioMode.Square1x1 => "1:1 Square Card",
+                SmartArtAspectRatioMode.Ultrawide21x9 => "21:9 Ultrawide Banner",
+                _ => "Default Fluid Canvas"
+            };
+            ViewModel.StatusMessage = $"Diagram preview aspect ratio set to: {label}";
+            if (AspectRatioButton is not null) Services.CopyFeedback.ApplyButtonTick(AspectRatioButton, null);
         }
 
         private void OnCopySvg1xClick(object sender, RoutedEventArgs e) => CopySvgToClipboard(1.0, "1x SVG");

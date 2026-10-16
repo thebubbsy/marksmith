@@ -10032,6 +10032,125 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (TaskListButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(TaskListButton, null);
     }
 
+    private void OnMathFormulaButtonClick(object sender, RoutedEventArgs e)
+    {
+        MathFormulaFlyout?.ShowAt(sender as FrameworkElement ?? MathFormulaButton);
+    }
+
+    private void OnMathFormulaButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        InsertMathSnippet("inline");
+    }
+
+    private void OnMathFormulaButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        MathFormulaFlyout?.ShowAt(sender as FrameworkElement ?? MathFormulaButton);
+    }
+
+    private void OnInsertInlineMathClick(object sender, RoutedEventArgs e) => InsertMathSnippet("inline");
+    private void OnInsertBlockMathClick(object sender, RoutedEventArgs e) => InsertMathSnippet("block");
+    private void OnInsertFractionMathClick(object sender, RoutedEventArgs e) => InsertMathSnippet("fraction");
+    private void OnInsertSummationMathClick(object sender, RoutedEventArgs e) => InsertMathSnippet("summation");
+    private void OnInsertMatrixMathClick(object sender, RoutedEventArgs e) => InsertMathSnippet("matrix");
+    private void OnInsertMhchemMathClick(object sender, RoutedEventArgs e) => InsertMathSnippet("mhchem");
+
+    private void InsertMathSnippet(string formulaType)
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string text = tb.Text ?? "";
+        int selStart = tb.SelectionStart;
+        int selLength = tb.SelectionLength;
+
+        string selected = (selLength > 0 && selStart + selLength <= text.Length)
+            ? text.Substring(selStart, selLength)
+            : "";
+
+        string snippet;
+        int caretOffset;
+
+        switch (formulaType?.ToLowerInvariant())
+        {
+            case "inline":
+                if (!string.IsNullOrEmpty(selected))
+                {
+                    snippet = $"${selected}$";
+                    caretOffset = snippet.Length;
+                }
+                else
+                {
+                    snippet = "$x = y$";
+                    caretOffset = snippet.Length;
+                }
+                break;
+
+            case "block":
+                if (!string.IsNullOrEmpty(selected))
+                {
+                    snippet = $"$${Environment.NewLine}{selected}{Environment.NewLine}$${Environment.NewLine}";
+                    caretOffset = snippet.Length;
+                }
+                else
+                {
+                    snippet = $"$${Environment.NewLine}\\frac{{-b \\pm \\sqrt{{b^2 - 4ac}}}}{{2a}}{Environment.NewLine}$${Environment.NewLine}";
+                    caretOffset = snippet.Length;
+                }
+                break;
+
+            case "fraction":
+                if (!string.IsNullOrEmpty(selected))
+                {
+                    snippet = $"$\\frac{{{selected}}}{{b}}$";
+                    caretOffset = snippet.Length;
+                }
+                else
+                {
+                    snippet = "$\\frac{a}{b}$";
+                    caretOffset = snippet.Length;
+                }
+                break;
+
+            case "summation":
+                snippet = $"$\\sum_{{i=1}}^{{n}} x_i$";
+                caretOffset = snippet.Length;
+                break;
+
+            case "matrix":
+                snippet = $"$${Environment.NewLine}\\begin{{pmatrix}}{Environment.NewLine}  a & b \\\\{Environment.NewLine}  c & d{Environment.NewLine}\\end{{pmatrix}}{Environment.NewLine}$${Environment.NewLine}";
+                caretOffset = snippet.Length;
+                break;
+
+            case "mhchem":
+                snippet = "$\\ce{2H2 + O2 -> 2H2O}$";
+                caretOffset = snippet.Length;
+                break;
+
+            default:
+                snippet = "$formula$";
+                caretOffset = snippet.Length;
+                break;
+        }
+
+        if (selLength > 0 && selStart + selLength <= text.Length)
+        {
+            string newText = text.Substring(0, selStart) + snippet + text.Substring(selStart + selLength);
+            tb.Text = newText;
+            tb.SelectionStart = selStart + snippet.Length;
+            tb.SelectionLength = 0;
+        }
+        else
+        {
+            string newText = text.Insert(selStart, snippet);
+            tb.Text = newText;
+            tb.SelectionStart = selStart + caretOffset;
+            tb.SelectionLength = 0;
+        }
+
+        if (MathFormulaButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(MathFormulaButton, null);
+    }
+
     private void OnFormatTableButtonClick(object sender, RoutedEventArgs e) => FormatTableAtCursor();
 
     private void OnFormatTableButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

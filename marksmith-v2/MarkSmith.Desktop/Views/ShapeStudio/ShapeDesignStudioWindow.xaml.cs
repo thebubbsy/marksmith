@@ -1535,6 +1535,121 @@ namespace MarkSmith.Views.ShapeStudio
             if (_crosshairLineY != null) _crosshairLineY.Visibility = Visibility.Collapsed;
         }
 
+        private int _gridSnapInterval = 0; // 0 = off, 10 = 10px, 20 = 20px
+        private bool _showVisualGrid = false;
+
+        private void OnGridSnapButtonClick(object sender, RoutedEventArgs e)
+        {
+            GridSnapFlyout?.ShowAt(sender as FrameworkElement ?? GridSnapButton);
+        }
+
+        private void OnGridSnapButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            int nextInterval = _gridSnapInterval switch
+            {
+                0 => 10,
+                10 => 20,
+                _ => 0
+            };
+            SetGridSnapMode(nextInterval, _showVisualGrid || nextInterval > 0);
+        }
+
+        private void OnGridSnapButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            GridSnapFlyout?.ShowAt(sender as FrameworkElement ?? GridSnapButton);
+        }
+
+        private void OnGridSnapOffClick(object sender, RoutedEventArgs e) => SetGridSnapMode(0, _showVisualGrid);
+        private void OnGridSnap10Click(object sender, RoutedEventArgs e) => SetGridSnapMode(10, _showVisualGrid);
+        private void OnGridSnap20Click(object sender, RoutedEventArgs e) => SetGridSnapMode(20, _showVisualGrid);
+
+        private void OnToggleVisualGridClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is ToggleMenuFlyoutItem item)
+            {
+                SetGridSnapMode(_gridSnapInterval == 0 ? 20 : _gridSnapInterval, item.IsChecked);
+            }
+        }
+
+        private void SetGridSnapMode(int interval, bool showGrid)
+        {
+            _gridSnapInterval = interval;
+            _showVisualGrid = showGrid;
+            if (ToggleVisualGridItem != null) ToggleVisualGridItem.IsChecked = showGrid;
+            if (GridSnapLabel != null)
+            {
+                GridSnapLabel.Text = interval > 0 ? $"Snap · {interval}px" : "Snap · Off";
+            }
+            UpdateVisualGridOverlay();
+
+            string status = interval > 0
+                ? $"Canvas magnetic grid snap set to {interval}px{(showGrid ? " (grid visible)" : "")}"
+                : "Canvas grid snap disabled";
+            ViewModel.StatusMessage = status;
+
+            if (ViewModel.SelectedShape is { } s)
+            {
+                Point p = new Point(s.X + s.Width / 2, s.Y);
+                UpdateCursorHud(p, $"Grid: {(interval > 0 ? $"{interval}px" : "Off")}");
+                _duplicateHudTimer?.Stop();
+                _duplicateHudTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
+                _duplicateHudTimer.Tick += (_, _) => { _duplicateHudTimer?.Stop(); HideCursorHud(); };
+                _duplicateHudTimer.Start();
+            }
+            if (GridSnapButton != null) CopyFeedback.ApplyButtonTick(GridSnapButton, null);
+        }
+
+        private void UpdateVisualGridOverlay()
+        {
+            if (GridOverlayCanvas == null) return;
+            if (!_showVisualGrid || _gridSnapInterval <= 0)
+            {
+                GridOverlayCanvas.Visibility = Visibility.Collapsed;
+                GridOverlayCanvas.Children.Clear();
+                return;
+            }
+            GridOverlayCanvas.Visibility = Visibility.Visible;
+            GridOverlayCanvas.Children.Clear();
+
+            int step = Math.Max(20, _gridSnapInterval * 2);
+            var strokeBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
+
+            for (int y = step; y < 1800; y += step)
+            {
+                var line = new Microsoft.UI.Xaml.Shapes.Line
+                {
+                    X1 = 0,
+                    X2 = 2200,
+                    Y1 = y,
+                    Y2 = y,
+                    Stroke = strokeBrush,
+                    StrokeThickness = 0.5,
+                    StrokeDashArray = new DoubleCollection { 2, 6 },
+                    Opacity = 0.35,
+                    IsHitTestVisible = false
+                };
+                GridOverlayCanvas.Children.Add(line);
+            }
+            for (int x = step; x < 2200; x += step)
+            {
+                var line = new Microsoft.UI.Xaml.Shapes.Line
+                {
+                    X1 = x,
+                    X2 = x,
+                    Y1 = 0,
+                    Y2 = 1800,
+                    Stroke = strokeBrush,
+                    StrokeThickness = 0.5,
+                    StrokeDashArray = new DoubleCollection { 2, 6 },
+                    Opacity = 0.35,
+                    IsHitTestVisible = false
+                };
+                GridOverlayCanvas.Children.Add(line);
+            }
+        }
+
         private DispatcherTimer? _duplicateHudTimer;
 
         private void OnDuplicateButtonClick(object sender, RoutedEventArgs e)
@@ -1677,6 +1792,29 @@ namespace MarkSmith.Views.ShapeStudio
                     }
 
                     if (snappedX && snappedY) break;
+                }
+            }
+
+            if (!snappedX && _gridSnapInterval > 0)
+            {
+                double targetGridX = Math.Round(_dragShape.X / _gridSnapInterval) * _gridSnapInterval;
+                if (Math.Abs(targetGridX - _dragShape.X) <= snapThreshold)
+                {
+                    double deltaX = targetGridX - _dragShape.X;
+                    var (smx, _) = ViewModel.NudgeSelection(deltaX, 0);
+                    _dragAppliedX += smx;
+                    snappedX = true;
+                }
+            }
+            if (!snappedY && _gridSnapInterval > 0)
+            {
+                double targetGridY = Math.Round(_dragShape.Y / _gridSnapInterval) * _gridSnapInterval;
+                if (Math.Abs(targetGridY - _dragShape.Y) <= snapThreshold)
+                {
+                    double deltaY = targetGridY - _dragShape.Y;
+                    var (_, smy) = ViewModel.NudgeSelection(0, deltaY);
+                    _dragAppliedY += smy;
+                    snappedY = true;
                 }
             }
 

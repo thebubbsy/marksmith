@@ -955,5 +955,32 @@ namespace MarkSmith.Tests
             Assert.Contains("# Node A", md);
             Assert.Contains("## Node B", md);
         }
+
+        [Fact]
+        public void Run125_SelectedTagFilter_HighlightsMatchingNodes_AndDimsNonMatching()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+
+            var node1 = new MindMapNodeViewModel(new MindMapNode { Title = "Feature Spec", Id = "n1", Tags = new List<string> { "spec", "ux" } });
+            var node2 = new MindMapNodeViewModel(new MindMapNode { Title = "Backend API", Id = "n2", Tags = new List<string> { "backend" } });
+            vm.Nodes.Add(node1);
+            vm.Nodes.Add(node2);
+
+            vm.SelectedTagFilter = "ux";
+
+            Assert.True(node1.IsHighlighted);
+            Assert.False(node1.IsDimmed);
+
+            Assert.False(node2.IsHighlighted);
+            Assert.True(node2.IsDimmed);
+
+            vm.SelectedTagFilter = null;
+
+            Assert.False(node1.IsHighlighted);
+            Assert.False(node1.IsDimmed);
+            Assert.False(node2.IsHighlighted);
+            Assert.False(node2.IsDimmed);
+        }
     }
 }

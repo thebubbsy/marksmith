@@ -553,4 +553,31 @@ public class HistoryPolishTests : IDisposable
         await Task.WhenAll(vm.LoadAsync(), vm.ShowFileAsync(file));
         Assert.Single(vm.Files);
     }
+
+    [Fact]
+    public void Run125_SetDiffContextLines_UpdatesContextLabel_AndRecalculatesSegments()
+    {
+        var service = NewService();
+        var vm = NewVm(service, "doc.md");
+
+        Assert.Equal(3, vm.DiffContextLines);
+        Assert.Equal("3 lines context", vm.DiffContextLabel);
+
+        vm.SetDiffContextLines(0);
+        Assert.Equal(0, vm.DiffContextLines);
+        Assert.Equal("Changes only", vm.DiffContextLabel);
+
+        vm.SetDiffContextLines(1);
+        Assert.Equal(1, vm.DiffContextLines);
+        Assert.Equal("1 line context", vm.DiffContextLabel);
+
+        vm.SetDiffContextLines(-1);
+        Assert.Equal(-1, vm.DiffContextLines);
+        Assert.Equal("Full document", vm.DiffContextLabel);
+
+        vm.SetDiffContextLines(3);
+        Assert.Equal(3, vm.DiffContextLines);
+        Assert.Equal("3 lines context", vm.DiffContextLabel);
+    }
 }
+

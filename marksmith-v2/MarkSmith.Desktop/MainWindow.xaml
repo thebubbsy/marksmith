@@ -1000,6 +1000,41 @@
                                             </MenuFlyout>
                                         </Button.Flyout>
                                     </Button>
+                                    <!-- Markdown math / KaTeX formula helper -->
+                                    <Button x:Name="MathFormulaButton" Height="24" Padding="6,0"
+                                            Click="OnMathFormulaButtonClick"
+                                            DoubleTapped="OnMathFormulaButtonDoubleTapped"
+                                            RightTapped="OnMathFormulaButtonRightTapped"
+                                            AutomationProperties.Name="Insert math formula or KaTeX equation"
+                                            ToolTipService.ToolTip="Insert math formula or KaTeX equation ($…$ / $$…$$ · Double-click to wrap selection in inline math, Right-click for templates)">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon Glyph="&#xE8EC;" FontSize="11" />
+                                            <TextBlock Text="Math" FontSize="11" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <Button.Flyout>
+                                            <MenuFlyout x:Name="MathFormulaFlyout">
+                                                <MenuFlyoutItem Text="Inline Math ($x = y$)" Click="OnInsertInlineMathClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EC;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="Block Equation ($$...$$)" Click="OnInsertBlockMathClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutSeparator />
+                                                <MenuFlyoutItem Text="Fraction (\frac{a}{b})" Click="OnInsertFractionMathClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE921;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="Summation / Integral (\sum / \int)" Click="OnInsertSummationMathClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="Matrix 2×2 (\begin{pmatrix}...)" Click="OnInsertMatrixMathClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="Chemical Reaction (\ce{...})" Click="OnInsertMhchemMathClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9CA;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
                                     <!-- Markdown lint: live issue count; the flyout lists issues and jumps to them. -->
                                     <Button x:Name="LintButton" Height="24" Padding="6,0"
                                             AutomationProperties.Name="Markdown issues"

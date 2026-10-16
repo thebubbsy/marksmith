@@ -451,43 +451,70 @@
                             </Button>
                         </StackPanel>
 
-                        <!-- Colour scheme: picking one recolours the canvas at once (and every preset
-                             after it). Swatches show the colours instead of a bare name + "Apply". -->
-                        <DropDownButton x:Name="PaletteButton" Grid.Column="1" Padding="8,4" AutomationProperties.Name="Colour scheme"
-                                        RightTapped="OnPaletteButtonRightTapped"
-                                        ToolTipService.ToolTip="Colour scheme for presets and new shapes (Right-click for options)">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <StackPanel x:Name="PaletteButtonSwatches" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" />
-                                <TextBlock x:Name="PaletteNameText" Text="{Binding SelectedPaletteName}" FontSize="12" VerticalAlignment="Center" />
-                            </StackPanel>
-                            <DropDownButton.Flyout>
-                                <Flyout x:Name="PaletteFlyout" Placement="BottomEdgeAlignedRight">
-                                    <StackPanel Spacing="8" Width="240">
-                                        <TextBlock Text="Colour scheme" Style="{StaticResource SectionHeader}" />
-                                        <TextBlock Text="Recolours the canvas now, and every preset you add after." Style="{StaticResource PaneCaption}" />
-                                        <ListView x:Name="PaletteList" SelectionMode="Single" Margin="-12,0" SelectionChanged="OnPaletteListSelectionChanged" AutomationProperties.Name="Colour schemes">
-                                            <ListView.ItemTemplate>
-                                                <DataTemplate>
-                                                    <StackPanel Padding="0,6" Spacing="6" AutomationProperties.Name="{Binding Name}">
-                                                        <TextBlock Text="{Binding Name}" FontSize="12" />
-                                                        <ItemsControl ItemsSource="{Binding Swatches}">
-                                                            <ItemsControl.ItemsPanel>
-                                                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="3" /></ItemsPanelTemplate>
-                                                            </ItemsControl.ItemsPanel>
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <Border Width="26" Height="12" CornerRadius="3" Background="{Binding}" BorderThickness="1" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" />
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ListView.ItemTemplate>
-                                        </ListView>
-                                    </StackPanel>
-                                </Flyout>
-                            </DropDownButton.Flyout>
-                        </DropDownButton>
+                        <!-- Grid Snap & Colour scheme controls -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Button x:Name="GridSnapButton" Style="{StaticResource ToolIconButton}" Padding="8,4"
+                                    Click="OnGridSnapButtonClick"
+                                    DoubleTapped="OnGridSnapButtonDoubleTapped"
+                                    RightTapped="OnGridSnapButtonRightTapped"
+                                    AutomationProperties.Name="Canvas grid snap"
+                                    ToolTipService.ToolTip="Canvas grid and magnetic snap (Off, 10px, 20px · Double-click to cycle, Right-click for presets)">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE80A;" FontSize="13" />
+                                    <TextBlock x:Name="GridSnapLabel" Text="Snap · Off" FontSize="11.5" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Button.Flyout>
+                                    <MenuFlyout x:Name="GridSnapFlyout">
+                                        <MenuFlyoutItem Text="Grid snap: Off" Click="OnGridSnapOffClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Grid snap: 10px (Fine)" Click="OnGridSnap10Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Grid snap: 20px (Standard)" Click="OnGridSnap20Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <ToggleMenuFlyoutItem x:Name="ToggleVisualGridItem" Text="Show dot grid on canvas" Click="OnToggleVisualGridClick" IsChecked="False" />
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
+                            <DropDownButton x:Name="PaletteButton" Padding="8,4" AutomationProperties.Name="Colour scheme"
+                                            RightTapped="OnPaletteButtonRightTapped"
+                                            ToolTipService.ToolTip="Colour scheme for presets and new shapes (Right-click for options)">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <StackPanel x:Name="PaletteButtonSwatches" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="PaletteNameText" Text="{Binding SelectedPaletteName}" FontSize="12" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <DropDownButton.Flyout>
+                                    <Flyout x:Name="PaletteFlyout" Placement="BottomEdgeAlignedRight">
+                                        <StackPanel Spacing="8" Width="240">
+                                            <TextBlock Text="Colour scheme" Style="{StaticResource SectionHeader}" />
+                                            <TextBlock Text="Recolours the canvas now, and every preset you add after." Style="{StaticResource PaneCaption}" />
+                                            <ListView x:Name="PaletteList" SelectionMode="Single" Margin="-12,0" SelectionChanged="OnPaletteListSelectionChanged" AutomationProperties.Name="Colour schemes">
+                                                <ListView.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Padding="0,6" Spacing="6" AutomationProperties.Name="{Binding Name}">
+                                                            <TextBlock Text="{Binding Name}" FontSize="12" />
+                                                            <ItemsControl ItemsSource="{Binding Swatches}">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="3" /></ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Width="26" Height="12" CornerRadius="3" Background="{Binding}" BorderThickness="1" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListView.ItemTemplate>
+                                            </ListView>
+                                        </StackPanel>
+                                    </Flyout>
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
+                        </StackPanel>
                     </Grid>
 
                     <!-- dense trace preview -->
@@ -509,6 +536,7 @@
                                     PointerReleased="OnCanvasPointerReleased" PointerCaptureLost="OnCanvasPointerCaptureLost"
                                     DoubleTapped="OnCanvasDoubleTapped"
                                     RightTapped="OnCanvasRightTapped">
+                                <Canvas x:Name="GridOverlayCanvas" IsHitTestVisible="False" Visibility="Collapsed" />
                                 <ItemsControl ItemsSource="{Binding Shapes}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>

@@ -5244,6 +5244,74 @@ namespace MarkSmith.Views.MindMap
             SearchBox.Focus(FocusState.Programmatic);
         }
 
+        private void OnTagFilterButtonClick(object sender, RoutedEventArgs e)
+        {
+            TagFilterFlyout?.ShowAt(sender as FrameworkElement ?? TagFilterButton);
+        }
+
+        private void OnTagFilterButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            SetTagFilter(null);
+        }
+
+        private void OnTagFilterButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            TagFilterFlyout?.ShowAt(sender as FrameworkElement ?? TagFilterButton);
+        }
+
+        private void OnTagFilterFlyoutOpening(object? sender, object e)
+        {
+            if (TagFilterFlyout == null) return;
+            var separator = TagFilterFlyout.Items.OfType<MenuFlyoutSeparator>().FirstOrDefault();
+            int sepIdx = separator != null ? TagFilterFlyout.Items.IndexOf(separator) : 0;
+            while (TagFilterFlyout.Items.Count > sepIdx + 1)
+            {
+                TagFilterFlyout.Items.RemoveAt(TagFilterFlyout.Items.Count - 1);
+            }
+
+            ViewModel.RefreshDistinctTags();
+            if (ViewModel.DistinctTags.Count == 0)
+            {
+                var emptyItem = new MenuFlyoutItem
+                {
+                    Text = "No tags found on map",
+                    IsEnabled = false
+                };
+                TagFilterFlyout.Items.Add(emptyItem);
+                return;
+            }
+
+            foreach (var tag in ViewModel.DistinctTags)
+            {
+                int count = ViewModel.Nodes.Count(n => n.Tags.Any(t => MindMapGraph.TagEquals(t, tag)));
+                var item = new MenuFlyoutItem
+                {
+                    Text = $"#{tag.TrimStart('#')} ({count})",
+                    Icon = new FontIcon { Glyph = "\uE8EC" }
+                };
+                item.Click += (_, _) => SetTagFilter(tag);
+                TagFilterFlyout.Items.Add(item);
+            }
+        }
+
+        private void OnClearTagFilterClick(object sender, RoutedEventArgs e) => SetTagFilter(null);
+
+        private void SetTagFilter(string? tag)
+        {
+            ViewModel.SelectedTagFilter = tag;
+            if (TagFilterLabel != null)
+            {
+                TagFilterLabel.Text = string.IsNullOrEmpty(tag) ? "Tags" : $"#{tag.TrimStart('#')}";
+            }
+            ViewModel.StatusMessage = string.IsNullOrEmpty(tag)
+                ? "Cleared tag filter — showing all nodes"
+                : $"Filtered mindmap by #{tag.TrimStart('#')}";
+            if (TagFilterButton != null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(TagFilterButton, null);
+            RequestRedraw();
+        }
+
         private void OnSearchBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;

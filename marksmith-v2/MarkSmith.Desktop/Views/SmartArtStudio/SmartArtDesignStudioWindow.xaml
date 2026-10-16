@@ -544,6 +544,33 @@
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
+                            <Button x:Name="AspectRatioButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                                    Click="OnAspectRatioButtonClick"
+                                    DoubleTapped="OnAspectRatioButtonDoubleTapped"
+                                    RightTapped="OnAspectRatioButtonRightTapped"
+                                    AutomationProperties.Name="Diagram preview aspect ratio"
+                                    ToolTipService.ToolTip="Diagram preview aspect ratio (Default, 16:9 Slide, 4:3 Document, 1:1 Square, 21:9 Banner · Double-click to cycle)">
+                                <FontIcon Glyph="&#xE799;" FontSize="12" />
+                                <Button.Flyout>
+                                    <MenuFlyout x:Name="AspectRatioFlyout">
+                                        <MenuFlyoutItem x:Name="AspectDefaultItem" Text="Default Fluid Canvas" Click="OnAspectDefaultClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="Aspect16x9Item" Text="16:9 Widescreen Slide (PowerPoint)" Click="OnAspect16x9Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="Aspect4x3Item" Text="4:3 Standard Document Figure" Click="OnAspect4x3Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C3;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="Aspect1x1Item" Text="1:1 Square Card" Click="OnAspect1x1Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73B;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="Aspect21x9Item" Text="21:9 Ultrawide Banner" Click="OnAspect21x9Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE944;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
                         </StackPanel>
                     </Grid>
                     <!-- Quick Layout Visual Thumbnail Strip -->

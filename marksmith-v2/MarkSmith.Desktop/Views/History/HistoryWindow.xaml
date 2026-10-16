@@ -495,12 +495,29 @@
                                            TextTrimming="CharacterEllipsis" />
                             </StackPanel>
 
-                            <!-- Change Stepper Navigation Pill -->
+                            <!-- Change Stepper Navigation Pill & Context Filter -->
                             <Border x:Name="DiffChangeStepperPill" Grid.Column="2"
                                     Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="6" Padding="2" VerticalAlignment="Center"
                                     Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
+                                <Border.ContextFlyout>
+                                    <MenuFlyout x:Name="DiffContextFlyout">
+                                        <MenuFlyoutItem Text="Changes only (0 context lines)" Click="OnDiffContextChangesOnlyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Compact (1 context line)" Click="OnDiffContextCompactClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Standard (3 context lines)" Click="OnDiffContextStandardClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Full document (All lines)" Click="OnDiffContextFullClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Border.ContextFlyout>
                                 <StackPanel Orientation="Horizontal" Spacing="2">
                                     <Button x:Name="PrevChangeButton" Click="OnPrevChangeButtonClick" Style="{StaticResource SubtleButtonStyle}"
                                             Width="24" Height="24" Padding="0"
@@ -509,7 +526,11 @@
                                     </Button>
                                     <TextBlock x:Name="ChangeStepperLabel" Text="Hunks: 0" FontSize="11" VerticalAlignment="Center" Margin="4,0"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               Tapped="OnChangeStepperLabelTapped" ToolTipService.ToolTip="Change hunk index · Click to step to next hunk (F7)" />
+                                               IsHitTestVisible="True"
+                                               Tapped="OnChangeStepperLabelTapped"
+                                               DoubleTapped="OnChangeStepperLabelDoubleTapped"
+                                               RightTapped="OnChangeStepperLabelRightTapped"
+                                               ToolTipService.ToolTip="Change hunk index · Click to step to next hunk (F7) · Double-click to jump to first · Right-click for diff context" />
                                     <Button x:Name="NextChangeButton" Click="OnNextChangeButtonClick" Style="{StaticResource SubtleButtonStyle}"
                                             Width="24" Height="24" Padding="0"
                                             ToolTipService.ToolTip="Next change hunk (F7)" AutomationProperties.Name="Next change">

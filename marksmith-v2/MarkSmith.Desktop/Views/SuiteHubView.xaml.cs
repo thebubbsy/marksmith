@@ -1195,6 +1195,143 @@ mindmap
 """);
     }
 
+    private void OnTemplateAdrClick(object sender, RoutedEventArgs e)
+    {
+        CreateAndOpenStarterDocument("ADR_Architecture_Decision", """
+# ADR-001: [Title of Architectural Decision]
+
+**Status:** Proposed | **Date:** YYYY-MM-DD | **Deciders:** [Architect, Engineers]
+
+## Context & Problem Statement
+Describe the technical context, requirements, trade-offs, and driving forces behind this decision.
+
+## Decision Drivers
+- Non-functional requirement 1 (e.g. latency, memory safety)
+- Developer ergonomics and maintenance velocity
+- Compatibility with existing OpenXML and WinUI 3 pipelines
+
+## Considered Options
+1. **Option 1:** [Description]
+2. **Option 2:** [Description]
+
+## Decision Outcome
+Chosen option: **Option 1**, because [rationale].
+
+### Positive Consequences
+- Improved runtime stability and predictable performance
+- Enforces strict contract boundaries
+
+### Negative Consequences / Risks
+- Requires initial migration of legacy handlers
+
+## Compliance & Empirical Verification
+- Verified with automated test suites (`MarkSmith.Tests`)
+- Zero build warnings or regression failures
+""");
+    }
+
+    private void OnTemplateReleaseNotesClick(object sender, RoutedEventArgs e)
+    {
+        CreateAndOpenStarterDocument("Release_Notes", """
+# Release Notes: MarkSmith Desktop v2.x
+
+**Release Date:** YYYY-MM-DD | **Channel:** Production / Stable
+
+## 🚀 Highlights & Executive Summary
+Brief summary of key user-facing features, polish refinements, and performance upgrades delivered in this release.
+
+## ✨ New Features & Enhancements
+- **Feature A:** Description of enhancement and workflow impact.
+- **Feature B:** Ergonomic improvements and updated accelerators.
+
+## 🛠️ Polish & Architectural Hardening
+- **Surface Polish:** Consistent hover/press feedback, high-DPI font rendering, and zero-flicker transitions.
+- **Reliability:** Memory consumption optimization and deterministic cleanup.
+
+## ⚠️ Breaking Changes & Deprecations
+- None. Fully backward-compatible with all existing Markdown, SmartArt, and Mermaid documents.
+
+## 📋 Verification & Test Summary
+- **Unit & Integration Tests:** 100% passed across all test suites.
+- **Trunk Health:** Green trunk status validated before release.
+""");
+    }
+
+    private void OnTemplateSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        FilterTemplates(sender.Text);
+    }
+
+    private void OnTemplateSearchKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Enter)
+        {
+            e.Handled = true;
+            LaunchFirstVisibleTemplate();
+        }
+        else if (e.Key == VirtualKey.Escape)
+        {
+            e.Handled = true;
+            if (TemplateSearchBox != null) TemplateSearchBox.Text = "";
+            FilterTemplates("");
+        }
+    }
+
+    private void FilterTemplates(string query)
+    {
+        if (StarterTemplatesPanel == null) return;
+        query = query.Trim().ToLowerInvariant();
+        int visibleCount = 0;
+        foreach (var child in StarterTemplatesPanel.Children)
+        {
+            if (child is Button btn)
+            {
+                var tag = (btn.Tag as string ?? "").ToLowerInvariant();
+                var text = "";
+                if (btn.Content is StackPanel sp)
+                {
+                    foreach (var spc in sp.Children)
+                        if (spc is TextBlock tb) text += " " + tb.Text;
+                }
+                text = text.ToLowerInvariant();
+                bool matches = string.IsNullOrEmpty(query) || text.Contains(query) || tag.Contains(query);
+                btn.Visibility = matches ? Visibility.Visible : Visibility.Collapsed;
+                if (matches) visibleCount++;
+            }
+        }
+        if (TemplateSearchStatusText != null)
+        {
+            if (string.IsNullOrEmpty(query))
+            {
+                TemplateSearchStatusText.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                TemplateSearchStatusText.Text = visibleCount > 0 ? $"{visibleCount} match{(visibleCount == 1 ? "" : "es")}" : "No templates match";
+                TemplateSearchStatusText.Visibility = Visibility.Visible;
+            }
+        }
+    }
+
+    private void LaunchFirstVisibleTemplate()
+    {
+        if (StarterTemplatesPanel == null) return;
+        foreach (var child in StarterTemplatesPanel.Children)
+        {
+            if (child is Button { Visibility: Visibility.Visible } btn)
+            {
+                btn.Focus(FocusState.Programmatic);
+                if (btn == TemplateMeetingNotesBtn) OnTemplateMeetingNotesClick(btn, new RoutedEventArgs());
+                else if (btn == TemplateTechSpecBtn) OnTemplateTechSpecClick(btn, new RoutedEventArgs());
+                else if (btn == TemplateSmartArtBtn) OnTemplateSmartArtClick(btn, new RoutedEventArgs());
+                else if (btn == TemplateMindMapBtn) OnTemplateMindMapClick(btn, new RoutedEventArgs());
+                else if (btn == TemplateAdrBtn) OnTemplateAdrClick(btn, new RoutedEventArgs());
+                else if (btn == TemplateReleaseNotesBtn) OnTemplateReleaseNotesClick(btn, new RoutedEventArgs());
+                break;
+            }
+        }
+    }
+
     private void CreateAndOpenStarterDocument(string baseName, string content)
     {
         try

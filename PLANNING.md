@@ -9408,4 +9408,73 @@ Reviewed: the 2026-10-17 run #123 entry above. Followed the AI-Executable 3-Bloc
 - `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **456 passed, 0 failed (100% pass rate)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 27036, responsive startup, clean exit.
 
+### 2026-10-17 (scheduled routine run #125 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #124 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across the 6 major WinUI 3 surfaces (`HistoryWindow`, `SuiteHubView`, `ShapeDesignStudioWindow`, `MindMapGalaxyWindow`, `SmartArtDesignStudioWindow`, `MainWindow`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Generated:
+    1. `HistoryWindow`: Diff context lines selector & hunk filter (`DiffContextLines`: 0, 1, 3, -1; `DiffContextLabel`, zero-allocation recalculation, `DiffContextFlyout`, double-click on change stepper jumps to Hunk 1).
+    2. `SuiteHubView`: Quick-start template search box & enterprise scaffolds (search box with instant filtering, Enter opens first match, Esc resets, ADR and Release Notes scaffolds).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Extended `HistoryWindowViewModel` with `DiffContextLines`, `DiffContextLabel`, and `SetDiffContextLines(int)`. Preserved raw diff lines in `_lastDiffLines` so context lines re-collapse instantaneously without re-executing text diffing or incurring git allocations. Mounted `DiffContextFlyout` on `DiffChangeStepperPill` and added double-tap to reset/jump to Hunk 1.
+    * For Idea 2: Mounted `TemplateSearchBox` in `SuiteHubView.xaml` with auto-complete glyph and clear button. Added instant filter predicate querying title, description, and tags across starter template cards with dynamic `TemplateSearchStatusText` feedback ("Showing X of Y templates"). Added Architecture Decision Record (ADR) and Release Notes scaffold buttons.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Canvas alignment dot grid & magnetic snap toggle (`GridSnapButton`, `GridSnapFlyout` with Off, 10px, 20px, visual grid overlay).
+    4. `MindMapGalaxyWindow`: Node tag filter button & cluster isolation (`TagFilterButton`, `TagFilterFlyout` listing dynamic `#tag` frequency counts, double-click clears, dimming non-matching nodes).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `GridSnapButton` in toolbar with dashed reference line overlay in `GridOverlayCanvas`. Integrated magnetic snapping fallback directly in `OnShapePointerMoved` using `_dragShape.X` and `_dragShape.Y` when not near another shape. Double-clicking cycles snap modes (Off -> 10px -> 20px).
+    * For Idea 4: Positioned `TagFilterButton` between search box and match stepper pill in `MindMapGalaxyWindow.xaml`. Connected `OnTagFilterFlyoutOpening` to dynamically scan all node tags and markdown content `#hashtags`, compiling real-time node count badges. Double-clicking clears active tag filter.
+  - Refined Block 1 (Pass 2 - Final):
+    * Validated `HistoryWindowViewModel` and `SuiteHubView` keyboard flows: Enter launches first visible template, Esc clears query and restores all cards.
+    * Enforced WinUI 3 XAML compiler safety: zero `MaxWidth` on `ColumnDefinition` elements to prevent `WMC9999` crashes.
+  - Generated:
+    5. `SmartArtDesignStudioWindow`: Diagram preview aspect ratio selector (`AspectRatioButton`, `AspectRatioFlyout`: Fluid, 16:9 Widescreen Slide, 4:3 Document Figure, 1:1 Square Card, 21:9 Ultrawide Banner).
+    6. `MainWindow`: Editor bottom toolbar Markdown math & KaTeX equation helper (`MathFormulaButton`, `MathFormulaFlyout`: Inline math `$x = y$`, Block equation `$$...$$`, Fraction `\frac{a}{b}`, Summation/Integral, Matrix 2×2, Chemical Reaction `\ce{...}`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Mounted `AspectRatioButton` in `SmartArtDesignStudioWindow.xaml` header. Added `SmartArtAspectRatioMode` enum and injected CSS aspect-ratio & max-dimension constraints directly into `.smartart-container` in `BuildWrapperHtml` with centered flex layout. Double-clicking cycles aspect ratio presets.
+    * For Idea 6: Positioned `MathFormulaButton` in `MainWindow.xaml` editor bottom strip between `TaskListButton` and `LintButton`. Single-click opens template flyout; double-click wraps active selection in inline math `$selection$` (or `$x = y$`); right-click displays flyout. Preserves selection and sets caret inside the equation template.
+  - Executed all 6 refined targets into 100% production code with zero placeholders.
+  - Added unit test coverage in `HistoryPolishTests.cs` (`Run125_SetDiffContextLines_UpdatesContextLabel_AndRecalculatesSegments`) and `MindMapGalaxyPolishTests.cs` (`Run125_SelectedTagFilter_HighlightsMatchingNodes_AndDimsNonMatching`).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **458 passed, 0 failed (100% pass rate)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, responsive startup, clean exit.
+  - Carried forward ideas / next targets into Run #126:
+    * Target A: `SmartArtDesignStudioWindow` diagram preview zoom level selector & fit-to-view button.
+    * Target B: `MainWindow` editor status bar line & column jump dialog (Ctrl+G).
+    * Target C: `ShapeDesignStudioWindow` shape color palette quick swatches with recent colors cache.
+
+**Shipped:**
+1. **`HistoryWindow` Diff Context Lines & Hunk Stepper (`Views/History/HistoryWindow.xaml`, `Views/History/HistoryWindow.xaml.cs`, `MarkSmith.Core/ViewModels/History/HistoryWindowViewModel.cs`):**
+   - Added `DiffContextLines` (0: Changes only, 1: 1 line context, 3: 3 lines context, -1: Full document) with cached `_lastDiffLines` for $O(1)$ re-collapse without re-diffing.
+   - Mounted `DiffContextFlyout` on `DiffChangeStepperPill` and wired double-tap to reset/jump to Hunk 1 and right-tap to open context lines flyout.
+2. **`SuiteHubView` Quick-Start Template Search & Enterprise Scaffolds (`Views/SuiteHubView.xaml`, `Views/SuiteHubView.xaml.cs`):**
+   - Added `TemplateSearchBox` with instant title/tag search filtering across template cards and real-time status count ("Showing X of Y templates").
+   - Added Architecture Decision Record (ADR - Markdown with Context, Decision, Consequences) and Release Notes (Keep a Changelog format) template scaffolds.
+   - Keyboard navigation: Enter launches first visible matching template; Escape clears search and restores view.
+3. **`ShapeDesignStudioWindow` Canvas Alignment Dot Grid & Magnetic Snap (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Added `GridSnapButton` with flyout options for Off, 10px snap, 20px snap, and toggle visual grid lines.
+   - Embedded `GridOverlayCanvas` rendering dashed grid lines and integrated magnetic grid coordinate rounding fallback in `OnShapePointerMoved`.
+4. **`MindMapGalaxyWindow` Node Tag Filter & Graph Cluster Isolation (`Views/MindMap/MindMapGalaxyWindow.xaml`, `Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Mounted `TagFilterButton` with dynamic tag discovery flyout compiling active node tags and `#hashtags` with node counts.
+   - Single-click opens tag selection list; selecting a tag isolates the cluster, highlighting matching nodes and dimming non-matching nodes; double-clicking clears filter.
+5. **`SmartArtDesignStudioWindow` Diagram Preview Aspect Ratio Selector (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Added `AspectRatioButton` in preview header with presets for Fluid Canvas, 16:9 Widescreen Slide (PowerPoint), 4:3 Standard Document Figure, 1:1 Square Card, and 21:9 Ultrawide Banner.
+   - Injected CSS aspect ratio and max-dimension constraints directly into `.smartart-container` in `BuildWrapperHtml`; double-click cycles presets.
+6. **`MainWindow` Editor Markdown Math & KaTeX Equation Helper (`MainWindow.xaml`, `MainWindow.xaml.cs`):**
+   - Bottom editor toolbar `MathFormulaButton` between `TaskListButton` and `LintButton`.
+   - Flyout with snippets for Inline Math (`$x = y$`), Block Equation (`$$...$$`), Fraction (`\frac{a}{b}`), Summation/Integral (`\sum`/`\int`), Matrix 2×2 (`\begin{pmatrix}...`), and Chemical Reaction (`\ce{...}`).
+   - Double-clicking wraps current text selection in inline math delimiters (`$selection$`); preserves selection and caret position.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **458 passed, 0 failed (100% pass rate)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, responsive startup, clean exit.
+
+
 
