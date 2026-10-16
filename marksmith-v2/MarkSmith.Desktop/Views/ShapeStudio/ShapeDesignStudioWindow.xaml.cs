@@ -2080,6 +2080,124 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.ShowAt(target, e.GetPosition(target));
         }
 
+        private void OnAlignButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            bool canAlign = ViewModel.CanAlign;
+            bool hasSelection = ViewModel.HasSelection;
+            bool any = ViewModel.HasShapes;
+
+            var horizSub = new MenuFlyoutSubItem
+            {
+                Text = "Horizontal alignment",
+                Icon = new FontIcon { Glyph = "\uE8E3" }
+            };
+            horizSub.Items.Add(ShapeMenuItem("Align left", "\uE8E4", () => ViewModel.AlignLeftCommand.Execute(null), enabled: canAlign));
+            horizSub.Items.Add(ShapeMenuItem("Align centre", "\uE8E3", () => ViewModel.AlignCenterCommand.Execute(null), enabled: canAlign));
+            horizSub.Items.Add(ShapeMenuItem("Align right", "\uE8E2", () => ViewModel.AlignRightCommand.Execute(null), enabled: canAlign));
+            horizSub.Items.Add(new MenuFlyoutSeparator());
+            horizSub.Items.Add(ShapeMenuItem("Distribute horizontally", "\uE8E2", () => ViewModel.DistributeHorizontalCommand.Execute(null), enabled: canAlign));
+            flyout.Items.Add(horizSub);
+
+            var vertSub = new MenuFlyoutSubItem
+            {
+                Text = "Vertical alignment",
+                Icon = new FontIcon { Glyph = "\uE8E3" }
+            };
+            vertSub.Items.Add(ShapeMenuItem("Align top", "\uE74A", () => ViewModel.AlignTopCommand.Execute(null), enabled: canAlign));
+            vertSub.Items.Add(ShapeMenuItem("Align middle", "\uE8E3", () => ViewModel.AlignMiddleCommand.Execute(null), enabled: canAlign));
+            vertSub.Items.Add(ShapeMenuItem("Align bottom", "\uE74B", () => ViewModel.AlignBottomCommand.Execute(null), enabled: canAlign));
+            vertSub.Items.Add(new MenuFlyoutSeparator());
+            vertSub.Items.Add(ShapeMenuItem("Distribute vertically", "\uE8E3", () => ViewModel.DistributeVerticalCommand.Execute(null), enabled: canAlign));
+            flyout.Items.Add(vertSub);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Fit diagram in window", "\uE9A6", FitCanvasToContent, "Ctrl+0", enabled: any));
+            flyout.Items.Add(ShapeMenuItem("Duplicate selection", "\uE8C8", () => ViewModel.DuplicateSelectedCommand.Execute(null), "Ctrl+D", enabled: hasSelection));
+            flyout.Items.Add(ShapeMenuItem("Delete selection", "\uE74D", () => ViewModel.RemoveSelectedCommand.Execute(null), "Del", enabled: hasSelection));
+
+            var target = sender as FrameworkElement ?? ToolStrip;
+            flyout.ShowAt(target, e.GetPosition(target));
+        }
+
+        private void OnRotateButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+            bool hasSelection = ViewModel.HasSelectedShape;
+
+            flyout.Items.Add(ShapeMenuItem("Rotate 90° clockwise", "\uE7AD", () => ViewModel.RotateClockwiseCommand.Execute(null), "Alt+Shift+Right", enabled: hasSelection));
+            flyout.Items.Add(ShapeMenuItem("Rotate 90° counter-clockwise", "\uE80C", () => ViewModel.RotateCounterClockwiseCommand.Execute(null), "Alt+Shift+Left", enabled: hasSelection));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Rotate 45° clockwise", "\uE7AD", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    ViewModel.RecordUndo();
+                    s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation + 45);
+                    ViewModel.StatusMessage = $"Rotated to {s.Rotation:0}°";
+                }
+            }, enabled: hasSelection));
+
+            flyout.Items.Add(ShapeMenuItem("Rotate 180° (Flip around)", "\uE7AD", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    ViewModel.RecordUndo();
+                    s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation + 180);
+                    ViewModel.StatusMessage = $"Rotated to {s.Rotation:0}°";
+                }
+            }, enabled: hasSelection));
+
+            flyout.Items.Add(ShapeMenuItem("Rotate 45° counter-clockwise", "\uE80C", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    ViewModel.RecordUndo();
+                    s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation - 45);
+                    ViewModel.StatusMessage = $"Rotated to {s.Rotation:0}°";
+                }
+            }, enabled: hasSelection));
+
+            flyout.Items.Add(ShapeMenuItem("Reset rotation (0°)", "\uE777", () => ViewModel.ResetRotation(), "Alt+0", enabled: hasSelection));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Copy rotation angle", "\uE8C8", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"{s.Rotation:0}°");
+                    ViewModel.StatusMessage = $"Copied angle {s.Rotation:0}° to clipboard.";
+                }
+            }, enabled: hasSelection));
+
+            var target = sender as FrameworkElement ?? ToolStrip;
+            flyout.ShowAt(target, e.GetPosition(target));
+        }
+
+        private void OnRotateClockwiseDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (ViewModel.HasSelectedShape)
+            {
+                ViewModel.RotateClockwiseCommand.Execute(null);
+            }
+        }
+
+        private void OnRotateCounterClockwiseDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (ViewModel.HasSelectedShape)
+            {
+                ViewModel.RotateCounterClockwiseCommand.Execute(null);
+            }
+        }
+
         // ---- export / markdown ----
 
         private void OnExportMenuOpening(object? sender, object e)

@@ -8171,3 +8171,63 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 24816, `Alive: True`, `Responding: True`, clean exit.
+
+
+### 2026-10-16 (scheduled routine run #107 — WinUI 3 Desktop Polish: Shape Studio Alignment & Rotation Toolbar Buttons Right-Click Menus & Double-Tap Parity, SmartArt Studio Layout Category Combo Keyboard Navigation & Double-Tap Cycling Parity, MainWindow Document Status Bar Quick Jump Presets & NumberBox Gesture Parity, MainWindow Status Bar Word Count Detailed Breakdown Menu, MindMap Galaxy SearchBox Double-Tap Select All & Right-Click Tag Filter Presets, Mermaid Minimap Double-Tap Parity & Studio Actions Menu)
+
+- **Surface / Component Targets:** `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `MainWindow`, `MindMapGalaxyWindow`, `MermaidMinimapControl`, `NodePaletteControl`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, pointer gesture quarantine, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #106:
+    * Target A: `ShapeDesignStudioWindow` alignment guides toolstrip button right-click snap presets menu.
+    * Target B: `SmartArtDesignStudioWindow` layout list category combo keyboard shortcut & hotkey parity.
+  - Generated:
+    1. `ShapeDesignStudioWindow` Alignment & Rotation Toolbar Buttons Right-Click Menus & Double-Tap Parity (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+    2. `SmartArtDesignStudioWindow` Layout Category ComboBox Keyboard Navigation & Double-Tap Cycling Parity (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): In `ShapeDesignStudioWindow.xaml` & `.xaml.cs`, attached `RightTapped="OnAlignButtonRightTapped"` across all 8 alignment buttons (`AlignLeft`, `AlignCenter`, `AlignRight`, `AlignTop`, `AlignMiddle`, `AlignBottom`, `DistributeHorizontal`, `DistributeVertical`) presenting Horizontal and Vertical alignment submenus, Distribute commands, and Fit canvas option; attached `RightTapped="OnRotateButtonRightTapped"`, `DoubleTapped="OnRotateClockwiseDoubleTapped"`, and `DoubleTapped="OnRotateCounterClockwiseDoubleTapped"` on rotation buttons offering 90° clockwise/counter-clockwise, 45°/180°/-45° presets, Reset 0°, and Copy rotation angle. In `SmartArtDesignStudioWindow.xaml` & `.xaml.cs`, connected `KeyDown="OnLayoutCategoryComboKeyDown"`, `DoubleTapped="OnLayoutCategoryComboDoubleTapped"`, and `RightTapped="OnLayoutCategoryComboRightTapped"` offering `Enter`/`Down` focus into layout list, `Escape` filter reset to All, double-tap category cycling, Next/Previous category commands, and clipboard copy.
+  - Generated:
+    3. `MainWindow` Document Status Bar Ln/Col Quick Jump Presets & NumberBox Gesture Parity (`MainWindow.xaml.cs`)
+    4. `MainWindow` Document Status Bar Word Count / Reading Time Detailed Breakdown Menu (`MainWindow.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): In `MainWindow.xaml.cs`, `OnCursorPosTextRightTapped` dynamically computes document line bounds via folded line mapper, adding a dedicated "Quick jump to line" submenu with live line numbers (`Start 1 / 0%`, `25%`, `50%`, `75%`, `End N / 100%`); enhanced `ShowGoToLineDialogAsync` `NumberBox` with `DoubleTapped` select-all and `RightTapped` flyout (`Line 1`, `Midpoint`, `End of document`, `Paste line number`). In `OnWordCountTextRightTapped`, added formatted line count (`\uE8FD`), words per line telemetry, reading time, and character counts with status announcements.
+  - Refined Block 1 (Pass 2 - Final): In `ShapeDesignStudioWindow.xaml.cs` and `SmartArtDesignStudioWindow.xaml.cs`, ensured all event handlers have strictly matching WinUI 3 signatures, error-bounded clipboard writes with `ClipboardWriter.TrySetTextAsync`, and updated tooltips.
+  - Generated:
+    5. `MindMapGalaxyWindow` Search Box Double-Tap Select All & Right-Click Tag Filter Presets (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`)
+    6. `MermaidMinimapControl` Double-Tap Parity & Studio Actions Menu (`Views/Mermaid/MermaidMinimapControl.cs`) + `NodePaletteControl` Double-Tap Parity (`Views/Mermaid/NodePaletteControl.xaml` & `NodePaletteControl.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): In `MindMapGalaxyWindow.xaml` & `.xaml.cs`, attached `DoubleTapped="OnSearchBoxDoubleTapped"` with `FindDescendant<TextBox>` template unwrapping to select all query text; updated `OnSearchBoxKeyDown` so `Escape` clears active query first before blurring; in `OnSearchBoxRightTapped`, added Copy search query, Paste query from clipboard, Select all, and dynamic "Filter by tag" submenu from `ViewModel.DistinctTags`. In `MermaidMinimapControl.cs`, attached `DoubleTapped` (zooms to 100%), added Auto-arrange diagram nodes (`\uECA5`), Toggle grid snap (`\uE80A`), and Copy diagram statistics (`\uE8C8`) to right-click menu. In `NodePaletteControl.xaml` & `.xaml.cs`, attached `DoubleTapped` on `SearchTextBox` to select all search text.
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #108 (`ShapeDesignStudioWindow` shape fill opacity slider right-click alpha presets menu, `SmartArtDesignStudioWindow` color palette drop-down right-click palette presets menu, `HistoryWindow` commit message inspector right-click copy & markdown export parity).
+
+**Shipped:**
+1. **`ShapeDesignStudioWindow` Alignment & Rotation Toolbar Buttons Right-Click Menus & Double-Tap Parity (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnAlignButtonRightTapped"` across all 8 alignment buttons (`AlignLeft`, `AlignCenter`, `AlignRight`, `AlignTop`, `AlignMiddle`, `AlignBottom`, `DistributeHorizontal`, `DistributeVertical`).
+   - Right-click menu presents Horizontal alignment submenu (Left, Centre, Right, Distribute), Vertical alignment submenu (Top, Middle, Bottom, Distribute), Fit diagram in window (`\uE9A6`), Duplicate selection (`\uE8C8`), and Delete selection (`\uE74D`).
+   - Attached `RightTapped="OnRotateButtonRightTapped"`, `DoubleTapped="OnRotateClockwiseDoubleTapped"`, and `DoubleTapped="OnRotateCounterClockwiseDoubleTapped"` on rotation buttons offering 90° clockwise/counter-clockwise, 45°/180°/-45° presets, Reset 0°, and Copy rotation angle.
+2. **`SmartArtDesignStudioWindow` Layout Category ComboBox Keyboard Navigation & Double-Tap Cycling Parity (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `KeyDown="OnLayoutCategoryComboKeyDown"`, `DoubleTapped="OnLayoutCategoryComboDoubleTapped"`, and expanded `OnLayoutCategoryComboRightTapped`.
+   - Pressing `Enter` or `Down` cleanly focuses `LayoutList` for immediate keyboard browsing; `Escape` resets category filter to All; double-clicking cycles through layout categories.
+   - Right-click menu presents all category choices, Next category (`Ctrl+Tab`), Previous category (`Ctrl+Shift+Tab`), Copy category name (`\uE8C8`), Reset category to All (`\uE72C`), Focus layout search (`\uE721`), and Focus layout list (`\uE8B3`).
+3. **`MainWindow` Document Status Bar Ln/Col Quick Jump Presets & NumberBox Gesture Parity (`MainWindow.xaml.cs`):**
+   - Dynamically calculates document line count and presents "Quick jump to line" submenu: Start of document (Line 1 / 0%, `Ctrl+Home`), First quarter (25%), Midpoint (50%), Third quarter (75%), End of document (100%, `Ctrl+End`), and Custom line number (`Ctrl+G`).
+   - Inside `ShowGoToLineDialogAsync()`, attached `DoubleTapped` on `NumberBox` to select all text, and `RightTapped` offering Set to Line 1, Set to Midpoint, Set to End, and Paste line number from clipboard.
+4. **`MainWindow` Document Status Bar Word Count / Reading Time Detailed Breakdown Menu (`MainWindow.xaml.cs`):**
+   - Added Copy line count (`\uE8FD`) dynamically computed with fold mapping and formatted as `{N:N0} lines`.
+   - Offers Copy word count, Copy character count (with/without spaces), Copy reading time, and full document statistics summary with toast/status announcements.
+5. **`MindMapGalaxyWindow` Search Box Double-Tap Select All & Right-Click Tag Filter Presets (`Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs`):**
+   - Attached `DoubleTapped="OnSearchBoxDoubleTapped"` utilizing `FindDescendant<TextBox>` visual tree helper to select all query text.
+   - Enhanced `OnSearchBoxKeyDown` so `Escape` clears active query without losing search focus (if empty, blurs to canvas).
+   - Expanded `OnSearchBoxRightTapped` to offer Copy search query (`\uE8C8`), Paste query from clipboard (`\uE77F`), Select all text (`\uE8D2`), and dynamic "Filter by tag" submenu (`\uE8EC`) from `ViewModel.DistinctTags`.
+6. **`MermaidMinimapControl` Double-Tap Parity & Studio Actions Menu (`Views/Mermaid/MermaidMinimapControl.cs`) + `NodePaletteControl` Double-Tap Parity (`Views/Mermaid/NodePaletteControl.xaml` & `.xaml.cs`):**
+   - Attached `DoubleTapped` on minimap canvas to zoom to 100%.
+   - Right-click menu presents Center view here, Fit all in window, Zoom to 100%, Zoom in/out, Auto-arrange diagram nodes (`\uECA5`), Toggle grid snap (`\uE80A`), and Copy diagram statistics (`\uE8C8`).
+   - Attached `DoubleTapped="OnSearchTextBoxDoubleTapped"` on Mermaid shape palette search box to select all text.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 3420, `Alive: True`, `Responding: True`, clean exit.

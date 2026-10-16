@@ -9194,6 +9194,28 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             menu.Items.Add(copyWordsItem);
         }
 
+        if (PasteTextBox is not null)
+        {
+            var text = PasteTextBox.Text ?? string.Empty;
+            var lineCount = 1;
+            for (var i = 0; i < text.Length; i++)
+            {
+                if (IsLineBreak(text[i])) lineCount++;
+            }
+            lineCount = Math.Max(1, _folds.DocumentLine(text, lineCount));
+            var copyLinesItem = new MenuFlyoutItem
+            {
+                Text = $"Copy line count ({lineCount:N0} lines)",
+                Icon = new FontIcon { Glyph = "\uE8FD" }
+            };
+            copyLinesItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync($"{lineCount:N0} lines");
+                AnnounceStatus($"Copied line count: {lineCount:N0} lines.");
+            };
+            menu.Items.Add(copyLinesItem);
+        }
+
         if (!string.IsNullOrWhiteSpace(summary))
         {
             var parts = summary.Split('·', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -9248,6 +9270,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var pos = CursorPosText?.Text ?? "Ln 1, Col 1";
         var menu = new MenuFlyout();
 
+        var text = PasteTextBox?.Text ?? string.Empty;
+        var totalLines = 1;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (IsLineBreak(text[i])) totalLines++;
+        }
+        totalLines = Math.Max(1, _folds.DocumentLine(text, totalLines));
+
         var gotoLineItem = new MenuFlyoutItem
         {
             Text = "Go to line… (Ctrl+G)",
@@ -9255,6 +9285,60 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         gotoLineItem.Click += (_, _) => _ = ShowGoToLineDialogAsync();
         menu.Items.Add(gotoLineItem);
+
+        var jumpSub = new MenuFlyoutSubItem
+        {
+            Text = "Quick jump to line",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        var jumpStart = new MenuFlyoutItem
+        {
+            Text = "Start of document (Line 1 / 0%)",
+            Icon = new FontIcon { Glyph = "\uE898" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Home"
+        };
+        jumpStart.Click += (_, _) => GoToDocumentLine(1);
+        jumpSub.Items.Add(jumpStart);
+
+        if (totalLines > 3)
+        {
+            int q1 = Math.Max(1, (int)Math.Round(totalLines * 0.25));
+            int mid = Math.Max(1, (int)Math.Round(totalLines * 0.50));
+            int q3 = Math.Max(1, (int)Math.Round(totalLines * 0.75));
+
+            var q1Item = new MenuFlyoutItem { Text = $"First quarter (Line {q1} / 25%)", Icon = new FontIcon { Glyph = "\uE74A" } };
+            q1Item.Click += (_, _) => GoToDocumentLine(q1);
+            jumpSub.Items.Add(q1Item);
+
+            var midItem = new MenuFlyoutItem { Text = $"Midpoint (Line {mid} / 50%)", Icon = new FontIcon { Glyph = "\uE8E3" } };
+            midItem.Click += (_, _) => GoToDocumentLine(mid);
+            jumpSub.Items.Add(midItem);
+
+            var q3Item = new MenuFlyoutItem { Text = $"Third quarter (Line {q3} / 75%)", Icon = new FontIcon { Glyph = "\uE74B" } };
+            q3Item.Click += (_, _) => GoToDocumentLine(q3);
+            jumpSub.Items.Add(q3Item);
+        }
+
+        var jumpEnd = new MenuFlyoutItem
+        {
+            Text = $"End of document (Line {totalLines} / 100%)",
+            Icon = new FontIcon { Glyph = "\uE896" },
+            KeyboardAcceleratorTextOverride = "Ctrl+End"
+        };
+        jumpEnd.Click += (_, _) => GoToDocumentLine(totalLines);
+        jumpSub.Items.Add(jumpEnd);
+
+        jumpSub.Items.Add(new MenuFlyoutSeparator());
+
+        var customJump = new MenuFlyoutItem
+        {
+            Text = "Custom line number… (Ctrl+G)",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        customJump.Click += (_, _) => _ = ShowGoToLineDialogAsync();
+        jumpSub.Items.Add(customJump);
+
+        menu.Items.Add(jumpSub);
 
         menu.Items.Add(new MenuFlyoutSeparator());
 
@@ -9279,7 +9363,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             if (PasteTextBox is not null)
             {
-                var text = PasteTextBox.Text ?? string.Empty;
                 var caret = Math.Clamp(PasteTextBox.SelectionStart, 0, text.Length);
                 var start = text.LastIndexOfAny(new[] { '\r', '\n' }, Math.Max(0, caret - 1));
                 start = start < 0 ? 0 : (start + 1 < text.Length && text[start] == '\r' && text[start + 1] == '\n') ? start + 2 : start + 1;
@@ -9304,7 +9387,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             if (PasteTextBox is not null)
             {
-                var text = PasteTextBox.Text ?? string.Empty;
                 var caret = Math.Clamp(PasteTextBox.SelectionStart, 0, text.Length);
                 var start = text.LastIndexOfAny(new[] { '\r', '\n' }, Math.Max(0, caret - 1));
                 start = start < 0 ? 0 : (start + 1 < text.Length && text[start] == '\r' && text[start + 1] == '\n') ? start + 2 : start + 1;
@@ -9393,6 +9475,59 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             LargeChange = 10,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 8, 0, 0),
+        };
+
+        numberBox.DoubleTapped += (_, dte) =>
+        {
+            dte.Handled = true;
+            if (FindDescendant<TextBox>(numberBox) is { } tb)
+            {
+                tb.SelectAll();
+            }
+        };
+
+        numberBox.RightTapped += (_, rte) =>
+        {
+            rte.Handled = true;
+            var flyout = new MenuFlyout();
+            var setStart = new MenuFlyoutItem { Text = "Set to Line 1 (Start of document)", Icon = new FontIcon { Glyph = "\uE898" } };
+            setStart.Click += (_, _) => numberBox.Value = 1;
+            flyout.Items.Add(setStart);
+
+            if (totalLines > 1)
+            {
+                int mid = Math.Max(1, totalLines / 2);
+                var setMid = new MenuFlyoutItem { Text = $"Set to Line {mid} (Midpoint)", Icon = new FontIcon { Glyph = "\uE8E3" } };
+                setMid.Click += (_, _) => numberBox.Value = mid;
+                flyout.Items.Add(setMid);
+
+                var setEnd = new MenuFlyoutItem { Text = $"Set to Line {totalLines} (End of document)", Icon = new FontIcon { Glyph = "\uE896" } };
+                setEnd.Click += (_, _) => numberBox.Value = totalLines;
+                flyout.Items.Add(setEnd);
+            }
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var pasteItem = new MenuFlyoutItem { Text = "Paste line number from clipboard", Icon = new FontIcon { Glyph = "\uE77F" } };
+            pasteItem.Click += async (_, _) =>
+            {
+                try
+                {
+                    var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var clipText = (await pkg.GetTextAsync())?.Trim();
+                        if (int.TryParse(clipText, out int parsed))
+                        {
+                            numberBox.Value = Math.Clamp(parsed, 1, totalLines);
+                        }
+                    }
+                }
+                catch { }
+            };
+            flyout.Items.Add(pasteItem);
+
+            flyout.ShowAt(numberBox, rte.GetPosition(numberBox));
         };
 
         var dialog = new ContentDialog

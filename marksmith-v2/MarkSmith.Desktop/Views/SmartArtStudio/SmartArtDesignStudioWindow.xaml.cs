@@ -225,11 +225,54 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnLayoutCategoryComboKeyDown(object sender, KeyRoutedEventArgs e)
         {
-            if (e.Key == VirtualKey.Escape && !LayoutCategoryCombo.IsDropDownOpen)
+            if (e.Key == VirtualKey.Escape)
             {
-                OutlineScroll.Focus(FocusState.Keyboard);
+                if (LayoutCategoryCombo.IsDropDownOpen)
+                {
+                    LayoutCategoryCombo.IsDropDownOpen = false;
+                }
+                else if (ViewModel.SelectedCategory != "All")
+                {
+                    ViewModel.SelectedCategory = "All";
+                    ViewModel.StatusMessage = "Reset layout category filter to All.";
+                }
+                else
+                {
+                    LayoutSearch?.Focus(FocusState.Keyboard);
+                }
                 e.Handled = true;
             }
+            else if (e.Key is VirtualKey.Enter or VirtualKey.Down && !LayoutCategoryCombo.IsDropDownOpen)
+            {
+                LayoutList?.Focus(FocusState.Keyboard);
+                e.Handled = true;
+            }
+        }
+
+        private void OnLayoutCategoryComboDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            CycleNextLayoutCategory();
+        }
+
+        private void CycleNextLayoutCategory()
+        {
+            var cats = ViewModel.Categories;
+            if (cats.Count <= 1) return;
+            int idx = cats.IndexOf(ViewModel.SelectedCategory);
+            int nextIdx = (idx + 1) % cats.Count;
+            ViewModel.SelectedCategory = cats[nextIdx];
+            ViewModel.StatusMessage = $"Filtered layouts by {cats[nextIdx]}.";
+        }
+
+        private void CyclePreviousLayoutCategory()
+        {
+            var cats = ViewModel.Categories;
+            if (cats.Count <= 1) return;
+            int idx = cats.IndexOf(ViewModel.SelectedCategory);
+            int prevIdx = (idx - 1 + cats.Count) % cats.Count;
+            ViewModel.SelectedCategory = cats[prevIdx];
+            ViewModel.StatusMessage = $"Filtered layouts by {cats[prevIdx]}.";
         }
 
         private void OnLayoutCategoryComboRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -271,6 +314,36 @@ namespace MarkSmith.Views.SmartArtStudio
 
             menu.Items.Add(new MenuFlyoutSeparator());
 
+            var nextItem = new MenuFlyoutItem
+            {
+                Text = "Next category (Ctrl+Tab)",
+                Icon = new FontIcon { Glyph = "\uE76C" }
+            };
+            nextItem.Click += (_, _) => CycleNextLayoutCategory();
+            menu.Items.Add(nextItem);
+
+            var prevItem = new MenuFlyoutItem
+            {
+                Text = "Previous category (Ctrl+Shift+Tab)",
+                Icon = new FontIcon { Glyph = "\uE76B" }
+            };
+            prevItem.Click += (_, _) => CyclePreviousLayoutCategory();
+            menu.Items.Add(prevItem);
+
+            var copyItem = new MenuFlyoutItem
+            {
+                Text = $"Copy category name ({ViewModel.SelectedCategory})",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyItem.Click += (_, _) =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(ViewModel.SelectedCategory);
+                ViewModel.StatusMessage = $"Copied category name '{ViewModel.SelectedCategory}'.";
+            };
+            menu.Items.Add(copyItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
             var resetItem = new MenuFlyoutItem
             {
                 Text = "Reset category to All",
@@ -282,6 +355,22 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.StatusMessage = "Reset layout filter to All categories.";
             };
             menu.Items.Add(resetItem);
+
+            var focusSearchItem = new MenuFlyoutItem
+            {
+                Text = "Focus layout search",
+                Icon = new FontIcon { Glyph = "\uE721" }
+            };
+            focusSearchItem.Click += (_, _) => LayoutSearch?.Focus(FocusState.Keyboard);
+            menu.Items.Add(focusSearchItem);
+
+            var focusListItem = new MenuFlyoutItem
+            {
+                Text = "Focus layout list",
+                Icon = new FontIcon { Glyph = "\uE8B3" }
+            };
+            focusListItem.Click += (_, _) => LayoutList?.Focus(FocusState.Keyboard);
+            menu.Items.Add(focusListItem);
 
             menu.ShowAt(LayoutCategoryCombo, e.GetPosition(LayoutCategoryCombo));
         }

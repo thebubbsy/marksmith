@@ -2900,14 +2900,44 @@ namespace MarkSmith.Views.MindMap
             ViewModel.FocusNextMatch();
         }
 
+        private void OnSearchBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (FindDescendant<TextBox>(SearchBox) is { } tb)
+            {
+                tb.SelectAll();
+            }
+            SearchBox.Focus(FocusState.Programmatic);
+        }
+
+        private static T? FindDescendant<T>(DependencyObject? parent) where T : DependencyObject
+        {
+            if (parent is null) return null;
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typed) return typed;
+                if (FindDescendant<T>(child) is { } found) return found;
+            }
+            return null;
+        }
+
         private void OnSearchBoxKeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (e.Key == Windows.System.VirtualKey.Escape)
             {
-                SearchBox.Text = "";
-                ViewModel.SearchQuery = "";
+                if (!string.IsNullOrEmpty(SearchBox.Text))
+                {
+                    SearchBox.Text = "";
+                    ViewModel.SearchQuery = "";
+                    SearchBox.Focus(FocusState.Programmatic);
+                }
+                else
+                {
+                    GalaxyCanvas.Focus(FocusState.Programmatic);
+                }
                 e.Handled = true;
-                GalaxyCanvas.Focus(FocusState.Programmatic);
             }
             else if (e.Key == Windows.System.VirtualKey.Down)
             {
@@ -2943,6 +2973,83 @@ namespace MarkSmith.Views.MindMap
             };
             prevItem.Click += (_, _) => ViewModel.FocusNextMatch(forward: false);
             menu.Items.Add(prevItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copySearchItem = new MenuFlyoutItem
+            {
+                Text = "Copy search query",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = !string.IsNullOrEmpty(SearchBox.Text)
+            };
+            copySearchItem.Click += (_, _) =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(SearchBox.Text);
+                ViewModel.StatusMessage = $"Copied search query: {SearchBox.Text}";
+            };
+            menu.Items.Add(copySearchItem);
+
+            var pasteSearchItem = new MenuFlyoutItem
+            {
+                Text = "Paste query from clipboard",
+                Icon = new FontIcon { Glyph = "\uE77F" }
+            };
+            pasteSearchItem.Click += async (_, _) =>
+            {
+                try
+                {
+                    var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var clip = (await pkg.GetTextAsync())?.Trim();
+                        if (!string.IsNullOrEmpty(clip))
+                        {
+                            SearchBox.Text = clip;
+                            ViewModel.SearchQuery = clip;
+                        }
+                    }
+                }
+                catch { }
+            };
+            menu.Items.Add(pasteSearchItem);
+
+            var selectAllItem = new MenuFlyoutItem
+            {
+                Text = "Select all text (Ctrl+A)",
+                Icon = new FontIcon { Glyph = "\uE8D2" },
+                IsEnabled = !string.IsNullOrEmpty(SearchBox.Text)
+            };
+            selectAllItem.Click += (_, _) =>
+            {
+                if (FindDescendant<TextBox>(SearchBox) is { } tb) tb.SelectAll();
+                SearchBox.Focus(FocusState.Programmatic);
+            };
+            menu.Items.Add(selectAllItem);
+
+            if (ViewModel.DistinctTags.Count > 0)
+            {
+                var tagSub = new MenuFlyoutSubItem
+                {
+                    Text = "Filter by tag",
+                    Icon = new FontIcon { Glyph = "\uE8EC" }
+                };
+                foreach (var tag in ViewModel.DistinctTags.Take(8))
+                {
+                    var tagItem = new MenuFlyoutItem
+                    {
+                        Text = tag,
+                        Icon = new FontIcon { Glyph = "\uE8EC" }
+                    };
+                    string capturedTag = tag;
+                    tagItem.Click += (_, _) =>
+                    {
+                        SearchBox.Text = capturedTag;
+                        ViewModel.SearchQuery = capturedTag;
+                    };
+                    tagSub.Items.Add(tagItem);
+                }
+                menu.Items.Add(tagSub);
+            }
 
             menu.Items.Add(new MenuFlyoutSeparator());
 

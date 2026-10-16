@@ -87,7 +87,8 @@
                                         QueryIcon="Find" AutomationProperties.Name="Search the map"
                                         TextChanged="OnSearchTextChanged" QuerySubmitted="OnSearchQuerySubmitted"
                                         KeyDown="OnSearchBoxKeyDown" RightTapped="OnSearchBoxRightTapped"
-                                        ToolTipService.ToolTip="Ctrl+F · Enter or F3 jumps to the next match, Shift+F3 to the previous one" />
+                                        DoubleTapped="OnSearchBoxDoubleTapped"
+                                        ToolTipService.ToolTip="Search map (Ctrl+F) · Enter/F3 next, Shift+F3 prev, Esc clears, Double-click selects all, Right-click for options" />
                         <TextBlock x:Name="SearchMatchLabel" Text="{Binding SearchMatchText}" VerticalAlignment="Center" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    IsHitTestVisible="True"
                                    DoubleTapped="OnSearchMatchLabelDoubleTapped"

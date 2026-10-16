@@ -170,6 +170,13 @@ public sealed partial class NodePaletteControl : UserControl
         SearchTextBox.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
     }
 
+    private void OnSearchTextBoxDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        SearchTextBox.SelectAll();
+        SearchTextBox.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+    }
+
     private void OnSearchTextBoxKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Escape)

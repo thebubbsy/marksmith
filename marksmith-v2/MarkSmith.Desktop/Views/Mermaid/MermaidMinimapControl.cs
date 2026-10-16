@@ -66,6 +66,7 @@ public sealed class MermaidMinimapControl : UserControl
         _mapCanvas.PointerMoved += OnMapPointerMoved;
         _mapCanvas.PointerReleased += OnMapPointerReleased;
         _mapCanvas.RightTapped += OnMapRightTapped;
+        _mapCanvas.DoubleTapped += OnMapDoubleTapped;
 
         var restBorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x2B, 0x2D, 0x42));
         var hoverBorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xAA, 0x4C, 0xC9, 0xF0));
@@ -80,7 +81,7 @@ public sealed class MermaidMinimapControl : UserControl
         border.PointerEntered += (_, _) => border.BorderBrush = hoverBorderBrush;
         border.PointerExited += (_, _) => border.BorderBrush = restBorderBrush;
         Content = border;
-        ToolTipService.SetToolTip(border, "Overview — click or drag to move around the diagram");
+        ToolTipService.SetToolTip(border, "Overview · Click or drag to pan, Double-click to zoom 100%, Right-click for options");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(this, "Diagram overview minimap");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(this, "Click or drag to pan the diagram viewport");
         try { ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Hand); }
@@ -291,8 +292,52 @@ public sealed class MermaidMinimapControl : UserControl
         };
         menu.Items.Add(zoomOutItem);
 
+        if (ViewModel is { } vm)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var autoLayoutItem = new MenuFlyoutItem
+            {
+                Text = "Auto-arrange diagram nodes",
+                Icon = new FontIcon { Glyph = "\uECA5" }
+            };
+            autoLayoutItem.Click += (_, _) => vm.ApplyAutoLayout(force: true);
+            menu.Items.Add(autoLayoutItem);
+
+            var snapItem = new MenuFlyoutItem
+            {
+                Text = vm.IsGridSnapEnabled ? "Disable grid snap" : "Enable grid snap",
+                Icon = new FontIcon { Glyph = "\uE80A" }
+            };
+            snapItem.Click += (_, _) => vm.IsGridSnapEnabled = !vm.IsGridSnapEnabled;
+            menu.Items.Add(snapItem);
+
+            var statsItem = new MenuFlyoutItem
+            {
+                Text = "Copy diagram statistics",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            statsItem.Click += (_, _) =>
+            {
+                if (TargetScrollViewer is { } svTarget)
+                {
+                    var v = VisibleWorld(svTarget);
+                    string stats = $"Mermaid diagram: {vm.Nodes.Count} nodes, {vm.Connectors.Count} connectors · Zoom {(svTarget.ZoomFactor * 100):0}% · Viewport {v.W:0}x{v.H:0} at ({v.X:0}, {v.Y:0})";
+                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(stats);
+                }
+            };
+            menu.Items.Add(statsItem);
+        }
+
         menu.ShowAt(_mapCanvas, e.GetPosition(_mapCanvas));
         e.Handled = true;
+    }
+
+    private void OnMapDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (TargetScrollViewer is not { } sv) return;
+        sv.ZoomToFactor(1.0f);
     }
 
     private void OnMapPointerMoved(object sender, PointerRoutedEventArgs e)

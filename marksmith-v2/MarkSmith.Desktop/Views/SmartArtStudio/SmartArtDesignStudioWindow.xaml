@@ -107,8 +107,9 @@
                         <ComboBox x:Name="LayoutCategoryCombo" AutomationProperties.Name="Layout type" HorizontalAlignment="Stretch"
                                   ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
                                   KeyDown="OnLayoutCategoryComboKeyDown"
+                                  DoubleTapped="OnLayoutCategoryComboDoubleTapped"
                                   RightTapped="OnLayoutCategoryComboRightTapped"
-                                  ToolTipService.ToolTip="Filter by layout category (Right-click for options)" />
+                                  ToolTipService.ToolTip="Filter by layout category (Enter to browse, Esc to reset, Double-click to cycle, Right-click for options)" />
                     </StackPanel>
                     <ListView Grid.Row="1" x:Name="LayoutList" ItemsSource="{Binding Layouts}" SelectedItem="{Binding SelectedLayout, Mode=TwoWay}"
                               Padding="4,0,4,8" AutomationProperties.Name="Layouts" RightTapped="OnLayoutListRightTapped" KeyDown="OnLayoutListKeyDown">
