@@ -660,7 +660,8 @@
                             <StackPanel DataContext="{Binding SelectedLink}" Spacing="8">
                                 <TextBox x:Name="LinkLabelBox" Header="Why are these connected?" Text="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          PlaceholderText="e.g. grew out of, evidence for, supersedes" KeyDown="OnInspectorFieldKeyDown"
-                                         ToolTipService.ToolTip="Relationship label shown on the connector (F2)" />
+                                         DoubleTapped="OnLinkLabelBoxDoubleTapped" RightTapped="OnLinkLabelBoxRightTapped"
+                                         ToolTipService.ToolTip="Relationship label shown on the connector (F2 · Double-click to select all, Right-click for text options)" />
                                 <StackPanel Orientation="Horizontal" Spacing="6" Visibility="{Binding IsInferred, Converter={StaticResource BoolToVis}}">
                                     <FontIcon Glyph="&#xE946;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Top" Margin="0,1,0,0" />
                                     <TextBlock Text="MarkSmith found this link when the folder was imported. Give it a reason to make it yours."
@@ -672,16 +673,16 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Button Click="OnReverseLinkClick" HorizontalAlignment="Stretch" Padding="10,6"
-                                        ToolTipService.ToolTip="Flip which way the arrow points"
+                                <Button x:Name="ReverseLinkButton" Click="OnReverseLinkClick" DoubleTapped="OnReverseLinkButtonDoubleTapped" RightTapped="OnReverseLinkButtonRightTapped" HorizontalAlignment="Stretch" Padding="10,6"
+                                        ToolTipService.ToolTip="Flip which way the arrow points (Double-click to cycle direction · Right-click for direction presets)"
                                         AutomationProperties.Name="Reverse link">
                                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                         <FontIcon Glyph="&#xE8AB;" FontSize="12" />
                                         <TextBlock Text="Reverse" FontSize="12" />
                                     </StackPanel>
                                 </Button>
-                                <Button Grid.Column="1" Command="{Binding DeleteSelectionCommand}" HorizontalAlignment="Stretch" Padding="10,6"
-                                        ToolTipService.ToolTip="Delete this link (Delete). The two nodes stay."
+                                <Button x:Name="DeleteLinkButton" Grid.Column="1" Command="{Binding DeleteSelectionCommand}" DoubleTapped="OnDeleteLinkButtonDoubleTapped" RightTapped="OnDeleteLinkButtonRightTapped" HorizontalAlignment="Stretch" Padding="10,6"
+                                        ToolTipService.ToolTip="Delete this link (Delete · Double-click to delete immediately · Right-click for options)"
                                         AutomationProperties.Name="Delete link">
                                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                         <FontIcon Glyph="&#xE74D;" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />

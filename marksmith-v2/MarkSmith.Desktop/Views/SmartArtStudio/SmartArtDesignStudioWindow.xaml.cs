@@ -965,6 +965,128 @@ namespace MarkSmith.Views.SmartArtStudio
             BeginRenameAndFocus();
         }
 
+        private void OnRenameButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            BeginRenameAndFocus();
+        }
+
+        private void OnRenameButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+            var renameItem = new MenuFlyoutItem { Text = "Rename inline (F2)", Icon = new FontIcon { Glyph = "\uE70F" } };
+            renameItem.Click += OnRenameClick;
+            menu.Items.Add(renameItem);
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var copyItem = new MenuFlyoutItem { Text = "Copy item text", Icon = new FontIcon { Glyph = "\uE8C8" } };
+            copyItem.Click += (_, _) =>
+            {
+                if (ViewModel.SelectedNode is { } node)
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(node.Text ?? "");
+                    ViewModel.StatusMessage = $"Copied: {node.Text}";
+                }
+            };
+            menu.Items.Add(copyItem);
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
+        }
+
+        private void OnDuplicateButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (!ViewModel.HasSelection) return;
+            ViewModel.DuplicateSelectedCommand.Execute(null);
+            ViewModel.DuplicateSelectedCommand.Execute(null);
+            ViewModel.StatusMessage = "Duplicated twice (double-click)";
+        }
+
+        private void OnDuplicateButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+            var dupItem = new MenuFlyoutItem { Text = "Duplicate (Ctrl+D)", Icon = new FontIcon { Glyph = "\uE8C8" } };
+            dupItem.Click += (_, _) => ViewModel.DuplicateSelectedCommand.Execute(null);
+            menu.Items.Add(dupItem);
+            var dupSiblingItem = new MenuFlyoutItem { Text = "Duplicate as sibling", Icon = new FontIcon { Glyph = "\uE8C8" } };
+            dupSiblingItem.Click += (_, _) =>
+            {
+                if (ViewModel.SelectedNode is { } node)
+                {
+                    string txt = node.Text ?? "";
+                    ViewModel.AddSiblingCommand.Execute(node);
+                    if (ViewModel.SelectedNode is { } newNode)
+                    {
+                        newNode.Text = txt;
+                        ViewModel.CommitRename();
+                    }
+                    ViewModel.StatusMessage = $"Duplicated as sibling: {txt}";
+                }
+            };
+            menu.Items.Add(dupSiblingItem);
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
+        }
+
+        private void OnDeleteButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (!ViewModel.HasSelection) return;
+            ViewModel.DeleteSelectedCommand.Execute(null);
+            ViewModel.StatusMessage = "Deleted item · Ctrl+Z to undo";
+        }
+
+        private void OnDeleteButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+            var delItem = new MenuFlyoutItem { Text = "Delete selected (Del)", Icon = new FontIcon { Glyph = "\uE74D" } };
+            delItem.Click += (_, _) => ViewModel.DeleteSelectedCommand.Execute(null);
+            menu.Items.Add(delItem);
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var clearItem = new MenuFlyoutItem { Text = "Clear entire outline", Icon = new FontIcon { Glyph = "\uE894" } };
+            clearItem.Click += (_, _) =>
+            {
+                while (ViewModel.HasSelection || ViewModel.OutlineRows.Count > 0)
+                {
+                    if (ViewModel.OutlineRows.Count == 0) break;
+                    var first = ViewModel.OutlineRows[0];
+                    ViewModel.DeleteSelectedCommand.Execute(first);
+                }
+                ViewModel.StatusMessage = "Cleared outline";
+            };
+            menu.Items.Add(clearItem);
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
+        }
+
+        private void OnRowBulletDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is StudioNodeViewModel node)
+            {
+                e.Handled = true;
+                ViewModel.Select(node);
+                if (ViewModel.CanDemote)
+                {
+                    ViewModel.DemoteCommand.Execute(node);
+                    ViewModel.StatusMessage = $"Demoted item to level {node.Depth + 1}";
+                }
+                else if (ViewModel.CanPromote)
+                {
+                    ViewModel.PromoteCommand.Execute(node);
+                    ViewModel.StatusMessage = $"Promoted item to level {node.Depth + 1}";
+                }
+            }
+        }
+
+        private void OnRowBulletRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is StudioNodeViewModel node)
+            {
+                e.Handled = true;
+                ViewModel.Select(node);
+                ShowRowContextMenu(node, fe, e.GetPosition(fe));
+            }
+        }
+
         private void BeginRenameAndFocus(StudioNodeViewModel? node = null)
         {
             if (node != null) ViewModel.BeginRename(node);
@@ -1308,6 +1430,94 @@ namespace MarkSmith.Views.SmartArtStudio
         }
 
         private void OnRenameLostFocus(object sender, RoutedEventArgs e) => ViewModel.CommitRename();
+
+        private void OnRenameTextBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (sender is TextBox tb)
+            {
+                tb.SelectAll();
+                e.Handled = true;
+            }
+        }
+
+        private void OnRenameTextBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (sender is not TextBox tb) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+            string text = tb.Text ?? "";
+            bool hasText = !string.IsNullOrEmpty(text);
+
+            var copyItem = new MenuFlyoutItem { Text = "Copy text", Icon = new FontIcon { Glyph = "\uE8C8" }, IsEnabled = hasText };
+            copyItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(text);
+                ViewModel.StatusMessage = $"Copied: {text}";
+            };
+            menu.Items.Add(copyItem);
+
+            var pasteItem = new MenuFlyoutItem { Text = "Paste text", Icon = new FontIcon { Glyph = "\uE77F" } };
+            pasteItem.Click += async (_, _) =>
+            {
+                try
+                {
+                    var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var t = await pkg.GetTextAsync();
+                        if (!string.IsNullOrEmpty(t))
+                        {
+                            tb.Text = t.Trim();
+                            ViewModel.StatusMessage = "Pasted text";
+                        }
+                    }
+                }
+                catch { }
+            };
+            menu.Items.Add(pasteItem);
+
+            var clearItem = new MenuFlyoutItem { Text = "Clear text", Icon = new FontIcon { Glyph = "\uE894" }, IsEnabled = hasText };
+            clearItem.Click += (_, _) =>
+            {
+                tb.Text = "";
+                ViewModel.StatusMessage = "Cleared text";
+            };
+            menu.Items.Add(clearItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var upperItem = new MenuFlyoutItem { Text = "UPPERCASE", Icon = new FontIcon { Glyph = "\uE8AC" }, IsEnabled = hasText };
+            upperItem.Click += (_, _) =>
+            {
+                tb.Text = text.ToUpperInvariant();
+                ViewModel.StatusMessage = "Converted to UPPERCASE";
+            };
+            menu.Items.Add(upperItem);
+
+            var lowerItem = new MenuFlyoutItem { Text = "lowercase", Icon = new FontIcon { Glyph = "\uE8AD" }, IsEnabled = hasText };
+            lowerItem.Click += (_, _) =>
+            {
+                tb.Text = text.ToLowerInvariant();
+                ViewModel.StatusMessage = "Converted to lowercase";
+            };
+            menu.Items.Add(lowerItem);
+
+            var titleItem = new MenuFlyoutItem { Text = "Title Case", Icon = new FontIcon { Glyph = "\uE8B0" }, IsEnabled = hasText };
+            titleItem.Click += (_, _) =>
+            {
+                tb.Text = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(text.ToLower());
+                ViewModel.StatusMessage = "Converted to Title Case";
+            };
+            menu.Items.Add(titleItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var selectAllItem = new MenuFlyoutItem { Text = "Select all", Icon = new FontIcon { Glyph = "\uE8B3" }, IsEnabled = hasText };
+            selectAllItem.Click += (_, _) => tb.SelectAll();
+            menu.Items.Add(selectAllItem);
+
+            menu.ShowAt(tb, e.GetPosition(tb));
+        }
 
         // ------------------------------------------------------------------ context menus
 

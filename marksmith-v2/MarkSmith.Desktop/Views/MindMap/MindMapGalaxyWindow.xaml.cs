@@ -1773,6 +1773,126 @@ namespace MarkSmith.Views.MindMap
             };
             flyout.Items.Add(reverseItem);
 
+            var dirSub = new MenuFlyoutSubItem
+            {
+                Text = "Direction presets",
+                Icon = new FontIcon { Glyph = "\uE8AB" }
+            };
+            var dirs = new (string Name, MindMapLinkDirection Dir, string Arrow)[]
+            {
+                ("Source to Target (→)", MindMapLinkDirection.SourceToTarget, "→"),
+                ("Target to Source (←)", MindMapLinkDirection.TargetToSource, "←"),
+                ("Bidirectional (↔)", MindMapLinkDirection.Bidirectional, "↔"),
+                ("None / Undirected (—)", MindMapLinkDirection.None, "—")
+            };
+            foreach (var (name, dir, arrow) in dirs)
+            {
+                var dItem = MenuItem(name, "\uE8A7");
+                dItem.Click += (s, e) =>
+                {
+                    ViewModel.SelectedLink = link;
+                    link.Direction = dir;
+                    link.SyncToModel();
+                    RequestRedraw(RedrawScope.Geometry);
+                    RequestRedraw(RedrawScope.Appearance);
+                    ViewModel.StatusMessage = $"Set link direction: {arrow}";
+                };
+                dirSub.Items.Add(dItem);
+            }
+            flyout.Items.Add(dirSub);
+
+            var styleSub = new MenuFlyoutSubItem
+            {
+                Text = "Line style",
+                Icon = new FontIcon { Glyph = "\uE7B5" }
+            };
+            var solidItem = MenuItem("Solid line", "\uE71B");
+            solidItem.Click += (s, e) =>
+            {
+                ViewModel.SelectedLink = link;
+                link.Style = MindMapLinkStyle.CurvedBezier;
+                link.SyncToModel();
+                RequestRedraw(RedrawScope.Appearance);
+                ViewModel.StatusMessage = "Set link style: Solid";
+            };
+            styleSub.Items.Add(solidItem);
+            var dashedItem = MenuItem("Dashed line", "\uE71A");
+            dashedItem.Click += (s, e) =>
+            {
+                ViewModel.SelectedLink = link;
+                link.Style = MindMapLinkStyle.Dashed;
+                link.SyncToModel();
+                RequestRedraw(RedrawScope.Appearance);
+                ViewModel.StatusMessage = "Set link style: Dashed";
+            };
+            styleSub.Items.Add(dashedItem);
+            flyout.Items.Add(styleSub);
+
+            var colorSub = new MenuFlyoutSubItem
+            {
+                Text = "Line color",
+                Icon = new FontIcon { Glyph = "\uE790" }
+            };
+            var colors = new (string Name, string Hex)[]
+            {
+                ("Accent", "#5B50E6"),
+                ("Coral", "#FF5A5F"),
+                ("Emerald", "#00A699"),
+                ("Amber", "#FC642D"),
+                ("Cyan", "#00B4D8"),
+                ("Purple", "#8A2BE2"),
+                ("Slate", "#484848")
+            };
+            foreach (var (cName, hex) in colors)
+            {
+                var cItem = MenuItem(cName, "\uE790");
+                cItem.Click += (s, e) =>
+                {
+                    ViewModel.SelectedLink = link;
+                    link.ColorHex = hex;
+                    link.SyncToModel();
+                    RequestRedraw(RedrawScope.Appearance);
+                    ViewModel.StatusMessage = $"Set link color to {cName} ({hex})";
+                };
+                colorSub.Items.Add(cItem);
+            }
+            colorSub.Items.Add(new MenuFlyoutSeparator());
+            var resetColorItem = MenuItem("Reset color to default", "\uE777");
+            resetColorItem.Click += (s, e) =>
+            {
+                ViewModel.SelectedLink = link;
+                link.ColorHex = "#5B50E6";
+                link.SyncToModel();
+                RequestRedraw(RedrawScope.Appearance);
+                ViewModel.StatusMessage = "Reset link color to default";
+            };
+            colorSub.Items.Add(resetColorItem);
+            flyout.Items.Add(colorSub);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            string? srcTitle = _nodeIndex.TryGetValue(link.SourceNodeId, out var sn) ? sn.Title : null;
+            string? tgtTitle = _nodeIndex.TryGetValue(link.TargetNodeId, out var tn) ? tn.Title : null;
+            string desc = link.DescribeEndpoints(srcTitle, tgtTitle);
+            var copyDescItem = MenuItem("Copy link description", "\uE8C8");
+            copyDescItem.Click += (s, e) =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(desc);
+                ViewModel.StatusMessage = $"Copied: {desc}";
+            };
+            flyout.Items.Add(copyDescItem);
+
+            if (!string.IsNullOrWhiteSpace(link.Label))
+            {
+                var copyLabelItem = MenuItem($"Copy label ({link.Label.Trim()})", "\uE8FD");
+                copyLabelItem.Click += (s, e) =>
+                {
+                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(link.Label.Trim());
+                    ViewModel.StatusMessage = $"Copied link label: {link.Label.Trim()}";
+                };
+                flyout.Items.Add(copyLabelItem);
+            }
+
             flyout.Items.Add(new MenuFlyoutSeparator());
 
             var deleteItem = MenuItem("Delete link", "\uE74D", "Delete");
@@ -1795,6 +1915,7 @@ namespace MarkSmith.Views.MindMap
         {
             target.Tag = link;
             target.PointerPressed += OnLinkPointerPressed;
+            target.DoubleTapped += OnLinkDoubleTapped;
             // Hovering a link thickens it, so you can tell which line a click will pick before
             // clicking among several crossing ones.
             target.PointerEntered += (s, args) =>
@@ -1810,6 +1931,17 @@ namespace MarkSmith.Views.MindMap
             };
             SetCursor(target, Microsoft.UI.Input.InputSystemCursorShape.Hand);
             target.ContextFlyout = menu;
+        }
+
+        private void OnLinkDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.Tag is MindMapLinkViewModel link)
+            {
+                ViewModel.SelectedLink = link;
+                LinkLabelBox.Focus(FocusState.Programmatic);
+                LinkLabelBox.SelectAll();
+                e.Handled = true;
+            }
         }
 
         private void OnLinkPointerPressed(object sender, PointerRoutedEventArgs e)
@@ -3278,6 +3410,225 @@ namespace MarkSmith.Views.MindMap
         }
 
         private void OnReverseLinkClick(object sender, RoutedEventArgs e) => ViewModel.ReverseLink(ViewModel.SelectedLink);
+
+        private void OnLinkLabelBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (LinkLabelBox is not null)
+            {
+                LinkLabelBox.SelectAll();
+                e.Handled = true;
+            }
+        }
+
+        private void OnLinkLabelBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (LinkLabelBox is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+            string label = LinkLabelBox.Text ?? string.Empty;
+            bool hasText = !string.IsNullOrEmpty(label);
+
+            var copyItem = MenuItem("Copy label", "\uE8C8");
+            copyItem.IsEnabled = hasText;
+            copyItem.Click += (_, _) =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(label);
+                ViewModel.StatusMessage = $"Copied label: {label}";
+            };
+            menu.Items.Add(copyItem);
+
+            var pasteItem = MenuItem("Paste label", "\uE77F");
+            pasteItem.Click += async (_, _) =>
+            {
+                try
+                {
+                    var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var text = await pkg.GetTextAsync();
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            LinkLabelBox.Text = text.Trim();
+                            if (ViewModel.SelectedLink is { } selLink)
+                            {
+                                selLink.Label = text.Trim();
+                                selLink.SyncToModel();
+                                RequestRedraw(RedrawScope.Appearance);
+                            }
+                            ViewModel.StatusMessage = "Pasted label";
+                        }
+                    }
+                }
+                catch { }
+            };
+            menu.Items.Add(pasteItem);
+
+            var clearItem = MenuItem("Clear label", "\uE894");
+            clearItem.IsEnabled = hasText;
+            clearItem.Click += (_, _) =>
+            {
+                LinkLabelBox.Text = string.Empty;
+                if (ViewModel.SelectedLink is { } selLink)
+                {
+                    selLink.Label = string.Empty;
+                    selLink.SyncToModel();
+                    RequestRedraw(RedrawScope.Appearance);
+                }
+                ViewModel.StatusMessage = "Cleared link label";
+            };
+            menu.Items.Add(clearItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var upperItem = MenuItem("UPPERCASE", "\uE8AC");
+            upperItem.IsEnabled = hasText;
+            upperItem.Click += (_, _) =>
+            {
+                string u = label.ToUpperInvariant();
+                LinkLabelBox.Text = u;
+                if (ViewModel.SelectedLink is { } selLink)
+                {
+                    selLink.Label = u;
+                    selLink.SyncToModel();
+                    RequestRedraw(RedrawScope.Appearance);
+                }
+                ViewModel.StatusMessage = "Converted link label to UPPERCASE";
+            };
+            menu.Items.Add(upperItem);
+
+            var lowerItem = MenuItem("lowercase", "\uE8AD");
+            lowerItem.IsEnabled = hasText;
+            lowerItem.Click += (_, _) =>
+            {
+                string l = label.ToLowerInvariant();
+                LinkLabelBox.Text = l;
+                if (ViewModel.SelectedLink is { } selLink)
+                {
+                    selLink.Label = l;
+                    selLink.SyncToModel();
+                    RequestRedraw(RedrawScope.Appearance);
+                }
+                ViewModel.StatusMessage = "Converted link label to lowercase";
+            };
+            menu.Items.Add(lowerItem);
+
+            var titleItem = MenuItem("Title Case", "\uE8B0");
+            titleItem.IsEnabled = hasText;
+            titleItem.Click += (_, _) =>
+            {
+                string tc = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(label.ToLower());
+                LinkLabelBox.Text = tc;
+                if (ViewModel.SelectedLink is { } selLink)
+                {
+                    selLink.Label = tc;
+                    selLink.SyncToModel();
+                    RequestRedraw(RedrawScope.Appearance);
+                }
+                ViewModel.StatusMessage = "Converted link label to Title Case";
+            };
+            menu.Items.Add(titleItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var selectAllItem = MenuItem("Select all", "\uE8B3", "Ctrl+A");
+            selectAllItem.IsEnabled = hasText;
+            selectAllItem.Click += (_, _) => LinkLabelBox.SelectAll();
+            menu.Items.Add(selectAllItem);
+
+            menu.ShowAt(LinkLabelBox, e.GetPosition(LinkLabelBox));
+        }
+
+        private void OnReverseLinkButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (ViewModel.SelectedLink is { } link)
+            {
+                ViewModel.ReverseLink(link);
+                e.Handled = true;
+            }
+        }
+
+        private void OnReverseLinkButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (ViewModel.SelectedLink is not { } link) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            var reverseItem = MenuItem("Reverse direction", "\uE8AB");
+            reverseItem.Click += (_, _) => ViewModel.ReverseLink(link);
+            flyout.Items.Add(reverseItem);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var dirs = new (string Name, MindMapLinkDirection Dir, string Arrow)[]
+            {
+                ("Source to Target (→)", MindMapLinkDirection.SourceToTarget, "→"),
+                ("Target to Source (←)", MindMapLinkDirection.TargetToSource, "←"),
+                ("Bidirectional (↔)", MindMapLinkDirection.Bidirectional, "↔"),
+                ("None / Undirected (—)", MindMapLinkDirection.None, "—")
+            };
+            foreach (var (name, dir, arrow) in dirs)
+            {
+                var dItem = MenuItem(name, "\uE8A7");
+                dItem.Click += (_, _) =>
+                {
+                    link.Direction = dir;
+                    link.SyncToModel();
+                    RequestRedraw(RedrawScope.Geometry);
+                    RequestRedraw(RedrawScope.Appearance);
+                    ViewModel.StatusMessage = $"Set link direction: {arrow}";
+                };
+                flyout.Items.Add(dItem);
+            }
+
+            if (sender is FrameworkElement fe)
+                flyout.ShowAt(fe, e.GetPosition(fe));
+        }
+
+        private void OnDeleteLinkButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (ViewModel.SelectedLink is not null)
+            {
+                ViewModel.DeleteSelectionCommand.Execute(null);
+                ViewModel.StatusMessage = "Deleted link";
+                e.Handled = true;
+            }
+        }
+
+        private void OnDeleteLinkButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (ViewModel.SelectedLink is not { } link) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            var deleteItem = MenuItem("Delete link", "\uE74D", "Delete");
+            deleteItem.Click += (_, _) => ViewModel.DeleteSelectionCommand.Execute(null);
+            flyout.Items.Add(deleteItem);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var clearLabelItem = MenuItem("Clear link reason", "\uE894");
+            clearLabelItem.Click += (_, _) =>
+            {
+                link.Label = string.Empty;
+                link.SyncToModel();
+                RequestRedraw(RedrawScope.Appearance);
+                ViewModel.StatusMessage = "Cleared link reason";
+            };
+            flyout.Items.Add(clearLabelItem);
+
+            var resetStyleItem = MenuItem("Reset style to solid", "\uE71B");
+            resetStyleItem.Click += (_, _) =>
+            {
+                link.Style = MindMapLinkStyle.CurvedBezier;
+                link.SyncToModel();
+                RequestRedraw(RedrawScope.Appearance);
+                ViewModel.StatusMessage = "Reset link style to solid";
+            };
+            flyout.Items.Add(resetStyleItem);
+
+            if (sender is FrameworkElement fe)
+                flyout.ShowAt(fe, e.GetPosition(fe));
+        }
 
         /// <summary>
         /// Themes recolour the cards and text, not just the backdrop. "Clean White" used to swap

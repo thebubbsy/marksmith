@@ -8476,3 +8476,76 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 23812, `Alive: True`, `Responding: True`, clean exit.
+
+### 2026-10-16 17:00 AEST (run #112: Shape Studio rotate handle mouse wheel nudge & angle presets flyout, alignment double-tap align & distribute combo, MindMap Galaxy edge double-tap inline rename & link presets, SmartArt Studio outline row rename text box casing menu & toolbar extreme actions)
+
+- **Surface:** `ShapeDesignStudioWindow`, `MindMapGalaxyWindow`, `SmartArtDesignStudioWindow`.
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, pointer gesture quarantine, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #111:
+    * Target A: `ShapeDesignStudioWindow` rotation handle gestures & angle controls.
+    * Target B: `MindMapGalaxyWindow` edge connector double-tap inline rename & link presets.
+    * Target C: `SmartArtDesignStudioWindow` outline editing gestures & toolbar parity.
+  - Generated:
+    1. `ShapeDesignStudioWindow` Rotation Handle Wheel Nudge & Context Menu Rotation Presets (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`)
+    2. `MindMapGalaxyWindow` Edge Connector Double-Tap Inline Rename & Extended Link Context Menu (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Attached `PointerWheelChanged` and `RightTapped` on `_rotateHandle`. Wheel over rotation handle turns the shape by 5° per notch (15° with Shift for quick snapping, 1° with Alt for micro-precision), recording undo and announcing status; right-tap opens a rich rotation presets flyout (Reset 0°, 90° CW, 90° CCW, 180°, angle presets submenu, flip horizontal, flip vertical, copy angle). Prevented event bubbling so canvas scroller does not zoom/scroll simultaneously.
+    * For Idea 2: Attached `DoubleTapped` on link edge hit stroke and label in `MakeLinkTarget`, focusing `LinkLabelBox` and selecting all text for instant renaming; enriched `BuildLinkContextMenu` with Direction presets submenu (→, ←, ↔, —), Line style submenu (Solid, Dashed), Line color presets submenu (Accent, Coral, Emerald, Amber, Cyan, Purple, Slate, Default), and copy endpoints/label actions.
+  - Generated:
+    3. `MindMapGalaxyWindow` Link Inspector Field Gesture Parity (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`)
+    4. `ShapeDesignStudioWindow` Alignment Toolbar Buttons Double-Tap Align & Distribute Combo (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: In `MindMapGalaxyWindow.xaml` & `.xaml.cs`, enhanced `LinkLabelBox` with `DoubleTapped` (select all) and `RightTapped` text menu (Copy, Paste, Clear, UPPERCASE, lowercase, Title Case, Select all); enhanced `ReverseLinkButton` with `DoubleTapped` (reverse) and `RightTapped` (direction presets); enhanced `DeleteLinkButton` with `DoubleTapped` (delete with announcement) and `RightTapped` (delete, clear reason, reset style).
+    * For Idea 4: In `ShapeDesignStudioWindow.xaml` & `.xaml.cs`, attached `DoubleTapped` on `AlignLeft`, `AlignCenter`, `AlignRight`, `AlignTop`, `AlignMiddle`, `AlignBottom`, `DistributeHorizontal`, and `DistributeVertical` buttons. Double-tapping horizontal align aligns and immediately distributes vertically (forming a neat column); double-tapping vertical align aligns and immediately distributes horizontally (forming a neat row).
+  - Refined Block 1 (Pass 2 - Final):
+    * Ensured `MindMapGalaxyWindow` redraws both `Geometry` and `Appearance` on link direction/style/color changes with model synchronization.
+    * Verified rotation handle tooltip in `ShapeDesignStudioWindow` explicitly advertises wheel and right-click actions.
+  - Generated:
+    5. `SmartArtDesignStudioWindow` Outline Row Inline Rename Box Double-Tap & Text Editing Context Menu (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+    6. `SmartArtDesignStudioWindow` Outline Toolbar Duplicate & Delete Buttons Double-Tap Extreme Actions & Context Menus (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: In `SmartArtDesignStudioWindow.xaml` & `.xaml.cs`, attached `DoubleTapped` on row rename `TextBox` (select all) and `RightTapped` (Copy, Paste, Clear, UPPERCASE, lowercase, Title Case, Select all); attached `DoubleTapped` on row bullet ellipse to toggle indent (demote/promote) and `RightTapped` to open node context menu.
+    * For Idea 6: In `SmartArtDesignStudioWindow.xaml` & `.xaml.cs`, attached `DoubleTapped` on `RenameButton` (inline rename), `DuplicateButton` (duplicate twice), and `DeleteButton` (delete item and children); attached rich `RightTapped` context menus on all three buttons.
+  - Executed all 6 refined ideas into 100% production code.
+  - Verification:
+    * `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped (2.6s)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 23704, `Alive: True`, `Responding: True`, clean exit.
+  - Carried forward ideas / next targets into Run #113 (`ShapeDesignStudioWindow` multi-shape bounding box visual adorner & marquee select gesture, `SmartArtDesignStudioWindow` outline drag-and-drop live reorder indicators, `MindMapGalaxyWindow` node connection anchor snapping highlights).
+
+**Shipped:**
+1. **`ShapeDesignStudioWindow` Rotation Handle Wheel Nudge & Context Menu Rotation Presets (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Attached `PointerWheelChanged` and `RightTapped` on `_rotateHandle`.
+   - Scroll wheel over rotation handle turns the shape by 5° per notch (15° with Shift for quick snapping, 1° with Alt for fine precision), updating live status and recording undo.
+   - Right-tap opens a rich rotation presets flyout: Reset (0°), Rotate 90° CW, Rotate 90° CCW, Rotate 180°, Preset angles submenu (0°, 15°, 30°, 45°, 60°, 90°, 120°, 135°, 180°, 225°, 270°, 315°), Flip horizontal, Flip vertical, and Copy angle.
+2. **`MindMapGalaxyWindow` Edge Connector Double-Tap Inline Rename & Extended Link Context Menu (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Attached `DoubleTapped` on link edge hit stroke and label in `MakeLinkTarget`, focusing `LinkLabelBox` and selecting all text for instant renaming.
+   - Enhanced `BuildLinkContextMenu` with Direction presets submenu (→, ←, ↔, —), Line style submenu (Solid, Dashed), Line color presets submenu (Accent, Coral, Emerald, Amber, Cyan, Purple, Slate, Default), and copy endpoints/label actions.
+3. **`MindMapGalaxyWindow` Link Inspector Field Gesture Parity (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`):**
+   - `LinkLabelBox`: Added `DoubleTapped` (select all) and `RightTapped` text menu (Copy, Paste, Clear, UPPERCASE, lowercase, Title Case, Select all).
+   - `ReverseLinkButton`: Added `DoubleTapped` (reverse direction) and `RightTapped` (direction presets flyout).
+   - `DeleteLinkButton`: Added `DoubleTapped` (delete with announcement) and `RightTapped` (delete, clear reason, reset style).
+4. **`ShapeDesignStudioWindow` Alignment Toolbar Buttons Double-Tap Align & Distribute Combo (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`):**
+   - Added `x:Name` and `DoubleTapped` on `AlignLeft`, `AlignCenter`, `AlignRight`, `AlignTop`, `AlignMiddle`, `AlignBottom`, `DistributeHorizontal`, and `DistributeVertical` buttons.
+   - Double-tapping horizontal align buttons (Left/Center/Right) aligns edges and immediately distributes vertically across 3+ shapes to create clean columns.
+   - Double-tapping vertical align buttons (Top/Middle/Bottom) aligns edges and immediately distributes horizontally across 3+ shapes to create clean rows.
+   - Double-tapping distribute buttons distributes and centers shapes in one action.
+5. **`SmartArtDesignStudioWindow` Outline Row Inline Rename Box Double-Tap & Text Editing Context Menu (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`):**
+   - Row inline rename `TextBox`: Added `DoubleTapped` (select all) and `RightTapped` context menu with Copy, Paste, Clear text, UPPERCASE, lowercase, Title Case, and Select all.
+   - Row bullet ellipse: Added `DoubleTapped` to toggle indent (demote/promote) and `RightTapped` to open row context menu.
+6. **`SmartArtDesignStudioWindow` Outline Toolbar Duplicate & Delete Buttons Double-Tap Extreme Actions & Context Menus (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`):**
+   - `RenameButton`: Added `DoubleTapped` (inline rename) and `RightTapped` menu ("Rename inline (F2)", "Copy item text").
+   - `DuplicateButton`: Added `DoubleTapped` (duplicate twice) and `RightTapped` menu ("Duplicate (Ctrl+D)", "Duplicate as sibling").
+   - `DeleteButton`: Added `DoubleTapped` (delete with undo status announcement) and `RightTapped` menu ("Delete selected (Del)", "Clear entire outline…").
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped (2.6s)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 23704, `Alive: True`, `Responding: True`, clean exit.
+

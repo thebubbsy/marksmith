@@ -1698,15 +1698,17 @@ namespace MarkSmith.Views.ShapeStudio
                 Stroke = new SolidColorBrush(AccentColor(0xFF)),
                 StrokeThickness = 1.5,
             };
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_rotateHandle, "Rotate shape (0°) · Drag to turn, Shift snaps to 15°, double-click resets to 0°");
-            ToolTipService.SetToolTip(_rotateHandle, "Drag to rotate · Shift snaps to 15° · Double-click resets to 0°");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_rotateHandle, "Rotate shape · Drag to turn, Shift snaps to 15°, scroll wheel turns, double-click resets to 0°, right-click for angle presets");
+            ToolTipService.SetToolTip(_rotateHandle, "Drag to rotate · Shift snaps to 15° · Scroll wheel to turn · Double-click resets to 0° · Right-click for presets");
             SetCursor(_rotateHandle, Microsoft.UI.Input.InputSystemCursorShape.Hand);
             _rotateHandle.PointerEntered += (_, _) => _rotateHandle.Fill = new SolidColorBrush(AccentColor(0x38));
             _rotateHandle.PointerExited += (_, _) => _rotateHandle.Fill = new SolidColorBrush(Microsoft.UI.Colors.White);
             _rotateHandle.PointerPressed += OnRotateHandlePointerPressed;
             _rotateHandle.PointerMoved += OnRotateHandlePointerMoved;
             _rotateHandle.PointerReleased += OnRotateHandlePointerReleased;
+            _rotateHandle.PointerWheelChanged += OnRotateHandlePointerWheelChanged;
             _rotateHandle.DoubleTapped += OnRotateHandleDoubleTapped;
+            _rotateHandle.RightTapped += OnRotateHandleRightTapped;
             _rotateHandle.PointerCaptureLost += (_, _) => _rotating = false;
             SelectionAdorner.Children.Add(_rotateHandle);
         }
@@ -1882,6 +1884,182 @@ namespace MarkSmith.Views.ShapeStudio
                 ViewModel.ResetRotation();
                 e.Handled = true;
             }
+        }
+
+        private void OnRotateHandlePointerWheelChanged(object sender, PointerRoutedEventArgs e)
+        {
+            if (_adornedShape is not { } s) return;
+            var pt = e.GetCurrentPoint(_rotateHandle);
+            int delta = pt.Properties.MouseWheelDelta;
+            if (delta == 0) return;
+
+            e.Handled = true;
+            bool shift = IsDown(VirtualKey.Shift);
+            bool alt = IsDown(VirtualKey.Menu);
+            int step = shift ? 15 : (alt ? 1 : 5);
+            int change = (delta > 0 ? step : -step);
+
+            ViewModel.RecordUndo();
+            int curAngle = ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation);
+            int nextAngle = ShapeDesignStudioViewModel.WrapRotationAngle(curAngle + change);
+            s.Rotation = nextAngle;
+            ViewModel.StatusMessage = $"Turned {s.DisplayName.ToLowerInvariant()} to {nextAngle}° via wheel{(shift ? " (15° snap)" : (alt ? " (fine 1°)" : " (5° step)"))} · Ctrl+Z to undo";
+        }
+
+        private void OnRotateHandleRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (_adornedShape is not { } s) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            flyout.Items.Add(ShapeMenuItem("Reset rotation (0°)", "\uE777", () => ViewModel.ResetRotationCommand.Execute(null), "Alt+0",
+                enabled: ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation) != 0));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Rotate 90° clockwise", "\uE7AD", () => ViewModel.RotateClockwiseCommand.Execute(null), "Alt+Shift+Right"));
+            flyout.Items.Add(ShapeMenuItem("Rotate 90° counter-clockwise", "\uE7A7", () => ViewModel.RotateCounterClockwiseCommand.Execute(null), "Alt+Shift+Left"));
+            flyout.Items.Add(ShapeMenuItem("Rotate 180°", "\uE7A6", () =>
+            {
+                ViewModel.RecordUndo();
+                s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation + 180);
+                ViewModel.StatusMessage = $"Rotated {s.DisplayName.ToLowerInvariant()} 180° to {s.Rotation}°";
+            }));
+
+            var angleSub = new MenuFlyoutSubItem
+            {
+                Text = "Preset angles",
+                Icon = new FontIcon { Glyph = "\uE809" }
+            };
+            int[] presetAngles = { 0, 15, 30, 45, 60, 90, 120, 135, 180, 225, 270, 315 };
+            foreach (int angle in presetAngles)
+            {
+                int a = angle;
+                angleSub.Items.Add(ShapeMenuItem($"{a}°", "\uE7B5", () =>
+                {
+                    ViewModel.RecordUndo();
+                    s.Rotation = a;
+                    ViewModel.StatusMessage = $"Set {s.DisplayName.ToLowerInvariant()} rotation to {a}°";
+                }));
+            }
+            flyout.Items.Add(angleSub);
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Flip horizontal", "\uE8E2", () =>
+            {
+                ViewModel.RecordUndo();
+                s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle(360 - s.Rotation);
+                ViewModel.StatusMessage = $"Flipped {s.DisplayName.ToLowerInvariant()} horizontally";
+            }));
+            flyout.Items.Add(ShapeMenuItem("Flip vertical", "\uE8E1", () =>
+            {
+                ViewModel.RecordUndo();
+                s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle(180 - s.Rotation);
+                ViewModel.StatusMessage = $"Flipped {s.DisplayName.ToLowerInvariant()} vertically";
+            }));
+            flyout.Items.Add(ShapeMenuItem($"Copy angle ({ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation)}°)", "\uE8C8", () =>
+            {
+                int cur = ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation);
+                _ = Services.ClipboardWriter.TrySetTextAsync($"{cur}°");
+                ViewModel.StatusMessage = $"Copied angle: {cur}°";
+            }));
+
+            flyout.ShowAt(_rotateHandle, e.GetPosition(_rotateHandle));
+        }
+
+        private void OnAlignLeftDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (!ViewModel.CanAlign) return;
+            ViewModel.AlignLeftCommand.Execute(null);
+            if (ViewModel.CanDistribute)
+            {
+                ViewModel.DistributeVerticalCommand.Execute(null);
+                ViewModel.StatusMessage = $"Aligned left and spaced out vertically ({ViewModel.SelectionCount} shapes)";
+            }
+            e.Handled = true;
+        }
+
+        private void OnAlignCenterDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (!ViewModel.CanAlign) return;
+            ViewModel.AlignCenterCommand.Execute(null);
+            if (ViewModel.CanDistribute)
+            {
+                ViewModel.DistributeVerticalCommand.Execute(null);
+                ViewModel.StatusMessage = $"Centred and spaced out vertically ({ViewModel.SelectionCount} shapes)";
+            }
+            e.Handled = true;
+        }
+
+        private void OnAlignRightDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (!ViewModel.CanAlign) return;
+            ViewModel.AlignRightCommand.Execute(null);
+            if (ViewModel.CanDistribute)
+            {
+                ViewModel.DistributeVerticalCommand.Execute(null);
+                ViewModel.StatusMessage = $"Aligned right and spaced out vertically ({ViewModel.SelectionCount} shapes)";
+            }
+            e.Handled = true;
+        }
+
+        private void OnAlignTopDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (!ViewModel.CanAlign) return;
+            ViewModel.AlignTopCommand.Execute(null);
+            if (ViewModel.CanDistribute)
+            {
+                ViewModel.DistributeHorizontalCommand.Execute(null);
+                ViewModel.StatusMessage = $"Aligned top and spaced out horizontally ({ViewModel.SelectionCount} shapes)";
+            }
+            e.Handled = true;
+        }
+
+        private void OnAlignMiddleDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (!ViewModel.CanAlign) return;
+            ViewModel.AlignMiddleCommand.Execute(null);
+            if (ViewModel.CanDistribute)
+            {
+                ViewModel.DistributeHorizontalCommand.Execute(null);
+                ViewModel.StatusMessage = $"Middle-aligned and spaced out horizontally ({ViewModel.SelectionCount} shapes)";
+            }
+            e.Handled = true;
+        }
+
+        private void OnAlignBottomDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (!ViewModel.CanAlign) return;
+            ViewModel.AlignBottomCommand.Execute(null);
+            if (ViewModel.CanDistribute)
+            {
+                ViewModel.DistributeHorizontalCommand.Execute(null);
+                ViewModel.StatusMessage = $"Aligned bottom and spaced out horizontally ({ViewModel.SelectionCount} shapes)";
+            }
+            e.Handled = true;
+        }
+
+        private void OnDistributeHorizontalDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (!ViewModel.CanDistribute) return;
+            ViewModel.DistributeHorizontalCommand.Execute(null);
+            if (ViewModel.CanAlign)
+            {
+                ViewModel.AlignMiddleCommand.Execute(null);
+                ViewModel.StatusMessage = $"Spaced out horizontally and middle-aligned ({ViewModel.SelectionCount} shapes)";
+            }
+            e.Handled = true;
+        }
+
+        private void OnDistributeVerticalDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (!ViewModel.CanDistribute) return;
+            ViewModel.DistributeVerticalCommand.Execute(null);
+            if (ViewModel.CanAlign)
+            {
+                ViewModel.AlignCenterCommand.Execute(null);
+                ViewModel.StatusMessage = $"Spaced out vertically and centred ({ViewModel.SelectionCount} shapes)";
+            }
+            e.Handled = true;
         }
 
         // ---- connector ends ----

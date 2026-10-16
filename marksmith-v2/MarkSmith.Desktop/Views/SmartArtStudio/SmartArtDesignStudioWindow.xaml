@@ -199,19 +199,19 @@
                                 <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Sibling" /></StackPanel>
                             </Button>
                             <Rectangle Width="1" Height="20" Margin="4,0" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center" />
-                            <Button Style="{StaticResource ToolIconButton}" Click="OnRenameClick" RightTapped="OnOutlineToolbarRightTapped"
+                            <Button x:Name="RenameButton" Style="{StaticResource ToolIconButton}" Click="OnRenameClick" DoubleTapped="OnRenameButtonDoubleTapped" RightTapped="OnRenameButtonRightTapped"
                                     IsEnabled="{Binding HasSelection}"
-                                    AutomationProperties.Name="Rename" ToolTipService.ToolTip="Rename (F2 or double-click, Right-click for options)">
+                                    AutomationProperties.Name="Rename" ToolTipService.ToolTip="Rename (F2 · Double-click to rename · Right-click for options)">
                                 <FontIcon Glyph="&#xE70F;" FontSize="14" />
                             </Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DuplicateSelectedCommand}" RightTapped="OnOutlineToolbarRightTapped"
+                            <Button x:Name="DuplicateButton" Style="{StaticResource ToolIconButton}" Command="{Binding DuplicateSelectedCommand}" DoubleTapped="OnDuplicateButtonDoubleTapped" RightTapped="OnDuplicateButtonRightTapped"
                                     IsEnabled="{Binding HasSelection}"
-                                    AutomationProperties.Name="Duplicate" ToolTipService.ToolTip="Duplicate (Ctrl+D, Right-click for options)">
+                                    AutomationProperties.Name="Duplicate" ToolTipService.ToolTip="Duplicate (Ctrl+D · Double-click to duplicate branch · Right-click for options)">
                                 <FontIcon Glyph="&#xE8C8;" FontSize="14" />
                             </Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DeleteSelectedCommand}" RightTapped="OnOutlineToolbarRightTapped"
+                            <Button x:Name="DeleteButton" Style="{StaticResource ToolIconButton}" Command="{Binding DeleteSelectedCommand}" DoubleTapped="OnDeleteButtonDoubleTapped" RightTapped="OnDeleteButtonRightTapped"
                                     IsEnabled="{Binding HasSelection}"
-                                    AutomationProperties.Name="Delete" ToolTipService.ToolTip="Delete (Del, Right-click for options)">
+                                    AutomationProperties.Name="Delete" ToolTipService.ToolTip="Delete (Del · Double-click to delete item and children · Right-click for options)">
                                 <FontIcon Glyph="&#xE74D;" FontSize="14" />
                             </Button>
                             <Rectangle Width="1" Height="20" Margin="4,0" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center" />
@@ -246,14 +246,18 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <Ellipse Grid.Column="0" Width="6" Height="6" Margin="0,0,10,0" VerticalAlignment="Center"
-                                                         Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                                                         Fill="{ThemeResource AccentFillColorDefaultBrush}" IsHitTestVisible="True"
+                                                         DoubleTapped="OnRowBulletDoubleTapped" RightTapped="OnRowBulletRightTapped"
+                                                         ToolTipService.ToolTip="Hierarchy bullet (Double-click to toggle indent, Right-click for node actions)" />
                                                 <TextBlock Grid.Column="1" Text="{Binding Text}" VerticalAlignment="Center"
                                                            TextWrapping="Wrap" FontSize="13"
                                                            Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
                                                 <TextBox Grid.Column="1" AutomationProperties.Name="Item text" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                          Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}"
                                                          KeyDown="OnRenameKeyDown" LostFocus="OnRenameLostFocus"
-                                                         FontSize="13" Padding="6,3" MinHeight="28" />
+                                                         DoubleTapped="OnRenameTextBoxDoubleTapped" RightTapped="OnRenameTextBoxRightTapped"
+                                                         FontSize="13" Padding="6,3" MinHeight="28"
+                                                         ToolTipService.ToolTip="Item text (Enter to commit · Esc to cancel · Double-click to select all · Right-click for casing options)" />
                                                 <Button Grid.Column="2" Click="OnRowAddChildClick" DoubleTapped="OnRowAddChildDoubleTapped" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0" Margin="4,0,0,0"
                                                         Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"
                                                         RightTapped="OnRowRightTapped"
