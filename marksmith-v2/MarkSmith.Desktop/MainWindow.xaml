@@ -2229,6 +2229,18 @@
                                Tapped="OnWordCountTextTapped" RightTapped="OnWordCountTextRightTapped" DoubleTapped="OnWordCountTextDoubleTapped"
                                ToolTipService.ToolTip="{Binding DocumentStatsDetail}" />
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                    <HyperlinkButton x:Name="StatusReadingTimeButton" Click="OnStatusReadingTimeButtonClick"
+                                     DoubleTapped="OnStatusReadingTimeButtonDoubleTapped"
+                                     RightTapped="OnStatusReadingTimeButtonRightTapped"
+                                     Padding="4,1" FontSize="11.5" Opacity="0.85"
+                                     ToolTipService.ToolTip="Reading time &amp; readability stats · Click to view details, double-click to copy stats, right-click for options"
+                                     AutomationProperties.Name="Reading time and readability">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE916;" FontSize="10.5" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock x:Name="StatusReadingTimeText" Text="~1 min read" />
+                        </StackPanel>
+                    </HyperlinkButton>
+                    <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1" VerticalAlignment="Center"
                                FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
                                Tapped="OnCursorPosTextTapped" DoubleTapped="OnCursorPosTextDoubleTapped"

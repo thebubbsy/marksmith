@@ -7623,6 +7623,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var sel = Math.Clamp(tb.SelectionLength, 0, text.Length - start);
         CursorPosText.Text = DocumentStatsService.FormatCursorAndSelection(line, col, text.AsSpan(start, sel));
         UpdateStatusSectionBreadcrumb(text, start);
+        UpdateStatusReadingTime(text);
     }
 
     private void UpdateStatusSectionBreadcrumb(string text, int caretPos)
@@ -7766,6 +7767,74 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.Items.Add(copyAll);
 
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
+    }
+
+    private void UpdateStatusReadingTime(string? text)
+    {
+        if (StatusReadingTimeText is null || StatusReadingTimeButton is null) return;
+        var stats = ViewModel.DocumentStats;
+        string readTime = string.IsNullOrWhiteSpace(stats.ReadingTimeText) ? "~1 min read" : $"~{stats.ReadingTimeText} read";
+        StatusReadingTimeText.Text = readTime;
+        ToolTipService.SetToolTip(StatusReadingTimeButton,
+            $"Reading time: {readTime}\nWords: {stats.Words:N0} · Characters: {stats.Characters:N0} · Paragraphs: {stats.Paragraphs:N0}\nClick to view full metrics, double-click to copy stats, right-click for options");
+    }
+
+    private void OnStatusReadingTimeButtonClick(object sender, RoutedEventArgs e)
+    {
+        ShowWordCountFlyout(sender as FrameworkElement ?? StatusReadingTimeButton);
+    }
+
+    private void OnStatusReadingTimeButtonDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var stats = ViewModel.DocumentStats;
+        string readTime = string.IsNullOrWhiteSpace(stats.ReadingTimeText) ? "1 min" : stats.ReadingTimeText;
+        string summary = $"Reading time: ~{readTime} read ({stats.Words:N0} words, {stats.Characters:N0} characters)";
+        _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+        AnnounceStatus($"Copied reading metrics: {summary}");
+    }
+
+    private void OnStatusReadingTimeButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var stats = ViewModel.DocumentStats;
+        var menu = new MenuFlyout();
+
+        var viewMetrics = new MenuFlyoutItem
+        {
+            Text = "View detailed document metrics",
+            Icon = new FontIcon { Glyph = "\uE916" }
+        };
+        viewMetrics.Click += (_, _) => ShowWordCountFlyout(StatusReadingTimeButton);
+        menu.Items.Add(viewMetrics);
+
+        var copyReadingTime = new MenuFlyoutItem
+        {
+            Text = $"Copy reading time (~{stats.ReadingTimeText} read)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyReadingTime.Click += (_, _) =>
+        {
+            _ = Services.ClipboardWriter.TrySetTextAsync($"~{stats.ReadingTimeText} read");
+            AnnounceStatus($"Copied reading time: ~{stats.ReadingTimeText} read");
+        };
+        menu.Items.Add(copyReadingTime);
+
+        var copyStatsItem = new MenuFlyoutItem
+        {
+            Text = "Copy full metrics summary",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyStatsItem.Click += (_, _) =>
+        {
+            var summary = ViewModel.DocumentStatsDetail;
+            if (string.IsNullOrWhiteSpace(summary)) summary = ViewModel.WordCountText;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus($"Copied document statistics: {summary}");
+        };
+        menu.Items.Add(copyStatsItem);
+
+        menu.ShowAt(StatusReadingTimeButton, e.GetPosition(StatusReadingTimeButton));
     }
 
     private sealed record HeadingLocation(int Level, string Title, int Offset, int EndOffset);

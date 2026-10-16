@@ -8985,8 +8985,75 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
    - `ShortcutsHelpButton` in title bar presenting interactive keyboard shortcuts cheatsheet flyout (`F1` / `?`).
    - Single-key number launchers (`1`–`6`) to instantly open any Studio tool directly from the hub.
 
+### 2026-10-16 23:35 AEST (run #119: MindMap Galaxy mini-map cluster hull & radar pulse ring, Shape Studio snapping crosshair guide axes & live cursor HUD badge, SmartArt Studio SVG preview zoom HUD controls, MainWindow status bar reading time estimator, History Window visual diff proportion bar, SuiteHubView recent documents quick strip)
+
+- **Surface:** `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `MainWindow`, `HistoryWindow`, `SuiteHubView`.
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering mini-map radar overview with cluster hull & pulse ring, snapping crosshairs & dynamic cursor HUD badge, SVG preview viewport zoom HUD controls, reading time & readability estimator status bar pill, visual diff proportion stat bar, and suite hub recent documents quick strip under the AI-Executable 3-Block Cycle + Execution Phase Protocol (`GEMINI.md` Rule 7).
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #118:
+    * Target A: `MindMapGalaxyWindow` mini-map radar overview with cluster hull & selected node pulse ring.
+    * Target B: `ShapeDesignStudioWindow` shape snapping crosshairs & dynamic cursor HUD coordinate badge.
+    * Target C: `SmartArtDesignStudioWindow` SVG preview viewport zoom HUD controls & keyboard accelerators.
+  - Generated:
+    1. `MindMapGalaxyWindow`: Mini-map cluster hull boundary polygon & active node radar pulse ring with double-click viewport centering (`_minimapClusterHull`, `_minimapSelectedRing`, `UpdateMinimapSelectedRing`, `OnMinimapOverlayDoubleTapped`).
+    2. `ShapeDesignStudioWindow`: Dynamic full-canvas snapping crosshair guide axes & live floating cursor coordinate/angle HUD badge (`_crosshairLineX`, `_crosshairLineY`, `_cursorHudBadge`, `_cursorHudText`, `UpdateCursorHud`, `UpdateCrosshairs`, `HideCursorHud`).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded mini-map overlay with a dashed bounding cluster hull (`_minimapClusterHull`) enveloping all active vault nodes, plus an animated accent pulse ring (`_minimapSelectedRing`) that pinpoints and highlights the selected node in the mini-map. Double-tapping anywhere on the mini-map instantly centers the main galaxy viewport onto the selected node (or clicked location).
+    * For Idea 2: Equipped canvas dragging and rotation with full-width / full-height subtle dashed crosshair alignment axes (`_crosshairLineX`, `_crosshairLineY`) spanning across the canvas, paired with a floating frosted HUD badge (`_cursorHudBadge`) trailing the cursor. The HUD displays live `(X, Y)` canvas coordinates during moves, and rotational degrees `(θ = XX.X°)` during rotation handle manipulation. All guide elements strictly enforce `IsHitTestVisible="False"`.
+  - Generated:
+    3. `SmartArtDesignStudioWindow`: Floating SVG preview viewport zoom HUD controls & accelerators (`PreviewZoomHudPill`, `SetPreviewZoom`, `Ctrl++` / `Ctrl+-` / `Ctrl+0`, preset flyout 50%–200%, fit-width toggle).
+    4. `MainWindow`: Reading time & readability estimator status bar pill (`StatusReadingTimeButton`, `~X min read`, `UpdateStatusReadingTime`, copy metrics popover).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted a sleek floating zoom HUD pill (`PreviewZoomHudPill`) in the top-right corner of the SVG preview card with Zoom In (`+`), Zoom Out (`-`), and a zoom readout button (`100%`). Double-clicking the button resets zoom to 100%, right-clicking summons a quick presets flyout (50%, 75%, 100%, 125%, 150%, 200%, Fit Width), and global accelerators `Ctrl+=`, `Ctrl+-`, `Ctrl+0` control zoom effortlessly. Executes zoom via `CoreWebView2.ExecuteScriptAsync` targeting CSS `document.body.style.zoom` for maximum reliability across WinUI 3 WebView2 runtimes.
+    * For Idea 4: Integrated a live reading time and readability pill into the status bar (`StatusReadingTimeButton`) positioned beside the document statistics. Calculates estimated reading time at 225 wpm (`~X min read`) alongside word count. Left-clicking surfaces a detailed metrics flyout (words, reading time, speaking time @ 140 wpm, readability grade level); right-clicking copies reading time or full statistics summary to clipboard.
+  - Refined Block 1 (Pass 2 - Final):
+    * Enforced theme-adaptive styling on `_minimapClusterHull` and `_minimapSelectedRing` using `SystemAccentColor` / `LayerFillColorDefaultBrush`.
+    * Implemented strict bounds clamping and viewport offset translation for the floating HUD badge in `ShapeDesignStudioWindow` to prevent viewport clipping.
+  - Generated:
+    5. `HistoryWindow`: Visual diff proportion bar (`DiffVisualStatBar`, `DeltaMeterBorder`, dual-colored segment bar displaying additions vs deletions ratio).
+    6. `SuiteHubView`: Recent Documents Quick Strip (`RecentDocsStrip`, `RecentFilesPanel`, programmatic button realization, context flyout with Open, Copy Path, Show in File Explorer).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Added an inline visual proportion bar inside `DeltaMeterBorder` in the diff header showing a green/red segmented progress bar indicating the exact proportion of added lines vs deleted lines, complementing the raw numbers `+A / -D`.
+    * For Idea 6: Designed a sleek horizontal strip in the Suite Hub header between the title banner and cards grid featuring recently opened `.md` files. Built with programmatic button population in `RecentFilesPanel` to ensure 100% immunity to WinUI 3 `WMC9999` XAML compiler delegate bugs, complete with right-click context menu (Open, Copy path, Show in Explorer) and refresh button.
+  - Executed all 6 refined targets into 100% production code.
+  - Verification:
+    * `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `MarkSmith.Tests.dll`: **Passed: 4,802, Failed: 0, Skipped: 1, Total: 4,803**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 24160, responsive startup (`Responding: True`), clean exit.
+  - Carried forward ideas / next targets into Run #120:
+    * Target A: `MindMapGalaxyWindow` dynamic node search filter with glowing matching halos and dimmed non-matching nodes.
+    * Target B: `ShapeDesignStudioWindow` multi-selection group alignment ribbon with quick distribute evenly actions.
+    * Target C: `SmartArtDesignStudioWindow` color palette custom hex override input fields with live validation.
+
+**Shipped:**
+1. **`MindMapGalaxyWindow` Mini-Map Cluster Hull & Radar Pulse Ring (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Mini-map overlay augmented with a dashed bounding cluster hull (`_minimapClusterHull`) outlining all vault nodes.
+   - Dynamic accent pulse ring (`_minimapSelectedRing`) tracking and spotlighting the active node on the radar mini-map.
+   - Upgraded mini-map double-click gesture to instantly re-center the main galaxy viewport on the selected node or target position.
+2. **`ShapeDesignStudioWindow` Dynamic Snapping Crosshair Axes & Cursor HUD Badge (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Full-canvas dashed crosshair lines (`_crosshairLineX`, `_crosshairLineY`) snapping across moving shape centers and boundaries.
+   - Floating HUD badge (`_cursorHudBadge`, `_cursorHudText`) trailing cursor with live `(X, Y)` canvas coordinates during moves, and rotational degrees `(θ = XX.X°)` during rotation. All elements non-hit-testable.
+3. **`SmartArtDesignStudioWindow` SVG Preview Viewport Zoom HUD Controls (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Floating zoom HUD pill (`PreviewZoomHudPill`) overlaying SVG preview with Zoom In, Zoom Out, and reset/presets button.
+   - Accelerators `Ctrl++`, `Ctrl+-`, `Ctrl+0`, double-click reset to 100%, and presets flyout (50% to 200%, Fit Width), executed via `ExecuteScriptAsync` CSS zoom.
+4. **`MainWindow` Status Bar Reading Time & Readability Estimator (`MainWindow.xaml`, `MainWindow.xaml.cs`):**
+   - Status bar pill (`StatusReadingTimeButton`) displaying live reading time (`~X min read`).
+   - Click opens detailed reading metrics flyout (word count, reading time @ 225 wpm, speaking time @ 140 wpm, grade level); right-click copies reading time or stats summary.
+5. **`HistoryWindow` Visual Diff Proportion Bar (`Views/History/HistoryWindow.xaml`, `Views/History/HistoryWindow.xaml.cs`):**
+   - Dual-colored proportional progress bar (`DiffVisualStatBar`) in `DeltaMeterBorder` displaying visual ratio of additions (green) vs deletions (red).
+   - Dynamically updates with active commit selection and diff statistics.
+6. **`SuiteHubView` Recent Documents Quick Strip (`Views/SuiteHubView.xaml`, `Views/SuiteHubView.xaml.cs`):**
+   - Header quick strip (`RecentDocsStrip`) presenting recent documents for one-click opening.
+   - Built with programmatic button population in `RecentFilesPanel` for WinUI 3 compiler safety.
+   - Context flyout with Open, Copy file path, and Show in File Explorer, plus refresh button.
+
 **Verified:**
 - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
 - `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
-- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 20108, responsive startup, clean exit.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 24160, responsive startup, clean exit.
 

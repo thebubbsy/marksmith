@@ -470,7 +470,50 @@
                     </Border>
                     <InfoBar x:Name="PreviewHintBar" Grid.Row="2" Margin="12,10,12,0" Severity="Informational" IsClosable="False"
                              IsOpen="{Binding HasPreviewHint}" Message="{Binding PreviewHint}" AutomationProperties.LiveSetting="Polite" />
-                    <WebView2 x:Name="PreviewWebView" Grid.Row="3" Margin="0" />
+                    <Grid Grid.Row="3">
+                        <WebView2 x:Name="PreviewWebView" Margin="0" />
+                        <!-- Floating SVG Viewport Zoom Controls -->
+                        <Border x:Name="PreviewZoomHudPill" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                Margin="0,0,16,16"
+                                Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="4,2"
+                                IsHitTestVisible="True"
+                                ToolTipService.ToolTip="Preview zoom controls (Click/Double-click to reset, Right-click for presets)">
+                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                <Button x:Name="PreviewZoomOutBtn" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                                        Click="OnPreviewZoomOutClick" ToolTipService.ToolTip="Zoom out (Ctrl+−)" AutomationProperties.Name="Zoom out preview">
+                                    <FontIcon Glyph="&#xE71F;" FontSize="11" />
+                                </Button>
+                                <Button x:Name="PreviewZoomResetBtn" Style="{StaticResource SubtleButtonStyle}" MinWidth="46" Height="28" Padding="4,0"
+                                        Click="OnPreviewZoomResetClick" DoubleTapped="OnPreviewZoomResetDoubleTapped" RightTapped="OnPreviewZoomResetRightTapped"
+                                        ToolTipService.ToolTip="Current zoom (Click to reset 100%, Right-click for presets)" AutomationProperties.Name="Reset preview zoom">
+                                    <TextBlock x:Name="PreviewZoomFactorText" Text="100%" FontSize="11" FontFamily="Cascadia Mono, Consolas" VerticalAlignment="Center" />
+                                    <Button.Flyout>
+                                        <MenuFlyout x:Name="PreviewZoomFlyout">
+                                            <MenuFlyoutItem Text="50%" Click="OnPreviewZoomPresetClick" Tag="0.5" />
+                                            <MenuFlyoutItem Text="75%" Click="OnPreviewZoomPresetClick" Tag="0.75" />
+                                            <MenuFlyoutItem Text="100% (Actual size)" Click="OnPreviewZoomPresetClick" Tag="1.0" />
+                                            <MenuFlyoutItem Text="125%" Click="OnPreviewZoomPresetClick" Tag="1.25" />
+                                            <MenuFlyoutItem Text="150%" Click="OnPreviewZoomPresetClick" Tag="1.5" />
+                                            <MenuFlyoutItem Text="200%" Click="OnPreviewZoomPresetClick" Tag="2.0" />
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Text="Fit to preview width" Click="OnPreviewZoomFitWidthClick" />
+                                        </MenuFlyout>
+                                    </Button.Flyout>
+                                </Button>
+                                <Button x:Name="PreviewZoomInBtn" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                                        Click="OnPreviewZoomInClick" ToolTipService.ToolTip="Zoom in (Ctrl++)" AutomationProperties.Name="Zoom in preview">
+                                    <FontIcon Glyph="&#xE710;" FontSize="11" />
+                                </Button>
+                                <Rectangle Width="1" Height="16" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="2,0" VerticalAlignment="Center" />
+                                <Button x:Name="PreviewZoomFitBtn" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                                        Click="OnPreviewZoomFitWidthClick" ToolTipService.ToolTip="Fit diagram in preview (Ctrl+0)" AutomationProperties.Name="Fit preview to width">
+                                    <FontIcon Glyph="&#xE9A6;" FontSize="11" />
+                                </Button>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>

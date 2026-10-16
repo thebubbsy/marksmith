@@ -50,6 +50,10 @@ namespace MarkSmith.Views.ShapeStudio
         private TextBlock? _rotateAngleBadgeText;
         private Microsoft.UI.Xaml.Shapes.Line? _snapGuideX;
         private Microsoft.UI.Xaml.Shapes.Line? _snapGuideY;
+        private Microsoft.UI.Xaml.Shapes.Line? _crosshairLineX;
+        private Microsoft.UI.Xaml.Shapes.Line? _crosshairLineY;
+        private Border? _cursorHudBadge;
+        private TextBlock? _cursorHudText;
         private bool _rotating;
         private bool _rotated;
         private bool _multiRotating;
@@ -1437,6 +1441,96 @@ namespace MarkSmith.Views.ShapeStudio
                 };
                 MainCanvas.Children.Add(_snapGuideY);
             }
+            if (_crosshairLineX == null)
+            {
+                _crosshairLineX = new Microsoft.UI.Xaml.Shapes.Line
+                {
+                    Stroke = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+                    StrokeThickness = 1,
+                    StrokeDashArray = new DoubleCollection { 4, 3 },
+                    Opacity = 0.5,
+                    IsHitTestVisible = false,
+                    Visibility = Visibility.Collapsed
+                };
+                MainCanvas.Children.Add(_crosshairLineX);
+            }
+            if (_crosshairLineY == null)
+            {
+                _crosshairLineY = new Microsoft.UI.Xaml.Shapes.Line
+                {
+                    Stroke = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+                    StrokeThickness = 1,
+                    StrokeDashArray = new DoubleCollection { 4, 3 },
+                    Opacity = 0.5,
+                    IsHitTestVisible = false,
+                    Visibility = Visibility.Collapsed
+                };
+                MainCanvas.Children.Add(_crosshairLineY);
+            }
+            if (_cursorHudBadge == null)
+            {
+                _cursorHudText = new TextBlock
+                {
+                    FontSize = 10.5,
+                    FontFamily = new FontFamily("Cascadia Mono, Consolas, monospace"),
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                _cursorHudBadge = new Border
+                {
+                    Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xEE, 0x14, 0x1A, 0x24)),
+                    BorderBrush = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(6, 2, 6, 2),
+                    IsHitTestVisible = false,
+                    Visibility = Visibility.Collapsed,
+                    Child = _cursorHudText
+                };
+                MainCanvas.Children.Add(_cursorHudBadge);
+            }
+        }
+
+        private void UpdateCursorHud(Point pos, string text)
+        {
+            EnsureSnapGuides();
+            if (_cursorHudBadge == null || _cursorHudText == null) return;
+            double z = Math.Max(0.05, CanvasScroller.ZoomFactor);
+            _cursorHudText.Text = text;
+            _cursorHudText.FontSize = Math.Max(9.0, 10.5 / Math.Sqrt(z));
+            _cursorHudBadge.BorderThickness = new Thickness(1.0 / z);
+            _cursorHudBadge.CornerRadius = new CornerRadius(6.0 / z);
+            _cursorHudBadge.Padding = new Thickness(6.0 / z, 2.0 / z, 6.0 / z, 2.0 / z);
+            _cursorHudBadge.Visibility = Visibility.Visible;
+            Canvas.SetLeft(_cursorHudBadge, pos.X + (14.0 / z));
+            Canvas.SetTop(_cursorHudBadge, pos.Y + (14.0 / z));
+        }
+
+        private void UpdateCrosshairs(Point pos)
+        {
+            EnsureSnapGuides();
+            if (_crosshairLineX == null || _crosshairLineY == null) return;
+            double z = Math.Max(0.05, CanvasScroller.ZoomFactor);
+            _crosshairLineX.X1 = 0;
+            _crosshairLineX.X2 = Math.Max(MainCanvas.ActualWidth, 5000);
+            _crosshairLineX.Y1 = _crosshairLineX.Y2 = pos.Y;
+            _crosshairLineX.StrokeThickness = 1.0 / z;
+            _crosshairLineX.Visibility = Visibility.Visible;
+
+            _crosshairLineY.Y1 = 0;
+            _crosshairLineY.Y2 = Math.Max(MainCanvas.ActualHeight, 5000);
+            _crosshairLineY.X1 = _crosshairLineY.X2 = pos.X;
+            _crosshairLineY.StrokeThickness = 1.0 / z;
+            _crosshairLineY.Visibility = Visibility.Visible;
+        }
+
+        private void HideCursorHud()
+        {
+            if (_cursorHudBadge != null) _cursorHudBadge.Visibility = Visibility.Collapsed;
+            if (_crosshairLineX != null) _crosshairLineX.Visibility = Visibility.Collapsed;
+            if (_crosshairLineY != null) _crosshairLineY.Visibility = Visibility.Collapsed;
         }
 
         private void OnShapePointerMoved(object sender, PointerRoutedEventArgs e)
@@ -1555,6 +1649,15 @@ namespace MarkSmith.Views.ShapeStudio
             if (!snappedX && _snapGuideX != null) _snapGuideX.Visibility = Visibility.Collapsed;
             if (!snappedY && _snapGuideY != null) _snapGuideY.Visibility = Visibility.Collapsed;
 
+            if (_dragMoved)
+            {
+                UpdateCrosshairs(cur);
+                string hud = ViewModel.SelectionCount > 1
+                    ? $"({(int)Math.Round(cur.X)}, {(int)Math.Round(cur.Y)}) · {ViewModel.SelectionCount} shapes"
+                    : $"X: {(int)Math.Round(_dragShape.X)}  Y: {(int)Math.Round(_dragShape.Y)}";
+                UpdateCursorHud(cur, hud);
+            }
+
             UpdateMultiSelectionAdorner();
             e.Handled = true;
         }
@@ -1565,6 +1668,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (sender is FrameworkElement fe) fe.ReleasePointerCapture(e.Pointer);
             if (_snapGuideX != null) _snapGuideX.Visibility = Visibility.Collapsed;
             if (_snapGuideY != null) _snapGuideY.Visibility = Visibility.Collapsed;
+            HideCursorHud();
             if (_dragMoved)
             {
                 int n = ViewModel.SelectionCount;
@@ -2686,6 +2790,7 @@ namespace MarkSmith.Views.ShapeStudio
             }
             s.Rotation = nextAngle;
             UpdateRotateVisuals(s, nextAngle, snap);
+            UpdateCursorHud(cur, $"Angle: {nextAngle}°{(snap ? " [15° snap]" : "")}");
             ViewModel.StatusMessage = $"Rotating {s.DisplayName.ToLowerInvariant()}: {nextAngle}°{(snap ? " (15° snap)" : "")}";
             e.Handled = true;
         }
@@ -2813,6 +2918,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (_rotateArcOverlay != null) _rotateArcOverlay.Visibility = Visibility.Collapsed;
             if (_rotateAngleBadge != null) _rotateAngleBadge.Visibility = Visibility.Collapsed;
             if (_rotateReferenceGuide != null) _rotateReferenceGuide.Visibility = Visibility.Collapsed;
+            HideCursorHud();
         }
 
         private void UpdateRotateVisuals(ShapeCanvasItemViewModel s, int angle, bool snapped)

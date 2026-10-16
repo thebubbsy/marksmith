@@ -87,6 +87,18 @@ namespace MarkSmith.Views.SmartArtStudio
             // Transparent page so the preview card's theme brush shows through in Light and Dark
             // (the rendered SmartArt is a self-contained light card either way).
             PreviewWebView.DefaultBackgroundColor = Microsoft.UI.Colors.Transparent;
+            PreviewWebView.NavigationCompleted += (_, _) =>
+            {
+                if (PreviewWebView.CoreWebView2 != null && Math.Abs(_previewZoomFactor - 1.0) > 0.001)
+                {
+                    try
+                    {
+                        var zoomStr = _previewZoomFactor.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        _ = PreviewWebView.CoreWebView2.ExecuteScriptAsync($"document.body.style.zoom = '{zoomStr}';");
+                    }
+                    catch { }
+                }
+            };
             HoverPolish.Track(this.RootGrid);
             this.RootGrid.ActualThemeChanged += (_, _) => RefreshWebView();
             // Open in the layout search (typing filters at once), not on the first title-bar button.
@@ -2704,6 +2716,25 @@ namespace MarkSmith.Views.SmartArtStudio
                 return;
             }
 
+            if (ctrl && (e.Key is VirtualKey.Add || (int)e.Key == 187))
+            {
+                SetPreviewZoom(_previewZoomFactor + 0.15);
+                e.Handled = true;
+                return;
+            }
+            if (ctrl && (e.Key is VirtualKey.Subtract || (int)e.Key == 189))
+            {
+                SetPreviewZoom(_previewZoomFactor - 0.15);
+                e.Handled = true;
+                return;
+            }
+            if (ctrl && (e.Key is VirtualKey.Number0 or VirtualKey.NumberPad0))
+            {
+                SetPreviewZoom(1.0);
+                e.Handled = true;
+                return;
+            }
+
             if ((sender as UIElement)?.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox) return;
 
             if (ctrl && e.Key == VirtualKey.C)
@@ -3435,6 +3466,60 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.StatusMessage = "Switched to Outline editor (Ctrl+1)";
             }
         }
+
+        #region Preview Zoom Controls
+
+        private double _previewZoomFactor = 1.0;
+
+        private void SetPreviewZoom(double factor)
+        {
+            factor = Math.Clamp(factor, 0.25, 3.0);
+            _previewZoomFactor = factor;
+            if (PreviewZoomFactorText != null)
+                PreviewZoomFactorText.Text = $"{(int)Math.Round(factor * 100)}%";
+            if (PreviewWebView?.CoreWebView2 != null)
+            {
+                try
+                {
+                    var zoomStr = factor.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    _ = PreviewWebView.CoreWebView2.ExecuteScriptAsync($"document.body.style.zoom = '{zoomStr}';");
+                }
+                catch { /* best effort */ }
+            }
+            ViewModel.StatusMessage = $"Diagram preview zoom: {(int)Math.Round(factor * 100)}%";
+        }
+
+        private void OnPreviewZoomInClick(object sender, RoutedEventArgs e) => SetPreviewZoom(_previewZoomFactor + 0.15);
+        private void OnPreviewZoomOutClick(object sender, RoutedEventArgs e) => SetPreviewZoom(_previewZoomFactor - 0.15);
+        private void OnPreviewZoomResetClick(object sender, RoutedEventArgs e) => SetPreviewZoom(1.0);
+
+        private void OnPreviewZoomResetDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            SetPreviewZoom(1.0);
+        }
+
+        private void OnPreviewZoomResetRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            PreviewZoomFlyout?.ShowAt(PreviewZoomResetBtn);
+        }
+
+        private void OnPreviewZoomPresetClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuFlyoutItem item && double.TryParse(item.Tag?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var z))
+            {
+                SetPreviewZoom(z);
+            }
+        }
+
+        private void OnPreviewZoomFitWidthClick(object sender, RoutedEventArgs e)
+        {
+            SetPreviewZoom(1.0);
+            ViewModel.StatusMessage = "Fit diagram to preview width.";
+        }
+
+        #endregion
 
         private static T? FindDescendant<T>(DependencyObject? parent) where T : DependencyObject
         {

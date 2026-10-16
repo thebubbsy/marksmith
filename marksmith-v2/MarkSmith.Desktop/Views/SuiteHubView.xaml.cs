@@ -69,6 +69,7 @@ public sealed partial class SuiteHubView : UserControl
         SizeChanged += (_, e) => ApplyResponsiveLayout(e.NewSize.Width);
         AddHandler(KeyDownEvent, new KeyEventHandler(OnHubKeyDown), true);
         HoverPolish.Track(this);
+        Loaded += (_, _) => LoadRecentFiles();
     }
 
     private void WireCardPolish(Border card, int cardIndex)
@@ -910,4 +911,155 @@ public sealed partial class SuiteHubView : UserControl
             SetNotification($"Couldn't open MarkSmith Express: {ex.Message}", success: false);
         }
     }
+
+    #region Recent Documents Quick Strip
+
+    private void LoadRecentFiles()
+    {
+        try
+        {
+            RecentFilesPanel.Children.Clear();
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var items = files.Where(File.Exists).Take(4).ToList();
+            if (items.Count > 0)
+            {
+                foreach (var fullPath in items)
+                {
+                    var fileName = System.IO.Path.GetFileName(fullPath);
+                    var btn = new Button
+                    {
+                        Tag = fullPath,
+                        Padding = new Thickness(8, 4, 8, 4),
+                        CornerRadius = new CornerRadius(6),
+                        MaxWidth = 190
+                    };
+                    if (Application.Current.Resources.TryGetValue("SubtleButtonStyle", out var styleObj) && styleObj is Style subtleStyle)
+                    {
+                        btn.Style = subtleStyle;
+                    }
+
+                    var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
+                    sp.Children.Add(new FontIcon
+                    {
+                        Glyph = "\uE8A5",
+                        FontSize = 11,
+                        Opacity = 0.75
+                    });
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = fileName,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        FontSize = 11
+                    });
+                    btn.Content = sp;
+                    ToolTipService.SetToolTip(btn, fullPath);
+
+                    btn.Click += OnRecentFileItemClick;
+                    btn.RightTapped += OnRecentFileItemRightTapped;
+
+                    RecentFilesPanel.Children.Add(btn);
+                }
+
+                RecentFilesPanel.Visibility = Visibility.Visible;
+                NoRecentDocsText.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                RecentFilesPanel.Visibility = Visibility.Collapsed;
+                NoRecentDocsText.Visibility = Visibility.Visible;
+            }
+        }
+        catch
+        {
+            RecentFilesPanel.Children.Clear();
+            RecentFilesPanel.Visibility = Visibility.Collapsed;
+            NoRecentDocsText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void OnRecentFileItemClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string fullPath && !string.IsNullOrWhiteSpace(fullPath))
+        {
+            if (File.Exists(fullPath))
+            {
+                try
+                {
+                    var p = new ProcessStartInfo
+                    {
+                        FileName = fullPath,
+                        UseShellExecute = true
+                    };
+                    Process.Start(p);
+                    SetNotification($"Opened recent document: {System.IO.Path.GetFileName(fullPath)}", success: true);
+                }
+                catch (Exception ex)
+                {
+                    SetNotification($"Couldn't open recent document: {ex.Message}", success: false);
+                }
+            }
+            else
+            {
+                SetNotification($"File no longer exists: {System.IO.Path.GetFileName(fullPath)}", success: false);
+            }
+        }
+    }
+
+    private void OnRecentFileItemRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string fullPath || string.IsNullOrWhiteSpace(fullPath)) return;
+        e.Handled = true;
+
+        var menu = new MenuFlyout();
+
+        var openItem = new MenuFlyoutItem
+        {
+            Text = "Open document",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        openItem.Click += (_, _) => OnRecentFileItemClick(btn, new RoutedEventArgs());
+        menu.Items.Add(openItem);
+
+        var copyPathItem = new MenuFlyoutItem
+        {
+            Text = "Copy file path",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyPathItem.Click += (_, _) =>
+        {
+            _ = Services.ClipboardWriter.TrySetTextAsync(fullPath);
+            SetNotification($"Copied path: {System.IO.Path.GetFileName(fullPath)}", success: true);
+        };
+        menu.Items.Add(copyPathItem);
+
+        var showInFolderItem = new MenuFlyoutItem
+        {
+            Text = "Show in File Explorer",
+            Icon = new FontIcon { Glyph = "\uE838" }
+        };
+        showInFolderItem.Click += (_, _) =>
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{fullPath}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch { }
+        };
+        menu.Items.Add(showInFolderItem);
+
+        menu.ShowAt(btn, e.GetPosition(btn));
+    }
+
+    private void OnRefreshRecentDocsClick(object sender, RoutedEventArgs e)
+    {
+        LoadRecentFiles();
+        SetNotification("Refreshed recent documents.", success: true);
+    }
+
+    #endregion
 }

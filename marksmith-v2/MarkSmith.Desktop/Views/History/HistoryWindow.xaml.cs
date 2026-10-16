@@ -243,10 +243,12 @@ public sealed partial class HistoryWindow : Window
         {
             UpdateCopyToolbarButton(_vm.DiffMode);
             ResetChangeStepper();
+            UpdateVisualDiffStatsBar();
         }
-        else if (e.PropertyName == nameof(HistoryWindowViewModel.HasDiffStats))
+        else if (e.PropertyName is nameof(HistoryWindowViewModel.HasDiffStats) or nameof(HistoryWindowViewModel.DiffStats))
         {
             ResetChangeStepper();
+            UpdateVisualDiffStatsBar();
         }
     }
 
@@ -392,6 +394,50 @@ public sealed partial class HistoryWindow : Window
     }
 
     private int _currentHunkIndex = -1;
+
+    private void UpdateVisualDiffStatsBar()
+    {
+        if (DiffVisualStatBar is null || DiffAddedCol is null || DiffRemovedCol is null) return;
+        var stats = _vm.DiffStats;
+        if (string.IsNullOrWhiteSpace(stats) || !_vm.HasDiffStats)
+        {
+            DiffVisualStatBar.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        int added = 0;
+        int removed = 0;
+        var parts = stats.Split('·', StringSplitOptions.TrimEntries);
+        foreach (var p in parts)
+        {
+            if (p.EndsWith("added", StringComparison.OrdinalIgnoreCase))
+            {
+                var numStr = p.Replace("added", "").Trim();
+                int.TryParse(numStr, out added);
+            }
+            else if (p.EndsWith("removed", StringComparison.OrdinalIgnoreCase))
+            {
+                var numStr = p.Replace("removed", "").Trim();
+                int.TryParse(numStr, out removed);
+            }
+        }
+
+        int total = added + removed;
+        if (total == 0)
+        {
+            DiffVisualStatBar.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        DiffVisualStatBar.Visibility = Visibility.Visible;
+        double addedRatio = (double)added / total;
+        double removedRatio = (double)removed / total;
+
+        DiffAddedCol.Width = new GridLength(Math.Max(addedRatio, 0.05), GridUnitType.Star);
+        DiffRemovedCol.Width = new GridLength(Math.Max(removedRatio, 0.05), GridUnitType.Star);
+        if (DiffAddedRect != null) DiffAddedRect.Visibility = added > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (DiffRemovedRect != null) DiffRemovedRect.Visibility = removed > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     private void ResetChangeStepper()
     {

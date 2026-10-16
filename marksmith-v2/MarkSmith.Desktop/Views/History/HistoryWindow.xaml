@@ -446,8 +446,19 @@
                                     RightTapped="OnDeltaMeterRightTapped"
                                     ToolTipService.ToolTip="Lines added and removed compared with the version before · Double-click to copy stats, right-click for options"
                                     Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
-                                <TextBlock x:Name="DiffStatsText" Text="{Binding DiffStats}" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace"
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <TextBlock x:Name="DiffStatsText" Text="{Binding DiffStats}" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                    <!-- Visual Diff Proportion Bar -->
+                                    <Grid x:Name="DiffVisualStatBar" Width="36" Height="5" CornerRadius="2.5" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition x:Name="DiffAddedCol" Width="*" />
+                                            <ColumnDefinition x:Name="DiffRemovedCol" Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Rectangle x:Name="DiffAddedRect" Grid.Column="0" Fill="{ThemeResource SystemFillColorSuccessBrush}" RadiusX="1.5" RadiusY="1.5" />
+                                        <Rectangle x:Name="DiffRemovedRect" Grid.Column="1" Fill="{ThemeResource SystemFillColorCriticalBrush}" RadiusX="1.5" RadiusY="1.5" />
+                                    </Grid>
+                                </StackPanel>
                             </Border>
 
                             <!-- Copy Action Button -->

@@ -239,6 +239,7 @@ namespace MarkSmith.Views.MindMap
                     WatchSelectedNodeColour();
                     UpdateSwatches();
                     UpdateBreadcrumbs();
+                    UpdateMinimapSelectedRing();
                     break;
                 case nameof(MindMapStudioViewModel.IsFocusModeEnabled):
                     UpdateBreadcrumbs();
@@ -5651,6 +5652,8 @@ namespace MarkSmith.Views.MindMap
         private double _minimapMinX, _minimapMinY, _minimapScale = 1.0;
 
         private Microsoft.UI.Xaml.Shapes.Rectangle? _minimapLens;
+        private Microsoft.UI.Xaml.Shapes.Rectangle? _minimapClusterHull;
+        private Microsoft.UI.Xaml.Shapes.Ellipse? _minimapSelectedRing;
 
         /// <summary>
         /// Rebuilds the radar's dots and edges. Only called when the scene or a position actually
@@ -5661,6 +5664,8 @@ namespace MarkSmith.Views.MindMap
             if (MinimapCanvas == null) return;
             MinimapCanvas.Children.Clear();
             _minimapLens = null;
+            _minimapClusterHull = null;
+            _minimapSelectedRing = null;
 
             if (ViewModel.Nodes.Count == 0) return;
 
@@ -5683,6 +5688,23 @@ namespace MarkSmith.Views.MindMap
             _minimapMinX = minX;
             _minimapMinY = minY;
             _minimapScale = scale;
+
+            // Cluster bounding hull: subtle dashed rectangle indicating the total bounds of all content
+            _minimapClusterHull = new Microsoft.UI.Xaml.Shapes.Rectangle
+            {
+                Width = Math.Max(10, (maxX - minX - 2 * padding) * scale),
+                Height = Math.Max(10, (maxY - minY - 2 * padding) * scale),
+                Stroke = new SolidColorBrush(ColorFromHex(_palette.HierarchyLine)),
+                StrokeThickness = 0.8,
+                StrokeDashArray = new DoubleCollection { 2, 2 },
+                Opacity = 0.35,
+                RadiusX = 4,
+                RadiusY = 4,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(_minimapClusterHull, padding * scale);
+            Canvas.SetTop(_minimapClusterHull, padding * scale);
+            MinimapCanvas.Children.Add(_minimapClusterHull);
 
             // Edges first: without them the radar is a field of unrelated dots and tells you
             // nothing about where the clusters are.
@@ -5720,6 +5742,18 @@ namespace MarkSmith.Views.MindMap
                 MinimapCanvas.Children.Add(dot);
             }
 
+            _minimapSelectedRing = new Microsoft.UI.Xaml.Shapes.Ellipse
+            {
+                Width = 12,
+                Height = 12,
+                Stroke = new SolidColorBrush(_palette.SelectionInk),
+                StrokeThickness = 1.4,
+                StrokeDashArray = new DoubleCollection { 2, 1 },
+                IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed
+            };
+            MinimapCanvas.Children.Add(_minimapSelectedRing);
+
             _minimapLens = new Microsoft.UI.Xaml.Shapes.Rectangle
             {
                 Stroke = new SolidColorBrush(ColorFromHex("#7C4DFF")),
@@ -5731,6 +5765,26 @@ namespace MarkSmith.Views.MindMap
             };
             MinimapCanvas.Children.Add(_minimapLens);
             UpdateMinimapLens();
+            UpdateMinimapSelectedRing();
+        }
+
+        /// <summary>Updates the radar pulse ring indicating active node selection.</summary>
+        private void UpdateMinimapSelectedRing()
+        {
+            if (_minimapSelectedRing == null || _minimapScale <= 0) return;
+            if (ViewModel.SelectedNode is { } node)
+            {
+                double dotCenterX = (node.X + node.Width / 2.0 - _minimapMinX) * _minimapScale;
+                double dotCenterY = (node.Y + node.Height / 2.0 - _minimapMinY) * _minimapScale;
+                Canvas.SetLeft(_minimapSelectedRing, dotCenterX - _minimapSelectedRing.Width / 2.0);
+                Canvas.SetTop(_minimapSelectedRing, dotCenterY - _minimapSelectedRing.Height / 2.0);
+                _minimapSelectedRing.Stroke = new SolidColorBrush(_palette.SelectionInk);
+                _minimapSelectedRing.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                _minimapSelectedRing.Visibility = Visibility.Collapsed;
+            }
         }
 
         /// <summary>Moves the viewport rectangle on the radar. This is all a pan needs to touch.</summary>
@@ -5782,8 +5836,16 @@ namespace MarkSmith.Views.MindMap
         private void OnMinimapOverlayDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
             e.Handled = true;
-            OnFitToWindowClick(sender, new RoutedEventArgs());
-            ViewModel.StatusMessage = "Fitted all nodes in window (double-click)";
+            if (ViewModel.SelectedNode is { } selNode)
+            {
+                ViewModel.CenterOn(selNode);
+                ViewModel.StatusMessage = $"Centered view on '{selNode.Title}' (double-click radar)";
+            }
+            else
+            {
+                OnFitToWindowClick(sender, new RoutedEventArgs());
+                ViewModel.StatusMessage = "Fitted all nodes in window (double-click radar)";
+            }
         }
 
         private void OnMinimapOverlayRightTapped(object sender, RightTappedRoutedEventArgs e)

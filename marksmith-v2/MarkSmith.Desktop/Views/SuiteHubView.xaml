@@ -136,6 +136,27 @@
                 </Grid>
             </Border>
 
+            <!-- Recent Documents Quick Strip -->
+            <Border x:Name="RecentDocsStrip" Background="{ThemeResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="12,8">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE81C;" FontSize="13" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Recent Documents" FontWeight="SemiBold" FontSize="12.5" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel x:Name="RecentFilesPanel" Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" />
+                    <TextBlock x:Name="NoRecentDocsText" Grid.Column="1" Text="No recent documents yet — start writing in MarkSmith"
+                               FontSize="11.5" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontStyle="Italic"
+                               VerticalAlignment="Center" Visibility="Collapsed" />
+                    <Button x:Name="RefreshRecentDocsButton" Grid.Column="2" Click="OnRefreshRecentDocsClick"
+                            Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                            ToolTipService.ToolTip="Refresh recent documents" AutomationProperties.Name="Refresh recent documents">
+                        <FontIcon Glyph="&#xE72C;" FontSize="11" />
+                    </Button>
+                </Grid>
+            </Border>
+
             <!-- 2-Column Grid of Suite Components (reflows to 1 column when narrow) -->
             <Grid x:Name="CardsGrid" ColumnSpacing="12" RowSpacing="12">
                 <Grid.ColumnDefinitions>
