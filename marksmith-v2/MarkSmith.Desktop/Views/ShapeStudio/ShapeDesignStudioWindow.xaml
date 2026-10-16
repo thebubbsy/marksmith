@@ -441,7 +441,9 @@
                                 <FontIcon Glyph="&#xE7AD;" FontSize="14" />
                             </Button>
                             <AppBarSeparator Margin="0" Padding="0" />
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DuplicateSelectedCommand}" AutomationProperties.Name="Duplicate" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Duplicate the selection (Ctrl+D, Right-click for options)">
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DuplicateSelectedCommand}"
+                                    Click="OnDuplicateButtonClick"
+                                    AutomationProperties.Name="Duplicate" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Duplicate the selection (Ctrl+D, Right-click for options)">
                                 <FontIcon Glyph="&#xE8C8;" FontSize="14" />
                             </Button>
                             <Button Style="{StaticResource ToolIconButton}" Command="{Binding RemoveSelectedCommand}" AutomationProperties.Name="Delete" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Delete the selection (Del, Right-click for options)">

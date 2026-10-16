@@ -271,12 +271,29 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="TIMELINE" FontSize="11" FontWeight="Bold" CharacterSpacing="60"
-                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="{Binding SelectedHeader}" FontSize="11" HorizontalAlignment="Right"
-                                       TextTrimming="CharacterEllipsis"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Border x:Name="TimelineJumpPill" Grid.Column="2" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    CornerRadius="5" Padding="2" VerticalAlignment="Center" Margin="4,0,0,0"
+                                    ToolTipService.ToolTip="Timeline quick jump (▲ Latest · ▼ First)">
+                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                    <Button x:Name="JumpLatestButton" Style="{StaticResource SubtleButtonStyle}" Width="22" Height="22" Padding="0"
+                                            Click="OnTimelineJumpLatestClick" ToolTipService.ToolTip="Jump to latest version (Home)"
+                                            AutomationProperties.Name="Jump to latest version">
+                                        <FontIcon Glyph="&#xE70E;" FontSize="9" />
+                                    </Button>
+                                    <Button x:Name="JumpOldestButton" Style="{StaticResource SubtleButtonStyle}" Width="22" Height="22" Padding="0"
+                                            Click="OnTimelineJumpOldestClick" ToolTipService.ToolTip="Jump to first / oldest version (End)"
+                                            AutomationProperties.Name="Jump to oldest version">
+                                        <FontIcon Glyph="&#xE70D;" FontSize="9" />
+                                    </Button>
+                                </StackPanel>
+                            </Border>
                         </Grid>
                     </Border>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" x:Name="TimelineScroll"

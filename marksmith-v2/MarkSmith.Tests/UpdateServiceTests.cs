@@ -158,9 +158,26 @@ public sealed class UpdateServiceTests
         var payload = new byte[512 * 1024];
         new Random(42).NextBytes(payload);
 
-        var listener = new System.Net.HttpListener();
-        listener.Prefixes.Add("http://localhost:51997/");
-        listener.Start();
+        int port = 51997;
+        System.Net.HttpListener? listener = null;
+        for (int p = 51990; p < 52100; p++)
+        {
+            var candidate = new System.Net.HttpListener();
+            candidate.Prefixes.Add($"http://localhost:{p}/");
+            try
+            {
+                candidate.Start();
+                listener = candidate;
+                port = p;
+                break;
+            }
+            catch (System.Net.HttpListenerException)
+            {
+                candidate.Close();
+            }
+        }
+        if (listener is null) throw new InvalidOperationException("Could not find an available port for test HttpListener");
+
         _ = Task.Run(async () =>
         {
             var ctx = await listener.GetContextAsync();
@@ -173,7 +190,7 @@ public sealed class UpdateServiceTests
         {
             var reports = new List<double>();
             var progress = new Progress<double>(p => { lock (reports) reports.Add(p); });
-            var result = await new UpdateService().DownloadAndInstallAsync("http://localhost:51997/update.exe", progress);
+            var result = await new UpdateService().DownloadAndInstallAsync($"http://localhost:{port}/update.exe", progress);
             Assert.False(result); // download succeeded; 'install' of a non-exe must fail cleanly
 
             var spool = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "MarksmithUpdates", "Marksmith-Setup-Latest.exe");

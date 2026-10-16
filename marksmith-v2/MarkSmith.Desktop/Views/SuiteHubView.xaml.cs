@@ -69,7 +69,7 @@ public sealed partial class SuiteHubView : UserControl
         SizeChanged += (_, e) => ApplyResponsiveLayout(e.NewSize.Width);
         AddHandler(KeyDownEvent, new KeyEventHandler(OnHubKeyDown), true);
         HoverPolish.Track(this);
-        Loaded += (_, _) => LoadRecentFiles();
+        Loaded += (_, _) => { LoadRecentFiles(); UpdateMemoryUsage(); };
     }
 
     private void WireCardPolish(Border card, int cardIndex)
@@ -1264,6 +1264,34 @@ mindmap
                 card.Opacity = 0.25;
             }
         }
+    }
+
+    private void UpdateMemoryUsage()
+    {
+        if (MemoryUsageText == null) return;
+        long bytes = GC.GetTotalMemory(false);
+        double mb = bytes / (1024.0 * 1024.0);
+        MemoryUsageText.Text = $"Memory: {mb:F1} MB";
+    }
+
+    private void OnMemoryUsagePillTapped(object sender, TappedRoutedEventArgs e)
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        UpdateMemoryUsage();
+        SetNotification("Optimized process memory & trimmed managed heaps.");
+    }
+
+    private void OnMemoryUsagePillRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        long bytes = GC.GetTotalMemory(false);
+        double mb = bytes / (1024.0 * 1024.0);
+        using var proc = System.Diagnostics.Process.GetCurrentProcess();
+        double workingSetMb = proc.WorkingSet64 / (1024.0 * 1024.0);
+        string report = $"MarkSmith Process Diagnostics:{Environment.NewLine}- Managed Memory: {mb:F2} MB{Environment.NewLine}- Working Set: {workingSetMb:F2} MB{Environment.NewLine}- GC Gen 0/1/2 Collections: {GC.CollectionCount(0)}/{GC.CollectionCount(1)}/{GC.CollectionCount(2)}";
+        CopyToClipboard(report, "Copied process memory metrics to clipboard.");
     }
 
     #endregion

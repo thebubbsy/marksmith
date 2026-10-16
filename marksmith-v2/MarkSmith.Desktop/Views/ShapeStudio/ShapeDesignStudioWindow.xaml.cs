@@ -692,7 +692,7 @@ namespace MarkSmith.Views.ShapeStudio
                     e.Handled = true;
                     return;
                 case VirtualKey.D when ctrl && ViewModel.HasSelection:
-                    ViewModel.DuplicateSelectedCommand.Execute(null);
+                    ExecuteDuplicateWithHudFeedback();
                     e.Handled = true;
                     return;
                 case (VirtualKey)221 when ctrl && shift && ViewModel.HasSelection: // Ctrl+Shift+]
@@ -1234,7 +1234,7 @@ namespace MarkSmith.Views.ShapeStudio
             }
             else if (ctrl && e.Key == VirtualKey.D)
             {
-                ViewModel.DuplicateSelectedCommand.Execute(null);
+                ExecuteDuplicateWithHudFeedback();
                 e.Handled = true;
             }
             else if (e.Key == VirtualKey.F2 && !selected.IsLine)
@@ -1533,6 +1533,38 @@ namespace MarkSmith.Views.ShapeStudio
             if (_cursorHudBadge != null) _cursorHudBadge.Visibility = Visibility.Collapsed;
             if (_crosshairLineX != null) _crosshairLineX.Visibility = Visibility.Collapsed;
             if (_crosshairLineY != null) _crosshairLineY.Visibility = Visibility.Collapsed;
+        }
+
+        private DispatcherTimer? _duplicateHudTimer;
+
+        private void OnDuplicateButtonClick(object sender, RoutedEventArgs e)
+        {
+            ShowDuplicateHudFeedback();
+        }
+
+        private void ExecuteDuplicateWithHudFeedback()
+        {
+            if (!ViewModel.HasSelection) return;
+            ViewModel.DuplicateSelectedCommand.Execute(null);
+            ShowDuplicateHudFeedback();
+        }
+
+        private void ShowDuplicateHudFeedback()
+        {
+            var clone = ViewModel.SelectedShape;
+            if (clone != null)
+            {
+                Point hudPos = new Point(clone.X + clone.Width / 2, clone.Y);
+                UpdateCursorHud(hudPos, $"Duplicated (+20px) · {clone.DisplayName}");
+                _duplicateHudTimer?.Stop();
+                _duplicateHudTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1400) };
+                _duplicateHudTimer.Tick += (_, _) =>
+                {
+                    _duplicateHudTimer?.Stop();
+                    HideCursorHud();
+                };
+                _duplicateHudTimer.Start();
+            }
         }
 
         private void OnShapePointerMoved(object sender, PointerRoutedEventArgs e)

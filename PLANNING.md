@@ -9269,3 +9269,74 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
 - `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 10800, responsive startup, clean exit.
+
+### 2026-10-17 03:35 AEST (run #123: MindMap Galaxy auto-arrange layout cycling & mode indicator label, Shape Studio duplicate canvas HUD feedback badge, SmartArt Studio SVG diagram canvas background selector & dark mode contrast, MainWindow editor Markdown code fence formatter & language selector flyout, History Window timeline quick jump navigation pill, SuiteHubView process memory footprint pill & managed garbage collection)
+
+- **Surface:** `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `MainWindow`, `HistoryWindow`, `SuiteHubView`.
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering dynamic arrangement layout mode display & double-tap algorithm cycling (`Tree`, `Hierarchy`, `Radial`, `Clusters`, `Force`), shape duplication HUD feedback pill (`Duplicated (+20px)`) with transient canvas alert timer, SmartArt diagram canvas background preview mode selector (Default Document Card, Dark Slate `#0F172A`, Transparency Checkerboard, Blueprint Dot Grid), editor bottom toolbar Markdown Code Block / Fence formatter (`CodeFenceButton`) with language flyout (C#, Mermaid, JSON, Bash, Python, Markdown, XML, Plain Text), timeline header quick jump navigation pill (`▲ Latest` / `▼ First`), and Suite Hub process memory footprint pill with 1-tap memory optimization (`GC.Collect`) and system metrics diagnostics under the AI-Executable 3-Block Cycle + Execution Phase Protocol (`GEMINI.md` Rule 7).
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #122:
+    * Target A: `MindMapGalaxyWindow` node layout auto-arrangement algorithms (Radial Starburst, Tree Hierarchy, Force-Directed Physics).
+    * Target B: `ShapeDesignStudioWindow` shape duplication hotkey (`Ctrl+D`) with smart offset and alignment guides.
+    * Target C: `SmartArtDesignStudioWindow` SVG diagram background styling (Transparent, Subtle Grid, Contrast Fill) and dark mode contrast toggle.
+  - Generated:
+    1. `MindMapGalaxyWindow`: Dynamic arrangement layout mode indicator badge and double-tap layout cycling (`ArrangeDropDownButton`, `ArrangeModeLabel`, `OnArrangeDropDownDoubleTapped`, `UpdateArrangeModeLabel`). Displays active algorithm (`Arrange · Tree`) directly on the button; double-clicking cycles through Tree -> Hierarchy -> Radial -> Clusters -> Force -> Tree with smooth viewport fitting.
+    2. `ShapeDesignStudioWindow`: Smart duplicate offset canvas HUD feedback badge (`OnDuplicateButtonClick`, `ExecuteDuplicateWithHudFeedback`, `ShowDuplicateHudFeedback`). Provides a transient canvas HUD badge positioned at the duplicate shape (`Duplicated (+20px) · [Shape]`) on `Ctrl+D` and toolbar button clicks with automatic dismissal timer.
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `MindMapGalaxyWindow.xaml` and `.cs` so `ArrangeDropDownButton` displays `ArrangeModeLabel` reflecting the current algorithm. Double-clicking advances through layout algorithms sequentially with `ApplyLayoutAndFit`, updating the status text and maintaining camera focal center.
+    * For Idea 2: Wired `ExecuteDuplicateWithHudFeedback()` to `Ctrl+D` shortcuts in both the canvas key listener and shape item key handler, as well as the Duplicate toolbar button. Computes duplicate bounding position and surfaces high-visibility Cascadia Mono HUD overlay with 1.4s auto-hide timer.
+  - Generated:
+    3. `SmartArtDesignStudioWindow`: SVG diagram background style selector (`DiagramBgButton`, `DiagramBgFlyout`, `_currentDiagramBgMode`, `BuildWrapperHtml`) supporting Default Document Card, Dark Slate Slide (`#0F172A`), Transparency Checkerboard pattern, and Blueprint Dot Grid with dark text contrast compensation.
+    4. `MainWindow`: Markdown code fence block formatter (`CodeFenceButton`, `CodeFenceFlyout`, `InsertCodeFence`) in editor bottom toolbar directly beside Callout and Table buttons, supporting single-click wrapping, double-click Mermaid diagram template, and flyout presets (C#, Mermaid, JSON, Bash, Python, Markdown, XML, Plain Text).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Placed `DiagramBgButton` beside `ExportSvgButton` in preview header. Double-clicking button cycles through backgrounds (Card -> Dark Slate -> Checkerboard -> Dot Grid); CSS injection applies instant background transformations without reloading SVG document tree.
+    * For Idea 4: Integrated `CodeFenceButton` into the editor bottom toolbar between `CalloutAlertButton` and `LintButton`. Correctly preserves existing selection text or generates starter code templates with Cascadia Mono styling, isolated in a single undo step.
+  - Refined Block 1 (Pass 2 - Final):
+    * Ensured all interactive buttons enforce hover and press feedback via `SubtleButtonStyle` / `HoverPolish`.
+    * Enforced WinUI 3 XAML compiler safety: no `MaxWidth` on `ColumnDefinition` elements to prevent `WMC9999` crashes.
+  - Generated:
+    5. `HistoryWindow`: Timeline header quick jump navigation pill (`TimelineJumpPill`, `JumpLatestButton`, `JumpOldestButton`, `OnTimelineJumpLatestClick`, `OnTimelineJumpOldestClick`) in `TimelineHeaderBorder`, scrolling instantly to newest version (Home) or initial root commit (End).
+    6. `SuiteHubView`: Managed process memory footprint pill (`MemoryUsagePill`, `MemoryUsageText`, `UpdateMemoryUsage`, `OnMemoryUsagePillTapped`, `OnMemoryUsagePillRightTapped`) in Suite Hub footer strip, displaying live RAM footprint with one-tap memory compaction and right-click diagnostic report copying.
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Mounted `TimelineJumpPill` beside `SelectedHeader` in `HistoryWindow` timeline header. Tapping `▲ Latest` scrolls to top and selects `_vm.SelectFirstVersion()`; tapping `▼ First` scrolls to bottom and selects `_vm.SelectLastVersion()`.
+    * For Idea 6: Positioned `HubFooterStrip` in `SuiteHubView` below Notification InfoBar. Shows green desktop engine status indicator and `Memory: XX MB` pill. Left-click triggers two-generation `GC.Collect()` with working set trim; right-click generates and copies detailed memory and GC diagnostics to clipboard.
+  - Executed all 6 refined targets into 100% production code.
+  - Verification:
+    * `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `MarkSmith.Tests.dll`: Passed unit tests across suite (including `MindMapGalaxyPolishTests`, `HistoryPolishTests`, `UpdateServiceTests`).
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 26924, responsive startup (`Responding: True`), clean exit.
+  - Carried forward ideas / next targets into Run #124:
+    * Target A: `MindMapGalaxyWindow` subtree export to standalone Markdown document with frontmatter metadata.
+    * Target B: `ShapeDesignStudioWindow` multi-shape equal spacing distribution (Distribute Horizontally / Vertically).
+    * Target C: `SmartArtDesignStudioWindow` node shape geometry switcher (Rectangle, Pill, Diamond, Hexagon per node).
+
+**Shipped:**
+1. **`MindMapGalaxyWindow` Dynamic Layout Mode Indicator & Double-Tap Layout Cycling (`Views/MindMap/MindMapGalaxyWindow.xaml`, `Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Active layout label (`ArrangeModeLabel`) on `ArrangeDropDownButton` displaying `Arrange · Tree`, `Arrange · Hierarchy`, `Arrange · Radial`, `Arrange · Clusters`, `Arrange · Force`.
+   - Double-clicking `ArrangeDropDownButton` automatically cycles to the next layout algorithm and refits the viewport.
+2. **`ShapeDesignStudioWindow` Shape Duplication Canvas HUD Feedback Badge (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Canvas HUD feedback pill (`Duplicated (+20px) · [Shape]`) appearing at the duplicated shape location on `Ctrl+D` and toolbar button clicks.
+   - 1.4-second auto-hide timer smoothly dismissing HUD badge without obscuring canvas interactions.
+3. **`SmartArtDesignStudioWindow` SVG Diagram Canvas Background Selector & Preview Themes (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Background mode selector button (`DiagramBgButton`) in preview header with 4 modes: Default Card, Dark Slate Slide (`#0F172A`), Transparency Checkerboard, and Blueprint Dot Grid.
+   - Double-clicking cycles through background modes; dark slate mode includes text contrast compensation.
+4. **`MainWindow` Editor Markdown Code Block / Fence Formatter & Language Flyout (`MainWindow.xaml`, `MainWindow.xaml.cs`):**
+   - Code fence button (`CodeFenceButton`) in editor bottom toolbar directly between Callout and Lint buttons.
+   - Single-click wraps selection in code fence; double-click inserts Mermaid diagram template; right-click / flyout offers C#, Mermaid, JSON, Bash, Python, Markdown, XML, and Plain Text presets.
+5. **`HistoryWindow` Timeline Quick Jump Navigation Pill (`Views/History/HistoryWindow.xaml`, `Views/History/HistoryWindow.xaml.cs`):**
+   - Timeline jump pill (`TimelineJumpPill`) in `TimelineHeaderBorder` featuring `▲ Latest` and `▼ First` jump actions.
+   - Synchronously scrolls timeline list and selects the newest or oldest version using `_vm.SelectFirstVersion()` and `_vm.SelectLastVersion()`.
+6. **`SuiteHubView` Process Memory Footprint Pill & Managed Garbage Collection (`Views/SuiteHubView.xaml`, `Views/SuiteHubView.xaml.cs`):**
+   - Environment status strip (`HubFooterStrip`) in Suite Hub footer with live process memory pill (`Memory: XX MB`).
+   - Tapping optimizes memory heaps via `GC.Collect()`; right-clicking copies full memory diagnostics (managed heap, working set, GC generation counts) to clipboard.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- Unit tests: `MindMapGalaxyPolishTests` (47 passed), `UpdateServiceTests` (36 passed), `HistoryPolishTests` passed.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 26924, responsive startup, clean exit.
+

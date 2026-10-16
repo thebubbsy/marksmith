@@ -927,6 +927,47 @@
                                             </MenuFlyout>
                                         </Button.Flyout>
                                     </Button>
+                                    <!-- Markdown code block / fence formatter -->
+                                    <Button x:Name="CodeFenceButton" Height="24" Padding="6,0"
+                                            Click="OnCodeFenceButtonClick"
+                                            DoubleTapped="OnCodeFenceButtonDoubleTapped"
+                                            RightTapped="OnCodeFenceButtonRightTapped"
+                                            AutomationProperties.Name="Insert or convert to code fence"
+                                            ToolTipService.ToolTip="Insert or convert selection to code fence (``` · Double-click for Mermaid, Right-click for language presets)">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon Glyph="&#xE943;" FontSize="11" />
+                                            <TextBlock Text="Code Fence" FontSize="11" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <Button.Flyout>
+                                            <MenuFlyout x:Name="CodeFenceFlyout">
+                                                <MenuFlyoutItem Text="```csharp (C#)" Click="OnInsertCodeFenceCsharpClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="```mermaid (Diagram)" Click="OnInsertCodeFenceMermaidClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xECA5;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="```json (JSON)" Click="OnInsertCodeFenceJsonClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="```bash (PowerShell / Bash)" Click="OnInsertCodeFenceBashClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE756;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="```python (Python)" Click="OnInsertCodeFencePythonClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="```markdown (Markdown)" Click="OnInsertCodeFenceMarkdownClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="```xml (XML / HTML)" Click="OnInsertCodeFenceXmlClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutSeparator />
+                                                <MenuFlyoutItem Text="``` (Plain Text Code Block)" Click="OnInsertCodeFencePlainClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
                                     <!-- Markdown lint: live issue count; the flyout lists issues and jumps to them. -->
                                     <Button x:Name="LintButton" Height="24" Padding="6,0"
                                             AutomationProperties.Name="Markdown issues"

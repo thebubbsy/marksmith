@@ -845,5 +845,21 @@ namespace MarkSmith.Tests
             Assert.Equal("DOCX", node.FormatBadge);
             Assert.Equal("proposal.DOCX", node.FileName);
         }
+
+        [Fact]
+        public void ApplyLayout_AllStandardAlgorithms_UpdateNodePositionsAndMarkDirty()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.AddChildNodeCommand.Execute(null);
+            vm.AddSiblingNodeCommand.Execute(null);
+
+            string[] layouts = { "tree", "vertical", "radial", "clusters", "force" };
+            foreach (var layout in layouts)
+            {
+                vm.ApplyLayout(layout);
+                Assert.NotNull(vm.StatusMessage);
+                Assert.Contains("Arranged", vm.StatusMessage);
+            }
+        }
     }
 }

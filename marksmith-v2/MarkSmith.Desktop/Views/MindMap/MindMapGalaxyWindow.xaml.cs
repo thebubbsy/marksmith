@@ -3858,6 +3858,39 @@ namespace MarkSmith.Views.MindMap
             RequestRedraw(RedrawScope.Transform);
         }
 
+        private string _currentLayoutMode = "tree";
+
+        private void OnArrangeDropDownDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            string nextLayout = _currentLayoutMode switch
+            {
+                "tree" => "vertical",
+                "vertical" => "radial",
+                "radial" => "clusters",
+                "clusters" => "force",
+                _ => "tree"
+            };
+            ApplyLayoutAndFit(nextLayout);
+        }
+
+        private void UpdateArrangeModeLabel(string layout)
+        {
+            _currentLayoutMode = (layout ?? "tree").ToLowerInvariant();
+            if (ArrangeModeLabel != null)
+            {
+                string display = _currentLayoutMode switch
+                {
+                    "vertical" or "hierarchy" => "Hierarchy",
+                    "radial" or "galaxy" => "Radial",
+                    "clusters" or "constellation" => "Clusters",
+                    "force" or "physics" => "Force",
+                    _ => "Tree"
+                };
+                ArrangeModeLabel.Text = $"Arrange · {display}";
+            }
+        }
+
         private void OnLayoutTreeClick(object sender, RoutedEventArgs e) => ApplyLayoutAndFit("tree");
         private void OnLayoutRadialClick(object sender, RoutedEventArgs e) => ApplyLayoutAndFit("radial");
         private void OnLayoutForceClick(object sender, RoutedEventArgs e) => ApplyLayoutAndFit("force");
@@ -3866,6 +3899,7 @@ namespace MarkSmith.Views.MindMap
 
         private void ApplyLayoutAndFit(string layout)
         {
+            UpdateArrangeModeLabel(layout);
             ViewModel.ApplyLayout(layout);
             FitToWindow();
         }

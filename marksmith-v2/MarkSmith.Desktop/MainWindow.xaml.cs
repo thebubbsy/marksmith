@@ -9832,6 +9832,71 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (CalloutAlertButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(CalloutAlertButton, null);
     }
 
+    private void OnCodeFenceButtonClick(object sender, RoutedEventArgs e)
+    {
+        CodeFenceFlyout?.ShowAt(sender as FrameworkElement ?? CodeFenceButton);
+    }
+
+    private void OnCodeFenceButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        InsertCodeFence("mermaid");
+    }
+
+    private void OnCodeFenceButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        CodeFenceFlyout?.ShowAt(sender as FrameworkElement ?? CodeFenceButton);
+    }
+
+    private void OnInsertCodeFenceCsharpClick(object sender, RoutedEventArgs e) => InsertCodeFence("csharp");
+    private void OnInsertCodeFenceMermaidClick(object sender, RoutedEventArgs e) => InsertCodeFence("mermaid");
+    private void OnInsertCodeFenceJsonClick(object sender, RoutedEventArgs e) => InsertCodeFence("json");
+    private void OnInsertCodeFenceBashClick(object sender, RoutedEventArgs e) => InsertCodeFence("bash");
+    private void OnInsertCodeFencePythonClick(object sender, RoutedEventArgs e) => InsertCodeFence("python");
+    private void OnInsertCodeFenceMarkdownClick(object sender, RoutedEventArgs e) => InsertCodeFence("markdown");
+    private void OnInsertCodeFenceXmlClick(object sender, RoutedEventArgs e) => InsertCodeFence("xml");
+    private void OnInsertCodeFencePlainClick(object sender, RoutedEventArgs e) => InsertCodeFence("");
+
+    private void InsertCodeFence(string language)
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string text = tb.Text ?? "";
+        int selStart = tb.SelectionStart;
+        int selLength = tb.SelectionLength;
+
+        string langTag = string.IsNullOrWhiteSpace(language) ? "" : language.Trim();
+        if (selLength > 0 && selStart + selLength <= text.Length)
+        {
+            string selected = text.Substring(selStart, selLength);
+            string snippet = $"```{langTag}{Environment.NewLine}{selected}{Environment.NewLine}```{Environment.NewLine}";
+            string newText = text.Substring(0, selStart) + snippet + text.Substring(selStart + selLength);
+            tb.Text = newText;
+            tb.SelectionStart = selStart + snippet.Length;
+            tb.SelectionLength = 0;
+        }
+        else
+        {
+            string sample = langTag switch
+            {
+                "mermaid" => $"graph TD;{Environment.NewLine}    A[Start] --> B[Process];{Environment.NewLine}    B --> C[Finish];",
+                "json" => $"{{\n  \"key\": \"value\"\n}}",
+                "csharp" => "// C# code\npublic class Example\n{\n}",
+                "python" => "# Python code\ndef main():\n    pass",
+                "bash" => "#!/usr/bin/env bash\necho \"Running script...\"",
+                "xml" => "<element attribute=\"value\"></element>",
+                _ => "// Code snippet here"
+            };
+            string snippet = $"```{langTag}{Environment.NewLine}{sample}{Environment.NewLine}```{Environment.NewLine}";
+            string newText = text.Insert(selStart, snippet);
+            tb.Text = newText;
+            tb.SelectionStart = selStart + snippet.Length;
+            tb.SelectionLength = 0;
+        }
+        if (CodeFenceButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(CodeFenceButton, null);
+    }
+
     private void OnFormatTableButtonClick(object sender, RoutedEventArgs e) => FormatTableAtCursor();
 
     private void OnFormatTableButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

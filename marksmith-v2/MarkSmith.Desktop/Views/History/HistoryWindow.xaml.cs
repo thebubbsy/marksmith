@@ -2278,6 +2278,18 @@ public sealed partial class HistoryWindow : Window
         _vm.SelectFirstVersion();
     }
 
+    private void OnTimelineJumpLatestClick(object sender, RoutedEventArgs e)
+    {
+        TimelineScroll?.ChangeView(null, 0, null);
+        _vm.SelectFirstVersion();
+    }
+
+    private void OnTimelineJumpOldestClick(object sender, RoutedEventArgs e)
+    {
+        TimelineScroll?.ChangeView(null, TimelineScroll.ScrollableHeight, null);
+        _vm.SelectLastVersion();
+    }
+
     private void OnTimelineHeaderRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;

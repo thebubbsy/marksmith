@@ -186,11 +186,12 @@
 
                         <DropDownButton x:Name="ArrangeDropDownButton" Padding="10,5" MinHeight="32"
                                         RightTapped="OnArrangeDropDownRightTapped"
-                                        ToolTipService.ToolTip="Rearrange every node automatically (Right-click for layout options)"
+                                        DoubleTapped="OnArrangeDropDownDoubleTapped"
+                                        ToolTipService.ToolTip="Rearrange every node automatically (Double-click to cycle layouts, Right-click for options)"
                                         AutomationProperties.Name="Arrange">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xECA5;" FontSize="12" />
-                                <TextBlock Text="Arrange" FontSize="12" />
+                                <TextBlock x:Name="ArrangeModeLabel" Text="Arrange · Tree" FontSize="12" />
                             </StackPanel>
                             <DropDownButton.Flyout>
                                 <MenuFlyout Placement="BottomEdgeAlignedLeft">

@@ -493,6 +493,30 @@
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
+                            <Button x:Name="DiagramBgButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                                    Click="OnDiagramBgButtonClick"
+                                    DoubleTapped="OnDiagramBgButtonDoubleTapped"
+                                    RightTapped="OnDiagramBgButtonRightTapped"
+                                    AutomationProperties.Name="Diagram canvas background"
+                                    ToolTipService.ToolTip="Diagram canvas background (Default Card, Dark Slate, Checkerboard, Dot Grid · Double-click to cycle)">
+                                <FontIcon Glyph="&#xE790;" FontSize="12" />
+                                <Button.Flyout>
+                                    <MenuFlyout x:Name="DiagramBgFlyout">
+                                        <MenuFlyoutItem x:Name="BgDefaultPaperItem" Text="Default Document Card (White)" Click="OnBgDefaultPaperClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="BgDarkSlateItem" Text="Dark Slate Slide (#0F172A)" Click="OnBgDarkSlateClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE708;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="BgCheckerboardItem" Text="Transparency Checkerboard" Click="OnBgCheckerboardClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF0E2;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="BgDotGridItem" Text="Blueprint Dot Grid" Click="OnBgDotGridClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
                         </StackPanel>
                     </Grid>
                     <!-- Quick Layout Visual Thumbnail Strip -->

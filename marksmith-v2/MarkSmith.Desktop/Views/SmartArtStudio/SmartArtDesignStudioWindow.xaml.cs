@@ -602,6 +602,16 @@ namespace MarkSmith.Views.SmartArtStudio
             catch { /* preview unavailable — insert path still works */ }
         }
 
+        private enum DiagramPreviewBgMode
+        {
+            DefaultCard,
+            DarkSlate,
+            Checkerboard,
+            DotGrid
+        }
+
+        private DiagramPreviewBgMode _currentDiagramBgMode = DiagramPreviewBgMode.DefaultCard;
+
         private void RefreshWebView()
         {
             if (_isWebViewReady && PreviewWebView.CoreWebView2 != null)
@@ -612,7 +622,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 {
                     body = ApplyCustomHexToSvgHtml(body, _customHexOverride);
                 }
-                string html = BuildWrapperHtml(body, isDark);
+                string html = BuildWrapperHtml(body, isDark, _currentDiagramBgMode);
                 PreviewWebView.CoreWebView2.NavigateToString(html);
             }
         }
@@ -641,17 +651,46 @@ namespace MarkSmith.Views.SmartArtStudio
         // a "Layout: …" caption. In the studio the card fills the pane and the drawing scales to fit
         // it either way (the SVG's default xMidYMid meet), and the caption is dropped because the
         // pane header names the layout already.
-        private static string BuildWrapperHtml(string body, bool isDarkTheme = false)
+        private static string BuildWrapperHtml(string body, bool isDarkTheme = false, DiagramPreviewBgMode bgMode = DiagramPreviewBgMode.DefaultCard)
         {
-            string cardBg = isDarkTheme ? "#F8FAFC" : "#FFFFFF";
-            string cardBorder = isDarkTheme ? "rgba(148,163,184,0.38)" : "rgba(15,23,42,0.10)";
-            string cardShadow = isDarkTheme ? "0 4px 16px rgba(0,0,0,0.28)" : "0 2px 8px rgba(15,23,42,0.05)";
+            string cardBg;
+            string cardBorder;
+            string cardShadow;
+            string customPatternCss = "";
+
+            switch (bgMode)
+            {
+                case DiagramPreviewBgMode.DarkSlate:
+                    cardBg = "#0F172A";
+                    cardBorder = "rgba(51,65,85,0.8)";
+                    cardShadow = "0 6px 20px rgba(0,0,0,0.5)";
+                    customPatternCss = " .smartart-container text { fill: #F8FAFC !important; }";
+                    break;
+                case DiagramPreviewBgMode.Checkerboard:
+                    cardBg = "#FFFFFF";
+                    cardBorder = "rgba(15,23,42,0.15)";
+                    cardShadow = "0 2px 8px rgba(15,23,42,0.08)";
+                    customPatternCss = " background-image: linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%) !important; background-size: 16px 16px !important; background-position: 0 0, 0 8px, 8px -8px, -8px 0px !important;";
+                    break;
+                case DiagramPreviewBgMode.DotGrid:
+                    cardBg = "#F8FAFC";
+                    cardBorder = "rgba(15,23,42,0.15)";
+                    cardShadow = "0 2px 8px rgba(15,23,42,0.08)";
+                    customPatternCss = " background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px) !important; background-size: 16px 16px !important;";
+                    break;
+                default:
+                    cardBg = isDarkTheme ? "#F8FAFC" : "#FFFFFF";
+                    cardBorder = isDarkTheme ? "rgba(148,163,184,0.38)" : "rgba(15,23,42,0.10)";
+                    cardShadow = isDarkTheme ? "0 4px 16px rgba(0,0,0,0.28)" : "0 2px 8px rgba(15,23,42,0.05)";
+                    break;
+            }
+
             return $@"<!DOCTYPE html>
 <html><head><meta charset=""utf-8""/>
 <style>
   html,body{{height:100%;margin:0}}
   body{{padding:16px;box-sizing:border-box;background:transparent;display:flex}}
-  .smartart-container{{width:100%!important;max-width:none!important;height:100%!important;display:flex;flex-direction:column;padding:12px;box-sizing:border-box;background:{cardBg}!important;border:1px solid {cardBorder}!important;border-radius:8px!important;box-shadow:{cardShadow}!important}}
+  .smartart-container{{width:100%!important;max-width:none!important;height:100%!important;display:flex;flex-direction:column;padding:12px;box-sizing:border-box;background:{cardBg}!important;border:1px solid {cardBorder}!important;border-radius:8px!important;box-shadow:{cardShadow}!important;{customPatternCss}}}
   .smartart-container > .smartart-caption{{display:none}}
   .smartart-container > svg{{flex:1;min-height:0;width:100%!important;height:100%!important}}
   .smartart-container svg g {{ transition: filter 0.12s ease, opacity 0.15s ease; }}
@@ -2696,6 +2735,43 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             e.Handled = true;
             ExportSvgFlyout?.ShowAt(sender as FrameworkElement ?? ExportSvgButton);
+        }
+
+        private void OnDiagramBgButtonClick(object sender, RoutedEventArgs e)
+        {
+            DiagramBgFlyout?.ShowAt(sender as FrameworkElement ?? DiagramBgButton);
+        }
+
+        private void OnDiagramBgButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            _currentDiagramBgMode = _currentDiagramBgMode switch
+            {
+                DiagramPreviewBgMode.DefaultCard => DiagramPreviewBgMode.DarkSlate,
+                DiagramPreviewBgMode.DarkSlate => DiagramPreviewBgMode.Checkerboard,
+                DiagramPreviewBgMode.Checkerboard => DiagramPreviewBgMode.DotGrid,
+                _ => DiagramPreviewBgMode.DefaultCard
+            };
+            RefreshWebView();
+            if (DiagramBgButton is not null) Services.CopyFeedback.ApplyButtonTick(DiagramBgButton, null);
+        }
+
+        private void OnDiagramBgButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            DiagramBgFlyout?.ShowAt(sender as FrameworkElement ?? DiagramBgButton);
+        }
+
+        private void OnBgDefaultPaperClick(object sender, RoutedEventArgs e) => SetDiagramBgMode(DiagramPreviewBgMode.DefaultCard);
+        private void OnBgDarkSlateClick(object sender, RoutedEventArgs e) => SetDiagramBgMode(DiagramPreviewBgMode.DarkSlate);
+        private void OnBgCheckerboardClick(object sender, RoutedEventArgs e) => SetDiagramBgMode(DiagramPreviewBgMode.Checkerboard);
+        private void OnBgDotGridClick(object sender, RoutedEventArgs e) => SetDiagramBgMode(DiagramPreviewBgMode.DotGrid);
+
+        private void SetDiagramBgMode(DiagramPreviewBgMode mode)
+        {
+            _currentDiagramBgMode = mode;
+            RefreshWebView();
+            if (DiagramBgButton is not null) Services.CopyFeedback.ApplyButtonTick(DiagramBgButton, null);
         }
 
         private void OnCopySvg1xClick(object sender, RoutedEventArgs e) => CopySvgToClipboard(1.0, "1x SVG");
