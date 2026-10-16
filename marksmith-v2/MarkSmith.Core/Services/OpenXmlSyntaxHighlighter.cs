@@ -23,8 +23,10 @@ public class OpenXmlSyntaxHighlighter
             yield break;
 
         var profile = ResolveProfile(languageId);
-        bool isDark = !ThemeDefinition.IsLight(theme.Code);
         string bgHex = theme.Code.TrimStart('#');
+        if (!ThemeDefinition.IsLight(theme.Background) && ThemeDefinition.IsLight("#" + bgHex))
+            bgHex = "1E222A";
+        bool isDark = !ThemeDefinition.IsLight("#" + bgHex);
 
         if (profile == null)
         {

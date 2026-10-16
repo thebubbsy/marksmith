@@ -8350,3 +8350,58 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 26780, `Alive: True`, `Responding: True`, clean exit.
 
 
+
+
+### 2026-10-16 15:30 AEST (run #110: Shape Studio double-tap label edit & selection context tools, SmartArt Studio preview palette button & tabs double-tap parity, MindMap Galaxy node inspector progress slider & tags presets)
+
+- **Surface:** `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `MindMapGalaxyWindow` (and `ContrastGuard` in `MarkSmith.Core`).
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, pointer gesture quarantine, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #109:
+    * Target A: `ShapeDesignStudioWindow` shape canvas selection tools and right-click context menu layer order / alignment submenus.
+    * Target B: `SmartArtDesignStudioWindow` color palette live selector affordance and outline/markdown tab switcher double-tap parity.
+  - Generated:
+    1. `ShapeDesignStudioWindow` Shape Item Double-Tap Label Focus & Label Box Quick Actions (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+    2. `ShapeDesignStudioWindow` Preset Categories Combo Double-Tap Cycle & Keyboard/Right-Click Navigation (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): In `ShapeDesignStudioWindow.xaml` & `.xaml.cs`, attached `DoubleTapped="OnShapeDoubleTapped"` on shape template (focuses label text box and selects text); attached `DoubleTapped`, `RightTapped`, and `KeyDown` on `LabelTextBox` (Esc returns focus to canvas, right-click offers Copy, Paste, Clear, UPPERCASE, lowercase, Title Case, Select all); attached `DoubleTapped="OnPresetCategoryComboDoubleTapped"`, `KeyDown="OnPresetCategoryComboKeyDown"` (Enter/Down focuses preset list, Esc resets to All Categories), and `RightTapped` on `PresetCategoryCombo` with category glyphs and Ctrl+Tab / Ctrl+Shift+Tab shortcuts; enhanced `ShowCanvasContextMenu` with layer ordering (Bring to front/back, forward/backward) and alignment submenus.
+  - Generated:
+    3. `SmartArtDesignStudioWindow` Preview Header Palette Button with Double-Tap Cycle & Menu Flyout (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+    4. `SmartArtDesignStudioWindow` Editor Tabs Double-Tap Switcher & Layout Tile Double-Tap Insertion (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): In `SmartArtDesignStudioWindow.xaml` & `.xaml.cs`, added `PaletteButton` (`SubtleButtonStyle`) to preview toolbar header with `Click`, `DoubleTapped` (cycles palettes with live webview re-render), and `RightTapped` / flyout listing all available theme palettes; attached `DoubleTapped="OnEditorTabsDoubleTapped"` to `EditorTabs` (switches between Outline and Markdown editors); attached `DoubleTapped="OnLayoutListDoubleTapped"` on `LayoutList` to double-click insert selected layout directly into document with status bar announcement.
+  - Refined Block 1 (Pass 2 - Final): In `ShapeDesignStudioWindow.xaml.cs`, implemented `IndexOfCategory` helper to cleanly cycle `IReadOnlyList<string>` categories without allocation and wire Selection inversion without property mismatches.
+  - Generated:
+    5. `MindMapGalaxyWindow` Node Inspector Progress Slider Double-Tap Toggle & Right-Click Drafting Stops (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`)
+    6. `MindMapGalaxyWindow` Title & Tags Inspector TextBoxes Double-Tap Select All & Suggestion Context Menus (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): In `MindMapGalaxyWindow.xaml` & `.xaml.cs`, attached `DoubleTapped` and `RightTapped` to `NodeProgressHeaderGrid` and `NodeProgressSlider` (double-tap cycles 0% -> 50% -> 100% -> 0%, right-tap provides drafting stops 0%, 25%, 50%, 75%, 100% with live appearance refresh); attached `DoubleTapped` (select all) and `RightTapped` on `TitleBox` (Copy title, Paste, Clear, Case converters) and `TagsBox` (dynamic "Add existing tag" submenu populated from `ViewModel.DistinctTags`, Copy tags, Clear tags).
+  - Fixed `ContrastGuard.cs`: Replaced invalid OpenXML `tblStylePr.RunProperties` call with `tblStylePr.RunPropertiesBaseStyle` (`W.RunPropertiesBaseStyle`).
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #111 (`ShapeDesignStudioWindow` connector bend points editing gestures, `SmartArtDesignStudioWindow` outline node move up/down double-tap jump to top/bottom, `MindMapGalaxyWindow` icon picker flyout & double-tap remove icon).
+
+**Shipped:**
+1. **`ShapeDesignStudioWindow` Shape Item Double-Tap Label Focus & Label Box Quick Actions (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`):**
+   - Attached `DoubleTapped` on shape elements to immediately select and focus `LabelTextBox` in the inspector with all text highlighted.
+   - `LabelTextBox`: Added `DoubleTapped` (selects all), `KeyDown` (Escape returns focus to `MainCanvas`), and rich `RightTapped` context menu with Copy, Paste, Clear label, UPPERCASE, lowercase, Title Case, and Select all.
+   - Canvas context menu: Enhanced with Invert selection, Deselect all (`Esc`), and Bring to front / Bring forward / Send backward / Send to back layer ordering actions.
+2. **`ShapeDesignStudioWindow` Preset Categories Combo Double-Tap Cycle & Keyboard/Right-Click Navigation (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`):**
+   - `PresetCategoryCombo`: Added `DoubleTapped` to cycle through preset categories sequentially; added `KeyDown` (Enter/Down moves focus into `PresetList`, Escape resets to "All Categories"); added `RightTapped` flyout listing all categories with custom glyphs, Next category (`Ctrl+Tab`), Previous category (`Ctrl+Shift+Tab`), and Copy category name.
+3. **`SmartArtDesignStudioWindow` Preview Header Palette Button with Double-Tap Cycle & Menu Flyout (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`):**
+   - Added `PaletteButton` to preview header with palette icon (`\uEA3B`), single click/right-click opening a menu flyout of all color palettes, and double-click cycling through palettes with live preview re-rendering.
+4. **`SmartArtDesignStudioWindow` Editor Tabs Double-Tap Switcher & Layout Tile Double-Tap Insertion (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` & `SmartArtDesignStudioWindow.xaml.cs`):**
+   - Attached `DoubleTapped` on `EditorTabs` (`SelectorBar`) to toggle instantly between Outline and Markdown views.
+   - Attached `DoubleTapped` on `LayoutList` to immediately insert the double-clicked layout into the document.
+5. **`MindMapGalaxyWindow` Node Inspector Progress Slider Double-Tap Toggle & Right-Click Drafting Stops (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`):**
+   - Attached `DoubleTapped` on `NodeProgressSlider` and `NodeProgressHeaderGrid` to cycle completion (0% -> 50% -> 100% -> 0%).
+   - Attached `RightTapped` context menu with drafting stops: Not started (0%), In progress (25%), Halfway (50%), Nearly done (75%), Completed (100%), Reset, and Copy progress value.
+6. **`MindMapGalaxyWindow` Title & Tags Inspector TextBoxes Double-Tap Select All & Suggestion Context Menus (`Views/MindMap/MindMapGalaxyWindow.xaml` & `MindMapGalaxyWindow.xaml.cs`):**
+   - `TitleBox`: Added `DoubleTapped` (select all) and `RightTapped` (Copy, Paste, Clear title, UPPERCASE, lowercase, Title Case).
+   - `TagsBox`: Added `DoubleTapped` (select all) and `RightTapped` (Copy tags, Paste, Clear tags, and dynamic "Add existing tag" submenu populated from all distinct tags in the mind map).
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 27012, clean startup and shutdown.

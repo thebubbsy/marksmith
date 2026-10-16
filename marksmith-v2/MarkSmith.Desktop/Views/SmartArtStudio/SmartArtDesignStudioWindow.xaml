@@ -114,7 +114,8 @@
                                   ToolTipService.ToolTip="Filter by layout category (Enter to browse, Esc to reset, Double-click to cycle, Right-click for options)" />
                     </StackPanel>
                     <ListView Grid.Row="1" x:Name="LayoutList" ItemsSource="{Binding Layouts}" SelectedItem="{Binding SelectedLayout, Mode=TwoWay}"
-                              Padding="4,0,4,8" AutomationProperties.Name="Layouts" RightTapped="OnLayoutListRightTapped" KeyDown="OnLayoutListKeyDown">
+                              Padding="4,0,4,8" AutomationProperties.Name="Layouts" RightTapped="OnLayoutListRightTapped" KeyDown="OnLayoutListKeyDown"
+                              DoubleTapped="OnLayoutListDoubleTapped">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Grid Padding="0,7" ColumnSpacing="10" AutomationProperties.Name="{Binding DisplayName}"
@@ -170,6 +171,7 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <SelectorBar x:Name="EditorTabs" Margin="6,4,6,0" SelectionChanged="OnEditorTabsChanged"
+                                 DoubleTapped="OnEditorTabsDoubleTapped"
                                  RightTapped="OnEditorTabsRightTapped">
                         <SelectorBarItem x:Name="OutlineTab" Text="Outline" IsSelected="True">
                             <SelectorBarItem.Icon><FontIcon Glyph="&#xE8FD;" /></SelectorBarItem.Icon>
@@ -350,6 +352,17 @@
                                    RightTapped="OnPreviewTitleLabelRightTapped"
                                    ToolTipService.ToolTip="Preview diagram title · Double-click to copy diagram Markdown, right-click for options" />
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                            <Button x:Name="PaletteButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                                    Click="OnPaletteButtonClick"
+                                    DoubleTapped="OnPaletteButtonDoubleTapped"
+                                    RightTapped="OnPaletteButtonRightTapped"
+                                    AutomationProperties.Name="Color palette"
+                                    ToolTipService.ToolTip="Color palette (Double-click to cycle palettes, Right-click for options)">
+                                <FontIcon Glyph="&#xEA3B;" FontSize="12" />
+                                <Button.Flyout>
+                                    <MenuFlyout x:Name="PaletteMenuFlyout" Opening="OnPaletteMenuFlyoutOpening" />
+                                </Button.Flyout>
+                            </Button>
                             <Button x:Name="CopyOutlineMarkdownButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                     Click="OnCopyOutlineMarkdownClick"
                                     DoubleTapped="OnCopyOutlineMarkdownButtonDoubleTapped"

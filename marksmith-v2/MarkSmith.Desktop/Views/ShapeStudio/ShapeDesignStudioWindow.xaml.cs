@@ -1030,6 +1030,138 @@ namespace MarkSmith.Views.ShapeStudio
             e.Handled = true;
         }
 
+        private void OnShapeDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement fe || fe.DataContext is not ShapeCanvasItemViewModel shape) return;
+            ViewModel.ClickSelect(shape);
+            if (LabelTextBox is not null)
+            {
+                LabelTextBox.Focus(FocusState.Programmatic);
+                LabelTextBox.SelectAll();
+                ViewModel.StatusMessage = $"Editing label for {shape.Name} · Press Enter or Esc when done";
+            }
+            e.Handled = true;
+        }
+
+        private void OnLabelTextBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (LabelTextBox is null) return;
+            e.Handled = true;
+            LabelTextBox.SelectAll();
+        }
+
+        private void OnLabelTextBoxKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == VirtualKey.Escape)
+            {
+                CanvasScroller?.Focus(FocusState.Programmatic);
+                e.Handled = true;
+            }
+        }
+
+        private void OnLabelTextBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (LabelTextBox is null) return;
+            e.Handled = true;
+            var flyout = new MenuFlyout();
+
+            string currentText = LabelTextBox.Text ?? string.Empty;
+            bool hasText = !string.IsNullOrEmpty(currentText);
+
+            flyout.Items.Add(ShapeMenuItem("Copy text", "\uE8C8", () =>
+            {
+                try
+                {
+                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    dp.SetText(currentText);
+                    Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+                    ViewModel.StatusMessage = "Copied label to clipboard";
+                }
+                catch { }
+            }, "Ctrl+C", enabled: hasText));
+
+            flyout.Items.Add(ShapeMenuItem("Paste text", "\uE77F", async () =>
+            {
+                try
+                {
+                    var dpView = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (dpView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var text = await dpView.GetTextAsync();
+                        if (ViewModel.SelectedShape is not null)
+                        {
+                            ViewModel.RecordUndo();
+                            ViewModel.SelectedShape.Text = text;
+                            LabelTextBox.Text = text;
+                            ViewModel.StatusMessage = "Pasted label from clipboard";
+                        }
+                    }
+                }
+                catch { }
+            }, "Ctrl+V"));
+
+            flyout.Items.Add(ShapeMenuItem("Clear label", "\uE894", () =>
+            {
+                if (ViewModel.SelectedShape is not null)
+                {
+                    ViewModel.RecordUndo();
+                    ViewModel.SelectedShape.Text = string.Empty;
+                    LabelTextBox.Text = string.Empty;
+                    ViewModel.StatusMessage = "Cleared shape label";
+                }
+            }, enabled: hasText));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var casingSub = new MenuFlyoutSubItem
+            {
+                Text = "Change case",
+                Icon = new FontIcon { Glyph = "\uE8D2" },
+                IsEnabled = hasText
+            };
+            casingSub.Items.Add(ShapeMenuItem("UPPERCASE", "\uE8D2", () =>
+            {
+                if (ViewModel.SelectedShape is not null)
+                {
+                    ViewModel.RecordUndo();
+                    var upper = currentText.ToUpperInvariant();
+                    ViewModel.SelectedShape.Text = upper;
+                    LabelTextBox.Text = upper;
+                }
+            }));
+            casingSub.Items.Add(ShapeMenuItem("lowercase", "\uE8D2", () =>
+            {
+                if (ViewModel.SelectedShape is not null)
+                {
+                    ViewModel.RecordUndo();
+                    var lower = currentText.ToLowerInvariant();
+                    ViewModel.SelectedShape.Text = lower;
+                    LabelTextBox.Text = lower;
+                }
+            }));
+            casingSub.Items.Add(ShapeMenuItem("Title Case", "\uE8D2", () =>
+            {
+                if (ViewModel.SelectedShape is not null)
+                {
+                    ViewModel.RecordUndo();
+                    var title = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(currentText.ToLower());
+                    ViewModel.SelectedShape.Text = title;
+                    LabelTextBox.Text = title;
+                }
+            }));
+            flyout.Items.Add(casingSub);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Select all text", "\uE8B3", () =>
+            {
+                LabelTextBox.Focus(FocusState.Programmatic);
+                LabelTextBox.SelectAll();
+            }, "Ctrl+A", enabled: hasText));
+
+            flyout.ShowAt(LabelTextBox, e.GetPosition(LabelTextBox));
+        }
+
         private void OnShapesListItemRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             if (sender is not FrameworkElement fe || fe.DataContext is not ShapeCanvasItemViewModel shape) return;
@@ -1154,6 +1286,41 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 flyout.Items.Add(ShapeMenuItem("Duplicate selection", "\uE8C8", () => ViewModel.DuplicateSelectedCommand.Execute(null), "Ctrl+D"));
                 flyout.Items.Add(ShapeMenuItem("Delete selection", "\uE74D", () => ViewModel.RemoveSelectedCommand.Execute(null), "Del"));
+
+                var layerSub = new MenuFlyoutSubItem
+                {
+                    Text = "Layer order",
+                    Icon = new FontIcon { Glyph = "\uE74A" }
+                };
+                layerSub.Items.Add(ShapeMenuItem("Bring to front", "\uE74A", () => ViewModel.BringToFrontCommand.Execute(null), "Ctrl+Shift+]"));
+                layerSub.Items.Add(ShapeMenuItem("Bring forward", "\uE74A", () => ViewModel.BringForwardCommand.Execute(null), "Ctrl+]"));
+                layerSub.Items.Add(ShapeMenuItem("Send backward", "\uE74B", () => ViewModel.SendBackwardCommand.Execute(null), "Ctrl+["));
+                layerSub.Items.Add(ShapeMenuItem("Send to back", "\uE74B", () => ViewModel.SendToBackCommand.Execute(null), "Ctrl+Shift+["));
+                flyout.Items.Add(layerSub);
+
+                if (ViewModel.CanAlign)
+                {
+                    var alignSub = new MenuFlyoutSubItem
+                    {
+                        Text = "Align selection",
+                        Icon = new FontIcon { Glyph = "\uE8E4" }
+                    };
+                    alignSub.Items.Add(ShapeMenuItem("Align left", "\uE8E4", () => ViewModel.AlignLeftCommand.Execute(null)));
+                    alignSub.Items.Add(ShapeMenuItem("Align centre", "\uE8E3", () => ViewModel.AlignCenterCommand.Execute(null)));
+                    alignSub.Items.Add(ShapeMenuItem("Align right", "\uE8E2", () => ViewModel.AlignRightCommand.Execute(null)));
+                    alignSub.Items.Add(new MenuFlyoutSeparator());
+                    alignSub.Items.Add(ShapeMenuItem("Align top", "\uE74A", () => ViewModel.AlignTopCommand.Execute(null)));
+                    alignSub.Items.Add(ShapeMenuItem("Align middle", "\uE8E3", () => ViewModel.AlignMiddleCommand.Execute(null)));
+                    alignSub.Items.Add(ShapeMenuItem("Align bottom", "\uE74B", () => ViewModel.AlignBottomCommand.Execute(null)));
+                    if (ViewModel.CanDistribute)
+                    {
+                        alignSub.Items.Add(new MenuFlyoutSeparator());
+                        alignSub.Items.Add(ShapeMenuItem("Distribute horizontally", "\uE8E3", () => ViewModel.DistributeHorizontalCommand.Execute(null)));
+                        alignSub.Items.Add(ShapeMenuItem("Distribute vertically", "\uE8E3", () => ViewModel.DistributeVerticalCommand.Execute(null)));
+                    }
+                    flyout.Items.Add(alignSub);
+                }
+
                 flyout.Items.Add(new MenuFlyoutSeparator());
             }
 
@@ -1175,6 +1342,21 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(ShapeMenuItem("Copy shapes as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), enabled: any));
             flyout.Items.Add(new MenuFlyoutSeparator());
             flyout.Items.Add(ShapeMenuItem("Select all", "\uE8B3", () => ViewModel.SelectAllCommand.Execute(null), "Ctrl+A", enabled: any && !ViewModel.IsDense));
+
+            if (any && ViewModel.HasSelection)
+            {
+                flyout.Items.Add(ShapeMenuItem("Invert selection", "\uE8B3", () =>
+                {
+                    var selected = ViewModel.Selection.ToHashSet();
+                    ViewModel.ClearSelection();
+                    foreach (var s in ViewModel.Shapes)
+                    {
+                        if (!selected.Contains(s)) ViewModel.ToggleSelection(s);
+                    }
+                }));
+                flyout.Items.Add(ShapeMenuItem("Deselect all", "\uE894", () => ViewModel.ClearSelection(), "Esc"));
+            }
+
             flyout.Items.Add(ShapeMenuItem("Fit diagram", "\uE9A6", FitCanvasToContent, "Ctrl+0", enabled: any));
             flyout.Items.Add(ShapeMenuItem("Actual size (100%)", "\uE71E", () => ZoomTo(1), "Ctrl+1"));
             flyout.Items.Add(new MenuFlyoutSeparator());
@@ -2488,6 +2670,42 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
+        private void OnPresetCategoryComboKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == VirtualKey.Enter || e.Key == VirtualKey.Down)
+            {
+                PresetList?.Focus(FocusState.Programmatic);
+                e.Handled = true;
+            }
+            else if (e.Key == VirtualKey.Escape)
+            {
+                ViewModel.SelectedPresetCategory = "All Categories";
+                e.Handled = true;
+            }
+        }
+
+        private static int IndexOfCategory(IReadOnlyList<string> list, string? value)
+        {
+            if (value is null) return -1;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (string.Equals(list[i], value, StringComparison.OrdinalIgnoreCase))
+                    return i;
+            }
+            return -1;
+        }
+
+        private void OnPresetCategoryComboDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var categories = ViewModel.PresetCategories;
+            if (categories.Count == 0) return;
+            int idx = IndexOfCategory(categories, ViewModel.SelectedPresetCategory);
+            int next = (idx + 1) % categories.Count;
+            ViewModel.SelectedPresetCategory = categories[next];
+            ViewModel.StatusMessage = $"Preset category: {categories[next]} ({ViewModel.FilteredPresets.Count} presets)";
+        }
+
         private void OnPresetCategoryComboRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             if (PresetCategoryCombo is null) return;
@@ -2498,11 +2716,16 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 var glyph = category switch
                 {
-                    "All" => "\uE71D",
-                    "Flowcharts" => "\uE81E",
-                    "Hierarchy" => "\uF003",
-                    "Cycles" => "\uE777",
-                    "Comparison" => "\uE8D3",
+                    "All Categories" => "\uE71D",
+                    "Hierarchy & Structure" => "\uF003",
+                    "Process & Workflow" => "\uE81E",
+                    "Cycles & Loops" => "\uE777",
+                    "Matrices & Strategy" => "\uE8D3",
+                    "Relationships & Venns" => "\uE8AB",
+                    "Roadmaps & Timelines" => "\uE787",
+                    "Architecture & Cloud" => "\uE753",
+                    "Funnels & Pipelines" => "\uE8E5",
+                    "Lists & Dashboards" => "\uEA37",
                     _ => "\uF0E2"
                 };
                 bool isSelected = string.Equals(ViewModel.SelectedPresetCategory, category, StringComparison.OrdinalIgnoreCase);
@@ -2515,10 +2738,51 @@ namespace MarkSmith.Views.ShapeStudio
 
             flyout.Items.Add(new MenuFlyoutSeparator());
 
+            var nextItem = ShapeMenuItem("Next category", "\uE76C", () =>
+            {
+                var categories = ViewModel.PresetCategories;
+                if (categories.Count == 0) return;
+                int idx = IndexOfCategory(categories, ViewModel.SelectedPresetCategory);
+                int next = (idx + 1) % categories.Count;
+                ViewModel.SelectedPresetCategory = categories[next];
+            }, "Ctrl+Tab");
+            flyout.Items.Add(nextItem);
+
+            var prevItem = ShapeMenuItem("Previous category", "\uE76B", () =>
+            {
+                var categories = ViewModel.PresetCategories;
+                if (categories.Count == 0) return;
+                int idx = IndexOfCategory(categories, ViewModel.SelectedPresetCategory);
+                int prev = (idx - 1 + categories.Count) % categories.Count;
+                ViewModel.SelectedPresetCategory = categories[prev];
+            }, "Ctrl+Shift+Tab");
+            flyout.Items.Add(prevItem);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var copyCatItem = ShapeMenuItem("Copy category name", "\uE8C8", () =>
+            {
+                try
+                {
+                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    dp.SetText(ViewModel.SelectedPresetCategory ?? "All");
+                    Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+                    ViewModel.StatusMessage = $"Copied '{ViewModel.SelectedPresetCategory}' to clipboard";
+                }
+                catch { }
+            });
+            flyout.Items.Add(copyCatItem);
+
+            var focusListItem = ShapeMenuItem("Browse preset diagrams", "\uE8B3", () =>
+            {
+                PresetList?.Focus(FocusState.Programmatic);
+            }, "Enter");
+            flyout.Items.Add(focusListItem);
+
             var resetItem = ShapeMenuItem("Reset category to All", "\uE72C", () =>
             {
                 ViewModel.SelectedPresetCategory = "All";
-            });
+            }, "Esc");
             flyout.Items.Add(resetItem);
 
             flyout.ShowAt(PresetCategoryCombo, e.GetPosition(PresetCategoryCombo));

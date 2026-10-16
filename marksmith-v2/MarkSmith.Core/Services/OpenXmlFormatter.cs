@@ -15,10 +15,14 @@ internal static class OpenXmlFormatter
         // Doc-wide defaults carry the theme text color and kerning; the w14 OpenType features are
         // stamped per-run in BuildRunProperties (the only place they're schema-legal).
         var baseFont = ctx.BrandFont ?? "Calibri"; // branding kit can restyle the whole document
+        var defaultText = ContrastGuard.EnsureLegibleText(ctx.Theme.Text, ctx.Theme.Background);
+        var headingColor = ContrastGuard.EnsureLegibleText(ctx.HeadingHex, ctx.Theme.Background);
+        var linkColor = ContrastGuard.EnsureLegibleText(ctx.LinkColor, ctx.Theme.Background);
+
         styles.Append(new W.DocDefaults(
             new W.RunPropertiesDefault(new W.RunPropertiesBaseStyle(
                 new W.RunFonts { Ascii = baseFont, HighAnsi = baseFont, EastAsia = baseFont, ComplexScript = baseFont },
-                new W.Color { Val = ctx.Theme.Text.TrimStart('#') },
+                new W.Color { Val = defaultText },
                 new W.Kern { Val = 16u },
                 new W.FontSize { Val = "22" },
                 new W.FontSizeComplexScript { Val = "22" })),
@@ -33,10 +37,11 @@ internal static class OpenXmlFormatter
         });
 
         // (size half-points, gray color for h6) — roughly GitHub's heading scale on an 11pt base.
+        var h6Color = ContrastGuard.EnsureLegibleText("6A737D", ctx.Theme.Background);
         (string Size, string? Color)[] headings =
         {
-            ("40", ctx.HeadingHex), ("32", ctx.HeadingHex), ("28", ctx.HeadingHex),
-            ("24", ctx.HeadingHex), ("22", ctx.HeadingHex), ("22", "6A737D"),
+            ("40", headingColor), ("32", headingColor), ("28", headingColor),
+            ("24", headingColor), ("22", headingColor), ("22", h6Color),
         };
         for (var level = 1; level <= 6; level++)
         {
@@ -78,13 +83,14 @@ internal static class OpenXmlFormatter
         styles.Append(new W.Style(
             new W.StyleName { Val = "Hyperlink" },
             new W.StyleRunProperties(
-                new W.Color { Val = ctx.LinkColor },
+                new W.Color { Val = linkColor },
                 new W.Underline { Val = W.UnderlineValues.Single }))
         {
             Type = W.StyleValues.Character,
             StyleId = "Hyperlink",
         });
 
+        ContrastGuard.EnforceStylesContrast(styles, ctx.Theme.Background, defaultText, headingColor, linkColor);
         part.Styles = styles;
     }
 

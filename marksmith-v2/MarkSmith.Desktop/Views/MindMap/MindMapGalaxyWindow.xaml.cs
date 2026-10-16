@@ -268,6 +268,258 @@ namespace MarkSmith.Views.MindMap
             }
         }
 
+        private void OnTitleBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (TitleBox is null) return;
+            e.Handled = true;
+            TitleBox.SelectAll();
+        }
+
+        private void OnTitleBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (TitleBox is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+            string title = TitleBox.Text ?? string.Empty;
+            bool hasText = !string.IsNullOrEmpty(title);
+
+            var copyItem = MenuItem("Copy title", "\uE8C8");
+            copyItem.IsEnabled = hasText;
+            copyItem.Click += (_, _) =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(title);
+                ViewModel.StatusMessage = $"Copied title: {title}";
+            };
+            menu.Items.Add(copyItem);
+
+            var pasteItem = MenuItem("Paste title", "\uE77F");
+            pasteItem.Click += async (_, _) =>
+            {
+                try
+                {
+                    var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var text = await pkg.GetTextAsync();
+                        TitleBox.Text = text;
+                        if (ViewModel.SelectedNode is { } node)
+                        {
+                            node.Title = text;
+                            UpdateAppearance();
+                        }
+                        ViewModel.StatusMessage = "Pasted title from clipboard";
+                    }
+                }
+                catch { }
+            };
+            menu.Items.Add(pasteItem);
+
+            var clearItem = MenuItem("Clear title", "\uE894");
+            clearItem.IsEnabled = hasText;
+            clearItem.Click += (_, _) =>
+            {
+                TitleBox.Text = string.Empty;
+                if (ViewModel.SelectedNode is { } node)
+                {
+                    node.Title = string.Empty;
+                    UpdateAppearance();
+                }
+                ViewModel.StatusMessage = "Cleared node title";
+            };
+            menu.Items.Add(clearItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var selectAllItem = MenuItem("Select all", "\uE8D2", "Ctrl+A");
+            selectAllItem.IsEnabled = hasText;
+            selectAllItem.Click += (_, _) =>
+            {
+                TitleBox.Focus(FocusState.Programmatic);
+                TitleBox.SelectAll();
+            };
+            menu.Items.Add(selectAllItem);
+
+            var focusTagsItem = MenuItem("Focus tags", "\uE8EC");
+            focusTagsItem.Click += (_, _) =>
+            {
+                TagsBox?.Focus(FocusState.Programmatic);
+                TagsBox?.SelectAll();
+            };
+            menu.Items.Add(focusTagsItem);
+
+            menu.ShowAt(TitleBox, e.GetPosition(TitleBox));
+        }
+
+        private void OnNodeProgressSliderDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (ViewModel.SelectedNode is not { } node) return;
+            e.Handled = true;
+
+            // Toggle / cycle progress: 0 -> 50 -> 100 -> 0
+            int current = node.Progress;
+            int next = current switch
+            {
+                0 => 100,
+                100 => 0,
+                < 50 => 50,
+                < 100 => 100,
+                _ => 0
+            };
+            node.Progress = next;
+            UpdateAppearance();
+            ViewModel.StatusMessage = $"Set '{node.Title}' progress to {node.Progress}% ({node.ProgressText})";
+        }
+
+        private void OnNodeProgressSliderRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (ViewModel.SelectedNode is not { } node) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            void SetProgress(int value, string label)
+            {
+                node.Progress = value;
+                UpdateAppearance();
+                ViewModel.StatusMessage = $"Set '{node.Title}' progress to {value}% ({label})";
+            }
+
+            var stops = new (int val, string name, string glyph)[]
+            {
+                (0, "Not started (0%)", "\uE711"),
+                (25, "In progress (25%)", "\uE895"),
+                (50, "Halfway (50%)", "\uE823"),
+                (75, "Nearly done (75%)", "\uE823"),
+                (100, "Completed (100%)", "\uE73E"),
+            };
+
+            foreach (var (val, name, glyph) in stops)
+            {
+                bool isCurrent = node.Progress == val;
+                var item = MenuItem(isCurrent ? $"{name} ✓" : name, isCurrent ? "\uE73E" : glyph);
+                int targetVal = val;
+                string targetName = name;
+                item.Click += (_, _) => SetProgress(targetVal, targetName);
+                menu.Items.Add(item);
+            }
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var resetItem = MenuItem("Reset to 0%", "\uE777");
+            resetItem.Click += (_, _) => SetProgress(0, "Reset");
+            menu.Items.Add(resetItem);
+
+            var copyProgressItem = MenuItem("Copy progress text", "\uE8C8");
+            copyProgressItem.Click += (_, _) =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(node.ProgressText);
+                ViewModel.StatusMessage = $"Copied progress: {node.ProgressText}";
+            };
+            menu.Items.Add(copyProgressItem);
+
+            if (sender is FrameworkElement fe)
+                menu.ShowAt(fe, e.GetPosition(fe));
+            else if (NodeProgressSlider is not null)
+                menu.ShowAt(NodeProgressSlider, e.GetPosition(NodeProgressSlider));
+        }
+
+        private void OnTagsBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (TagsBox is null) return;
+            e.Handled = true;
+            TagsBox.SelectAll();
+        }
+
+        private void OnTagsBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (TagsBox is null || ViewModel.SelectedNode is not { } node) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            string currentTags = TagsBox.Text ?? string.Empty;
+            bool hasTags = !string.IsNullOrEmpty(currentTags);
+
+            var copyItem = MenuItem("Copy tags", "\uE8C8");
+            copyItem.IsEnabled = hasTags;
+            copyItem.Click += (_, _) =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(currentTags);
+                ViewModel.StatusMessage = $"Copied tags: {currentTags}";
+            };
+            menu.Items.Add(copyItem);
+
+            var pasteItem = MenuItem("Paste tags", "\uE77F");
+            pasteItem.Click += async (_, _) =>
+            {
+                try
+                {
+                    var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var text = await pkg.GetTextAsync();
+                        TagsBox.Text = text;
+                        node.TagsText = text;
+                        UpdateAppearance();
+                        ViewModel.StatusMessage = "Pasted tags from clipboard";
+                    }
+                }
+                catch { }
+            };
+            menu.Items.Add(pasteItem);
+
+            var clearItem = MenuItem("Clear tags", "\uE894");
+            clearItem.IsEnabled = hasTags;
+            clearItem.Click += (_, _) =>
+            {
+                TagsBox.Text = string.Empty;
+                node.TagsText = string.Empty;
+                UpdateAppearance();
+                ViewModel.StatusMessage = "Cleared tags";
+            };
+            menu.Items.Add(clearItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var distinctTags = ViewModel.DistinctTags;
+            if (distinctTags.Count > 0)
+            {
+                var addTagSubmenu = new MenuFlyoutSubItem
+                {
+                    Text = "Add existing tag",
+                    Icon = new FontIcon { Glyph = "\uE8EC" }
+                };
+                foreach (var tag in distinctTags)
+                {
+                    bool alreadyHas = node.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase);
+                    var tagItem = MenuItem(alreadyHas ? $"{tag} ✓" : tag, alreadyHas ? "\uE73E" : "\uE8EC");
+                    string t = tag;
+                    tagItem.Click += (_, _) =>
+                    {
+                        if (!alreadyHas)
+                        {
+                            node.Tags.Add(t);
+                            TagsBox.Text = node.TagsText;
+                            UpdateAppearance();
+                            ViewModel.StatusMessage = $"Added tag '{t}' to {node.Title}";
+                        }
+                    };
+                    addTagSubmenu.Items.Add(tagItem);
+                }
+                menu.Items.Add(addTagSubmenu);
+                menu.Items.Add(new MenuFlyoutSeparator());
+            }
+
+            var selectAllItem = MenuItem("Select all tags", "\uE8D2", "Ctrl+A");
+            selectAllItem.IsEnabled = hasTags;
+            selectAllItem.Click += (_, _) =>
+            {
+                TagsBox.Focus(FocusState.Programmatic);
+                TagsBox.SelectAll();
+            };
+            menu.Items.Add(selectAllItem);
+
+            menu.ShowAt(TagsBox, e.GetPosition(TagsBox));
+        }
+
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)
         {
             if (!_initialized)
@@ -2917,6 +3169,13 @@ namespace MarkSmith.Views.MindMap
         private void OnWatchedNodePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(MindMapNodeViewModel.ColorHex)) UpdateSwatches();
+            if (e.PropertyName is nameof(MindMapNodeViewModel.Progress) or
+                nameof(MindMapNodeViewModel.Title) or
+                nameof(MindMapNodeViewModel.TagsText) or
+                nameof(MindMapNodeViewModel.Icon))
+            {
+                UpdateAppearance();
+            }
         }
 
         private void OnReverseLinkClick(object sender, RoutedEventArgs e) => ViewModel.ReverseLink(ViewModel.SelectedLink);

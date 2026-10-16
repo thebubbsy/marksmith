@@ -508,7 +508,7 @@ public sealed class StreamingDocxExportService
         var main = package.AddMainDocumentPart();
 
         var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-        var isDark = theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro";
+        var isDark = theme.IsDarkPage;
 
         ReferenceDocumentMerger.MergedReferenceResult? refMerge = null;
         if (ReferenceDocumentMerger.IsValidReferenceDocument(settings.BrandTemplatePath))
@@ -573,6 +573,9 @@ public sealed class StreamingDocxExportService
 
         // Stage 3 Commit: Flush all staged parts & relationships into main package safely on single thread
         partRegistry.CommitAllStaged(main);
+
+        // HARD OUTPUT-PARAMETER LOGIC GATE: Sweep all package parts for >= 4.5:1 WCAG contrast
+        ContrastGuard.EnforcePackageContrast(main, ctx.BackgroundHex, ctx.TextHex, ctx.HeadingHex, ctx.LinkHex);
 
         // Finalize Settings & Auxiliary Parts
         var wantWeb = ctx.ForceWebLayout || (settings.TargetFormat != "docx"
@@ -639,6 +642,7 @@ public sealed class StreamingDocxExportService
                     DocxExportService.RenderBlock(block, blockContainer, ctx, listLevel: -1);
                 }
                 DocxExportService.FitDrawings(blockContainer, ctx.Settings);
+                ContrastGuard.EnforceSubtreeContrast(blockContainer, ctx.BackgroundHex, ctx.TextHex);
 
                 var elements = blockContainer.ChildElements.Select(e => (OpenXmlElement)e.CloneNode(true)).ToList();
 
@@ -687,7 +691,7 @@ public sealed class StreamingDocxExportService
         };
 
         writer.WriteStartElement(new W.Document(), rootAttributes, rootNamespaces);
-        writer.WriteElement(new W.DocumentBackground { Color = DocxExportService.Hex(ctx.Theme.Background) });
+        writer.WriteElement(new W.DocumentBackground { Color = ctx.BackgroundHex });
         writer.WriteStartElement(new W.Body());
 
         string title = "Markdown Export";
@@ -696,6 +700,7 @@ public sealed class StreamingDocxExportService
         {
             var coverContainer = new W.Body();
             DocxExportService.AppendCoverPage(coverContainer, ctx, settings, title);
+            ContrastGuard.EnforceSubtreeContrast(coverContainer, ctx.BackgroundHex, ctx.TextHex);
             foreach (var el in coverContainer.ChildElements)
                 writer.WriteElement(el);
         }
@@ -704,6 +709,7 @@ public sealed class StreamingDocxExportService
         {
             var tocContainer = new W.Body();
             DocxExportService.AppendTocField(tocContainer, ctx);
+            ContrastGuard.EnforceSubtreeContrast(tocContainer, ctx.BackgroundHex, ctx.TextHex);
             foreach (var el in tocContainer.ChildElements)
                 writer.WriteElement(el);
         }

@@ -222,7 +222,7 @@ public sealed partial class DocxExportService
             markdown = FormattingService.Apply(markdown, settings);
             var doc = Markdown.Parse(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
             var theme = Themes.GetOrDefault(settings.Theme);
-            var isDark = theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro";
+            var isDark = theme.IsDarkPage;
             var title = FirstHeadingText(doc) ?? "Markdown Export";
 
             var dir = Path.GetDirectoryName(docxPath);
@@ -335,13 +335,14 @@ public sealed partial class DocxExportService
                 };
 
                 writer.WriteStartElement(new W.Document(), rootAttributes, rootNamespaces);
-                writer.WriteElement(new W.DocumentBackground { Color = Hex(theme.Background) });
+                writer.WriteElement(new W.DocumentBackground { Color = ctx.BackgroundHex });
                 writer.WriteStartElement(new W.Body());
 
                 if (settings.BrandCoverPage)
                 {
                     var coverContainer = new W.Body();
                     AppendCoverPage(coverContainer, ctx, settings, title);
+                    ContrastGuard.EnforceSubtreeContrast(coverContainer, ctx.BackgroundHex, ctx.TextHex);
                     foreach (var el in coverContainer.ChildElements)
                         writer.WriteElement(el);
                 }
@@ -350,6 +351,7 @@ public sealed partial class DocxExportService
                 {
                     var tocContainer = new W.Body();
                     AppendTocField(tocContainer, ctx, doc);
+                    ContrastGuard.EnforceSubtreeContrast(tocContainer, ctx.BackgroundHex, ctx.TextHex);
                     foreach (var el in tocContainer.ChildElements)
                         writer.WriteElement(el);
                 }
@@ -360,6 +362,7 @@ public sealed partial class DocxExportService
                     var blockContainer = new W.Body();
                     RenderBlock(block, blockContainer, ctx, listLevel: -1);
                     FitDrawings(blockContainer, settings);
+                    ContrastGuard.EnforceSubtreeContrast(blockContainer, ctx.BackgroundHex, ctx.TextHex);
 
                     if (!firstParagraphFound && cleanupNotes is { Count: > 0 })
                     {
@@ -383,6 +386,10 @@ public sealed partial class DocxExportService
                 writer.WriteEndElement(); // </w:body>
                 writer.WriteEndElement(); // </w:document>
             }
+
+            // HARD OUTPUT-PARAMETER LOGIC GATE: Sweep styles.xml, numbering.xml, header*.xml,
+            // footer*.xml, footnotes.xml, and comments.xml to guarantee >= 4.5:1 contrast everywhere.
+            ContrastGuard.EnforcePackageContrast(main, ctx.BackgroundHex, ctx.TextHex, ctx.HeadingHex, ctx.LinkHex);
 
             // Auxiliary parts & settings
             var wantWeb = ctx.ForceWebLayout || (settings.TargetFormat != "docx"
@@ -469,7 +476,7 @@ public sealed partial class DocxExportService
         markdown = FormattingService.Apply(markdown, settings);
         var doc = Markdown.Parse(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
         var theme = Themes.GetOrDefault(settings.Theme);
-        var isDark = theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro";
+        var isDark = theme.IsDarkPage;
 
         using var package = WordprocessingDocument.Open(docxPath, true);
         var main = package.MainDocumentPart!;
@@ -525,14 +532,17 @@ public sealed partial class DocxExportService
         ctx.BodySectionTemplate = body.Elements<W.SectionProperties>().LastOrDefault()?.CloneNode(true) as W.SectionProperties;
         ctx.BodySectionNumbered = true; // the document's numbering is already set up
 
+        var effectiveDocBg = main.Document.DocumentBackground?.Color?.Value ?? ctx.BackgroundHex;
+
         // Build the new section in a temp container, then splice it in before the trailing sectPr.
         var tmp = new W.Body();
         tmp.Append(new W.Paragraph(new W.Run(new W.Break { Type = W.BreakValues.Page })));
         var divider = new W.Paragraph(new W.ParagraphProperties(new W.ParagraphStyleId { Val = "Heading2" }));
-        AddText(divider, $"Added {DateTime.Now:d MMM yyyy, HH:mm}", new Fmt { Color = ctx.HeadingHex });
+        AddText(divider, $"Added {DateTime.Now:d MMM yyyy, HH:mm}", new Fmt { Color = ContrastGuard.EnsureLegibleText(ctx.HeadingHex, effectiveDocBg) });
         tmp.Append(divider);
         foreach (var block in doc) RenderBlock(block, tmp, ctx, listLevel: -1);
         FitDrawings(tmp, ctx.Settings);
+        ContrastGuard.EnforceSubtreeContrast(tmp, effectiveDocBg, ctx.TextHex);
 
         var sectPr = body.Elements<W.SectionProperties>().LastOrDefault();
         foreach (var el in tmp.ChildElements.ToList())
@@ -541,10 +551,8 @@ public sealed partial class DocxExportService
             if (sectPr is not null) body.InsertBefore(el, sectPr); else body.Append(el);
         }
 
-        ctx.MainPart.NumberingDefinitionsPart?.Numbering?.Save();
         EnsureSupportStyles(main, ctx);
-        main.StyleDefinitionsPart?.Styles?.Save();
-        main.FootnotesPart?.Footnotes?.Save();
+        ContrastGuard.EnforcePackageContrast(main, effectiveDocBg, ctx.TextHex, ctx.HeadingHex, ctx.LinkHex);
         // Re-embed the combined source so an appended compendium still reopens losslessly.
         MarksmithSourceStore.Embed(main, combinedSource, settings);
         main.Document.Save();
@@ -642,8 +650,8 @@ public sealed partial class DocxExportService
         // rendering (fills, lines, text, background card); the surrounding document keeps its theme.
         public ThemeDefinition DiagramTheme => Theme.ForDiagram();
 
-        public string TextHex => Hex(Theme.Text);
-        public string HeadingHex => Hex(Theme.Heading);
+        public string TextHex => ContrastGuard.EnsureLegibleText(Hex(Theme.Text), BackgroundHex);
+        public string HeadingHex => ContrastGuard.EnsureLegibleText(Hex(Theme.Heading), BackgroundHex, TextHex);
         public string BorderHex => Hex(Theme.Border);
         public string BackgroundHex => Hex(Theme.Background);
         public string CodeHex
@@ -666,8 +674,8 @@ public sealed partial class DocxExportService
                 return hex;
             }
         }
-        public string PrimaryHex => Hex(Theme.Primary);
-        public string LinkHex => Hex(LinkColor);
+        public string PrimaryHex => ContrastGuard.EnsureLegibleText(Hex(Theme.Primary), BackgroundHex, HeadingHex);
+        public string LinkHex => ContrastGuard.EnsureLegibleText(Hex(LinkColor), BackgroundHex, HeadingHex);
         public string MutedHex => Hex(Theme.Line);
     }
 
@@ -1634,12 +1642,12 @@ public sealed partial class DocxExportService
             if (!first) para.Append(new W.Run(new W.Break()));
             first = false;
             
-            var baseColor = ctx.Theme.Text.TrimStart('#');
+            var baseColor = ContrastGuard.EnsureLegibleText(ctx.TextHex, ctx.CodeHex);
             if (isDiff)
             {
-                if (line.StartsWith("+")) baseColor = "2ea043";      // green addition
-                else if (line.StartsWith("-")) baseColor = "f85149";  // red deletion
-                else if (line.StartsWith("@")) baseColor = "8b949e";  // gray hunk header
+                if (line.StartsWith("+")) baseColor = ContrastGuard.EnsureLegibleText("2ea043", ctx.CodeHex, baseColor);      // green addition
+                else if (line.StartsWith("-")) baseColor = ContrastGuard.EnsureLegibleText("f85149", ctx.CodeHex, baseColor);  // red deletion
+                else if (line.StartsWith("@")) baseColor = ContrastGuard.EnsureLegibleText("8b949e", ctx.CodeHex, baseColor);  // gray hunk header
             }
 
             // Reset the stack to this line's base color. Inline <font>/<span> color
@@ -1653,7 +1661,7 @@ public sealed partial class DocxExportService
             {
                 if (m.Index > lastPos)
                 {
-                    AddText(para, line.Substring(lastPos, m.Index - lastPos), new Fmt { Code = true, BlockCode = true, Color = colorStack.Peek() });
+                    AddText(para, line.Substring(lastPos, m.Index - lastPos), new Fmt { Code = true, BlockCode = true, Color = ContrastGuard.EnsureLegibleText(colorStack.Peek(), ctx.CodeHex, baseColor) });
                 }
 
                 if (m.Groups[3].Success) // closing tag
@@ -1665,14 +1673,14 @@ public sealed partial class DocxExportService
                     string cVal = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
                     if (cVal.StartsWith("#")) cVal = cVal.Substring(1);
                     else if (NamedColors.TryGetValue(cVal, out var hex)) cVal = hex;
-                    colorStack.Push(cVal);
+                    colorStack.Push(ContrastGuard.EnsureLegibleText(cVal, ctx.CodeHex, baseColor));
                 }
                 lastPos = m.Index + m.Length;
             }
 
             if (lastPos < line.Length)
             {
-                AddText(para, line.Substring(lastPos), new Fmt { Code = true, BlockCode = true, Color = colorStack.Peek() });
+                AddText(para, line.Substring(lastPos), new Fmt { Code = true, BlockCode = true, Color = ContrastGuard.EnsureLegibleText(colorStack.Peek(), ctx.CodeHex, baseColor) });
             }
         }
         return para;
@@ -3267,21 +3275,12 @@ public sealed partial class DocxExportService
         // The cell background is the tinted panel — force high-contrast text color against panelFill.
         foreach (var run in cell.Descendants<W.Run>())
         {
+            if (string.Equals(run.RunProperties?.RunFonts?.Ascii?.Value, "Segoe UI Emoji", StringComparison.OrdinalIgnoreCase))
+                continue;
             run.RunProperties ??= new W.RunProperties();
-            var existingColor = run.RunProperties.Color?.Val?.Value ?? ctx.Theme.Text.TrimStart('#');
-            var newColorHex = ContrastGuard.EnsureLegibleText(existingColor, panelFill);
-            if (run.RunProperties.Color != null)
-            {
-                run.RunProperties.Color.Val = newColorHex;
-            }
-            else
-            {
-                var newColor = new W.Color { Val = newColorHex };
-                if (run.RunProperties.GetFirstChild<DocumentFormat.OpenXml.AlternateContent>() is { } alt)
-                    run.RunProperties.InsertBefore(newColor, alt);
-                else
-                    run.RunProperties.Append(newColor);
-            }
+            var existingColor = run.RunProperties.Color?.Val?.Value ?? ctx.TextHex;
+            var newColorHex = ContrastGuard.EnsureLegibleText(existingColor, panelFill, ctx.TextHex);
+            ContrastGuard.SetRPrColorInSchemaOrder(run.RunProperties, newColorHex);
         }
 
         target.Append(new W.Table(
@@ -4253,9 +4252,11 @@ public sealed partial class DocxExportService
                     }
                 }
 
-                var cellBg = (row.IsHeader ? ctx.CodeHex : (banded ? ctx.SecondaryHex : ctx.Theme.Background)).TrimStart('#');
+                var cellBg = (row.IsHeader ? ctx.CodeHex : (banded ? ctx.SecondaryHex : ctx.BackgroundHex)).TrimStart('#');
                 foreach (var run in wCell.Descendants<W.Run>())
                 {
+                    if (string.Equals(run.RunProperties?.RunFonts?.Ascii?.Value, "Segoe UI Emoji", StringComparison.OrdinalIgnoreCase))
+                        continue;
                     run.RunProperties ??= new W.RunProperties();
                     if (row.IsHeader && run.RunProperties.Bold == null)
                     {
@@ -4265,29 +4266,9 @@ public sealed partial class DocxExportService
                         else
                             run.RunProperties.PrependChild(bold);
                     }
-                    var curColor = run.RunProperties.Color?.Val?.Value ?? ctx.Theme.Text.TrimStart('#');
-                    var newColorHex = ContrastGuard.EnsureLegibleText(curColor, cellBg);
-                    if (run.RunProperties.Color != null)
-                    {
-                        run.RunProperties.Color.Val = newColorHex;
-                    }
-                    else
-                    {
-                        var newColor = new W.Color { Val = newColorHex };
-                        var afterAnchor = run.RunProperties.Elements<W.SpacingBetweenLines>().FirstOrDefault() as OpenXmlElement
-                            ?? run.RunProperties.Elements<W.FontSize>().FirstOrDefault() as OpenXmlElement
-                            ?? run.RunProperties.Elements<W.FontSizeComplexScript>().FirstOrDefault() as OpenXmlElement
-                            ?? run.RunProperties.Elements<W.Highlight>().FirstOrDefault() as OpenXmlElement
-                            ?? run.RunProperties.Elements<W.Underline>().FirstOrDefault() as OpenXmlElement
-                            ?? run.RunProperties.Elements<W.Border>().FirstOrDefault() as OpenXmlElement
-                            ?? run.RunProperties.Elements<W.Shading>().FirstOrDefault() as OpenXmlElement
-                            ?? run.RunProperties.Elements<W.VerticalTextAlignment>().FirstOrDefault() as OpenXmlElement // footnote marks
-                            ?? run.RunProperties.GetFirstChild<DocumentFormat.OpenXml.AlternateContent>();
-                        if (afterAnchor != null)
-                            run.RunProperties.InsertBefore(newColor, afterAnchor);
-                        else
-                            run.RunProperties.Append(newColor);
-                    }
+                    var curColor = run.RunProperties.Color?.Val?.Value ?? ctx.TextHex;
+                    var newColorHex = ContrastGuard.EnsureLegibleText(curColor, cellBg, ctx.TextHex);
+                    ContrastGuard.SetRPrColorInSchemaOrder(run.RunProperties, newColorHex);
                 }
 
                 wRow.Append(wCell);
@@ -5506,6 +5487,7 @@ public sealed partial class DocxExportService
         foreach (var style in SupportStyles(defaultText))
             styles.Append(style);
 
+        ContrastGuard.EnforceStylesContrast(styles, ctx.BackgroundHex, defaultText, headingColor, legibleLink);
         part.Styles = styles;
     }
 
@@ -5606,6 +5588,7 @@ public sealed partial class DocxExportService
             // The note's own number, then a space, before its text.
             var mark = first.InsertAfter(Mark(new W.FootnoteReferenceMark()), first.ParagraphProperties);
             mark.InsertAfterSelf(new W.Run(new W.Text(" ") { Space = SpaceProcessingModeValues.Preserve }));
+            ContrastGuard.EnforceSubtreeContrast(wfn, ctx.BackgroundHex, ctx.TextHex);
             part.Footnotes.Append(wfn);
 
             target.Append(Mark(new W.FootnoteReference { Id = id }));
@@ -5617,9 +5600,10 @@ public sealed partial class DocxExportService
     {
         if (main.StyleDefinitionsPart?.Styles is not { } styles) return;
         var have = styles.Elements<W.Style>().Select(s => s.StyleId?.Value).ToHashSet(StringComparer.Ordinal);
-        foreach (var style in SupportStyles(ContrastGuard.EnsureLegibleText(ctx.Theme.Text, ctx.Theme.Background)))
+        foreach (var style in SupportStyles(ctx.TextHex))
             if (!have.Contains(style.StyleId!.Value))
                 styles.Append(style);
+        ContrastGuard.EnforceStylesContrast(styles, ctx.BackgroundHex, ctx.TextHex, ctx.HeadingHex, ctx.LinkHex);
     }
 
     internal static void AddSettings(MainDocumentPart main, Ctx ctx, bool updateFieldsOnOpen, bool webLayout, bool trackChanges)
@@ -5819,7 +5803,8 @@ public sealed partial class DocxExportService
     // { = { NUMPAGES } - 1 }, a formula Word re-evaluates with the page fields.
     private static OpenXmlElement TotalPages(Ctx ctx)
     {
-        static W.RunProperties Props() => new(new W.Color { Val = "808080" }, new W.FontSize { Val = "16" });
+        var footerColor = ContrastGuard.EnsureLegibleText("808080", ctx.BackgroundHex, ctx.TextHex);
+        W.RunProperties Props() => new(new W.Color { Val = footerColor }, new W.FontSize { Val = "16" });
         if (!ctx.HasCoverSection || !ctx.BodyHasSectionBreaks)
             return new W.SimpleField(new W.Run(Props(), new W.Text("1")))
             { Instruction = ctx.HasCoverSection ? " SECTIONPAGES " : " NUMPAGES " };
@@ -5900,11 +5885,12 @@ public sealed partial class DocxExportService
     internal static W.SectionProperties BuildSectionProperties(
         MainDocumentPart main, Ctx ctx, AppSettings settings, string title, ReferenceDocumentMerger.MergedReferenceResult? refMerge = null)
     {
-        static W.Run FooterRun(string text) => new(
-            new W.RunProperties(new W.Color { Val = "808080" }, new W.FontSize { Val = "16" }),
+        var footerColor = ContrastGuard.EnsureLegibleText("808080", ctx.BackgroundHex, ctx.TextHex);
+        W.Run FooterRun(string text) => new(
+            new W.RunProperties(new W.Color { Val = footerColor }, new W.FontSize { Val = "16" }),
             new W.Text(text) { Space = SpaceProcessingModeValues.Preserve });
-        static W.SimpleField Field(string instruction) => new(new W.Run(
-            new W.RunProperties(new W.Color { Val = "808080" }, new W.FontSize { Val = "16" }),
+        W.SimpleField Field(string instruction) => new(new W.Run(
+            new W.RunProperties(new W.Color { Val = footerColor }, new W.FontSize { Val = "16" }),
             new W.Text("1")))
         { Instruction = instruction };
         W.BorderType PageBorder<T>() where T : W.BorderType, new() =>
@@ -5922,10 +5908,16 @@ public sealed partial class DocxExportService
             // that names the template's document ("Linear Algebra Cheatsheet") names this one.
             foreach (var r in targetSp.Elements<W.HeaderReference>())
                 if (r.Id?.Value is { Length: > 0 } id && main.GetPartById(id) is HeaderPart hp && hp.Header is { } h)
+                {
                     hp.Header = new W.Header(HouseLayout.RetitleRunningText(h.OuterXml, templateTitle, title));
+                    ContrastGuard.EnforceSubtreeContrast(hp.Header, ctx.BackgroundHex, ctx.TextHex);
+                }
             foreach (var r in targetSp.Elements<W.FooterReference>())
                 if (r.Id?.Value is { Length: > 0 } id && main.GetPartById(id) is FooterPart fp && fp.Footer is { } f)
+                {
                     fp.Footer = new W.Footer(HouseLayout.RetitleRunningText(f.OuterXml, templateTitle, title));
+                    ContrastGuard.EnforceSubtreeContrast(fp.Footer, ctx.BackgroundHex, ctx.TextHex);
+                }
 
             // Watermark injection
             if (ctx.Watermark is { } wm)
@@ -5961,6 +5953,7 @@ public sealed partial class DocxExportService
                 {
                     headerPart.Header.Append(BuildWatermarkParagraph(wm2));
                 }
+                ContrastGuard.EnforceSubtreeContrast(headerPart.Header, ctx.BackgroundHex, ctx.TextHex);
                 targetSp.PrependChild(new W.HeaderReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(headerPart) });
             }
 
@@ -5982,6 +5975,7 @@ public sealed partial class DocxExportService
                         FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), TotalPages(ctx),
                         FooterRun("  \u00b7  MarkSmith")));
                 }
+                ContrastGuard.EnforceSubtreeContrast(footerPart.Footer, ctx.BackgroundHex, ctx.TextHex);
                 targetSp.Append(new W.FooterReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(footerPart) });
             }
 
@@ -6012,13 +6006,13 @@ public sealed partial class DocxExportService
             return targetSp;
         }
 
-
         // ---- header: the template's own running header when the house style provides one ----
         W.HeaderReference headerRef;
         if (layout is { HasHeader: true } && layout.HeaderXml is { } hdrXml)
         {
             var headerPart = main.AddNewPart<HeaderPart>();
             headerPart.Header = new W.Header(HouseLayout.RetitleRunningText(hdrXml, templateTitle, title));
+            ContrastGuard.EnforceSubtreeContrast(headerPart.Header, ctx.BackgroundHex, ctx.TextHex);
             if (ctx.Watermark is { } wm)
             {
                 headerPart.Header.Append(BuildWatermarkParagraph(wm));
@@ -6049,6 +6043,7 @@ public sealed partial class DocxExportService
             {
                 headerPart.Header.Append(BuildWatermarkParagraph(wm));
             }
+            ContrastGuard.EnforceSubtreeContrast(headerPart.Header, ctx.BackgroundHex, ctx.TextHex);
             headerRef = new W.HeaderReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(headerPart) };
         }
 
@@ -6058,6 +6053,7 @@ public sealed partial class DocxExportService
         {
             var footerPart = main.AddNewPart<FooterPart>();
             footerPart.Footer = new W.Footer(HouseLayout.RetitleRunningText(ftrXml, templateTitle, title));
+            ContrastGuard.EnforceSubtreeContrast(footerPart.Footer, ctx.BackgroundHex, ctx.TextHex);
             CopyHeaderFooterImages(footerPart, settings.BrandTemplatePath, footer: true);
             footerRef = new W.FooterReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(footerPart) };
         }
@@ -6084,6 +6080,7 @@ public sealed partial class DocxExportService
                     FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), TotalPages(ctx),
                     FooterRun("  \u00b7  MarkSmith")));
             }
+            ContrastGuard.EnforceSubtreeContrast(footerPart.Footer, ctx.BackgroundHex, ctx.TextHex);
             footerRef = new W.FooterReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(footerPart) };
         }
 

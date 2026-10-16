@@ -2347,6 +2347,132 @@ namespace MarkSmith.Views.SmartArtStudio
             menu.Items.Add(paletteSubmenu);
         }
 
+        private void OnPaletteButtonClick(object sender, RoutedEventArgs e)
+        {
+            // Click opens the Flyout automatically
+        }
+
+        private void OnPaletteButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            CyclePalette();
+        }
+
+        private void OnPaletteButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+            AddPaletteSubmenu(menu);
+            if (PaletteButton is not null)
+                menu.ShowAt(PaletteButton, e.GetPosition(PaletteButton));
+            else if (sender is FrameworkElement fe)
+                menu.ShowAt(fe, e.GetPosition(fe));
+        }
+
+        private void OnPaletteMenuFlyoutOpening(object? sender, object e)
+        {
+            if (PaletteMenuFlyout is null) return;
+            PaletteMenuFlyout.Items.Clear();
+
+            foreach (var palette in ViewModel.Palettes)
+            {
+                bool isSelected = string.Equals(palette, ViewModel.SelectedPalette, StringComparison.OrdinalIgnoreCase);
+                var pItem = new MenuFlyoutItem
+                {
+                    Text = isSelected ? $"{palette} ✓" : palette,
+                    Icon = new FontIcon { Glyph = isSelected ? "\uE73E" : "\uEA3B" }
+                };
+                pItem.Click += (_, _) =>
+                {
+                    ViewModel.SelectedPalette = palette;
+                    RefreshWebView();
+                    ViewModel.StatusMessage = $"Applied SmartArt color palette: {palette}";
+                    if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);
+                };
+                PaletteMenuFlyout.Items.Add(pItem);
+            }
+
+            PaletteMenuFlyout.Items.Add(new MenuFlyoutSeparator());
+
+            var cycleItem = new MenuFlyoutItem
+            {
+                Text = "Next palette",
+                Icon = new FontIcon { Glyph = "\uE76C" }
+            };
+            cycleItem.Click += (_, _) => CyclePalette();
+            PaletteMenuFlyout.Items.Add(cycleItem);
+
+            var resetItem = new MenuFlyoutItem
+            {
+                Text = "Reset to Office Blue",
+                Icon = new FontIcon { Glyph = "\uE72C" }
+            };
+            resetItem.Click += (_, _) =>
+            {
+                ViewModel.SelectedPalette = "Office Blue";
+                RefreshWebView();
+                ViewModel.StatusMessage = "Reset color palette to Office Blue.";
+                if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);
+            };
+            PaletteMenuFlyout.Items.Add(resetItem);
+
+            var copyItem = new MenuFlyoutItem
+            {
+                Text = "Copy palette name",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyItem.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.SelectedPalette);
+                ViewModel.StatusMessage = $"Copied palette: {ViewModel.SelectedPalette}";
+            };
+            PaletteMenuFlyout.Items.Add(copyItem);
+        }
+
+        private void CyclePalette()
+        {
+            var palettes = ViewModel.Palettes;
+            if (palettes.Count == 0) return;
+            int idx = palettes.IndexOf(ViewModel.SelectedPalette);
+            int next = (idx + 1) % palettes.Count;
+            ViewModel.SelectedPalette = palettes[next];
+            RefreshWebView();
+            ViewModel.StatusMessage = $"Color palette: {palettes[next]} (Double-click to cycle)";
+            if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);
+        }
+
+        private void OnLayoutListDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            var layout = (e.OriginalSource as FrameworkElement)?.DataContext as StudioLayoutItem
+                         ?? ViewModel.SelectedLayout;
+            if (layout is not null)
+            {
+                e.Handled = true;
+                ViewModel.SelectedLayout = layout;
+                if (ViewModel.InsertIntoDocumentCommand.CanExecute(null))
+                {
+                    ViewModel.InsertIntoDocumentCommand.Execute(null);
+                    ViewModel.StatusMessage = $"Inserted {layout.DisplayName} SmartArt into document";
+                }
+            }
+        }
+
+        private void OnEditorTabsDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (EditorTabs is null) return;
+            e.Handled = true;
+            if (EditorTabs.SelectedItem == OutlineTab)
+            {
+                EditorTabs.SelectedItem = MarkdownTab;
+                ViewModel.StatusMessage = "Switched to Markdown editor (Ctrl+2)";
+            }
+            else
+            {
+                EditorTabs.SelectedItem = OutlineTab;
+                ViewModel.StatusMessage = "Switched to Outline editor (Ctrl+1)";
+            }
+        }
+
         private static T? FindDescendant<T>(DependencyObject? parent) where T : DependencyObject
         {
             if (parent == null) return null;

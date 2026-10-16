@@ -524,7 +524,10 @@
                             <TextBlock Text="Selected node" Style="{StaticResource InspectorHeading}" />
 
                             <TextBox x:Name="TitleBox" Header="Title" Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     PlaceholderText="Name this document" KeyDown="OnInspectorFieldKeyDown" />
+                                     PlaceholderText="Name this document" KeyDown="OnInspectorFieldKeyDown"
+                                     DoubleTapped="OnTitleBoxDoubleTapped"
+                                     RightTapped="OnTitleBoxRightTapped"
+                                     ToolTipService.ToolTip="Document title · Double-click to select all, Right-click for options" />
 
                             <StackPanel Spacing="6">
                                 <Grid ColumnSpacing="8">
@@ -591,17 +594,26 @@
                             </StackPanel>
 
                             <StackPanel Spacing="2">
-                                <Grid>
+                                <Grid x:Name="NodeProgressHeaderGrid"
+                                      IsHitTestVisible="True"
+                                      DoubleTapped="OnNodeProgressSliderDoubleTapped"
+                                      RightTapped="OnNodeProgressSliderRightTapped"
+                                      ToolTipService.ToolTip="Document progress readout (Double-click to toggle completion, Right-click for presets)">
                                     <TextBlock Text="Progress" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                     <TextBlock Text="{Binding ProgressText}" HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </Grid>
-                                <Slider Value="{Binding Progress, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" SmallChange="5" LargeChange="25"
+                                <Slider x:Name="NodeProgressSlider" Value="{Binding Progress, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" SmallChange="5" LargeChange="25"
+                                        DoubleTapped="OnNodeProgressSliderDoubleTapped"
+                                        RightTapped="OnNodeProgressSliderRightTapped"
+                                        ToolTipService.ToolTip="Document progress (0..100%) · Double-click to toggle completion, Right-click for progress presets"
                                         AutomationProperties.Name="Progress" />
                             </StackPanel>
 
                             <TextBox x:Name="TagsBox" Header="Tags" Text="{Binding TagsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                      PlaceholderText="#research #q3, separated by spaces" KeyDown="OnInspectorFieldKeyDown"
-                                     ToolTipService.ToolTip="Separate tags with spaces or commas. Click a tag above the map to show only its nodes." />
+                                     DoubleTapped="OnTagsBoxDoubleTapped"
+                                     RightTapped="OnTagsBoxRightTapped"
+                                     ToolTipService.ToolTip="Separate tags with spaces or commas · Double-click to select all, Right-click for tag suggestions &amp; options" />
 
                             <TextBox Header="Notes" Text="{Binding MarkdownContent, Mode=TwoWay}" AcceptsReturn="True" Height="130" TextWrapping="Wrap"
                                      PlaceholderText="What this document is and why it matters (Markdown)" />

@@ -74,10 +74,10 @@ public static class ReferenceDocumentMerger
             var extractedFont = MergeStyles(targetMain, refMain, theme, settings);
 
             // 3. Numbering (word/numbering.xml) with collision-free ID remapping
-            var (nextNumId, bulletNumId, bulletAbstractId, orderedAbstractId) = MergeNumbering(targetMain, refMain);
+            var (nextNumId, bulletNumId, bulletAbstractId, orderedAbstractId) = MergeNumbering(targetMain, refMain, theme);
 
             // 4. Section Properties & Headers / Footers
-            var (sectPr, hdrRefs, ftrRefs) = MergeSectionAndHeadersFooters(targetMain, refMain, referencePath);
+            var (sectPr, hdrRefs, ftrRefs) = MergeSectionAndHeadersFooters(targetMain, refMain, referencePath, theme);
 
             return new MergedReferenceResult
             {
@@ -164,6 +164,7 @@ public static class ReferenceDocumentMerger
         var font = baseFont ?? settings.BrandFontFamily ?? "Segoe UI Variable";
         var defaultText = ContrastGuard.EnsureLegibleText(theme.Text, theme.Background);
         var headingColor = ContrastGuard.EnsureLegibleText(theme.Heading, theme.Background);
+        var linkColor = ContrastGuard.EnsureLegibleText(theme.IsDarkPage ? "6CB6FF" : "0563C1", theme.Background);
 
         // Ensure docDefaults exists if not present
         if (styles.DocDefaults is null)
@@ -232,17 +233,26 @@ public static class ReferenceDocumentMerger
         // Ensure Hyperlink style
         if (!styles.Elements<W.Style>().Any(s => s.StyleId?.Value is "Hyperlink" or "hyperlink"))
         {
-            styles.Append(new W.Style(new W.StyleName { Val = "Hyperlink" })
+            styles.Append(new W.Style(
+                new W.StyleName { Val = "Hyperlink" },
+                new W.StyleRunProperties(
+                    new W.Color { Val = linkColor },
+                    new W.Underline { Val = W.UnderlineValues.Single }))
             {
                 Type = W.StyleValues.Character,
                 StyleId = "Hyperlink"
             });
         }
+
+        // HARD GOVERNANCE GATE: Enforce WCAG 4.5:1 contrast across docDefaults and EVERY style
+        // (including styles cloned verbatim from a light/dark reference template).
+        ContrastGuard.EnforceStylesContrast(styles, theme.Background, defaultText, headingColor, linkColor);
     }
 
     private static (int NextNumId, int BulletNumId, int BulletAbstractId, int OrderedAbstractId) MergeNumbering(
         MainDocumentPart targetMain,
-        MainDocumentPart refMain)
+        MainDocumentPart refMain,
+        ThemeDefinition theme)
     {
         var targetNumPart = targetMain.AddNewPart<NumberingDefinitionsPart>();
         var targetNumbering = new W.Numbering();
@@ -319,6 +329,7 @@ public static class ReferenceDocumentMerger
         targetNumbering.Append(new W.NumberingInstance(new W.AbstractNumId { Val = bulletAbstractId }) { NumberID = bulletNumId });
         targetNumbering.Append(new W.NumberingInstance(new W.AbstractNumId { Val = orderedAbstractId }) { NumberID = orderedNumId });
 
+        ContrastGuard.EnforceNumberingContrast(targetNumbering, theme.Background, theme.Text);
         targetNumPart.Numbering = targetNumbering;
         targetNumPart.Numbering.Save();
 
@@ -328,7 +339,8 @@ public static class ReferenceDocumentMerger
     private static (W.SectionProperties SectPr, List<W.HeaderReference> Headers, List<W.FooterReference> Footers) MergeSectionAndHeadersFooters(
         MainDocumentPart targetMain,
         MainDocumentPart refMain,
-        string referencePath)
+        string referencePath,
+        ThemeDefinition theme)
     {
         var targetSectPr = new W.SectionProperties();
         var headerRefs = new List<W.HeaderReference>();
@@ -349,6 +361,11 @@ public static class ReferenceDocumentMerger
                 {
                     targetHdr.FeedData(stream);
                 }
+                if (targetHdr.Header is { } h)
+                {
+                    ContrastGuard.EnforceSubtreeContrast(h, theme.Background, theme.Text);
+                    h.Save();
+                }
                 ClonePartImagesAndRelationships(srcHdr, targetHdr);
                 var newRelId = targetMain.GetIdOfPart(targetHdr);
                 var newHdrRef = new W.HeaderReference { Type = hdrRef.Type, Id = newRelId };
@@ -366,6 +383,11 @@ public static class ReferenceDocumentMerger
                 using (var stream = srcFtr.GetStream(FileMode.Open, FileAccess.Read))
                 {
                     targetFtr.FeedData(stream);
+                }
+                if (targetFtr.Footer is { } f)
+                {
+                    ContrastGuard.EnforceSubtreeContrast(f, theme.Background, theme.Text);
+                    f.Save();
                 }
                 ClonePartImagesAndRelationships(srcFtr, targetFtr);
                 var newRelId = targetMain.GetIdOfPart(targetFtr);
