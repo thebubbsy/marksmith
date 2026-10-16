@@ -628,9 +628,21 @@ namespace MarkSmith.Views.SmartArtStudio
             Ultrawide21x9
         }
 
+        public enum SmartArtZoomMode
+        {
+            Fit,
+            Z50,
+            Z75,
+            Z100,
+            Z125,
+            Z150,
+            Z200
+        }
+
         private DiagramPreviewBgMode _currentDiagramBgMode = DiagramPreviewBgMode.DefaultCard;
         private SmartArtNodeGeometryMode _currentNodeGeomMode = SmartArtNodeGeometryMode.Default;
         private SmartArtAspectRatioMode _currentAspectRatioMode = SmartArtAspectRatioMode.Default;
+        private SmartArtZoomMode _currentZoomMode = SmartArtZoomMode.Fit;
 
         private void RefreshWebView()
         {
@@ -642,7 +654,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 {
                     body = ApplyCustomHexToSvgHtml(body, _customHexOverride);
                 }
-                string html = BuildWrapperHtml(body, isDark, _currentDiagramBgMode, _currentNodeGeomMode, _currentAspectRatioMode);
+                string html = BuildWrapperHtml(body, isDark, _currentDiagramBgMode, _currentNodeGeomMode, _currentAspectRatioMode, _currentZoomMode);
                 PreviewWebView.CoreWebView2.NavigateToString(html);
             }
         }
@@ -671,7 +683,7 @@ namespace MarkSmith.Views.SmartArtStudio
         // a "Layout: …" caption. In the studio the card fills the pane and the drawing scales to fit
         // it either way (the SVG's default xMidYMid meet), and the caption is dropped because the
         // pane header names the layout already.
-        private static string BuildWrapperHtml(string body, bool isDarkTheme = false, DiagramPreviewBgMode bgMode = DiagramPreviewBgMode.DefaultCard, SmartArtNodeGeometryMode geomMode = SmartArtNodeGeometryMode.Default, SmartArtAspectRatioMode aspectMode = SmartArtAspectRatioMode.Default)
+        private static string BuildWrapperHtml(string body, bool isDarkTheme = false, DiagramPreviewBgMode bgMode = DiagramPreviewBgMode.DefaultCard, SmartArtNodeGeometryMode geomMode = SmartArtNodeGeometryMode.Default, SmartArtAspectRatioMode aspectMode = SmartArtAspectRatioMode.Default, SmartArtZoomMode zoomMode = SmartArtZoomMode.Fit)
         {
             string cardBg;
             string cardBorder;
@@ -723,12 +735,23 @@ namespace MarkSmith.Views.SmartArtStudio
                 _ => ""
             };
 
+            string zoomCss = zoomMode switch
+            {
+                SmartArtZoomMode.Z50 => " transform: scale(0.5); transform-origin: center center; ",
+                SmartArtZoomMode.Z75 => " transform: scale(0.75); transform-origin: center center; ",
+                SmartArtZoomMode.Z100 => " transform: scale(1.0); transform-origin: center center; ",
+                SmartArtZoomMode.Z125 => " transform: scale(1.25); transform-origin: center center; ",
+                SmartArtZoomMode.Z150 => " transform: scale(1.5); transform-origin: center center; ",
+                SmartArtZoomMode.Z200 => " transform: scale(2.0); transform-origin: center center; ",
+                _ => ""
+            };
+
             return $@"<!DOCTYPE html>
 <html><head><meta charset=""utf-8""/>
 <style>
   html,body{{height:100%;margin:0}}
-  body{{padding:16px;box-sizing:border-box;background:transparent;display:flex;align-items:center;justify-content:center}}
-  .smartart-container{{width:100%!important;max-width:none!important;height:100%!important;display:flex;flex-direction:column;padding:12px;box-sizing:border-box;background:{cardBg}!important;border:1px solid {cardBorder}!important;border-radius:8px!important;box-shadow:{cardShadow}!important;{customPatternCss}{geomCss}{aspectCss}}}
+  body{{padding:16px;box-sizing:border-box;background:transparent;display:flex;align-items:center;justify-content:center;overflow:auto}}
+  .smartart-container{{width:100%!important;max-width:none!important;height:100%!important;display:flex;flex-direction:column;padding:12px;box-sizing:border-box;background:{cardBg}!important;border:1px solid {cardBorder}!important;border-radius:8px!important;box-shadow:{cardShadow}!important;{customPatternCss}{geomCss}{aspectCss}{zoomCss}}}
   .smartart-container > .smartart-caption{{display:none}}
   .smartart-container > svg{{flex:1;min-height:0;width:100%!important;height:100%!important}}
   .smartart-container svg g {{ transition: filter 0.12s ease, opacity 0.15s ease; }}
@@ -2904,6 +2927,49 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             ViewModel.StatusMessage = $"Diagram preview aspect ratio set to: {label}";
             if (AspectRatioButton is not null) Services.CopyFeedback.ApplyButtonTick(AspectRatioButton, null);
+        }
+
+        private void OnZoomButtonClick(object sender, RoutedEventArgs e)
+        {
+            ZoomFlyout?.ShowAt(sender as FrameworkElement ?? ZoomButton);
+        }
+
+        private void OnZoomButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            SetZoomMode(SmartArtZoomMode.Z100);
+        }
+
+        private void OnZoomButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            SetZoomMode(_currentZoomMode == SmartArtZoomMode.Fit ? SmartArtZoomMode.Z100 : SmartArtZoomMode.Fit);
+        }
+
+        private void OnZoomFitClick(object sender, RoutedEventArgs e) => SetZoomMode(SmartArtZoomMode.Fit);
+        private void OnZoom50Click(object sender, RoutedEventArgs e) => SetZoomMode(SmartArtZoomMode.Z50);
+        private void OnZoom75Click(object sender, RoutedEventArgs e) => SetZoomMode(SmartArtZoomMode.Z75);
+        private void OnZoom100Click(object sender, RoutedEventArgs e) => SetZoomMode(SmartArtZoomMode.Z100);
+        private void OnZoom125Click(object sender, RoutedEventArgs e) => SetZoomMode(SmartArtZoomMode.Z125);
+        private void OnZoom150Click(object sender, RoutedEventArgs e) => SetZoomMode(SmartArtZoomMode.Z150);
+        private void OnZoom200Click(object sender, RoutedEventArgs e) => SetZoomMode(SmartArtZoomMode.Z200);
+
+        private void SetZoomMode(SmartArtZoomMode mode)
+        {
+            _currentZoomMode = mode;
+            RefreshWebView();
+            string label = mode switch
+            {
+                SmartArtZoomMode.Z50 => "50% Compact",
+                SmartArtZoomMode.Z75 => "75%",
+                SmartArtZoomMode.Z100 => "100% Actual Size",
+                SmartArtZoomMode.Z125 => "125%",
+                SmartArtZoomMode.Z150 => "150%",
+                SmartArtZoomMode.Z200 => "200% High Detail",
+                _ => "Fit to View (Auto)"
+            };
+            ViewModel.StatusMessage = $"Diagram preview zoom set to: {label}";
+            if (ZoomButton is not null) Services.CopyFeedback.ApplyButtonTick(ZoomButton, null);
         }
 
         private void OnCopySvg1xClick(object sender, RoutedEventArgs e) => CopySvgToClipboard(1.0, "1x SVG");

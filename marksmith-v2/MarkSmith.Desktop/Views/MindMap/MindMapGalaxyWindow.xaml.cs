@@ -3812,6 +3812,49 @@ namespace MarkSmith.Views.MindMap
 
         private void OnFitToWindowClick(object sender, RoutedEventArgs e) => FitToWindow();
 
+        private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
+
+        private void OnCenterOnRootDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ViewModel.ZoomLevel = 1.0;
+            CenterOnRoot();
+        }
+
+        private void OnCenterOnRootRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var menu = new MenuFlyout();
+            var center = new MenuFlyoutItem { Text = "Center on root node (Home)", Icon = new FontIcon { Glyph = "\uE80F" } };
+            center.Click += (_, _) => CenterOnRoot();
+            menu.Items.Add(center);
+            var fit = new MenuFlyoutItem { Text = "Fit all in window (Ctrl+0)", Icon = new FontIcon { Glyph = "\uE9A6" } };
+            fit.Click += (_, _) => FitToWindow();
+            menu.Items.Add(fit);
+            var resetZoom = new MenuFlyoutItem { Text = "Reset zoom (100% · Ctrl+1)", Icon = new FontIcon { Glyph = "\uE71E" } };
+            resetZoom.Click += (_, _) => OnZoomResetClick(this, new RoutedEventArgs());
+            menu.Items.Add(resetZoom);
+            menu.ShowAt(sender as FrameworkElement ?? CenterOnRootButton, e.GetPosition(sender as UIElement));
+        }
+
+        private void CenterOnRoot()
+        {
+            if (ViewModel.Nodes.Count == 0) return;
+            var root = ViewModel.GetRootNode();
+            if (root is null) return;
+
+            double worldCenterX = root.X + (root.Width / 2.0);
+            double worldCenterY = root.Y + (root.Height / 2.0);
+
+            ViewModel.ViewportOffsetX = -worldCenterX;
+            ViewModel.ViewportOffsetY = -worldCenterY;
+            ViewModel.SelectedLink = null;
+            ViewModel.SelectedNode = root;
+            RequestRedraw(RedrawScope.Transform);
+            ViewModel.StatusMessage = $"Centered on root: {root.Title}";
+            if (CenterOnRootButton is not null) Services.CopyFeedback.ApplyButtonTick(CenterOnRootButton, null);
+        }
+
         /// <summary>
         /// Actually fits the galaxy to the window. Uses safe view insets so nodes have ample breathing room
         /// and never clip into window borders, behind the top pills/tour banner, or into the bottom legend/minimap.

@@ -9476,5 +9476,80 @@ Reviewed: the 2026-10-17 run #124 entry above. Followed the AI-Executable 3-Bloc
 - `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **458 passed, 0 failed (100% pass rate)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, responsive startup, clean exit.
 
+### 2026-10-17 (scheduled routine run #126 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #125 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across the 6 major WinUI 3 surfaces (`SmartArtDesignStudioWindow`, `MainWindow`, `ShapeDesignStudioWindow`, `MindMapGalaxyWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Generated:
+    1. `SmartArtDesignStudioWindow`: Preview Zoom Flyout & scaling presets (`ZoomButton`, `ZoomFlyout`: Fit to View, 50%, 75%, 100%, 125%, 150%, 200%, CSS transform scale injection).
+    2. `MainWindow`: Editor bottom toolbar Markdown footnote & citation helper (`FootnoteButton`, `FootnoteFlyout`: Insert Footnote `[^1]`, Named Footnote `[^note]`, Hyperlink, Reference Link, Jump to Footnote).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Added `SmartArtZoomMode` enum and injected CSS `transform: scale(factor)` with `transform-origin: center center` into `.smartart-container` in `BuildWrapperHtml`. Added double-tap to reset to 100% and right-tap to toggle Fit to View.
+    * For Idea 2: Positioned `FootnoteButton` in `MainWindow.xaml` between `MathFormulaButton` and `LintButton`. Implemented `InsertSequentialFootnote` auto-scanning `[^N]` in text to increment to next number `[^N+1]` and appending note definition at document bottom; implemented `JumpToFootnoteCounterpart` navigating between anchor and note body.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Shape Color Recent Colors LRU Cache swatch bar (`RecentColorsContainer` and `RecentColorsSwatches` with clear button).
+    4. `MindMapGalaxyWindow`: Canvas Center on Root Node button (`CenterOnRootButton`, `GetRootNode()` algorithm, double-click reset zoom & center).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Placed `RecentColorsContainer` inside `FillFlyout` below theme scheme swatches. Managed static `_recentColors` list (max 8 colors) with interactive clickable swatches and tooltip hex preview, hooked to color picker and palette selections.
+    * For Idea 4: Placed `CenterOnRootButton` beside `FitToWindowButton`. Added `GetRootNode()` in `MindMapStudioViewModel` resolving tree root (non-target or first node); double-click resets zoom to 1.0 and centers root; right-click opens preset flyout.
+  - Refined Block 1 (Pass 2 - Final):
+    * Enforced WinUI 3 XAML compiler safety: zero `MaxWidth` on `ColumnDefinition` elements to prevent `WMC9999` crashes.
+    * Verified SmartArt zoom CSS transform scales compose cleanly with aspect-ratio constraints from Run #125.
+  - Generated:
+    5. `HistoryWindow`: Timeline Version Filter Status Pill (`TimelineFilterStatusPill` with `TimelineFilterFlyout`: All, Starred, Checkpoints, Exports, Auto-Saves, Clear All).
+    6. `SuiteHubView`: Recent Documents Quick Strip Action Menu (`RecentDocsActionBtn`, `RecentDocsFlyout`, right-tap/double-tap interactions on strip and refresh button, Clear Recent History via `RecentFilesService.Clear()`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Added 4th column to `TimelineHeaderBorder` in `HistoryWindow.xaml`, mounted `TimelineFilterStatusPill`, wired double-tap to clear filters and right-tap to open filter flyout; bound updates to VM property changes.
+    * For Idea 6: Mounted `RecentDocsActionBtn` in `RecentDocsStrip` with flyout options: Browse for Markdown file (`Ctrl+O`), Open MarkSmith Documents folder, Refresh list, Clear recent documents history. Wired right-tap and double-tap on strip and refresh button. Added `Clear()` to `RecentFilesService`.
+  - Executed all 6 refined targets into 100% production code with zero placeholders.
+  - Added unit test coverage:
+    * `MindMapGalaxyPolishTests.cs`: `Run126_GetRootNode_ResolvesRootOrFirstNode`.
+    * `SuiteHubAndTourPolishTests.cs`: `SuiteHub_RecentDocs_QuickStrip_and_ActionMenu_Wired` and `SmartArt_and_History_and_Shape_Run126_Polish_Elements_Wired`.
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **461 passed, 0 failed (100% pass rate)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 23924, responsive startup, clean exit.
+  - Carried forward ideas / next targets into Run #127:
+    * Target A: `MainWindow` editor status bar line & column jump dialog (Ctrl+G).
+    * Target B: `MindMapGalaxyWindow` canvas layout direction selector (Left-to-Right, Right-to-Left, Top-Down, Radial Fan-Out).
+    * Target C: `ShapeDesignStudioWindow` quick duplicate / clone shortcut (Ctrl+D) with staggered offset.
+
+**Shipped:**
+1. **`SmartArtDesignStudioWindow` Preview Zoom Flyout (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Added `ZoomButton` with flyout presets (Fit to View / Auto, 50% Compact, 75%, 100% Default, 125%, 150%, 200% High Detail).
+   - Injected CSS `transform: scale(factor)` and `transform-origin: center center` into `.smartart-container` in `BuildWrapperHtml`.
+   - Double-click resets zoom to 100%; right-click toggles Fit to View.
+2. **`MainWindow` Markdown Footnote & Citation Reference Helper (`MainWindow.xaml`, `MainWindow.xaml.cs`):**
+   - Added `FootnoteButton` in editor bottom toolbar between `MathFormulaButton` and `LintButton`.
+   - Options for Insert Footnote at Cursor (`[^1]`), Insert Named Footnote (`[^note]`), Wrap Selection in Hyperlink (`[text](url)`), Insert Reference Link (`[text][ref]`), and Jump to Footnote Definition / Anchor.
+   - `InsertSequentialFootnote` auto-scans existing `[^N]` numbers in markdown text and inserts next sequential `[^N+1]` while appending note body definition at document end.
+3. **`ShapeDesignStudioWindow` Shape Color Recent Colors Swatches (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Added `RecentColorsContainer` and `RecentColorsSwatches` horizontal stack inside `FillFlyout` below scheme swatches.
+   - Maintained static LRU cache `_recentColors` (up to 8 colors) populated dynamically from color picker and scheme clicks.
+   - Interactive clickable swatches with tooltip hex preview and one-click "Clear" button.
+4. **`MindMapGalaxyWindow` Canvas Center on Root Node (`Views/MindMap/MindMapGalaxyWindow.xaml`, `Views/MindMap/MindMapGalaxyWindow.xaml.cs`, `MarkSmith.Core/ViewModels/MindMap/MindMapStudioViewModel.cs`):**
+   - Added `CenterOnRootButton` in top toolbar beside `FitToWindowButton`.
+   - New `GetRootNode()` algorithm in `MindMapStudioViewModel` resolving tree root (non-target or first node).
+   - Single-click smoothly centers viewport on root node and selects it; double-click centers root and resets zoom to 1.0; right-click opens zoom options.
+5. **`HistoryWindow` Timeline Version Filter Status Pill (`Views/History/HistoryWindow.xaml`, `Views/History/HistoryWindow.xaml.cs`):**
+   - Added 4th column in `TimelineHeaderBorder` with `TimelineFilterStatusPill` and `TimelineFilterStatusText` badge.
+   - Flyout options for All Versions, Starred Versions Only, Checkpoints / Snapshots Only, Exports Only, Auto-Saves Only, and Clear All Filters.
+   - Dynamic status text updating on version property changes; double-click clears filters, right-click opens flyout.
+6. **`SuiteHubView` Recent Documents Quick Strip Action Menu (`Views/SuiteHubView.xaml`, `Views/SuiteHubView.xaml.cs`, `MarkSmith.Core/Services/RecentFilesService.cs`):**
+   - Added `RecentDocsActionBtn` in `RecentDocsStrip` with menu for Browse for Markdown file (`Ctrl+O`), Open MarkSmith Documents folder, Refresh recent list, and Clear recent documents history.
+   - Added `Clear()` to `RecentFilesService` to cleanly wipe stored recent documents.
+   - Wired right-click and double-click interactions across `RecentDocsStrip` and `RefreshRecentDocsButton`.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **461 passed, 0 failed (100% pass rate)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 23924, responsive startup, clean exit.
+
+
 
 

@@ -14,6 +14,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.System;
+using MarkSmith.Models;
 using MarkSmith.Services;
 
 namespace MarkSmith.Views;
@@ -1087,6 +1088,125 @@ public sealed partial class SuiteHubView : UserControl
     {
         LoadRecentFiles();
         SetNotification("Refreshed recent documents.", success: true);
+    }
+
+    private void OnRecentDocsActionBtnClick(object sender, RoutedEventArgs e)
+    {
+        if (RecentDocsFlyout is not null && sender is FrameworkElement fe)
+        {
+            RecentDocsFlyout.ShowAt(fe);
+        }
+    }
+
+    private async void OnBrowseFileToOpenClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var filePath = await NativeFilePicker.PickOpenFileAsync(
+                this,
+                "Open Markdown Document",
+                NativeFilePicker.Purpose.Documents,
+                new[]
+                {
+                    FileType.Of("Markdown files", ".md", ".markdown", ".mdown", ".mkdn", ".txt"),
+                    FileType.AllFiles
+                },
+                okLabel: "Open");
+
+            if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+            {
+                App.RecentFiles?.AddToRecent(filePath);
+                LoadRecentFiles();
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = filePath,
+                        UseShellExecute = true
+                    });
+                    SetNotification($"Opened: {Path.GetFileName(filePath)}", success: true);
+                }
+                catch (Exception ex)
+                {
+                    SetNotification($"Couldn't launch document: {ex.Message}", success: false);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Failed to browse document: {ex.Message}", success: false);
+        }
+    }
+
+    private void OnOpenDocumentsFolderClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string docsFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            string marksmithFolder = Path.Combine(docsFolder, "MarkSmith");
+            if (!Directory.Exists(marksmithFolder))
+            {
+                Directory.CreateDirectory(marksmithFolder);
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"\"{marksmithFolder}\"",
+                UseShellExecute = true
+            });
+            SetNotification("Opened MarkSmith Documents folder.", success: true);
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't open documents folder: {ex.Message}", success: false);
+        }
+    }
+
+    private void OnClearRecentDocsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            App.RecentFiles?.Clear();
+            RecentFilesPanel.Children.Clear();
+            RecentFilesPanel.Visibility = Visibility.Collapsed;
+            NoRecentDocsText.Visibility = Visibility.Visible;
+            SetNotification("Cleared recent documents history.", success: true);
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't clear recent documents: {ex.Message}", success: false);
+        }
+    }
+
+    private void OnRefreshRecentDocsButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (RecentDocsFlyout is not null && sender is FrameworkElement fe)
+        {
+            RecentDocsFlyout.ShowAt(fe, e.GetPosition(fe));
+        }
+    }
+
+    private void OnRefreshRecentDocsButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        OnRefreshRecentDocsClick(sender, new RoutedEventArgs());
+    }
+
+    private void OnRecentDocsStripRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (RecentDocsFlyout is not null && sender is FrameworkElement fe)
+        {
+            RecentDocsFlyout.ShowAt(fe, e.GetPosition(fe));
+        }
+    }
+
+    private void OnRecentDocsStripDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        OnRefreshRecentDocsClick(sender, new RoutedEventArgs());
     }
 
     private void OnTemplateMeetingNotesClick(object sender, RoutedEventArgs e)

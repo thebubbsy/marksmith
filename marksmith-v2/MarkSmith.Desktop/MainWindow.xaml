@@ -1035,6 +1035,39 @@
                                             </MenuFlyout>
                                         </Button.Flyout>
                                     </Button>
+                                    <!-- Markdown footnote / citation reference helper -->
+                                    <Button x:Name="FootnoteButton" Height="24" Padding="6,0"
+                                            Click="OnFootnoteButtonClick"
+                                            DoubleTapped="OnFootnoteButtonDoubleTapped"
+                                            RightTapped="OnFootnoteButtonRightTapped"
+                                            AutomationProperties.Name="Insert Markdown footnote or citation reference"
+                                            ToolTipService.ToolTip="Insert Markdown footnote or citation reference ([^1] · Double-click to insert next footnote, Right-click for options)">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon Glyph="&#xE8D2;" FontSize="11" />
+                                            <TextBlock Text="Footnote" FontSize="11" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <Button.Flyout>
+                                            <MenuFlyout x:Name="FootnoteFlyout">
+                                                <MenuFlyoutItem Text="Insert Footnote at Cursor ([^1])" Click="OnInsertFootnoteClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE710;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="Insert Named Footnote ([^note])" Click="OnInsertNamedFootnoteClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutSeparator />
+                                                <MenuFlyoutItem Text="Wrap Selection in Hyperlink ([text](url))" Click="OnInsertHyperlinkClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71B;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="Insert Reference Link ([text][ref])" Click="OnInsertReferenceLinkClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutSeparator />
+                                                <MenuFlyoutItem Text="Jump to Footnote Definition / Anchor" Click="OnJumpToFootnoteClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE70D;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
                                     <!-- Markdown lint: live issue count; the flyout lists issues and jumps to them. -->
                                     <Button x:Name="LintButton" Height="24" Padding="6,0"
                                             AutomationProperties.Name="Markdown issues"

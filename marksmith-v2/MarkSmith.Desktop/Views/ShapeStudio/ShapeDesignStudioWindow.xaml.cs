@@ -3994,6 +3994,7 @@ namespace MarkSmith.Views.ShapeStudio
                 catch { }
             }
             RebuildFillFlyoutSwatches(hex);
+            RebuildRecentColorsSwatches(hex);
         }
 
         private void OnFillPickerColorChanged(ColorPicker sender, ColorChangedEventArgs args)
@@ -4001,6 +4002,88 @@ namespace MarkSmith.Views.ShapeStudio
             var c = args.NewColor;
             if (FillFlyoutHexText is not null)
                 FillFlyoutHexText.Text = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+        }
+
+        private static readonly List<string> _recentColors = new() { "0078D4", "107C41", "D83B01", "5C2D91", "008272", "D13438" };
+
+        private static void AddRecentColor(string hex)
+        {
+            if (string.IsNullOrWhiteSpace(hex)) return;
+            string clean = hex.Trim().TrimStart('#').ToUpperInvariant();
+            if (clean.Length != 6) return;
+            _recentColors.Remove(clean);
+            _recentColors.Insert(0, clean);
+            if (_recentColors.Count > 8) _recentColors.RemoveAt(_recentColors.Count - 1);
+        }
+
+        private void RebuildRecentColorsSwatches(string activeHex)
+        {
+            if (RecentColorsSwatches is null) return;
+            RecentColorsSwatches.Children.Clear();
+            if (RecentColorsContainer is not null)
+            {
+                RecentColorsContainer.Visibility = _recentColors.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            foreach (string hex in _recentColors)
+            {
+                bool active = string.Equals(hex, activeHex, StringComparison.OrdinalIgnoreCase);
+                var btn = new Button
+                {
+                    Width = 26,
+                    Height = 22,
+                    Padding = new Thickness(0),
+                    CornerRadius = new CornerRadius(4),
+                    Background = BrushFromHex(hex),
+                    BorderThickness = new Thickness(active ? 2 : 1),
+                };
+                if (active)
+                    btn.BorderBrush = new SolidColorBrush(AccentColor(0xFF));
+                else
+                    ThemeBrush.Set(btn, Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+                ToolTipService.SetToolTip(btn, $"#{hex} (Recent · Right-click for options)");
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(btn, $"Apply recent colour #{hex}");
+                string capturedHex = hex;
+                btn.Click += (_, _) =>
+                {
+                    if (ViewModel.SelectedShape is { } s)
+                    {
+                        ViewModel.RecordUndo();
+                        s.Fill = capturedHex;
+                        AddRecentColor(capturedHex);
+                        ViewModel.StatusMessage = $"{(s.IsLine ? "Line" : "Fill")} colour #{s.Fill}";
+                        FillFlyout.Hide();
+                    }
+                };
+                btn.RightTapped += (s, e) =>
+                {
+                    e.Handled = true;
+                    var menu = new MenuFlyout();
+                    var copy = new MenuFlyoutItem { Text = $"Copy #{capturedHex}", Icon = new FontIcon { Glyph = "\uE8C8" } };
+                    copy.Click += (_, _) =>
+                    {
+                        _ = Services.ClipboardWriter.TrySetTextAsync($"#{capturedHex}");
+                        ViewModel.StatusMessage = $"Copied #{capturedHex} to clipboard";
+                    };
+                    menu.Items.Add(copy);
+                    var remove = new MenuFlyoutItem { Text = "Remove from recent", Icon = new FontIcon { Glyph = "\uE74D" } };
+                    remove.Click += (_, _) =>
+                    {
+                        _recentColors.Remove(capturedHex);
+                        RebuildRecentColorsSwatches(activeHex);
+                    };
+                    menu.Items.Add(remove);
+                    menu.ShowAt(btn, e.GetPosition(btn));
+                };
+                RecentColorsSwatches.Children.Add(btn);
+            }
+        }
+
+        private void OnClearRecentColorsClick(object sender, RoutedEventArgs e)
+        {
+            _recentColors.Clear();
+            RebuildRecentColorsSwatches("");
+            ViewModel.StatusMessage = "Cleared recent colours cache.";
         }
 
         private void RebuildFillFlyoutSwatches(string activeHex)
@@ -4033,6 +4116,7 @@ namespace MarkSmith.Views.ShapeStudio
                     {
                         ViewModel.RecordUndo();
                         s.Fill = capturedHex;
+                        AddRecentColor(capturedHex);
                         ViewModel.StatusMessage = $"{(s.IsLine ? "Line" : "Fill")} colour #{s.Fill}";
                         FillFlyout.Hide();
                     }
@@ -4048,6 +4132,7 @@ namespace MarkSmith.Views.ShapeStudio
                 var c = FillPicker.Color;
                 ViewModel.RecordUndo();
                 shape.Fill = $"{c.R:X2}{c.G:X2}{c.B:X2}";
+                AddRecentColor(shape.Fill);
                 ViewModel.StatusMessage = $"{(shape.IsLine ? "Line" : "Fill")} colour #{shape.Fill}";
             }
             FillFlyout.Hide();

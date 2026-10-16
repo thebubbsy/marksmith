@@ -250,6 +250,10 @@ public sealed partial class HistoryWindow : Window
             ResetChangeStepper();
             UpdateVisualDiffStatsBar();
         }
+        else if (e.PropertyName == nameof(HistoryWindowViewModel.SearchQuery) || e.PropertyName == nameof(HistoryWindowViewModel.IsStarredOnlyFilter))
+        {
+            UpdateTimelineFilterStatus();
+        }
     }
 
     // The page fits itself to the pane's width when it loads. Loaded while the pane was collapsed
@@ -2465,6 +2469,78 @@ public sealed partial class HistoryWindow : Window
     {
         TimelineScroll?.ChangeView(null, TimelineScroll.ScrollableHeight, null);
         _vm.SelectLastVersion();
+    }
+
+    private void OnTimelineFilterStatusPillTapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        TimelineFilterFlyout?.ShowAt(sender as FrameworkElement ?? TimelineFilterStatusPill);
+    }
+
+    private void OnTimelineFilterStatusPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        _vm.ClearFiltersCommand.Execute(null);
+        UpdateTimelineFilterStatus();
+    }
+
+    private void OnTimelineFilterStatusPillRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        TimelineFilterFlyout?.ShowAt(sender as FrameworkElement ?? TimelineFilterStatusPill);
+    }
+
+    private void OnFilterAllVersionsClick(object sender, RoutedEventArgs e)
+    {
+        _vm.ClearFiltersCommand.Execute(null);
+        UpdateTimelineFilterStatus();
+    }
+
+    private void OnFilterStarredOnlyClick(object sender, RoutedEventArgs e)
+    {
+        _vm.IsStarredOnlyFilter = true;
+        UpdateTimelineFilterStatus();
+    }
+
+    private void OnFilterCheckpointsClick(object sender, RoutedEventArgs e)
+    {
+        _vm.SearchQuery = "snapshot";
+        UpdateTimelineFilterStatus();
+    }
+
+    private void OnFilterExportsClick(object sender, RoutedEventArgs e)
+    {
+        _vm.SearchQuery = "export";
+        UpdateTimelineFilterStatus();
+    }
+
+    private void OnFilterAutoSavesClick(object sender, RoutedEventArgs e)
+    {
+        _vm.SearchQuery = "save";
+        UpdateTimelineFilterStatus();
+    }
+
+    private void OnFilterClearAllClick(object sender, RoutedEventArgs e)
+    {
+        _vm.ClearFiltersCommand.Execute(null);
+        UpdateTimelineFilterStatus();
+    }
+
+    private void UpdateTimelineFilterStatus()
+    {
+        if (TimelineFilterStatusText is null) return;
+        if (_vm.IsStarredOnlyFilter)
+        {
+            TimelineFilterStatusText.Text = "Starred";
+        }
+        else if (!string.IsNullOrWhiteSpace(_vm.SearchQuery))
+        {
+            TimelineFilterStatusText.Text = _vm.SearchQuery.Length > 10 ? _vm.SearchQuery[..9] + "…" : _vm.SearchQuery;
+        }
+        else
+        {
+            TimelineFilterStatusText.Text = "All";
+        }
     }
 
     private void OnTimelineHeaderRightTapped(object sender, RightTappedRoutedEventArgs e)

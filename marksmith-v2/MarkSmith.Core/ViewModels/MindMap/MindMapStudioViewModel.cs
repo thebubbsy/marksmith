@@ -1055,6 +1055,14 @@ namespace MarkSmith.ViewModels.MindMap
             NodeCreated?.Invoke(this, siblingVm);
         }
 
+        /// <summary>Returns the root node of the mind map (a node with no incoming links, or the first node).</summary>
+        public MindMapNodeViewModel? GetRootNode()
+        {
+            if (Nodes.Count == 0) return null;
+            var targetNodeIds = new HashSet<string>(Links.Select(l => l.TargetNodeId));
+            return Nodes.FirstOrDefault(n => !targetNodeIds.Contains(n.Id)) ?? Nodes[0];
+        }
+
         [RelayCommand]
         public void AddRootNode() => AddRootNodeCore(announce: true);
 

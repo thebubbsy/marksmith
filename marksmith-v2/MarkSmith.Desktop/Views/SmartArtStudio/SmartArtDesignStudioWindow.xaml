@@ -571,6 +571,40 @@
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
+                            <Button x:Name="ZoomButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                                    Click="OnZoomButtonClick"
+                                    DoubleTapped="OnZoomButtonDoubleTapped"
+                                    RightTapped="OnZoomButtonRightTapped"
+                                    AutomationProperties.Name="Diagram preview zoom"
+                                    ToolTipService.ToolTip="Diagram preview zoom (Fit to View, 50%, 75%, 100%, 125%, 150%, 200% · Double-click to reset, Right-click to toggle Fit)">
+                                <FontIcon Glyph="&#xE8A3;" FontSize="12" />
+                                <Button.Flyout>
+                                    <MenuFlyout x:Name="ZoomFlyout">
+                                        <MenuFlyoutItem x:Name="ZoomFitItem" Text="Fit to View (Auto)" Click="OnZoomFitClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9A6;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem x:Name="Zoom50Item" Text="50% Compact" Click="OnZoom50Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71F;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="Zoom75Item" Text="75%" Click="OnZoom75Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71F;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="Zoom100Item" Text="100% Actual Size (Default)" Click="OnZoom100Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="Zoom125Item" Text="125%" Click="OnZoom125Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A3;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="Zoom150Item" Text="150%" Click="OnZoom150Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A3;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="Zoom200Item" Text="200% High Detail" Click="OnZoom200Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE738;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
                         </StackPanel>
                     </Grid>
                     <!-- Quick Layout Visual Thumbnail Strip -->

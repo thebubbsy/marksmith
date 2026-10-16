@@ -45,4 +45,16 @@ public sealed class RecentFilesService
         catch { /* non-critical feature; keep the in-memory list */ }
         return files;
     }
+
+    public void Clear()
+    {
+        try
+        {
+            if (File.Exists(RecentFilesPath))
+            {
+                AtomicFile.WriteAllText(RecentFilesPath, "[]");
+            }
+        }
+        catch { /* non-critical feature */ }
+    }
 }

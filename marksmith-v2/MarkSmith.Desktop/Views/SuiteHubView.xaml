@@ -151,7 +151,9 @@
             <!-- Recent Documents Quick Strip -->
             <Border x:Name="RecentDocsStrip" Background="{ThemeResource LayerFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                    CornerRadius="8" Padding="12,8">
+                    CornerRadius="8" Padding="12,8"
+                    RightTapped="OnRecentDocsStripRightTapped"
+                    DoubleTapped="OnRecentDocsStripDoubleTapped">
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <FontIcon Glyph="&#xE81C;" FontSize="13" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
@@ -161,11 +163,38 @@
                     <TextBlock x:Name="NoRecentDocsText" Grid.Column="1" Text="No recent documents yet — start writing in MarkSmith"
                                FontSize="11.5" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontStyle="Italic"
                                VerticalAlignment="Center" Visibility="Collapsed" />
-                    <Button x:Name="RefreshRecentDocsButton" Grid.Column="2" Click="OnRefreshRecentDocsClick"
-                            Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
-                            ToolTipService.ToolTip="Refresh recent documents" AutomationProperties.Name="Refresh recent documents">
-                        <FontIcon Glyph="&#xE72C;" FontSize="11" />
-                    </Button>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                        <Button x:Name="RecentDocsActionBtn" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                                Click="OnRecentDocsActionBtnClick"
+                                ToolTipService.ToolTip="Recent documents options (Open file, Browse folder, Clear history · Right-click for options)"
+                                AutomationProperties.Name="Recent documents actions">
+                            <FontIcon Glyph="&#xE712;" FontSize="11" />
+                            <Button.Flyout>
+                                <MenuFlyout x:Name="RecentDocsFlyout">
+                                    <MenuFlyoutItem Text="Browse for Markdown file… (Ctrl+O)" Click="OnBrowseFileToOpenClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E5;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Open MarkSmith Documents folder" Click="OnOpenDocumentsFolderClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem Text="Refresh recent list" Click="OnRefreshRecentDocsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72C;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Clear recent documents history" Click="OnClearRecentDocsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <Button x:Name="RefreshRecentDocsButton" Click="OnRefreshRecentDocsClick"
+                                RightTapped="OnRefreshRecentDocsButtonRightTapped"
+                                DoubleTapped="OnRefreshRecentDocsButtonDoubleTapped"
+                                Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                                ToolTipService.ToolTip="Refresh recent documents (Double-click to refresh, Right-click for options)" AutomationProperties.Name="Refresh recent documents">
+                            <FontIcon Glyph="&#xE72C;" FontSize="11" />
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Border>
 

@@ -354,5 +354,63 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("ShowTipContextMenu", tipCs);
         Assert.Contains("HoverPolish.RestoreFocus", tipCs);
     }
+
+    [Fact]
+    public void SuiteHub_RecentDocs_QuickStrip_and_ActionMenu_Wired()
+    {
+        var xaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var cs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+
+        Assert.Contains("x:Name=\"RecentDocsStrip\"", xaml);
+        Assert.Contains("x:Name=\"RecentDocsActionBtn\"", xaml);
+        Assert.Contains("x:Name=\"RecentDocsFlyout\"", xaml);
+        Assert.Contains("OnRecentDocsActionBtnClick", xaml);
+        Assert.Contains("OnBrowseFileToOpenClick", xaml);
+        Assert.Contains("OnOpenDocumentsFolderClick", xaml);
+        Assert.Contains("OnClearRecentDocsClick", xaml);
+        Assert.Contains("OnRecentDocsStripRightTapped", xaml);
+        Assert.Contains("OnRecentDocsStripDoubleTapped", xaml);
+
+        Assert.Contains("void OnRecentDocsActionBtnClick", cs);
+        Assert.Contains("void OnBrowseFileToOpenClick", cs);
+        Assert.Contains("void OnOpenDocumentsFolderClick", cs);
+        Assert.Contains("void OnClearRecentDocsClick", cs);
+        Assert.Contains("void OnRecentDocsStripRightTapped", cs);
+        Assert.Contains("void OnRecentDocsStripDoubleTapped", cs);
+    }
+
+    [Fact]
+    public void SmartArt_and_History_and_Shape_Run126_Polish_Elements_Wired()
+    {
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+
+        Assert.Contains("x:Name=\"ZoomButton\"", smartArtXaml);
+        Assert.Contains("x:Name=\"ZoomFlyout\"", smartArtXaml);
+        Assert.Contains("OnZoomButtonClick", smartArtCs);
+        Assert.Contains("SmartArtZoomMode", smartArtCs);
+
+        var historyXaml = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml"));
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+
+        Assert.Contains("x:Name=\"TimelineFilterStatusPill\"", historyXaml);
+        Assert.Contains("x:Name=\"TimelineFilterStatusText\"", historyXaml);
+        Assert.Contains("UpdateTimelineFilterStatus", historyCs);
+
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+
+        Assert.Contains("x:Name=\"RecentColorsContainer\"", shapeXaml);
+        Assert.Contains("x:Name=\"RecentColorsSwatches\"", shapeXaml);
+        Assert.Contains("AddRecentColor", shapeCs);
+        Assert.Contains("RebuildRecentColorsSwatches", shapeCs);
+
+        var mainXaml = File.ReadAllText(DesktopPath("MainWindow.xaml"));
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+
+        Assert.Contains("x:Name=\"FootnoteButton\"", mainXaml);
+        Assert.Contains("x:Name=\"FootnoteFlyout\"", mainXaml);
+        Assert.Contains("InsertSequentialFootnote", mainCs);
+    }
 }
 

@@ -272,6 +272,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="TIMELINE" FontSize="11" FontWeight="Bold" CharacterSpacing="60"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
@@ -293,6 +294,42 @@
                                         <FontIcon Glyph="&#xE70D;" FontSize="9" />
                                     </Button>
                                 </StackPanel>
+                            </Border>
+                            <Border x:Name="TimelineFilterStatusPill" Grid.Column="3"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    CornerRadius="5" Padding="4,2" VerticalAlignment="Center" Margin="4,0,0,0"
+                                    IsHitTestVisible="True"
+                                    Tapped="OnTimelineFilterStatusPillTapped"
+                                    DoubleTapped="OnTimelineFilterStatusPillDoubleTapped"
+                                    RightTapped="OnTimelineFilterStatusPillRightTapped"
+                                    ToolTipService.ToolTip="Timeline filter mode · Click to filter by version type, double-click to clear all filters, right-click for options">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE71C;" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="TimelineFilterStatusText" Text="All" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                                <Border.ContextFlyout>
+                                    <MenuFlyout x:Name="TimelineFilterFlyout">
+                                        <MenuFlyoutItem Text="All Versions" Click="OnFilterAllVersionsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Starred Versions Only" Click="OnFilterStarredOnlyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE735;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Checkpoints / Snapshots Only" Click="OnFilterCheckpointsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Exports Only" Click="OnFilterExportsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE1;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Auto-Saves Only" Click="OnFilterAutoSavesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Clear All Filters" Click="OnFilterClearAllClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Border.ContextFlyout>
                             </Border>
                         </Grid>
                     </Border>

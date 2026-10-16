@@ -10151,6 +10151,209 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (MathFormulaButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(MathFormulaButton, null);
     }
 
+    private void OnFootnoteButtonClick(object sender, RoutedEventArgs e)
+    {
+        FootnoteFlyout?.ShowAt(sender as FrameworkElement ?? FootnoteButton);
+    }
+
+    private void OnFootnoteButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        InsertSequentialFootnote();
+    }
+
+    private void OnFootnoteButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        FootnoteFlyout?.ShowAt(sender as FrameworkElement ?? FootnoteButton);
+    }
+
+    private void OnInsertFootnoteClick(object sender, RoutedEventArgs e) => InsertSequentialFootnote();
+
+    private void OnInsertNamedFootnoteClick(object sender, RoutedEventArgs e) => InsertNamedFootnote();
+
+    private void OnInsertHyperlinkClick(object sender, RoutedEventArgs e) => InsertHyperlink();
+
+    private void OnInsertReferenceLinkClick(object sender, RoutedEventArgs e) => InsertReferenceLink();
+
+    private void OnJumpToFootnoteClick(object sender, RoutedEventArgs e) => JumpToFootnoteCounterpart();
+
+    private void InsertSequentialFootnote()
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string text = tb.Text ?? "";
+        int selStart = tb.SelectionStart;
+        int selLength = tb.SelectionLength;
+
+        int maxIndex = 0;
+        var matches = System.Text.RegularExpressions.Regex.Matches(text, @"\[\^(\d+)\]");
+        foreach (System.Text.RegularExpressions.Match m in matches)
+        {
+            if (int.TryParse(m.Groups[1].Value, out int idx) && idx > maxIndex)
+            {
+                maxIndex = idx;
+            }
+        }
+        int nextIndex = maxIndex + 1;
+        string anchor = $"[^{nextIndex}]";
+        string definition = $"{Environment.NewLine}{Environment.NewLine}[^{nextIndex}]: Note description here.";
+
+        if (selLength > 0 && selStart + selLength <= text.Length)
+        {
+            string selected = text.Substring(selStart, selLength);
+            string replacement = $"{selected}{anchor}";
+            string intermediate = text.Substring(0, selStart) + replacement + text.Substring(selStart + selLength);
+            tb.Text = intermediate + definition;
+            tb.SelectionStart = intermediate.Length + definition.Length - "Note description here.".Length;
+            tb.SelectionLength = "Note description here.".Length;
+        }
+        else
+        {
+            string intermediate = text.Insert(selStart, anchor);
+            tb.Text = intermediate + definition;
+            tb.SelectionStart = intermediate.Length + definition.Length - "Note description here.".Length;
+            tb.SelectionLength = "Note description here.".Length;
+        }
+
+        AnnounceStatus($"Inserted footnote [^{nextIndex}] with definition at end of document");
+        if (FootnoteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(FootnoteButton, null);
+    }
+
+    private void InsertNamedFootnote()
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string text = tb.Text ?? "";
+        int selStart = tb.SelectionStart;
+        int selLength = tb.SelectionLength;
+
+        string name = (selLength > 0 && selStart + selLength <= text.Length)
+            ? System.Text.RegularExpressions.Regex.Replace(text.Substring(selStart, selLength).ToLowerInvariant(), @"[^a-z0-9_-]", "")
+            : "note";
+        if (string.IsNullOrWhiteSpace(name)) name = "note";
+
+        string anchor = $"[^{name}]";
+        string definition = $"{Environment.NewLine}{Environment.NewLine}[^{name}]: Note description.";
+
+        if (selLength > 0 && selStart + selLength <= text.Length)
+        {
+            string intermediate = text.Substring(0, selStart) + text.Substring(selStart, selLength) + anchor + text.Substring(selStart + selLength);
+            tb.Text = intermediate + definition;
+            tb.SelectionStart = intermediate.Length + definition.Length - "Note description.".Length;
+            tb.SelectionLength = "Note description.".Length;
+        }
+        else
+        {
+            string intermediate = text.Insert(selStart, anchor);
+            tb.Text = intermediate + definition;
+            tb.SelectionStart = intermediate.Length + definition.Length - "Note description.".Length;
+            tb.SelectionLength = "Note description.".Length;
+        }
+
+        AnnounceStatus($"Inserted named footnote [^{name}]");
+        if (FootnoteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(FootnoteButton, null);
+    }
+
+    private void InsertHyperlink()
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string text = tb.Text ?? "";
+        int selStart = tb.SelectionStart;
+        int selLength = tb.SelectionLength;
+
+        if (selLength > 0 && selStart + selLength <= text.Length)
+        {
+            string selected = text.Substring(selStart, selLength);
+            string snippet = $"[{selected}](https://)";
+            tb.Text = text.Substring(0, selStart) + snippet + text.Substring(selStart + selLength);
+            tb.SelectionStart = selStart + snippet.Length - 1;
+            tb.SelectionLength = 0;
+        }
+        else
+        {
+            string snippet = "[link text](https://example.com)";
+            tb.Text = text.Insert(selStart, snippet);
+            tb.SelectionStart = selStart + 1;
+            tb.SelectionLength = "link text".Length;
+        }
+
+        AnnounceStatus("Inserted Markdown hyperlink template");
+        if (FootnoteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(FootnoteButton, null);
+    }
+
+    private void InsertReferenceLink()
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string text = tb.Text ?? "";
+        int selStart = tb.SelectionStart;
+        int selLength = tb.SelectionLength;
+
+        string label = (selLength > 0 && selStart + selLength <= text.Length)
+            ? text.Substring(selStart, selLength)
+            : "link text";
+        string anchor = $"[{label}][ref]";
+        string definition = $"{Environment.NewLine}{Environment.NewLine}[ref]: https://example.com";
+
+        if (selLength > 0 && selStart + selLength <= text.Length)
+        {
+            string intermediate = text.Substring(0, selStart) + anchor + text.Substring(selStart + selLength);
+            tb.Text = intermediate + definition;
+            tb.SelectionStart = intermediate.Length + definition.Length - "https://example.com".Length;
+            tb.SelectionLength = "https://example.com".Length;
+        }
+        else
+        {
+            string intermediate = text.Insert(selStart, anchor);
+            tb.Text = intermediate + definition;
+            tb.SelectionStart = intermediate.Length + definition.Length - "https://example.com".Length;
+            tb.SelectionLength = "https://example.com".Length;
+        }
+
+        AnnounceStatus("Inserted reference-style hyperlink");
+        if (FootnoteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(FootnoteButton, null);
+    }
+
+    private void JumpToFootnoteCounterpart()
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string text = tb.Text ?? "";
+        int caret = tb.SelectionStart;
+
+        var matches = System.Text.RegularExpressions.Regex.Matches(text, @"\[\^([^\]]+)\](:)?");
+        System.Text.RegularExpressions.Match? bestMatch = null;
+        int bestDist = int.MaxValue;
+        foreach (System.Text.RegularExpressions.Match m in matches)
+        {
+            int dist = Math.Min(Math.Abs(m.Index - caret), Math.Abs(m.Index + m.Length - caret));
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestMatch = m;
+            }
+        }
+
+        if (bestMatch is not null && bestDist < 100)
+        {
+            string key = bestMatch.Groups[1].Value;
+            bool isDef = bestMatch.Groups[2].Success;
+            string targetPattern = isDef ? $@"\[\^{System.Text.RegularExpressions.Regex.Escape(key)}\](?!:)" : $@"\[\^{System.Text.RegularExpressions.Regex.Escape(key)}\]:";
+            var targetMatch = System.Text.RegularExpressions.Regex.Match(text, targetPattern);
+            if (targetMatch.Success)
+            {
+                tb.Select(targetMatch.Index, targetMatch.Length);
+                UpdateCursorPosition();
+                AnnounceStatus($"Jumped to {(isDef ? "anchor" : "definition")} for [^{key}]");
+                return;
+            }
+        }
+
+        AnnounceStatus("No footnote anchor or definition found near cursor to jump to");
+    }
+
     private void OnFormatTableButtonClick(object sender, RoutedEventArgs e) => FormatTableAtCursor();
 
     private void OnFormatTableButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

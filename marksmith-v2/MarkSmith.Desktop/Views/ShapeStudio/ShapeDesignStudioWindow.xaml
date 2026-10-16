@@ -923,6 +923,16 @@
                                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                                     <StackPanel x:Name="FillFlyoutSwatches" Orientation="Horizontal" Spacing="6" />
                                                 </StackPanel>
+                                                <StackPanel x:Name="RecentColorsContainer" Spacing="4">
+                                                    <Grid>
+                                                        <TextBlock Text="Recent colours" FontSize="11"
+                                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                                        <HyperlinkButton x:Name="ClearRecentColorsBtn" Content="Clear" FontSize="10.5" Padding="4,0"
+                                                                         HorizontalAlignment="Right" Click="OnClearRecentColorsClick"
+                                                                         ToolTipService.ToolTip="Clear recent colour swatches" />
+                                                    </Grid>
+                                                    <StackPanel x:Name="RecentColorsSwatches" Orientation="Horizontal" Spacing="6" />
+                                                </StackPanel>
                                                 <ColorPicker x:Name="FillPicker" ColorSpectrumShape="Ring" IsAlphaEnabled="False" IsMoreButtonVisible="False"
                                                              IsColorSliderVisible="True" IsColorChannelTextInputVisible="False" IsHexInputVisible="True"
                                                              ColorChanged="OnFillPickerColorChanged" />

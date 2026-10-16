@@ -982,5 +982,31 @@ namespace MarkSmith.Tests
             Assert.False(node2.IsHighlighted);
             Assert.False(node2.IsDimmed);
         }
+
+        [Fact]
+        public void Run126_GetRootNode_ResolvesRootOrFirstNode()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+
+            Assert.Null(vm.GetRootNode());
+
+            var root = new MindMapNodeViewModel(new MindMapNode { Title = "Central Brain", Id = "root-node" });
+            var child1 = new MindMapNodeViewModel(new MindMapNode { Title = "Subtopic 1", Id = "child-1", ParentId = root.Id });
+            var child2 = new MindMapNodeViewModel(new MindMapNode { Title = "Subtopic 2", Id = "child-2", ParentId = root.Id });
+
+            vm.Nodes.Add(child1);
+            vm.Nodes.Add(root);
+            vm.Nodes.Add(child2);
+
+            vm.Links.Add(new MindMapLinkViewModel(new MindMapLink { SourceNodeId = root.Id, TargetNodeId = child1.Id }));
+            vm.Links.Add(new MindMapLinkViewModel(new MindMapLink { SourceNodeId = root.Id, TargetNodeId = child2.Id }));
+
+            var resolvedRoot = vm.GetRootNode();
+            Assert.NotNull(resolvedRoot);
+            Assert.Equal("root-node", resolvedRoot.Id);
+            Assert.Equal("Central Brain", resolvedRoot.Title);
+        }
     }
 }
