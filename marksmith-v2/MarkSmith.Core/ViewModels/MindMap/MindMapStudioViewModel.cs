@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.IO;
+using System.Text;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -1401,6 +1402,92 @@ namespace MarkSmith.ViewModels.MindMap
                 ? MindMapStorageService.ExportToMermaidFlowchart(Document)
                 : MindMapStorageService.ExportToMermaid(Document);
             return "```mermaid\n" + body.TrimEnd() + "\n```\n";
+        }
+
+        /// <summary>
+        /// Exports the selected subtree (or the first root node if none selected) as a standalone
+        /// Markdown document with YAML frontmatter metadata and structured heading levels.
+        /// Cycle protection ensures circular links do not cause infinite recursion.
+        /// </summary>
+        public string ExportSubtreeToMarkdown(MindMapNodeViewModel? rootNode = null)
+        {
+            SyncAllToModel();
+            var target = rootNode ?? SelectedNode ?? Nodes.FirstOrDefault();
+            if (target == null) return string.Empty;
+
+            var sb = new StringBuilder();
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            int count = CountSubtreeNodes(target, visited);
+            visited.Clear();
+
+            sb.AppendLine("---");
+            sb.AppendLine($"title: \"{target.Title.Replace("\"", "\\\"")}\"");
+            sb.AppendLine("type: mindmap_subtree");
+            sb.AppendLine($"root_id: \"{target.Id}\"");
+            sb.AppendLine($"exported_at: \"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"");
+            sb.AppendLine($"node_count: {count}");
+            sb.AppendLine("---");
+            sb.AppendLine();
+
+            AppendSubtreeMarkdown(sb, target, 1, visited);
+
+            return sb.ToString().TrimEnd() + Environment.NewLine;
+        }
+
+        private int CountSubtreeNodes(MindMapNodeViewModel node, HashSet<string> visited)
+        {
+            if (!visited.Add(node.Id)) return 0;
+            int count = 1;
+            foreach (var child in GetSubtreeChildren(node))
+            {
+                count += CountSubtreeNodes(child, visited);
+            }
+            return count;
+        }
+
+        private List<MindMapNodeViewModel> GetSubtreeChildren(MindMapNodeViewModel parent)
+        {
+            var direct = Nodes.Where(n => string.Equals(n.ParentId, parent.Id, StringComparison.OrdinalIgnoreCase));
+            var linked = Links.Where(l => string.Equals(l.SourceNodeId, parent.Id, StringComparison.OrdinalIgnoreCase))
+                              .Select(l => Nodes.FirstOrDefault(n => string.Equals(n.Id, l.TargetNodeId, StringComparison.OrdinalIgnoreCase)))
+                              .Where(n => n != null)
+                              .Select(n => n!);
+            return direct.Concat(linked)
+                         .Where(n => n != null && !string.Equals(n.Id, parent.Id, StringComparison.OrdinalIgnoreCase))
+                         .DistinctBy(n => n.Id)
+                         .ToList();
+        }
+
+        private void AppendSubtreeMarkdown(StringBuilder sb, MindMapNodeViewModel node, int depth, HashSet<string> visited)
+        {
+            if (!visited.Add(node.Id)) return;
+
+            if (depth <= 6)
+            {
+                sb.Append(new string('#', depth));
+                sb.Append(' ');
+                sb.AppendLine(node.Title);
+            }
+            else
+            {
+                sb.Append(new string(' ', (depth - 7) * 2));
+                sb.Append("- **");
+                sb.Append(node.Title);
+                sb.AppendLine("**");
+            }
+
+            if (!string.IsNullOrWhiteSpace(node.MarkdownContent))
+            {
+                sb.AppendLine();
+                sb.AppendLine(node.MarkdownContent.Trim());
+                sb.AppendLine();
+            }
+
+            foreach (var child in GetSubtreeChildren(node))
+            {
+                AppendSubtreeMarkdown(sb, child, depth + 1, visited);
+            }
         }
 
         [RelayCommand]

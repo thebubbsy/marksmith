@@ -610,7 +610,17 @@ namespace MarkSmith.Views.SmartArtStudio
             DotGrid
         }
 
+        public enum SmartArtNodeGeometryMode
+        {
+            Default,
+            PillRounded,
+            SharpBox,
+            ModernSoft,
+            ContrastBorder
+        }
+
         private DiagramPreviewBgMode _currentDiagramBgMode = DiagramPreviewBgMode.DefaultCard;
+        private SmartArtNodeGeometryMode _currentNodeGeomMode = SmartArtNodeGeometryMode.Default;
 
         private void RefreshWebView()
         {
@@ -622,7 +632,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 {
                     body = ApplyCustomHexToSvgHtml(body, _customHexOverride);
                 }
-                string html = BuildWrapperHtml(body, isDark, _currentDiagramBgMode);
+                string html = BuildWrapperHtml(body, isDark, _currentDiagramBgMode, _currentNodeGeomMode);
                 PreviewWebView.CoreWebView2.NavigateToString(html);
             }
         }
@@ -651,7 +661,7 @@ namespace MarkSmith.Views.SmartArtStudio
         // a "Layout: …" caption. In the studio the card fills the pane and the drawing scales to fit
         // it either way (the SVG's default xMidYMid meet), and the caption is dropped because the
         // pane header names the layout already.
-        private static string BuildWrapperHtml(string body, bool isDarkTheme = false, DiagramPreviewBgMode bgMode = DiagramPreviewBgMode.DefaultCard)
+        private static string BuildWrapperHtml(string body, bool isDarkTheme = false, DiagramPreviewBgMode bgMode = DiagramPreviewBgMode.DefaultCard, SmartArtNodeGeometryMode geomMode = SmartArtNodeGeometryMode.Default)
         {
             string cardBg;
             string cardBorder;
@@ -685,12 +695,21 @@ namespace MarkSmith.Views.SmartArtStudio
                     break;
             }
 
+            string geomCss = geomMode switch
+            {
+                SmartArtNodeGeometryMode.PillRounded => " .smartart-container svg rect { rx: 20px !important; ry: 20px !important; }",
+                SmartArtNodeGeometryMode.SharpBox => " .smartart-container svg rect { rx: 0px !important; ry: 0px !important; }",
+                SmartArtNodeGeometryMode.ModernSoft => " .smartart-container svg rect, .smartart-container svg path { filter: drop-shadow(0 3px 6px rgba(0,0,0,0.14)) !important; }",
+                SmartArtNodeGeometryMode.ContrastBorder => " .smartart-container svg rect, .smartart-container svg path { stroke-width: 2.5px !important; stroke: #0F172A !important; }",
+                _ => ""
+            };
+
             return $@"<!DOCTYPE html>
 <html><head><meta charset=""utf-8""/>
 <style>
   html,body{{height:100%;margin:0}}
   body{{padding:16px;box-sizing:border-box;background:transparent;display:flex}}
-  .smartart-container{{width:100%!important;max-width:none!important;height:100%!important;display:flex;flex-direction:column;padding:12px;box-sizing:border-box;background:{cardBg}!important;border:1px solid {cardBorder}!important;border-radius:8px!important;box-shadow:{cardShadow}!important;{customPatternCss}}}
+  .smartart-container{{width:100%!important;max-width:none!important;height:100%!important;display:flex;flex-direction:column;padding:12px;box-sizing:border-box;background:{cardBg}!important;border:1px solid {cardBorder}!important;border-radius:8px!important;box-shadow:{cardShadow}!important;{customPatternCss}{geomCss}}}
   .smartart-container > .smartart-caption{{display:none}}
   .smartart-container > svg{{flex:1;min-height:0;width:100%!important;height:100%!important}}
   .smartart-container svg g {{ transition: filter 0.12s ease, opacity 0.15s ease; }}
@@ -2772,6 +2791,53 @@ namespace MarkSmith.Views.SmartArtStudio
             _currentDiagramBgMode = mode;
             RefreshWebView();
             if (DiagramBgButton is not null) Services.CopyFeedback.ApplyButtonTick(DiagramBgButton, null);
+        }
+
+        private void OnNodeGeometryButtonClick(object sender, RoutedEventArgs e)
+        {
+            NodeGeometryFlyout?.ShowAt(sender as FrameworkElement ?? NodeGeometryButton);
+        }
+
+        private void OnNodeGeometryButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            _currentNodeGeomMode = _currentNodeGeomMode switch
+            {
+                SmartArtNodeGeometryMode.Default => SmartArtNodeGeometryMode.PillRounded,
+                SmartArtNodeGeometryMode.PillRounded => SmartArtNodeGeometryMode.SharpBox,
+                SmartArtNodeGeometryMode.SharpBox => SmartArtNodeGeometryMode.ModernSoft,
+                SmartArtNodeGeometryMode.ModernSoft => SmartArtNodeGeometryMode.ContrastBorder,
+                _ => SmartArtNodeGeometryMode.Default
+            };
+            SetNodeGeometryMode(_currentNodeGeomMode);
+        }
+
+        private void OnNodeGeometryButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            NodeGeometryFlyout?.ShowAt(sender as FrameworkElement ?? NodeGeometryButton);
+        }
+
+        private void OnGeomDefaultClick(object sender, RoutedEventArgs e) => SetNodeGeometryMode(SmartArtNodeGeometryMode.Default);
+        private void OnGeomPillRoundedClick(object sender, RoutedEventArgs e) => SetNodeGeometryMode(SmartArtNodeGeometryMode.PillRounded);
+        private void OnGeomSharpBoxClick(object sender, RoutedEventArgs e) => SetNodeGeometryMode(SmartArtNodeGeometryMode.SharpBox);
+        private void OnGeomModernSoftClick(object sender, RoutedEventArgs e) => SetNodeGeometryMode(SmartArtNodeGeometryMode.ModernSoft);
+        private void OnGeomContrastBorderClick(object sender, RoutedEventArgs e) => SetNodeGeometryMode(SmartArtNodeGeometryMode.ContrastBorder);
+
+        private void SetNodeGeometryMode(SmartArtNodeGeometryMode mode)
+        {
+            _currentNodeGeomMode = mode;
+            RefreshWebView();
+            string label = mode switch
+            {
+                SmartArtNodeGeometryMode.PillRounded => "Pill Rounded (20px)",
+                SmartArtNodeGeometryMode.SharpBox => "Sharp Box (0px)",
+                SmartArtNodeGeometryMode.ModernSoft => "Modern Soft Shadow",
+                SmartArtNodeGeometryMode.ContrastBorder => "Bold Contrast Borders",
+                _ => "Default Geometry"
+            };
+            ViewModel.StatusMessage = $"Diagram node geometry set to: {label}";
+            if (NodeGeometryButton is not null) Services.CopyFeedback.ApplyButtonTick(NodeGeometryButton, null);
         }
 
         private void OnCopySvg1xClick(object sender, RoutedEventArgs e) => CopySvgToClipboard(1.0, "1x SVG");

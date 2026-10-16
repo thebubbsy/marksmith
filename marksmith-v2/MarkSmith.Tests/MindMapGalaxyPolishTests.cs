@@ -861,5 +861,99 @@ namespace MarkSmith.Tests
                 Assert.Contains("Arranged", vm.StatusMessage);
             }
         }
+
+        // ---- Subtree Markdown Export Tests ----
+
+        [Fact]
+        public void ExportSubtreeToMarkdown_NullSelection_ReturnsEmpty()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            vm.SelectedNode = null;
+            var md = vm.ExportSubtreeToMarkdown(null);
+            Assert.Equal(string.Empty, md);
+        }
+
+        [Fact]
+        public void ExportSubtreeToMarkdown_SingleNode_IncludesFrontmatterAndContent()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            var root = new MindMapNodeViewModel(new MindMapNode
+            {
+                Title = "Architecture Root",
+                Id = "arch-root",
+                MarkdownContent = "Core system description."
+            });
+            vm.Nodes.Add(root);
+
+            var md = vm.ExportSubtreeToMarkdown(root);
+
+            Assert.Contains("---", md);
+            Assert.Contains("title: \"Architecture Root\"", md);
+            Assert.Contains("type: mindmap_subtree", md);
+            Assert.Contains("node_count: 1", md);
+            Assert.Contains("# Architecture Root", md);
+            Assert.Contains("Core system description.", md);
+        }
+
+        [Fact]
+        public void ExportSubtreeToMarkdown_HierarchicalTree_GeneratesIndentedHeadings()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+
+            var root = new MindMapNodeViewModel(new MindMapNode
+            {
+                Title = "Project Alpha",
+                Id = "alpha-root",
+                MarkdownContent = "Root overview"
+            });
+            vm.Nodes.Add(root);
+
+            var child = new MindMapNodeViewModel(new MindMapNode
+            {
+                Title = "Phase One",
+                Id = "phase-one",
+                ParentId = root.Id,
+                MarkdownContent = "Initial rollout"
+            });
+            vm.Nodes.Add(child);
+
+            var md = vm.ExportSubtreeToMarkdown(root);
+
+            Assert.Contains("node_count: 2", md);
+            Assert.Contains("# Project Alpha", md);
+            Assert.Contains("Root overview", md);
+            Assert.Contains("## Phase One", md);
+            Assert.Contains("Initial rollout", md);
+        }
+
+        [Fact]
+        public void ExportSubtreeToMarkdown_CycleInLinks_TerminatesSafely()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+
+            var nodeA = new MindMapNodeViewModel(new MindMapNode { Title = "Node A", Id = "node-a" });
+            var nodeB = new MindMapNodeViewModel(new MindMapNode { Title = "Node B", Id = "node-b" });
+            vm.Nodes.Add(nodeA);
+            vm.Nodes.Add(nodeB);
+
+            // Create cyclic links: A -> B and B -> A
+            vm.Links.Add(new MindMapLinkViewModel(new MindMapLink { SourceNodeId = nodeA.Id, TargetNodeId = nodeB.Id }));
+            vm.Links.Add(new MindMapLinkViewModel(new MindMapLink { SourceNodeId = nodeB.Id, TargetNodeId = nodeA.Id }));
+
+            var md = vm.ExportSubtreeToMarkdown(nodeA);
+
+            Assert.NotEmpty(md);
+            Assert.Contains("node_count: 2", md);
+            Assert.Contains("# Node A", md);
+            Assert.Contains("## Node B", md);
+        }
     }
 }

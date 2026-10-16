@@ -545,13 +545,24 @@
             <Border x:Name="HubFooterStrip" Background="{ThemeResource LayerFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                     CornerRadius="8" Padding="12,8" Margin="0,4,0,0">
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <Ellipse Width="7" Height="7" Fill="{ThemeResource SystemFillColorSuccessBrush}" VerticalAlignment="Center" />
                         <TextBlock Text="MarkSmith Desktop Environment" FontWeight="SemiBold" FontSize="11.5" VerticalAlignment="Center" />
                         <TextBlock Text="· All engines healthy" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                     </StackPanel>
-                    <Border x:Name="MemoryUsagePill" Grid.Column="2" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    <!-- Uptime & Temporary Cache Footprint Pill -->
+                    <Border x:Name="UptimeStoragePill" Grid.Column="2" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="5" Padding="6,2" VerticalAlignment="Center"
+                            Tapped="OnUptimeStoragePillTapped" RightTapped="OnUptimeStoragePillRightTapped"
+                            ToolTipService.ToolTip="Desktop engine uptime &amp; cache · Tap to prune MarkSmith temp cache, right-click to copy diagnostics">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE823;" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock x:Name="UptimeStorageText" Text="Uptime: 0m · Cache: OK" FontSize="10.5" FontFamily="Cascadia Mono, Consolas, monospace" />
+                        </StackPanel>
+                    </Border>
+                    <!-- Memory Usage Pill -->
+                    <Border x:Name="MemoryUsagePill" Grid.Column="3" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                             CornerRadius="5" Padding="6,2" VerticalAlignment="Center"
                             Tapped="OnMemoryUsagePillTapped" RightTapped="OnMemoryUsagePillRightTapped"
                             ToolTipService.ToolTip="Managed process memory · Tap to optimize &amp; garbage collect, right-click to copy metrics">

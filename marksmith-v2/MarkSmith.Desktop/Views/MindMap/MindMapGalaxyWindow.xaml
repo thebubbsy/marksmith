@@ -267,7 +267,8 @@
 
                         <DropDownButton x:Name="ExportDropDownButton" Padding="10,5" MinHeight="32"
                                         RightTapped="OnExportDropDownRightTapped"
-                                        ToolTipService.ToolTip="Export or copy the map (Right-click for options)"
+                                        DoubleTapped="OnExportDropDownDoubleTapped"
+                                        ToolTipService.ToolTip="Export or copy the map (Double-click to copy subtree Markdown, Right-click for options)"
                                         AutomationProperties.Name="Export">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xEDE1;" FontSize="12" />
@@ -277,6 +278,9 @@
                                 <MenuFlyout Placement="BottomEdgeAlignedLeft">
                                     <MenuFlyoutItem x:Name="ExportDocxItem" Text="Word document…" Click="OnExportDocxClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopySubtreeMarkdownItem" Text="Copy subtree as Markdown document" Click="OnCopySubtreeMarkdownClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutSeparator />
                                     <MenuFlyoutItem Text="Copy as Mermaid flowchart" KeyboardAcceleratorTextOverride="Ctrl+Shift+C" Click="OnCopyMermaidFlowchartClick">

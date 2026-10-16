@@ -968,6 +968,38 @@
                                             </MenuFlyout>
                                         </Button.Flyout>
                                     </Button>
+                                    <!-- Markdown task list / checklist formatter -->
+                                    <Button x:Name="TaskListButton" Height="24" Padding="6,0"
+                                            Click="OnTaskListButtonClick"
+                                            DoubleTapped="OnTaskListButtonDoubleTapped"
+                                            RightTapped="OnTaskListButtonRightTapped"
+                                            AutomationProperties.Name="Insert or toggle task list item"
+                                            ToolTipService.ToolTip="Toggle or convert selection to task list item (- [ ] · Double-click to insert template, Right-click for options)">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon Glyph="&#xE73A;" FontSize="11" />
+                                            <TextBlock Text="Task List" FontSize="11" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <Button.Flyout>
+                                            <MenuFlyout x:Name="TaskListFlyout">
+                                                <MenuFlyoutItem Text="Toggle Checkbox (- [ ] ↔ - [x])" Click="OnToggleTaskCheckboxClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73A;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="Convert to Task List (- [ ])" Click="OnConvertSelectionToTasksClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="Insert 3-Item Task List Template" Click="OnInsertTaskListTemplateClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE710;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutSeparator />
+                                                <MenuFlyoutItem Text="Mark All Checked (- [x])" Click="OnCheckAllTasksClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="Mark All Unchecked (- [ ])" Click="OnUncheckAllTasksClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE739;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
                                     <!-- Markdown lint: live issue count; the flyout lists issues and jumps to them. -->
                                     <Button x:Name="LintButton" Height="24" Padding="6,0"
                                             AutomationProperties.Name="Markdown issues"

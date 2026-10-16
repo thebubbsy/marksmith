@@ -9897,6 +9897,141 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (CodeFenceButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(CodeFenceButton, null);
     }
 
+    private void OnTaskListButtonClick(object sender, RoutedEventArgs e) => ToggleOrConvertTaskList("toggle");
+
+    private void OnTaskListButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        InsertTaskListTemplate();
+    }
+
+    private void OnTaskListButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        TaskListFlyout?.ShowAt(sender as FrameworkElement ?? TaskListButton);
+    }
+
+    private void OnToggleTaskCheckboxClick(object sender, RoutedEventArgs e) => ToggleOrConvertTaskList("toggle");
+    private void OnConvertSelectionToTasksClick(object sender, RoutedEventArgs e) => ToggleOrConvertTaskList("convert");
+    private void OnInsertTaskListTemplateClick(object sender, RoutedEventArgs e) => InsertTaskListTemplate();
+    private void OnCheckAllTasksClick(object sender, RoutedEventArgs e) => ToggleOrConvertTaskList("check");
+    private void OnUncheckAllTasksClick(object sender, RoutedEventArgs e) => ToggleOrConvertTaskList("uncheck");
+
+    private void InsertTaskListTemplate()
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string text = tb.Text ?? "";
+        int selStart = tb.SelectionStart;
+        string template = $"- [ ] First task item{Environment.NewLine}- [ ] Second task item{Environment.NewLine}- [ ] Third task item{Environment.NewLine}";
+        string newText = text.Insert(selStart, template);
+        tb.Text = newText;
+        tb.SelectionStart = selStart + template.Length;
+        tb.SelectionLength = 0;
+        if (TaskListButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(TaskListButton, null);
+    }
+
+    private void ToggleOrConvertTaskList(string mode)
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string text = tb.Text ?? "";
+        int selStart = tb.SelectionStart;
+        int selLength = tb.SelectionLength;
+
+        if (selLength == 0)
+        {
+            int lineStart = selStart > 0 ? text.LastIndexOf('\n', Math.Max(0, selStart - 1)) + 1 : 0;
+            int lineEnd = text.IndexOf('\n', selStart);
+            if (lineEnd == -1) lineEnd = text.Length;
+
+            string line = text.Substring(lineStart, lineEnd - lineStart);
+            string trimmed = line.TrimStart();
+            string indent = line.Substring(0, line.Length - trimmed.Length);
+            string newLine;
+
+            if (trimmed.StartsWith("- [ ] "))
+            {
+                newLine = indent + "- [x] " + trimmed.Substring(6);
+            }
+            else if (trimmed.StartsWith("- [x] ", StringComparison.OrdinalIgnoreCase))
+            {
+                newLine = indent + "- [ ] " + trimmed.Substring(6);
+            }
+            else if (trimmed.StartsWith("- "))
+            {
+                newLine = indent + "- [ ] " + trimmed.Substring(2);
+            }
+            else
+            {
+                newLine = indent + "- [ ] " + trimmed;
+            }
+
+            string newFullText = text.Substring(0, lineStart) + newLine + text.Substring(lineEnd);
+            tb.Text = newFullText;
+            tb.SelectionStart = lineStart + newLine.Length;
+            tb.SelectionLength = 0;
+        }
+        else
+        {
+            string selected = text.Substring(selStart, selLength);
+            var lines = selected.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            var sb = new System.Text.StringBuilder();
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.TrimStart();
+                string indent = line.Substring(0, line.Length - trimmed.Length);
+
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    sb.AppendLine(line);
+                    continue;
+                }
+
+                string processedLine = mode switch
+                {
+                    "check" => trimmed.StartsWith("- [ ] ")
+                        ? indent + "- [x] " + trimmed.Substring(6)
+                        : (trimmed.StartsWith("- [x] ", StringComparison.OrdinalIgnoreCase)
+                            ? line
+                            : indent + "- [x] " + (trimmed.StartsWith("- ") ? trimmed.Substring(2) : trimmed)),
+                    "uncheck" => trimmed.StartsWith("- [x] ", StringComparison.OrdinalIgnoreCase)
+                        ? indent + "- [ ] " + trimmed.Substring(6)
+                        : (trimmed.StartsWith("- [ ] ")
+                            ? line
+                            : indent + "- [ ] " + (trimmed.StartsWith("- ") ? trimmed.Substring(2) : trimmed)),
+                    "convert" => (trimmed.StartsWith("- [ ] ") || trimmed.StartsWith("- [x] ", StringComparison.OrdinalIgnoreCase))
+                        ? line
+                        : indent + "- [ ] " + (trimmed.StartsWith("- ") ? trimmed.Substring(2) : trimmed),
+                    _ => trimmed.StartsWith("- [ ] ")
+                        ? indent + "- [x] " + trimmed.Substring(6)
+                        : (trimmed.StartsWith("- [x] ", StringComparison.OrdinalIgnoreCase)
+                            ? indent + "- [ ] " + trimmed.Substring(6)
+                            : indent + "- [ ] " + (trimmed.StartsWith("- ") ? trimmed.Substring(2) : trimmed))
+                };
+
+                if (i < lines.Length - 1 || selected.EndsWith("\n") || selected.EndsWith("\r"))
+                {
+                    sb.AppendLine(processedLine);
+                }
+                else
+                {
+                    sb.Append(processedLine);
+                }
+            }
+
+            string replacement = sb.ToString();
+            string newFullText = text.Substring(0, selStart) + replacement + text.Substring(selStart + selLength);
+            tb.Text = newFullText;
+            tb.SelectionStart = selStart;
+            tb.SelectionLength = replacement.Length;
+        }
+
+        if (TaskListButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(TaskListButton, null);
+    }
+
     private void OnFormatTableButtonClick(object sender, RoutedEventArgs e) => FormatTableAtCursor();
 
     private void OnFormatTableButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

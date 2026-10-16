@@ -9340,3 +9340,72 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - Unit tests: `MindMapGalaxyPolishTests` (47 passed), `UpdateServiceTests` (36 passed), `HistoryPolishTests` passed.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 26924, responsive startup, clean exit.
 
+### 2026-10-17 (scheduled routine run #124 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #123 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across the 6 major WinUI 3 surfaces (`MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `MainWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Generated:
+    1. `MindMapGalaxyWindow`: Subtree Markdown export (`ExportSubtreeToMarkdown`). Exports the selected node and its entire descendant hierarchy into a standalone, cleanly formatted Markdown document with YAML frontmatter metadata and cycle-safe graph traversal.
+    2. `ShapeDesignStudioWindow`: Shape transform and flip ribbon in properties inspector (`TransformRibbon`, Flip H, Flip V, Rotate CW, Rotate CCW, 1:1 Square aspect ratio lock).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Enhanced `MindMapStudioViewModel` with `CountSubtreeNodes` and `GetSubtreeChildren` to recursively gather both direct tree children and outgoing link edges. Guarded with `HashSet<string> visited` to guarantee termination on cyclic graphs. Added "Copy Subtree Markdown" menu item in the Export dropdown and wired double-tap on the Export button.
+    * For Idea 2: Positioned `TransformRibbon` under `LayerRibbon` in `ShapeDesignStudioWindow.xaml`. Implemented geometry transformations (`OnInspectorFlipHClick`, `OnInspectorFlipVClick`, `OnInspectorRotateCwClick`, `OnInspectorRotateCcwClick`, `OnInspectorSquareAspectClick`) calculating new bounds around center point and recording undo operations.
+  - Generated:
+    3. `SmartArtDesignStudioWindow`: SVG diagram node shape geometry selector (`NodeGeometryButton`, `NodeGeometryFlyout`, `SmartArtNodeGeometryMode`: Default, PillRounded, SharpBox, ModernSoft, ContrastBorder).
+    4. `MainWindow`: Editor bottom toolbar Markdown Task List / Checklist Formatter (`TaskListButton`, `TaskListFlyout`, `ToggleOrConvertTaskList`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `NodeGeometryButton` beside `DiagramBgButton` in the preview header. Integrated CSS injection into `BuildWrapperHtml` so node geometry changes apply instantaneously without re-parsing diagram models. Double-clicking cycles through geometry styles.
+    * For Idea 4: Positioned `TaskListButton` in editor bottom toolbar beside `CodeFenceButton`. Single-click toggles checked state (`- [ ] ` vs `- [x] `); double-click inserts starter checklist template; right-click opens flyout (Toggle Check, Convert to Checkbox, Insert Checklist Template).
+  - Refined Block 1 (Pass 2 - Final):
+    * Enforced WinUI 3 XAML compiler safety: zero `MaxWidth` on `ColumnDefinition` elements to prevent `WMC9999` crashes.
+    * Applied `CopyFeedback.ApplyButtonTick` for transient confirmation feedback.
+  - Generated:
+    5. `HistoryWindow`: Top inspector toolbar diff word delta pill (`DiffWordDeltaPill`, `DiffWordDeltaText`).
+    6. `SuiteHubView`: Desktop engine uptime & temporary cache footprint pill (`UptimeStoragePill`, `UptimeStorageText`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Added 6th column to top inspector toolbar in `HistoryWindow.xaml`. Added `DiffWordDeltaPill` displaying prose & code word count delta (`+added / -removed words`). Wired tap (copies short delta), double-tap (copies detailed version delta), and right-tap (shows context menu).
+    * For Idea 6: Added `UptimeStoragePill` to `HubFooterStrip` in `SuiteHubView.xaml` showing `Uptime: Xm · Cache: OK/XX MB`. Tapping prunes stale temporary files older than 10 minutes in `Path.GetTempPath()`; right-tapping copies full engine uptime, memory, thread, and process diagnostics to clipboard.
+  - Executed all 6 refined targets into 100% production code.
+  - Added unit test coverage in `MindMapGalaxyPolishTests.cs` validating `ExportSubtreeToMarkdown` (single node frontmatter, multi-tier hierarchy headings `#`/`##`, and graph cycle recursion prevention).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 25 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **456 passed, 0 failed (100% pass rate)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 27036, responsive startup, clean exit.
+  - Carried forward ideas / next targets into Run #125:
+    * Target A: `HistoryWindow` unified diff line hunk fold/unfold animation and visual bracket indicators.
+    * Target B: `SuiteHubView` quick-start template filter / search bar for fast document scaffolding.
+    * Target C: `ShapeDesignStudioWindow` shape alignment snap guidelines with magnetic visual bounds.
+
+**Shipped:**
+1. **`MindMapGalaxyWindow` Subtree Markdown Export & Cycle-Safe Graph Traversal (`Views/MindMap/MindMapGalaxyWindow.xaml`, `Views/MindMap/MindMapGalaxyWindow.xaml.cs`, `MarkSmith.Core/ViewModels/MindMap/MindMapStudioViewModel.cs`):**
+   - New `ExportSubtreeToMarkdown` API in `MindMapStudioViewModel` recursively serializing selected node and its descendants into Markdown with YAML frontmatter (`type: mindmap_subtree`, `root_id`, `node_count`, `exported_at`).
+   - Cycle protection via `HashSet<string> visited` preventing infinite recursion on cyclic links or cross-connected knowledge graphs.
+   - "Copy Subtree Markdown" menu item in the Export dropdown, context menu integration, and double-tap accelerator on `ExportDropDownButton`.
+2. **`ShapeDesignStudioWindow` Inspector Transform & Flip Ribbon (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - New `TransformRibbon` section in properties inspector below `LayerRibbon` with 5 quick-action buttons: Flip Horizontally (`&#xE748;`), Flip Vertically (`&#xE74B;`), Rotate 90° CW (`&#xE7AD;`), Rotate 90° CCW (`&#xE7AC;`), and Lock 1:1 Square Aspect (`&#xE73B;`).
+   - Center-point rotation and aspect ratio calculations recording undo history and updating visual bounds in real-time.
+3. **`SmartArtDesignStudioWindow` SVG Diagram Node Shape Geometry Selector (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Diagram node shape geometry selector button (`NodeGeometryButton`) in preview header with 5 modes: Default Layout, Pill Rounded (`rx="28"`), Sharp Box (`rx="0"`), Modern Soft (`rx="8"`), and High-Contrast Border (`stroke-width="2.5"`).
+   - Instant CSS preview injection updating node shapes without re-generating SVG geometry trees; double-click cycles modes.
+4. **`MainWindow` Editor Markdown Task List / Checklist Formatter (`MainWindow.xaml`, `MainWindow.xaml.cs`):**
+   - Bottom toolbar checklist button (`TaskListButton`) between `CodeFenceButton` and `LintButton`.
+   - Single-click toggles checklist completion on selected lines (`- [ ] ` -> `- [x] ` -> `- [ ] `); double-click inserts starter task list; right-click flyout provides quick actions (Toggle Check, Convert to Checkbox, Insert Checklist Template).
+5. **`HistoryWindow` Top Inspector Toolbar Diff Word Delta Pill (`Views/History/HistoryWindow.xaml`, `Views/History/HistoryWindow.xaml.cs`):**
+   - 6th column mounted in `HistoryWindow` top inspector toolbar hosting `DiffWordDeltaPill` (`+added / -removed words`).
+   - Fast token-based word delta counting across both unified and split diff lines with net delta calculation.
+   - Single-tap copies short word delta; double-tap copies detailed version summary; right-tap provides context flyout.
+6. **`SuiteHubView` Desktop Engine Uptime & Temporary Cache Footprint Pill (`Views/SuiteHubView.xaml`, `Views/SuiteHubView.xaml.cs`):**
+   - Environment diagnostics footer strip (`HubFooterStrip`) expanded to 4 columns, adding `UptimeStoragePill` (`Uptime: Xm · Cache: OK/XX MB`).
+   - Single-tap prunes stale temporary files older than 10 minutes in `Path.GetTempPath()` with notification feedback; right-tap generates and copies complete engine diagnostics (uptime, cache, PID, threads, memory) to clipboard.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 25 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **456 passed, 0 failed (100% pass rate)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 27036, responsive startup, clean exit.
+
+

@@ -394,6 +394,8 @@ public sealed partial class HistoryWindow : Window
     }
 
     private int _currentHunkIndex = -1;
+    private int _lastAddedWords = 0;
+    private int _lastRemovedWords = 0;
 
     private void UpdateVisualDiffStatsBar()
     {
@@ -402,6 +404,7 @@ public sealed partial class HistoryWindow : Window
         if (string.IsNullOrWhiteSpace(stats) || !_vm.HasDiffStats)
         {
             DiffVisualStatBar.Visibility = Visibility.Collapsed;
+            if (DiffWordDeltaPill != null) DiffWordDeltaPill.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -426,6 +429,7 @@ public sealed partial class HistoryWindow : Window
         if (total == 0)
         {
             DiffVisualStatBar.Visibility = Visibility.Collapsed;
+            if (DiffWordDeltaPill != null) DiffWordDeltaPill.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -437,6 +441,66 @@ public sealed partial class HistoryWindow : Window
         DiffRemovedCol.Width = new GridLength(Math.Max(removedRatio, 0.05), GridUnitType.Star);
         if (DiffAddedRect != null) DiffAddedRect.Visibility = added > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (DiffRemovedRect != null) DiffRemovedRect.Visibility = removed > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        UpdateWordDeltaStats();
+    }
+
+    private void UpdateWordDeltaStats()
+    {
+        if (DiffWordDeltaPill is null || DiffWordDeltaText is null) return;
+
+        int addedWords = 0;
+        int removedWords = 0;
+
+        if (_vm.UnifiedDiffRows.Count > 0)
+        {
+            foreach (var row in _vm.UnifiedDiffRows)
+            {
+                if (row.IsAdded) addedWords += CountWordsInLine(row.Text);
+                else if (row.IsRemoved) removedWords += CountWordsInLine(row.Text);
+            }
+        }
+        else if (_vm.DiffRows.Count > 0)
+        {
+            foreach (var row in _vm.DiffRows)
+            {
+                if (row.Right != null && row.Right.IsAdded) addedWords += CountWordsInLine(row.Right.Text);
+                if (row.Left != null && row.Left.IsRemoved) removedWords += CountWordsInLine(row.Left.Text);
+            }
+        }
+
+        _lastAddedWords = addedWords;
+        _lastRemovedWords = removedWords;
+
+        DiffWordDeltaPill.Visibility = Visibility.Visible;
+        int net = addedWords - removedWords;
+        string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
+        DiffWordDeltaText.Text = $"+{addedWords:N0} / -{removedWords:N0} words";
+        ToolTipService.SetToolTip(DiffWordDeltaPill, $"Word delta: +{addedWords:N0} added, -{removedWords:N0} removed (net {netSign} words) · Click to copy, Right-click for options");
+    }
+
+    private static int CountWordsInLine(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return 0;
+        int words = 0;
+        bool inToken = false;
+        bool tokenHasAlnum = false;
+        foreach (var ch in text)
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                if (inToken && tokenHasAlnum) words++;
+                inToken = false;
+                tokenHasAlnum = false;
+            }
+            else
+            {
+                inToken = true;
+                if (char.IsLetterOrDigit(ch)) tokenHasAlnum = true;
+            }
+        }
+        if (inToken && tokenHasAlnum) words++;
+        return words;
     }
 
     private void ResetChangeStepper()
@@ -1496,6 +1560,85 @@ public sealed partial class HistoryWindow : Window
     {
         e.Handled = true;
         ShowDiffAreaContextMenu(DeltaMeterBorder, e.GetPosition(DeltaMeterBorder));
+    }
+
+    private void OnDiffWordDeltaPillTapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        int net = _lastAddedWords - _lastRemovedWords;
+        string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
+        string text = $"+{_lastAddedWords:N0} / -{_lastRemovedWords:N0} words (net {netSign})";
+        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        dp.SetText(text);
+        ClipboardWriter.Set(dp);
+        _vm.ShowNotice($"Copied word delta statistics: {text}");
+    }
+
+    private void OnDiffWordDeltaPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        int net = _lastAddedWords - _lastRemovedWords;
+        string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
+        var target = _vm.Selected;
+        string label = target is not null ? $" for version {target.TimestampLabel}" : "";
+        string detailed = $"Diff word delta{label}: +{_lastAddedWords:N0} added, -{_lastRemovedWords:N0} removed, net {netSign} words.";
+        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        dp.SetText(detailed);
+        ClipboardWriter.Set(dp);
+        _vm.ShowNotice($"Copied detailed word delta: {detailed}");
+    }
+
+    private void OnDiffWordDeltaPillRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+
+        var copyWordDelta = new MenuFlyoutItem
+        {
+            Text = "Copy word delta",
+            Icon = new FontIcon { Glyph = "\uE8C1" }
+        };
+        copyWordDelta.Click += (_, _) =>
+        {
+            int net = _lastAddedWords - _lastRemovedWords;
+            string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
+            string text = $"+{_lastAddedWords:N0} / -{_lastRemovedWords:N0} words (net {netSign})";
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(text);
+            ClipboardWriter.Set(dp);
+            _vm.ShowNotice($"Copied word delta: {text}");
+        };
+        menu.Items.Add(copyWordDelta);
+
+        var copyPatch = new MenuFlyoutItem
+        {
+            Text = "Copy diff patch",
+            Icon = new FontIcon { Glyph = "\uE943" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
+            IsEnabled = _vm.HasSelection
+        };
+        copyPatch.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await CopyDiffPatchAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+        };
+        menu.Items.Add(copyPatch);
+
+        var copyMarkdown = new MenuFlyoutItem
+        {
+            Text = "Copy version Markdown",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            KeyboardAcceleratorTextOverride = "Ctrl+C",
+            IsEnabled = _vm.HasSelection
+        };
+        copyMarkdown.Click += async (_, _) =>
+        {
+            if (_vm.Selected is not null)
+                await CopyVersionMarkdownAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+        };
+        menu.Items.Add(copyMarkdown);
+
+        menu.ShowAt(DiffWordDeltaPill, new FlyoutShowOptions { Position = e.GetPosition(DiffWordDeltaPill) });
     }
 
     private void OnDiffAreaRightTapped(object sender, RightTappedRoutedEventArgs e)

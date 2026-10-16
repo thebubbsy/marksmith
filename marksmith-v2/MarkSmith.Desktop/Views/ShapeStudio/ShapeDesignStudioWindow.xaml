@@ -793,6 +793,38 @@
                                         </Border>
                                     </Grid>
                                 </Border>
+                                <Border x:Name="TransformRibbon" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                        CornerRadius="6" Padding="6,4">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <TextBlock Text="Flip" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3">
+                                            <Button x:Name="InspectorFlipHBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                                    Click="OnInspectorFlipHClick" ToolTipService.ToolTip="Flip shape horizontally (Mirror)">
+                                                <FontIcon Glyph="&#xE8E2;" FontSize="11" />
+                                            </Button>
+                                            <Button x:Name="InspectorFlipVBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                                    Click="OnInspectorFlipVClick" ToolTipService.ToolTip="Flip shape vertically (Mirror)">
+                                                <FontIcon Glyph="&#xE8E1;" FontSize="11" />
+                                            </Button>
+                                            <Button x:Name="InspectorRotateCwBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                                    Click="OnInspectorRotateCwClick" ToolTipService.ToolTip="Rotate 90° clockwise (Alt+Shift+Right)">
+                                                <FontIcon Glyph="&#xE7AD;" FontSize="11" />
+                                            </Button>
+                                            <Button x:Name="InspectorRotateCcwBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                                    Click="OnInspectorRotateCcwClick" ToolTipService.ToolTip="Rotate 90° counter-clockwise (Alt+Shift+Left)">
+                                                <FontIcon Glyph="&#xE7A7;" FontSize="11" />
+                                            </Button>
+                                        </StackPanel>
+                                        <Button Grid.Column="2" x:Name="InspectorSquareAspectBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                                Click="OnInspectorSquareAspectClick" ToolTipService.ToolTip="Make square 1:1 aspect ratio">
+                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                <FontIcon Glyph="&#xE739;" FontSize="10" />
+                                                <TextBlock Text="1:1" FontSize="10.5" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
                             </StackPanel>
 
                             <TextBlock Grid.Row="1" Text="Position" Style="{StaticResource InspectorLabel}" />

@@ -517,6 +517,33 @@
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
+                            <Button x:Name="NodeGeometryButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                                    Click="OnNodeGeometryButtonClick"
+                                    DoubleTapped="OnNodeGeometryButtonDoubleTapped"
+                                    RightTapped="OnNodeGeometryButtonRightTapped"
+                                    AutomationProperties.Name="Diagram node shape geometry"
+                                    ToolTipService.ToolTip="Diagram node shape geometry (Default, Pill Rounded, Sharp Box, Soft Shadow, Contrast Borders · Double-click to cycle)">
+                                <FontIcon Glyph="&#xEB9F;" FontSize="12" />
+                                <Button.Flyout>
+                                    <MenuFlyout x:Name="NodeGeometryFlyout">
+                                        <MenuFlyoutItem x:Name="GeomDefaultItem" Text="Default Layout Geometry" Click="OnGeomDefaultClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="GeomPillRoundedItem" Text="Pill Rounded (20px)" Click="OnGeomPillRoundedClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE944;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="GeomSharpBoxItem" Text="Sharp Box (0px)" Click="OnGeomSharpBoxClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C3;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="GeomModernSoftItem" Text="Modern Soft Shadow" Click="OnGeomModernSoftClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="GeomContrastBorderItem" Text="Bold Contrast Borders" Click="OnGeomContrastBorderClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
                         </StackPanel>
                     </Grid>
                     <!-- Quick Layout Visual Thumbnail Strip -->

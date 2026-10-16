@@ -3085,7 +3085,9 @@ namespace MarkSmith.Views.MindMap
 
             var saveCopyItem = MenuItem("Save a copy of map…", "\uEA35");
             saveCopyItem.Click += OnSaveAsClick;
-            exportSub.Items.Add(saveCopyItem);
+            var copySubtreeItem = MenuItem("Copy subtree as Markdown document", "\uE8FD");
+            copySubtreeItem.Click += OnCopySubtreeMarkdownClick;
+            exportSub.Items.Add(copySubtreeItem);
 
             exportSub.Items.Add(new MenuFlyoutSeparator());
 
@@ -4097,6 +4099,44 @@ namespace MarkSmith.Views.MindMap
             }
         }
 
+        private void OnExportDropDownDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OnCopySubtreeMarkdownClick(sender, new RoutedEventArgs());
+        }
+
+        private async void OnCopySubtreeMarkdownClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var target = ViewModel.SelectedNode ?? ViewModel.Nodes.FirstOrDefault();
+                if (target == null)
+                {
+                    ViewModel.StatusMessage = "No nodes available to export.";
+                    return;
+                }
+
+                string md = ViewModel.ExportSubtreeToMarkdown(target);
+                var error = await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(md);
+                if (error is null)
+                {
+                    ViewModel.StatusMessage = $"Copied '{target.Title}' subtree as Markdown document to clipboard.";
+                    if (ExportDropDownButton is not null)
+                    {
+                        MarkSmith.Services.CopyFeedback.ApplyButtonTick(ExportDropDownButton, null);
+                    }
+                }
+                else
+                {
+                    ViewModel.StatusMessage = $"Subtree export wasn't copied. {error}";
+                }
+            }
+            catch (Exception ex)
+            {
+                ViewModel.StatusMessage = $"Couldn't export subtree Markdown: {ex.Message}";
+            }
+        }
+
         private void OnExportDropDownRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             if (ExportDropDownButton is null) return;
@@ -4110,6 +4150,14 @@ namespace MarkSmith.Views.MindMap
             };
             docxItem.Click += OnExportDocxClick;
             menu.Items.Add(docxItem);
+
+            var copySubtreeItem = new MenuFlyoutItem
+            {
+                Text = "Copy subtree as Markdown document",
+                Icon = new FontIcon { Glyph = "\uE8FD" }
+            };
+            copySubtreeItem.Click += OnCopySubtreeMarkdownClick;
+            menu.Items.Add(copySubtreeItem);
 
             menu.Items.Add(new MenuFlyoutSeparator());
 

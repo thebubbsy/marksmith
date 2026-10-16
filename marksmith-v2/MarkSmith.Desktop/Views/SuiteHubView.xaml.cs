@@ -69,7 +69,7 @@ public sealed partial class SuiteHubView : UserControl
         SizeChanged += (_, e) => ApplyResponsiveLayout(e.NewSize.Width);
         AddHandler(KeyDownEvent, new KeyEventHandler(OnHubKeyDown), true);
         HoverPolish.Track(this);
-        Loaded += (_, _) => { LoadRecentFiles(); UpdateMemoryUsage(); };
+        Loaded += (_, _) => { LoadRecentFiles(); UpdateMemoryUsage(); UpdateUptimeAndCache(); };
     }
 
     private void WireCardPolish(Border card, int cardIndex)
@@ -1292,6 +1292,105 @@ mindmap
         double workingSetMb = proc.WorkingSet64 / (1024.0 * 1024.0);
         string report = $"MarkSmith Process Diagnostics:{Environment.NewLine}- Managed Memory: {mb:F2} MB{Environment.NewLine}- Working Set: {workingSetMb:F2} MB{Environment.NewLine}- GC Gen 0/1/2 Collections: {GC.CollectionCount(0)}/{GC.CollectionCount(1)}/{GC.CollectionCount(2)}";
         CopyToClipboard(report, "Copied process memory metrics to clipboard.");
+    }
+
+    private static readonly DateTime _processStartTime = DateTime.UtcNow;
+
+    private void UpdateUptimeAndCache()
+    {
+        if (UptimeStorageText == null) return;
+        var uptime = DateTime.UtcNow - _processStartTime;
+        string uptimeStr = uptime.TotalHours >= 1
+            ? $"{(int)uptime.TotalHours}h {uptime.Minutes}m"
+            : $"{(int)uptime.TotalMinutes}m";
+
+        long cacheBytes = 0;
+        int cacheFileCount = 0;
+        try
+        {
+            var tempDir = new DirectoryInfo(Path.GetTempPath());
+            var files = tempDir.EnumerateFiles("marksmith*", SearchOption.TopDirectoryOnly)
+                .Concat(tempDir.EnumerateFiles("ms-*", SearchOption.TopDirectoryOnly));
+            foreach (var fi in files)
+            {
+                cacheFileCount++;
+                cacheBytes += fi.Length;
+            }
+        }
+        catch { }
+
+        double cacheMb = cacheBytes / (1024.0 * 1024.0);
+        string cacheStr = cacheMb >= 1.0 ? $"{cacheMb:F1} MB" : (cacheBytes > 0 ? $"{cacheBytes / 1024} KB" : "OK");
+        UptimeStorageText.Text = $"Uptime: {uptimeStr} · Cache: {cacheStr}";
+        ToolTipService.SetToolTip(UptimeStoragePill, $"Desktop engine uptime: {uptimeStr} · Temp cache: {cacheFileCount} files ({cacheMb:F2} MB) · Tap to prune temp cache, right-click to copy diagnostics");
+    }
+
+    private void OnUptimeStoragePillTapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        int deleted = 0;
+        long freedBytes = 0;
+        try
+        {
+            var tempDir = new DirectoryInfo(Path.GetTempPath());
+            var files = tempDir.EnumerateFiles("marksmith*", SearchOption.TopDirectoryOnly)
+                .Concat(tempDir.EnumerateFiles("ms-*", SearchOption.TopDirectoryOnly));
+            foreach (var fi in files)
+            {
+                try
+                {
+                    if (DateTime.UtcNow - fi.LastWriteTimeUtc > TimeSpan.FromMinutes(10))
+                    {
+                        long len = fi.Length;
+                        fi.Delete();
+                        deleted++;
+                        freedBytes += len;
+                    }
+                }
+                catch { }
+            }
+        }
+        catch { }
+
+        UpdateUptimeAndCache();
+        double freedMb = freedBytes / (1024.0 * 1024.0);
+        string freedStr = freedMb >= 0.1 ? $"{freedMb:F1} MB" : $"{freedBytes / 1024} KB";
+        SetNotification(deleted > 0
+            ? $"Pruned {deleted} stale temporary cache files ({freedStr} freed)."
+            : "Temporary cache is already lean; no stale files found.");
+    }
+
+    private void OnUptimeStoragePillRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var uptime = DateTime.UtcNow - _processStartTime;
+        string uptimeStr = $"{(int)uptime.TotalHours}h {uptime.Minutes}m {uptime.Seconds}s";
+
+        long cacheBytes = 0;
+        int cacheFileCount = 0;
+        try
+        {
+            var tempDir = new DirectoryInfo(Path.GetTempPath());
+            var files = tempDir.EnumerateFiles("marksmith*", SearchOption.TopDirectoryOnly)
+                .Concat(tempDir.EnumerateFiles("ms-*", SearchOption.TopDirectoryOnly));
+            foreach (var fi in files)
+            {
+                cacheFileCount++;
+                cacheBytes += fi.Length;
+            }
+        }
+        catch { }
+
+        double cacheMb = cacheBytes / (1024.0 * 1024.0);
+        using var proc = System.Diagnostics.Process.GetCurrentProcess();
+        string diag = $"MarkSmith Engine Diagnostics:{Environment.NewLine}" +
+                      $"- Uptime: {uptimeStr}{Environment.NewLine}" +
+                      $"- Temp Cache Footprint: {cacheFileCount} files ({cacheMb:F2} MB){Environment.NewLine}" +
+                      $"- Temp Directory: {Path.GetTempPath()}{Environment.NewLine}" +
+                      $"- Process ID: {proc.Id}{Environment.NewLine}" +
+                      $"- Threads: {proc.Threads.Count}";
+
+        CopyToClipboard(diag, "Copied engine uptime & cache diagnostics to clipboard.");
     }
 
     #endregion

@@ -2625,6 +2625,48 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateInspectorLayerUi();
         }
 
+        private void OnInspectorFlipHClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedShape is not { } s) return;
+            ViewModel.RecordUndo();
+            s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle(360 - s.Rotation);
+            ViewModel.StatusMessage = $"Flipped {s.DisplayName.ToLowerInvariant()} horizontally";
+            UpdateAdorner();
+        }
+
+        private void OnInspectorFlipVClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedShape is not { } s) return;
+            ViewModel.RecordUndo();
+            s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle(180 - s.Rotation);
+            ViewModel.StatusMessage = $"Flipped {s.DisplayName.ToLowerInvariant()} vertically";
+            UpdateAdorner();
+        }
+
+        private void OnInspectorRotateCwClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedShape is null) return;
+            ViewModel.RotateClockwiseCommand.Execute(null);
+            UpdateAdorner();
+        }
+
+        private void OnInspectorRotateCcwClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedShape is null) return;
+            ViewModel.RotateCounterClockwiseCommand.Execute(null);
+            UpdateAdorner();
+        }
+
+        private void OnInspectorSquareAspectClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedShape is not { } s) return;
+            ViewModel.RecordUndo();
+            double sz = Math.Round((s.Width + s.Height) / 2.0);
+            s.Width = s.Height = sz;
+            ViewModel.StatusMessage = $"Set {s.DisplayName.ToLowerInvariant()} to 1:1 aspect ({sz:F0} × {sz:F0} px)";
+            UpdateAdorner();
+        }
+
         private void ShowMultiSelectionContextMenu(Point position)
         {
             var flyout = new MenuFlyout();
