@@ -6,6 +6,7 @@ using MarkSmith.ViewModels;
 using MarkSmith.ViewModels.History;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Windows.System;
@@ -970,6 +971,138 @@ public sealed partial class HistoryWindow : Window
     {
         if (_vm.Selected is not null)
             await CopyVersionMarkdownAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
+    }
+
+    private bool _diffWrapEnabled = false;
+
+    private void OnDiffWrapButtonClick(object sender, RoutedEventArgs e)
+    {
+        _diffWrapEnabled = !_diffWrapEnabled;
+        if (DiffWrapLabel != null)
+        {
+            DiffWrapLabel.Text = _diffWrapEnabled ? "Wrap: On" : "Wrap: Off";
+        }
+        ApplyDiffTextWrap(_diffWrapEnabled);
+        _vm.ShowNotice(_diffWrapEnabled ? "Enabled soft text wrapping for diff lines" : "Disabled soft text wrapping for diff lines");
+        if (DiffWrapButton != null) CopyFeedback.ApplyButtonTick(DiffWrapButton, null);
+    }
+
+    private void ApplyDiffTextWrap(bool wrap)
+    {
+        var wrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
+        ApplyWrappingToRepeater(UnifiedDiffRepeater, wrapping);
+        ApplyWrappingToRepeater(SplitDiffRepeater, wrapping);
+    }
+
+    private static void ApplyWrappingToRepeater(ItemsRepeater? repeater, TextWrapping wrapping)
+    {
+        if (repeater == null) return;
+        int count = VisualTreeHelper.GetChildrenCount(repeater);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(repeater, i);
+            FindAndSetWrapping(child, wrapping);
+        }
+    }
+
+    private static void FindAndSetWrapping(DependencyObject? parent, TextWrapping wrapping)
+    {
+        if (parent == null) return;
+        if (parent is TextBlock tb && tb.FontFamily?.Source?.Contains("Mono", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            tb.TextWrapping = wrapping;
+        }
+        int count = VisualTreeHelper.GetChildrenCount(parent);
+        for (int i = 0; i < count; i++)
+        {
+            FindAndSetWrapping(VisualTreeHelper.GetChild(parent, i), wrapping);
+        }
+    }
+
+    private async void OnDiffLineJumpButtonClick(object sender, RoutedEventArgs e)
+    {
+        await ShowDiffLineJumpDialogAsync();
+    }
+
+    private async Task ShowDiffLineJumpDialogAsync()
+    {
+        int maxLine = 1;
+        if (_vm.UnifiedDiffRows.Count > 0)
+        {
+            maxLine = Math.Max(1, _vm.UnifiedDiffRows.Max(r => Math.Max(r.NewNumber ?? 0, r.OldNumber ?? 0)));
+        }
+
+        var input = new TextBox
+        {
+            PlaceholderText = $"Line 1 - {maxLine}",
+            InputScope = new Microsoft.UI.Xaml.Input.InputScope
+            {
+                Names = { new Microsoft.UI.Xaml.Input.InputScopeName(Microsoft.UI.Xaml.Input.InputScopeNameValue.Number) }
+            },
+            Width = 240,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        var panel = new StackPanel { Spacing = 10, Margin = new Thickness(0, 8, 0, 0) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"Enter document line number to jump to (1 - {maxLine}):",
+            FontSize = 13
+        });
+        panel.Children.Add(input);
+
+        var quickButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        var topBtn = new Button { Content = "Top (Line 1)", Padding = new Thickness(8, 4, 8, 4) };
+        topBtn.Click += (_, _) => input.Text = "1";
+        var midBtn = new Button { Content = $"Mid (Line {Math.Max(1, maxLine / 2)})", Padding = new Thickness(8, 4, 8, 4) };
+        midBtn.Click += (_, _) => input.Text = Math.Max(1, maxLine / 2).ToString();
+        var endBtn = new Button { Content = $"End (Line {maxLine})", Padding = new Thickness(8, 4, 8, 4) };
+        endBtn.Click += (_, _) => input.Text = maxLine.ToString();
+
+        quickButtons.Children.Add(topBtn);
+        if (maxLine > 2) quickButtons.Children.Add(midBtn);
+        quickButtons.Children.Add(endBtn);
+        panel.Children.Add(quickButtons);
+
+        var dialog = new ContentDialog
+        {
+            Title = "Go to Document Line in Diff",
+            Content = panel,
+            PrimaryButtonText = "Go to Line",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = this.Content.XamlRoot
+        };
+
+        if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary &&
+            int.TryParse(input.Text.Trim(), out int targetLine) && targetLine > 0)
+        {
+            JumpToDocumentLineInDiff(targetLine);
+        }
+    }
+
+    private void JumpToDocumentLineInDiff(int targetLine)
+    {
+        int targetRowIdx = -1;
+        for (int i = 0; i < _vm.UnifiedDiffRows.Count; i++)
+        {
+            var row = _vm.UnifiedDiffRows[i];
+            if (row.NewNumber == targetLine || (row.NewNumber == null && row.OldNumber == targetLine))
+            {
+                targetRowIdx = i;
+                break;
+            }
+        }
+
+        if (targetRowIdx >= 0)
+        {
+            ScrollToDiffRow(targetRowIdx);
+            _vm.ShowNotice($"Jumped to document line {targetLine} in diff view.");
+        }
+        else
+        {
+            _vm.ShowNotice($"Line {targetLine} was not found in the active diff.", isError: true);
+        }
     }
 
     private void UpdateCopyToolbarButton(HistoryDiffMode mode)

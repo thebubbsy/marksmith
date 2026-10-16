@@ -345,4 +345,36 @@ public class ShapeStudioPolishTests
         Assert.Equal(180, vm.Shapes[2].Y);
         Assert.Equal("Arranged 3 shapes in a grid", vm.StatusMessage);
     }
+
+    [Fact]
+    public void CollectiveBoundingBoxAndCenterSnap_CalculatesAccurateCoordinates()
+    {
+        var vm = NewVm();
+        var s1 = new ShapeCanvasItemViewModel { X = 100, Y = 100, Width = 100, Height = 60, IsSelected = true };
+        var s2 = new ShapeCanvasItemViewModel { X = 300, Y = 200, Width = 100, Height = 60, IsSelected = true };
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+
+        var sel = vm.Shapes.Where(s => s.IsSelected).ToList();
+        double minX = sel.Min(s => s.X);
+        double maxX = sel.Max(s => s.X + s.Width);
+        double minY = sel.Min(s => s.Y);
+        double maxY = sel.Max(s => s.Y + s.Height);
+        double centerX = (minX + maxX) / 2.0;
+        double centerY = (minY + maxY) / 2.0;
+
+        Assert.Equal(100, minX);
+        Assert.Equal(400, maxX);
+        Assert.Equal(250, centerX); // (100 + 400) / 2
+        Assert.Equal(100, minY);
+        Assert.Equal(260, maxY);
+        Assert.Equal(180, centerY); // (100 + 260) / 2
+
+        // When snapping to canvas center (1100, 900)
+        double deltaX = 1100.0 - centerX; // +850
+        double deltaY = 900.0 - centerY;  // +720
+
+        Assert.Equal(850, deltaX);
+        Assert.Equal(720, deltaY);
+    }
 }

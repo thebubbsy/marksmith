@@ -1930,5 +1930,145 @@ namespace MarkSmith.ViewModels.MindMap
                 ProgressFill: "#34D399", ProgressInk: "#34D399", VersionFill: "#1C2D42", VersionInk: "#7DD3FC",
                 MissingInk: "#FCA5A5", HighlightBorder: "#22D3EE")
         };
+
+        /// <summary>
+        /// Computes 4-directional adaptive routing between a parent node and child node.
+        /// Determines whether child is primarily to the right, left, below, or above the parent,
+        /// and connects start and end points to the respective cardinal faces with smooth cubic bezier or orthogonal control points.
+        /// </summary>
+        public static (double startX, double startY, double c1X, double c1Y, double c2X, double c2Y, double endX, double endY)
+            ComputeHierarchyEdgeRouting(double srcX, double srcY, double srcW, double srcH,
+                                        double tgtX, double tgtY, double tgtW, double tgtH,
+                                        string routingStyle = "curved")
+        {
+            double srcCenterX = srcX + (srcW / 2.0);
+            double srcCenterY = srcY + (srcH / 2.0);
+            double tgtCenterX = tgtX + (tgtW / 2.0);
+            double tgtCenterY = tgtY + (tgtH / 2.0);
+            double dx = tgtCenterX - srcCenterX;
+            double dy = tgtCenterY - srcCenterY;
+
+            double startX, startY, endX, endY, c1X, c1Y, c2X, c2Y;
+            bool isStraight = string.Equals(routingStyle, "straight", StringComparison.OrdinalIgnoreCase);
+            bool isOrthogonal = string.Equals(routingStyle, "orthogonal", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(routingStyle, "stepped", StringComparison.OrdinalIgnoreCase);
+
+            if (Math.Abs(dx) >= Math.Abs(dy))
+            {
+                if (dx >= 0)
+                {
+                    // Rightwards (standard tree / LTR)
+                    startX = srcX + srcW;
+                    startY = srcCenterY;
+                    endX = tgtX;
+                    endY = tgtCenterY;
+                    if (isStraight)
+                    {
+                        c1X = startX + (endX - startX) / 3.0;
+                        c1Y = startY + (endY - startY) / 3.0;
+                        c2X = startX + 2.0 * (endX - startX) / 3.0;
+                        c2Y = startY + 2.0 * (endY - startY) / 3.0;
+                    }
+                    else if (isOrthogonal)
+                    {
+                        double midX = (startX + endX) / 2.0;
+                        c1X = midX; c1Y = startY;
+                        c2X = midX; c2Y = endY;
+                    }
+                    else
+                    {
+                        double ctrl = Math.Max(Math.Abs(endX - startX) * 0.5, 30);
+                        c1X = startX + ctrl; c1Y = startY;
+                        c2X = endX - ctrl; c2Y = endY;
+                    }
+                }
+                else
+                {
+                    // Leftwards (RightToLeftTree / RTL)
+                    startX = srcX;
+                    startY = srcCenterY;
+                    endX = tgtX + tgtW;
+                    endY = tgtCenterY;
+                    if (isStraight)
+                    {
+                        c1X = startX + (endX - startX) / 3.0;
+                        c1Y = startY + (endY - startY) / 3.0;
+                        c2X = startX + 2.0 * (endX - startX) / 3.0;
+                        c2Y = startY + 2.0 * (endY - startY) / 3.0;
+                    }
+                    else if (isOrthogonal)
+                    {
+                        double midX = (startX + endX) / 2.0;
+                        c1X = midX; c1Y = startY;
+                        c2X = midX; c2Y = endY;
+                    }
+                    else
+                    {
+                        double ctrl = Math.Max(Math.Abs(endX - startX) * 0.5, 30);
+                        c1X = startX - ctrl; c1Y = startY;
+                        c2X = endX + ctrl; c2Y = endY;
+                    }
+                }
+            }
+            else
+            {
+                if (dy >= 0)
+                {
+                    // Downwards (VerticalHierarchy / top-down)
+                    startX = srcCenterX;
+                    startY = srcY + srcH;
+                    endX = tgtCenterX;
+                    endY = tgtY;
+                    if (isStraight)
+                    {
+                        c1X = startX + (endX - startX) / 3.0;
+                        c1Y = startY + (endY - startY) / 3.0;
+                        c2X = startX + 2.0 * (endX - startX) / 3.0;
+                        c2Y = startY + 2.0 * (endY - startY) / 3.0;
+                    }
+                    else if (isOrthogonal)
+                    {
+                        double midY = (startY + endY) / 2.0;
+                        c1X = startX; c1Y = midY;
+                        c2X = endX; c2Y = midY;
+                    }
+                    else
+                    {
+                        double ctrl = Math.Max(Math.Abs(endY - startY) * 0.5, 30);
+                        c1X = startX; c1Y = startY + ctrl;
+                        c2X = endX; c2Y = endY - ctrl;
+                    }
+                }
+                else
+                {
+                    // Upwards (BottomUpHierarchy / inverted)
+                    startX = srcCenterX;
+                    startY = srcY;
+                    endX = tgtCenterX;
+                    endY = tgtY + tgtH;
+                    if (isStraight)
+                    {
+                        c1X = startX + (endX - startX) / 3.0;
+                        c1Y = startY + (endY - startY) / 3.0;
+                        c2X = startX + 2.0 * (endX - startX) / 3.0;
+                        c2Y = startY + 2.0 * (endY - startY) / 3.0;
+                    }
+                    else if (isOrthogonal)
+                    {
+                        double midY = (startY + endY) / 2.0;
+                        c1X = startX; c1Y = midY;
+                        c2X = endX; c2Y = midY;
+                    }
+                    else
+                    {
+                        double ctrl = Math.Max(Math.Abs(endY - startY) * 0.5, 30);
+                        c1X = startX; c1Y = startY - ctrl;
+                        c2X = endX; c2Y = endY + ctrl;
+                    }
+                }
+            }
+
+            return (startX, startY, c1X, c1Y, c2X, c2Y, endX, endY);
+        }
     }
 }

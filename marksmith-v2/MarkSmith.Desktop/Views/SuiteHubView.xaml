@@ -279,6 +279,22 @@
                                     <TextBlock Text="RFC Proposal" FontSize="11.5" />
                                 </StackPanel>
                             </Button>
+                            <Button x:Name="TemplatePrdBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
+                                    Click="OnTemplatePrdClick" ToolTipService.ToolTip="Create a Product Requirements Document (PRD) with user personas, user journeys and functional specs"
+                                    Tag="prd product requirements feature spec planning agile roadmap">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE7C1;" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="PRD Document" FontSize="11.5" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="TemplateApiDocBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
+                                    Click="OnTemplateApiDocClick" ToolTipService.ToolTip="Create a REST API specification with endpoints, auth headers, status codes and payload schema"
+                                    Tag="api rest openapi endpoint swagger contract spec technical web service">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE8B9;" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="REST API Spec" FontSize="11.5" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </ScrollViewer>
                     <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -292,7 +308,7 @@
                                 ToolTipService.ToolTip="Starter templates count · Click to show all, double-click to focus search, right-click for category presets">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE8A5;" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                <TextBlock x:Name="TemplateCountText" Text="8 templates" FontSize="11" FontWeight="SemiBold"
+                                <TextBlock x:Name="TemplateCountText" Text="10 templates" FontSize="11" FontWeight="SemiBold"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Border>

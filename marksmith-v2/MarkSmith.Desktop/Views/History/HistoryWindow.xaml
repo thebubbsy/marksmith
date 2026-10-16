@@ -472,6 +472,8 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <!-- Mode Selector -->
@@ -662,6 +664,34 @@
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon x:Name="CopyToolbarIcon" Glyph="&#xE943;" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock x:Name="CopyToolbarText" Text="Copy diff" FontSize="12" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Diff Line Soft-Wrap Toggle Button -->
+                            <Button x:Name="DiffWrapButton" Grid.Column="7" Click="OnDiffWrapButtonClick"
+                                    VerticalAlignment="Center" Padding="8,4" CornerRadius="6"
+                                    Background="{ThemeResource SubtleFillColorTransparentBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    ToolTipService.ToolTip="Toggle diff text soft-wrapping (Wrap: Off/On)"
+                                    AutomationProperties.Name="Toggle diff text soft-wrap"
+                                    Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE8D2;" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="DiffWrapLabel" Text="Wrap: Off" FontSize="11.5" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Diff Line Number Jump Button -->
+                            <Button x:Name="DiffLineJumpButton" Grid.Column="8" Click="OnDiffLineJumpButtonClick"
+                                    VerticalAlignment="Center" Padding="8,4" CornerRadius="6"
+                                    Background="{ThemeResource SubtleFillColorTransparentBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    ToolTipService.ToolTip="Jump to document line in diff (Ctrl+G)"
+                                    AutomationProperties.Name="Jump to document line in diff"
+                                    Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE8B9;" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="Go to Line" FontSize="11.5" />
                                 </StackPanel>
                             </Button>
                         </Grid>

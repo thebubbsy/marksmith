@@ -7843,22 +7843,39 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (StatusEncodingText is null || StatusEncodingButton is null) return;
         string lineEndings = "CRLF";
+        string encodingName = "UTF-8";
+        int crlfCount = 0;
+        int lfCount = 0;
         if (!string.IsNullOrEmpty(text))
         {
-            int crlfCount = 0;
-            int lfCount = 0;
             for (int i = 0; i < text.Length; i++)
             {
                 if (text[i] == '\r' && i + 1 < text.Length && text[i + 1] == '\n') { crlfCount++; i++; }
                 else if (text[i] == '\n') { lfCount++; }
             }
-            if (lfCount > crlfCount) lineEndings = "LF";
-            else if (crlfCount == 0 && lfCount == 0) lineEndings = Environment.NewLine == "\r\n" ? "CRLF" : "LF";
+            if (crlfCount > 0 && lfCount > 0)
+            {
+                lineEndings = $"Mixed ({crlfCount} CRLF, {lfCount} LF)";
+            }
+            else if (lfCount > 0)
+            {
+                lineEndings = "LF";
+            }
+            else if (crlfCount > 0)
+            {
+                lineEndings = "CRLF";
+            }
+            else
+            {
+                lineEndings = Environment.NewLine == "\r\n" ? "CRLF" : "LF";
+            }
         }
-        string encodingText = $"UTF-8 · {lineEndings}";
+        bool isMixed = crlfCount > 0 && lfCount > 0;
+        string encodingText = isMixed ? $"{encodingName} · Mixed" : $"{encodingName} · {lineEndings}";
         StatusEncodingText.Text = encodingText;
-        ToolTipService.SetToolTip(StatusEncodingButton,
-            $"Document Format: {encodingText}\nEncoding: UTF-8 (No BOM)\nLine endings: {lineEndings} ({(lineEndings == "CRLF" ? "Windows \\r\\n" : "Unix/macOS \\n")})\nClick to change format, double-click to toggle CRLF/LF, right-click for options");
+        ToolTipService.SetToolTip(StatusEncodingButton, isMixed
+            ? $"Document Format: {encodingText}\nInconsistent line endings: {crlfCount} CRLF (Windows) and {lfCount} LF (Unix/macOS)\nClick or double-click to normalize line endings, right-click for options"
+            : $"Document Format: {encodingText}\nEncoding: {encodingName} (No BOM)\nLine endings: {lineEndings} ({(lineEndings == "CRLF" ? "Windows \\r\\n" : "Unix/macOS \\n")})\nClick to change format, double-click to toggle CRLF/LF, right-click for options");
     }
 
     private void OnStatusEncodingButtonClick(object sender, RoutedEventArgs e)
@@ -7882,9 +7899,32 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (PasteTextBox is null) return;
         string text = PasteTextBox.Text ?? "";
-        bool currentlyCrlf = text.Contains("\r\n");
+        int crlfCount = 0;
+        int lfCount = 0;
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\r' && i + 1 < text.Length && text[i + 1] == '\n') { crlfCount++; i++; }
+            else if (text[i] == '\n') { lfCount++; }
+        }
         int caret = PasteTextBox.SelectionStart;
-        if (currentlyCrlf)
+        if (crlfCount > 0 && lfCount > 0)
+        {
+            // Normalize mixed line endings to whichever is dominant (or CRLF on Windows)
+            bool toCrlf = crlfCount >= lfCount;
+            string newText = toCrlf
+                ? text.Replace("\r\n", "\n").Replace("\n", "\r\n")
+                : text.Replace("\r\n", "\n");
+            ViewModel.BreakUndoBurst();
+            PasteTextBox.Text = newText;
+            PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
+            SyncDocumentFromEditor();
+            ViewModel.BreakUndoBurst();
+            UpdateCursorPosition();
+            UpdateStatusEncoding(newText);
+            _ = RefreshPreviewAsync();
+            AnnounceStatus($"Normalized mixed line endings to {(toCrlf ? "CRLF (Windows)" : "LF (Unix/macOS)")}");
+        }
+        else if (crlfCount > 0 || (crlfCount == 0 && lfCount == 0 && Environment.NewLine == "\r\n"))
         {
             string newText = text.Replace("\r\n", "\n");
             ViewModel.BreakUndoBurst();
@@ -7915,6 +7955,64 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void ShowEncodingFlyout(FrameworkElement target)
     {
         var menu = new MenuFlyout();
+        string text = PasteTextBox?.Text ?? "";
+        int crlfCount = 0;
+        int lfCount = 0;
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\r' && i + 1 < text.Length && text[i + 1] == '\n') { crlfCount++; i++; }
+            else if (text[i] == '\n') { lfCount++; }
+        }
+        bool isMixed = crlfCount > 0 && lfCount > 0;
+
+        if (isMixed)
+        {
+            var normCrlfItem = new MenuFlyoutItem
+            {
+                Text = $"Normalize all to CRLF ({crlfCount + lfCount} lines)",
+                Icon = new FontIcon { Glyph = "\uE73E" }
+            };
+            normCrlfItem.Click += (_, _) =>
+            {
+                if (PasteTextBox is null) return;
+                int caret = PasteTextBox.SelectionStart;
+                string newText = (PasteTextBox.Text ?? "").Replace("\r\n", "\n").Replace("\n", "\r\n");
+                ViewModel.BreakUndoBurst();
+                PasteTextBox.Text = newText;
+                PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
+                SyncDocumentFromEditor();
+                ViewModel.BreakUndoBurst();
+                UpdateCursorPosition();
+                UpdateStatusEncoding(newText);
+                _ = RefreshPreviewAsync();
+                AnnounceStatus($"Normalized all line endings to CRLF ({crlfCount + lfCount} lines)");
+            };
+            menu.Items.Add(normCrlfItem);
+
+            var normLfItem = new MenuFlyoutItem
+            {
+                Text = $"Normalize all to LF ({crlfCount + lfCount} lines)",
+                Icon = new FontIcon { Glyph = "\uE73E" }
+            };
+            normLfItem.Click += (_, _) =>
+            {
+                if (PasteTextBox is null) return;
+                int caret = PasteTextBox.SelectionStart;
+                string newText = (PasteTextBox.Text ?? "").Replace("\r\n", "\n");
+                ViewModel.BreakUndoBurst();
+                PasteTextBox.Text = newText;
+                PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
+                SyncDocumentFromEditor();
+                ViewModel.BreakUndoBurst();
+                UpdateCursorPosition();
+                UpdateStatusEncoding(newText);
+                _ = RefreshPreviewAsync();
+                AnnounceStatus($"Normalized all line endings to LF ({crlfCount + lfCount} lines)");
+            };
+            menu.Items.Add(normLfItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+        }
 
         var toCrlfItem = new MenuFlyoutItem
         {
@@ -7924,9 +8022,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         toCrlfItem.Click += (_, _) =>
         {
             if (PasteTextBox is null) return;
-            string text = PasteTextBox.Text ?? "";
+            string curText = PasteTextBox.Text ?? "";
             int caret = PasteTextBox.SelectionStart;
-            string newText = text.Replace("\r\n", "\n").Replace("\n", "\r\n");
+            string newText = curText.Replace("\r\n", "\n").Replace("\n", "\r\n");
             ViewModel.BreakUndoBurst();
             PasteTextBox.Text = newText;
             PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
@@ -7947,9 +8045,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         toLfItem.Click += (_, _) =>
         {
             if (PasteTextBox is null) return;
-            string text = PasteTextBox.Text ?? "";
+            string curText = PasteTextBox.Text ?? "";
             int caret = PasteTextBox.SelectionStart;
-            string newText = text.Replace("\r\n", "\n");
+            string newText = curText.Replace("\r\n", "\n");
             ViewModel.BreakUndoBurst();
             PasteTextBox.Text = newText;
             PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
@@ -7972,8 +8070,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         copyFormatItem.Click += (_, _) =>
         {
             string summary = StatusEncodingText?.Text ?? "UTF-8 · CRLF";
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus($"Copied document format: {summary}");
+            string detail = isMixed
+                ? $"{summary} ({crlfCount} CRLF, {lfCount} LF) · {crlfCount + lfCount} lines total"
+                : $"{summary} · No BOM";
+            _ = Services.ClipboardWriter.TrySetTextAsync(detail);
+            AnnounceStatus($"Copied document format: {detail}");
         };
         menu.Items.Add(copyFormatItem);
 

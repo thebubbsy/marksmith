@@ -1573,6 +1573,31 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
+        private bool _snapToCanvasCenter = true;
+        private bool _snapToShapeEdges = true;
+
+        private void OnToggleSnapToCenterClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is ToggleMenuFlyoutItem item)
+            {
+                _snapToCanvasCenter = item.IsChecked;
+                ViewModel.StatusMessage = _snapToCanvasCenter
+                    ? "Snap to canvas center guidelines: Enabled"
+                    : "Snap to canvas center guidelines: Disabled";
+            }
+        }
+
+        private void OnToggleSnapToShapesClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is ToggleMenuFlyoutItem item)
+            {
+                _snapToShapeEdges = item.IsChecked;
+                ViewModel.StatusMessage = _snapToShapeEdges
+                    ? "Snap to adjacent shape guidelines: Enabled"
+                    : "Snap to adjacent shape guidelines: Disabled";
+            }
+        }
+
         private void OnCenterCanvasButtonClick(object sender, RoutedEventArgs e)
         {
             ViewModel.CenterDiagramOnCanvas(horizontal: true, vertical: true);
@@ -1760,15 +1785,65 @@ namespace MarkSmith.Views.ShapeStudio
             bool snappedX = false;
             bool snappedY = false;
 
-            if (others.Count > 0)
-            {
-                double targetLeft = _dragShape.X;
-                double targetCenter = _dragShape.X + _dragShape.Width / 2.0;
-                double targetRight = _dragShape.X + _dragShape.Width;
-                double targetTop = _dragShape.Y;
-                double targetMiddle = _dragShape.Y + _dragShape.Height / 2.0;
-                double targetBottom = _dragShape.Y + _dragShape.Height;
+            double targetLeft = _dragShape.X;
+            double targetCenter = _dragShape.X + _dragShape.Width / 2.0;
+            double targetRight = _dragShape.X + _dragShape.Width;
+            double targetTop = _dragShape.Y;
+            double targetMiddle = _dragShape.Y + _dragShape.Height / 2.0;
+            double targetBottom = _dragShape.Y + _dragShape.Height;
 
+            var selShapes = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (selShapes.Count > 1)
+            {
+                targetLeft = selShapes.Min(s => s.X);
+                targetRight = selShapes.Max(s => s.X + s.Width);
+                targetCenter = (targetLeft + targetRight) / 2.0;
+                targetTop = selShapes.Min(s => s.Y);
+                targetBottom = selShapes.Max(s => s.Y + s.Height);
+                targetMiddle = (targetTop + targetBottom) / 2.0;
+            }
+
+            // 1. Center guidelines magnetic snap (virtual canvas is 2200 x 1800)
+            const double canvasCenterX = 1100.0;
+            const double canvasCenterY = 900.0;
+            if (_snapToCanvasCenter)
+            {
+                if (Math.Abs(targetCenter - canvasCenterX) <= snapThreshold)
+                {
+                    double deltaX = canvasCenterX - targetCenter;
+                    var (smx, _) = ViewModel.NudgeSelection(deltaX, 0);
+                    _dragAppliedX += smx;
+                    if (_snapGuideX != null)
+                    {
+                        _snapGuideX.X1 = _snapGuideX.X2 = canvasCenterX;
+                        _snapGuideX.Y1 = 0;
+                        _snapGuideX.Y2 = 1800;
+                        _snapGuideX.StrokeThickness = 1.2 / z;
+                        _snapGuideX.Visibility = Visibility.Visible;
+                    }
+                    snappedX = true;
+                }
+
+                if (Math.Abs(targetMiddle - canvasCenterY) <= snapThreshold)
+                {
+                    double deltaY = canvasCenterY - targetMiddle;
+                    var (_, smy) = ViewModel.NudgeSelection(0, deltaY);
+                    _dragAppliedY += smy;
+                    if (_snapGuideY != null)
+                    {
+                        _snapGuideY.Y1 = _snapGuideY.Y2 = canvasCenterY;
+                        _snapGuideY.X1 = 0;
+                        _snapGuideY.X2 = 2200;
+                        _snapGuideY.StrokeThickness = 1.2 / z;
+                        _snapGuideY.Visibility = Visibility.Visible;
+                    }
+                    snappedY = true;
+                }
+            }
+
+            // 2. Adjacent shape guidelines magnetic snap
+            if (_snapToShapeEdges && others.Count > 0)
+            {
                 foreach (var o in others)
                 {
                     double oLeft = o.X;

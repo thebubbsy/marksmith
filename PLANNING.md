@@ -9692,3 +9692,78 @@ Reviewed: the 2026-10-17 run #127 entry above. Followed the AI-Executable 3-Bloc
 - `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **469 passed, 0 failed (100% pass rate)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 24196, responsive startup (`Responding: True`), clean exit.
 
+### 2026-10-17 (scheduled routine run #129 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #128 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across the 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #128:
+    * Target A: `MainWindow` status bar encoding and line ending selector (UTF-8 / CRLF / LF).
+    * Target B: `MindMapGalaxyWindow` node relationship connector style and adaptive cardinal edge routing.
+    * Target C: `ShapeDesignStudioWindow` smart magnetic snap guidelines when moving shapes near canvas center or multi-selection collective bounding box.
+  - Generated:
+    1. `MainWindow`: Line Endings & Encoding Status Pill (`StatusEncodingButton`, dynamic detection of CRLF / LF / Mixed with CRLF/LF counts, single-click toggle, and flyout converter).
+    2. `MindMapGalaxyWindow`: Adaptive 4-Direction Cardinal Edge Routing (`ComputeHierarchyEdgeRouting` in `MindMapStudioViewModel`, supporting Left, Right, Top, Bottom edge connections dynamically adapted across Tree, RTL, Vertical, Bottom-Up, and Radial layouts).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `UpdateStatusEncoding` in `MainWindow.xaml.cs` to detect mixed CRLF and LF lines (e.g. `UTF-8 · Mixed (12 CRLF / 3 LF)`), wired single-click `ToggleLineEndings` and rich `ShowEncodingFlyout` with actions to normalize to Windows (CRLF), Unix (LF), or copy line statistics to clipboard.
+    * For Idea 2: Formulated `MindMapStudioViewModel.ComputeHierarchyEdgeRouting` with geometric angle detection between parent and child node centers, computing cardinal attach points (Left/Right for horizontal trees, Top/Bottom for vertical hierarchies) across curved, straight, and orthogonal connector paths. Wired into `MindMapGalaxyWindow.xaml.cs` edge rendering loop.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Smart Magnetic Snap Guidelines & Multi-Selection Collective Bounds (`canvasCenterX = 1100.0`, `canvasCenterY = 900.0`, guide threshold = 12px, collective bounding box snap so multi-selected shapes preserve relative distance).
+    4. `SmartArtDesignStudioWindow`: Outline Real-Time Search & Match Navigation (`OutlineSearchPill` with `OutlineSearchBox`, `OutlineMatchCountLabel`, Enter/Shift+Enter, F3/Shift+F3 match stepper, and node selection/centering).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Implemented center snap guidelines in `ShapeDesignStudioWindow.xaml.cs`, added toggles for `Center Guidelines` and `Shape Bounds Guidelines` inside `GridSnapFlyout` in `ShapeDesignStudioWindow.xaml`, and handled multi-selection delta translation so grouped nodes snap collectively without distorting relative spacing.
+    * For Idea 4: Mounted `OutlineSearchPill` in `SmartArtDesignStudioWindow.xaml` toolbar, implemented `PerformOutlineSearch`, `StepOutlineMatch`, and `SelectAndFocusOutlineMatch` in `SmartArtDesignStudioWindow.xaml.cs` with real-time match indexing (`1/N`) and status feedback.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `ComputeHierarchyEdgeRouting` under extreme angles (RTL inverted hierarchy, Radial branches, vertical trees) and added pure unit test `Run129_ComputeHierarchyEdgeRouting_AdaptsToAllFourDirections`.
+    * Enforced WinUI 3 XAML compiler safety and `Thickness` 4-argument constructor constraints in `HistoryWindow.xaml.cs`.
+  - Generated:
+    5. `HistoryWindow`: Diff Line Soft-Wrap & Document Line Number Jump (`DiffWrapButton` to toggle monospace diff wrapping on/off, `DiffLineJumpButton` with interactive line jump dialog and quick Top/Mid/End jump buttons).
+    6. `SuiteHubView`: Enterprise PRD & REST API Specification Starter Scaffolds (`TemplatePrdBtn` and `TemplateApiDocBtn` expanding the starter suite to 10 enterprise templates).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Added `DiffWrapButton` and `DiffLineJumpButton` to the inspector toolbar in `HistoryWindow.xaml` (expanding grid to 9 columns). Implemented `OnDiffWrapButtonClick`, `ApplyDiffTextWrap`, `OnDiffLineJumpButtonClick`, and `JumpToDocumentLineInDiff` in `HistoryWindow.xaml.cs`.
+    * For Idea 6: Added `TemplatePrdBtn` (Product Requirements Document scaffold with problem statement, user personas, requirements, acceptance criteria, milestones) and `TemplateApiDocBtn` (REST API Specification scaffold with OpenAPI format, endpoints, headers, error responses) to `StarterTemplatesPanel` in `SuiteHubView.xaml`. Implemented click handlers, updated template count pill to "10 templates", and wired into category filter flyouts.
+  - Executed all 6 refined targets into 100% production code.
+  - Added unit test coverage:
+    * `MindMapGalaxyPolishTests.cs`: `Run129_ComputeHierarchyEdgeRouting_AdaptsToAllFourDirections`.
+    * `ShapeStudioPolishTests.cs`: `CollectiveBoundingBoxAndCenterSnap_CalculatesAccurateCoordinates`.
+    * `SuiteHubAndTourPolishTests.cs`: `Run129_Polish_Elements_Wired_Across_Surfaces`.
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 16 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **473 passed, 0 failed (100% pass rate)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 19388, clean execution and termination.
+  - Carried forward ideas / next targets into Run #130:
+    * Target A: `MainWindow` find/replace bar match navigation enhancements (regex error tooltip badge, occurrence counter pill styling).
+    * Target B: `MindMapGalaxyWindow` node relationship connector style picker (orthogonal step radius, bezier curvature slider).
+    * Target C: `ShapeDesignStudioWindow` alignment toolbar quick-distribute tooltip enhancements and keyboard accelerator badges.
+
+**Shipped:**
+1. **`MainWindow` Line Endings & Encoding Status Pill (`MainWindow.xaml.cs`):**
+   - Dynamic detection of CRLF / LF / Mixed with CRLF/LF counts.
+   - Single-click toggle between CRLF and LF, double-click/right-click rich flyout with conversion and clipboard statistics.
+2. **`MindMapGalaxyWindow` Adaptive 4-Direction Cardinal Edge Routing (`MindMapStudioViewModel.cs`, `MindMapGalaxyWindow.xaml.cs`):**
+   - Geometric angle detection between parent and child node centers determining cardinal edge attachment points (Left, Right, Top, Bottom).
+   - Seamlessly adapts across all 7 map layouts (Tree, RTL, Vertical, Bottom-Up, Radial, Clusters, Force).
+3. **`ShapeDesignStudioWindow` Smart Magnetic Snap Guidelines & Multi-Selection Bounds (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`):**
+   - Added canvas center snap guidelines (`canvasCenterX = 1100.0`, `canvasCenterY = 900.0`).
+   - Group multi-selection delta translation preserving relative inter-shape spacing during magnetic snapping.
+   - Configurable guideline toggles in `GridSnapFlyout`.
+4. **`SmartArtDesignStudioWindow` Outline Real-Time Search & Match Navigation (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`):**
+   - Added `OutlineSearchPill` with search box, match count indicator (`1/N`), and next/previous match steppers.
+   - Enter/Shift+Enter and F3/Shift+F3 keyboard navigation with automatic node selection and status message updates.
+5. **`HistoryWindow` Diff Line Soft-Wrap & Document Line Number Jump (`HistoryWindow.xaml`, `HistoryWindow.xaml.cs`):**
+   - Added `DiffWrapButton` toggling monospace diff soft-wrapping on and off.
+   - Added `DiffLineJumpButton` opening interactive document line jump dialog with Top, Mid, and End jump presets.
+6. **`SuiteHubView` Enterprise PRD & REST API Specification Starter Scaffolds (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`):**
+   - Expanded starter templates to 10 enterprise templates with `TemplatePrdBtn` and `TemplateApiDocBtn`.
+   - Wired into category search flyouts and updated template counter.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 16 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **473 passed, 0 failed (100% pass rate)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 19388, responsive startup, clean exit.
+
+

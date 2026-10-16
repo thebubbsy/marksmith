@@ -1045,5 +1045,52 @@ namespace MarkSmith.Tests
             Assert.NotNull(orphanFound);
             Assert.Equal("orphan-1", orphanFound.Id);
         }
+
+        [Theory]
+        [InlineData("curved")]
+        [InlineData("straight")]
+        [InlineData("orthogonal")]
+        public void Run129_ComputeHierarchyEdgeRouting_AdaptsToAllFourDirections(string style)
+        {
+            // Case 1: Child is to the Right (Horizontal Tree LTR)
+            var right = MindMapStudioViewModel.ComputeHierarchyEdgeRouting(
+                srcX: 100, srcY: 100, srcW: 100, srcH: 50,
+                tgtX: 300, tgtY: 100, tgtW: 100, tgtH: 50,
+                routingStyle: style);
+            Assert.Equal(200, right.startX); // Right edge of parent
+            Assert.Equal(300, right.endX);   // Left edge of child
+            Assert.Equal(125, right.startY); // Center Y of parent
+            Assert.Equal(125, right.endY);   // Center Y of child
+
+            // Case 2: Child is to the Left (Right-to-Left Tree RTL)
+            var left = MindMapStudioViewModel.ComputeHierarchyEdgeRouting(
+                srcX: 300, srcY: 100, srcW: 100, srcH: 50,
+                tgtX: 100, tgtY: 100, tgtW: 100, tgtH: 50,
+                routingStyle: style);
+            Assert.Equal(300, left.startX); // Left edge of parent
+            Assert.Equal(200, left.endX);   // Right edge of child
+            Assert.Equal(125, left.startY);
+            Assert.Equal(125, left.endY);
+
+            // Case 3: Child is Below (Top-Down Hierarchy)
+            var down = MindMapStudioViewModel.ComputeHierarchyEdgeRouting(
+                srcX: 100, srcY: 100, srcW: 100, srcH: 50,
+                tgtX: 100, tgtY: 300, tgtW: 100, tgtH: 50,
+                routingStyle: style);
+            Assert.Equal(150, down.startX); // Center X of parent
+            Assert.Equal(150, down.endX);   // Center X of child
+            Assert.Equal(150, down.startY); // Bottom of parent (100 + 50)
+            Assert.Equal(300, down.endY);   // Top of child
+
+            // Case 4: Child is Above (Bottom-Up Hierarchy)
+            var up = MindMapStudioViewModel.ComputeHierarchyEdgeRouting(
+                srcX: 100, srcY: 300, srcW: 100, srcH: 50,
+                tgtX: 100, tgtY: 100, tgtW: 100, tgtH: 50,
+                routingStyle: style);
+            Assert.Equal(150, up.startX); // Center X of parent
+            Assert.Equal(150, up.endX);   // Center X of child
+            Assert.Equal(300, up.startY); // Top of parent
+            Assert.Equal(150, up.endY);   // Bottom of child (100 + 50)
+        }
     }
 }

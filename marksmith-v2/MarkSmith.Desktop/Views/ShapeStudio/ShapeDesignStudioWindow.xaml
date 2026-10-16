@@ -476,6 +476,8 @@
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
                                         <ToggleMenuFlyoutItem x:Name="ToggleVisualGridItem" Text="Show dot grid on canvas" Click="OnToggleVisualGridClick" IsChecked="False" />
+                                        <ToggleMenuFlyoutItem x:Name="ToggleSnapToCenterItem" Text="Snap to canvas center guidelines" Click="OnToggleSnapToCenterClick" IsChecked="True" />
+                                        <ToggleMenuFlyoutItem x:Name="ToggleSnapToShapesItem" Text="Snap to adjacent shape guidelines" Click="OnToggleSnapToShapesClick" IsChecked="True" />
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>

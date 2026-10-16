@@ -1641,25 +1641,20 @@ namespace MarkSmith.Views.MindMap
                 Point start, end, c1, c2;
                 if (e.FromNodeEdge)
                 {
-                    start = new Point(srcX + src.Width, srcY + (src.Height / 2.0));
-                    end = new Point(tgtX, tgtY + (tgt.Height / 2.0));
-                    if (_connectionRoutingStyle == ConnectionRoutingStyle.Straight)
+                    string styleStr = _connectionRoutingStyle switch
                     {
-                        c1 = new Point(start.X + (end.X - start.X) / 3.0, start.Y + (end.Y - start.Y) / 3.0);
-                        c2 = new Point(start.X + 2.0 * (end.X - start.X) / 3.0, start.Y + 2.0 * (end.Y - start.Y) / 3.0);
-                    }
-                    else if (_connectionRoutingStyle == ConnectionRoutingStyle.Orthogonal)
-                    {
-                        double midX = (start.X + end.X) / 2.0;
-                        c1 = new Point(midX, start.Y);
-                        c2 = new Point(midX, end.Y);
-                    }
-                    else
-                    {
-                        double ctrl = Math.Max(Math.Abs(end.X - start.X) * 0.5, 40);
-                        c1 = new Point(start.X + ctrl, start.Y);
-                        c2 = new Point(end.X - ctrl, end.Y);
-                    }
+                        ConnectionRoutingStyle.Straight => "straight",
+                        ConnectionRoutingStyle.Orthogonal => "orthogonal",
+                        _ => "curved"
+                    };
+                    var (sx, sy, p1x, p1y, p2x, p2y, ex, ey) = MindMapStudioViewModel.ComputeHierarchyEdgeRouting(
+                        srcX, srcY, src.Width, src.Height,
+                        tgtX, tgtY, tgt.Width, tgt.Height,
+                        styleStr);
+                    start = new Point(sx, sy);
+                    c1 = new Point(p1x, p1y);
+                    c2 = new Point(p2x, p2y);
+                    end = new Point(ex, ey);
                 }
                 else
                 {

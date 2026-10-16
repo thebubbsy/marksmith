@@ -412,5 +412,36 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("x:Name=\"FootnoteFlyout\"", mainXaml);
         Assert.Contains("InsertSequentialFootnote", mainCs);
     }
+
+    [Fact]
+    public void Run129_Polish_Elements_Wired_Across_Surfaces()
+    {
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("ToggleLineEndings", mainCs);
+        Assert.Contains("ShowEncodingFlyout", mainCs);
+        Assert.Contains("UpdateStatusEncoding", mainCs);
+
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"OutlineSearchPill\"", smartArtXaml);
+        Assert.Contains("x:Name=\"OutlineSearchBox\"", smartArtXaml);
+        Assert.Contains("x:Name=\"OutlineMatchCountLabel\"", smartArtXaml);
+        Assert.Contains("PerformOutlineSearch", smartArtCs);
+        Assert.Contains("StepOutlineMatch", smartArtCs);
+
+        var historyXaml = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml"));
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"DiffWrapButton\"", historyXaml);
+        Assert.Contains("x:Name=\"DiffLineJumpButton\"", historyXaml);
+        Assert.Contains("OnDiffWrapButtonClick", historyCs);
+        Assert.Contains("OnDiffLineJumpButtonClick", historyCs);
+
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("x:Name=\"TemplatePrdBtn\"", suiteXaml);
+        Assert.Contains("x:Name=\"TemplateApiDocBtn\"", suiteXaml);
+        Assert.Contains("OnTemplatePrdClick", suiteCs);
+        Assert.Contains("OnTemplateApiDocClick", suiteCs);
+    }
 }
 

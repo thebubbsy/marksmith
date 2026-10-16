@@ -4344,6 +4344,103 @@ namespace MarkSmith.Views.SmartArtStudio
 
         #endregion
 
+        #region Outline Real-Time Search & Match Navigation
+
+        private readonly List<StudioNodeViewModel> _outlineSearchMatches = new();
+        private int _currentOutlineMatchIndex = -1;
+
+        private void OnOutlineSearchBoxTextChanged(object sender, TextChangedEventArgs e)
+        {
+            PerformOutlineSearch(OutlineSearchBox?.Text ?? "");
+        }
+
+        private void OnOutlineSearchBoxKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                e.Handled = true;
+                bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+                    .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+                if (shift) StepOutlineMatch(-1);
+                else StepOutlineMatch(1);
+            }
+            else if (e.Key == Windows.System.VirtualKey.F3)
+            {
+                e.Handled = true;
+                bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+                    .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+                if (shift) StepOutlineMatch(-1);
+                else StepOutlineMatch(1);
+            }
+            else if (e.Key == Windows.System.VirtualKey.Escape)
+            {
+                e.Handled = true;
+                if (OutlineSearchBox != null) OutlineSearchBox.Text = "";
+                PerformOutlineSearch("");
+            }
+        }
+
+        private void OnOutlinePrevMatchClick(object sender, RoutedEventArgs e) => StepOutlineMatch(-1);
+        private void OnOutlineNextMatchClick(object sender, RoutedEventArgs e) => StepOutlineMatch(1);
+
+        private void PerformOutlineSearch(string query)
+        {
+            _outlineSearchMatches.Clear();
+            _currentOutlineMatchIndex = -1;
+            query = query.Trim();
+
+            if (string.IsNullOrEmpty(query))
+            {
+                if (OutlineMatchCountLabel != null) OutlineMatchCountLabel.Text = "";
+                return;
+            }
+
+            foreach (var node in ViewModel.OutlineRows)
+            {
+                if (node.Text != null && node.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
+                {
+                    _outlineSearchMatches.Add(node);
+                }
+            }
+
+            if (_outlineSearchMatches.Count > 0)
+            {
+                _currentOutlineMatchIndex = 0;
+                SelectAndFocusOutlineMatch(_outlineSearchMatches[0]);
+                if (OutlineMatchCountLabel != null)
+                {
+                    OutlineMatchCountLabel.Text = $"1/{_outlineSearchMatches.Count}";
+                }
+            }
+            else
+            {
+                if (OutlineMatchCountLabel != null)
+                {
+                    OutlineMatchCountLabel.Text = "0 matches";
+                }
+            }
+        }
+
+        private void StepOutlineMatch(int direction)
+        {
+            if (_outlineSearchMatches.Count == 0) return;
+            _currentOutlineMatchIndex = (_currentOutlineMatchIndex + direction + _outlineSearchMatches.Count) % _outlineSearchMatches.Count;
+            var match = _outlineSearchMatches[_currentOutlineMatchIndex];
+            SelectAndFocusOutlineMatch(match);
+            if (OutlineMatchCountLabel != null)
+            {
+                OutlineMatchCountLabel.Text = $"{_currentOutlineMatchIndex + 1}/{_outlineSearchMatches.Count}";
+            }
+        }
+
+        private void SelectAndFocusOutlineMatch(StudioNodeViewModel node)
+        {
+            ViewModel.Select(node);
+            ViewModel.StatusMessage = $"Selected matching node: “{node.Text}” (level {node.Depth})";
+        }
+
+        #endregion
+
         private static T? FindDescendant<T>(DependencyObject? parent) where T : DependencyObject
         {
             if (parent == null) return null;

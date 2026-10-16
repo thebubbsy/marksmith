@@ -1474,6 +1474,138 @@ graph LR
 """);
     }
 
+    private void OnTemplatePrdClick(object sender, RoutedEventArgs e)
+    {
+        CreateAndOpenStarterDocument("product-requirements-document", """
+# Product Requirements Document (PRD)
+
+> **Document Status:** Draft  
+> **Author / PM:** [Product Lead]  
+> **Target Release:** [v2.4 / Q4 2026]  
+> **Last Updated:** [Date]
+
+---
+
+## 1. Executive Summary & Problem Statement
+Brief 2-3 paragraph overview of the problem being solved, the user pain points observed, and why now is the strategic time to invest in this solution.
+
+- **Pain Point 1:** [Description of key blocker or user friction]
+- **Pain Point 2:** [Quantified impact on conversion, retention, or developer velocity]
+
+## 2. Target Personas & User Stories
+| Persona | User Story | Priority |
+| :--- | :--- | :--- |
+| **Enterprise Architect** | As an architect, I want declarative schema export so that I can validate security contracts in CI. | P0 |
+| **Engineering Lead** | As a team lead, I want live preview synchronization so that our specs match deployed code. | P0 |
+| **Technical Writer** | As an author, I want instant typography formatting so that published docs look uniform. | P1 |
+
+## 3. End-to-End User Experience & Flow
+
+```mermaid
+graph LR
+    Discover[User Discovers Need] --> Config[Configure Workspace]
+    Config --> Validate[Automated Policy Check]
+    Validate --> Deploy[Execute & Monitor]
+    Deploy --> Feedback[Collect Telemetry & CSAT]
+```
+
+## 4. Functional Requirements & Scope
+### In-Scope (Phase 1)
+- [ ] **FR-1:** Native zero-dependency schema validation engine.
+- [ ] **FR-2:** Single-click artifact bundle export with SHA-256 provenance stamp.
+- [ ] **FR-3:** Responsive status bar telemetry and health indicators.
+
+### Out-of-Scope (Deferred to Phase 2)
+- Multi-region replication and legacy format migration tooling.
+
+## 5. Non-Functional Requirements & Guardrails
+- **Performance:** Cold start time < 800ms; memory footprint under 90MB on x64 desktop.
+- **Reliability:** 99.99% successful local file render rate; zero crash degradation on corrupted AST input.
+- **Accessibility:** Full WCAG 2.1 AA compliance, high-contrast theme support, and complete keyboard navigation.
+
+## 6. Success Metrics & Launch Criteria
+- **Adoption:** 65%+ weekly active user adoption within 30 days of General Availability.
+- **Efficiency:** 40% reduction in time-to-first-published-spec measured via telemetry.
+""");
+    }
+
+    private void OnTemplateApiDocClick(object sender, RoutedEventArgs e)
+    {
+        CreateAndOpenStarterDocument("rest-api-specification", """
+# REST API Specification
+
+> **Base URL:** `https://api.marksmith.internal/v1`  
+> **Protocol:** HTTPS (TLS 1.3)  
+> **Version:** 1.4.0  
+> **Authentication:** Bearer JWT token (`Authorization: Bearer <token>`)
+
+---
+
+## 1. Authentication & Common Headers
+All API requests must supply standard tracing and authorization headers:
+
+```http
+Authorization: Bearer eyJhbGciOi...
+X-Request-ID: 7b3e028b-4976-4d44-934c-687424ad4a02
+Content-Type: application/json
+Accept: application/json
+```
+
+## 2. Request & Response Lifecycle
+
+```mermaid
+sequenceDiagram
+    autonumber
+    Client->>Gateway: POST /v1/documents (Bearer Token)
+    Gateway->>AuthService: Validate JWT & Scopes
+    AuthService-->>Gateway: 200 OK (Tenant ID: t_9021)
+    Gateway->>Worker: Dispatch Document Synthesis Task
+    Worker-->>Gateway: Synthesis Finished (SHA: 4f1a)
+    Gateway-->>Client: 201 Created (Document JSON)
+```
+
+## 3. Endpoints Catalog
+
+### `POST /v1/documents/render`
+Renders raw Markdown into an OpenXML or PDF binary document bundle.
+
+#### Request Parameters
+- **`format`** *(string, query, required)* — Target export format: `docx`, `pdf`, `epub`.
+- **`includeMermaid`** *(boolean, query, optional)* — Pre-render client diagrams to vector SVG (default: `true`).
+
+#### Request Payload
+```json
+{
+  "title": "Quarterly Systems Review",
+  "author": "Engineering Governance Team",
+  "theme": "NordicSlate",
+  "content": "# Executive Overview\n\nAll systems operational."
+}
+```
+
+#### Response Payload (`201 Created`)
+```json
+{
+  "id": "doc_928103",
+  "status": "ready",
+  "format": "docx",
+  "sizeBytes": 48204,
+  "sha256": "8f4e2...a12c",
+  "downloadUrl": "https://cdn.marksmith.internal/export/doc_928103.docx"
+}
+```
+
+## 4. Status Codes & Error Schema
+| Status Code | Reason | Resolution |
+| :--- | :--- | :--- |
+| `200 OK` | Request succeeded | Process returned payload. |
+| `201 Created` | Resource synthesized | Download artifact via URL. |
+| `400 Bad Request` | Malformed Markdown AST or invalid schema | Inspect `error.details` for line number. |
+| `401 Unauthorized` | Missing or expired JWT bearer token | Refresh token via `/v1/auth/token`. |
+| `429 Too Many Requests` | Tenant rate limit exceeded (100 req/min) | Back off using `Retry-After` header. |
+""");
+    }
+
     private void OnTemplateSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
         FilterTemplates(sender.Text);
@@ -1565,7 +1697,7 @@ graph LR
 
         var allItem = new MenuFlyoutItem
         {
-            Text = "All Templates (8)",
+            Text = "All Templates (10)",
             Icon = new FontIcon { Glyph = "\uE81C" }
         };
         allItem.Click += (_, _) =>
@@ -1579,7 +1711,7 @@ graph LR
 
         var techItem = new MenuFlyoutItem
         {
-            Text = "Engineering & Specs (Tech Spec, ADR, RFC)",
+            Text = "Engineering & Specs (Tech Spec, ADR, RFC, REST API)",
             Icon = new FontIcon { Glyph = "\uE943" }
         };
         techItem.Click += (_, _) =>
@@ -1588,6 +1720,18 @@ graph LR
             FilterTemplates("spec");
         };
         menu.Items.Add(techItem);
+
+        var productItem = new MenuFlyoutItem
+        {
+            Text = "Product & Planning (PRD, Meeting Notes)",
+            Icon = new FontIcon { Glyph = "\uE7C1" }
+        };
+        productItem.Click += (_, _) =>
+        {
+            if (TemplateSearchBox != null) TemplateSearchBox.Text = "planning";
+            FilterTemplates("planning");
+        };
+        menu.Items.Add(productItem);
 
         var opsItem = new MenuFlyoutItem
         {
@@ -1612,18 +1756,6 @@ graph LR
             FilterTemplates("visual");
         };
         menu.Items.Add(visualItem);
-
-        var notesItem = new MenuFlyoutItem
-        {
-            Text = "Planning & Notes (Meeting Notes)",
-            Icon = new FontIcon { Glyph = "\uE77B" }
-        };
-        notesItem.Click += (_, _) =>
-        {
-            if (TemplateSearchBox != null) TemplateSearchBox.Text = "notes";
-            FilterTemplates("notes");
-        };
-        menu.Items.Add(notesItem);
 
         menu.Items.Add(new MenuFlyoutSeparator());
 
@@ -1654,6 +1786,8 @@ graph LR
                 else if (btn == TemplateReleaseNotesBtn) OnTemplateReleaseNotesClick(btn, new RoutedEventArgs());
                 else if (btn == TemplatePostmortemBtn) OnTemplatePostmortemClick(btn, new RoutedEventArgs());
                 else if (btn == TemplateRfcBtn) OnTemplateRfcClick(btn, new RoutedEventArgs());
+                else if (btn == TemplatePrdBtn) OnTemplatePrdClick(btn, new RoutedEventArgs());
+                else if (btn == TemplateApiDocBtn) OnTemplateApiDocClick(btn, new RoutedEventArgs());
                 break;
             }
         }
