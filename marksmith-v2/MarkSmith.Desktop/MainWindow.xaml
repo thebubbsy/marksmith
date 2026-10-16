@@ -2203,6 +2203,17 @@
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right"
                             VerticalAlignment="Center" Margin="16,5">
+                    <HyperlinkButton x:Name="StatusSplitSyncButton" Click="OnStatusSplitSyncButtonClick"
+                                     RightTapped="OnStatusSplitSyncButtonRightTapped"
+                                     Padding="4,1" FontSize="11.5" Opacity="0.85" Visibility="Collapsed"
+                                     ToolTipService.ToolTip="Split View sync: Linked scrolling &amp; highlighting (Click to toggle, Right-click for options)"
+                                     AutomationProperties.Name="Split View sync toggle">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE8AB;" FontSize="11" />
+                            <TextBlock x:Name="StatusSplitSyncText" Text="Sync: On" />
+                        </StackPanel>
+                    </HyperlinkButton>
+                    <Border x:Name="StatusSplitSyncDivider" Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" Visibility="Collapsed" />
                     <TextBlock x:Name="WordCountText" Text="{Binding WordCountText}" VerticalAlignment="Center" FontSize="11.5" Opacity="0.7"
                                Tapped="OnWordCountTextTapped" RightTapped="OnWordCountTextRightTapped" DoubleTapped="OnWordCountTextDoubleTapped"
                                ToolTipService.ToolTip="{Binding DocumentStatsDetail}" />

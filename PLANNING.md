@@ -8771,3 +8771,74 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 
 
 
+
+### 2026-10-16 20:50 AEST (run #116: MindMap Galaxy lasso selection gesture & breadcrumb subtree focus, Shape Studio multi-shape group rotation pivot & Alt+drag cloning, SmartArt Studio SVG direct drag reparenting, MainWindow word count distribution popover & status bar Split View sync)
+
+- **Surface:** `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `MainWindow`, `DocumentStatsService`.
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, pointer gestures, keyboard parity, split view synchronization, and diagram direct manipulation under the AI-Executable 3-Block Cycle + Execution Phase Protocol (`GEMINI.md` Rule 7).
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #115:
+    * Target A: `MindMapGalaxyWindow` lasso freeform selection gesture with polygon ray casting.
+    * Target B: `ShapeDesignStudioWindow` multi-shape group rotation pivot around geometric centroid with live angle readout.
+    * Target C: `SmartArtDesignStudioWindow` direct in-diagram SVG drag-and-drop reparenting and visual drop cues.
+  - Generated:
+    1. `MindMapGalaxyWindow` Lasso Selection Gesture (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`)
+    2. `ShapeDesignStudioWindow` Multi-Shape Group Rotation Pivot & Live Angle Readout (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Alt+drag enters freeform lasso selection mode, accumulating screen points converted to canvas coordinates. Draws a live dashed polyline (`_lassoLine`) in `GuideLayer` with accent tint. Evaluates node containment using point-in-polygon ray casting (`IsPointInPolygon`). Shift/Ctrl preserves existing selection for additive/subtractive lassoing.
+    * For Idea 2: Added `MultiRotateStem` and `MultiRotateHandle` to `MultiSelectionAdorner`. Stem extends from top center of selection bounding box with inverse zoom scaling. Dragging rotates all selected shapes as a rigid body around their collective geometric centroid. Shift snaps to 15° increments, mouse wheel nudges rotation by 1° (or 15° with Shift), double-click resets to 0°, right-click presents presets (90° CW/CCW, 180°, horizontal mirror flip).
+  - Generated:
+    3. `SmartArtDesignStudioWindow` Direct SVG Drag-and-Drop Reparenting & Visual Drop Cues (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`)
+    4. `MainWindow` Status Bar Split View Sync Enhancements & Word Count Breakdown Popover (`MainWindow.xaml`, `MainWindow.xaml.cs`, `DocumentStatsService.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Injected pointer drag gesture listeners into `BuildWrapperHtml` for SVG nodes. Dragging displays an acrylic ghost badge (`#smartart-drag-ghost`) and highlights valid target nodes with an emerald dashed outline and drop shadow (`.smartart-drop-target`). Releasing mouse posts a `node-drag-reparent` message to WebView2, which validates ancestry, calls `ReparentOutlineNode`, pushes undo, synchronizes Markdown, and updates selection.
+    * For Idea 4: Added `StatusSplitSyncButton` and `StatusSplitSyncDivider` in MainWindow status bar right cluster, providing instant split view sync status and one-click toggle. Left-clicking `WordCountText` opens a rich 2-column `Flyout` popover displaying reading time badge, word, char (with/without space), line, paragraph, heading, code block, diagram, and media counters with copy actions.
+  - Refined Block 1 (Pass 2 - Final):
+    * Handled WinUI 3 XAML compiler edge cases (attaching code-behind events in constructor to avoid WMC9999).
+    * Synchronized `int` rotation types and angle normalization in `ShapeCanvasItemViewModel`.
+  - Generated:
+    5. `ShapeDesignStudioWindow` Alt+Drag Instant Shape/Group Cloning (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`)
+    6. `MindMapGalaxyWindow` Quick Navigation Breadcrumb Trail & Subtree Focus Mode (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Holding Alt when initiating shape drag duplicates selected items in place and drags the clones (`ViewModel.DuplicateSelectedCommand.Execute(null)`).
+    * For Idea 6: Added breadcrumb trail pills above the canvas reflecting ancestor hierarchy from root to selected node, with click-to-center navigation and focus mode toggle ('F' shortcut or badge button) that isolates the active branch by dimming unrelated nodes to 18% opacity.
+  - Executed all 6 refined ideas into 100% production code.
+  - Verification:
+    * `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `MarkSmith.Tests.dll`: **Passed: 4,802, Failed: 0, Skipped: 1, Total: 4,803**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 4024, responsive startup, clean exit.
+  - Carried forward ideas / next targets into Run #117 (`MindMapGalaxyWindow` radial layout arrangement algorithm & animated tree expansion, `ShapeDesignStudioWindow` shape alignment distribution spacing badges & smart snap guides, `SmartArtDesignStudioWindow` color palette live preset preview chips).
+
+**Shipped:**
+1. **`MindMapGalaxyWindow` Freeform Lasso Selection Gesture (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Alt+drag draws a live animated dashed freeform selection loop (`_lassoLine`) in `GuideLayer`.
+   - Point-in-polygon ray-casting algorithm (`IsPointInPolygon`) tests node center points for precise containment.
+   - Preserves additive selection when Shift/Ctrl is held and announces selection count on release.
+2. **`MindMapGalaxyWindow` Quick Navigation Breadcrumbs & Subtree Focus Mode (`Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Displays an ancestor path pill trail (`_breadcrumbBar`) in the top-left canvas area showing the path from Root to Selected Node.
+   - Clicking any ancestor breadcrumb centers the canvas on that node.
+   - Includes Subtree Focus Mode toggle ('F' key shortcut or focus badge button) that isolates the active branch by dimming unrelated nodes to 18% opacity.
+3. **`ShapeDesignStudioWindow` Multi-Shape Group Rotation Pivot & Live Angle Readout (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Renders a rotation handle and stem (`MultiRotateStem`, `MultiRotateHandle`) above the multi-selection bounding frame with inverse zoom scaling.
+   - Rotates all selected shapes as a rigid body around their collective geometric centroid.
+   - Supports 15° angle snap with Shift, wheel scroll nudging (1° or 15° with Shift), double-click reset to 0°, and right-click presets (90° CW/CCW, 180°, horizontal mirror flip).
+4. **`ShapeDesignStudioWindow` Alt+Drag Instant Cloning (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Holding Alt while beginning a drag gesture duplicates selected shapes in place and smoothly transitions drag control to the new copies.
+5. **`SmartArtDesignStudioWindow` Direct SVG Drag-and-Drop Reparenting & Visual Drop Cues (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Allows dragging nodes directly within the preview SVG diagram.
+   - Displays a floating acrylic ghost badge (`#smartart-drag-ghost`) and emerald dashed glow (`.smartart-drop-target`) on candidate drop targets.
+   - Reparents the dragged node under the target node upon drop with full circular ancestry protection, undo stack integration, and automatic Markdown synchronization.
+6. **`MainWindow` Status Bar Split View Sync & Word Count Breakdown Popover (`MainWindow.xaml`, `MainWindow.xaml.cs`, `DocumentStatsService.cs`):**
+   - Integrated `StatusSplitSyncButton` and divider in the status bar right panel for live Split View sync awareness, single-click toggle, and right-click sync options.
+   - Added `Paragraphs` metric calculation in `DocumentStatsService`.
+   - Tapping `WordCountText` opens a rich 2-column `Flyout` popover displaying reading time, words, characters (with/without spaces), lines, paragraphs, headings, code blocks, diagrams, and tables/media with copy actions.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 4024, responsive startup, clean exit.

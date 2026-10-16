@@ -6888,6 +6888,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (PreviewWidthContainer != null) PreviewWidthContainer.Visibility = showPreview && !ViewModel.PreviewAsEmail ? Visibility.Visible : Visibility.Collapsed;
         if (SplitViewSplitter != null) SplitViewSplitter.Visibility = mode == ViewMode.Split ? Visibility.Visible : Visibility.Collapsed;
         if (SplitSyncToggle != null) SplitSyncToggle.Visibility = mode == ViewMode.Split ? Visibility.Visible : Visibility.Collapsed;
+        if (StatusSplitSyncButton != null) StatusSplitSyncButton.Visibility = mode == ViewMode.Split ? Visibility.Visible : Visibility.Collapsed;
+        if (StatusSplitSyncDivider != null) StatusSplitSyncDivider.Visibility = mode == ViewMode.Split ? Visibility.Visible : Visibility.Collapsed;
+        if (StatusSplitSyncText != null && SplitSyncToggle != null)
+            StatusSplitSyncText.Text = SplitSyncToggle.IsChecked == true ? "Sync: On" : "Sync: Off";
 
         // Column widths: give all the space to the visible pane(s); split shares it.
         if (SplitLeftCol != null) SplitLeftCol.Width = mode == ViewMode.Preview ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
@@ -7339,6 +7343,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (_viewMode != ViewMode.Split) return;
         var isOn = SplitSyncToggle?.IsChecked == true;
+        if (StatusSplitSyncText != null)
+            StatusSplitSyncText.Text = isOn ? "Sync: On" : "Sync: Off";
         AnnounceStatus(isOn
             ? "Split View sync enabled (scrolling & text highlighting linked)"
             : "Split View sync disabled");
@@ -7346,6 +7352,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             _lastEditorToPreviewScrollFrac = -1;
             OnEditorScrollViewerViewChanged(sv);
+        }
+    }
+
+    private void OnStatusSplitSyncButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (SplitSyncToggle != null)
+        {
+            SplitSyncToggle.IsChecked = SplitSyncToggle.IsChecked != true;
+        }
+    }
+
+    private void OnStatusSplitSyncButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (SplitSyncToggle != null)
+        {
+            OnSplitSyncToggleRightTapped(sender, e);
         }
     }
 
@@ -9545,12 +9567,144 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnWordCountTextTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
-        var summary = ViewModel.DocumentStatsDetail;
-        if (string.IsNullOrWhiteSpace(summary)) summary = ViewModel.WordCountText;
-        if (string.IsNullOrWhiteSpace(summary)) return;
-        _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-        AnnounceStatus($"Copied document statistics: {summary}");
         e.Handled = true;
+        ShowWordCountFlyout(sender as FrameworkElement ?? WordCountText);
+    }
+
+    private void ShowWordCountFlyout(FrameworkElement target)
+    {
+        var stats = ViewModel.DocumentStats;
+        var flyout = new Flyout();
+
+        var root = new StackPanel { Width = 310, Spacing = 10, Padding = new Thickness(6, 4, 6, 4) };
+
+        var header = new Grid();
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var titlePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        titlePanel.Children.Add(new FontIcon { Glyph = "\uE8D2", FontSize = 15, Foreground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"] });
+        titlePanel.Children.Add(new TextBlock { Text = "Document Metrics", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 14 });
+        header.Children.Add(titlePanel);
+
+        var readingBadge = new Border
+        {
+            Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(6, 2, 6, 2)
+        };
+        readingBadge.Child = new TextBlock
+        {
+            Text = $"{stats.ReadingTimeText} read",
+            FontSize = 11,
+            Foreground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+            FontWeight = Microsoft.UI.Text.FontWeights.Medium
+        };
+        Grid.SetColumn(readingBadge, 1);
+        header.Children.Add(readingBadge);
+        root.Children.Add(header);
+
+        root.Children.Add(new MenuFlyoutSeparator { Margin = new Thickness(0, 2, 0, 4) });
+
+        var grid = new Grid { RowSpacing = 6, ColumnSpacing = 12 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        grid.RowDefinitions.Add(new RowDefinition());
+        grid.RowDefinitions.Add(new RowDefinition());
+        grid.RowDefinitions.Add(new RowDefinition());
+        grid.RowDefinitions.Add(new RowDefinition());
+
+        UIElement StatPill(string label, string val, string iconGlyph, int col, int row)
+        {
+            var p = new Grid { Padding = new Thickness(4, 3, 4, 3) };
+            p.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            p.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var icon = new FontIcon { Glyph = iconGlyph, FontSize = 13, Opacity = 0.65, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            var valBlock = new TextBlock { Text = val, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 13 };
+            var lblBlock = new TextBlock { Text = label, FontSize = 11, Opacity = 0.7 };
+            textStack.Children.Add(valBlock);
+            textStack.Children.Add(lblBlock);
+
+            p.Children.Add(icon);
+            Grid.SetColumn(textStack, 1);
+            p.Children.Add(textStack);
+
+            Grid.SetColumn(p, col);
+            Grid.SetRow(p, row);
+            return p;
+        }
+
+        grid.Children.Add(StatPill("Words", $"{stats.Words:N0}", "\uE8C1", 0, 0));
+        grid.Children.Add(StatPill("Characters", $"{stats.Characters:N0}", "\uE8D2", 1, 0));
+
+        grid.Children.Add(StatPill("No spaces", $"{stats.CharactersNoSpaces:N0}", "\uE8D2", 0, 1));
+        grid.Children.Add(StatPill("Lines / Para", $"{stats.Lines:N0} / {stats.Paragraphs:N0}", "\uE8BD", 1, 1));
+
+        grid.Children.Add(StatPill("Headings", $"{stats.Headings:N0}", "\uF0E2", 0, 2));
+        grid.Children.Add(StatPill("Code blocks", $"{stats.CodeBlocks:N0}", "\uE943", 1, 2));
+
+        grid.Children.Add(StatPill("Diagrams", $"{stats.MermaidDiagrams:N0}", "\uE735", 0, 3));
+        int mediaCount = stats.Tables + stats.Images + stats.Links;
+        grid.Children.Add(StatPill("Tables & Media", $"{mediaCount:N0}", "\uEB9F", 1, 3));
+
+        root.Children.Add(grid);
+
+        root.Children.Add(new MenuFlyoutSeparator { Margin = new Thickness(0, 4, 0, 2) });
+
+        var btnBar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+
+        var copyWordsBtn = new Button
+        {
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 5,
+                Children =
+                {
+                    new FontIcon { Glyph = "\uE8BD", FontSize = 12 },
+                    new TextBlock { Text = "Copy words", FontSize = 12 }
+                }
+            },
+            Padding = new Thickness(8, 4, 8, 4)
+        };
+        copyWordsBtn.Click += (_, _) =>
+        {
+            flyout.Hide();
+            _ = Services.ClipboardWriter.TrySetTextAsync($"{stats.Words:N0} words");
+            AnnounceStatus($"Copied word count: {stats.Words:N0} words");
+        };
+        btnBar.Children.Add(copyWordsBtn);
+
+        var copySummaryBtn = new Button
+        {
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 5,
+                Children =
+                {
+                    new FontIcon { Glyph = "\uE8C8", FontSize = 12 },
+                    new TextBlock { Text = "Copy breakdown", FontSize = 12 }
+                }
+            },
+            Padding = new Thickness(8, 4, 8, 4)
+        };
+        copySummaryBtn.Click += (_, _) =>
+        {
+            flyout.Hide();
+            var detail = ViewModel.DocumentStatsDetail;
+            _ = Services.ClipboardWriter.TrySetTextAsync(detail);
+            AnnounceStatus("Copied document statistics to clipboard");
+        };
+        btnBar.Children.Add(copySummaryBtn);
+
+        root.Children.Add(btnBar);
+
+        flyout.Content = root;
+        flyout.ShowAt(target);
     }
 
     private void OnWordCountTextDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)

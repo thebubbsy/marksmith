@@ -624,6 +624,30 @@ namespace MarkSmith.Views.SmartArtStudio
     outline-offset: 3px !important;
     filter: drop-shadow(0 0 8px rgba(0,120,212,0.65)) !important;
   }}
+  .smartart-drop-target {{
+    outline: 2.5px dashed #107C41 !important;
+    outline-offset: 4px !important;
+    filter: drop-shadow(0 0 10px rgba(16, 124, 65, 0.75)) !important;
+  }}
+  .smartart-dragging {{
+    opacity: 0.55 !important;
+    filter: grayscale(40%) !important;
+  }}
+  #smartart-drag-ghost {{
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    padding: 6px 12px;
+    background: rgba(15, 23, 42, 0.90);
+    color: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    display: none;
+    transform: translate(12px, 12px);
+  }}
 </style></head>
 <body>
   {body}
@@ -642,7 +666,118 @@ namespace MarkSmith.Views.SmartArtStudio
       }}
     }}
     s.style.cursor = 'pointer';
+
+    // Drag ghost element
+    var ghost = document.getElementById('smartart-drag-ghost');
+    if (!ghost) {{
+      ghost = document.createElement('div');
+      ghost.id = 'smartart-drag-ghost';
+      document.body.appendChild(ghost);
+    }}
+
+    var dragSourceEl = null;
+    var dragSourceText = '';
+    var isDragging = false;
+    var startX = 0, startY = 0;
+    var currentDropTarget = null;
+    var suppressClickUntil = 0;
+
+    s.addEventListener('mousedown', function(e) {{
+      if (e.button !== 0) return;
+      var el = e.target.closest('g, text, rect, circle, polygon, path');
+      if (!el) return;
+      var parentG = el.closest('g') || el;
+      var text = (parentG.textContent || '').trim();
+      if (!text) return;
+
+      dragSourceEl = parentG;
+      dragSourceText = text;
+      startX = e.clientX;
+      startY = e.clientY;
+      isDragging = false;
+    }});
+
+    window.addEventListener('mousemove', function(e) {{
+      if (!dragSourceEl) return;
+      var dx = e.clientX - startX;
+      var dy = e.clientY - startY;
+      if (!isDragging && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {{
+        isDragging = true;
+        dragSourceEl.classList.add('smartart-dragging');
+        ghost.style.display = 'block';
+        ghost.textContent = 'Move ' + dragSourceText + ' \u2192 (drop on item to nest)';
+      }}
+      if (isDragging) {{
+        ghost.style.left = e.clientX + 'px';
+        ghost.style.top = e.clientY + 'px';
+
+        ghost.style.display = 'none';
+        var hit = document.elementFromPoint(e.clientX, e.clientY);
+        ghost.style.display = 'block';
+
+        var targetG = null;
+        if (hit && s.contains(hit)) {{
+          var hitEl = hit.closest('g, text, rect, circle, polygon, path');
+          if (hitEl) {{
+            var candidateG = hitEl.closest('g') || hitEl;
+            var cText = (candidateG.textContent || '').trim();
+            if (candidateG !== dragSourceEl && cText && cText !== dragSourceText) {{
+              targetG = candidateG;
+            }}
+          }}
+        }}
+
+        if (targetG !== currentDropTarget) {{
+          if (currentDropTarget) {{
+            currentDropTarget.classList.remove('smartart-drop-target');
+          }}
+          currentDropTarget = targetG;
+          if (currentDropTarget) {{
+            currentDropTarget.classList.add('smartart-drop-target');
+            var tgtText = (currentDropTarget.textContent || '').trim();
+            ghost.textContent = 'Nest ' + dragSourceText + ' under ' + tgtText;
+          }} else {{
+            ghost.textContent = 'Move ' + dragSourceText + ' \u2192 (drop on item to nest)';
+          }}
+        }}
+      }}
+    }});
+
+    window.addEventListener('mouseup', function(e) {{
+      if (!dragSourceEl) return;
+      if (isDragging) {{
+        suppressClickUntil = Date.now() + 250;
+        if (currentDropTarget) {{
+          var tgtText = (currentDropTarget.textContent || '').trim();
+          if (tgtText && tgtText !== dragSourceText) {{
+            try {{
+              window.chrome.webview.postMessage(JSON.stringify({{
+                type: 'node-drag-reparent',
+                source: dragSourceText,
+                target: tgtText
+              }}));
+            }} catch(err) {{}}
+          }}
+        }}
+      }}
+      if (dragSourceEl) {{
+        dragSourceEl.classList.remove('smartart-dragging');
+      }}
+      if (currentDropTarget) {{
+        currentDropTarget.classList.remove('smartart-drop-target');
+      }}
+      ghost.style.display = 'none';
+      dragSourceEl = null;
+      dragSourceText = '';
+      currentDropTarget = null;
+      isDragging = false;
+    }}, true);
+
     s.addEventListener('click', function(e) {{
+      if (Date.now() < suppressClickUntil) {{
+        e.stopPropagation();
+        return;
+      }}
       var el = e.target.closest('g, text, rect, circle, polygon, path');
       if (!el) return;
       var text = (el.textContent || '').trim();
@@ -698,6 +833,28 @@ namespace MarkSmith.Views.SmartArtStudio
                 var root = doc.RootElement;
                 if (!root.TryGetProperty("type", out var typeProp)) return;
                 var type = typeProp.GetString();
+
+                if (type == "node-drag-reparent")
+                {
+                    if (root.TryGetProperty("source", out var srcProp) && root.TryGetProperty("target", out var tgtProp))
+                    {
+                        var srcText = srcProp.GetString()?.Trim();
+                        var tgtText = tgtProp.GetString()?.Trim();
+                        if (!string.IsNullOrEmpty(srcText) && !string.IsNullOrEmpty(tgtText))
+                        {
+                            var sourceNode = ViewModel.OutlineRows.FirstOrDefault(r => string.Equals(r.Text.Trim(), srcText, StringComparison.OrdinalIgnoreCase))
+                                          ?? ViewModel.OutlineRows.FirstOrDefault(r => r.Text.Contains(srcText, StringComparison.OrdinalIgnoreCase));
+                            var targetNode = ViewModel.OutlineRows.FirstOrDefault(r => string.Equals(r.Text.Trim(), tgtText, StringComparison.OrdinalIgnoreCase))
+                                          ?? ViewModel.OutlineRows.FirstOrDefault(r => r.Text.Contains(tgtText, StringComparison.OrdinalIgnoreCase));
+                            if (sourceNode != null && targetNode != null && sourceNode != targetNode)
+                            {
+                                ReparentOutlineNode(sourceNode, targetNode);
+                            }
+                        }
+                    }
+                    return;
+                }
+
                 if (root.TryGetProperty("text", out var textProp))
                 {
                     var text = textProp.GetString()?.Trim();
@@ -721,6 +878,32 @@ namespace MarkSmith.Views.SmartArtStudio
                 }
             }
             catch { }
+        }
+
+        private void ReparentOutlineNode(StudioNodeViewModel source, StudioNodeViewModel target)
+        {
+            if (source == target) return;
+            // Prevent cyclic ancestry
+            for (var p = target.Parent; p != null; p = p.Parent)
+            {
+                if (p == source)
+                {
+                    ViewModel.StatusMessage = $"Cannot nest '{source.Text}' under its own child '{target.Text}'.";
+                    return;
+                }
+            }
+
+            ViewModel.PushUndo();
+
+            if (source.Parent == null) ViewModel.RootNodes.Remove(source);
+            else source.Parent.Children.Remove(source);
+
+            source.Parent = target;
+            target.Children.Add(source);
+
+            ViewModel.Select(source);
+            ViewModel.SyncTreeToMarkdown();
+            ViewModel.StatusMessage = $"Reparented '{source.Text}' under '{target.Text}' · Ctrl+Z to undo";
         }
 
         private StudioNodeViewModel? _draggedOutlineNode;

@@ -568,6 +568,12 @@
                                 <Canvas x:Name="MultiSelectionAdorner" Visibility="Collapsed">
                                     <Rectangle x:Name="MultiSelectionFrame" IsHitTestVisible="False" StrokeThickness="1"
                                                StrokeDashArray="4,2" Stroke="{ThemeResource AccentFillColorDefaultBrush}" />
+                                    <Line x:Name="MultiRotateStem" IsHitTestVisible="False" StrokeThickness="1"
+                                          StrokeDashArray="2,2" Stroke="{ThemeResource AccentFillColorDefaultBrush}" />
+                                    <Ellipse x:Name="MultiRotateHandle" Width="10" Height="10"
+                                             Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                             Stroke="{ThemeResource SurfaceStrokeColorDefaultBrush}" StrokeThickness="1"
+                                             ToolTipService.ToolTip="Rotate group · Drag to rotate around center (Shift: 15° snap), Scroll to nudge, Double-click to reset, Right-click for presets" />
                                     <Border x:Name="MultiSelectionBadge"
                                             Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
                                             BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}" BorderThickness="1"

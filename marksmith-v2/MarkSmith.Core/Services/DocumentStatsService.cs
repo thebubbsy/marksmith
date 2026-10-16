@@ -119,6 +119,15 @@ public static partial class DocumentStatsService
         int words = CountWords(proseText);
         var readingTime = TimeSpan.FromMinutes(words / WordsPerMinute);
 
+        int paragraphs = 0;
+        var rawParagraphs = proseText.Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var p in rawParagraphs)
+        {
+            var trimmed = p.Trim();
+            if (!trimmed.StartsWith('#') && CountWords(trimmed) > 0)
+                paragraphs++;
+        }
+
         // Characters without whitespace — the "dense" character count some style guides prefer.
         int charsNoSpaces = 0;
         foreach (var ch in markdown) if (!char.IsWhiteSpace(ch)) charsNoSpaces++;
@@ -129,6 +138,7 @@ public static partial class DocumentStatsService
             Characters = markdown.Length,
             CharactersNoSpaces = charsNoSpaces,
             Lines = lineCount,
+            Paragraphs = paragraphs,
             Headings = headings,
             CodeBlocks = codeBlocks,
             Tables = tables,
@@ -243,6 +253,7 @@ public readonly record struct DocumentStats
     public int Characters { get; init; }
     public int CharactersNoSpaces { get; init; }
     public int Lines { get; init; }
+    public int Paragraphs { get; init; }
     public int Headings { get; init; }
     public int CodeBlocks { get; init; }
     public int Tables { get; init; }

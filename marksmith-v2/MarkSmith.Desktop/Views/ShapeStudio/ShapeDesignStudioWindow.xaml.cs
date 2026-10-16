@@ -50,6 +50,11 @@ namespace MarkSmith.Views.ShapeStudio
         private TextBlock? _rotateAngleBadgeText;
         private bool _rotating;
         private bool _rotated;
+        private bool _multiRotating;
+        private bool _multiRotated;
+        private Point _groupCentroid;
+        private double _initialGroupHandleAngle;
+        private List<(ShapeCanvasItemViewModel Shape, double X, double Y, double Width, double Height, int Rotation, double CenterOffsetX, double CenterOffsetY)> _initialGroupTransforms = new();
         private ShapeDesignStudioViewModel.ResizeEdges _resizeEdges;
         private (double X, double Y, double W, double H) _resizeFrom;
         private Point _resizeStart;
@@ -109,6 +114,17 @@ namespace MarkSmith.Views.ShapeStudio
             if (CompAdaptive is not null)
             {
                 CompAdaptive.IsChecked = true;
+            }
+            if (MultiRotateHandle != null)
+            {
+                SetCursor(MultiRotateHandle, Microsoft.UI.Input.InputSystemCursorShape.Hand);
+                MultiRotateHandle.PointerPressed += OnMultiRotateHandlePointerPressed;
+                MultiRotateHandle.PointerMoved += OnMultiRotateHandlePointerMoved;
+                MultiRotateHandle.PointerReleased += OnMultiRotateHandlePointerReleased;
+                MultiRotateHandle.PointerCaptureLost += OnMultiRotateHandlePointerCaptureLost;
+                MultiRotateHandle.PointerWheelChanged += OnMultiRotateHandlePointerWheelChanged;
+                MultiRotateHandle.DoubleTapped += OnMultiRotateHandleDoubleTapped;
+                MultiRotateHandle.RightTapped += OnMultiRotateHandleRightTapped;
             }
         }
 
@@ -1399,7 +1415,15 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 if (Math.Abs(dx) < 3 && Math.Abs(dy) < 3) return; // a click, not a drag
                 _dragMoved = true;
-                ViewModel.RecordUndo();
+                if (IsDown(VirtualKey.Menu))
+                {
+                    ViewModel.DuplicateSelectedCommand.Execute(null);
+                    ViewModel.StatusMessage = "Cloned selection (Alt+drag) · Repositioning duplicate";
+                }
+                else
+                {
+                    ViewModel.RecordUndo();
+                }
             }
             // dx/dy are the pointer's travel since the press; move by whatever is still owed.
             var (mx, my) = ViewModel.NudgeSelection(dx - _dragAppliedX, dy - _dragAppliedY);
@@ -1937,6 +1961,26 @@ namespace MarkSmith.Views.ShapeStudio
             MultiSelectionFrame.Height = totalH;
             MultiSelectionFrame.StrokeThickness = 1.0 / z;
 
+            if (MultiRotateStem != null && MultiRotateHandle != null)
+            {
+                double cx = minX + totalW / 2.0;
+                double cy = minY;
+                double stemLength = 22.0 / z;
+                double hSize = Math.Max(7.0, 10.0 / Math.Sqrt(z));
+
+                MultiRotateStem.X1 = cx;
+                MultiRotateStem.Y1 = cy;
+                MultiRotateStem.X2 = cx;
+                MultiRotateStem.Y2 = cy - stemLength;
+                MultiRotateStem.StrokeThickness = 1.0 / z;
+
+                MultiRotateHandle.Width = hSize;
+                MultiRotateHandle.Height = hSize;
+                MultiRotateHandle.StrokeThickness = 1.0 / z;
+                Canvas.SetLeft(MultiRotateHandle, cx - hSize / 2.0);
+                Canvas.SetTop(MultiRotateHandle, cy - stemLength - hSize / 2.0);
+            }
+
             string badgeSummary = $"{selected.Count} shapes · {(int)Math.Round(totalW)} × {(int)Math.Round(totalH)} px";
             MultiSelectionBadgeText.Text = badgeSummary;
             string fullTip = $"Selection: {badgeSummary} · Double-click to auto-align & distribute, Right-click for options";
@@ -2018,6 +2062,239 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(ShapeMenuItem("Deselect all", "\uE894", () => { ViewModel.ClearSelection(); UpdateAdorner(); }, "Esc"));
 
             flyout.ShowAt(MainCanvas, position);
+        }
+
+        private void OnMultiRotateHandlePointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            var selected = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (selected.Count < 2) return;
+            CanvasScroller.Focus(FocusState.Pointer);
+            _multiRotating = true;
+            _multiRotated = false;
+
+            double minX = double.MaxValue, minY = double.MaxValue;
+            double maxX = double.MinValue, maxY = double.MinValue;
+            foreach (var s in selected)
+            {
+                var (l, t, r, b) = ShapeDesignStudioViewModel.RotatedBounds(s);
+                if (l < minX) minX = l;
+                if (t < minY) minY = t;
+                if (r > maxX) maxX = r;
+                if (b > maxY) maxY = b;
+            }
+            _groupCentroid = new Point(minX + (maxX - minX) / 2.0, minY + (maxY - minY) / 2.0);
+
+            var cur = e.GetCurrentPoint(MainCanvas).Position;
+            _initialGroupHandleAngle = Math.Atan2(cur.Y - _groupCentroid.Y, cur.X - _groupCentroid.X) * 180.0 / Math.PI;
+
+            _initialGroupTransforms = selected.Select(s => (
+                Shape: s,
+                X: s.X,
+                Y: s.Y,
+                Width: s.Width,
+                Height: s.Height,
+                Rotation: s.Rotation,
+                CenterOffsetX: (s.X + s.Width / 2.0) - _groupCentroid.X,
+                CenterOffsetY: (s.Y + s.Height / 2.0) - _groupCentroid.Y
+            )).ToList();
+
+            if (sender is UIElement h) h.CapturePointer(e.Pointer);
+            e.Handled = true;
+        }
+
+        private void OnMultiRotateHandlePointerMoved(object sender, PointerRoutedEventArgs e)
+        {
+            if (!_multiRotating || _initialGroupTransforms.Count < 2) return;
+            var cur = e.GetCurrentPoint(MainCanvas).Position;
+            double curAngle = Math.Atan2(cur.Y - _groupCentroid.Y, cur.X - _groupCentroid.X) * 180.0 / Math.PI;
+            double deltaAngle = curAngle - _initialGroupHandleAngle;
+
+            bool snap = IsDown(VirtualKey.Shift);
+            if (snap)
+            {
+                deltaAngle = Math.Round(deltaAngle / 15.0) * 15.0;
+            }
+
+            if (!_multiRotated)
+            {
+                if (Math.Abs(deltaAngle) < 1.0) return;
+                _multiRotated = true;
+                ViewModel.RecordUndo();
+            }
+
+            double rad = deltaAngle * Math.PI / 180.0;
+            double cos = Math.Cos(rad);
+            double sin = Math.Sin(rad);
+
+            foreach (var t in _initialGroupTransforms)
+            {
+                double ncx = _groupCentroid.X + (t.CenterOffsetX * cos - t.CenterOffsetY * sin);
+                double ncy = _groupCentroid.Y + (t.CenterOffsetX * sin + t.CenterOffsetY * cos);
+                t.Shape.X = ncx - t.Width / 2.0;
+                t.Shape.Y = ncy - t.Height / 2.0;
+                double newRot = (t.Rotation + deltaAngle) % 360.0;
+                if (newRot < 0) newRot += 360.0;
+                t.Shape.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle((int)Math.Round(newRot));
+            }
+
+            UpdateMultiSelectionAdorner();
+            if (MultiSelectionBadgeText != null)
+            {
+                MultiSelectionBadgeText.Text = $"{_initialGroupTransforms.Count} shapes · {deltaAngle:+0;-0;0}° rotated{(snap ? " (15° snap)" : "")}";
+            }
+            e.Handled = true;
+        }
+
+        private void OnMultiRotateHandlePointerReleased(object sender, PointerRoutedEventArgs e)
+        {
+            if (!_multiRotating) return;
+            if (sender is UIElement h) h.ReleasePointerCapture(e.Pointer);
+            if (_multiRotated)
+            {
+                ViewModel.StatusMessage = $"Rotated group of {_initialGroupTransforms.Count} shapes · Ctrl+Z to undo";
+            }
+            _multiRotating = false;
+            _initialGroupTransforms.Clear();
+            UpdateMultiSelectionAdorner();
+            e.Handled = true;
+        }
+
+        private void OnMultiRotateHandlePointerCaptureLost(object sender, PointerRoutedEventArgs e)
+        {
+            _multiRotating = false;
+            _initialGroupTransforms.Clear();
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void OnMultiRotateHandleDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var selected = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (selected.Count < 2) return;
+            ViewModel.RecordUndo();
+            foreach (var s in selected)
+            {
+                s.Rotation = 0;
+            }
+            UpdateMultiSelectionAdorner();
+            ViewModel.StatusMessage = $"Reset rotation on {selected.Count} shapes · Ctrl+Z to undo";
+        }
+
+        private void OnMultiRotateHandlePointerWheelChanged(object sender, PointerRoutedEventArgs e)
+        {
+            var selected = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (selected.Count < 2) return;
+            var pt = e.GetCurrentPoint(MultiRotateHandle);
+            int delta = pt.Properties.MouseWheelDelta;
+            if (delta == 0) return;
+            e.Handled = true;
+
+            bool shift = IsDown(VirtualKey.Shift);
+            double step = shift ? 15.0 : 1.0;
+            double deltaAngle = delta > 0 ? step : -step;
+
+            double minX = double.MaxValue, minY = double.MaxValue;
+            double maxX = double.MinValue, maxY = double.MinValue;
+            foreach (var s in selected)
+            {
+                var (l, t, r, b) = ShapeDesignStudioViewModel.RotatedBounds(s);
+                if (l < minX) minX = l;
+                if (t < minY) minY = t;
+                if (r > maxX) maxX = r;
+                if (b > maxY) maxY = b;
+            }
+            var centroid = new Point(minX + (maxX - minX) / 2.0, minY + (maxY - minY) / 2.0);
+
+            ViewModel.RecordUndo();
+            double rad = deltaAngle * Math.PI / 180.0;
+            double cos = Math.Cos(rad);
+            double sin = Math.Sin(rad);
+
+            foreach (var s in selected)
+            {
+                double offX = (s.X + s.Width / 2.0) - centroid.X;
+                double offY = (s.Y + s.Height / 2.0) - centroid.Y;
+                double ncx = centroid.X + (offX * cos - offY * sin);
+                double ncy = centroid.Y + (offX * sin + offY * cos);
+                s.X = ncx - s.Width / 2.0;
+                s.Y = ncy - s.Height / 2.0;
+                double newRot = (s.Rotation + deltaAngle) % 360.0;
+                if (newRot < 0) newRot += 360.0;
+                s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle((int)Math.Round(newRot));
+            }
+
+            UpdateMultiSelectionAdorner();
+            ViewModel.StatusMessage = $"Nudged group rotation: {deltaAngle:+0;-0;0}° · {selected.Count} shapes";
+        }
+
+        private void OnMultiRotateHandleRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            var selected = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (selected.Count < 2) return;
+            e.Handled = true;
+
+            double minX = double.MaxValue, minY = double.MaxValue;
+            double maxX = double.MinValue, maxY = double.MinValue;
+            foreach (var s in selected)
+            {
+                var (l, t, r, b) = ShapeDesignStudioViewModel.RotatedBounds(s);
+                if (l < minX) minX = l;
+                if (t < minY) minY = t;
+                if (r > maxX) maxX = r;
+                if (b > maxY) maxY = b;
+            }
+            var centroid = new Point(minX + (maxX - minX) / 2.0, minY + (maxY - minY) / 2.0);
+
+            Action<double> applyGroupRotation = (deg) =>
+            {
+                ViewModel.RecordUndo();
+                double rad = deg * Math.PI / 180.0;
+                double cos = Math.Cos(rad);
+                double sin = Math.Sin(rad);
+                foreach (var s in selected)
+                {
+                    double offX = (s.X + s.Width / 2.0) - centroid.X;
+                    double offY = (s.Y + s.Height / 2.0) - centroid.Y;
+                    double ncx = centroid.X + (offX * cos - offY * sin);
+                    double ncy = centroid.Y + (offX * sin + offY * cos);
+                    s.X = ncx - s.Width / 2.0;
+                    s.Y = ncy - s.Height / 2.0;
+                    double newRot = (s.Rotation + deg) % 360.0;
+                    if (newRot < 0) newRot += 360.0;
+                    s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle((int)Math.Round(newRot));
+                }
+                UpdateMultiSelectionAdorner();
+                ViewModel.StatusMessage = $"Rotated group by {deg:0}°";
+            };
+
+            var flyout = new MenuFlyout();
+            flyout.Items.Add(ShapeMenuItem("Reset group rotation (0°)", "\uE777", () =>
+            {
+                ViewModel.RecordUndo();
+                foreach (var s in selected) s.Rotation = 0;
+                UpdateMultiSelectionAdorner();
+                ViewModel.StatusMessage = $"Reset rotation on {selected.Count} shapes";
+            }));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Rotate 90° clockwise", "\uE7AD", () => applyGroupRotation(90)));
+            flyout.Items.Add(ShapeMenuItem("Rotate 90° counter-clockwise", "\uE7A6", () => applyGroupRotation(-90)));
+            flyout.Items.Add(ShapeMenuItem("Rotate 180°", "\uE777", () => applyGroupRotation(180)));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(ShapeMenuItem("Flip horizontally (mirror)", "\uE741", () =>
+            {
+                ViewModel.RecordUndo();
+                foreach (var s in selected)
+                {
+                    double offX = (s.X + s.Width / 2.0) - centroid.X;
+                    s.X = centroid.X - offX - s.Width / 2.0;
+                    s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle((int)Math.Round(360.0 - s.Rotation));
+                }
+                UpdateMultiSelectionAdorner();
+                ViewModel.StatusMessage = $"Flipped {selected.Count} shapes horizontally";
+            }));
+
+            if (MultiRotateHandle != null)
+                flyout.ShowAt(MultiRotateHandle, e.GetPosition(MultiRotateHandle));
         }
 
         private void OnCanvasDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

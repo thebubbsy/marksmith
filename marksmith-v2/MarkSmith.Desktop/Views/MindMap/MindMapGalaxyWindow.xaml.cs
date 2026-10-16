@@ -48,6 +48,11 @@ namespace MarkSmith.Views.MindMap
         private bool _isMarquee;
         private Point _marqueeStartScreen;
         private bool _marqueeAdditive;
+        private Microsoft.UI.Xaml.Shapes.Polyline? _lassoLine;
+        private readonly List<Point> _lassoScreenPoints = new();
+        private bool _isLasso;
+        private Border? _breadcrumbBar;
+        private StackPanel? _breadcrumbPanel;
 
         public event EventHandler<string>? OpenDocumentRequested;
 
@@ -153,6 +158,32 @@ namespace MarkSmith.Views.MindMap
             _multiSelectBadge.DoubleTapped += OnMultiSelectBadgeDoubleTapped;
             _multiSelectBadge.RightTapped += OnMultiSelectBadgeRightTapped;
             GuideLayer.Children.Add(_multiSelectBadge);
+
+            _lassoLine = new Microsoft.UI.Xaml.Shapes.Polyline
+            {
+                Stroke = new SolidColorBrush(_palette.HighlightBorder),
+                StrokeThickness = 1.4,
+                StrokeDashArray = new DoubleCollection { 3, 2 },
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false
+            };
+            GuideLayer.Children.Add(_lassoLine);
+
+            _breadcrumbPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+            _breadcrumbBar = new Border
+            {
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(16, 12, 0, 0),
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xEE, 0x18, 0x20, 0x2C)),
+                BorderBrush = new SolidColorBrush(_palette.HighlightBorder),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(8, 4, 8, 4),
+                Visibility = Visibility.Collapsed,
+                Child = _breadcrumbPanel
+            };
+            CanvasContainer.Children.Add(_breadcrumbBar);
         }
 
         private void SizeForDisplay()
@@ -207,6 +238,10 @@ namespace MarkSmith.Views.MindMap
                 case nameof(MindMapStudioViewModel.SelectedNode):
                     WatchSelectedNodeColour();
                     UpdateSwatches();
+                    UpdateBreadcrumbs();
+                    break;
+                case nameof(MindMapStudioViewModel.IsFocusModeEnabled):
+                    UpdateBreadcrumbs();
                     break;
                 case nameof(MindMapStudioViewModel.PreviewNode):
                 case nameof(MindMapStudioViewModel.IsPreviewCardVisible):
@@ -2481,6 +2516,22 @@ namespace MarkSmith.Views.MindMap
                 return;
             }
 
+            if (IsAltDown())
+            {
+                _isLasso = true;
+                _isMarquee = false;
+                _lassoScreenPoints.Clear();
+                _lassoScreenPoints.Add(pt.Position);
+                _marqueeAdditive = IsCtrlDown() || IsShiftDown();
+                if (!_marqueeAdditive)
+                {
+                    foreach (var n in ViewModel.Nodes) n.IsSelected = false;
+                }
+                GalaxyCanvas.CapturePointer(e.Pointer);
+                e.Handled = true;
+                return;
+            }
+
             if (IsShiftDown() || IsCtrlDown())
             {
                 _isMarquee = true;
@@ -2637,6 +2688,44 @@ namespace MarkSmith.Views.MindMap
         private void OnCanvasPointerMoved(object sender, PointerRoutedEventArgs e)
         {
             var cur = e.GetCurrentPoint(GalaxyCanvas).Position;
+
+            if (_isLasso)
+            {
+                _lassoScreenPoints.Add(cur);
+                double zoom = Math.Max(0.1, ViewModel.ZoomLevel);
+                var worldPoints = new PointCollection();
+                foreach (var sp in _lassoScreenPoints)
+                {
+                    double wx = ((sp.X - CanvasWidth / 2.0) / zoom) - ViewModel.ViewportOffsetX;
+                    double wy = ((sp.Y - CanvasHeight / 2.0) / zoom) - ViewModel.ViewportOffsetY;
+                    worldPoints.Add(new Point(wx, wy));
+                }
+                if (_lassoLine != null)
+                {
+                    _lassoLine.Points = worldPoints;
+                    _lassoLine.StrokeThickness = 1.4 / zoom;
+                    _lassoLine.Visibility = Visibility.Visible;
+                }
+
+                if (worldPoints.Count >= 3)
+                {
+                    foreach (var n in ViewModel.Nodes)
+                    {
+                        var center = new Point(n.X + n.Width / 2.0, n.Y + n.Height / 2.0);
+                        if (IsPointInPolygon(center, worldPoints))
+                        {
+                            n.IsSelected = true;
+                        }
+                        else if (!_marqueeAdditive)
+                        {
+                            n.IsSelected = false;
+                        }
+                    }
+                }
+                RequestRedraw(RedrawScope.Appearance);
+                e.Handled = true;
+                return;
+            }
 
             if (_isMarquee)
             {
@@ -2859,6 +2948,23 @@ namespace MarkSmith.Views.MindMap
 
         private void EndCanvasGesture()
         {
+            if (_isLasso)
+            {
+                _isLasso = false;
+                if (_lassoLine != null) _lassoLine.Visibility = Visibility.Collapsed;
+                _lassoScreenPoints.Clear();
+                var sel = ViewModel.Nodes.Where(n => n.IsSelected).ToList();
+                if (sel.Count == 1)
+                {
+                    ViewModel.SelectedNode = sel[0];
+                }
+                else if (sel.Count > 1)
+                {
+                    ViewModel.SelectedNode = sel[0];
+                    ViewModel.StatusMessage = $"Lasso selected {sel.Count} nodes · Drag any to move group, Del to remove";
+                }
+            }
+
             if (_isMarquee)
             {
                 _isMarquee = false;
@@ -2902,6 +3008,22 @@ namespace MarkSmith.Views.MindMap
             SetCursor(GalaxyCanvas, Microsoft.UI.Input.InputSystemCursorShape.Arrow);
             if (wasDragging) RequestRedraw(RedrawScope.Appearance);
             UpdateMultiSelectionAdorner();
+        }
+
+        private static bool IsPointInPolygon(Point p, IList<Point> poly)
+        {
+            int n = poly.Count;
+            if (n < 3) return false;
+            bool inside = false;
+            for (int i = 0, j = n - 1; i < n; j = i++)
+            {
+                if (((poly[i].Y > p.Y) != (poly[j].Y > p.Y)) &&
+                    (p.X < (poly[j].X - poly[i].X) * (p.Y - poly[i].Y) / (poly[j].Y - poly[i].Y + 1e-9) + poly[i].X))
+                {
+                    inside = !inside;
+                }
+            }
+            return inside;
         }
 
         private void ShowNodeConnectionsContextMenu(MindMapNodeViewModel node, UIElement target, Point position)
@@ -3055,6 +3177,10 @@ namespace MarkSmith.Views.MindMap
             {
                 case Windows.System.VirtualKey.F when ctrl:
                     SearchBox.Focus(FocusState.Programmatic);
+                    e.Handled = true;
+                    return;
+                case Windows.System.VirtualKey.F when !ctrl && !shift && !alt && canvasFocused && ViewModel.SelectedNode != null:
+                    ViewModel.ToggleFocusModeCommand.Execute(null);
                     e.Handled = true;
                     return;
                 case Windows.System.VirtualKey.Z when ctrl && shift:
@@ -4076,6 +4202,121 @@ namespace MarkSmith.Views.MindMap
             {
                 UpdateAppearance();
             }
+            if (e.PropertyName is nameof(MindMapNodeViewModel.Title) or nameof(MindMapNodeViewModel.ParentId))
+            {
+                UpdateBreadcrumbs();
+            }
+        }
+
+        private void UpdateBreadcrumbs()
+        {
+            if (_breadcrumbBar == null || _breadcrumbPanel == null) return;
+            var node = ViewModel.SelectedNode;
+            if (node == null)
+            {
+                _breadcrumbBar.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var path = new List<MindMapNodeViewModel>();
+            var curr = node;
+            var visited = new HashSet<string>(StringComparer.Ordinal);
+            while (curr != null && visited.Add(curr.Id))
+            {
+                path.Insert(0, curr);
+                curr = !string.IsNullOrEmpty(curr.ParentId) && _nodeIndex.TryGetValue(curr.ParentId, out var parent) ? parent : null;
+            }
+
+            _breadcrumbPanel.Children.Clear();
+            for (int i = 0; i < path.Count; i++)
+            {
+                var n = path[i];
+                bool isCurrent = (i == path.Count - 1);
+                var btn = new Button
+                {
+                    Padding = new Thickness(6, 2, 6, 2),
+                    FontSize = 11,
+                    Background = isCurrent
+                        ? new SolidColorBrush(Windows.UI.Color.FromArgb(0x40, 0x00, 0x78, 0xD7))
+                        : new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                    BorderThickness = new Thickness(isCurrent ? 1 : 0),
+                    BorderBrush = isCurrent ? new SolidColorBrush(_palette.HighlightBorder) : null,
+                    CornerRadius = new CornerRadius(4),
+                    Content = new TextBlock
+                    {
+                        Text = string.IsNullOrWhiteSpace(n.Title) ? "Untitled" : n.Title,
+                        FontWeight = isCurrent ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
+                        Foreground = new SolidColorBrush(isCurrent ? Microsoft.UI.Colors.White : _palette.Muted)
+                    }
+                };
+
+                var targetNode = n;
+                btn.Click += (s, e) =>
+                {
+                    ViewModel.SelectedNode = targetNode;
+                    ViewModel.CenterOn(targetNode);
+                    RequestRedraw(RedrawScope.Appearance);
+                };
+
+                if (isCurrent)
+                {
+                    btn.DoubleTapped += (s, e) =>
+                    {
+                        e.Handled = true;
+                        ViewModel.ToggleFocusModeCommand.Execute(null);
+                    };
+                    ToolTipService.SetToolTip(btn, $"Active node: {n.Title} · Double-click to toggle Focus Mode (F)");
+                }
+                else
+                {
+                    ToolTipService.SetToolTip(btn, $"Ancestor: {n.Title} · Click to jump & center");
+                }
+
+                _breadcrumbPanel.Children.Add(btn);
+
+                if (i < path.Count - 1)
+                {
+                    var sep = new TextBlock
+                    {
+                        Text = "\uE76C",
+                        FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                        FontSize = 9,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Foreground = new SolidColorBrush(_palette.Muted)
+                    };
+                    _breadcrumbPanel.Children.Add(sep);
+                }
+            }
+
+            var focusToggle = new Button
+            {
+                Padding = new Thickness(6, 2, 6, 2),
+                FontSize = 10,
+                Background = ViewModel.IsFocusModeEnabled
+                    ? new SolidColorBrush(Windows.UI.Color.FromArgb(0x55, 0x10, 0x7C, 0x10))
+                    : new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(1),
+                BorderBrush = ViewModel.IsFocusModeEnabled
+                    ? new SolidColorBrush(Microsoft.UI.Colors.LightGreen)
+                    : new SolidColorBrush(_palette.HighlightBorder),
+                CornerRadius = new CornerRadius(4),
+                Margin = new Thickness(6, 0, 0, 0),
+                Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 4,
+                    Children =
+                    {
+                        new FontIcon { Glyph = "\uE890", FontSize = 10, Foreground = new SolidColorBrush(ViewModel.IsFocusModeEnabled ? Microsoft.UI.Colors.LightGreen : _palette.Muted) },
+                        new TextBlock { Text = ViewModel.IsFocusModeEnabled ? "Focus ON" : "Focus (F)", FontSize = 10, Foreground = new SolidColorBrush(ViewModel.IsFocusModeEnabled ? Microsoft.UI.Colors.LightGreen : _palette.Muted) }
+                    }
+                }
+            };
+            ToolTipService.SetToolTip(focusToggle, "Toggle focus mode (F) · Focus on active node branch & connections");
+            focusToggle.Click += (s, e) => ViewModel.ToggleFocusModeCommand.Execute(null);
+            _breadcrumbPanel.Children.Add(focusToggle);
+
+            _breadcrumbBar.Visibility = Visibility.Visible;
         }
 
         private void OnReverseLinkClick(object sender, RoutedEventArgs e) => ViewModel.ReverseLink(ViewModel.SelectedLink);
