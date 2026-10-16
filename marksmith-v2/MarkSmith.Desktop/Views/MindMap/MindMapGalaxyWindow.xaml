@@ -816,7 +816,7 @@
                                IsHitTestVisible="True"
                                DoubleTapped="OnNodesCountDoubleTapped"
                                RightTapped="OnNodesCountRightTapped"
-                               ToolTipService.ToolTip="Total nodes · Double-click to copy count, right-click for node actions" />
+                               ToolTipService.ToolTip="Total nodes · Double-click to cycle root/deepest/leaf nodes, right-click for navigation &amp; options" />
                     <TextBlock Text="·" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                     <TextBlock x:Name="LinksCountText" Text="{Binding LinksCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                IsHitTestVisible="True"

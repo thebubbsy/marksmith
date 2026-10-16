@@ -1689,6 +1689,124 @@ namespace MarkSmith.ViewModels.MindMap
             return root;
         }
 
+        /// <summary>Calculates the hierarchical depth of a node from the root node (0 = root).</summary>
+        public int GetNodeDepth(MindMapNodeViewModel node)
+        {
+            if (node == null) return 0;
+            int depth = 0;
+            var current = node;
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            while (!string.IsNullOrEmpty(current.ParentId) && visited.Add(current.Id))
+            {
+                var parent = Nodes.FirstOrDefault(n => n.Id == current.ParentId);
+                if (parent == null || parent == current) break;
+                depth++;
+                current = parent;
+            }
+            return depth;
+        }
+
+        /// <summary>Calculates the maximum depth across all nodes in the map.</summary>
+        public int GetMaxHierarchyDepth()
+        {
+            if (Nodes.Count == 0) return 0;
+            int max = 0;
+            foreach (var n in Nodes)
+            {
+                int d = GetNodeDepth(n);
+                if (d > max) max = d;
+            }
+            return max;
+        }
+
+        /// <summary>Selects the deepest hierarchy node in the map (the furthest leaf from the root).</summary>
+        public MindMapNodeViewModel? SelectDeepestNode()
+        {
+            if (Nodes.Count == 0) return null;
+            MindMapNodeViewModel? deepest = null;
+            int maxDepth = -1;
+
+            foreach (var n in Nodes)
+            {
+                if (n.IsDimmed) continue;
+                int d = GetNodeDepth(n);
+                if (d > maxDepth)
+                {
+                    maxDepth = d;
+                    deepest = n;
+                }
+            }
+
+            if (deepest == null)
+            {
+                deepest = Nodes.FirstOrDefault();
+            }
+
+            if (deepest != null)
+            {
+                SelectedLink = null;
+                SelectedNode = deepest;
+                StatusMessage = $"Selected deepest node '{deepest.Title}' (Depth {maxDepth}).";
+            }
+            return deepest;
+        }
+
+        /// <summary>Selects the next leaf node (a node with no children).</summary>
+        public MindMapNodeViewModel? SelectNextLeafNode()
+        {
+            if (Nodes.Count == 0) return null;
+            var parentIds = new HashSet<string>(Nodes.Where(n => !string.IsNullOrEmpty(n.ParentId)).Select(n => n.ParentId!), StringComparer.OrdinalIgnoreCase);
+            var leaves = Nodes.Where(n => !parentIds.Contains(n.Id) && !n.IsDimmed).ToList();
+            if (leaves.Count == 0) leaves = Nodes.Where(n => !parentIds.Contains(n.Id)).ToList();
+            if (leaves.Count == 0) return SelectRootNode();
+
+            int currentIndex = SelectedNode != null ? leaves.IndexOf(SelectedNode) : -1;
+            int nextIndex = (currentIndex + 1) % leaves.Count;
+            var target = leaves[nextIndex];
+
+            SelectedLink = null;
+            SelectedNode = target;
+            StatusMessage = $"Selected leaf node '{target.Title}' ({nextIndex + 1} of {leaves.Count}).";
+            return target;
+        }
+
+        /// <summary>Selects the next orphan / unlinked node (a node with no parent and no children/links, separate from root).</summary>
+        public MindMapNodeViewModel? SelectNextOrphanNode()
+        {
+            if (Nodes.Count == 0) return null;
+            var linkedNodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var l in Links)
+            {
+                if (!string.IsNullOrEmpty(l.SourceNodeId)) linkedNodeIds.Add(l.SourceNodeId);
+                if (!string.IsNullOrEmpty(l.TargetNodeId)) linkedNodeIds.Add(l.TargetNodeId);
+            }
+            foreach (var n in Nodes)
+            {
+                if (!string.IsNullOrEmpty(n.ParentId))
+                {
+                    linkedNodeIds.Add(n.ParentId);
+                    linkedNodeIds.Add(n.Id);
+                }
+            }
+
+            var orphans = Nodes.Where(n => !linkedNodeIds.Contains(n.Id) && n.Id != Document.RootNodeId).ToList();
+            if (orphans.Count == 0)
+            {
+                StatusMessage = "No isolated / orphan nodes found in map.";
+                return null;
+            }
+
+            int currentIndex = SelectedNode != null ? orphans.IndexOf(SelectedNode) : -1;
+            int nextIndex = (currentIndex + 1) % orphans.Count;
+            var target = orphans[nextIndex];
+
+            SelectedLink = null;
+            SelectedNode = target;
+            StatusMessage = $"Selected orphan node '{target.Title}' ({nextIndex + 1} of {orphans.Count}).";
+            return target;
+        }
+
         /// <summary>Moves selection from the current node to the nearest non-dimmed node in the
         /// requested canvas direction <c>(dirX, dirY)</c>, favouring connected neighbours on ties.</summary>
         public MindMapNodeViewModel? NavigateDirection(double dirX, double dirY)

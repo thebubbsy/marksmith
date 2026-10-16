@@ -233,7 +233,7 @@
                             </Button>
                             <Button x:Name="TemplateSmartArtBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
                                     Click="OnTemplateSmartArtClick" ToolTipService.ToolTip="Create a SmartArt showcase document with ready-to-edit layout blocks"
-                                    Tag="smartart showcase diagram layout shapes block">
+                                    Tag="smartart showcase diagram layout shapes block visual">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xF003;" FontSize="11" />
                                     <TextBlock Text="SmartArt Showcase" FontSize="11.5" />
@@ -241,7 +241,7 @@
                             </Button>
                             <Button x:Name="TemplateMindMapBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
                                     Click="OnTemplateMindMapClick" ToolTipService.ToolTip="Create a knowledge base document with mindmap mermaid outline"
-                                    Tag="mindmap note knowledge base mermaid outline brain">
+                                    Tag="mindmap note knowledge base mermaid outline brain diagram visual">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xEC26;" FontSize="11" />
                                     <TextBlock Text="MindMap Note" FontSize="11.5" />
@@ -257,7 +257,7 @@
                             </Button>
                             <Button x:Name="TemplateReleaseNotesBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
                                     Click="OnTemplateReleaseNotesClick" ToolTipService.ToolTip="Create structured release notes with highlights, breaking changes and migration steps"
-                                    Tag="release notes changelog version highlights update">
+                                    Tag="release notes changelog version highlights update ops operations incident">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xEDE1;" FontSize="11" />
                                     <TextBlock Text="Release Notes" FontSize="11.5" />
@@ -265,7 +265,7 @@
                             </Button>
                             <Button x:Name="TemplatePostmortemBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
                                     Click="OnTemplatePostmortemClick" ToolTipService.ToolTip="Create an enterprise incident postmortem with timeline, root cause analysis and action items"
-                                    Tag="incident postmortem rca outage timeline severity post-mortem post mortem">
+                                    Tag="incident postmortem rca outage timeline severity ops operations post-mortem">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE7BA;" FontSize="11" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
                                     <TextBlock Text="Incident Postmortem" FontSize="11.5" />
@@ -289,7 +289,7 @@
                                 Tapped="OnTemplateCountPillTapped"
                                 DoubleTapped="OnTemplateCountPillDoubleTapped"
                                 RightTapped="OnTemplateCountPillRightTapped"
-                                ToolTipService.ToolTip="Starter templates count · Click to show all, double-click to focus search, right-click for options">
+                                ToolTipService.ToolTip="Starter templates count · Click to show all, double-click to focus search, right-click for category presets">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE8A5;" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                 <TextBlock x:Name="TemplateCountText" Text="8 templates" FontSize="11" FontWeight="SemiBold"

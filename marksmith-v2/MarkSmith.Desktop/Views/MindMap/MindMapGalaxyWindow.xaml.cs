@@ -6572,15 +6572,36 @@ namespace MarkSmith.Views.MindMap
             else menu.ShowAt(target);
         }
 
+        private int _nodeCycleMode = 0;
+
+        private void CenterOnNode(MindMapNodeViewModel? node)
+        {
+            if (node is null || ViewModel.Nodes.Count == 0) return;
+            double worldCenterX = node.X + (node.Width / 2.0);
+            double worldCenterY = node.Y + (node.Height / 2.0);
+
+            ViewModel.ViewportOffsetX = -worldCenterX;
+            ViewModel.ViewportOffsetY = -worldCenterY;
+            ViewModel.SelectedLink = null;
+            ViewModel.SelectedNode = node;
+            RequestRedraw(RedrawScope.Transform);
+        }
+
         private void OnNodesCountDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
             e.Handled = true;
-            var text = ViewModel.NodesCountText;
-            if (string.IsNullOrWhiteSpace(text)) return;
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(text);
-            ClipboardWriter.Set(dp);
-            ViewModel.StatusMessage = $"Copied node count: {text}";
+            if (ViewModel.Nodes.Count == 0) return;
+            _nodeCycleMode = (_nodeCycleMode + 1) % 3;
+            MindMapNodeViewModel? target = _nodeCycleMode switch
+            {
+                0 => ViewModel.SelectRootNode(),
+                1 => ViewModel.SelectDeepestNode(),
+                _ => ViewModel.SelectNextLeafNode()
+            };
+            if (target != null)
+            {
+                CenterOnNode(target);
+            }
         }
 
         private void OnNodesCountRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -6590,9 +6611,10 @@ namespace MarkSmith.Views.MindMap
             var menu = new MenuFlyout();
 
             var countText = ViewModel.NodesCountText ?? string.Empty;
+            int maxDepth = ViewModel.GetMaxHierarchyDepth();
             var copyCountItem = new MenuFlyoutItem
             {
-                Text = !string.IsNullOrWhiteSpace(countText) ? $"Copy node count ({countText})" : "Copy node count",
+                Text = !string.IsNullOrWhiteSpace(countText) ? $"Copy node count ({countText} · Depth {maxDepth})" : "Copy node count",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
                 IsEnabled = !string.IsNullOrWhiteSpace(countText)
             };
@@ -6600,13 +6622,48 @@ namespace MarkSmith.Views.MindMap
             {
                 if (!string.IsNullOrWhiteSpace(countText))
                 {
+                    string info = $"{countText} (max depth {maxDepth})";
                     var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    dp.SetText(countText);
+                    dp.SetText(info);
                     ClipboardWriter.Set(dp);
-                    ViewModel.StatusMessage = $"Copied node count: {countText}";
+                    ViewModel.StatusMessage = $"Copied map structure: {info}";
                 }
             };
             menu.Items.Add(copyCountItem);
+
+            var selectRootItem = new MenuFlyoutItem
+            {
+                Text = "Select root document node (Home)",
+                Icon = new FontIcon { Glyph = "\uE80F" }
+            };
+            selectRootItem.Click += (_, _) => { var r = ViewModel.SelectRootNode(); if (r != null) CenterOnNode(r); };
+            menu.Items.Add(selectRootItem);
+
+            var selectDeepestItem = new MenuFlyoutItem
+            {
+                Text = "Select deepest node branch",
+                Icon = new FontIcon { Glyph = "\uE74B" }
+            };
+            selectDeepestItem.Click += (_, _) => { var d = ViewModel.SelectDeepestNode(); if (d != null) CenterOnNode(d); };
+            menu.Items.Add(selectDeepestItem);
+
+            var selectLeafItem = new MenuFlyoutItem
+            {
+                Text = "Select next leaf node",
+                Icon = new FontIcon { Glyph = "\uE748" }
+            };
+            selectLeafItem.Click += (_, _) => { var lf = ViewModel.SelectNextLeafNode(); if (lf != null) CenterOnNode(lf); };
+            menu.Items.Add(selectLeafItem);
+
+            var selectOrphanItem = new MenuFlyoutItem
+            {
+                Text = "Select next orphan / isolated node",
+                Icon = new FontIcon { Glyph = "\uE7C3" }
+            };
+            selectOrphanItem.Click += (_, _) => { var o = ViewModel.SelectNextOrphanNode(); if (o != null) CenterOnNode(o); };
+            menu.Items.Add(selectOrphanItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
 
             var addNodeItem = new MenuFlyoutItem
             {

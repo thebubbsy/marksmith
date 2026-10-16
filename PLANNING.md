@@ -9621,6 +9621,74 @@ Reviewed: the 2026-10-17 run #126 entry above. Followed the AI-Executable 3-Bloc
 - `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~MindMap"`: **104 passed, 0 failed (100% pass rate)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, running cleanly for 3s, terminated cleanly.
 
+### 2026-10-17 (scheduled routine run #128 — 3-Block Cycle + Execution Phase)
 
+Reviewed: the 2026-10-17 run #127 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across the 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
 
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #127:
+    * Target A: `HistoryWindow` diff line jump and hunk bookmarking.
+    * Target B: `SuiteHubView` template category presets and custom filtering.
+  - Generated:
+    1. `MainWindow`: Editor Indentation Mode Pill & Quick Converter (`StatusIndentButton`, dynamic detection of 2 spaces, 4 spaces, or Tabs, with single-click toggle and conversion flyout).
+    2. `MindMapGalaxyWindow`: Map Hierarchy & Node Depth Stats Pill (`NodesCountButton`, dynamic reporting of total nodes, max tree depth, leaf nodes, and orphan count, with leaf/orphan navigation).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Added `StatusIndentButton` in `MainWindow.xaml` status bar between Cursor Position and Markdown Pill. Implemented `UpdateStatusIndentation`, `ToggleIndentation`, `ConvertIndentation`, `TrimTrailingWhitespace`, and `ShowIndentFlyout` in `MainWindow.xaml.cs`. Detects active indentation pattern around caret line or whole document and provides undo-safe conversions.
+    * For Idea 2: Added `GetNodeDepth`, `GetMaxHierarchyDepth`, `SelectDeepestNode`, `SelectNextLeafNode`, and `SelectNextOrphanNode` in `MindMapStudioViewModel.cs`. Extended `OnNodesCountDoubleTapped` and `OnNodesCountRightTapped` in `MindMapGalaxyWindow.xaml.cs` with flyout options to center and cycle across deepest nodes, leaf nodes, or disconnected orphans.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Canvas Distribute & Auto-Tidy Button (`DistributeCanvasButton` with horizontal/vertical spacing distribution and grid tidy).
+    4. `SmartArtDesignStudioWindow`: Outline Batch Level Adjust & Depth Navigator (batch promote, demote, and root flatten actions inside `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Added `DistributeDiagramOnCanvas` (horizontal & vertical equal spacing) and `TidyDiagramIntoGrid` (order-preserving compact grid arrangement with auto-wrap) with full undo support in `ShapeDesignStudioViewModel.cs`. Mounted `DistributeCanvasButton` on the toolbar in `ShapeDesignStudioWindow.xaml` with click, double-click, and right-click flyout handlers in `ShapeDesignStudioWindow.xaml.cs`.
+    * For Idea 4: Added "Promote all items (Indent)", "Demote all items (Outdent)", and "Flatten all items to root level" to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`. Implemented `OnPromoteAllClick`, `OnDemoteAllClick`, and `OnFlattenAllClick` in `SmartArtDesignStudioWindow.xaml.cs` updating indentation across the raw outline while preserving line content.
+  - Refined Block 1 (Pass 2 - Final):
+    * Enforced WinUI 3 XAML compiler safety: ensured context flyout menu items specify clean click handlers, avoiding anonymous delegate closures in XAML.
+    * Verified indentation converter maintains CRLF/LF line ending consistency across multi-line regex replacements.
+  - Generated:
+    5. `HistoryWindow`: Diff Hunk Jump & Bookmark Flyout (dynamic hunk list with preview snippets, line jumps, and Alt+Down / Alt+Up hotkeys).
+    6. `SuiteHubView`: Template Category Presets Menu (Engineering & Specs, Incident & Operations, Diagrams & Maps, Planning & Notes).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Added `Opening="OnDiffContextFlyoutOpening"` to `DiffContextFlyout` in `HistoryWindow.xaml`. Implemented `JumpToHunkIndex` and dynamic `OnDiffContextFlyoutOpening` populating flyout items with hunk line numbers and header snippets, and wired `Alt+Down` / `Alt+Up` hotkeys in `HistoryWindow.xaml.cs`.
+    * For Idea 6: Added category tags (`ops`, `visual`) across starter templates in `SuiteHubView.xaml`. Upgraded `OnTemplateCountPillRightTapped` to a category presets flyout in `SuiteHubView.xaml.cs` allowing one-click filtering to Architecture/Engineering, Incident/Ops, Diagrams, or Planning.
+  - Executed all 6 refined targets into 100% production code with zero placeholders.
+  - Added unit test coverage:
+    * `ShapeStudioPolishTests.cs`: Added `DistributeDiagramOnCanvas_Horizontally_SpacesShapesEvenly`, `DistributeDiagramOnCanvas_Vertically_SpacesShapesEvenly`, and `TidyDiagramIntoGrid_ArrangesShapesInOrder`.
+    * `MindMapGalaxyPolishTests.cs`: Added `Run128_HierarchyDepthAndNodeSelectors_WorkCorrectly`.
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **469 passed, 0 failed (100% pass rate)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 24196, responsive startup (`Responding: True`), clean exit.
+  - Carried forward ideas / next targets into Run #129:
+    * Target A: `MainWindow` status bar encoding and line ending selector (UTF-8 / CRLF / LF).
+    * Target B: `MindMapGalaxyWindow` node relationship connector style picker (Straight, Bezier, Orthogonal, Stepped).
+    * Target C: `ShapeDesignStudioWindow` smart magnetic snap guidelines when moving shapes near canvas center or adjacent shape edges.
+
+**Shipped:**
+1. **`MainWindow` Editor Indentation Mode Pill & Quick Converter (`MainWindow.xaml`, `MainWindow.xaml.cs`):**
+   - Added `StatusIndentButton` and `StatusIndentText` in the editor status bar.
+   - Automatically detects 2-space, 4-space, or Tab indentation; left-click cycles modes, right-click opens conversion flyout (`Convert Indentation to 2 Spaces`, `Convert Indentation to 4 Spaces`, `Convert Indentation to Tabs`, `Trim Trailing Whitespace`).
+2. **`MindMapGalaxyWindow` Map Hierarchy & Node Depth Stats Pill (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MarkSmith.Core/ViewModels/MindMap/MindMapStudioViewModel.cs`):**
+   - Added `GetNodeDepth`, `GetMaxHierarchyDepth`, `SelectDeepestNode`, `SelectNextLeafNode`, and `SelectNextOrphanNode` to `MindMapStudioViewModel`.
+   - Updated `NodesCountButton` tooltip to display depth and hierarchy metrics; double-click selects/centers the deepest node; right-click flyout provides quick jumping between deepest nodes, leaf nodes, and disconnected orphans.
+3. **`ShapeDesignStudioWindow` Canvas Distribute & Auto-Tidy (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `MarkSmith.Core/ViewModels/ShapeStudio/ShapeDesignStudioViewModel.cs`):**
+   - Added `DistributeCanvasButton` on top toolbar with tooltip, hover polish, and flyout (`Distribute Horizontally`, `Distribute Vertically`, `Tidy into Grid`).
+   - Implemented `DistributeDiagramOnCanvas` and `TidyDiagramIntoGrid` with undo snapshots.
+4. **`SmartArtDesignStudioWindow` Outline Batch Level Adjust & Depth Navigator (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`):**
+   - Added batch indentation actions to `OutlineStatsFlyout` ("Promote all items", "Demote all items", "Flatten all items to root level").
+   - Implemented `OnPromoteAllClick`, `OnDemoteAllClick`, and `OnFlattenAllClick` modifying the underlying outline text safely.
+5. **`HistoryWindow` Diff Hunk Jump & Bookmark Flyout (`HistoryWindow.xaml`, `HistoryWindow.xaml.cs`):**
+   - Added dynamic hunk inspection and navigation to `DiffContextFlyout`.
+   - Implemented `JumpToHunkIndex` and wired `Alt+Down` / `Alt+Up` hotkeys for instant hunk jumping.
+6. **`SuiteHubView` Template Category Presets Menu (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`):**
+   - Added category tags (`ops`, `visual`) to starter template cards.
+   - Wired category presets flyout on right-click of `TemplateCountPill` (Engineering & Specs, Incident & Operations, Diagrams & Maps, Planning & Notes).
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug --filter "FullyQualifiedName~Polish"`: **469 passed, 0 failed (100% pass rate)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 24196, responsive startup (`Responding: True`), clean exit.
 

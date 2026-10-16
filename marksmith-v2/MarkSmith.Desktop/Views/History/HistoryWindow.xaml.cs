@@ -630,6 +630,71 @@ public sealed partial class HistoryWindow : Window
         StepToChangeHunk(1);
     }
 
+    private void JumpToHunkIndex(int hunkIndex)
+    {
+        var hunks = GetChangeHunkIndices();
+        if (hunkIndex < 0 || hunkIndex >= hunks.Count) return;
+        _currentHunkIndex = hunkIndex;
+        int targetRow = hunks[_currentHunkIndex];
+        if (ChangeStepperLabel != null)
+        {
+            ChangeStepperLabel.Text = $"Hunk {_currentHunkIndex + 1}/{hunks.Count}";
+            ToolTipService.SetToolTip(ChangeStepperLabel, $"Hunk {_currentHunkIndex + 1} of {hunks.Count} (Line {targetRow + 1}) · F7 next, Shift+F7 prev");
+        }
+
+        double targetY = Math.Max(0, targetRow * 20.0);
+        if (_vm.DiffMode == HistoryDiffMode.Unified)
+        {
+            UnifiedScroll?.ChangeView(null, targetY, null);
+        }
+        else
+        {
+            SplitScroll?.ChangeView(null, targetY, null);
+        }
+    }
+
+    private void OnDiffContextFlyoutOpening(object? sender, object e)
+    {
+        if (DiffContextFlyout == null) return;
+        while (DiffContextFlyout.Items.Count > 5)
+        {
+            DiffContextFlyout.Items.RemoveAt(DiffContextFlyout.Items.Count - 1);
+        }
+
+        var hunks = GetChangeHunkIndices();
+        if (hunks.Count == 0) return;
+
+        DiffContextFlyout.Items.Add(new MenuFlyoutSeparator());
+        for (int h = 0; h < hunks.Count; h++)
+        {
+            int hunkIdx = h;
+            int targetRow = hunks[h];
+            string snippet = "";
+            if (_vm.DiffMode == HistoryDiffMode.Unified && targetRow < _vm.UnifiedDiffRows.Count)
+            {
+                var r = _vm.UnifiedDiffRows[targetRow];
+                snippet = (r.Text ?? "").Trim();
+            }
+            else if (targetRow < _vm.DiffRows.Count)
+            {
+                var r = _vm.DiffRows[targetRow];
+                snippet = (r.Right?.Text ?? r.Left?.Text ?? "").Trim();
+            }
+            if (snippet.Length > 28) snippet = snippet.Substring(0, 28) + "…";
+            string label = string.IsNullOrEmpty(snippet)
+                ? $"Jump to Hunk {hunkIdx + 1} (Line {targetRow + 1})"
+                : $"Hunk {hunkIdx + 1}: Line {targetRow + 1} (\"{snippet}\")";
+
+            var item = new MenuFlyoutItem
+            {
+                Text = label,
+                Icon = new FontIcon { Glyph = "\uE8B9" }
+            };
+            item.Click += (_, _) => JumpToHunkIndex(hunkIdx);
+            DiffContextFlyout.Items.Add(item);
+        }
+    }
+
     private void OnChangeStepperLabelRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
@@ -1283,6 +1348,7 @@ public sealed partial class HistoryWindow : Window
         if (_dialogOpen) return;
         var isCtrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         var isShift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var isAlt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         bool inTextBox = e.OriginalSource is TextBox;
         bool inFileList = e.OriginalSource is FrameworkElement { DataContext: FileSummaryViewModel };
         var focusedVersion = (e.OriginalSource as FrameworkElement)?.DataContext as VersionItemViewModel;
@@ -1329,10 +1395,15 @@ public sealed partial class HistoryWindow : Window
             e.Handled = true;
             _ = CopyVersionMarkdownAsync(copyTarget, CopyToolbarButton, CopyToolbarIcon);
         }
-        else if (e.Key == VirtualKey.F7)
+        else if (e.Key == VirtualKey.F7 || (isAlt && e.Key == VirtualKey.Down))
         {
             e.Handled = true;
             StepToChangeHunk(isShift ? -1 : 1);
+        }
+        else if (isAlt && e.Key == VirtualKey.Up)
+        {
+            e.Handled = true;
+            StepToChangeHunk(-1);
         }
         else if (e.Key == VirtualKey.F3)
         {

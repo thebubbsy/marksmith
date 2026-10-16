@@ -4251,6 +4251,97 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = $"Copied outline summary: {summary}";
         }
 
+        private void OnPromoteAllClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            if (string.IsNullOrWhiteSpace(markdown)) return;
+            var lines = markdown.Split('\n');
+            var sb = new System.Text.StringBuilder();
+            bool changed = false;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                bool hasCr = line.EndsWith('\r');
+                string trimmed = hasCr ? line.Substring(0, line.Length - 1) : line;
+
+                if (trimmed.StartsWith("  "))
+                {
+                    trimmed = trimmed.Substring(2);
+                    changed = true;
+                }
+                else if (trimmed.StartsWith("\t"))
+                {
+                    trimmed = trimmed.Substring(1);
+                    changed = true;
+                }
+                else if (trimmed.StartsWith(" "))
+                {
+                    trimmed = trimmed.Substring(1);
+                    changed = true;
+                }
+
+                sb.Append(trimmed);
+                if (hasCr) sb.Append('\r');
+                if (i < lines.Length - 1) sb.Append('\n');
+            }
+
+            if (changed)
+            {
+                ViewModel.MarkdownText = sb.ToString();
+                UpdateOutlineStats();
+                ViewModel.StatusMessage = "Promoted all outline items out 1 level.";
+            }
+        }
+
+        private void OnDemoteAllClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            if (string.IsNullOrWhiteSpace(markdown)) return;
+            var lines = markdown.Split('\n');
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                bool hasCr = line.EndsWith('\r');
+                string trimmed = hasCr ? line.Substring(0, line.Length - 1) : line;
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                {
+                    sb.Append("  ");
+                }
+                sb.Append(trimmed);
+                if (hasCr) sb.Append('\r');
+                if (i < lines.Length - 1) sb.Append('\n');
+            }
+            ViewModel.MarkdownText = sb.ToString();
+            UpdateOutlineStats();
+            ViewModel.StatusMessage = "Demoted all outline items in 1 level.";
+        }
+
+        private void OnFlattenAllClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            if (string.IsNullOrWhiteSpace(markdown)) return;
+            var lines = markdown.Split('\n');
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                bool hasCr = line.EndsWith('\r');
+                string trimmed = hasCr ? line.Substring(0, line.Length - 1) : line;
+                string noIndent = trimmed.TrimStart();
+                if (!noIndent.StartsWith("- ") && !noIndent.StartsWith("* ") && !string.IsNullOrWhiteSpace(noIndent))
+                {
+                    noIndent = "- " + noIndent;
+                }
+                sb.Append(noIndent);
+                if (hasCr) sb.Append('\r');
+                if (i < lines.Length - 1) sb.Append('\n');
+            }
+            ViewModel.MarkdownText = sb.ToString();
+            UpdateOutlineStats();
+            ViewModel.StatusMessage = "Flattened all outline items to root level.";
+        }
+
         #endregion
 
         private static T? FindDescendant<T>(DependencyObject? parent) where T : DependencyObject

@@ -540,7 +540,7 @@
                                     CornerRadius="6" Padding="2" VerticalAlignment="Center"
                                     Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
                                 <Border.ContextFlyout>
-                                    <MenuFlyout x:Name="DiffContextFlyout">
+                                    <MenuFlyout x:Name="DiffContextFlyout" Opening="OnDiffContextFlyoutOpening">
                                         <MenuFlyoutItem Text="Changes only (0 context lines)" Click="OnDiffContextChangesOnlyClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>

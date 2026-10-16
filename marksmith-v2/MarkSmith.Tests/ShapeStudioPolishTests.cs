@@ -291,4 +291,58 @@ public class ShapeStudioPolishTests
         Assert.Equal(160, vm.Shapes[1].Y);
         Assert.Equal("Moved diagram to top-left margin", vm.StatusMessage);
     }
+
+    [Fact]
+    public void DistributeDiagramOnCanvas_Horizontally_SpacesShapesEvenly()
+    {
+        var vm = NewVm();
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 0, Y = 100, Width = 100, Height = 60 });
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 120, Y = 100, Width = 100, Height = 60 });
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 400, Y = 100, Width = 100, Height = 60 });
+
+        vm.DistributeDiagramOnCanvas(vertical: false);
+
+        Assert.Equal(0, vm.Shapes[0].X);
+        Assert.Equal(200, vm.Shapes[1].X);
+        Assert.Equal(400, vm.Shapes[2].X);
+        Assert.Equal("Distributed diagram horizontally", vm.StatusMessage);
+    }
+
+    [Fact]
+    public void DistributeDiagramOnCanvas_Vertically_SpacesShapesEvenly()
+    {
+        var vm = NewVm();
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 50, Y = 0, Width = 80, Height = 50 });
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 50, Y = 90, Width = 80, Height = 50 });
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 50, Y = 300, Width = 80, Height = 50 });
+
+        vm.DistributeDiagramOnCanvas(vertical: true);
+
+        Assert.Equal(0, vm.Shapes[0].Y);
+        Assert.Equal(150, vm.Shapes[1].Y);
+        Assert.Equal(300, vm.Shapes[2].Y);
+        Assert.Equal("Distributed diagram vertically", vm.StatusMessage);
+    }
+
+    [Fact]
+    public void TidyDiagramIntoGrid_ArrangesShapesInOrder()
+    {
+        var vm = NewVm();
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 500, Y = 500, Width = 100, Height = 50 });
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 100, Y = 200, Width = 100, Height = 50 });
+        vm.Shapes.Add(new ShapeCanvasItemViewModel { X = 300, Y = 800, Width = 100, Height = 50 });
+
+        vm.TidyDiagramIntoGrid(columns: 2, marginX: 100, marginY: 100, gapX: 20, gapY: 30);
+
+        // Row 0, Col 0:
+        Assert.Equal(100, vm.Shapes[0].X);
+        Assert.Equal(100, vm.Shapes[0].Y);
+        // Row 0, Col 1:
+        Assert.Equal(220, vm.Shapes[1].X);
+        Assert.Equal(100, vm.Shapes[1].Y);
+        // Row 1, Col 0:
+        Assert.Equal(100, vm.Shapes[2].X);
+        Assert.Equal(180, vm.Shapes[2].Y);
+        Assert.Equal("Arranged 3 shapes in a grid", vm.StatusMessage);
+    }
 }

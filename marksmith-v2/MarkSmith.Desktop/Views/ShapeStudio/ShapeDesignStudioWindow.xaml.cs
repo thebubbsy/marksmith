@@ -1596,6 +1596,28 @@ namespace MarkSmith.Views.ShapeStudio
         private void OnCenterVerticallyClick(object sender, RoutedEventArgs e) => ViewModel.CenterDiagramOnCanvas(horizontal: false, vertical: true);
         private void OnResetTopLeftClick(object sender, RoutedEventArgs e) => ViewModel.ResetDiagramToTopLeft(padX: 60, padY: 60);
 
+        private void OnDistributeCanvasButtonClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.DistributeDiagramOnCanvas(vertical: false);
+            DistributeCanvasFlyout?.Hide();
+        }
+
+        private void OnDistributeCanvasButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ViewModel.DistributeDiagramOnCanvas(vertical: true);
+        }
+
+        private void OnDistributeCanvasButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            DistributeCanvasFlyout?.ShowAt(sender as FrameworkElement ?? DistributeCanvasButton);
+        }
+
+        private void OnDistributeHorizontallyClick(object sender, RoutedEventArgs e) => ViewModel.DistributeDiagramOnCanvas(vertical: false);
+        private void OnDistributeVerticallyClick(object sender, RoutedEventArgs e) => ViewModel.DistributeDiagramOnCanvas(vertical: true);
+        private void OnAutoTidyGridClick(object sender, RoutedEventArgs e) => ViewModel.TidyDiagramIntoGrid();
+
         private void SetGridSnapMode(int interval, bool showGrid)
         {
             _gridSnapInterval = interval;

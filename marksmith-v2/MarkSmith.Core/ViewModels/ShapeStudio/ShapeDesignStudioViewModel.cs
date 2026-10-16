@@ -1457,6 +1457,92 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Distributes the diagram or selected shapes with equal spacing between their bounding boxes.</summary>
+    public void DistributeDiagramOnCanvas(bool vertical = false)
+    {
+        var targets = SelectionCount >= 3 ? Selection.ToList() : Shapes.ToList();
+        if (targets.Count < 3) return;
+        RecordUndo();
+
+        if (!vertical)
+        {
+            // Horizontal distribution: sort by X
+            var sorted = targets.OrderBy(s => s.X).ToList();
+            double minX = sorted.First().X;
+            double maxX = sorted.Last().X + sorted.Last().Width;
+            double totalShapeWidths = sorted.Sum(s => s.Width);
+            double totalGap = (maxX - minX) - totalShapeWidths;
+            if (totalGap < 0) totalGap = 0;
+            double gap = totalGap / (sorted.Count - 1);
+            double currentX = minX;
+            for (int i = 0; i < sorted.Count; i++)
+            {
+                if (i > 0)
+                {
+                    sorted[i].X = Math.Round(currentX);
+                }
+                currentX += sorted[i].Width + gap;
+            }
+        }
+        else
+        {
+            // Vertical distribution: sort by Y
+            var sorted = targets.OrderBy(s => s.Y).ToList();
+            double minY = sorted.First().Y;
+            double maxY = sorted.Last().Y + sorted.Last().Height;
+            double totalShapeHeights = sorted.Sum(s => s.Height);
+            double totalGap = (maxY - minY) - totalShapeHeights;
+            if (totalGap < 0) totalGap = 0;
+            double gap = totalGap / (sorted.Count - 1);
+            double currentY = minY;
+            for (int i = 0; i < sorted.Count; i++)
+            {
+                if (i > 0)
+                {
+                    sorted[i].Y = Math.Round(currentY);
+                }
+                currentY += sorted[i].Height + gap;
+            }
+        }
+
+        StatusMessage = targets.Count == Shapes.Count
+            ? $"Distributed diagram {(vertical ? "vertically" : "horizontally")}"
+            : $"Distributed {targets.Count} shapes {(vertical ? "vertically" : "horizontally")}";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Auto-tidies shapes into a clean 2D flow grid layout.</summary>
+    public void TidyDiagramIntoGrid(int columns = 3, double marginX = 80, double marginY = 80, double gapX = 40, double gapY = 40)
+    {
+        var targets = SelectionCount >= 2 ? Selection.ToList() : Shapes.ToList();
+        if (targets.Count == 0) return;
+        RecordUndo();
+
+        int col = 0;
+        double currentX = marginX;
+        double currentY = marginY;
+        double rowMaxH = 0;
+
+        foreach (var s in targets)
+        {
+            s.X = currentX;
+            s.Y = currentY;
+            rowMaxH = Math.Max(rowMaxH, s.Height);
+            currentX += s.Width + gapX;
+            col++;
+            if (col >= columns)
+            {
+                col = 0;
+                currentX = marginX;
+                currentY += rowMaxH + gapY;
+                rowMaxH = 0;
+            }
+        }
+
+        StatusMessage = $"Arranged {targets.Count} shapes in a grid";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Deletes every selected shape.</summary>
     [RelayCommand(CanExecute = nameof(HasSelection))]
     public async System.Threading.Tasks.Task RemoveSelectedAsync()

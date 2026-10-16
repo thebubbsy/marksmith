@@ -211,6 +211,16 @@
                                     <MenuFlyoutItem Text="Copy outline hierarchy summary" Click="OnCopyOutlineSummaryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem Text="Promote all items (Shift out 1 level)" Click="OnPromoteAllClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE76B;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Demote all items (Shift in 1 level)" Click="OnDemoteAllClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE76C;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Flatten all items to root level" Click="OnFlattenAllClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8DE;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
                             </Border.ContextFlyout>
                         </Border>

@@ -7625,6 +7625,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         UpdateStatusSectionBreadcrumb(text, start);
         UpdateStatusReadingTime(text);
         UpdateStatusEncoding(text);
+        UpdateStatusIndentation(text);
     }
 
     private void UpdateStatusSectionBreadcrumb(string text, int caretPos)
@@ -7975,6 +7976,246 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus($"Copied document format: {summary}");
         };
         menu.Items.Add(copyFormatItem);
+
+        menu.ShowAt(target);
+    }
+
+    private int _currentIndentSize = 4;
+    private bool _currentIndentUseTabs = false;
+
+    private void UpdateStatusIndentation(string? text)
+    {
+        if (StatusIndentText is null || StatusIndentButton is null) return;
+        int spaces2Count = 0;
+        int spaces4Count = 0;
+        int tabsCount = 0;
+
+        if (!string.IsNullOrEmpty(text))
+        {
+            var lines = text.Split('\n');
+            foreach (var l in lines)
+            {
+                if (string.IsNullOrWhiteSpace(l)) continue;
+                int spaces = 0;
+                int tabs = 0;
+                for (int i = 0; i < l.Length; i++)
+                {
+                    if (l[i] == ' ') spaces++;
+                    else if (l[i] == '\t') tabs++;
+                    else break;
+                }
+                if (tabs > 0) tabsCount++;
+                else if (spaces > 0)
+                {
+                    if (spaces % 4 == 0) spaces4Count++;
+                    else if (spaces % 2 == 0) spaces2Count++;
+                }
+            }
+        }
+
+        if (tabsCount > spaces4Count && tabsCount > spaces2Count)
+        {
+            _currentIndentUseTabs = true;
+            _currentIndentSize = 4;
+            StatusIndentText.Text = "Tabs";
+            ToolTipService.SetToolTip(StatusIndentButton, "Indentation style: Tabs · Click to change format, double-click to toggle spaces/tabs, right-click for options");
+        }
+        else if (spaces2Count > spaces4Count)
+        {
+            _currentIndentUseTabs = false;
+            _currentIndentSize = 2;
+            StatusIndentText.Text = "Spaces: 2";
+            ToolTipService.SetToolTip(StatusIndentButton, "Indentation style: 2 Spaces · Click to change format, double-click to toggle spaces/tabs, right-click for options");
+        }
+        else
+        {
+            _currentIndentUseTabs = false;
+            _currentIndentSize = 4;
+            StatusIndentText.Text = "Spaces: 4";
+            ToolTipService.SetToolTip(StatusIndentButton, "Indentation style: 4 Spaces · Click to change format, double-click to toggle spaces/tabs, right-click for options");
+        }
+    }
+
+    private void OnStatusIndentButtonClick(object sender, RoutedEventArgs e)
+    {
+        ShowIndentFlyout(sender as FrameworkElement ?? StatusIndentButton);
+    }
+
+    private void OnStatusIndentButtonDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ToggleIndentation();
+    }
+
+    private void OnStatusIndentButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ShowIndentFlyout(StatusIndentButton);
+    }
+
+    private void ToggleIndentation()
+    {
+        if (PasteTextBox is null) return;
+        if (!_currentIndentUseTabs)
+        {
+            if (_currentIndentSize == 4)
+            {
+                ConvertIndentation(toTabs: false, targetSpaces: 2);
+            }
+            else
+            {
+                ConvertIndentation(toTabs: true, targetSpaces: 4);
+            }
+        }
+        else
+        {
+            ConvertIndentation(toTabs: false, targetSpaces: 4);
+        }
+    }
+
+    private void ConvertIndentation(bool toTabs, int targetSpaces)
+    {
+        if (PasteTextBox is null) return;
+        string text = PasteTextBox.Text ?? "";
+        if (string.IsNullOrEmpty(text)) return;
+
+        var sb = new System.Text.StringBuilder(text.Length);
+        var lines = text.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string l = lines[i];
+            bool hasCr = l.EndsWith('\r');
+            string lineNoCr = hasCr ? l.Substring(0, l.Length - 1) : l;
+
+            int ws = 0;
+            int effectiveSpaces = 0;
+            while (ws < lineNoCr.Length && (lineNoCr[ws] == ' ' || lineNoCr[ws] == '\t'))
+            {
+                if (lineNoCr[ws] == '\t') effectiveSpaces += 4;
+                else effectiveSpaces += 1;
+                ws++;
+            }
+
+            if (ws > 0)
+            {
+                string rest = lineNoCr.Substring(ws);
+                if (toTabs)
+                {
+                    int tabCount = effectiveSpaces / 4;
+                    int remSpaces = effectiveSpaces % 4;
+                    sb.Append(new string('\t', tabCount));
+                    if (remSpaces > 0) sb.Append(new string(' ', remSpaces));
+                }
+                else
+                {
+                    int levels = targetSpaces == 2 ? effectiveSpaces / 2 : effectiveSpaces / 4;
+                    if (levels == 0 && effectiveSpaces > 0) levels = 1;
+                    sb.Append(new string(' ', levels * targetSpaces));
+                }
+                sb.Append(rest);
+            }
+            else
+            {
+                sb.Append(lineNoCr);
+            }
+
+            if (hasCr) sb.Append('\r');
+            if (i < lines.Length - 1) sb.Append('\n');
+        }
+
+        string newText = sb.ToString();
+        ViewModel.BreakUndoBurst();
+        int caret = Math.Clamp(PasteTextBox.SelectionStart, 0, newText.Length);
+        PasteTextBox.Text = newText;
+        PasteTextBox.Select(caret, 0);
+        SyncDocumentFromEditor();
+        ViewModel.BreakUndoBurst();
+        UpdateCursorPosition();
+        _ = RefreshPreviewAsync();
+        string styleName = toTabs ? "Tabs" : $"Spaces: {targetSpaces}";
+        AnnounceStatus($"Converted document indentation to {styleName}");
+    }
+
+    private void TrimTrailingWhitespace()
+    {
+        if (PasteTextBox is null) return;
+        string text = PasteTextBox.Text ?? "";
+        if (string.IsNullOrEmpty(text)) return;
+
+        var lines = text.Split('\n');
+        var sb = new System.Text.StringBuilder(text.Length);
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string l = lines[i];
+            bool hasCr = l.EndsWith('\r');
+            string lineNoCr = hasCr ? l.Substring(0, l.Length - 1) : l;
+            sb.Append(lineNoCr.TrimEnd());
+            if (hasCr) sb.Append('\r');
+            if (i < lines.Length - 1) sb.Append('\n');
+        }
+
+        string newText = sb.ToString();
+        ViewModel.BreakUndoBurst();
+        int caret = Math.Clamp(PasteTextBox.SelectionStart, 0, newText.Length);
+        PasteTextBox.Text = newText;
+        PasteTextBox.Select(caret, 0);
+        SyncDocumentFromEditor();
+        ViewModel.BreakUndoBurst();
+        UpdateCursorPosition();
+        _ = RefreshPreviewAsync();
+        AnnounceStatus("Trimmed trailing whitespace across all document lines");
+    }
+
+    private void ShowIndentFlyout(FrameworkElement target)
+    {
+        var menu = new MenuFlyout();
+
+        var spaces2Item = new MenuFlyoutItem
+        {
+            Text = "Indent using Spaces: 2",
+            Icon = new FontIcon { Glyph = "\uE7E8" }
+        };
+        spaces2Item.Click += (_, _) => ConvertIndentation(toTabs: false, targetSpaces: 2);
+        menu.Items.Add(spaces2Item);
+
+        var spaces4Item = new MenuFlyoutItem
+        {
+            Text = "Indent using Spaces: 4 (Default)",
+            Icon = new FontIcon { Glyph = "\uE7E8" }
+        };
+        spaces4Item.Click += (_, _) => ConvertIndentation(toTabs: false, targetSpaces: 4);
+        menu.Items.Add(spaces4Item);
+
+        var tabsItem = new MenuFlyoutItem
+        {
+            Text = "Indent using Tabs",
+            Icon = new FontIcon { Glyph = "\uE8E4" }
+        };
+        tabsItem.Click += (_, _) => ConvertIndentation(toTabs: true, targetSpaces: 4);
+        menu.Items.Add(tabsItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var trimItem = new MenuFlyoutItem
+        {
+            Text = "Trim trailing whitespace",
+            Icon = new FontIcon { Glyph = "\uE75C" }
+        };
+        trimItem.Click += (_, _) => TrimTrailingWhitespace();
+        menu.Items.Add(trimItem);
+
+        var copyIndentItem = new MenuFlyoutItem
+        {
+            Text = "Copy indentation info",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyIndentItem.Click += (_, _) =>
+        {
+            string summary = StatusIndentText?.Text ?? "Spaces: 4";
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus($"Copied indentation format: {summary}");
+        };
+        menu.Items.Add(copyIndentItem);
 
         menu.ShowAt(target);
     }

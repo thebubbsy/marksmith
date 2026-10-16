@@ -1010,5 +1010,40 @@ namespace MarkSmith.Tests
             Assert.Equal("root-node", resolvedRoot.Id);
             Assert.Equal("Central Brain", resolvedRoot.Title);
         }
+
+        [Fact]
+        public void Run128_HierarchyDepthAndNodeSelectors_WorkCorrectly()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+
+            var root = new MindMapNodeViewModel(new MindMapNode { Title = "Central Brain", Id = "root-node" });
+            var child1 = new MindMapNodeViewModel(new MindMapNode { Title = "Branch 1", Id = "child-1", ParentId = root.Id });
+            var grandchild = new MindMapNodeViewModel(new MindMapNode { Title = "Leaf Detail", Id = "grandchild-1", ParentId = child1.Id });
+            var orphan = new MindMapNodeViewModel(new MindMapNode { Title = "Isolated Note", Id = "orphan-1" });
+
+            vm.Nodes.Add(root);
+            vm.Nodes.Add(child1);
+            vm.Nodes.Add(grandchild);
+            vm.Nodes.Add(orphan);
+
+            Assert.Equal(0, vm.GetNodeDepth(root));
+            Assert.Equal(1, vm.GetNodeDepth(child1));
+            Assert.Equal(2, vm.GetNodeDepth(grandchild));
+            Assert.Equal(0, vm.GetNodeDepth(orphan));
+            Assert.Equal(2, vm.GetMaxHierarchyDepth());
+
+            var deepest = vm.SelectDeepestNode();
+            Assert.NotNull(deepest);
+            Assert.Equal("grandchild-1", deepest.Id);
+
+            var leaf = vm.SelectNextLeafNode();
+            Assert.NotNull(leaf);
+
+            var orphanFound = vm.SelectNextOrphanNode();
+            Assert.NotNull(orphanFound);
+            Assert.Equal("orphan-1", orphanFound.Id);
+        }
     }
 }

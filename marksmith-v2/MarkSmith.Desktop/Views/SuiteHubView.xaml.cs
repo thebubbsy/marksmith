@@ -1561,12 +1561,81 @@ graph LR
     private void OnTemplateCountPillRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        if (TemplateSearchBox != null)
+        var menu = new MenuFlyout();
+
+        var allItem = new MenuFlyoutItem
         {
-            TemplateSearchBox.Text = "";
+            Text = "All Templates (8)",
+            Icon = new FontIcon { Glyph = "\uE81C" }
+        };
+        allItem.Click += (_, _) =>
+        {
+            if (TemplateSearchBox != null) TemplateSearchBox.Text = "";
             FilterTemplates("");
-            TemplateSearchBox.Focus(FocusState.Programmatic);
-        }
+        };
+        menu.Items.Add(allItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var techItem = new MenuFlyoutItem
+        {
+            Text = "Engineering & Specs (Tech Spec, ADR, RFC)",
+            Icon = new FontIcon { Glyph = "\uE943" }
+        };
+        techItem.Click += (_, _) =>
+        {
+            if (TemplateSearchBox != null) TemplateSearchBox.Text = "spec";
+            FilterTemplates("spec");
+        };
+        menu.Items.Add(techItem);
+
+        var opsItem = new MenuFlyoutItem
+        {
+            Text = "Incident & Operations (Postmortem, Release Notes)",
+            Icon = new FontIcon { Glyph = "\uE7BA" }
+        };
+        opsItem.Click += (_, _) =>
+        {
+            if (TemplateSearchBox != null) TemplateSearchBox.Text = "ops";
+            FilterTemplates("ops");
+        };
+        menu.Items.Add(opsItem);
+
+        var visualItem = new MenuFlyoutItem
+        {
+            Text = "Diagrams & Maps (SmartArt, MindMap)",
+            Icon = new FontIcon { Glyph = "\uF003" }
+        };
+        visualItem.Click += (_, _) =>
+        {
+            if (TemplateSearchBox != null) TemplateSearchBox.Text = "visual";
+            FilterTemplates("visual");
+        };
+        menu.Items.Add(visualItem);
+
+        var notesItem = new MenuFlyoutItem
+        {
+            Text = "Planning & Notes (Meeting Notes)",
+            Icon = new FontIcon { Glyph = "\uE77B" }
+        };
+        notesItem.Click += (_, _) =>
+        {
+            if (TemplateSearchBox != null) TemplateSearchBox.Text = "notes";
+            FilterTemplates("notes");
+        };
+        menu.Items.Add(notesItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var searchItem = new MenuFlyoutItem
+        {
+            Text = "Focus search box (Ctrl+F)",
+            Icon = new FontIcon { Glyph = "\uE721" }
+        };
+        searchItem.Click += (_, _) => TemplateSearchBox?.Focus(FocusState.Programmatic);
+        menu.Items.Add(searchItem);
+
+        menu.ShowAt(sender as FrameworkElement ?? TemplateCountPill);
     }
 
     private void LaunchFirstVisibleTemplate()
