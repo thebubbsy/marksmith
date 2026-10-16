@@ -3514,9 +3514,177 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private string _activeHarmonyMode = "mono";
+
         private void OnPaletteFlyoutOpening(object? sender, object e)
         {
             BuildSmartArtPaletteChoices();
+            GenerateHarmonySwatches(_activeHarmonyMode);
+        }
+
+        private void OnHarmonyMonoClick(object sender, RoutedEventArgs e)
+        {
+            _activeHarmonyMode = "mono";
+            GenerateHarmonySwatches("mono");
+        }
+
+        private void OnHarmonyAnalogousClick(object sender, RoutedEventArgs e)
+        {
+            _activeHarmonyMode = "analogous";
+            GenerateHarmonySwatches("analogous");
+        }
+
+        private void OnHarmonyTriadicClick(object sender, RoutedEventArgs e)
+        {
+            _activeHarmonyMode = "triadic";
+            GenerateHarmonySwatches("triadic");
+        }
+
+        private void GenerateHarmonySwatches(string mode)
+        {
+            if (HarmonySwatchesPanel == null) return;
+            HarmonySwatchesPanel.Children.Clear();
+
+            if (HarmonyModeLabel != null)
+            {
+                HarmonyModeLabel.Text = mode switch
+                {
+                    "analogous" => "Analogous",
+                    "triadic" => "Triadic",
+                    _ => "Monochromatic"
+                };
+            }
+
+            string baseHex = _customHexOverride ?? "0078D4";
+            var textHex = CustomPaletteHexBox?.Text?.Trim() ?? "";
+            if (textHex.StartsWith('#')) textHex = textHex.Substring(1);
+            if (textHex.Length == 6 && System.Text.RegularExpressions.Regex.IsMatch(textHex, "^[0-9a-fA-F]{6}$"))
+            {
+                baseHex = textHex.ToUpperInvariant();
+            }
+
+            byte r = Convert.ToByte(baseHex.Substring(0, 2), 16);
+            byte g = Convert.ToByte(baseHex.Substring(2, 2), 16);
+            byte b = Convert.ToByte(baseHex.Substring(4, 2), 16);
+
+            var (h, s, l) = RgbToHsl(r, g, b);
+
+            var hexColors = new List<string>();
+            switch (mode.ToLowerInvariant())
+            {
+                case "analogous":
+                    hexColors.Add(HslToHex(h - 30, s, l));
+                    hexColors.Add(HslToHex(h - 15, s, l));
+                    hexColors.Add(baseHex);
+                    hexColors.Add(HslToHex(h + 15, s, l));
+                    hexColors.Add(HslToHex(h + 30, s, l));
+                    break;
+                case "triadic":
+                    hexColors.Add(baseHex);
+                    hexColors.Add(HslToHex(h + 120, s, l));
+                    hexColors.Add(HslToHex(h + 240, s, l));
+                    hexColors.Add(HslToHex(h + 60, s, Math.Min(1.0, l * 1.15)));
+                    hexColors.Add(HslToHex(h + 180, s, Math.Max(0.2, l * 0.85)));
+                    break;
+                default: // mono
+                    hexColors.Add(HslToHex(h, s, 0.25));
+                    hexColors.Add(HslToHex(h, s, 0.40));
+                    hexColors.Add(baseHex);
+                    hexColors.Add(HslToHex(h, s, 0.70));
+                    hexColors.Add(HslToHex(h, s, 0.85));
+                    break;
+            }
+
+            foreach (var hex in hexColors)
+            {
+                var brush = BrushFromHex(hex);
+                var swatch = new Border
+                {
+                    Width = 38,
+                    Height = 22,
+                    CornerRadius = new CornerRadius(4),
+                    Background = brush,
+                    BorderThickness = new Thickness(1),
+                    BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
+                    IsHitTestVisible = true
+                };
+                ToolTipService.SetToolTip(swatch, $"Click to apply #{hex} to preview");
+                swatch.Tapped += (s, args) =>
+                {
+                    _customHexOverride = hex.ToUpperInvariant();
+                    if (CustomPaletteHexBox != null) CustomPaletteHexBox.Text = "#" + _customHexOverride;
+                    if (CustomPaletteSwatch != null) CustomPaletteSwatch.Background = brush;
+                    RefreshWebView();
+                    if (CustomPaletteStatusText != null)
+                    {
+                        CustomPaletteStatusText.Text = $"Applied #{_customHexOverride}";
+                        CustomPaletteStatusText.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
+                        CustomPaletteStatusText.Visibility = Visibility.Visible;
+                    }
+                    ViewModel.StatusMessage = $"Applied harmony color: #{_customHexOverride}";
+                    if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);
+                };
+                HarmonySwatchesPanel.Children.Add(swatch);
+            }
+        }
+
+        private static (double H, double S, double L) RgbToHsl(byte r, byte g, byte b)
+        {
+            double rd = r / 255.0;
+            double gd = g / 255.0;
+            double bd = b / 255.0;
+            double max = Math.Max(rd, Math.Max(gd, bd));
+            double min = Math.Min(rd, Math.Min(gd, bd));
+            double h = 0, s = 0, l = (max + min) / 2.0;
+
+            if (Math.Abs(max - min) > 0.0001)
+            {
+                double d = max - min;
+                s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
+                if (Math.Abs(max - rd) < 0.0001)
+                    h = (gd - bd) / d + (gd < bd ? 6.0 : 0.0);
+                else if (Math.Abs(max - gd) < 0.0001)
+                    h = (bd - rd) / d + 2.0;
+                else
+                    h = (rd - gd) / d + 4.0;
+                h *= 60.0;
+            }
+            return (h, s, l);
+        }
+
+        private static string HslToHex(double h, double s, double l)
+        {
+            h = (h % 360.0 + 360.0) % 360.0;
+            s = Math.Clamp(s, 0.0, 1.0);
+            l = Math.Clamp(l, 0.0, 1.0);
+
+            double r, g, b;
+            if (s < 0.0001)
+            {
+                r = g = b = l;
+            }
+            else
+            {
+                double q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
+                double p = 2.0 * l - q;
+                r = HueToRgb(p, q, h / 360.0 + 1.0 / 3.0);
+                g = HueToRgb(p, q, h / 360.0);
+                b = HueToRgb(p, q, h / 360.0 - 1.0 / 3.0);
+            }
+            byte rb = (byte)Math.Clamp((int)Math.Round(r * 255.0), 0, 255);
+            byte gb = (byte)Math.Clamp((int)Math.Round(g * 255.0), 0, 255);
+            byte bb = (byte)Math.Clamp((int)Math.Round(b * 255.0), 0, 255);
+            return $"{rb:X2}{gb:X2}{bb:X2}";
+        }
+
+        private static double HueToRgb(double p, double q, double t)
+        {
+            if (t < 0) t += 1.0;
+            if (t > 1) t -= 1.0;
+            if (t < 1.0 / 6.0) return p + (q - p) * 6.0 * t;
+            if (t < 1.0 / 2.0) return q;
+            if (t < 2.0 / 3.0) return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
+            return p;
         }
 
         private void OnPaletteListSelectionChanged(object sender, SelectionChangedEventArgs e)

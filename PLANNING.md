@@ -9199,5 +9199,73 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 13436, responsive startup, clean exit.
 
+### 2026-10-17 02:35 AEST (run #122: MindMap Galaxy custom connection line styles & arrow toggle, Shape Studio shape inspector layer order ribbon & dynamic layer badge, SmartArt Studio color harmony generator & live preview recoloring, MainWindow editor Markdown callout alert button & alert insertion flyout, History Window timeline commit SHA copy badge in diff summary, SuiteHubView engine health status indicator badge & system diagnostics copy)
 
+- **Surface:** `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `MainWindow`, `HistoryWindow`, `SuiteHubView`.
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering custom connection routing line styles (curved bezier, straight, stepped orthogonal) with tangent/midpoint vector math and link arrow toggle, shape inspector z-order layering controls (`Bring to Front`, `Bring Forward`, `Send Backward`, `Send to Back`) with dynamic `Layer X of Y` badge, color harmony generator in `PaletteFlyout` (Monochromatic, Analogous, Triadic) with live HSL math and SVG recoloring, editor bottom toolbar Markdown Callout & Alert formatter (`[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`, blockquote), timeline commit SHA copy badge in Diff Summary with toast notice, and Suite Hub engine health status indicator badge (`Engine Ready`) with system diagnostics copy under the AI-Executable 3-Block Cycle + Execution Phase Protocol (`GEMINI.md` Rule 7).
 
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #121:
+    * Target A: `MindMapGalaxyWindow` custom connection line styles (straight, curved bezier, stepped orthogonal, dashed) and link arrow toggle.
+    * Target B: `ShapeDesignStudioWindow` shape z-order layering controls (Bring to Front, Send to Back, Bring Forward, Send Backward) with visual layer indicator.
+    * Target C: `SmartArtDesignStudioWindow` color palette generator from base hex with monochromatic, analogous, and triadic harmony modes.
+  - Generated:
+    1. `MindMapGalaxyWindow`: Custom connection line routing styles dropdown (`ConnectionStyleDropDownButton`) with Curved Bezier, Straight, and Stepped Orthogonal routing modes, tangent vector math for midpoint arrowheads, and arrowhead visibility toggle (`ShowArrowheadsToggle`).
+    2. `ShapeDesignStudioWindow`: Shape inspector z-order layer order ribbon (`LayerRibbon`) with 4 one-click layer reordering buttons (`Bring to Front`, `Bring Forward`, `Send Backward`, `Send to Back`) and a dynamic layer index badge (`InspectorLayerPositionText`, e.g. `Layer 3 of 8`).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `MindMapGalaxyWindow` connection rendering in `UpdateGeometry()` to support `ConnectionRoutingStyle` (`CurvedBezier`, `Straight`, `SteppedOrthogonal`). Curved mode applies standard cubic bezier tangents; Straight mode routes direct linear segments; Stepped Orthogonal mode routes half-X right angles with smooth corner continuity. Tangent calculations for arrowhead rotation are customized per routing mode. Double-clicking the dropdown button cycles through styles instantly.
+    * For Idea 2: Mounted `LayerRibbon` under the Inspector properties panel. Inspects active shape index within `ActiveShapes`, executing index swaps and boundary clamping (`BringToFront`, `BringForward`, `SendBackward`, `SendToBack`), calling `RedrawCanvas()`, and refreshing `UpdateInspectorLayerUi()` with live `Layer X of Y` position readout.
+  - Generated:
+    3. `SmartArtDesignStudioWindow`: Dynamic color harmony palette generator in `PaletteFlyout` (`GenerateHarmonies()`, `RgbToHsl()`, `HslToHex()`, `HueToRgb()`) producing 5-swatch Monochromatic, Analogous, and Triadic color schemes from the active hex seed with one-click live preview application (`HarmonySwatchesPanel`).
+    4. `MainWindow`: Markdown callout alert formatter button (`CalloutAlertButton`) in editor bottom toolbar with quick insertion flyout for GitHub Flavored Markdown alerts (`[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) and standard blockquotes (`> Quote`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Added dedicated Color Harmonies section in `PaletteFlyout` below custom hex override. Includes segmented harmony mode selector (Monochromatic, Analogous, Triadic) and a 5-swatch palette panel populated with computed harmonious hex colors. Clicking any harmony swatch immediately updates `CustomPaletteHexBox`, applies the color to the SVG diagram, and triggers live preview re-rendering.
+    * For Idea 4: Placed `CalloutAlertButton` directly between `FormatTableButton` and `LintButton` in the editor bottom toolbar. Single click wraps the current line or selection in a `> [!NOTE]` callout; double-click wraps in a `> [!TIP]` callout; right-click or dropdown reveals flyout menu with all 5 alert types and standard blockquote with keyboard shortcut labels.
+  - Refined Block 1 (Pass 2 - Final):
+    * Handled C# discard type safety constraints: ensured `void`-returning methods (`ApplyButtonTick`) are not discarded with `_ =`, avoiding `CS8209`.
+    * Enforced type distinction between `Button` and `Border` controls in visual feedback helpers.
+  - Generated:
+    5. `HistoryWindow`: Timeline commit SHA copy pill in Diff Summary panel (`CommitShaCopyPill`, `CommitShaCopyText`, `OnCommitShaCopyPillTapped`), copying the 8-character short SHA to clipboard with transient toast notice (`_vm.ShowNotice`).
+    6. `SuiteHubView`: Engine health status indicator badge in Suite Hub header card (`HealthStatusBadge`, `HealthStatusDot`, `HealthStatusText`, `Engine Ready`), left-click/tap showing transient status message and right-click copying full MarkSmith diagnostic snapshot to clipboard.
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Mounted an interactive commit SHA badge inside `DiffSummaryPanel`. Displays `SHA: abc12345` with hover styling and tooltip; tapping copies commit SHA to system clipboard and displays "Copied commit SHA to clipboard" notice in the diff footer.
+    * For Idea 6: Positioned `HealthStatusBadge` in `SuiteHubView` header card. Features pulsing accent/green status dot and `Engine Ready` label. Tapping provides visual confirmation; right-clicking generates and copies a complete system diagnostic report (MarkSmith version, .NET runtime, OS architecture, memory usage, local repository status) to clipboard.
+  - Executed all 6 refined targets into 100% production code.
+  - Verification:
+    * `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `MarkSmith.Tests.dll`: **Passed: 4,802, Failed: 0, Skipped: 1, Total: 4,803**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 10800, responsive startup (`Responding: True`), clean exit.
+  - Carried forward ideas / next targets into Run #123:
+    * Target A: `MindMapGalaxyWindow` node layout auto-arrangement algorithms (Radial Starburst, Tree Hierarchy, Force-Directed Physics).
+    * Target B: `ShapeDesignStudioWindow` shape duplication hotkey (`Ctrl+D`) with smart offset and alignment guides.
+    * Target C: `SmartArtDesignStudioWindow` SVG diagram background styling (Transparent, Subtle Grid, Contrast Fill) and dark mode contrast toggle.
+
+**Shipped:**
+1. **`MindMapGalaxyWindow` Custom Connection Line Styles & Arrowheads Toggle (`Views/MindMap/MindMapGalaxyWindow.xaml`, `Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Routing style dropdown button (`ConnectionStyleDropDownButton`) with Curved Bezier, Straight, and Stepped Orthogonal connection algorithms.
+   - Arrowheads toggle (`ShowArrowheadsToggle`) with tangent vector rotation math for precise midpoint directional arrows.
+   - Double-clicking dropdown button quickly cycles through routing styles.
+2. **`ShapeDesignStudioWindow` Shape Inspector Layer Order Ribbon & Dynamic Layer Badge (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Z-order layer ribbon (`LayerRibbon`) in the shape inspector with 4 commands: Bring to Front, Bring Forward, Send Backward, and Send to Back.
+   - Dynamic layer index badge (`InspectorLayerPositionText`) displaying `Layer X of Y` position within canvas shapes.
+3. **`SmartArtDesignStudioWindow` Color Harmony Generator & Live Preview Recoloring (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Harmony palette generator with Monochromatic, Analogous, and Triadic color harmonies dynamically calculated using HSL color space math.
+   - 5-swatch interactive harmony palette panel (`HarmonySwatchesPanel`) applying selected color harmony to SVG preview in real-time.
+4. **`MainWindow` Markdown Callout Alert Button & Alert Insertion Flyout (`MainWindow.xaml`, `MainWindow.xaml.cs`):**
+   - Callout alert button (`CalloutAlertButton`) in editor bottom toolbar between table formatter and lint button.
+   - Single-click wraps line/selection in `> [!NOTE]`; double-click wraps in `> [!TIP]`; flyout menu allows selecting Note, Tip, Important, Warning, Caution, or Quote with undo burst isolation.
+5. **`HistoryWindow` Timeline Commit SHA Copy Badge in Diff Summary (`Views/History/HistoryWindow.xaml`, `Views/History/HistoryWindow.xaml.cs`):**
+   - Commit SHA copy pill (`CommitShaCopyPill`) in `DiffSummaryPanel` header showing short SHA with hover effect and tooltip.
+   - Tapping copies SHA to clipboard and triggers transient toast notification in diff viewer.
+6. **`SuiteHubView` Engine Health Status Indicator Badge & System Diagnostics Copy (`Views/SuiteHubView.xaml`, `Views/SuiteHubView.xaml.cs`):**
+   - Engine health status badge (`HealthStatusBadge`) in Suite Hub header card with pulsing green status dot and `Engine Ready` label.
+   - Left-click displays transient confirmation; right-click synthesizes and copies comprehensive system diagnostics (.NET runtime, memory, OS, git status) to clipboard.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 10800, responsive startup, clean exit.

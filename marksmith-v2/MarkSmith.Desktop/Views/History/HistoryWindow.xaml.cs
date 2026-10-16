@@ -1460,6 +1460,19 @@ public sealed partial class HistoryWindow : Window
         }
     }
 
+    private void OnCommitShaCopyPillTapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var sha = _vm.Selected?.Id;
+        if (!string.IsNullOrWhiteSpace(sha))
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(sha);
+            ClipboardWriter.Set(dp);
+            _vm.ShowNotice($"Copied version SHA: {sha}");
+        }
+    }
+
     private void OnDiffSummaryRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;

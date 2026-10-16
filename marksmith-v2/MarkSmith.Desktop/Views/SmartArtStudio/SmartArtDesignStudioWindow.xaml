@@ -422,6 +422,26 @@
                                             </Grid>
                                             <TextBlock x:Name="CustomPaletteStatusText" Text="" FontSize="11" Foreground="{ThemeResource SystemFillColorSuccessBrush}"
                                                        Visibility="Collapsed" />
+                                            <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4" />
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Text="Harmony palette generator" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
+                                                <TextBlock x:Name="HarmonyModeLabel" Grid.Column="1" Text="Monochromatic" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                            </Grid>
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <Button x:Name="HarmonyMonoBtn" Style="{StaticResource SubtleButtonStyle}" Padding="8,3" Height="26"
+                                                        Click="OnHarmonyMonoClick" ToolTipService.ToolTip="Monochromatic harmony (stepped lightness)">
+                                                    <TextBlock Text="Mono" FontSize="11" />
+                                                </Button>
+                                                <Button x:Name="HarmonyAnalogousBtn" Style="{StaticResource SubtleButtonStyle}" Padding="8,3" Height="26"
+                                                        Click="OnHarmonyAnalogousClick" ToolTipService.ToolTip="Analogous harmony (adjacent ±30° hues)">
+                                                    <TextBlock Text="Analogous" FontSize="11" />
+                                                </Button>
+                                                <Button x:Name="HarmonyTriadicBtn" Style="{StaticResource SubtleButtonStyle}" Padding="8,3" Height="26"
+                                                        Click="OnHarmonyTriadicClick" ToolTipService.ToolTip="Triadic harmony (balanced 120° split hues)">
+                                                    <TextBlock Text="Triadic" FontSize="11" />
+                                                </Button>
+                                            </StackPanel>
+                                            <StackPanel x:Name="HarmonySwatchesPanel" Orientation="Horizontal" Spacing="4" Margin="0,2" />
                                         </StackPanel>
                                     </Flyout>
                                 </Button.Flyout>

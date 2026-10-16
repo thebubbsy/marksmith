@@ -225,6 +225,33 @@
                             </StackPanel>
                         </ToggleButton>
 
+                        <DropDownButton x:Name="ConnectionStyleDropDownButton" Padding="10,5" MinHeight="32"
+                                        ToolTipService.ToolTip="Connection line style and arrowheads (Curved, Straight, Orthogonal · Double-click to cycle)"
+                                        DoubleTapped="OnConnectionStyleDropDownDoubleTapped"
+                                        AutomationProperties.Name="Connection style">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE71B;" FontSize="12" />
+                                <TextBlock x:Name="ConnectionStyleLabel" Text="Curved" FontSize="12" />
+                            </StackPanel>
+                            <DropDownButton.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                    <MenuFlyoutItem x:Name="ConnStyleCurvedItem" Text="Curved (Bezier)" Click="OnConnectionStyleCurvedClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xECA5;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="ConnStyleStraightItem" Text="Straight lines" Click="OnConnectionStyleStraightClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="ConnStyleOrthogonalItem" Text="Stepped (Orthogonal)" Click="OnConnectionStyleOrthogonalClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem x:Name="ToggleArrowsItem" Text="Toggle arrowheads" Click="OnToggleArrowsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+
                         <AppBarSeparator />
 
                         <Button x:Name="ImportFolderButton" Click="OnImportFolderClick" Style="{StaticResource GalaxyToolButton}"

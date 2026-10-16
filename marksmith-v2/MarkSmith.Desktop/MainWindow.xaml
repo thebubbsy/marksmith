@@ -892,6 +892,41 @@
                                             </MenuFlyout>
                                         </Button.Flyout>
                                     </Button>
+                                    <!-- Markdown callout alerts & quote formatter -->
+                                    <Button x:Name="CalloutAlertButton" Height="24" Padding="6,0"
+                                            Click="OnCalloutAlertButtonClick"
+                                            DoubleTapped="OnCalloutAlertButtonDoubleTapped"
+                                            RightTapped="OnCalloutAlertButtonRightTapped"
+                                            AutomationProperties.Name="Insert or convert to callout alert"
+                                            ToolTipService.ToolTip="Insert or convert paragraph to callout alert ([!NOTE], [!TIP], etc.) · Double-click for [!NOTE], Right-click for options">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon Glyph="&#xE7BA;" FontSize="11" />
+                                            <TextBlock Text="Callout" FontSize="11" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <Button.Flyout>
+                                            <MenuFlyout x:Name="CalloutAlertFlyout">
+                                                <MenuFlyoutItem Text="> [!NOTE] (Info / Note)" Click="OnInsertCalloutNoteClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE946;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="> [!TIP] (Helpful Tip)" Click="OnInsertCalloutTipClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE82F;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="> [!IMPORTANT] (Crucial Info)" Click="OnInsertCalloutImportantClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE897;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="> [!WARNING] (Warning Notice)" Click="OnInsertCalloutWarningClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7BA;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="> [!CAUTION] (High-Risk Caution)" Click="OnInsertCalloutCautionClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutSeparator />
+                                                <MenuFlyoutItem Text="> Standard Blockquote" Click="OnInsertStandardQuoteClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE90A;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
                                     <!-- Markdown lint: live issue count; the flyout lists issues and jumps to them. -->
                                     <Button x:Name="LintButton" Height="24" Padding="6,0"
                                             AutomationProperties.Name="Markdown issues"

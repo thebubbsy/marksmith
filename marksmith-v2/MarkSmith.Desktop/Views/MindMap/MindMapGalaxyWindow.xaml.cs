@@ -54,6 +54,16 @@ namespace MarkSmith.Views.MindMap
         private Border? _breadcrumbBar;
         private StackPanel? _breadcrumbPanel;
 
+        public enum ConnectionRoutingStyle
+        {
+            Curved,
+            Straight,
+            Orthogonal
+        }
+
+        private ConnectionRoutingStyle _connectionRoutingStyle = ConnectionRoutingStyle.Curved;
+        private bool _showConnectionArrows = true;
+
         public event EventHandler<string>? OpenDocumentRequested;
 
         public MindMapGalaxyWindow(MindMapStudioViewModel? viewModel = null)
@@ -1633,14 +1643,39 @@ namespace MarkSmith.Views.MindMap
                 {
                     start = new Point(srcX + src.Width, srcY + (src.Height / 2.0));
                     end = new Point(tgtX, tgtY + (tgt.Height / 2.0));
-                    double ctrl = Math.Max(Math.Abs(end.X - start.X) * 0.5, 40);
-                    c1 = new Point(start.X + ctrl, start.Y);
-                    c2 = new Point(end.X - ctrl, end.Y);
+                    if (_connectionRoutingStyle == ConnectionRoutingStyle.Straight)
+                    {
+                        c1 = new Point(start.X + (end.X - start.X) / 3.0, start.Y + (end.Y - start.Y) / 3.0);
+                        c2 = new Point(start.X + 2.0 * (end.X - start.X) / 3.0, start.Y + 2.0 * (end.Y - start.Y) / 3.0);
+                    }
+                    else if (_connectionRoutingStyle == ConnectionRoutingStyle.Orthogonal)
+                    {
+                        double midX = (start.X + end.X) / 2.0;
+                        c1 = new Point(midX, start.Y);
+                        c2 = new Point(midX, end.Y);
+                    }
+                    else
+                    {
+                        double ctrl = Math.Max(Math.Abs(end.X - start.X) * 0.5, 40);
+                        c1 = new Point(start.X + ctrl, start.Y);
+                        c2 = new Point(end.X - ctrl, end.Y);
+                    }
                 }
                 else
                 {
                     (start, c1, c2, end) = RouteCrossLink(srcX, srcY, src.Width, src.Height,
                         tgtX, tgtY, tgt.Width, tgt.Height, e.LabelSize.Width);
+                    if (_connectionRoutingStyle == ConnectionRoutingStyle.Straight)
+                    {
+                        c1 = new Point(start.X + (end.X - start.X) / 3.0, start.Y + (end.Y - start.Y) / 3.0);
+                        c2 = new Point(start.X + 2.0 * (end.X - start.X) / 3.0, start.Y + 2.0 * (end.Y - start.Y) / 3.0);
+                    }
+                    else if (_connectionRoutingStyle == ConnectionRoutingStyle.Orthogonal)
+                    {
+                        double midX = (start.X + end.X) / 2.0;
+                        c1 = new Point(midX, start.Y);
+                        c2 = new Point(midX, end.Y);
+                    }
                 }
 
                 e.Figure.StartPoint = start;
@@ -1661,8 +1696,10 @@ namespace MarkSmith.Views.MindMap
                     var dir = e.Link.Direction;
                     // Heads follow the curve's tangent at each end (control point -> end point), so
                     // they point into the card border the connector actually meets.
-                    SetArrow(e.ArrowForward, c2, end, dir is MindMapLinkDirection.SourceToTarget or MindMapLinkDirection.Bidirectional);
-                    SetArrow(e.ArrowBackward, c1, start, dir is MindMapLinkDirection.TargetToSource or MindMapLinkDirection.Bidirectional);
+                    bool showFwd = _showConnectionArrows && (dir is MindMapLinkDirection.SourceToTarget or MindMapLinkDirection.Bidirectional);
+                    bool showBwd = _showConnectionArrows && (dir is MindMapLinkDirection.TargetToSource or MindMapLinkDirection.Bidirectional);
+                    SetArrow(e.ArrowForward, c2, end, showFwd);
+                    SetArrow(e.ArrowBackward, c1, start, showBwd);
 
                     if (e.Label != null)
                     {
@@ -3836,6 +3873,54 @@ namespace MarkSmith.Views.MindMap
         private void OnToggleFocusModeClick(object sender, RoutedEventArgs e)
         {
             ViewModel.ToggleFocusModeCommand.Execute(null);
+        }
+
+        private void OnConnectionStyleCurvedClick(object sender, RoutedEventArgs e)
+        {
+            SetConnectionRoutingStyle(ConnectionRoutingStyle.Curved);
+        }
+
+        private void OnConnectionStyleStraightClick(object sender, RoutedEventArgs e)
+        {
+            SetConnectionRoutingStyle(ConnectionRoutingStyle.Straight);
+        }
+
+        private void OnConnectionStyleOrthogonalClick(object sender, RoutedEventArgs e)
+        {
+            SetConnectionRoutingStyle(ConnectionRoutingStyle.Orthogonal);
+        }
+
+        private void OnToggleArrowsClick(object sender, RoutedEventArgs e)
+        {
+            _showConnectionArrows = !_showConnectionArrows;
+            RequestRedraw(RedrawScope.Geometry | RedrawScope.Appearance);
+        }
+
+        private void OnConnectionStyleDropDownDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var next = _connectionRoutingStyle switch
+            {
+                ConnectionRoutingStyle.Curved => ConnectionRoutingStyle.Straight,
+                ConnectionRoutingStyle.Straight => ConnectionRoutingStyle.Orthogonal,
+                _ => ConnectionRoutingStyle.Curved
+            };
+            SetConnectionRoutingStyle(next);
+        }
+
+        private void SetConnectionRoutingStyle(ConnectionRoutingStyle style)
+        {
+            _connectionRoutingStyle = style;
+            if (ConnectionStyleLabel != null)
+            {
+                ConnectionStyleLabel.Text = style switch
+                {
+                    ConnectionRoutingStyle.Straight => "Straight",
+                    ConnectionRoutingStyle.Orthogonal => "Stepped",
+                    _ => "Curved"
+                };
+            }
+            RequestRedraw(RedrawScope.Geometry | RedrawScope.Appearance);
         }
 
         private void OnFocusToggleRightTapped(object sender, RightTappedRoutedEventArgs e)

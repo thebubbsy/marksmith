@@ -757,6 +757,34 @@ public sealed partial class SuiteHubView : UserControl
             menu.ShowAt(this);
     }
 
+    private void OnHealthStatusTapped(object sender, TappedRoutedEventArgs e)
+    {
+        var status = $"MarkSmith WinUI 3 Desktop Engine: Active · {VersionText?.Text ?? "Version 3.0.0"} · All Studios Ready";
+        CopyToClipboard(status, "Copied suite health status.");
+        e.Handled = true;
+    }
+
+    private void OnHealthStatusRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var menu = new MenuFlyout();
+        var copyStatusItem = new MenuFlyoutItem
+        {
+            Text = "Copy system health diagnostics",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyStatusItem.Click += (_, _) =>
+        {
+            var diag = $"MarkSmith Engine: Ready{Environment.NewLine}Version: {VersionText?.Text ?? "3.0.0"}{Environment.NewLine}License: {LicenseText?.Text ?? "Free plan"}{Environment.NewLine}Platform: WinUI 3 Desktop x64{Environment.NewLine}.NET Runtime: {Environment.Version}";
+            CopyToClipboard(diag, "Copied system diagnostics.");
+        };
+        menu.Items.Add(copyStatusItem);
+        if (HealthStatusBadge != null)
+            menu.ShowAt(HealthStatusBadge, e.GetPosition(HealthStatusBadge));
+        else if (sender is FrameworkElement feTarget)
+            menu.ShowAt(feTarget);
+    }
+
     private void OnOpenMermaidStudioClick(object sender, RoutedEventArgs e)
     {
         OpenMermaidStudioRequested?.Invoke();

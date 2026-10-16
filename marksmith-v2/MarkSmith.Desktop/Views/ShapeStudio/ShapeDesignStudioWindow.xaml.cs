@@ -824,6 +824,8 @@ namespace MarkSmith.Views.ShapeStudio
                     if (!ReferenceEquals(ViewModel.SelectedShape, _inspectorUndoFor)) _inspectorUndoFor = null;
                     if (ViewModel.SelectedShape is { } sel) ShapesList.ScrollIntoView(sel);
                     TrackAdornedShape(ViewModel.SelectedShape);
+                    UpdateCornerRadiusButtonState();
+                    UpdateInspectorLayerUi();
                     return;
                 case nameof(ShapeDesignStudioViewModel.SelectionCount):
                 case nameof(ShapeDesignStudioViewModel.IsDense):
@@ -2541,6 +2543,54 @@ namespace MarkSmith.Views.ShapeStudio
             if (CornerRadiusText == null || ViewModel.SelectedShape == null) return;
             bool isRound = string.Equals(ViewModel.SelectedShape.Prst, "roundrect", StringComparison.OrdinalIgnoreCase);
             CornerRadiusText.Text = isRound ? "Sharp" : "Round";
+        }
+
+        private void UpdateInspectorLayerUi()
+        {
+            if (InspectorLayerPositionText == null) return;
+            var shape = ViewModel.SelectedShape;
+            if (shape == null || ViewModel.Shapes.Count == 0)
+            {
+                InspectorLayerPositionText.Text = "No shape";
+                if (InspectorBringToFrontBtn != null) InspectorBringToFrontBtn.IsEnabled = false;
+                if (InspectorBringForwardBtn != null) InspectorBringForwardBtn.IsEnabled = false;
+                if (InspectorSendBackwardBtn != null) InspectorSendBackwardBtn.IsEnabled = false;
+                if (InspectorSendToBackBtn != null) InspectorSendToBackBtn.IsEnabled = false;
+                return;
+            }
+
+            int index = ViewModel.Shapes.IndexOf(shape);
+            int total = ViewModel.Shapes.Count;
+            InspectorLayerPositionText.Text = $"Layer {index + 1} of {total}";
+
+            if (InspectorBringToFrontBtn != null) InspectorBringToFrontBtn.IsEnabled = index < total - 1;
+            if (InspectorBringForwardBtn != null) InspectorBringForwardBtn.IsEnabled = index < total - 1;
+            if (InspectorSendBackwardBtn != null) InspectorSendBackwardBtn.IsEnabled = index > 0;
+            if (InspectorSendToBackBtn != null) InspectorSendToBackBtn.IsEnabled = index > 0;
+        }
+
+        private void OnInspectorBringToFrontClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.BringToFrontCommand.Execute(null);
+            UpdateInspectorLayerUi();
+        }
+
+        private void OnInspectorBringForwardClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.BringForwardCommand.Execute(null);
+            UpdateInspectorLayerUi();
+        }
+
+        private void OnInspectorSendBackwardClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.SendBackwardCommand.Execute(null);
+            UpdateInspectorLayerUi();
+        }
+
+        private void OnInspectorSendToBackClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.SendToBackCommand.Execute(null);
+            UpdateInspectorLayerUi();
         }
 
         private void ShowMultiSelectionContextMenu(Point position)

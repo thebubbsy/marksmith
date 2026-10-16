@@ -33,6 +33,13 @@
                                     Tapped="OnVersionInfoTapped" RightTapped="OnVersionInfoRightTapped" ToolTipService.ToolTip="Click to copy plan and license details (Ctrl+C, Right-click for options)">
                                 <TextBlock x:Name="LicenseText" Text="Free plan" FontSize="10.5" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" FontWeight="SemiBold" />
                             </Border>
+                            <Border x:Name="HealthStatusBadge" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="6,1" VerticalAlignment="Center"
+                                    Tapped="OnHealthStatusTapped" RightTapped="OnHealthStatusRightTapped" ToolTipService.ToolTip="System status: Desktop Engine Ready · Click to copy diagnostic summary" AutomationProperties.Name="Suite health status">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <Ellipse Width="6" Height="6" Fill="{ThemeResource SystemFillColorSuccessBrush}" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="HealthStatusText" Text="Engine Ready" FontSize="10.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                         <!-- Wraps rather than clipping: this sits between a fixed-width icon and the
                              Config Folder button, so the space it gets depends on the dialog width. -->

@@ -9770,6 +9770,68 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
+    private void OnCalloutAlertButtonClick(object sender, RoutedEventArgs e)
+    {
+        CalloutAlertFlyout?.ShowAt(sender as FrameworkElement ?? CalloutAlertButton);
+    }
+
+    private void OnCalloutAlertButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        InsertCalloutAlert("NOTE");
+    }
+
+    private void OnCalloutAlertButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        CalloutAlertFlyout?.ShowAt(sender as FrameworkElement ?? CalloutAlertButton);
+    }
+
+    private void OnInsertCalloutNoteClick(object sender, RoutedEventArgs e) => InsertCalloutAlert("NOTE");
+    private void OnInsertCalloutTipClick(object sender, RoutedEventArgs e) => InsertCalloutAlert("TIP");
+    private void OnInsertCalloutImportantClick(object sender, RoutedEventArgs e) => InsertCalloutAlert("IMPORTANT");
+    private void OnInsertCalloutWarningClick(object sender, RoutedEventArgs e) => InsertCalloutAlert("WARNING");
+    private void OnInsertCalloutCautionClick(object sender, RoutedEventArgs e) => InsertCalloutAlert("CAUTION");
+    private void OnInsertStandardQuoteClick(object sender, RoutedEventArgs e) => InsertCalloutAlert(null);
+
+    private void InsertCalloutAlert(string? kind)
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string text = tb.Text ?? "";
+        int selStart = tb.SelectionStart;
+        int selLength = tb.SelectionLength;
+
+        string header = kind != null ? $"> [!{kind}]" : ">";
+        if (selLength > 0 && selStart + selLength <= text.Length)
+        {
+            string selected = text.Substring(selStart, selLength);
+            var lines = selected.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine(header);
+            foreach (var line in lines)
+            {
+                sb.AppendLine("> " + line);
+            }
+            string replacement = sb.ToString().TrimEnd('\r', '\n');
+            string newText = text.Substring(0, selStart) + replacement + text.Substring(selStart + selLength);
+            tb.Text = newText;
+            tb.SelectionStart = selStart + replacement.Length;
+            tb.SelectionLength = 0;
+        }
+        else
+        {
+            string snippet = kind != null
+                ? $"> [!{kind}]{Environment.NewLine}> Alert description and details here.{Environment.NewLine}"
+                : $"> Blockquote text here.{Environment.NewLine}";
+            string newText = text.Insert(selStart, snippet);
+            tb.Text = newText;
+            tb.SelectionStart = selStart + snippet.Length;
+            tb.SelectionLength = 0;
+        }
+        if (CalloutAlertButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(CalloutAlertButton, null);
+    }
+
     private void OnFormatTableButtonClick(object sender, RoutedEventArgs e) => FormatTableAtCursor();
 
     private void OnFormatTableButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
