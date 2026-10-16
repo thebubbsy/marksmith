@@ -460,14 +460,16 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{Binding PreviewFilePath}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                             <Button Grid.Column="1" Click="OnPreviewVersionHistoryClick" IsEnabled="{Binding PreviewHasFile}" FontSize="12" Padding="10,4"
-                                    ToolTipService.ToolTip="Earlier versions of this document" AutomationProperties.Name="Version history">
+                                    RightTapped="OnPreviewOverlayCardRightTapped"
+                                    ToolTipService.ToolTip="Earlier versions of this document · Right-click for options" AutomationProperties.Name="Version history">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE81C;" FontSize="12" />
                                     <TextBlock Text="History" FontSize="12" />
                                 </StackPanel>
                             </Button>
                             <Button Grid.Column="2" Click="OnOpenInEditorClick" IsEnabled="{Binding PreviewHasFile}" Style="{StaticResource AccentButtonStyle}" FontSize="12" Padding="10,4"
-                                    ToolTipService.ToolTip="Open this document in the editor" AutomationProperties.Name="Open in editor">
+                                    RightTapped="OnPreviewOverlayCardRightTapped"
+                                    ToolTipService.ToolTip="Open this document in the editor · Right-click for options" AutomationProperties.Name="Open in editor">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <TextBlock Text="Open" FontSize="12" />
                                     <FontIcon Glyph="&#xE8A7;" FontSize="12" />

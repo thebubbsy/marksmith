@@ -1010,6 +1010,41 @@ public sealed partial class HistoryWindow : Window
                 TimelineScroll.Focus(FocusState.Programmatic);
             }
         }
+        else if (e.Key is VirtualKey.Up)
+        {
+            e.Handled = true;
+            if (_vm.Selected is { } sel && FindVersionButton(TimelineScroll, sel) is { } btn)
+            {
+                btn.Focus(FocusState.Programmatic);
+                btn.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.3 });
+            }
+            else
+            {
+                TimelineScroll.Focus(FocusState.Programmatic);
+            }
+        }
+        else if (e.Key is VirtualKey.Escape)
+        {
+            e.Handled = true;
+            if (!string.IsNullOrEmpty(_vm.SearchQuery) || !string.IsNullOrEmpty(SearchBox.Text))
+            {
+                _vm.SearchQuery = string.Empty;
+                SearchBox.Text = string.Empty;
+                SearchBox.Focus(FocusState.Programmatic);
+            }
+            else
+            {
+                if (_vm.Selected is { } sel && FindVersionButton(TimelineScroll, sel) is { } btn)
+                    btn.Focus(FocusState.Programmatic);
+                else
+                    TimelineScroll.Focus(FocusState.Programmatic);
+            }
+        }
+    }
+
+    private void OnSearchBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        SearchBox.SelectAll();
     }
 
     private void OnSearchBoxRightTapped(object sender, RightTappedRoutedEventArgs e)

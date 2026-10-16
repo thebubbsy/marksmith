@@ -8111,3 +8111,63 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 20464, `Alive: True`, `Responding: True`, clean exit.
 
+
+
+### 2026-10-16 (scheduled routine run #106 — WinUI 3 Desktop Polish: Shape Studio Fill Swatch & Hex Quick Palette Context Menu, Shape Studio Reset Rotation Button Angle Presets & Double-Tap Parity, SmartArt Studio Outline Row Action Buttons Right-Click Parity & Tooltip Polish, HistoryWindow SearchBox Escape Clear & Navigation Parity, Mermaid Canvas QuickAdd Directional Buttons Shape Selector Menu, Mermaid Canvas Zoom Overlay Border Double-Tap & Menu Parity, MindMap Galaxy Preview Card Buttons Parity)
+
+- **Surface / Component Targets:** `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `MermaidCanvasControl`, `MindMapGalaxyWindow`
+- **Workflows Invoked:** AI-Executable 3-Block Cycle + Execution Phase Protocol
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering interaction polish, tactile hover/pressed feedback, keyboard accelerators, context menu parity, pointer gesture quarantine, focus preservation, and accessibility.
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #105:
+    * Target A: `ShapeDesignStudioWindow` shape outline / fill color swatch right-click palette menu.
+    * Target B: `HistoryWindow` search filter clear button & hotkey parity.
+  - Generated:
+    1. `ShapeDesignStudioWindow` Fill Swatch & Hex Input Quick Palette Context Menu (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+    2. `ShapeDesignStudioWindow` Reset Rotation Button Angle Stepper Menu & Double-Tap Parity (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `ShapeDesignStudioWindow.xaml.cs`)
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1): In `ShapeDesignStudioWindow.xaml` & `.xaml.cs`, attached `RightTapped="OnFillSwatchButtonRightTapped"` and `RightTapped="OnFillHexBoxRightTapped"` offering Copy hex code (`\uE8C8`), Paste hex code (`\uE77F`), Pick colour in studio (`\uE790`), Quick colour presets submenu (`\uE7B5`) with 8 standard palettes, Invert colour (`\uE7AC`), and Reset to default fill/stroke (`\uE777`). Attached `DoubleTapped="OnResetRotationButtonDoubleTapped"` (resets to 0°) and `RightTapped="OnResetRotationButtonRightTapped"` offering Reset 0° (`\uE777`), Rotate 45° (`\uE7AD`), Rotate 90° (`\uE7AD`), Rotate 180° (`\uE7AD`), Rotate -90° (`\uE80C`), and Copy rotation angle (`\uE8C8`).
+  - Generated:
+    3. `SmartArtDesignStudioWindow` Outline Item Row Action Buttons Right-Click Parity & Tooltip Polish (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`)
+    4. `HistoryWindow` Search Box Escape Clear & Vertical Keyboard Navigation & Double-Tap Parity (`Views/History/HistoryWindow.xaml` & `Views/History/HistoryWindow.xaml.cs`)
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1): In `SmartArtDesignStudioWindow.xaml`, attached `RightTapped="OnRowRightTapped"` directly to `Add child` button, `Delete item` button, `Commit rename` button, and `Cancel rename` button inside the row template; updated tooltips to advertise right-click item options. In `HistoryWindow.xaml` & `.xaml.cs`, resolved visual tree template routing where `Escape` key inside `TextBox` did not bubble cleanly to window-level handler: added `OnSearchBoxKeyDown` `VirtualKey.Escape` handler that clears active search query or blurs to `TimelineScroll`, added `VirtualKey.Up` navigation to focus timeline, and added `DoubleTapped="OnSearchBoxDoubleTapped"` to select all text.
+  - Refined Block 1 (Pass 2 - Final): In `ShapeDesignStudioWindow.xaml.cs`, strongly typed `ShowFillQuickPaletteMenu` to `ShapeCanvasItemViewModel` with clipboard error boundaries, line vs fill semantic adaptation, and undo checkpoint recording.
+  - Generated:
+    5. `MermaidCanvasControl` QuickAdd Directional Buttons Right-Click Shape Selector Menu (`Views/Mermaid/MermaidCanvasControl.xaml` & `MermaidCanvasControl.xaml.cs`)
+    6. `MermaidCanvasControl` Zoom Controls Border Background Right-Click & Double-Tap Parity (`Views/Mermaid/MermaidCanvasControl.xaml` & `MermaidCanvasControl.xaml.cs`) + `MindMapGalaxyWindow` Preview Card Action Buttons Right-Click Parity (`Views/MindMap/MindMapGalaxyWindow.xaml`)
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1): In `MermaidCanvasControl.xaml` & `.xaml.cs`, attached `RightTapped="OnQuickAddButtonRightTapped"` across all 4 directional arrow buttons (`Top`, `Right`, `Bottom`, `Left`) offering contextual creation of Process (`Rectangle`), Decision (`Rhombus`), State (`Circle`), Database (`CylindricalDatabase`), Cloud (`Cloud`), and Note (`Subroutine`) with automated edge connection and inline editor focus; attached `RightTapped="OnZoomResetRightTapped"` and `DoubleTapped="OnZoomResetDoubleTapped"` on the zoom overlay border for full-surface gesture parity. In `MindMapGalaxyWindow.xaml`, attached `RightTapped="OnPreviewOverlayCardRightTapped"` on preview card `History` and `Open` action buttons.
+  - Executed all 6 refined ideas into 100% production code.
+  - Carried forward ideas / next targets into Run #107 (`ShapeDesignStudioWindow` alignment guides toolstrip button right-click snap presets menu, `SmartArtDesignStudioWindow` layout list category combo keyboard shortcut & hotkey parity, `MainWindow` document status bar Ln/Col jump-to-line dialog right-click line navigation presets).
+
+**Shipped:**
+1. **`ShapeDesignStudioWindow` Fill Swatch & Hex Quick Palette Context Menu (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnFillSwatchButtonRightTapped"` on `FillSwatchButton` and `RightTapped="OnFillHexBoxRightTapped"` on `FillHexBox`.
+   - Context menu presents Copy hex code (`\uE8C8`), Paste hex code from clipboard (`\uE77F`), Pick colour in studio (`\uE790`), Quick colour presets submenu with 8 shades (`\uE7B5`), Invert colour (`\uE7AC`), and Reset to default fill/stroke (`\uE777`).
+   - Updated tooltips to advertise quick palette & copy shortcuts.
+2. **`ShapeDesignStudioWindow` Reset Rotation Button Angle Stepper Menu & Double-Tap Parity (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml` & `.xaml.cs`):**
+   - Attached `DoubleTapped="OnResetRotationButtonDoubleTapped"` (resets directly to 0°) and `RightTapped="OnResetRotationButtonRightTapped"` on `ResetRotationButton`.
+   - Context menu presents Reset 0° (`\uE777`), Rotate 45° (`\uE7AD`), Rotate 90° (`\uE7AD`), Rotate 180° (`\uE7AD`), Rotate -90° (`\uE80C`), and Copy rotation angle (`\uE8C8`).
+   - Updated tooltip to advertise `(Double-click for 0°, Right-click for angle presets)`.
+3. **`SmartArtDesignStudioWindow` Outline Item Row Action Buttons Right-Click Parity (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`):**
+   - Attached `RightTapped="OnRowRightTapped"` to `Add child`, `Delete item`, `Commit rename`, and `Cancel rename` buttons inside outline row template.
+   - Polished tooltips across row buttons to advertise right-click item options.
+4. **`HistoryWindow` Search Box Escape Clear & Vertical Keyboard Navigation Parity (`Views/History/HistoryWindow.xaml` & `.xaml.cs`):**
+   - Added `VirtualKey.Escape` handler to `OnSearchBoxKeyDown` that clears active filter query without losing search box focus, or blurs to timeline when already empty.
+   - Added `VirtualKey.Up` navigation to focus timeline from search box.
+   - Attached `DoubleTapped="OnSearchBoxDoubleTapped"` to select all search text on double click.
+5. **`MermaidCanvasControl` QuickAdd Directional Buttons Right-Click Shape Selector Menu (`Views/Mermaid/MermaidCanvasControl.xaml` & `.xaml.cs`):**
+   - Attached `RightTapped="OnQuickAddButtonRightTapped"` across all 4 directional arrow buttons (`Top`, `Right`, `Bottom`, `Left`).
+   - Right-click menu allows user to immediately choose the shape type to spawn in that direction: Process / Rectangle (`\uE710`), Decision / Diamond (`\uE790`), Circle / State (`\uEA3B`), Database Cylinder (`\uE74C`), Cloud (`\uE753`), or Note / Subroutine (`\uE70B`), automatically auto-connecting the edge and focusing inline edit.
+   - Updated tooltips on all QuickAdd arrow buttons.
+6. **`MermaidCanvasControl` Zoom Controls Border Double-Tap & Menu Parity + `MindMapGalaxyWindow` Preview Card Parity (`Views/Mermaid/MermaidCanvasControl.xaml` & `Views/MindMap/MindMapGalaxyWindow.xaml`):**
+   - Attached `RightTapped="OnZoomResetRightTapped"`, `DoubleTapped="OnZoomResetDoubleTapped"`, and polished tooltip on zoom controls overlay border and reset button in Mermaid canvas.
+   - Attached `RightTapped="OnPreviewOverlayCardRightTapped"` and polished tooltips on `History` and `Open` action buttons in MindMap Galaxy floating preview card.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `CommandIconsTests` & `KeyboardShortcutsTests`: **55 passed, 0 failed, 0 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 24816, `Alive: True`, `Responding: True`, clean exit.

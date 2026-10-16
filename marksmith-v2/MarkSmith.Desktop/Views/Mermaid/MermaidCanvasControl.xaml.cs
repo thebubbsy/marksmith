@@ -153,6 +153,12 @@ public sealed partial class MermaidCanvasControl : UserControl
 
     private void OnZoomResetClick(object sender, RoutedEventArgs e) => ZoomReset();
 
+    private void OnZoomResetDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        ZoomReset();
+    }
+
     private void OnZoomResetRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
@@ -558,6 +564,91 @@ public sealed partial class MermaidCanvasControl : UserControl
                 StartNodeInPlaceEdit(newNode);
             }
         }
+    }
+
+    private void OnQuickAddButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not Button btn || btn.Tag is not string dirTag || btn.DataContext is not DiagramNodeViewModel nodeVM || ViewModel == null)
+            return;
+
+        var menu = new Microsoft.UI.Xaml.Controls.MenuFlyout();
+
+        void SpawnShape(string shapeName, string? shapeType = null, string? defaultLabel = null)
+        {
+            var newNode = ViewModel.QuickAddNode(nodeVM, dirTag);
+            if (newNode != null)
+            {
+                if (!string.IsNullOrEmpty(shapeType))
+                {
+                    newNode.Shape = shapeType;
+                    if (!string.IsNullOrEmpty(defaultLabel))
+                        newNode.LabelText = defaultLabel;
+                    ViewModel.UpdateConnectedConnectors(newNode);
+                }
+                StartNodeInPlaceEdit(newNode);
+            }
+        }
+
+        var defaultItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = $"Add connected shape ({dirTag})",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE710" }
+        };
+        defaultItem.Click += (_, _) => SpawnShape("Default");
+        menu.Items.Add(defaultItem);
+
+        menu.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+
+        var rectItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = "Add Process / Rectangle",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE710" }
+        };
+        rectItem.Click += (_, _) => SpawnShape("Rectangle", "Rectangle", "Process");
+        menu.Items.Add(rectItem);
+
+        var decisionItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = "Add Decision / Diamond",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE790" }
+        };
+        decisionItem.Click += (_, _) => SpawnShape("Decision", "Rhombus", "Decision");
+        menu.Items.Add(decisionItem);
+
+        var circleItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = "Add Circle / State",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uEA3B" }
+        };
+        circleItem.Click += (_, _) => SpawnShape("Circle", "Circle", "State");
+        menu.Items.Add(circleItem);
+
+        var dbItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = "Add Database Cylinder",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE74C" }
+        };
+        dbItem.Click += (_, _) => SpawnShape("Database", "CylindricalDatabase", "Database");
+        menu.Items.Add(dbItem);
+
+        var cloudItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = "Add Cloud",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE753" }
+        };
+        cloudItem.Click += (_, _) => SpawnShape("Cloud", "Cloud", "Cloud");
+        menu.Items.Add(cloudItem);
+
+        var noteItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = "Add Note / Subroutine",
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE70B" }
+        };
+        noteItem.Click += (_, _) => SpawnShape("Note", "Subroutine", "Subroutine");
+        menu.Items.Add(noteItem);
+
+        menu.ShowAt(btn, e.GetPosition(btn));
     }
 
     // ---- Hover glow + anchor reveal -----------------------------------------------------------

@@ -1917,6 +1917,169 @@ namespace MarkSmith.Views.ShapeStudio
             FillFlyout.Hide();
         }
 
+        private void OnFillSwatchButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (ViewModel.SelectedShape is not { } shape) return;
+            ShowFillQuickPaletteMenu(sender as FrameworkElement ?? FillSwatchButton, shape, e.GetPosition(sender as UIElement));
+        }
+
+        private void OnFillHexBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (ViewModel.SelectedShape is not { } shape) return;
+            ShowFillQuickPaletteMenu(sender as FrameworkElement ?? FillHexBox, shape, e.GetPosition(sender as UIElement));
+        }
+
+        private void ShowFillQuickPaletteMenu(FrameworkElement target, ShapeCanvasItemViewModel shape, Windows.Foundation.Point? position = null)
+        {
+            var flyout = new MenuFlyout();
+            bool isLine = shape.IsLine;
+            string kind = isLine ? "line" : "fill";
+            string currentHex = (shape.Fill ?? (isLine ? "666666" : "0078D4")).TrimStart('#').ToUpperInvariant();
+
+            flyout.Items.Add(ShapeMenuItem($"Copy #{currentHex}", "\uE8C8", () =>
+            {
+                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"#{currentHex}");
+                ViewModel.StatusMessage = $"Copied #{currentHex} to clipboard.";
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Paste hex colour", "\uE77F", async () =>
+            {
+                try
+                {
+                    var dpv = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (dpv.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var text = (await dpv.GetTextAsync())?.Trim().TrimStart('#');
+                        if (text is { Length: 6 } && System.Text.RegularExpressions.Regex.IsMatch(text, "^[0-9a-fA-F]{6}$"))
+                        {
+                            ViewModel.RecordUndo();
+                            shape.Fill = text.ToUpperInvariant();
+                            ViewModel.StatusMessage = $"{(isLine ? "Line" : "Fill")} colour #{shape.Fill}";
+                        }
+                    }
+                }
+                catch { }
+            }));
+
+            flyout.Items.Add(ShapeMenuItem($"Pick {kind} colour…", "\uE790", () =>
+            {
+                FillFlyout.ShowAt(FillSwatchButton);
+            }));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            var presetsSub = new MenuFlyoutSubItem
+            {
+                Text = "Quick colours",
+                Icon = new FontIcon { Glyph = "\uE7B5" }
+            };
+            var presets = new (string Name, string Hex)[]
+            {
+                ("Accent Blue", "0078D4"),
+                ("Deep Charcoal", "202020"),
+                ("Pure White", "FFFFFF"),
+                ("Forest Green", "107C41"),
+                ("Brick Red", "D83B01"),
+                ("Bright Gold", "FFB900"),
+                ("Royal Purple", "5C2D91"),
+                ("Slate Gray", "6B7280"),
+            };
+            foreach (var (name, phex) in presets)
+            {
+                presetsSub.Items.Add(ShapeMenuItem($"{name} (#{phex})", "\uF13E", () =>
+                {
+                    ViewModel.RecordUndo();
+                    shape.Fill = phex;
+                    ViewModel.StatusMessage = $"{(isLine ? "Line" : "Fill")} colour #{phex} ({name})";
+                }));
+            }
+            flyout.Items.Add(presetsSub);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Invert colour", "\uE7AC", () =>
+            {
+                try
+                {
+                    byte r = Convert.ToByte(currentHex[..2], 16);
+                    byte g = Convert.ToByte(currentHex[2..4], 16);
+                    byte b = Convert.ToByte(currentHex[4..6], 16);
+                    string inv = $"{255 - r:X2}{255 - g:X2}{255 - b:X2}";
+                    ViewModel.RecordUndo();
+                    shape.Fill = inv;
+                    ViewModel.StatusMessage = $"Inverted {(isLine ? "line" : "fill")} colour to #{inv}";
+                }
+                catch { }
+            }));
+
+            flyout.Items.Add(ShapeMenuItem(isLine ? "Reset to default stroke (#666666)" : "Reset to default fill (#0078D4)", "\uE777", () =>
+            {
+                ViewModel.RecordUndo();
+                shape.Fill = isLine ? "666666" : "0078D4";
+                ViewModel.StatusMessage = $"Reset {(isLine ? "line" : "fill")} colour";
+            }));
+
+            if (position.HasValue)
+                flyout.ShowAt(target, position.Value);
+            else
+                flyout.ShowAt(target);
+        }
+
+        private void OnResetRotationButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ViewModel.ResetRotation();
+        }
+
+        private void OnResetRotationButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (sender is not FrameworkElement target) return;
+            var flyout = new MenuFlyout();
+
+            flyout.Items.Add(ShapeMenuItem("Reset rotation (0°)", "\uE777", () => ViewModel.ResetRotation(), "Alt+0"));
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Rotate 45° clockwise", "\uE7AD", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    ViewModel.RecordUndo();
+                    s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation + 45);
+                    ViewModel.StatusMessage = $"Rotated to {s.Rotation:0}°";
+                }
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Rotate 90° clockwise", "\uE7AD", () => ViewModel.RotateClockwiseCommand.Execute(null), "Alt+Shift+Right"));
+
+            flyout.Items.Add(ShapeMenuItem("Rotate 180° (Flip around)", "\uE7AD", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    ViewModel.RecordUndo();
+                    s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation + 180);
+                    ViewModel.StatusMessage = $"Rotated to {s.Rotation:0}°";
+                }
+            }));
+
+            flyout.Items.Add(ShapeMenuItem("Rotate 90° counter-clockwise", "\uE80C", () => ViewModel.RotateCounterClockwiseCommand.Execute(null), "Alt+Shift+Left"));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            flyout.Items.Add(ShapeMenuItem("Copy rotation angle", "\uE8C8", () =>
+            {
+                if (ViewModel.SelectedShape is { } s)
+                {
+                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"{s.Rotation:0}°");
+                    ViewModel.StatusMessage = $"Copied angle {s.Rotation:0}° to clipboard.";
+                }
+            }));
+
+            flyout.ShowAt(target, e.GetPosition(target));
+        }
+
         // ---- export / markdown ----
 
         private void OnExportMenuOpening(object? sender, object e)

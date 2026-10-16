@@ -662,7 +662,8 @@
                                 </Grid.ColumnDefinitions>
                                 <Button x:Name="FillSwatchButton" Width="32" Height="32" Padding="3"
                                         AutomationProperties.Name="{Binding SelectedShape.ColourPickerLabel, FallbackValue='Pick fill colour'}"
-                                        ToolTipService.ToolTip="{Binding SelectedShape.ColourPickerLabel, FallbackValue='Pick fill colour'}">
+                                        RightTapped="OnFillSwatchButtonRightTapped"
+                                        ToolTipService.ToolTip="{Binding SelectedShape.ColourPickerLabel, FallbackValue='Pick fill colour (Right-click for quick palette &amp; copy)'}">
                                     <Border Width="24" Height="24" CornerRadius="4"
                                             BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
                                             Background="{Binding SelectedShape.Fill, Converter={StaticResource FillBrushConverter}}" />
@@ -693,7 +694,8 @@
                                 <TextBox x:Name="FillHexBox" Grid.Column="1"
                                          AutomationProperties.Name="{Binding SelectedShape.ColourHexLabel, FallbackValue='Fill colour'}"
                                          PlaceholderText="RRGGBB" FontFamily="Consolas" CharacterCasing="Upper"
-                                         ToolTipService.ToolTip="{Binding SelectedShape.ColourHexToolTip, FallbackValue='Fill colour as a 6-digit hex value'}"
+                                         RightTapped="OnFillHexBoxRightTapped"
+                                         ToolTipService.ToolTip="{Binding SelectedShape.ColourHexToolTip, FallbackValue='Fill colour as a 6-digit hex value (Right-click for options)'}"
                                          KeyDown="OnFillHexBoxKeyDown" LostFocus="OnFillHexBoxLostFocus"
                                          Text="{Binding SelectedShape.Fill, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxLength="7" />
                             </Grid>
@@ -729,7 +731,9 @@
                                 </TextBlock>
                                 <Button x:Name="ResetRotationButton" Grid.Column="2" Content="0°" Padding="6,2" FontSize="11"
                                         Command="{Binding ResetRotationCommand}"
-                                        ToolTipService.ToolTip="Reset rotation to 0°"
+                                        DoubleTapped="OnResetRotationButtonDoubleTapped"
+                                        RightTapped="OnResetRotationButtonRightTapped"
+                                        ToolTipService.ToolTip="Reset rotation to 0° (Double-click for 0°, Right-click for angle presets)"
                                         AutomationProperties.Name="Reset rotation to 0 degrees" />
                             </Grid>
 
