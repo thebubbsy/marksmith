@@ -80,17 +80,44 @@
                     </Border>
                 </Grid>
 
-                <!-- Filter Starred -->
-                <ToggleButton x:Name="StarredFilterToggle" Grid.Column="2" IsChecked="{Binding IsStarredOnlyFilter, Mode=TwoWay}"
-                               Padding="10,6" CornerRadius="6" VerticalAlignment="Center"
-                               RightTapped="OnStarredFilterToggleRightTapped"
-                               ToolTipService.ToolTip="Show starred versions only (Right-click for options)"
-                               AutomationProperties.Name="Show starred versions only">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE734;" FontSize="13" />
-                        <TextBlock Text="Starred" FontSize="12" />
-                    </StackPanel>
-                </ToggleButton>
+                <!-- Filter Starred & Version Kind -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <ToggleButton x:Name="StarredFilterToggle" IsChecked="{Binding IsStarredOnlyFilter, Mode=TwoWay}"
+                                   Padding="10,6" CornerRadius="6" VerticalAlignment="Center"
+                                   RightTapped="OnStarredFilterToggleRightTapped"
+                                   ToolTipService.ToolTip="Show starred versions only (Right-click for options)"
+                                   AutomationProperties.Name="Show starred versions only">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE734;" FontSize="13" />
+                            <TextBlock Text="Starred" FontSize="12" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <Button x:Name="KindFilterButton" Padding="10,6" CornerRadius="6" VerticalAlignment="Center"
+                            Click="OnKindFilterButtonClick" RightTapped="OnKindFilterButtonRightTapped"
+                            ToolTipService.ToolTip="Filter timeline by version kind (Checkpoints, Auto-Saves, Exports)"
+                            AutomationProperties.Name="Filter by version kind">
+                        <Button.Flyout>
+                            <MenuFlyout x:Name="KindFilterFlyout">
+                                <MenuFlyoutItem Text="All Versions" Click="OnKindFilterAllClick">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Checkpoints only" Click="OnKindFilterCheckpointsClick">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Auto-Saves only" Click="OnKindFilterAutoSavesClick">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Exports only" Click="OnKindFilterExportsClick">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE1;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE71C;" FontSize="12" />
+                            <TextBlock x:Name="KindFilterLabel" Text="All Kinds" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
 
                 <!-- Take Checkpoint. Stays enabled even when the selected document isn't open, so
                      its tooltip can still explain why (disabled controls show no tooltip). -->

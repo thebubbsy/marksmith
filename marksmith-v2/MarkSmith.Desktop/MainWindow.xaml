@@ -866,6 +866,32 @@
                                     </DropDownButton>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <!-- Markdown table formatter & clean alignment -->
+                                    <Button x:Name="FormatTableButton" Height="24" Padding="6,0"
+                                            Click="OnFormatTableButtonClick"
+                                            DoubleTapped="OnFormatTableButtonDoubleTapped"
+                                            RightTapped="OnFormatTableButtonRightTapped"
+                                            AutomationProperties.Name="Format Markdown tables"
+                                            ToolTipService.ToolTip="Format Markdown table columns · Double-click to format all tables, Right-click for options">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon Glyph="&#xE8B7;" FontSize="11" />
+                                            <TextBlock Text="Format Table" FontSize="11" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <Button.Flyout>
+                                            <MenuFlyout x:Name="FormatTableFlyout">
+                                                <MenuFlyoutItem Text="Format table at cursor" Click="OnFormatCurrentTableClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="Format all tables in document" Click="OnFormatAllTablesClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutSeparator />
+                                                <MenuFlyoutItem Text="Insert 3×3 Markdown table template" Click="OnInsertTableTemplateClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE710;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
                                     <!-- Markdown lint: live issue count; the flyout lists issues and jumps to them. -->
                                     <Button x:Name="LintButton" Height="24" Padding="6,0"
                                             AutomationProperties.Name="Markdown issues"

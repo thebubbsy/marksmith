@@ -9770,6 +9770,148 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
+    private void OnFormatTableButtonClick(object sender, RoutedEventArgs e) => FormatTableAtCursor();
+
+    private void OnFormatTableButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        FormatAllTablesInDocument();
+    }
+
+    private void OnFormatTableButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        FormatTableFlyout?.ShowAt(sender as FrameworkElement ?? FormatTableButton);
+    }
+
+    private void OnFormatCurrentTableClick(object sender, RoutedEventArgs e) => FormatTableAtCursor();
+    private void OnFormatAllTablesClick(object sender, RoutedEventArgs e) => FormatAllTablesInDocument();
+    private void OnInsertTableTemplateClick(object sender, RoutedEventArgs e) => InsertMarkdownTableTemplate();
+
+    private void FormatTableAtCursor()
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string text = tb.Text ?? "";
+        if (string.IsNullOrWhiteSpace(text)) return;
+        int caret = tb.SelectionStart;
+
+        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        int charCount = 0;
+        int targetLineIdx = 0;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            charCount += lines[i].Length + 1;
+            if (charCount >= caret)
+            {
+                targetLineIdx = i;
+                break;
+            }
+        }
+
+        if (targetLineIdx >= lines.Length || !lines[targetLineIdx].Contains('|'))
+        {
+            FormatAllTablesInDocument();
+            return;
+        }
+
+        int startLine = targetLineIdx;
+        while (startLine > 0 && lines[startLine - 1].Contains('|')) startLine--;
+        int endLine = targetLineIdx;
+        while (endLine < lines.Length - 1 && lines[endLine + 1].Contains('|')) endLine++;
+
+        var tableLines = lines.Skip(startLine).Take(endLine - startLine + 1).ToList();
+        var rawTable = string.Join("\n", tableLines);
+        var formatter = new MarkSmith.Core.Services.TableFormatterService();
+        var formatted = formatter.FormatTable(rawTable);
+
+        if (!string.Equals(rawTable, formatted, StringComparison.Ordinal))
+        {
+            var formattedLines = formatted.Split('\n');
+            var newLines = new List<string>(lines);
+            newLines.RemoveRange(startLine, endLine - startLine + 1);
+            newLines.InsertRange(startLine, formattedLines);
+            tb.Text = string.Join(text.Contains("\r\n") ? "\r\n" : "\n", newLines);
+            tb.SelectionStart = Math.Min(caret, tb.Text.Length);
+            tb.SelectionLength = 0;
+            CopyTextToStatusBar("Formatted Markdown table at cursor.", "Formatted Markdown table at cursor.");
+        }
+        else
+        {
+            CopyTextToStatusBar("Table columns are already perfectly aligned.", "Table columns are already perfectly aligned.");
+        }
+    }
+
+    private void FormatAllTablesInDocument()
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string text = tb.Text ?? "";
+        if (string.IsNullOrWhiteSpace(text) || !text.Contains('|')) return;
+
+        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        var formatter = new MarkSmith.Core.Services.TableFormatterService();
+        int tablesFormatted = 0;
+        var newLines = new List<string>();
+
+        int idx = 0;
+        while (idx < lines.Length)
+        {
+            if (lines[idx].Trim().StartsWith("|") && lines[idx].Trim().EndsWith("|"))
+            {
+                int start = idx;
+                while (idx < lines.Length && lines[idx].Trim().StartsWith("|") && lines[idx].Trim().EndsWith("|"))
+                {
+                    idx++;
+                }
+                var rawTable = string.Join("\n", lines.Skip(start).Take(idx - start));
+                var formatted = formatter.FormatTable(rawTable);
+                if (!string.Equals(rawTable, formatted, StringComparison.Ordinal))
+                {
+                    tablesFormatted++;
+                    newLines.AddRange(formatted.Split('\n'));
+                }
+                else
+                {
+                    newLines.AddRange(lines.Skip(start).Take(idx - start));
+                }
+            }
+            else
+            {
+                newLines.Add(lines[idx]);
+                idx++;
+            }
+        }
+
+        if (tablesFormatted > 0)
+        {
+            int caret = tb.SelectionStart;
+            tb.Text = string.Join(text.Contains("\r\n") ? "\r\n" : "\n", newLines);
+            tb.SelectionStart = Math.Min(caret, tb.Text.Length);
+            tb.SelectionLength = 0;
+            CopyTextToStatusBar($"Aligned {tablesFormatted} Markdown table{(tablesFormatted == 1 ? "" : "s")}.", $"Aligned {tablesFormatted} Markdown table{(tablesFormatted == 1 ? "" : "s")}.");
+        }
+        else
+        {
+            CopyTextToStatusBar("All Markdown tables are already cleanly formatted.", "All Markdown tables are already cleanly formatted.");
+        }
+    }
+
+    private void InsertMarkdownTableTemplate()
+    {
+        var tb = PasteTextBox;
+        if (tb is null) return;
+        string template = "| Column 1 | Column 2 | Column 3 |\n| :--- | :---: | ---: |\n| Item A1 | Item B1 | 100 |\n| Item A2 | Item B2 | 200 |\n";
+        int start = tb.SelectionStart;
+        string text = tb.Text ?? "";
+        string prefix = (start > 0 && !text.EndsWith("\n")) ? "\n\n" : "";
+        string inserted = prefix + template + "\n";
+        tb.Text = text.Insert(start, inserted);
+        tb.SelectionStart = start + inserted.Length;
+        tb.SelectionLength = 0;
+        CopyTextToStatusBar("Inserted 3×3 Markdown table template.", "Inserted 3×3 Markdown table template.");
+    }
+
     private void OnCopyAllLintIssuesClick(object sender, RoutedEventArgs e)
     {
         if (_lintIssues.Count == 0) return;

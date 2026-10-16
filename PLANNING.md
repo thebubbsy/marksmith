@@ -9127,4 +9127,77 @@ prompt shows the seeded draft and Restore loads it. Full suite **4600 passed, 1 
 - `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 25356, responsive startup, clean exit.
 
+### 2026-10-17 01:35 AEST (run #121: MindMap Galaxy dynamic tag count badges & quick clear, Shape Studio geometry morphing ribbon & corner radius toggle, SmartArt Studio SVG export resolution presets & DPI scaling flyout, MainWindow editor table formatter & clean alignment button, History Window timeline version kind filter pill & quick flyout, SuiteHubView live suite search filter box)
+
+- **Surface:** `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `MainWindow`, `HistoryWindow`, `SuiteHubView`.
+- **Trigger:** Scheduled hourly WinUI 3 desktop polish routine (`marksmith-winui3-polish`) covering dynamic node tag count badges with instant camera centering and quick clear, shape geometry morphing ribbon and corner rounding toggle, high-DPI SVG export resolution presets (1x, 2x, 4x, Print 300 DPI) and Data URI copy, Markdown table column formatting and clean pipe alignment toolbar button, timeline version kind filter pill (Checkpoints, Auto-Saves, Exports), and Suite Hub live keyword filter box with Esc clear under the AI-Executable 3-Block Cycle + Execution Phase Protocol (`GEMINI.md` Rule 7).
+
+#### 3-Block Cycle Cadence & Execution Synthesis:
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #120:
+    * Target A: `MindMapGalaxyWindow` node tag / badge filter bar with multi-tag filtering chips.
+    * Target B: `ShapeDesignStudioWindow` shape geometry morphing presets and corner radius rounding handles.
+    * Target C: `SmartArtDesignStudioWindow` SVG export resolution presets & DPI scaling selector (1x, 2x, 4x, Print 300DPI).
+  - Generated:
+    1. `MindMapGalaxyWindow`: Dynamic node tag filter bar enhancement with real-time tag node count badges (`#tag (count)`), active filter clear button (`✕ Clear`), and instant camera pan centering (`CenterOn`) on matching nodes when a tag chip is clicked.
+    2. `ShapeDesignStudioWindow`: Shape inspector quick morph ribbon (`QuickMorphRibbon`) with 5 instant geometry morphing buttons (Rect, RoundRect, Ellipse, Diamond, Hexagon) and a corner radius toggle button (`CornerRadiusToggleBtn`, `Sharp` / `Round`).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `MindMapGalaxyWindow` tag pills in `UpdateTagPills()` to dynamically compute and format node match counts (`tag (count)`). Added an explicit `TagFilterClearButton` (`✕ Clear`) at the end of the pill bar that reveals when an active tag filter is selected. When clicking a tag pill, `ViewModel.CenterOn(firstMatch)` automatically glides the viewport camera to center on the first matching node.
+    * For Idea 2: Mounted `QuickMorphRibbon` directly below the Shape Type `ComboBox` inside the Inspector. Preserves shape coordinates, width/height, fill, stroke, rotation, text, and connections while morphing `Prst` (`rect`, `roundrect`, `ellipse`, `diamond`, `hexagon`). Added `CornerRadiusToggleBtn` with live `Sharp` / `Round` badge toggling between sharp 0px corners and rounded rectangle corners.
+  - Generated:
+    3. `SmartArtDesignStudioWindow`: SVG export resolution presets & DPI scaling flyout (`ExportSvgButton`, `ExportSvgFlyout`, `GetExportSvg`, `CopySvgToClipboard`, 1x, 2x, 4x, Print 300 DPI, and Data URI base64 export).
+    4. `MainWindow`: Markdown table formatter & clean column alignment action button (`FormatTableButton`, `FormatTableFlyout`, `FormatTableAtCursor`, `FormatAllTablesInDocument`, `InsertMarkdownTableTemplate`) using `TableFormatterService`.
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `ExportSvgButton` in the preview card header. Provides a comprehensive dropdown flyout with 1x (Standard 96 DPI), 2x (Retina 192 DPI), 4x (Ultra HD 4K), Print (300 DPI / 3.125x), Save SVG File (`NativeFilePicker.PickSaveFileAsync`), and Copy Data URI. Scales SVG width/height and viewBox attributes cleanly, copying to clipboard via `ClipboardWriter.Set` with visual button tick feedback (`CopyFeedback.ApplyButtonTick`). Double-clicking directly copies 2x Retina SVG.
+    * For Idea 4: Integrated `FormatTableButton` into the editor bottom toolbar next to `LintButton`. Single click formats the Markdown table at the cursor or in selection; double-click formats all tables in the document with clean pipe alignment and uniform column width; right-click opens quick menu with "Format table at cursor", "Format all tables", and "Insert 3×3 Markdown table template".
+  - Refined Block 1 (Pass 2 - Final):
+    * Ensured all interactive buttons enforce proper focus and hover states (`HoverPolish.ApplyOnLoad="True"`).
+    * Verified WinUI 3 XAML compiler safety: no `MaxWidth` on `ColumnDefinition` elements to prevent `WMC9999` crashes.
+  - Generated:
+    5. `HistoryWindow`: Timeline version kind filter pill & preset flyout (`KindFilterButton`, `KindFilterFlyout`, `All Kinds`, `Checkpoints only`, `Auto-Saves only`, `Exports only`).
+    6. `SuiteHubView`: Hub suite search & quick filter box (`HubSearchBox`, `OnHubSearchBoxTextChanged`, `OnHubSearchBoxKeyDown`, `FilterCards`) with live card filtering and Esc clear.
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Added `KindFilterButton` adjacent to `StarredFilterToggle` in the timeline header. Selecting a kind preset sets `SearchBox.Text` and `_vm.SearchQuery`, dynamically filtering the version timeline, updating `TimelineSearchMatchPill`, and displaying the active kind on `KindFilterLabel`.
+    * For Idea 6: Positioned `HubSearchBox` in the Suite Hub header between title and shortcut buttons. Typing keywords ("diagrams", "shapes", "mcp", "ai", "cli", "history") dims non-matching cards to 25% opacity while keeping matching suite components fully visible; pressing Esc or clearing text instantly restores 100% opacity across all cards.
+  - Executed all 6 refined targets into 100% production code.
+  - Verification:
+    * `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `MarkSmith.Tests.dll`: **Passed: 4,802, Failed: 0, Skipped: 1, Total: 4,803**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 13436, responsive startup (`Responding: True`), clean exit.
+  - Carried forward ideas / next targets into Run #122:
+    * Target A: `MindMapGalaxyWindow` custom connection line styles (straight, curved bezier, stepped orthogonal, dashed) and link arrow toggle.
+    * Target B: `ShapeDesignStudioWindow` shape z-order layering controls (Bring to Front, Send to Back, Bring Forward, Send Backward) with visual layer indicator.
+    * Target C: `SmartArtDesignStudioWindow` color palette generator from base hex with monochromatic, analogous, and triadic harmony modes.
+
+**Shipped:**
+1. **`MindMapGalaxyWindow` Dynamic Tag Count Badges & Quick Clear (`Views/MindMap/MindMapGalaxyWindow.xaml`, `Views/MindMap/MindMapGalaxyWindow.xaml.cs`):**
+   - Tag filter pills dynamically format with live node count badges (`tag (count)`).
+   - Dedicated `TagFilterClearButton` (`✕ Clear`) surfaces when a tag filter is active.
+   - Clicking any tag pill automatically centers the camera viewport on the first matching node (`ViewModel.CenterOn`).
+2. **`ShapeDesignStudioWindow` Shape Geometry Morphing Ribbon & Corner Radius Toggle (`Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`):**
+   - Quick morph ribbon (`QuickMorphRibbon`) docked in the inspector offering 1-click morphing between Rectangle, Rounded Rectangle, Ellipse, Diamond, and Hexagon without losing properties.
+   - Corner radius toggle button (`CornerRadiusToggleBtn`) switching between sharp corners (0px) and rounded rectangle with live status text (`Sharp` / `Round`).
+3. **`SmartArtDesignStudioWindow` SVG Export Resolution Presets & DPI Scaling Flyout (`Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`):**
+   - Export SVG button (`ExportSvgButton`) in preview header with comprehensive menu flyout.
+   - Resolution presets for 1x (Standard), 2x (Retina), 4x (Ultra HD 4K), Print (300 DPI / 3.125x), Save to SVG file via `NativeFilePicker`, and Copy Data URI base64.
+   - Double-clicking button instantly copies 2x Retina SVG with visual checkmark feedback (`CopyFeedback.ApplyButtonTick`).
+4. **`MainWindow` Markdown Table Formatter & Clean Alignment Button (`MainWindow.xaml`, `MainWindow.xaml.cs`):**
+   - Format Table button (`FormatTableButton`) in editor bottom toolbar leveraging `TableFormatterService`.
+   - Single-click formats table at cursor; double-click formats all tables in document; right-click opens flyout with table formatting actions and 3×3 template insertion.
+5. **`HistoryWindow` Timeline Version Kind Filter Pill & Quick Flyout (`Views/History/HistoryWindow.xaml`, `Views/History/HistoryWindow.xaml.cs`):**
+   - Kind filter button (`KindFilterButton`) mounted beside `StarredFilterToggle` in timeline header.
+   - Quick flyout presets: "All Kinds", "Checkpoints only", "Auto-Saves only", "Exports only" with live query synchronization and `TimelineSearchMatchPill` updating.
+6. **`SuiteHubView` Live Suite Search & Keyword Filter Box (`Views/SuiteHubView.xaml`, `Views/SuiteHubView.xaml.cs`):**
+   - Hub search box (`HubSearchBox`) in header enabling instant real-time filtering of suite components and drawing studios.
+   - Dims non-matching cards to 25% opacity, keeps matching cards at 100%, with Escape key to clear.
+
+**Verified:**
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `MarkSmith.Tests.dll`: **4,802 passed, 0 failed, 1 skipped**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 13436, responsive startup, clean exit.
+
+
 

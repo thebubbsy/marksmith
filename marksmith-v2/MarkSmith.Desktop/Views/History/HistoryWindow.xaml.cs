@@ -1223,7 +1223,47 @@ public sealed partial class HistoryWindow : Window
     {
         _vm.SearchQuery = string.Empty;
         SearchBox.Text = string.Empty;
+        if (KindFilterLabel != null) KindFilterLabel.Text = "All Kinds";
         SearchBox.Focus(FocusState.Programmatic);
+    }
+
+    private void OnKindFilterButtonClick(object sender, RoutedEventArgs e)
+    {
+        KindFilterFlyout?.ShowAt(sender as FrameworkElement ?? KindFilterButton);
+    }
+
+    private void OnKindFilterButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        KindFilterFlyout?.ShowAt(sender as FrameworkElement ?? KindFilterButton);
+    }
+
+    private void OnKindFilterAllClick(object sender, RoutedEventArgs e)
+    {
+        SearchBox.Text = string.Empty;
+        _vm.SearchQuery = string.Empty;
+        if (KindFilterLabel != null) KindFilterLabel.Text = "All Kinds";
+    }
+
+    private void OnKindFilterCheckpointsClick(object sender, RoutedEventArgs e)
+    {
+        SearchBox.Text = "Checkpoint";
+        _vm.SearchQuery = "Checkpoint";
+        if (KindFilterLabel != null) KindFilterLabel.Text = "Checkpoints";
+    }
+
+    private void OnKindFilterAutoSavesClick(object sender, RoutedEventArgs e)
+    {
+        SearchBox.Text = "Auto-Save";
+        _vm.SearchQuery = "Auto-Save";
+        if (KindFilterLabel != null) KindFilterLabel.Text = "Auto-Saves";
+    }
+
+    private void OnKindFilterExportsClick(object sender, RoutedEventArgs e)
+    {
+        SearchBox.Text = "Export";
+        _vm.SearchQuery = "Export";
+        if (KindFilterLabel != null) KindFilterLabel.Text = "Exports";
     }
 
     private void OnSearchBoxRightTapped(object sender, RightTappedRoutedEventArgs e)

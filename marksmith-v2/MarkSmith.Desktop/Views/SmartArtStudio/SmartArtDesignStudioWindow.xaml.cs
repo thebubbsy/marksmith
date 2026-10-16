@@ -2681,6 +2681,113 @@ namespace MarkSmith.Views.SmartArtStudio
             catch { }
         }
 
+        private void OnExportSvgButtonClick(object sender, RoutedEventArgs e)
+        {
+            ExportSvgFlyout?.ShowAt(sender as FrameworkElement ?? ExportSvgButton);
+        }
+
+        private void OnExportSvgButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            CopySvgToClipboard(2.0, "2x Retina SVG");
+        }
+
+        private void OnExportSvgButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ExportSvgFlyout?.ShowAt(sender as FrameworkElement ?? ExportSvgButton);
+        }
+
+        private void OnCopySvg1xClick(object sender, RoutedEventArgs e) => CopySvgToClipboard(1.0, "1x SVG");
+        private void OnCopySvg2xClick(object sender, RoutedEventArgs e) => CopySvgToClipboard(2.0, "2x Retina SVG");
+        private void OnCopySvg4xClick(object sender, RoutedEventArgs e) => CopySvgToClipboard(4.0, "4x Ultra HD SVG");
+        private void OnCopySvgPrintClick(object sender, RoutedEventArgs e) => CopySvgToClipboard(3.125, "Print (300 DPI) SVG");
+
+        private void OnCopySvgDataUriClick(object sender, RoutedEventArgs e)
+        {
+            string svg = GetExportSvg(1.0);
+            if (string.IsNullOrWhiteSpace(svg)) return;
+            string b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(svg));
+            string uri = "data:image/svg+xml;base64," + b64;
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(uri);
+            Services.ClipboardWriter.Set(dp);
+            ViewModel.StatusMessage = $"Copied SVG Data URI to clipboard ({uri.Length} chars).";
+            if (ExportSvgButton is not null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(ExportSvgButton, null);
+            }
+        }
+
+        private async void OnSaveSvgFileClick(object sender, RoutedEventArgs e)
+        {
+            string svg = GetExportSvg(2.0);
+            if (string.IsNullOrWhiteSpace(svg)) return;
+            try
+            {
+                string suggestedName = $"{ViewModel.SelectedLayout?.Name ?? "smartart"}-diagram.svg";
+                var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(
+                    this, "Save SVG diagram", MarkSmith.Services.NativeFilePicker.Purpose.Exports,
+                    suggestedName, new[] { MarkSmith.Models.FileType.Of("SVG image", ".svg") }, okLabel: "Save");
+                if (!string.IsNullOrEmpty(path))
+                {
+                    await System.IO.File.WriteAllTextAsync(path, svg, System.Text.Encoding.UTF8);
+                    ViewModel.StatusMessage = $"Saved SVG diagram to {System.IO.Path.GetFileName(path)}.";
+                }
+            }
+            catch (Exception ex)
+            {
+                ViewModel.StatusMessage = $"Failed to save SVG: {ex.Message}";
+            }
+        }
+
+        private string GetExportSvg(double scale = 1.0)
+        {
+            string html = ViewModel.PreviewHtml ?? "";
+            if (!string.IsNullOrEmpty(_customHexOverride))
+            {
+                html = ApplyCustomHexToSvgHtml(html, _customHexOverride);
+            }
+            int start = html.IndexOf("<svg", StringComparison.OrdinalIgnoreCase);
+            if (start < 0) return "";
+            int end = html.IndexOf("</svg>", start, StringComparison.OrdinalIgnoreCase);
+            if (end < 0) return "";
+            string svg = html.Substring(start, (end + 6) - start);
+
+            if (Math.Abs(scale - 1.0) > 0.01)
+            {
+                var wMatch = System.Text.RegularExpressions.Regex.Match(svg, @"width=""(\d+(?:\.\d+)?)""");
+                var hMatch = System.Text.RegularExpressions.Regex.Match(svg, @"height=""(\d+(?:\.\d+)?)""");
+                if (wMatch.Success && double.TryParse(wMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double w))
+                {
+                    svg = svg.Replace(wMatch.Value, $"width=\"{(w * scale):F0}\"");
+                }
+                if (hMatch.Success && double.TryParse(hMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double h))
+                {
+                    svg = svg.Replace(hMatch.Value, $"height=\"{(h * scale):F0}\"");
+                }
+            }
+            return svg;
+        }
+
+        private void CopySvgToClipboard(double scale, string label)
+        {
+            string svg = GetExportSvg(scale);
+            if (string.IsNullOrWhiteSpace(svg)) return;
+            try
+            {
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText(svg);
+                Services.ClipboardWriter.Set(dp);
+                ViewModel.StatusMessage = $"Copied {label} to clipboard ({svg.Length} bytes).";
+                if (ExportSvgButton is not null)
+                {
+                    Services.CopyFeedback.ApplyButtonTick(ExportSvgButton, null);
+                }
+            }
+            catch { }
+        }
+
         // Window-level shortcuts: Delete/Backspace = delete node, F2 = rename, Ctrl+D = duplicate,
         // Ctrl+Z/Y = undo/redo, Ctrl+F = focus layout search, Ctrl+Enter = insert into document,
         // Ctrl+Shift+C = copy SmartArt block, Ctrl+C = copy outline bullets, Ctrl+1/2 = switch tabs.

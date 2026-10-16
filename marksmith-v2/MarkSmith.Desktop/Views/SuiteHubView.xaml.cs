@@ -1196,5 +1196,47 @@ mindmap
         }
     }
 
+    private void OnHubSearchBoxTextChanged(object sender, TextChangedEventArgs e)
+    {
+        string query = HubSearchBox?.Text?.Trim().ToLowerInvariant() ?? "";
+        FilterCards(query);
+    }
+
+    private void OnHubSearchBoxKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            if (HubSearchBox is not null) HubSearchBox.Text = "";
+            e.Handled = true;
+        }
+    }
+
+    private void FilterCards(string query)
+    {
+        var cards = new (Border? Card, string Keywords)[]
+        {
+            (Card1Border, "drawing studios diagrams shapes smartart flowchart mermaid"),
+            (Card2Border, "ai assistants mcp server claude cursor gemini"),
+            (Card3Border, "browser extension chrome edge copilot api"),
+            (Card4Border, "edit history checkpoints versions diff timeline"),
+            (Card5Border, "command-line interface cli terminal terminal export"),
+            (Card6Border, "web companion preview mobile live browser")
+        };
+
+        bool hasQuery = !string.IsNullOrWhiteSpace(query);
+        foreach (var (card, keywords) in cards)
+        {
+            if (card is null) continue;
+            if (!hasQuery || keywords.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                card.Opacity = 1.0;
+            }
+            else
+            {
+                card.Opacity = 0.25;
+            }
+        }
+    }
+
     #endregion
 }

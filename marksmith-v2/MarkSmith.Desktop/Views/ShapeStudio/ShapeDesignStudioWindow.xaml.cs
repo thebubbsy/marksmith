@@ -2086,6 +2086,7 @@ namespace MarkSmith.Views.ShapeStudio
                         && s.PathPoints is not { Count: >= 2 } && ViewModel.Shapes.Contains(s);
             SelectionAdorner.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
             UpdatePointHandles(s);
+            UpdateCornerRadiusButtonState();
             if (!show || s is null)
             {
                 HideRotateVisuals();
@@ -2479,6 +2480,67 @@ namespace MarkSmith.Views.ShapeStudio
         {
             ViewModel.DistributeVertical();
             UpdateMultiSelectionAdorner();
+        }
+
+        private void OnMorphRectClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedShape is { } s)
+            {
+                s.Prst = "rect";
+                UpdateCornerRadiusButtonState();
+            }
+        }
+
+        private void OnMorphRoundRectClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedShape is { } s)
+            {
+                s.Prst = "roundrect";
+                UpdateCornerRadiusButtonState();
+            }
+        }
+
+        private void OnMorphEllipseClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedShape is { } s)
+            {
+                s.Prst = "ellipse";
+                UpdateCornerRadiusButtonState();
+            }
+        }
+
+        private void OnMorphDiamondClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedShape is { } s)
+            {
+                s.Prst = "diamond";
+                UpdateCornerRadiusButtonState();
+            }
+        }
+
+        private void OnMorphHexagonClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedShape is { } s)
+            {
+                s.Prst = "hexagon";
+                UpdateCornerRadiusButtonState();
+            }
+        }
+
+        private void OnCornerRadiusToggleClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedShape is { } s)
+            {
+                s.Prst = string.Equals(s.Prst, "roundrect", StringComparison.OrdinalIgnoreCase) ? "rect" : "roundrect";
+                UpdateCornerRadiusButtonState();
+            }
+        }
+
+        private void UpdateCornerRadiusButtonState()
+        {
+            if (CornerRadiusText == null || ViewModel.SelectedShape == null) return;
+            bool isRound = string.Equals(ViewModel.SelectedShape.Prst, "roundrect", StringComparison.OrdinalIgnoreCase);
+            CornerRadiusText.Text = isRound ? "Sharp" : "Round";
         }
 
         private void ShowMultiSelectionContextMenu(Point position)

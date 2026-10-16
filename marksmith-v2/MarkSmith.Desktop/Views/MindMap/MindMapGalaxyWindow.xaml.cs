@@ -5362,12 +5362,29 @@ namespace MarkSmith.Views.MindMap
             if (sender is Button btn && btn.Tag is string tag)
             {
                 ViewModel.SelectedTagFilter = (ViewModel.SelectedTagFilter == tag) ? null : tag;
+                if (!string.IsNullOrEmpty(ViewModel.SelectedTagFilter))
+                {
+                    var firstMatch = ViewModel.Nodes.FirstOrDefault(n => n.Tags.Any(t => MindMapGraph.TagEquals(t, ViewModel.SelectedTagFilter)));
+                    if (firstMatch != null)
+                    {
+                        ViewModel.SelectedNode = firstMatch;
+                        ViewModel.CenterOn(firstMatch);
+                    }
+                }
+                UpdateTagPills();
             }
         }
 
         private void OnAllTagsClick(object sender, RoutedEventArgs e)
         {
             ViewModel.SelectedTagFilter = null;
+            UpdateTagPills();
+        }
+
+        private void OnTagFilterClearClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.SelectedTagFilter = null;
+            UpdateTagPills();
         }
 
         private void OnAllTagsPillRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -5511,15 +5528,27 @@ namespace MarkSmith.Views.MindMap
         }
 
         /// <summary>The active filter's pill (or "All tags") in the accent colour; the rest quiet.
-        /// Nothing used to show that a filter was on except the map going dim.</summary>
+        /// Shows node count per tag and reveals explicit clear button when active.</summary>
         private void UpdateTagPills()
         {
             string? active = ViewModel.SelectedTagFilter;
+            if (TagFilterClearButton != null)
+            {
+                TagFilterClearButton.Visibility = string.IsNullOrEmpty(active) ? Visibility.Collapsed : Visibility.Visible;
+            }
+
             foreach (var b in _tagPills)
             {
                 bool on = b == AllTagsPill
                     ? string.IsNullOrEmpty(active)
                     : b.Tag is string tag && string.Equals(tag, active, StringComparison.OrdinalIgnoreCase);
+
+                if (b != AllTagsPill && b.Tag is string t)
+                {
+                    int count = ViewModel.Nodes.Count(n => n.Tags.Any(x => MindMapGraph.TagEquals(x, t)));
+                    b.Content = count > 0 ? $"{t} ({count})" : t;
+                }
+
                 // Inactive pills go back to the button's own (theme-aware) look, so they follow the
                 // canvas theme; app-level brushes would stay dark-theme on a light canvas.
                 if (on)
@@ -5538,7 +5567,7 @@ namespace MarkSmith.Views.MindMap
                 }
                 if (b != AllTagsPill)
                 {
-                    ToolTipService.SetToolTip(b, on ? "Show every node again" : "Show only nodes with this tag");
+                    ToolTipService.SetToolTip(b, on ? "Active filter · Click to clear" : "Filter nodes by this tag");
                 }
                 AutomationProperties.SetItemStatus(b, on ? "Active filter" : "");
             }

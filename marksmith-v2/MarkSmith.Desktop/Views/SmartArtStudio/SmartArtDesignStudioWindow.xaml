@@ -442,6 +442,37 @@
                                     ToolTipService.ToolTip="Copy :::smartart Markdown block (Ctrl+Shift+C · Double-click to copy, Right-click for options)">
                                 <FontIcon Glyph="&#xE8C8;" FontSize="12" />
                             </Button>
+                            <Button x:Name="ExportSvgButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
+                                    Click="OnExportSvgButtonClick"
+                                    DoubleTapped="OnExportSvgButtonDoubleTapped"
+                                    RightTapped="OnExportSvgButtonRightTapped"
+                                    AutomationProperties.Name="Export SVG diagram"
+                                    ToolTipService.ToolTip="Export SVG diagram (Double-click to copy 2x SVG, Right-click for resolution presets)">
+                                <FontIcon Glyph="&#xEDE1;" FontSize="12" />
+                                <Button.Flyout>
+                                    <MenuFlyout x:Name="ExportSvgFlyout">
+                                        <MenuFlyoutItem Text="Copy SVG (1x · Standard Web)" Click="OnCopySvg1xClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Copy SVG (2x · Retina / HiDPI)" Click="OnCopySvg2xClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Copy SVG (4x · Ultra HD 4K)" Click="OnCopySvg4xClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Copy SVG (Print 300 DPI)" Click="OnCopySvgPrintClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE749;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Save SVG file…" Click="OnSaveSvgFileClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Copy Data URI (base64)" Click="OnCopySvgDataUriClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71B;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
                         </StackPanel>
                     </Grid>
                     <!-- Quick Layout Visual Thumbnail Strip -->

@@ -407,6 +407,15 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <Button x:Name="TagFilterClearButton" Click="OnTagFilterClearClick" Padding="6,3" CornerRadius="12" FontSize="11"
+                                        Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
+                                        Visibility="Collapsed"
+                                        ToolTipService.ToolTip="Clear tag filter (Esc)">
+                                    <StackPanel Orientation="Horizontal" Spacing="3">
+                                        <FontIcon Glyph="&#xE711;" FontSize="9" />
+                                        <TextBlock Text="Clear" FontSize="10.5" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
                         </ScrollViewer>
                     </Border>

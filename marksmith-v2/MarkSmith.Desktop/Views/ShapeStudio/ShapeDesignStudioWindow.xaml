@@ -711,21 +711,59 @@
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Text="Type" Style="{StaticResource InspectorLabel}" />
-                            <ComboBox Grid.Row="0" Grid.Column="1" AutomationProperties.Name="Shape type" HorizontalAlignment="Stretch"
-                                      SelectedItem="{Binding SelectedShape.Prst, Mode=TwoWay}" ItemsSource="{Binding PaletteItems}">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <Path Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center"
-                                                  Fill="{ThemeResource TextFillColorSecondaryBrush}"
-                                                  Stroke="{ThemeResource TextFillColorSecondaryBrush}" StrokeThickness="1.2"
-                                                  Data="{Binding Converter={StaticResource ShapeGeom}}" />
-                                            <TextBlock Text="{Binding Converter={StaticResource PresetName}}" VerticalAlignment="Center"
-                                                       FontSize="13" TextTrimming="CharacterEllipsis" />
+                            <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6">
+                                <ComboBox AutomationProperties.Name="Shape type" HorizontalAlignment="Stretch"
+                                          SelectedItem="{Binding SelectedShape.Prst, Mode=TwoWay}" ItemsSource="{Binding PaletteItems}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Path Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center"
+                                                      Fill="{ThemeResource TextFillColorSecondaryBrush}"
+                                                      Stroke="{ThemeResource TextFillColorSecondaryBrush}" StrokeThickness="1.2"
+                                                      Data="{Binding Converter={StaticResource ShapeGeom}}" />
+                                                <TextBlock Text="{Binding Converter={StaticResource PresetName}}" VerticalAlignment="Center"
+                                                           FontSize="13" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <Border x:Name="QuickMorphRibbon" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                        CornerRadius="6" Padding="6,4">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <TextBlock Text="Morph" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                            <Button x:Name="MorphRectBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                                    Click="OnMorphRectClick" ToolTipService.ToolTip="Convert to Rectangle (rect)">
+                                                <FontIcon Glyph="&#xE7C3;" FontSize="11" />
+                                            </Button>
+                                            <Button x:Name="MorphRoundRectBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                                    Click="OnMorphRoundRectClick" ToolTipService.ToolTip="Convert to Rounded Rectangle (roundrect)">
+                                                <FontIcon Glyph="&#xE944;" FontSize="11" />
+                                            </Button>
+                                            <Button x:Name="MorphEllipseBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                                    Click="OnMorphEllipseClick" ToolTipService.ToolTip="Convert to Ellipse (ellipse)">
+                                                <FontIcon Glyph="&#xEA3B;" FontSize="11" />
+                                            </Button>
+                                            <Button x:Name="MorphDiamondBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                                    Click="OnMorphDiamondClick" ToolTipService.ToolTip="Convert to Decision Diamond (diamond)">
+                                                <FontIcon Glyph="&#xE734;" FontSize="11" />
+                                            </Button>
+                                            <Button x:Name="MorphHexagonBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                                    Click="OnMorphHexagonClick" ToolTipService.ToolTip="Convert to Hexagon (hexagon)">
+                                                <FontIcon Glyph="&#xE8B9;" FontSize="11" />
+                                            </Button>
                                         </StackPanel>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
+                                        <Button Grid.Column="2" x:Name="CornerRadiusToggleBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                                Click="OnCornerRadiusToggleClick" ToolTipService.ToolTip="Toggle between Sharp (0px) and Rounded corners (roundrect)">
+                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                <FontIcon Glyph="&#xEB9F;" FontSize="10" />
+                                                <TextBlock x:Name="CornerRadiusText" Text="Round" FontSize="10.5" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
 
                             <TextBlock Grid.Row="1" Text="Position" Style="{StaticResource InspectorLabel}" />
                             <!-- Visible X/Y (W/H) captions: the placeholders vanished as soon as the boxes held

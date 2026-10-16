@@ -42,6 +42,11 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBox x:Name="HubSearchBox" Width="170" VerticalAlignment="Center"
+                                 PlaceholderText="Filter suite (Ctrl+F)…"
+                                 CornerRadius="6" FontSize="11.5"
+                                 TextChanged="OnHubSearchBoxTextChanged" KeyDown="OnHubSearchBoxKeyDown"
+                                 ToolTipService.ToolTip="Filter suite components &amp; templates · Esc clears" />
                         <Button x:Name="ShortcutsHelpButton" Click="OnShortcutsHelpClick" Padding="10,6"
                                 ToolTipService.ToolTip="MarkSmith keyboard shortcuts &amp; cheat sheet (? or F1)"
                                 AutomationProperties.Name="Keyboard shortcuts (? or F1)">
