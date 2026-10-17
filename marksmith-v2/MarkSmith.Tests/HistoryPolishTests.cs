@@ -980,6 +980,42 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("- Removed ':::smartart'", summary);
         Assert.Contains("+ Added ':::chart'", summary);
     }
+
+    [Fact]
+    public void Run148_AuditTimelineVolatilityIndex()
+    {
+        Assert.Equal("Timeline volatility audit: 0-1 versions (Insufficient timeline history for churn volatility)",
+            LineDiff.FormatTimelineVolatilitySummary(Array.Empty<string>()));
+
+        var v1 = "Line 1";
+        var v2 = "Line 1\nLine 2"; // +1
+        var v3 = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8"; // +6
+        var v4 = "Line 1\nLine 2 modified"; // -7, +1 = 8
+
+        var versions = new List<string> { v1, v2, v3, v4 };
+        var (mean, total, maxSpike, spikeRev, rating, summary) =
+            LineDiff.AuditTimelineVolatilityIndex(versions);
+
+        Assert.True(total >= 15);
+        Assert.True(mean >= 5.0);
+        Assert.True(maxSpike >= 6);
+        Assert.True(spikeRev >= 3);
+        Assert.Equal("Moderate", rating);
+        Assert.Contains("Timeline volatility audit (Rating: Moderate · 4 revisions", summary);
+        Assert.Contains("Total", summary);
+
+        // Test UnifiedRow overload
+        var rows = new List<LineDiff.UnifiedRow>
+        {
+            new LineDiff.UnifiedRow(LineDiff.Kind.Same, 1, 1, "Same", "  "),
+            new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 2, "Added 1", "+ "),
+            new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 3, "Added 2", "+ "),
+            new LineDiff.UnifiedRow(LineDiff.Kind.Removed, 2, null, "Removed 1", "- ")
+        };
+
+        var rowSummary = LineDiff.FormatTimelineVolatilitySummary(rows);
+        Assert.Contains("Timeline volatility audit (Rating: Low · Active delta: +2/-1 · Churn: 3 lines)", rowSummary);
+    }
 }
 
 

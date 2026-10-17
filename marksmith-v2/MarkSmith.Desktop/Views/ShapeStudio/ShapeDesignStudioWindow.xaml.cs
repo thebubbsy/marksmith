@@ -6216,6 +6216,24 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
+
+        private void OnSelectionDistributeEvenlyHorizClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (distCount, total, summary) = ViewModel.DistributeShapesEvenly(DistributionAxis.Horizontal);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void OnSelectionDistributeEvenlyVertClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (distCount, total, summary) = ViewModel.DistributeShapesEvenly(DistributionAxis.Vertical);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
     }
 }
 

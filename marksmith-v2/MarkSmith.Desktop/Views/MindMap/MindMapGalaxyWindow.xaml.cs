@@ -3921,6 +3921,13 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = summary;
         }
 
+        private void OnNormalizeNodeCasingClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (modified, total, summary) = ViewModel.NormalizeNodeTextCasing(NodeCasingMode.TitleCase);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4736,6 +4743,14 @@ namespace MarkSmith.Views.MindMap
             };
             copyQuadrantBalanceItem.Click += OnCopyQuadrantBalanceClick;
             menu.Items.Add(copyQuadrantBalanceItem);
+
+            var normalizeNodeCasingItem = new MenuFlyoutItem
+            {
+                Text = "Normalize node text casing (Title Case)",
+                Icon = new FontIcon { Glyph = "\uE8E4" }
+            };
+            normalizeNodeCasingItem.Click += OnNormalizeNodeCasingClick;
+            menu.Items.Add(normalizeNodeCasingItem);
 
             var fitItem = new MenuFlyoutItem
 

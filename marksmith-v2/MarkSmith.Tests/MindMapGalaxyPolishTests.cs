@@ -1604,6 +1604,57 @@ namespace MarkSmith.Tests
             Assert.Contains("Spatial quadrant balance (5 nodes", summary);
             Assert.Contains("Center of Mass (50, 25)", summary);
         }
+
+        [Fact]
+        public void Run148_NormalizeNodeTextCasing()
+        {
+            var vm = new MindMapStudioViewModel();
+            Assert.Equal("Normalize node text casing: 0 nodes (Empty map)",
+                MindMapStudioViewModel.FormatNodeCasingSummary(0, 0, NodeCasingMode.TitleCase));
+
+            var doc = new MindMapDocument
+            {
+                RootNodeId = "root",
+                Nodes = new List<MindMapNode>
+                {
+                    new MindMapNode { Id = "root", Title = "core ARCHITECTURE" },
+                    new MindMapNode { Id = "n1", Title = "USER interface" },
+                    new MindMapNode { Id = "n2", Title = "PIPELINE" }
+                }
+            };
+            vm.LoadDocument(doc);
+
+            // Normalize to Title Case
+            var (modTitle, totalTitle, sumTitle) = vm.NormalizeNodeTextCasing(NodeCasingMode.TitleCase);
+            Assert.Equal(3, modTitle);
+            Assert.Equal(3, totalTitle);
+            Assert.Equal("Core Architecture", vm.Nodes.First(n => n.Id == "root").Title);
+            Assert.Equal("User Interface", vm.Nodes.First(n => n.Id == "n1").Title);
+            Assert.Equal("Pipeline", vm.Nodes.First(n => n.Id == "n2").Title);
+            Assert.Contains("Normalize node text casing (TitleCase): 3 nodes updated", sumTitle);
+
+            // Test Undo restores original titles
+            Assert.True(vm.CanUndo);
+            vm.Undo();
+            Assert.Equal("core ARCHITECTURE", vm.Nodes.First(n => n.Id == "root").Title);
+            Assert.Equal("USER interface", vm.Nodes.First(n => n.Id == "n1").Title);
+            Assert.Equal("PIPELINE", vm.Nodes.First(n => n.Id == "n2").Title);
+
+            // Normalize to Upper Case
+            var (modUpper, _, _) = vm.NormalizeNodeTextCasing(NodeCasingMode.UpperCase);
+            Assert.Equal(2, modUpper); // "PIPELINE" is already uppercase
+            Assert.Equal("CORE ARCHITECTURE", vm.Nodes.First(n => n.Id == "root").Title);
+
+            // Normalize to Lower Case
+            var (modLower, _, _) = vm.NormalizeNodeTextCasing(NodeCasingMode.LowerCase);
+            Assert.Equal(3, modLower);
+            Assert.Equal("core architecture", vm.Nodes.First(n => n.Id == "root").Title);
+
+            // Normalize to Sentence Case
+            var (modSentence, _, _) = vm.NormalizeNodeTextCasing(NodeCasingMode.SentenceCase);
+            Assert.Equal(3, modSentence); // All 3 lowercased nodes capitalized to sentence case
+            Assert.Equal("Core architecture", vm.Nodes.First(n => n.Id == "root").Title);
+        }
     }
 }
 

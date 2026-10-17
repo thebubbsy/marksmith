@@ -7714,6 +7714,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(copySummaryItem);
 
+        var auditFootnotesItem = new MenuFlyoutItem
+        {
+            Text = "Audit footnote & reference link integrity",
+            Icon = new FontIcon { Glyph = "\uE8A7" }
+        };
+        auditFootnotesItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatFootnoteAndReferenceIntegritySummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus("Copied footnote & reference link integrity audit to clipboard.");
+        };
+        menu.Items.Add(auditFootnotesItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -8907,6 +8921,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(sectionBudgetItem);
+
+        var auditFootnotesItem = new MenuFlyoutItem
+        {
+            Text = "Audit footnote & reference link integrity",
+            Icon = new FontIcon { Glyph = "\uE8A7" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        auditFootnotesItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatFootnoteAndReferenceIntegritySummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditFootnotesItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

@@ -1034,6 +1034,89 @@ public sealed class RecentFilesService
         var (_, _, _, _, _, summary) = AuditLibraryHealthScorecard(filePaths, fileExistsPredicate);
         return summary;
     }
+
+    /// <summary>
+    /// Audits recent library documents across recency staleness decay tiers:
+    /// Active (&lt; 24h), Fresh (1–7d), Warm (7–30d), Cold (30–90d), and Stale/Archived (&gt; 90d or inaccessible).
+    /// Supports a custom timestamp provider and reference time for deterministic testing.
+    /// </summary>
+    public static (int Active, int Fresh, int Warm, int Cold, int Stale, int Total, string Summary)
+        AuditRecentLibraryStalenessTiers(
+            IEnumerable<string>? filePaths,
+            Func<string, DateTime?>? lastWriteTimeProvider = null,
+            DateTime? referenceTime = null)
+    {
+        var list = filePaths?.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).ToList() ?? new List<string>();
+        if (list.Count == 0)
+        {
+            return (0, 0, 0, 0, 0, 0, "Recent library staleness tiers: 0 documents (No recent files recorded)");
+        }
+
+        var refTime = referenceTime ?? DateTime.Now;
+        int active = 0, fresh = 0, warm = 0, cold = 0, stale = 0;
+
+        foreach (var path in list)
+        {
+            DateTime? mtime = null;
+            if (lastWriteTimeProvider != null)
+            {
+                mtime = lastWriteTimeProvider(path);
+            }
+            else
+            {
+                try
+                {
+                    var fi = new FileInfo(path);
+                    if (fi.Exists) mtime = fi.LastWriteTime;
+                }
+                catch
+                {
+                    // Inaccessible
+                }
+            }
+
+            if (!mtime.HasValue)
+            {
+                stale++;
+            }
+            else
+            {
+                var age = refTime - mtime.Value;
+                if (age.TotalHours < 24.0)
+                    active++;
+                else if (age.TotalDays <= 7.0)
+                    fresh++;
+                else if (age.TotalDays <= 30.0)
+                    warm++;
+                else if (age.TotalDays <= 90.0)
+                    cold++;
+                else
+                    stale++;
+            }
+        }
+
+        string docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
+        string advice = stale > 0
+            ? $"Prune or archive {stale} stale document{(stale == 1 ? "" : "s")} >90d old"
+            : cold > 0
+                ? $"Review {cold} cold document{(cold == 1 ? "" : "s")} >30d old"
+                : "Recent library is fresh and actively maintained";
+
+        string summary = $"Recent library staleness tiers ({docLabel}): {active} active (<24h), {fresh} fresh (1-7d), {warm} warm (7-30d), {cold} cold (30-90d), {stale} stale (>90d) · Hygiene: {advice}";
+        return (active, fresh, warm, cold, stale, list.Count, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of recent library staleness decay tiers.
+    /// </summary>
+    public static string FormatStalenessTiersSummary(
+        IEnumerable<string>? filePaths,
+        Func<string, DateTime?>? lastWriteTimeProvider = null,
+        DateTime? referenceTime = null)
+    {
+        var (_, _, _, _, _, _, summary) = AuditRecentLibraryStalenessTiers(filePaths, lastWriteTimeProvider, referenceTime);
+        return summary;
+    }
 }
 
 

@@ -1255,6 +1255,248 @@ public static class TextSearch
 
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Audit report detailing footnote and reference-style link definition integrity.
+    /// </summary>
+    public sealed record FootnoteReferenceIntegrityAudit(
+        IReadOnlyList<string> MissingFootnoteDefs,
+        IReadOnlyList<string> UnusedFootnoteDefs,
+        IReadOnlyList<string> DuplicateFootnoteDefs,
+        IReadOnlyList<string> MissingLinkDefs,
+        IReadOnlyList<string> UnusedLinkDefs,
+        IReadOnlyList<string> DuplicateLinkDefs,
+        int TotalFootnoteRefs,
+        int TotalFootnoteDefs,
+        int TotalLinkRefs,
+        int TotalLinkDefs)
+    {
+        public bool IsClean => MissingFootnoteDefs.Count == 0 &&
+                               UnusedFootnoteDefs.Count == 0 &&
+                               DuplicateFootnoteDefs.Count == 0 &&
+                               MissingLinkDefs.Count == 0 &&
+                               UnusedLinkDefs.Count == 0 &&
+                               DuplicateLinkDefs.Count == 0;
+    }
+
+    /// <summary>
+    /// Audits Markdown text for missing, unused, and duplicate footnote and reference-style link definitions.
+    /// Excludes fenced code and diagram blocks to prevent false positives.
+    /// </summary>
+    public static FootnoteReferenceIntegrityAudit AuditFootnoteAndReferenceIntegrity(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return new FootnoteReferenceIntegrityAudit(
+                Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(),
+                Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(),
+                0, 0, 0, 0);
+        }
+
+        var lines = text.Replace("\r", "").Split('\n');
+        bool inFence = false;
+        string fenceMarker = string.Empty;
+
+        var footnoteDefs = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var duplicateFootnoteDefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var linkDefs = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var duplicateLinkDefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var footnoteDefRegex = new Regex(@"^[ ]{0,3}\[\^([^\]]+)\]:\s*(.*)", RegexOptions.Compiled);
+        var linkDefRegex = new Regex(@"^[ ]{0,3}\[([^\]\^][^\]]*)\]:\s*(\S+)(.*)", RegexOptions.Compiled);
+
+        var nonFenceLines = new List<(int LineNumber, string LineText, bool IsDef)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                string tag = trimmed.Length >= 3 ? trimmed.Substring(0, 3) : trimmed;
+                if (!inFence)
+                {
+                    inFence = true;
+                    fenceMarker = tag;
+                }
+                else if (tag == fenceMarker || trimmed == ":::")
+                {
+                    inFence = false;
+                    fenceMarker = string.Empty;
+                }
+                continue;
+            }
+
+            if (inFence) continue;
+
+            // Check footnote definition
+            var fnMatch = footnoteDefRegex.Match(line);
+            if (fnMatch.Success)
+            {
+                var label = fnMatch.Groups[1].Value.Trim();
+                if (footnoteDefs.ContainsKey(label))
+                {
+                    footnoteDefs[label]++;
+                    duplicateFootnoteDefs.Add(label);
+                }
+                else
+                {
+                    footnoteDefs[label] = 1;
+                }
+
+                // Check remaining text on the definition line for other references
+                var rest = fnMatch.Groups[2].Value;
+                nonFenceLines.Add((i + 1, rest, true));
+                continue;
+            }
+
+            // Check link definition
+            var linkMatch = linkDefRegex.Match(line);
+            if (linkMatch.Success)
+            {
+                var label = linkMatch.Groups[1].Value.Trim();
+                if (linkDefs.ContainsKey(label))
+                {
+                    linkDefs[label]++;
+                    duplicateLinkDefs.Add(label);
+                }
+                else
+                {
+                    linkDefs[label] = 1;
+                }
+
+                var rest = linkMatch.Groups[3].Value;
+                nonFenceLines.Add((i + 1, rest, true));
+                continue;
+            }
+
+            nonFenceLines.Add((i + 1, line, false));
+        }
+
+        var footnoteRefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var linkRefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var missingFootnotes = new List<string>();
+        var missingLinks = new List<string>();
+
+        var fnRefRegex = new Regex(@"\[\^([^\]]+)\](?!:)", RegexOptions.Compiled);
+        // Matches [text][ref] or [ref][]
+        var fullRefRegex = new Regex(@"\[([^\]]+)\]\[([^\]]*)\]", RegexOptions.Compiled);
+        // Matches shortcut reference [ref] not followed by (:
+        var shortcutRefRegex = new Regex(@"(?<!\!)\[([^\]\^\r\n]+)\](?!\(|\[|:)", RegexOptions.Compiled);
+
+        int totalFnRefs = 0;
+        int totalLinkRefs = 0;
+
+        foreach (var (_, content, _) in nonFenceLines)
+        {
+            if (string.IsNullOrEmpty(content)) continue;
+
+            // Scan footnote references
+            var fnMatches = fnRefRegex.Matches(content);
+            foreach (Match m in fnMatches)
+            {
+                totalFnRefs++;
+                var label = m.Groups[1].Value.Trim();
+                footnoteRefs.Add(label);
+                if (!footnoteDefs.ContainsKey(label) && !missingFootnotes.Contains(label, StringComparer.OrdinalIgnoreCase))
+                {
+                    missingFootnotes.Add(label);
+                }
+            }
+
+            // Scan full reference links [text][ref] and collapsed [ref][]
+            var fullMatches = fullRefRegex.Matches(content);
+            foreach (Match m in fullMatches)
+            {
+                totalLinkRefs++;
+                var textLabel = m.Groups[1].Value.Trim();
+                var refLabel = m.Groups[2].Value.Trim();
+                var targetKey = string.IsNullOrEmpty(refLabel) ? textLabel : refLabel;
+                linkRefs.Add(targetKey);
+                if (!linkDefs.ContainsKey(targetKey) && !missingLinks.Contains(targetKey, StringComparer.OrdinalIgnoreCase))
+                {
+                    missingLinks.Add(targetKey);
+                }
+            }
+
+            // Scan shortcut links [ref] that match a known link definition
+            // Mask out full reference links first so that the second bracket [ref] in [text][ref] is not double-counted
+            var contentForShortcuts = fullRefRegex.Replace(content, m => new string(' ', m.Length));
+            var shortcutMatches = shortcutRefRegex.Matches(contentForShortcuts);
+            foreach (Match m in shortcutMatches)
+            {
+                var label = m.Groups[1].Value.Trim();
+                if (label == " " || label == "x" || label == "X") continue; // skip checkboxes
+                if (linkDefs.ContainsKey(label))
+                {
+                    totalLinkRefs++;
+                    linkRefs.Add(label);
+                }
+            }
+        }
+
+        var unusedFootnotes = footnoteDefs.Keys
+            .Where(k => !footnoteRefs.Contains(k))
+            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var unusedLinks = linkDefs.Keys
+            .Where(k => !linkRefs.Contains(k))
+            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new FootnoteReferenceIntegrityAudit(
+            missingFootnotes,
+            unusedFootnotes,
+            duplicateFootnoteDefs.OrderBy(k => k, StringComparer.OrdinalIgnoreCase).ToList(),
+            missingLinks,
+            unusedLinks,
+            duplicateLinkDefs.OrderBy(k => k, StringComparer.OrdinalIgnoreCase).ToList(),
+            totalFnRefs,
+            footnoteDefs.Count,
+            totalLinkRefs,
+            linkDefs.Count);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of the footnote and reference link integrity audit.
+    /// </summary>
+    public static string FormatFootnoteAndReferenceIntegritySummary(string? text)
+    {
+        var audit = AuditFootnoteAndReferenceIntegrity(text);
+        if (audit.TotalFootnoteRefs == 0 && audit.TotalFootnoteDefs == 0 &&
+            audit.TotalLinkRefs == 0 && audit.TotalLinkDefs == 0)
+        {
+            return "Footnote & reference link integrity: 0 references or definitions detected (Clean document)";
+        }
+
+        if (audit.IsClean)
+        {
+            return $"Footnote & reference link integrity: All {audit.TotalFootnoteDefs} footnote(s) and {audit.TotalLinkDefs} reference link(s) are valid and balanced (0 missing, 0 unused, 0 duplicate)";
+        }
+
+        var sb = new StringBuilder();
+        var issuesCount = audit.MissingFootnoteDefs.Count + audit.UnusedFootnoteDefs.Count + audit.DuplicateFootnoteDefs.Count +
+                          audit.MissingLinkDefs.Count + audit.UnusedLinkDefs.Count + audit.DuplicateLinkDefs.Count;
+        sb.AppendLine($"Footnote & reference link integrity ({issuesCount} issue{(issuesCount == 1 ? "" : "s")} detected):");
+
+        if (audit.MissingFootnoteDefs.Count > 0)
+            sb.AppendLine($"  • Missing footnote definitions: {string.Join(", ", audit.MissingFootnoteDefs.Select(d => $"[^{d}]"))}");
+        if (audit.UnusedFootnoteDefs.Count > 0)
+            sb.AppendLine($"  • Unused footnote definitions: {string.Join(", ", audit.UnusedFootnoteDefs.Select(d => $"[^{d}]"))}");
+        if (audit.DuplicateFootnoteDefs.Count > 0)
+            sb.AppendLine($"  • Duplicate footnote definitions: {string.Join(", ", audit.DuplicateFootnoteDefs.Select(d => $"[^{d}]"))}");
+        if (audit.MissingLinkDefs.Count > 0)
+            sb.AppendLine($"  • Missing link definitions: {string.Join(", ", audit.MissingLinkDefs.Select(d => $"[{d}]"))}");
+        if (audit.UnusedLinkDefs.Count > 0)
+            sb.AppendLine($"  • Unused link definitions: {string.Join(", ", audit.UnusedLinkDefs.Select(d => $"[{d}]"))}");
+        if (audit.DuplicateLinkDefs.Count > 0)
+            sb.Append($"  • Duplicate link definitions: {string.Join(", ", audit.DuplicateLinkDefs.Select(d => $"[{d}]"))}");
+
+        return sb.ToString().TrimEnd();
+    }
 }
 
 

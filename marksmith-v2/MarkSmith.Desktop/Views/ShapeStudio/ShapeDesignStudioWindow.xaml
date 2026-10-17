@@ -640,6 +640,12 @@
                                         <MenuFlyoutItem x:Name="SelectionResolveOverlapsItem" Text="Resolve shape overlaps (Nudge overlapping shapes apart)" Click="OnSelectionResolveOverlapsClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B3;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionDistributeEvenlyHorizItem" Text="Distribute shapes evenly (Horizontal)" Click="OnSelectionDistributeEvenlyHorizClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionDistributeEvenlyVertItem" Text="Distribute shapes evenly (Vertical)" Click="OnSelectionDistributeEvenlyVertClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AA;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

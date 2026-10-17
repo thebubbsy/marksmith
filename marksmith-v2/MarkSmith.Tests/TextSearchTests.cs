@@ -668,6 +668,78 @@ public class TextSearchTests
         Assert.Contains("§2. [H1] Overview", formatted);
         Assert.Contains("§3. [H2] Architecture", formatted);
     }
+
+    [Fact]
+    public void Run148_AuditFootnoteAndReferenceIntegrity()
+    {
+        Assert.Equal("Footnote & reference link integrity: 0 references or definitions detected (Clean document)",
+            TextSearch.FormatFootnoteAndReferenceIntegritySummary(""));
+
+        var cleanDoc = """
+            # Architecture Review
+            This document explains the compiler design[^1] and standard reference links [DocHub][hub].
+            Check out [MarkSmith Website][site] for details.
+
+            ```markdown
+            [^code_footnote]: Should be ignored inside fences
+            [code_link]: https://ignored.com
+            ```
+
+            [^1]: First footnote detailing the compiler pipeline.
+            [hub]: https://hub.example.com
+            [site]: https://marksmith.example.com "Official Site"
+            """;
+
+        var cleanAudit = TextSearch.AuditFootnoteAndReferenceIntegrity(cleanDoc);
+        Assert.True(cleanAudit.IsClean);
+        Assert.Equal(1, cleanAudit.TotalFootnoteRefs);
+        Assert.Equal(1, cleanAudit.TotalFootnoteDefs);
+        Assert.Equal(2, cleanAudit.TotalLinkRefs);
+        Assert.Equal(2, cleanAudit.TotalLinkDefs);
+
+        var cleanSummary = TextSearch.FormatFootnoteAndReferenceIntegritySummary(cleanDoc);
+        Assert.Contains("All 1 footnote(s) and 2 reference link(s) are valid and balanced", cleanSummary);
+
+        var brokenDoc = """
+            # Faulty Document
+            Here is a reference to a missing footnote[^missing_fn].
+            Here is a valid footnote[^valid_fn] and a reference link [Feature Link][missing_link].
+
+            [^valid_fn]: Valid definition text.
+            [^unused_fn]: This definition is never referenced.
+            [^dup_fn]: First definition.
+            [^dup_fn]: Second duplicate definition!
+
+            [valid_link]: https://valid.com
+            [unused_link]: https://unused.com
+            [dup_link]: https://first.com
+            [dup_link]: https://second.com
+
+            Reference to [valid_link][valid_link].
+            """;
+
+        var brokenAudit = TextSearch.AuditFootnoteAndReferenceIntegrity(brokenDoc);
+        Assert.False(brokenAudit.IsClean);
+
+        Assert.Contains("missing_fn", brokenAudit.MissingFootnoteDefs);
+        Assert.Contains("unused_fn", brokenAudit.UnusedFootnoteDefs);
+        Assert.Contains("dup_fn", brokenAudit.DuplicateFootnoteDefs);
+
+        Assert.Contains("missing_link", brokenAudit.MissingLinkDefs);
+        Assert.Contains("unused_link", brokenAudit.UnusedLinkDefs);
+        Assert.Contains("dup_link", brokenAudit.DuplicateLinkDefs);
+
+        var brokenSummary = TextSearch.FormatFootnoteAndReferenceIntegritySummary(brokenDoc);
+        Assert.Contains("Footnote & reference link integrity", brokenSummary);
+        Assert.Contains("Missing footnote definitions: [^missing_fn]", brokenSummary);
+        Assert.Contains("Unused footnote definitions:", brokenSummary);
+        Assert.Contains("[^unused_fn]", brokenSummary);
+        Assert.Contains("Duplicate footnote definitions: [^dup_fn]", brokenSummary);
+        Assert.Contains("Missing link definitions: [missing_link]", brokenSummary);
+        Assert.Contains("Unused link definitions:", brokenSummary);
+        Assert.Contains("[unused_link]", brokenSummary);
+        Assert.Contains("Duplicate link definitions: [dup_link]", brokenSummary);
+    }
 }
 
 

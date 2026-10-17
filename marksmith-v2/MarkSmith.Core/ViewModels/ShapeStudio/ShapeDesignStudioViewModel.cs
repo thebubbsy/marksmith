@@ -3985,5 +3985,91 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string shapeLabel = nudgedCount == 1 ? "1 shape nudged" : $"{nudgedCount} shapes nudged";
         return $"Resolve overlaps: {shapeLabel} apart (Enforced {minGap:0}px minimum clearance across {totalExamined} shapes)";
     }
+
+    /// <summary>
+    /// Distributes selected shapes (or all canvas shapes if &lt; 3 selected) evenly along the specified axis.
+    /// Preserves the outermost anchor shapes and equalizes spacing between inner shapes.
+    /// Records a single undo snapshot and triggers canvas redraw.
+    /// </summary>
+    public (int DistributedCount, int TotalExamined, string Summary) DistributeShapesEvenly(DistributionAxis axis)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = selected.Count >= 3 ? selected : Shapes.ToList();
+
+        if (targets.Count < 3)
+        {
+            string notEnoughSummary = FormatDistributionSummary(0, targets.Count, axis, 0);
+            StatusMessage = notEnoughSummary;
+            return (0, targets.Count, notEnoughSummary);
+        }
+
+        RecordUndo();
+
+        int distributedCount = 0;
+        double gap = 0;
+
+        if (axis == DistributionAxis.Horizontal)
+        {
+            var ordered = targets.OrderBy(s => s.X).ToList();
+            double left = ordered[0].X;
+            double right = ordered[^1].X + ordered[^1].Width;
+            double totalSpan = right - left;
+            double sumWidths = ordered.Sum(s => s.Width);
+            double availableGap = totalSpan - sumWidths;
+            gap = availableGap / (ordered.Count - 1);
+
+            double curX = left + ordered[0].Width + gap;
+            for (int i = 1; i < ordered.Count - 1; i++)
+            {
+                ordered[i].X = Math.Max(0, Math.Round(curX, 1));
+                curX += ordered[i].Width + gap;
+                distributedCount++;
+            }
+        }
+        else
+        {
+            var ordered = targets.OrderBy(s => s.Y).ToList();
+            double top = ordered[0].Y;
+            double bottom = ordered[^1].Y + ordered[^1].Height;
+            double totalSpan = bottom - top;
+            double sumHeights = ordered.Sum(s => s.Height);
+            double availableGap = totalSpan - sumHeights;
+            gap = availableGap / (ordered.Count - 1);
+
+            double curY = top + ordered[0].Height + gap;
+            for (int i = 1; i < ordered.Count - 1; i++)
+            {
+                ordered[i].Y = Math.Max(0, Math.Round(curY, 1));
+                curY += ordered[i].Height + gap;
+                distributedCount++;
+            }
+        }
+
+        string summary = FormatDistributionSummary(distributedCount, targets.Count, axis, gap);
+        StatusMessage = $"✓ {summary} · Ctrl+Z to undo";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        return (distributedCount, targets.Count, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of an even shape distribution operation.
+    /// </summary>
+    public static string FormatDistributionSummary(int distributedCount, int totalCount, DistributionAxis axis, double gap = 0)
+    {
+        if (totalCount < 3)
+            return $"Distribute evenly ({axis}): Requires at least 3 shapes (Found {totalCount})";
+
+        string shapeLabel = distributedCount == 1 ? "1 shape" : $"{distributedCount} shapes";
+        return $"Distribute evenly ({axis}): Balanced {shapeLabel} across {totalCount} shapes (Gap: {gap:0.#}px)";
+    }
+}
+
+/// <summary>
+/// Axis for even geometric distribution of shapes.
+/// </summary>
+public enum DistributionAxis
+{
+    Horizontal,
+    Vertical
 }
 

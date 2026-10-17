@@ -11063,28 +11063,6 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #148 Blueprint — Footnote & Reference Link Integrity Auditor, Node Text Case Normalizer, Multi-Shape Even Distribution, Outline Nesting Depth Balancer, Timeline Volatility Index & Recent Files Staleness Decay Scorecard (Status: Pending)
-1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **What is missing**: Documents with extensive footnotes (`[^1]`) and reference-style links (`[label]: url`) lack an automated integrity auditor detecting missing definitions, unused definitions, and duplicate reference tags.
-   - **Deliverable**: Add `TextSearch.AuditFootnoteAndReferenceIntegrity(text)` and `FormatFootnoteAndReferenceIntegritySummary(text)`, wired to `StatusSectionBreadcrumbButton` / `FindCountText` right-tap context actions.
-2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **What is missing**: Mind map nodes created through varied inputs (voice, pasting, quick notes) suffer from inconsistent casing (mixing all-caps, lower-case, and title case), lacking a batch case normalization tool.
-   - **Deliverable**: Add `MindMapStudioViewModel.NormalizeNodeTextCasing(mode)` and `FormatNodeCasingSummary()`, wired to `NormalizeNodeCasingItem` (`\uE8E4`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
-3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **What is missing**: Aligning shapes works for left/top edges, but there is no one-click "Distribute Evenly" to equalize horizontal or vertical gaps between 3+ selected shapes.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.DistributeShapesEvenly(axis, spacing)` and `FormatDistributionSummary()`, wired to `SelectionDistributeEvenlyItem` (`\uE8A9`) in `SelectionBoundsFlyout`.
-4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **What is missing**: Deeply nested outlines (> 3 levels) cause rendering overflows in horizontal/process SmartArt layouts with no automatic depth clamp or re-parenting flattener.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.BalanceOutlineNestingDepth(maxDepth)` and `FormatDepthBalancingSummary()`, wired to `BalanceOutlineDepthItem` (`\uE8FD`) in `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
-   - **What is missing**: Version history timelines lack a timeline volatility index and edit cluster auditor that identifies high-churn editing sessions vs quiet snapshot intervals.
-   - **Deliverable**: Add `LineDiff.AuditTimelineVolatilityIndex(versions)` and `FormatTimelineVolatilitySummary()`, wired to `copyVolatilityIndex` (`\uE9F9`) in `TimelineHeaderBorder` context flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
-   - **What is missing**: Recent documents accumulate over months without categorizing files into recency tiers (Active < 24h, Fresh 1–7d, Warm 1–4w, Cold > 30d) or providing stale document hygiene recommendations.
-   - **Deliverable**: Add `RecentFilesService.AuditRecentLibraryStalenessTiers(files)` and `FormatStalenessTiersSummary()`, wired to `CopyRecentStalenessScorecardItem` (`\uE823`) in `RecentDocsFlyout`.
-
----
-
 ## Scheduled WinUI 3 Desktop Polish Routine — Run #144 (3-Block Cycle + Execution Phase Protocol — Completed)
 - **Date**: 2026-10-17
 - **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
@@ -11165,5 +11143,49 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
     - Added unit test suites in `TextSearchTests.cs`, `MindMapGalaxyPolishTests.cs`, `ShapeStudioPolishTests.cs`, `SmartArtStudioPolishTests.cs`, `HistoryPolishTests.cs`, and `SuiteHubAndTourPolishTests.cs`.
     - Verified `54/54` targeted Run #147 + `CommandIconsTests` passing (`100%` pass rate).
     - Verified live `Marksmith.exe` smoke startup (`Marksmith.exe launched and stayed alive successfully`).
+
+---
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #148 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-18
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Footnote & Reference Link Integrity Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditFootnoteAndReferenceIntegrity(text)` and `FormatFootnoteAndReferenceIntegritySummary(text)` auditing missing, unused, and duplicate footnote definitions (`[^tag]`) and reference link definitions (`[label]: url`) while excluding code fences and masking full reference links; wired to `auditFootnotesItem` (`\uE8A7`) in `OnStatusSectionBreadcrumbButtonRightTapped` and `OnFindCountTextRightTapped`.
+    2. **MindMapGalaxyWindow Node Text Case Normalizer (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.NormalizeNodeTextCasing(mode)` supporting `TitleCase`, `UpperCase`, `LowerCase`, and `SentenceCase` across selected or all nodes with atomic undo tracking (`PushUndo`, `SuspendEditTracking`), and `FormatNodeCasingSummary(...)`; wired to `NormalizeNodeCasingItem` (`\uE8E4`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Multi-Shape Even Distribution (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.DistributeShapesEvenly(axis)` for `Horizontal` and `Vertical` axes, equalizing gaps between 3+ selected shapes while anchoring outer shapes with single-step undo recording (`RecordUndo`), and `FormatDistributionSummary(...)`; wired to `SelectionDistributeEvenlyHorizItem` (`\uE8A9`) and `SelectionDistributeEvenlyVertItem` (`\uE8AA`) in `SelectionBoundsFlyout`.
+    4. **SmartArtDesignStudioWindow Outline Nesting Depth Balancer (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.BalanceOutlineNestingDepth(maxDepth, mergeIntoParent)` to clamp indentation levels or merge overflowing sub-bullets into parent items with ` — ` separators, and `FormatDepthBalancingSummary(...)`; wired to `BalanceOutlineDepthItem` (`\uE8FD`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Timeline Volatility Index & Session Churn Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditTimelineVolatilityIndex(versionContents)` and `FormatTimelineVolatilitySummary(...)` (with both version contents and `UnifiedRow` overloads) computing mean churn lines/revision, total churn, peak revision spike, and ratings (`Low`, `Moderate`, `High`, `Volatile`); wired to `copyVolatilityIndex` (`\uE9F9`) in `TimelineHeaderBorder` context flyout.
+    6. **SuiteHubView Recent Files Staleness Decay Scorecard (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditRecentLibraryStalenessTiers(...)` and `FormatStalenessTiersSummary(...)` classifying recent files into `Active` (<24h), `Fresh` (1–7d), `Warm` (7–30d), `Cold` (30–90d), and `Stale` (>90d) with deterministic test provider; wired to `CopyRecentStalenessScorecardItem` (`\uE823`) in `RecentDocsFlyout` with `Services.CopyFeedback.ApplyButtonTick`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (baseline 23 warnings).
+    - Verified `54/54` targeted Run #148 + `CommandIconsTests` passing (`100%` pass rate).
+    - Verified `617/617` full desktop polish tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`PID=11596, HasExited=False, Responding=True, WorkingSetMB=240.96`).
+
+---
+
+### Run #149 Blueprint — Session Velocity Forecast, Inactive Workspace Vault Auditor, Multi-Shape Proportional Scale Factor Dialog, Outline Token Density Metric, Cherry-Pick Conflict Risk Assessor & Workspace Volume Distribution Audit (Status: Pending)
+1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **What is missing**: Writers during extended drafting sessions lack a word/line generation velocity forecast estimating target draft completion time based on recent minute-by-minute text delta rates.
+   - **Deliverable**: Add `TextSearch.CalculateSessionVelocityForecast(currentWords, startWords, elapsedMinutes, targetWords)` and `FormatSessionVelocitySummary(...)`, wired to `StatusSectionBreadcrumbButton` / `FindCountText` right-tap context actions.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **What is missing**: Aging mind map galaxies contain dormant subtrees and obsolete linked files with no automated inactive node auditor or archive-candidate tagger.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditInactiveSubtrees(inactiveDaysThreshold)` and `FormatInactiveSubtreesSummary(...)`, wired to `AuditInactiveNodesItem` (`\uE74D`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **What is missing**: Resizing multiple shapes scales each independently, lacking a proportional multi-shape scale factor transformer that scales geometry and relative offsets uniformly around the selection center.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.ScaleSelectedShapesProportionally(scaleFactor)` and `FormatProportionalScaleSummary(...)`, wired to `SelectionScaleProportionalItem` (`\uE740`) in `SelectionBoundsFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **What is missing**: Outlines often mix concise tags with verbose paragraph-length nodes, lacking a token density and node readability balance audit.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditOutlineTokenDensity(markdown)` and `FormatTokenDensitySummary(...)`, wired to `AuditTokenDensityItem` (`\uE8FD`) in `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
+   - **What is missing**: When cherry-picking hunks from older revisions, users cannot determine if an intermediate revision modified adjacent context lines, creating merge collision risks.
+   - **Deliverable**: Add `LineDiff.AssessCherryPickConflictRisk(hunk, currentDoc)` and `FormatConflictRiskSummary(...)`, wired to `assessConflictRisk` (`\uE7BA`) in `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
+   - **What is missing**: Users working across external drives, network shares, and cloud synched folders have no storage volume and drive partition distribution breakdown.
+   - **Deliverable**: Add `RecentFilesService.AuditVolumeDistribution(filePaths)` and `FormatVolumeDistributionSummary(...)`, wired to `CopyRecentVolumeDistributionItem` (`\uE8B7`) in `RecentDocsFlyout`.
+
 
 

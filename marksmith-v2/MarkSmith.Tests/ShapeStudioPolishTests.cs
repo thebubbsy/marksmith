@@ -904,6 +904,52 @@ public class ShapeStudioPolishTests
         Assert.Equal(0, overlapsAgain);
         Assert.Contains("0 overlaps detected", summaryAgain);
     }
+
+    [Fact]
+    public void Run148_DistributeShapesEvenly()
+    {
+        Assert.Equal("Distribute evenly (Horizontal): Requires at least 3 shapes (Found 1)",
+            ShapeDesignStudioViewModel.FormatDistributionSummary(0, 1, DistributionAxis.Horizontal));
+
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // Add 3 shapes: left at 0, middle at 50, right at 300 (width = 100 each)
+        // Span = (300 + 100) - 0 = 400. Widths = 300. Gap = (400 - 300) / 2 = 50.
+        vm.AddShapeAt("rect", 0, 10, 100, 60, "0078D4", "Box 1");
+        vm.AddShapeAt("rect", 50, 10, 100, 60, "0078D4", "Box 2");
+        vm.AddShapeAt("rect", 300, 10, 100, 60, "0078D4", "Box 3");
+
+        var (distH, totalH, sumH) = vm.DistributeShapesEvenly(DistributionAxis.Horizontal);
+        Assert.Equal(1, distH);
+        Assert.Equal(3, totalH);
+        Assert.Equal(0, vm.Shapes[0].X);
+        Assert.Equal(150, vm.Shapes[1].X); // 0 + 100 + 50 = 150
+        Assert.Equal(300, vm.Shapes[2].X);
+        Assert.Contains("Distribute evenly (Horizontal): Balanced 1 shape across 3 shapes (Gap: 50px)", sumH);
+
+        // Undo restores middle shape to X=50
+        Assert.True(vm.CanUndo);
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(50, vm.Shapes[1].X);
+
+        // Test Vertical Distribution
+        vm.Shapes[0].Y = 0;
+        vm.Shapes[0].Height = 50;
+        vm.Shapes[1].Y = 20;
+        vm.Shapes[1].Height = 50;
+        vm.Shapes[2].Y = 200;
+        vm.Shapes[2].Height = 50;
+
+        // Span = (200 + 50) - 0 = 250. Heights = 150. Gap = (250 - 150) / 2 = 50.
+        var (distV, totalV, sumV) = vm.DistributeShapesEvenly(DistributionAxis.Vertical);
+        Assert.Equal(1, distV);
+        Assert.Equal(3, totalV);
+        Assert.Equal(0, vm.Shapes[0].Y);
+        Assert.Equal(100, vm.Shapes[1].Y); // 0 + 50 + 50 = 100
+        Assert.Equal(200, vm.Shapes[2].Y);
+        Assert.Contains("Distribute evenly (Vertical): Balanced 1 shape across 3 shapes (Gap: 50px)", sumV);
+    }
 }
 
 

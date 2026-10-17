@@ -2359,6 +2359,113 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string itemLabel = itemsStructured == 1 ? "1 item" : $"{itemsStructured} items";
         return $"Structure by delimiter ({parentLabel} created): Converted {itemLabel} across {totalNodes} nodes into hierarchical subtrees";
     }
+
+    /// <summary>
+    /// Clamps or flattens outlines whose depth exceeds <paramref name="maxDepth"/> (e.g. 2 or 3) to prevent
+    /// rendering overflow in horizontal/process SmartArt layouts.
+    /// Supports clamping indentation level or merging sub-bullets into the parent bullet with a separator.
+    /// </summary>
+    public (string Markdown, int AdjustedCount, string Summary) BalanceOutlineNestingDepth(
+        int maxDepth = 2,
+        bool mergeIntoParent = false)
+    {
+        var (result, adjusted, total, summary) = BalanceOutlineNestingDepth(MarkdownText, maxDepth, mergeIntoParent);
+        if (adjusted > 0)
+        {
+            MarkdownText = result;
+        }
+        return (result, adjusted, summary);
+    }
+
+    /// <summary>
+    /// Clamps or flattens markdown outline lines whose depth exceeds <paramref name="maxDepth"/>.
+    /// </summary>
+    public static (string Markdown, int AdjustedCount, int TotalBullets, string Summary) BalanceOutlineNestingDepth(
+        string? markdown,
+        int maxDepth = 2,
+        bool mergeIntoParent = false)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            return (markdown ?? string.Empty, 0, 0, FormatDepthBalancingSummary(0, 0, maxDepth, mergeIntoParent));
+        }
+
+        bool hasCr = markdown.Contains("\r");
+        var lines = markdown.Replace("\r", "").Split('\n');
+        var outputLines = new List<string>();
+        int totalBullets = 0;
+        int adjustedCount = 0;
+
+        foreach (var rawLine in lines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine))
+            {
+                outputLines.Add(rawLine);
+                continue;
+            }
+
+            int leadWs = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t')) leadWs++;
+
+            var trimmed = rawLine.Substring(leadWs);
+            bool isBullet = trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ");
+
+            if (!isBullet)
+            {
+                outputLines.Add(rawLine);
+                continue;
+            }
+
+            totalBullets++;
+            string bulletMarker = trimmed.Substring(0, 2);
+            string content = trimmed.Substring(2).Trim();
+
+            // Calculate logical depth (1 = root, 2 = 2 spaces, 3 = 4 spaces, etc.)
+            int depth = 1 + (leadWs >= 2 ? (leadWs / 2) : 0);
+
+            if (depth > maxDepth)
+            {
+                adjustedCount++;
+                if (mergeIntoParent && outputLines.Count > 0 && !string.IsNullOrWhiteSpace(outputLines[^1]))
+                {
+                    // Merge into previous line
+                    outputLines[^1] = outputLines[^1] + " — " + content;
+                }
+                else
+                {
+                    // Clamp to maxDepth
+                    int clampedSpaces = Math.Max(0, (maxDepth - 1) * 2);
+                    string indent = new string(' ', clampedSpaces);
+                    outputLines.Add($"{indent}{bulletMarker}{content}");
+                }
+            }
+            else
+            {
+                outputLines.Add(rawLine);
+            }
+        }
+
+        var joined = string.Join("\n", outputLines);
+        var finalMarkdown = hasCr ? joined.Replace("\n", "\r\n") : joined;
+        var summary = FormatDepthBalancingSummary(adjustedCount, totalBullets, maxDepth, mergeIntoParent);
+        return (finalMarkdown, adjustedCount, totalBullets, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of outline depth balancing.
+    /// </summary>
+    public static string FormatDepthBalancingSummary(int adjustedCount, int totalBullets, int maxDepth, bool mergeIntoParent = false)
+    {
+        if (totalBullets <= 0)
+            return "Balance outline depth: 0 bullets (Empty outline)";
+
+        if (adjustedCount <= 0)
+            return $"Balance outline depth: All {totalBullets} bullets within max depth {maxDepth} (0 adjustments needed)";
+
+        string modeStr = mergeIntoParent ? "merged into parent bullets" : "clamped to max depth";
+        string bulletLabel = adjustedCount == 1 ? "1 bullet" : $"{adjustedCount} bullets";
+        return $"Balance outline depth (Max depth {maxDepth}): {bulletLabel} {modeStr} across {totalBullets} bullets to prevent layout overflow";
+    }
 }
 
 

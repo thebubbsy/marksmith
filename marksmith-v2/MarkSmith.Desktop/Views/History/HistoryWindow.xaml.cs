@@ -3158,6 +3158,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied fenced blocks diff: {fencedDiff}");
                 };
                 menu.Items.Add(copyFencedBlockDiff);
+
+                var copyVolatilityIndex = new MenuFlyoutItem
+                {
+                    Text = "Copy timeline volatility index & session churn audit",
+                    Icon = new FontIcon { Glyph = "\uE9F9" }
+                };
+                copyVolatilityIndex.Click += (_, _) =>
+                {
+                    var volatility = MarkSmith.Services.LineDiff.FormatTimelineVolatilitySummary(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(volatility);
+                    _vm.ShowNotice($"Copied timeline volatility: {volatility}");
+                };
+                menu.Items.Add(copyVolatilityIndex);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

@@ -261,6 +261,9 @@
                                     <MenuFlyoutItem x:Name="CopyQuadrantBalanceItem" Text="Copy spatial quadrant balance summary" Click="OnCopyQuadrantBalanceClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="NormalizeNodeCasingItem" Text="Normalize node text casing (Title Case)" Click="OnNormalizeNodeCasingClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E4;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

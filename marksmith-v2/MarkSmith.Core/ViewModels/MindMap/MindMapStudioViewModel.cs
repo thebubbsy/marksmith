@@ -3066,6 +3066,139 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Spatial quadrant balance ({nodeLabel} · Center of Mass ({cx:0.#}, {cy:0.#})): NW: {nw} ({nwPct:0.#}%), NE: {ne} ({nePct:0.#}%), SW: {sw} ({swPct:0.#}%), SE: {se} ({sePct:0.#}%){driftStr}";
         }
+
+        /// <summary>
+        /// Normalizes text casing across selected nodes (or all nodes if single/no nodes are selected) using the specified casing mode.
+        /// Preserves layout and links, records an atomic undo snapshot, and updates the canvas.
+        /// </summary>
+        public (int ModifiedCount, int TotalExamined, string Summary) NormalizeNodeTextCasing(NodeCasingMode mode = NodeCasingMode.TitleCase, bool onlySelected = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            List<MindMapNodeViewModel> targets;
+            if (onlySelected && selected.Count > 0)
+            {
+                targets = selected;
+            }
+            else if (selected.Count > 1)
+            {
+                targets = selected;
+            }
+            else
+            {
+                targets = Nodes.ToList();
+            }
+
+            if (targets.Count == 0)
+            {
+                string emptySummary = FormatNodeCasingSummary(0, 0, mode);
+                StatusMessage = emptySummary;
+                return (0, 0, emptySummary);
+            }
+
+            int modified = 0;
+            string? sample = null;
+            bool undoPushed = false;
+
+            foreach (var node in targets)
+            {
+                string current = node.Title ?? string.Empty;
+                string transformed = TransformCasing(current, mode);
+
+                if (!string.Equals(current, transformed, StringComparison.Ordinal))
+                {
+                    if (!undoPushed)
+                    {
+                        PushUndo($"Normalize node casing ({mode})");
+                        undoPushed = true;
+                    }
+
+                    using (SuspendEditTracking())
+                    {
+                        node.Title = transformed;
+                        node.SyncToModel();
+                    }
+
+                    modified++;
+                    sample ??= transformed;
+                }
+            }
+
+            if (modified > 0)
+            {
+                IsDirty = true;
+                CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+            }
+
+            string summary = FormatNodeCasingSummary(modified, targets.Count, mode, sample);
+            StatusMessage = modified > 0 ? $"✓ {summary} · Ctrl+Z to undo" : summary;
+            return (modified, targets.Count, summary);
+        }
+
+        /// <summary>
+        /// Transforms text casing according to the specified mode.
+        /// </summary>
+        public static string TransformCasing(string text, NodeCasingMode mode)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return text;
+            return mode switch
+            {
+                NodeCasingMode.UpperCase => text.ToUpperInvariant(),
+                NodeCasingMode.LowerCase => text.ToLowerInvariant(),
+                NodeCasingMode.TitleCase => ConvertToTitleCase(text),
+                NodeCasingMode.SentenceCase => ConvertToSentenceCase(text),
+                _ => text
+            };
+        }
+
+        private static string ConvertToTitleCase(string text)
+        {
+            var words = text.Split(' ');
+            for (int i = 0; i < words.Length; i++)
+            {
+                var w = words[i];
+                if (w.Length > 0)
+                {
+                    if (w.Length == 1)
+                        words[i] = char.ToUpperInvariant(w[0]).ToString();
+                    else
+                        words[i] = char.ToUpperInvariant(w[0]) + w.Substring(1).ToLowerInvariant();
+                }
+            }
+            return string.Join(" ", words);
+        }
+
+        private static string ConvertToSentenceCase(string text)
+        {
+            if (text.Length <= 1) return text.ToUpperInvariant();
+            return char.ToUpperInvariant(text[0]) + text.Substring(1).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of the node text casing normalization operation.
+        /// </summary>
+        public static string FormatNodeCasingSummary(int modifiedCount, int totalExamined, NodeCasingMode mode, string? sampleTitle = null)
+        {
+            if (totalExamined <= 0)
+                return "Normalize node text casing: 0 nodes (Empty map)";
+
+            if (modifiedCount <= 0)
+                return $"Normalize node text casing: 0 nodes modified across {totalExamined} nodes (Already matching {mode})";
+
+            string nodeLabel = modifiedCount == 1 ? "1 node" : $"{modifiedCount} nodes";
+            string sampleStr = !string.IsNullOrEmpty(sampleTitle) ? $" (e.g. '{sampleTitle}')" : "";
+            return $"Normalize node text casing ({mode}): {nodeLabel} updated across {totalExamined} nodes{sampleStr}";
+        }
+    }
+
+    /// <summary>
+    /// Supported text casing normalization modes for mind map nodes.
+    /// </summary>
+    public enum NodeCasingMode
+    {
+        TitleCase,
+        UpperCase,
+        LowerCase,
+        SentenceCase
     }
 }
 

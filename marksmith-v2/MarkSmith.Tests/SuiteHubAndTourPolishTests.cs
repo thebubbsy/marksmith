@@ -1679,6 +1679,84 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("Path validity: 75% on disk", scorecard);
         Assert.Contains("3 valid · 1 missing", scorecard);
     }
+
+    [Fact]
+    public void Run148_FootnoteIntegrity_CaseNormalizer_EvenDistribution_DepthBalancer_VolatilityIndex_StalenessTiers()
+    {
+        // 1. MainWindow: auditFootnotesItem & AuditFootnoteAndReferenceIntegrity
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Audit footnote & reference link integrity", mainCs);
+        Assert.Contains("FormatFootnoteAndReferenceIntegritySummary", mainCs);
+
+        // 2. MindMapGalaxy: NormalizeNodeCasingItem & OnNormalizeNodeCasingClick
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"NormalizeNodeCasingItem\"", galaxyXaml);
+        Assert.Contains("OnNormalizeNodeCasingClick", galaxyCs);
+        Assert.Contains("NormalizeNodeTextCasing", galaxyCs);
+
+        // 3. ShapeStudio: DistributeEvenlyHoriz/Vert items & DistributeShapesEvenly
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionDistributeEvenlyHorizItem", shapeXaml);
+        Assert.Contains("SelectionDistributeEvenlyVertItem", shapeXaml);
+        Assert.Contains("OnSelectionDistributeEvenlyHorizClick", shapeCs);
+        Assert.Contains("OnSelectionDistributeEvenlyVertClick", shapeCs);
+        Assert.Contains("DistributeShapesEvenly", shapeCs);
+
+        // 4. SmartArtStudio: BalanceOutlineDepthItem & OnBalanceOutlineDepthClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("BalanceOutlineDepthItem", smartArtXaml);
+        Assert.Contains("OnBalanceOutlineDepthClick", smartArtCs);
+        Assert.Contains("BalanceOutlineNestingDepth", smartArtCs);
+
+        // 5. HistoryWindow: copyVolatilityIndex & FormatTimelineVolatilitySummary
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy timeline volatility index & session churn audit", historyCs);
+        Assert.Contains("FormatTimelineVolatilitySummary", historyCs);
+
+        // 6. SuiteHub: CopyRecentStalenessScorecardItem & FormatStalenessTiersSummary
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentStalenessScorecardItem", suiteXaml);
+        Assert.Contains("OnCopyRecentStalenessScorecardClick", suiteCs);
+        Assert.Contains("FormatStalenessTiersSummary", suiteCs);
+
+        // RecentFilesService staleness tiers logic test
+        var refDate = new DateTime(2026, 10, 18, 12, 0, 0, DateTimeKind.Utc);
+        var files = new[]
+        {
+            @"C:\Docs\Active.md",    // 2 hours ago -> active
+            @"C:\Docs\Fresh.md",     // 3 days ago -> fresh
+            @"C:\Docs\Warm.md",      // 14 days ago -> warm
+            @"C:\Docs\Cold.md",      // 60 days ago -> cold
+            @"C:\Docs\Stale.md",     // 120 days ago -> stale
+            @"D:\Missing\Lost.md"    // missing -> stale
+        };
+
+        DateTime? MockMtime(string p) => p switch
+        {
+            @"C:\Docs\Active.md" => refDate.AddHours(-2),
+            @"C:\Docs\Fresh.md" => refDate.AddDays(-3),
+            @"C:\Docs\Warm.md" => refDate.AddDays(-14),
+            @"C:\Docs\Cold.md" => refDate.AddDays(-60),
+            @"C:\Docs\Stale.md" => refDate.AddDays(-120),
+            _ => null
+        };
+
+        var (active, fresh, warm, cold, stale, total, summary) =
+            RecentFilesService.AuditRecentLibraryStalenessTiers(files, MockMtime, refDate);
+
+        Assert.Equal(1, active);
+        Assert.Equal(1, fresh);
+        Assert.Equal(1, warm);
+        Assert.Equal(1, cold);
+        Assert.Equal(2, stale); // 120 days + missing
+        Assert.Equal(6, total);
+        Assert.Contains("Recent library staleness tiers (6 documents): 1 active (<24h), 1 fresh (1-7d), 1 warm (7-30d), 1 cold (30-90d), 2 stale (>90d)", summary);
+        Assert.Contains("Prune or archive 2 stale documents >90d old", summary);
+    }
 }
 
 

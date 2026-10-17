@@ -1285,6 +1285,100 @@ public static class LineDiff
 
         return FormatFencedBlockDiffSummary(oldSb.ToString(), newSb.ToString());
     }
+
+    /// <summary>
+    /// Audits version history snapshots to compute an edit churn volatility index, mean churn per revision,
+    /// and identifies the peak single-revision editing spike.
+    /// </summary>
+    public static (double MeanChurn, int TotalChurn, int MaxSpike, int SpikeRevision, string Rating, string Summary)
+        AuditTimelineVolatilityIndex(IReadOnlyList<string>? versionContents)
+    {
+        if (versionContents == null || versionContents.Count <= 1)
+        {
+            return (0.0, 0, 0, 0, "Low", "Timeline volatility audit: 0-1 versions (Insufficient timeline history for churn volatility)");
+        }
+
+        int totalChurn = 0;
+        int maxSpike = 0;
+        int spikeRev = 1;
+
+        for (int i = 1; i < versionContents.Count; i++)
+        {
+            var before = versionContents[i - 1];
+            var after = versionContents[i];
+            var lines = Diff(before, after);
+
+            int added = lines.Count(r => r.Kind == Kind.Added);
+            int removed = lines.Count(r => r.Kind == Kind.Removed);
+            int churn = added + removed;
+
+            totalChurn += churn;
+            if (churn > maxSpike)
+            {
+                maxSpike = churn;
+                spikeRev = i + 1;
+            }
+        }
+
+        int transitions = versionContents.Count - 1;
+        double meanChurn = Math.Round((double)totalChurn / transitions, 1);
+        string rating = meanChurn switch
+        {
+            < 5.0 => "Low",
+            <= 20.0 => "Moderate",
+            <= 50.0 => "High",
+            _ => "Volatile"
+        };
+
+        var summary = FormatTimelineVolatilitySummary(meanChurn, totalChurn, maxSpike, spikeRev, rating, versionContents.Count);
+        return (meanChurn, totalChurn, maxSpike, spikeRev, rating, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of timeline volatility metrics across versions.
+    /// </summary>
+    public static string FormatTimelineVolatilitySummary(
+        double meanChurn, int totalChurn, int maxSpike, int spikeRev, string rating, int totalVersions)
+    {
+        if (totalVersions <= 1)
+            return "Timeline volatility audit: 0-1 versions (Insufficient timeline history for churn volatility)";
+
+        string revLabel = totalVersions == 1 ? "1 revision" : $"{totalVersions} revisions";
+        string spikeStr = maxSpike > 0 ? $" · Max spike: {maxSpike} lines (Rev {spikeRev})" : "";
+        return $"Timeline volatility audit (Rating: {rating} · {revLabel} · Total {totalChurn} lines changed): Mean churn {meanChurn:0.#} lines/rev{spikeStr}";
+    }
+
+    /// <summary>
+    /// Formats a human-readable timeline volatility summary from a list of version contents.
+    /// </summary>
+    public static string FormatTimelineVolatilitySummary(IReadOnlyList<string>? versionContents)
+    {
+        var (_, _, _, _, _, summary) = AuditTimelineVolatilityIndex(versionContents);
+        return summary;
+    }
+
+    /// <summary>
+    /// Formats a human-readable timeline volatility summary from the currently active unified diff rows.
+    /// </summary>
+    public static string FormatTimelineVolatilitySummary(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows is null || unifiedRows.Count == 0)
+            return "Timeline volatility audit: 0 diff rows (No active version comparison)";
+
+        int added = unifiedRows.Count(r => !r.IsGap && r.Kind == Kind.Added);
+        int removed = unifiedRows.Count(r => !r.IsGap && r.Kind == Kind.Removed);
+        int churn = added + removed;
+
+        string rating = churn switch
+        {
+            <= 5 => "Low",
+            <= 20 => "Moderate",
+            <= 50 => "High",
+            _ => "Volatile"
+        };
+
+        return $"Timeline volatility audit (Rating: {rating} · Active delta: +{added}/-{removed} · Churn: {churn} lines): Focused revision churn index";
+    }
 }
 
 

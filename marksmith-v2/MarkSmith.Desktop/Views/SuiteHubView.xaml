@@ -249,6 +249,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentHealthScorecardItem" Text="Copy library health &amp; portability scorecard" Click="OnCopyRecentHealthScorecardClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9D9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentStalenessScorecardItem" Text="Copy library staleness &amp; recency tiers" Click="OnCopyRecentStalenessScorecardClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

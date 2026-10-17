@@ -4683,6 +4683,14 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = $"✓ {summary}";
         }
 
+        private void OnBalanceOutlineDepthClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (_, adjusted, summary) = ViewModel.BalanceOutlineNestingDepth(maxDepth: 2, mergeIntoParent: false);
+            Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = $"✓ {summary}";
+        }
+
         #endregion
 
 

@@ -763,6 +763,46 @@ public class SmartArtStudioPolishTests
         Assert.Contains("- Frontend\n  - WinUI 3 Desktop\n  - React Dashboard", normalized);
         Assert.Contains("- Deployment\n  - Docker Compose", normalized);
     }
+
+    [Fact]
+    public void Run148_BalanceOutlineNestingDepth()
+    {
+        Assert.Equal("Balance outline depth: 0 bullets (Empty outline)",
+            SmartArtDesignStudioViewModel.FormatDepthBalancingSummary(0, 0, 2));
+
+        var shallow = "- Phase 1\n  - Task A\n- Phase 2\n  - Task B";
+        var (_, adjZero, totalZero, sumZero) =
+            SmartArtDesignStudioViewModel.BalanceOutlineNestingDepth(shallow, maxDepth: 2);
+        Assert.Equal(0, adjZero);
+        Assert.Equal(4, totalZero);
+        Assert.Contains("All 4 bullets within max depth 2 (0 adjustments needed)", sumZero);
+
+        var deep = """
+            - Root Level
+              - Child Level
+                - Subchild Level 3
+                  - Deep Child Level 4
+            """;
+
+        // Mode 1: Clamp indentation to maxDepth 2
+        var (clamped, adjClamped, totalClamped, sumClamped) =
+            SmartArtDesignStudioViewModel.BalanceOutlineNestingDepth(deep, maxDepth: 2, mergeIntoParent: false);
+
+        Assert.Equal(2, adjClamped); // Level 3 and Level 4 adjusted
+        Assert.Equal(4, totalClamped);
+        Assert.Contains("Balance outline depth (Max depth 2): 2 bullets clamped to max depth", sumClamped);
+
+        var clampedNorm = clamped.Replace("\r", "");
+        Assert.Contains("- Root Level\n  - Child Level\n  - Subchild Level 3\n  - Deep Child Level 4", clampedNorm);
+
+        // Mode 2: Merge into parent bullet
+        var (merged, adjMerged, totalMerged, sumMerged) =
+            SmartArtDesignStudioViewModel.BalanceOutlineNestingDepth(deep, maxDepth: 2, mergeIntoParent: true);
+
+        Assert.Equal(2, adjMerged);
+        var mergedNorm = merged.Replace("\r", "");
+        Assert.Contains("- Root Level\n  - Child Level — Subchild Level 3 — Deep Child Level 4", mergedNorm);
+    }
 }
 
 
