@@ -222,6 +222,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentAgeDistributionItem" Text="Copy document age breakdown (Today, This week...)" Click="OnCopyRecentAgeDistributionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentPathLengthItem" Text="Copy path length &amp; MAX_PATH safety audit" Click="OnCopyRecentPathLengthClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

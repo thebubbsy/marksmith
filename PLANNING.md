@@ -10474,4 +10474,84 @@ Reviewed: the 2026-10-17 run #137 entry above. Followed the AI-Executable 3-Bloc
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 2056, responsive startup (`Alive=True Responding=True`), clean exit.
 
+### 2026-10-17 (scheduled routine run #139 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #138 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #138:
+    * Target A: `MainWindow` find bar search history clear / trim accelerator.
+    * Target B: `MindMapGalaxyWindow` connection line label toggle helper.
+  - Generated:
+    1. `MainWindow`: Find Bar Search History Trim & Summary Formatter (`TextSearch.TrimSearchHistory(history, maxCapacity)` preserving MRU order while pruning whitespace/nulls, `TextSearch.FormatSearchHistorySummary(history)` generating human-readable queries list, and "Copy search query history summary" `\uE81C` + "Clear search query history" `\uE74D` items in `FindCountText` context menu).
+    2. `MindMapGalaxyWindow`: Connection Line Label Visibility Toggle & Formatter (`MindMapStudioViewModel.ToggleConnectionLabels(showLabels)` toggling visibility state, `MindMapStudioViewModel.FormatConnectionLabelsSummary(showLabels, totalCount)`, and "Toggle connection labels" `\uE8D2` item in `ConnectionStyleDropDownButton.Flyout` with tick feedback and visual redraw).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.cs` with defensive null guards, boundary handling, and MRU deduplication. Added `historySummaryItem` and `clearHistoryItem` to `FindCountText` context menu in `MainWindow.xaml.cs` with clipboard export, clear confirmation, and status announcements.
+    * For Idea 2: Implemented `ToggleConnectionLabels` and `FormatConnectionLabelsSummary` in `MindMapStudioViewModel.cs`. Added `_showConnectionLabels` state field, wired `OnToggleConnectionLabelsClick` in `MindMapGalaxyWindow.xaml.cs`, integrated with `ApplyLevelOfDetail` zoom heuristics, and mounted `ToggleConnectionLabelsItem` with icon `\uE8D2` in `MindMapGalaxyWindow.xaml`.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Shape Shadow Blur Radius Cycle Helper & Summary Formatter (`ShapeDesignStudioViewModel.FormatShadowBlurSummary(blurRadius)` formatting crisp/subtle/medium/deep states, mounting `SelectionCycleShadowBlurItem` `\uE790` in `SelectionBoundsFlyout`, and wiring `OnSelectionCycleShadowBlurClick` with undo snapshot and adorner refresh).
+    4. `SmartArtDesignStudioWindow`: Outline Branching Factor & Leaf Node Ratio Auditor (`SmartArtDesignStudioViewModel.AuditOutlineBranching(markdown)` analyzing parent nodes, direct children, leaf nodes, average branching, and max branching factor, `FormatOutlineBranchingSummary(markdown)`, and "Audit outline branching & leaf ratio" `\uE8EB` item in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionCycleShadowBlurItem` with icon `\uE790` in `SelectionBoundsFlyout` in `ShapeDesignStudioWindow.xaml`. Implemented `OnSelectionCycleShadowBlurClick` in `ShapeDesignStudioWindow.xaml.cs` applying shadow blur radius across selected shapes (or all shapes), recording undo snapshots, updating adorners, and announcing status.
+    * For Idea 4: Mounted `OutlineBranchingAuditorItem` with icon `\uE8EB` in `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`. Implemented `AuditOutlineBranching` and `FormatOutlineBranchingSummary` in `SmartArtDesignStudioViewModel.cs` and wired `OnAuditOutlineBranchingClick` in `SmartArtDesignStudioWindow.xaml.cs` with clipboard export and status notification.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `TrimSearchHistory` and `FormatSearchHistorySummary` handle empty, single, multiple, and deduplicated query lists with robust bounds checking.
+    * Verified `ToggleConnectionLabels` integrates seamlessly with `ApplyLevelOfDetail` and ancestor-collapse visibility masks without visual or hit-testing anomalies.
+  - Generated:
+    5. `HistoryWindow`: Version Net Growth & Churn Ratio Formatter (`LineDiff.FormatVersionGrowthAndChurn(added, removed)` detailing net line delta, pure additions, pure deletions, and percentage churn, with "Copy version net growth & churn ratio" `\uE8EB` item in `TimelineHeaderBorder` context flyout in `HistoryWindow.xaml.cs`).
+    6. `SuiteHubView`: Recent Documents Path Length & MAX_PATH Safety Auditor (`RecentFilesService.FormatRecentPathLengthDistribution(files, warnThreshold)` auditing min/max/average path character lengths and warning on paths exceeding 260 characters, with "Copy path length & MAX_PATH safety audit" `\uE9F9` item in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Implemented `LineDiff.FormatVersionGrowthAndChurn` in `LineDiff.cs` handling 0/0, pure addition, pure deletion, and mixed churn cases. Mounted `copyGrowth` item with icon `\uE8EB` in `OnTimelineHeaderRightTapped` in `HistoryWindow.xaml.cs` with status notification.
+    * For Idea 6: Added `CopyRecentPathLengthItem` to `RecentDocsFlyout` in `SuiteHubView.xaml` with icon `\uE9F9`, implemented `RecentFilesService.FormatRecentPathLengthDistribution` in `RecentFilesService.cs` with configurable threshold, and wired `OnCopyRecentPathLengthClick` in `SuiteHubView.xaml.cs` with tick feedback on `RecentDocsActionBtn`.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `Run139_TrimSearchHistory_And_FormatSearchHistorySummary` (Passed).
+    * `MindMapGalaxyPolishTests.cs`: `Run139_ToggleConnectionLabels_And_FormatConnectionLabelsSummary` (Passed).
+    * `ShapeStudioPolishTests.cs`: `Run139_FormatShadowBlurSummary_FormatsAccurately` (Passed).
+    * `SmartArtStudioPolishTests.cs`: `Run139_AuditOutlineBranching_ComputesBranchingAndLeafStats` (Passed).
+    * `HistoryPolishTests.cs`: `Run139_FormatVersionGrowthAndChurn_CalculatesGrowthAndChurn` (Passed).
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FormatRecentPathLengthDistribution_ComputesAccurately`, `Run139_Polish_Elements_Wired_Across_Surfaces` (Passed).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run139"`: **6 passed, 0 failed (100% pass rate)**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "RecentFilesService_FormatRecentPathLengthDistribution"`: **1 passed, 0 failed (100% pass rate)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 3076, responsive startup (`HasExited=False`), clean exit.
+  - Carried forward ideas / next targets into Run #140:
+    * Target A: `MainWindow` find bar case-matching flip accelerator and regex quick-test formatter.
+    * Target B: `MindMapGalaxyWindow` connection line thickness step cycle helper.
+    * Target C: `ShapeDesignStudioWindow` shape corner radius step cycle helper.
+
+**Shipped:**
+1. **`MainWindow` Find Bar Search History Trim & Summary Formatter (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - `TextSearch.TrimSearchHistory` and `TextSearch.FormatSearchHistorySummary` preserving MRU order, deduplicating, and formatting query summaries.
+   - `historySummaryItem` ("Copy search query history summary", `\uE81C`) and `clearHistoryItem` ("Clear search query history", `\uE74D`) in `FindCountText` context menu.
+2. **`MindMapGalaxyWindow` Connection Line Label Visibility Toggle & Formatter (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `MindMapStudioViewModel.ToggleConnectionLabels` and `MindMapStudioViewModel.FormatConnectionLabelsSummary` toggling and formatting connection labels state.
+   - `ToggleConnectionLabelsItem` (`\uE8D2`) in `ConnectionStyleDropDownButton.Flyout` with tick feedback and visual redraw.
+3. **`ShapeDesignStudioWindow` Shape Shadow Blur Radius Cycle Helper & Summary Formatter (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ShapeDesignStudioViewModel.FormatShadowBlurSummary` formatting crisp/subtle/medium/deep shadow blur summaries.
+   - `SelectionCycleShadowBlurItem` (`\uE790`) in `SelectionBoundsFlyout` with undo recording and adorner refresh.
+4. **`SmartArtDesignStudioWindow` Outline Branching Factor & Leaf Node Ratio Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `SmartArtDesignStudioViewModel.AuditOutlineBranching` and `FormatOutlineBranchingSummary` auditing outline parent-child branching factors and leaf ratios.
+   - `OutlineBranchingAuditorItem` (`\uE8EB`) in `OutlineStatsFlyout` with clipboard export.
+5. **`HistoryWindow` Version Net Growth & Churn Ratio Formatter (`HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.FormatVersionGrowthAndChurn` computing net delta, total line churn, and deletion percentage.
+   - `copyGrowth` item (`\uE8EB`) in `TimelineHeaderBorder` context menu.
+6. **`SuiteHubView` Recent Documents Path Length & MAX_PATH Safety Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.FormatRecentPathLengthDistribution` analyzing min/max/average path character lengths and auditing MAX_PATH (260 char) safety.
+   - `CopyRecentPathLengthItem` (`\uE9F9`) in `RecentDocsFlyout` with button tick feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run139"`: **6 passed, 0 failed (100% pass rate)**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "RecentFilesService_FormatRecentPathLengthDistribution"`: **1 passed, 0 failed (100% pass rate)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 3076, responsive startup (`HasExited=False`), clean exit.
+
+
 

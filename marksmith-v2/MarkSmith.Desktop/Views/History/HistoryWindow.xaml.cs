@@ -3031,6 +3031,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied version velocity: {velocitySummary}");
                 };
                 menu.Items.Add(copyVelocity);
+
+                var growthSummary = MarkSmith.Services.LineDiff.FormatVersionGrowthAndChurn(sel.LinesAdded, sel.LinesRemoved);
+                var copyGrowth = new MenuFlyoutItem
+                {
+                    Text = "Copy version net growth & churn ratio",
+                    Icon = new FontIcon { Glyph = "\uE8EB" }
+                };
+                copyGrowth.Click += (_, _) =>
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(growthSummary);
+                    _vm.ShowNotice($"Copied growth & churn: {growthSummary}");
+                };
+                menu.Items.Add(copyGrowth);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

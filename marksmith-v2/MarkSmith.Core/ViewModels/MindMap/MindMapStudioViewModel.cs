@@ -2303,5 +2303,24 @@ namespace MarkSmith.ViewModels.MindMap
             if (snapAngle < 67.5) return "Anchor snap: Diagonal / Octant (45°)";
             return "Anchor snap: Cardinal / Orthogonal (90°)";
         }
+
+        /// <summary>
+        /// Toggles connection line label visibility (true -> false -> true) and returns the next state and confirmation label.
+        /// </summary>
+        public static (bool NextShowLabels, string Label) ToggleConnectionLabels(bool currentShowLabels)
+        {
+            var next = !currentShowLabels;
+            return (next, next ? "Show connection labels" : "Hide connection labels");
+        }
+
+        /// <summary>
+        /// Formats a connection labels display summary including total connection count.
+        /// </summary>
+        public static string FormatConnectionLabelsSummary(bool showLabels, int totalLinksCount)
+        {
+            var state = showLabels ? "Visible" : "Hidden";
+            var linkText = totalLinksCount == 1 ? "1 connection" : $"{totalLinksCount} connections";
+            return $"Connection labels: {state} ({linkText})";
+        }
     }
 }

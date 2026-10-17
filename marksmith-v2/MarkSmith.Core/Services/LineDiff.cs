@@ -433,4 +433,32 @@ public static class LineDiff
 
         return $"Velocity: {deltaDetail} (Net: {netStr}){intervalStr}";
     }
+
+    /// <summary>
+    /// Formats a version net growth and churn ratio summary detailing line additions, deletions, and percentage churn.
+    /// </summary>
+    public static string FormatVersionGrowthAndChurn(int linesAdded, int linesRemoved)
+    {
+        int totalChanged = linesAdded + linesRemoved;
+        if (totalChanged == 0)
+        {
+            return "Growth: 0 lines (0% churn)";
+        }
+
+        int net = linesAdded - linesRemoved;
+        string netStr = net > 0 ? $"+{net}" : net < 0 ? $"{net}" : "0";
+
+        if (linesAdded > 0 && linesRemoved == 0)
+        {
+            return $"Growth: +{linesAdded} lines (Pure addition, 0% churn)";
+        }
+
+        if (linesAdded == 0 && linesRemoved > 0)
+        {
+            return $"Contraction: -{linesRemoved} lines (Pure deletion, 100% churn)";
+        }
+
+        double churnPct = (double)linesRemoved / totalChanged * 100.0;
+        return $"Net: {netStr} lines · Total churn: {totalChanged} lines ({churnPct:0.#}% deletion churn)";
+    }
 }

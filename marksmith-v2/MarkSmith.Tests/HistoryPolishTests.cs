@@ -747,6 +747,22 @@ public class HistoryPolishTests : IDisposable
         var v3 = LineDiff.FormatVersionChangeVelocity(0, 0, null);
         Assert.Equal("Velocity: 0 lines (Net: 0)", v3);
     }
+
+    [Fact]
+    public void Run139_FormatVersionGrowthAndChurn_CalculatesGrowthAndChurn()
+    {
+        var zero = LineDiff.FormatVersionGrowthAndChurn(0, 0);
+        Assert.Equal("Growth: 0 lines (0% churn)", zero);
+
+        var pureAdd = LineDiff.FormatVersionGrowthAndChurn(10, 0);
+        Assert.Equal("Growth: +10 lines (Pure addition, 0% churn)", pureAdd);
+
+        var pureDel = LineDiff.FormatVersionGrowthAndChurn(0, 8);
+        Assert.Equal("Contraction: -8 lines (Pure deletion, 100% churn)", pureDel);
+
+        var mixed = LineDiff.FormatVersionGrowthAndChurn(15, 5);
+        Assert.Equal("Net: +10 lines · Total churn: 20 lines (25% deletion churn)", mixed);
+    }
 }
 
 

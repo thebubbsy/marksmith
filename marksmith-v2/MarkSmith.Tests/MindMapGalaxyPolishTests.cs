@@ -1310,5 +1310,23 @@ namespace MarkSmith.Tests
             Assert.Equal("Anchor snap: Diagonal / Octant (45°)", MindMapStudioViewModel.FormatAnchorSnapSummary(45.0));
             Assert.Equal("Anchor snap: Cardinal / Orthogonal (90°)", MindMapStudioViewModel.FormatAnchorSnapSummary(90.0));
         }
+
+        [Fact]
+        public void Run139_ToggleConnectionLabels_And_FormatConnectionLabelsSummary()
+        {
+            var (s1, l1) = MindMapStudioViewModel.ToggleConnectionLabels(true);
+            Assert.False(s1);
+            Assert.Equal("Hide connection labels", l1);
+
+            var (s2, l2) = MindMapStudioViewModel.ToggleConnectionLabels(false);
+            Assert.True(s2);
+            Assert.Equal("Show connection labels", l2);
+
+            var summary1 = MindMapStudioViewModel.FormatConnectionLabelsSummary(true, 5);
+            Assert.Equal("Connection labels: Visible (5 connections)", summary1);
+
+            var summary2 = MindMapStudioViewModel.FormatConnectionLabelsSummary(false, 1);
+            Assert.Equal("Connection labels: Hidden (1 connection)", summary2);
+        }
     }
 }

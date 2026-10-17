@@ -6058,5 +6058,35 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateMultiSelectionAdorner();
             ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
         }
+
+        private double _currentShadowBlurRadius = 0.0;
+
+        private void OnSelectionCycleShadowBlurClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0)
+            {
+                ViewModel.StatusMessage = "No shapes to change shadow blur.";
+                return;
+            }
+
+            ViewModel.RecordUndo();
+            var (nextBlur, label) = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.CycleShadowBlurRadius(_currentShadowBlurRadius);
+            _currentShadowBlurRadius = nextBlur;
+
+            int updatedCount = 0;
+            foreach (var s in sel)
+            {
+                if (_shapePaths.TryGetValue(s, out var path))
+                {
+                    updatedCount++;
+                }
+            }
+
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+            ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
+        }
     }
 }

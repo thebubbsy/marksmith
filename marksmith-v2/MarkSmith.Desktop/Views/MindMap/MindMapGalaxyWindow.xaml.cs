@@ -74,6 +74,7 @@ namespace MarkSmith.Views.MindMap
         private MindMapStudioViewModel.NodeAnchorPosition _connectionAnchorPosition = MindMapStudioViewModel.NodeAnchorPosition.Auto;
         private double _connectionAnchorPadding = 0.0;
         private bool _showConnectionArrows = true;
+        private bool _showConnectionLabels = true;
 
         public event EventHandler<string>? OpenDocumentRequested;
 
@@ -1913,7 +1914,7 @@ namespace MarkSmith.Views.MindMap
                     if (e.Hit != null) e.Hit.Visibility = Visibility.Visible;
                     if (e.ArrowForward != null) e.ArrowForward.Visibility = Visibility.Visible;
                     if (e.ArrowBackward != null) e.ArrowBackward.Visibility = Visibility.Visible;
-                    if (e.Label != null) e.Label.Visibility = Visibility.Visible;
+                    if (e.Label != null) e.Label.Visibility = _showConnectionLabels ? Visibility.Visible : Visibility.Collapsed;
                 }
 
                 bool faded = s!.IsDimmed && t!.IsDimmed;
@@ -2034,7 +2035,7 @@ namespace MarkSmith.Views.MindMap
                 if (e.Hit != null) e.Hit.StrokeThickness = WorldHitStrokeScreenWidth / zoom;
                 if (e.Label != null)
                 {
-                    var want = e.Line.Visibility == Visibility.Collapsed ? Visibility.Collapsed : labelVisibility;
+                    var want = (!_showConnectionLabels || e.Line.Visibility == Visibility.Collapsed) ? Visibility.Collapsed : labelVisibility;
                     if (e.Label.Visibility != want) e.Label.Visibility = want;
                 }
             }
@@ -4020,6 +4021,17 @@ namespace MarkSmith.Views.MindMap
                 CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");
             }
             RequestRedraw(RedrawScope.Geometry | RedrawScope.Appearance);
+        }
+
+        private void OnToggleConnectionLabelsClick(object sender, RoutedEventArgs e)
+        {
+            var (show, label) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.ToggleConnectionLabels(_showConnectionLabels);
+            _showConnectionLabels = show;
+            if (ConnectionStyleDropDownButton != null)
+            {
+                CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");
+            }
+            RequestRedraw(RedrawScope.Appearance);
         }
 
         private void OnCopyConnectionStyleSummaryClick(object sender, RoutedEventArgs e)

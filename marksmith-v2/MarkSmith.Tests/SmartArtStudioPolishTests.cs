@@ -523,4 +523,31 @@ public class SmartArtStudioPolishTests
         var noListSummary = SmartArtDesignStudioViewModel.FormatOutlineHierarchyBreakdown(nonStructured);
         Assert.Equal("Outline has 0 structured items", noListSummary);
     }
+
+    [Fact]
+    public void Run139_AuditOutlineBranching_ComputesBranchingAndLeafStats()
+    {
+        var outline = @"- Root 1
+  - Child 1.1
+  - Child 1.2
+- Root 2
+  - Child 2.1";
+
+        var (total, branches, leaves, avgBranch, maxBranch) = SmartArtDesignStudioViewModel.AuditOutlineBranching(outline);
+        Assert.Equal(5, total);
+        Assert.Equal(2, branches);
+        Assert.Equal(3, leaves);
+        Assert.Equal(1.5, avgBranch);
+        Assert.Equal(2, maxBranch);
+
+        var summary = SmartArtDesignStudioViewModel.FormatOutlineBranchingSummary(outline);
+        Assert.Equal("Outline branching: 5 nodes (2 branches, 3 leaf/leaves) · Avg: 1.5 children/branch (Max: 2)", summary);
+
+        var emptySummary = SmartArtDesignStudioViewModel.FormatOutlineBranchingSummary(null);
+        Assert.Equal("Outline branching: Empty outline (0 nodes)", emptySummary);
+
+        var flatOutline = "- Item 1\n- Item 2\n- Item 3";
+        var flatSummary = SmartArtDesignStudioViewModel.FormatOutlineBranchingSummary(flatOutline);
+        Assert.Equal("Outline branching: 3 nodes (All 3 are flat root items, 0 branches)", flatSummary);
+    }
 }

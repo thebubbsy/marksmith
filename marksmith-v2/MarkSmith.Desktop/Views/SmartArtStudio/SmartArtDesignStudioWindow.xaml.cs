@@ -4553,6 +4553,21 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnAuditOutlineBranchingClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            var summary = SmartArtDesignStudioViewModel.FormatOutlineBranchingSummary(markdown);
+            try
+            {
+                Services.ClipboardWriter.TrySetTextAsync(summary);
+                ViewModel.StatusMessage = $"✓ Copied branching audit: {summary}";
+            }
+            catch
+            {
+                ViewModel.StatusMessage = summary;
+            }
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

@@ -597,4 +597,14 @@ public class ShapeStudioPolishTests
         Assert.Equal(0.0, b4);
         Assert.Contains("0px", l4);
     }
+
+    [Fact]
+    public void Run139_FormatShadowBlurSummary_FormatsAccurately()
+    {
+        Assert.Equal("Shadow blur: 0px (Crisp / Off)", ShapeDesignStudioViewModel.FormatShadowBlurSummary(0.0));
+        Assert.Equal("Shadow blur: 4px (Subtle)", ShapeDesignStudioViewModel.FormatShadowBlurSummary(4.0));
+        Assert.Equal("Shadow blur: 8px (Medium)", ShapeDesignStudioViewModel.FormatShadowBlurSummary(8.0));
+        Assert.Equal("Shadow blur: 16px (Deep)", ShapeDesignStudioViewModel.FormatShadowBlurSummary(16.0));
+        Assert.Equal("Shadow blur: 0px (Crisp / Off)", ShapeDesignStudioViewModel.FormatShadowBlurSummary(-2.0));
+    }
 }

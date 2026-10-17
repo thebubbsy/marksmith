@@ -402,4 +402,23 @@ public class TextSearchTests
         var emptyDiag = TextSearch.FormatSearchQueryDiagnostics("", 0, false, false, false);
         Assert.Equal("Empty query (0 matches)", emptyDiag);
     }
+
+    [Fact]
+    public void Run139_TrimSearchHistory_And_FormatSearchHistorySummary()
+    {
+        var history = new[] { "query1", "query2", "  ", "query1", "query3", null, "query4" };
+        var trimmed = TextSearch.TrimSearchHistory(history, maxCapacity: 2);
+        Assert.Equal(2, trimmed.Count);
+        Assert.Equal("query1", trimmed[0]);
+        Assert.Equal("query2", trimmed[1]);
+
+        var summaryEmpty = TextSearch.FormatSearchHistorySummary(null);
+        Assert.Equal("Search history: Empty", summaryEmpty);
+
+        var summarySingle = TextSearch.FormatSearchHistorySummary(new[] { "onlyOne" });
+        Assert.Equal("Search history (1 query): [\"onlyOne\"]", summarySingle);
+
+        var summaryMultiple = TextSearch.FormatSearchHistorySummary(new[] { "alpha", "beta", "gamma", "delta" });
+        Assert.Equal("Search history (4 queries): [\"alpha\", \"beta\", \"gamma\", …]", summaryMultiple);
+    }
 }

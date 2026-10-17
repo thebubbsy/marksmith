@@ -254,6 +254,9 @@
                                         <MenuFlyoutItem x:Name="OutlineHierarchyBreakdownItem" Text="Copy hierarchy level breakdown (L1, L2...)" Click="OnCopyOutlineHierarchyBreakdownClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineBranchingAuditorItem" Text="Audit outline branching &amp; leaf ratio" Click="OnAuditOutlineBranchingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EB;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

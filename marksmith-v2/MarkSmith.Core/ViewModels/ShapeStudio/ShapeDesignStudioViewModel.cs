@@ -3385,4 +3385,15 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         if (currentBlur < 12.0) return (16.0, "Shadow blur: 16px (Deep)");
         return (0.0, "Shadow blur: 0px (Crisp / Off)");
     }
+
+    /// <summary>
+    /// Formats a human-readable shadow blur radius summary for inspector and status readout.
+    /// </summary>
+    public static string FormatShadowBlurSummary(double blurRadius)
+    {
+        if (blurRadius <= 0.0) return "Shadow blur: 0px (Crisp / Off)";
+        if (blurRadius <= 4.0) return $"Shadow blur: {blurRadius:0.#}px (Subtle)";
+        if (blurRadius <= 8.0) return $"Shadow blur: {blurRadius:0.#}px (Medium)";
+        return $"Shadow blur: {blurRadius:0.#}px (Deep)";
+    }
 }

@@ -8881,6 +8881,35 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(diagItem);
 
+        var historySummaryItem = new MenuFlyoutItem
+        {
+            Text = "Copy search query history summary",
+            Icon = new FontIcon { Glyph = "\uE81C" },
+            IsEnabled = _findHistory.Count > 0
+        };
+        historySummaryItem.Click += (_, _) =>
+        {
+            var summary = MarkSmith.Services.TextSearch.FormatSearchHistorySummary(_findHistory);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(historySummaryItem);
+
+        var clearHistoryItem = new MenuFlyoutItem
+        {
+            Text = "Clear search query history",
+            Icon = new FontIcon { Glyph = "\uE74D" },
+            IsEnabled = _findHistory.Count > 0
+        };
+        clearHistoryItem.Click += (_, _) =>
+        {
+            var count = _findHistory.Count;
+            _findHistory.Clear();
+            _findHistoryIndex = -1;
+            AnnounceStatus($"Cleared search history ({count} queries).");
+        };
+        menu.Items.Add(clearHistoryItem);
+
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
         e.Handled = true;
     }

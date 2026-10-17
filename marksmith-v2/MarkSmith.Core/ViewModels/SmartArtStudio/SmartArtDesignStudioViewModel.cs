@@ -1452,4 +1452,88 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         var breakdown = string.Join(", ", depthCounts.OrderBy(k => k.Key).Select(k => $"L{k.Key}: {k.Value}"));
         return $"Outline: {totalItems} items across {depthCounts.Count} level{(depthCounts.Count == 1 ? "" : "s")} ({breakdown}) · Max Depth: {maxDepth}";
     }
+
+    /// <summary>
+    /// Audits the outline hierarchy structure for branching factor, parent nodes, and leaf node distribution.
+    /// </summary>
+    public static (int TotalNodes, int BranchCount, int LeafCount, double AvgBranching, int MaxBranching) AuditOutlineBranching(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return (0, 0, 0, 0.0, 0);
+
+        var lines = markdown.Replace("\r", "").Split('\n');
+        var depths = new List<int>();
+
+        foreach (var rawLine in lines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+
+            int leadWs = 0;
+            int spaceCount = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t'))
+            {
+                if (rawLine[leadWs] == '\t') spaceCount += 2;
+                else spaceCount += 1;
+                leadWs++;
+            }
+
+            if (leadWs < rawLine.Length)
+            {
+                var rest = rawLine.Substring(leadWs);
+                if (rest.StartsWith("- ") || rest.StartsWith("* ") || rest.StartsWith("+ ") ||
+                    (rest.Length > 2 && char.IsDigit(rest[0]) && rest[1] == '.' && rest[2] == ' '))
+                {
+                    int depth = (spaceCount / 2) + 1;
+                    depths.Add(depth);
+                }
+            }
+        }
+
+        if (depths.Count == 0) return (0, 0, 0, 0.0, 0);
+
+        int branchCount = 0;
+        int leafCount = 0;
+        var directChildCounts = new List<int>();
+
+        for (int i = 0; i < depths.Count; i++)
+        {
+            int d = depths[i];
+            bool hasChild = (i + 1 < depths.Count && depths[i + 1] > d);
+            if (hasChild)
+            {
+                branchCount++;
+                int directChildren = 0;
+                for (int j = i + 1; j < depths.Count; j++)
+                {
+                    if (depths[j] <= d) break;
+                    if (depths[j] == d + 1) directChildren++;
+                }
+                directChildCounts.Add(directChildren);
+            }
+            else
+            {
+                leafCount++;
+            }
+        }
+
+        int maxBranch = directChildCounts.Count > 0 ? directChildCounts.Max() : 0;
+        double avgBranch = directChildCounts.Count > 0 ? (double)directChildCounts.Sum() / directChildCounts.Count : 0.0;
+
+        return (depths.Count, branchCount, leafCount, avgBranch, maxBranch);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of outline branching, leaf nodes, and hierarchy balance.
+    /// </summary>
+    public static string FormatOutlineBranchingSummary(string? markdown)
+    {
+        var (total, branches, leaves, avgBranch, maxBranch) = AuditOutlineBranching(markdown);
+        if (total == 0) return "Outline branching: Empty outline (0 nodes)";
+
+        if (branches == 0)
+        {
+            return $"Outline branching: {total} nodes (All {leaves} are flat root items, 0 branches)";
+        }
+
+        return $"Outline branching: {total} nodes ({branches} branch{(branches == 1 ? "" : "es")}, {leaves} leaf/leaves) · Avg: {avgBranch:0.#} children/branch (Max: {maxBranch})";
+    }
 }

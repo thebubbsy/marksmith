@@ -309,4 +309,27 @@ public sealed class RecentFilesService
         if (parts.Count == 0) return $"{docLabel}: status unknown";
         return $"{docLabel}: {string.Join(", ", parts)}";
     }
+
+    /// <summary>
+    /// Audits the character lengths of recent file paths and formats an audit distribution summary,
+    /// flagging any paths exceeding the standard Windows MAX_PATH threshold.
+    /// </summary>
+    public static string FormatRecentPathLengthDistribution(IEnumerable<string>? files, int warnThreshold = 260)
+    {
+        if (files is null) return "0 documents in recent history";
+        var list = files.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).ToList();
+        if (list.Count == 0) return "0 documents in recent history";
+
+        int minLen = list.Min(f => f.Length);
+        int maxLen = list.Max(f => f.Length);
+        double avgLen = list.Average(f => f.Length);
+        int exceedingCount = list.Count(f => f.Length >= warnThreshold);
+
+        var docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
+        string warningStr = exceedingCount > 0
+            ? $" · ⚠ {exceedingCount} path{(exceedingCount == 1 ? "" : "s")} >= {warnThreshold} chars"
+            : $" · 0 paths >= {warnThreshold} chars (All safe)";
+
+        return $"Path lengths ({docLabel}): Min {minLen} chars, Max {maxLen} chars, Avg {avgLen:0.#} chars{warningStr}";
+    }
 }

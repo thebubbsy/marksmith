@@ -610,6 +610,9 @@
                                         <MenuFlyoutItem x:Name="SelectionCycleOpacityItem" Text="Cycle shape opacity (100% / 75% / 50% / 25%)" Click="OnSelectionCycleOpacityClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionCycleShadowBlurItem" Text="Cycle shadow blur (0px / 4px / 8px / 16px)" Click="OnSelectionCycleShadowBlurClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

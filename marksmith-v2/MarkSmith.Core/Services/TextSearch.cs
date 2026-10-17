@@ -195,6 +195,50 @@ public static class TextSearch
     }
 
     /// <summary>
+    /// Trims an existing search history list to a given capacity while preserving MRU order and removing empty/whitespace entries.
+    /// </summary>
+    public static List<string> TrimSearchHistory(IEnumerable<string>? history, int maxCapacity = 10)
+    {
+        var result = new List<string>();
+        if (history == null || maxCapacity <= 0) return result;
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var item in history)
+        {
+            if (string.IsNullOrWhiteSpace(item)) continue;
+            var trimmed = item.Trim();
+            if (seen.Add(trimmed))
+            {
+                result.Add(trimmed);
+                if (result.Count >= maxCapacity) break;
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of search history queries.
+    /// </summary>
+    public static string FormatSearchHistorySummary(IEnumerable<string>? history)
+    {
+        if (history == null) return "Search history: Empty";
+
+        var valid = history
+            .Where(h => !string.IsNullOrWhiteSpace(h))
+            .Select(h => h.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (valid.Count == 0) return "Search history: Empty";
+
+        var countStr = valid.Count == 1 ? "1 query" : $"{valid.Count} queries";
+        var preview = string.Join(", ", valid.Take(3).Select(q => $"\"{q}\""));
+        if (valid.Count > 3) preview += ", …";
+
+        return $"Search history ({countStr}): [{preview}]";
+    }
+
+    /// <summary>
     /// Formats the find match count display (e.g. "3 of 12", "1 of 5 (wrapped)", "No results").
     /// </summary>
     public static string FormatFindMatchStatus(int currentIndex, int totalCount, bool wrapped = false)

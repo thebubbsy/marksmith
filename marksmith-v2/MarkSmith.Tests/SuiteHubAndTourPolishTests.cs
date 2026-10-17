@@ -1068,5 +1068,74 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentAgeDistributionClick", suiteCs);
         Assert.Contains("FormatRecentAgeDistribution", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_FormatRecentPathLengthDistribution_ComputesAccurately()
+    {
+        var samplePaths = new[]
+        {
+            @"C:\docs\short.md",
+            @"C:\docs\medium_length_document.md",
+            @"D:\very\long\path\that\is\quite\extended\for\testing\purposes\and\audit\document.md"
+        };
+
+        var summary = RecentFilesService.FormatRecentPathLengthDistribution(samplePaths, warnThreshold: 50);
+        Assert.Contains("Min 16 chars", summary);
+        Assert.Contains("Max 83 chars", summary);
+        Assert.Contains("1 path >= 50 chars", summary);
+
+        var safeSummary = RecentFilesService.FormatRecentPathLengthDistribution(samplePaths, warnThreshold: 260);
+        Assert.Contains("0 paths >= 260 chars (All safe)", safeSummary);
+
+        Assert.Equal("0 documents in recent history", RecentFilesService.FormatRecentPathLengthDistribution(null));
+        Assert.Equal("0 documents in recent history", RecentFilesService.FormatRecentPathLengthDistribution(Array.Empty<string>()));
+    }
+
+    [Fact]
+    public void Run139_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: Copy search query history summary & Clear search query history
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy search query history summary", mainCs);
+        Assert.Contains("Clear search query history", mainCs);
+        Assert.Contains("FormatSearchHistorySummary", mainCs);
+
+        // 2. MindMapGalaxy: ToggleConnectionLabelsItem & OnToggleConnectionLabelsClick
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("ToggleConnectionLabelsItem", galaxyXaml);
+        Assert.Contains("OnToggleConnectionLabelsClick", galaxyXaml);
+        Assert.Contains("OnToggleConnectionLabelsClick", galaxyCs);
+        Assert.Contains("ToggleConnectionLabels", galaxyCs);
+
+        // 3. ShapeStudio: SelectionCycleShadowBlurItem, OnSelectionCycleShadowBlurClick
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionCycleShadowBlurItem", shapeXaml);
+        Assert.Contains("OnSelectionCycleShadowBlurClick", shapeXaml);
+        Assert.Contains("OnSelectionCycleShadowBlurClick", shapeCs);
+        Assert.Contains("CycleShadowBlurRadius", shapeCs);
+
+        // 4. SmartArtStudio: OutlineBranchingAuditorItem & OnAuditOutlineBranchingClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineBranchingAuditorItem", smartArtXaml);
+        Assert.Contains("OnAuditOutlineBranchingClick", smartArtXaml);
+        Assert.Contains("OnAuditOutlineBranchingClick", smartArtCs);
+        Assert.Contains("FormatOutlineBranchingSummary", smartArtCs);
+
+        // 5. HistoryWindow: Copy version net growth & churn ratio item
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy version net growth & churn ratio", historyCs);
+        Assert.Contains("FormatVersionGrowthAndChurn", historyCs);
+
+        // 6. SuiteHub: CopyRecentPathLengthItem & OnCopyRecentPathLengthClick
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentPathLengthItem", suiteXaml);
+        Assert.Contains("OnCopyRecentPathLengthClick", suiteXaml);
+        Assert.Contains("OnCopyRecentPathLengthClick", suiteCs);
+        Assert.Contains("FormatRecentPathLengthDistribution", suiteCs);
+    }
 }
 
