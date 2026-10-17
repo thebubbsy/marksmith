@@ -1021,6 +1021,20 @@ public sealed partial class HistoryWindow : Window
         if (CopyToolbarButton != null) CopyFeedback.ApplyButtonTick(CopyToolbarButton, null, $"\u2713 {unchanged.Count} context");
     }
 
+    private void OnCopyDiffStatsContextClick(object sender, RoutedEventArgs e)
+    {
+        int added = MarkSmith.Services.LineDiff.ExtractModifiedLines(_vm.UnifiedDiffRows, MarkSmith.Services.LineDiff.Kind.Added).Count;
+        int removed = MarkSmith.Services.LineDiff.ExtractModifiedLines(_vm.UnifiedDiffRows, MarkSmith.Services.LineDiff.Kind.Removed).Count;
+        int unchanged = MarkSmith.Services.LineDiff.ExtractModifiedLines(_vm.UnifiedDiffRows, MarkSmith.Services.LineDiff.Kind.Same).Count;
+        int hunkCount = GetChangeHunkIndices().Count;
+        var summary = MarkSmith.Services.LineDiff.FormatDiffStatistics(added, removed, unchanged, hunkCount);
+        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        dp.SetText(summary);
+        ClipboardWriter.Set(dp);
+        _vm.ShowNotice($"Copied diff statistics ({summary}) to clipboard.");
+        if (CopyToolbarButton != null) CopyFeedback.ApplyButtonTick(CopyToolbarButton, null, "\u2713 Stats copied");
+    }
+
     private bool _diffWrapEnabled = false;
 
     private void OnDiffWrapButtonClick(object sender, RoutedEventArgs e)

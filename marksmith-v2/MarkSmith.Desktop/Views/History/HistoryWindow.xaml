@@ -670,6 +670,9 @@
                                         <MenuFlyoutItem Text="Copy unchanged context lines (=)" Click="OnCopyUnchangedLinesContextClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8BD;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyDiffStatsContextItem" Text="Copy diff statistics summary" Click="OnCopyDiffStatsContextClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Button.ContextFlyout>
                                 <StackPanel Orientation="Horizontal" Spacing="6">

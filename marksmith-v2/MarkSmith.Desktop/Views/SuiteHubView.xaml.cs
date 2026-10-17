@@ -1200,6 +1200,31 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyRecentParentFoldersClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var existingFiles = files.Where(File.Exists);
+            var list = RecentFilesService.FilterRecentFiles(existingFiles, _recentDocsFilter).ToList();
+            var folders = RecentFilesService.ExtractParentDirectories(list);
+            if (folders.Count > 0)
+            {
+                var text = string.Join(Environment.NewLine, folders);
+                await Services.ClipboardWriter.TrySetTextAsync(text);
+                SetNotification($"Copied {folders.Count} unique parent folder(s) to clipboard.", success: true);
+            }
+            else
+            {
+                SetNotification("No recent folders to copy.", success: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't copy folders: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

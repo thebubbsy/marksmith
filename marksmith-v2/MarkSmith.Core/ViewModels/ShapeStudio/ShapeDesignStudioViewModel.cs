@@ -3235,4 +3235,46 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         }
         return positions;
     }
+
+    /// <summary>
+    /// Computes the delta translation required to clamp a bounding box inside canvas bounds with padding.
+    /// If the box already fits inside, returns (0, 0).
+    /// </summary>
+    public static (double DeltaX, double DeltaY) ComputeClampOffset(
+        double minX, double minY, double maxX, double maxY,
+        double canvasWidth, double canvasHeight, double padding = 40.0)
+    {
+        double dx = 0;
+        double dy = 0;
+
+        // X clamping
+        if (minX < padding)
+        {
+            dx = padding - minX;
+        }
+        else if (maxX > canvasWidth - padding)
+        {
+            dx = (canvasWidth - padding) - maxX;
+            if (minX + dx < padding)
+            {
+                dx = padding - minX;
+            }
+        }
+
+        // Y clamping
+        if (minY < padding)
+        {
+            dy = padding - minY;
+        }
+        else if (maxY > canvasHeight - padding)
+        {
+            dy = (canvasHeight - padding) - maxY;
+            if (minY + dy < padding)
+            {
+                dy = padding - minY;
+            }
+        }
+
+        return (dx, dy);
+    }
 }

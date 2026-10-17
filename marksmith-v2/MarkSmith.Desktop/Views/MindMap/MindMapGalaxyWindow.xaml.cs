@@ -4011,8 +4011,41 @@ namespace MarkSmith.Views.MindMap
 
         private void OnToggleArrowsClick(object sender, RoutedEventArgs e)
         {
-            _showConnectionArrows = !_showConnectionArrows;
+            var (show, label) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.ToggleArrowheads(_showConnectionArrows);
+            _showConnectionArrows = show;
+            if (ConnectionStyleDropDownButton != null)
+            {
+                CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");
+            }
             RequestRedraw(RedrawScope.Geometry | RedrawScope.Appearance);
+        }
+
+        private void OnCopyConnectionStyleSummaryClick(object sender, RoutedEventArgs e)
+        {
+            var routing = _connectionRoutingStyle switch
+            {
+                ConnectionRoutingStyle.Straight => "Straight",
+                ConnectionRoutingStyle.Orthogonal => "Orthogonal",
+                _ => "Curved"
+            };
+            var weight = _connectionStrokeWeight switch
+            {
+                MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.ConnectionStrokeWeight.Thin => "Thin",
+                MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.ConnectionStrokeWeight.Thick => "Thick",
+                _ => "Normal"
+            };
+            var summary = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.FormatConnectionStyleSummary(routing, weight, _showConnectionArrows);
+            try
+            {
+                var pkg = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                pkg.SetText(summary);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(pkg);
+                if (ConnectionStyleDropDownButton != null)
+                {
+                    CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, "\u2713 Style Copied");
+                }
+            }
+            catch { /* non-critical clipboard failure */ }
         }
 
         private void OnConnectionStyleDropDownDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

@@ -236,6 +236,9 @@
                                         <MenuFlyoutItem Text="Trim trailing whitespace" Click="OnTrimTrailingWhitespaceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE75C;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Standardise bullet points (-)" Click="OnStandardiseBulletsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

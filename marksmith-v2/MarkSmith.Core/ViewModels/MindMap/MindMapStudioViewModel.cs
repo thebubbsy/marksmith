@@ -2125,5 +2125,14 @@ namespace MarkSmith.ViewModels.MindMap
             var arrows = showArrows ? "Arrows On" : "Arrows Off";
             return $"{style} · {weight} · {arrows}";
         }
+
+        /// <summary>
+        /// Returns the toggled arrowhead visibility state and a human-readable confirmation label.
+        /// </summary>
+        public static (bool ShowArrows, string Label) ToggleArrowheads(bool current)
+        {
+            var next = !current;
+            return (next, next ? "Arrowheads Visible" : "Arrowheads Hidden");
+        }
     }
 }

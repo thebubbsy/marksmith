@@ -300,4 +300,14 @@ public static class LineDiff
 
     private static string[] SplitLines(string text) =>
         text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+
+    /// <summary>
+    /// Formats a comprehensive statistics breakdown of a diff including added, removed, unchanged lines, churn percentage, and change hunks.
+    /// </summary>
+    public static string FormatDiffStatistics(int added, int removed, int unchanged, int hunkCount)
+    {
+        var ratio = FormatDiffRatio(added, removed, unchanged);
+        var hunkLabel = hunkCount == 1 ? "1 change hunk" : $"{hunkCount} change hunks";
+        return $"{ratio} · {hunkLabel}";
+    }
 }

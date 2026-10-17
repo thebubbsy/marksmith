@@ -637,6 +637,17 @@ public class HistoryPolishTests : IDisposable
         var summary = LineDiff.FormatDiffRatio(added, removed, unchanged);
         Assert.Equal(expected, summary);
     }
+
+    [Theory]
+    [InlineData(5, 3, 24, 2, "25.0% churn (+5 / -3 / =24 lines) · 2 change hunks")]
+    [InlineData(10, 0, 10, 1, "50.0% churn (+10 / -0 / =10 lines) · 1 change hunk")]
+    [InlineData(0, 0, 100, 0, "0.0% churn (+0 / -0 / =100 lines) · 0 change hunks")]
+    [InlineData(0, 0, 0, 0, "0% modified (0 lines) · 0 change hunks")]
+    public void Run133_FormatDiffStatistics_FormatsCompositeRatioAndHunks(int added, int removed, int unchanged, int hunks, string expected)
+    {
+        var summary = LineDiff.FormatDiffStatistics(added, removed, unchanged, hunks);
+        Assert.Equal(expected, summary);
+    }
 }
 
 

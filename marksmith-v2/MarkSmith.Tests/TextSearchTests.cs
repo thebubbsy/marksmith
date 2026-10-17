@@ -266,4 +266,18 @@ public class TextSearchTests
         var empty = TextSearch.AddToSearchHistory(capped, "", maxCapacity: 3);
         Assert.Equal(capped, empty);
     }
+
+    [Theory]
+    [InlineData(0, 0, false, "No results")]
+    [InlineData(1, 0, false, "No results")]
+    [InlineData(0, 5, false, "5 matches")]
+    [InlineData(0, 1, false, "1 match")]
+    [InlineData(1, 1, false, "1 of 1")]
+    [InlineData(3, 10, false, "3 of 10")]
+    [InlineData(1, 5, true, "1 of 5 (wrapped)")]
+    [InlineData(5, 5, true, "5 of 5 (wrapped)")]
+    public void FormatFindMatchStatus_FormatsAccurateStatus(int current, int total, bool wrapped, string expected)
+    {
+        Assert.Equal(expected, TextSearch.FormatFindMatchStatus(current, total, wrapped));
+    }
 }

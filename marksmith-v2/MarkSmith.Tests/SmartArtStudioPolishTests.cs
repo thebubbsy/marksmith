@@ -406,4 +406,20 @@ public class SmartArtStudioPolishTests
 
         Assert.Equal("", SmartArtDesignStudioViewModel.TrimTrailingWhitespace(""));
     }
+
+    [Fact]
+    public void Run133_StandardiseBullets_NormalizesMixedBulletsPreservingIndentAndLineEndings()
+    {
+        var inputLf = "* Item One\n  + Nested Two\n    - Deep Three\nPlain text line";
+        var expectedLf = "- Item One\n  - Nested Two\n    - Deep Three\nPlain text line";
+        var resultLf = SmartArtDesignStudioViewModel.StandardiseBullets(inputLf, '-');
+        Assert.Equal(expectedLf, resultLf);
+
+        var inputCrlf = "* Item One\r\n  + Nested Two\r\n    - Deep Three";
+        var expectedCrlf = "- Item One\r\n  - Nested Two\r\n    - Deep Three";
+        var resultCrlf = SmartArtDesignStudioViewModel.StandardiseBullets(inputCrlf, '-');
+        Assert.Equal(expectedCrlf, resultCrlf);
+
+        Assert.Equal("", SmartArtDesignStudioViewModel.StandardiseBullets(""));
+    }
 }

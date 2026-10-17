@@ -131,6 +131,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private int _findHistoryIndex = -1;
     private string _findDraft = "";
     private string? _regexErrorMessage;
+    private bool _lastFindWrapped;
     private int _findMatchIndex = -1;
 
     // Preview zoom: WinUI 3's WebView2 exposes no ZoomFactor, so the page's own script scales the
@@ -8826,6 +8827,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _findMatchLengths.Clear();
         _findMatchIndex = -1;
         _regexErrorMessage = null;
+        _lastFindWrapped = false;
 
         if (useRegex && !string.IsNullOrEmpty(query))
         {
@@ -8889,10 +8891,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         else
         {
             FindCountText.Text = !hasQuery ? string.Empty
-                : count == 0 ? "No results"
-                : _findMatchIndex >= 0 ? $"{_findMatchIndex + 1} of {count}"
-                : count == 1 ? "1 match" : $"{count} matches";
-            ToolTipService.SetToolTip(FindCountText, "Search match count · Click or right-click to copy");
+                : MarkSmith.Services.TextSearch.FormatFindMatchStatus(_findMatchIndex + 1, count, _lastFindWrapped);
+            ToolTipService.SetToolTip(FindCountText, _lastFindWrapped
+                ? "Search match count (navigation wrapped around document) · Click or right-click to copy"
+                : "Search match count · Click or right-click to copy");
             MarkSmith.Services.ThemeBrush.Set(FindCountText, TextBlock.ForegroundProperty,
                 hasQuery && count == 0 ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush");
         }
@@ -8936,6 +8938,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ? MarkSmith.Services.TextSearch.Next(_findMatches, current, caret)
             : MarkSmith.Services.TextSearch.Previous(_findMatches, current, caret);
         _findMatchIndex = index;
+        _lastFindWrapped = wrapped;
         SelectFindMatch(keepFindFocus: FindBar.Visibility == Visibility.Visible && !PasteTextBoxHasFocus());
         if (wrapped)
             ViewModel.StatusText = forward

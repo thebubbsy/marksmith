@@ -1148,5 +1148,15 @@ namespace MarkSmith.Tests
             var summary = MindMapStudioViewModel.FormatConnectionStyleSummary(style, weight, arrows);
             Assert.Equal(expected, summary);
         }
+
+        [Theory]
+        [InlineData(true, false, "Arrowheads Hidden")]
+        [InlineData(false, true, "Arrowheads Visible")]
+        public void Run133_ToggleArrowheads_TogglesVisibilityAndReturnsExpectedLabel(bool initial, bool expectedNext, string expectedLabel)
+        {
+            var (next, label) = MindMapStudioViewModel.ToggleArrowheads(initial);
+            Assert.Equal(expectedNext, next);
+            Assert.Equal(expectedLabel, label);
+        }
     }
 }

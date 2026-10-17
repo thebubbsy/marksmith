@@ -5842,5 +5842,42 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateSelectionBoundsPill();
             ViewModel.StatusMessage = "Distributed selected shapes vertically with equal spacing.";
         }
+
+        private void OnSelectionFitInsideCanvasClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0) return;
+
+            double minX = sel.Min(s => s.X);
+            double minY = sel.Min(s => s.Y);
+            double maxX = sel.Max(s => s.X + s.Width);
+            double maxY = sel.Max(s => s.Y + s.Height);
+
+            const double canvasW = 2200.0;
+            const double canvasH = 1800.0;
+            const double padding = 40.0;
+
+            var (dx, dy) = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.ComputeClampOffset(
+                minX, minY, maxX, maxY, canvasW, canvasH, padding);
+
+            if (Math.Abs(dx) > 0.001 || Math.Abs(dy) > 0.001)
+            {
+                ViewModel.RecordUndo();
+                foreach (var s in sel)
+                {
+                    s.X += dx;
+                    s.Y += dy;
+                }
+                UpdateAdorner();
+                UpdateMultiSelectionAdorner();
+                UpdateSelectionBoundsPill();
+                ViewModel.StatusMessage = $"Clamped selection inside canvas bounds (dx={dx:F0}, dy={dy:F0}).";
+            }
+            else
+            {
+                ViewModel.StatusMessage = "Selection is already completely inside canvas bounds with padding.";
+            }
+        }
     }
 }

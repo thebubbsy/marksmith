@@ -4452,6 +4452,23 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnStandardiseBulletsClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            if (string.IsNullOrEmpty(markdown)) return;
+            var standardised = SmartArtDesignStudioViewModel.StandardiseBullets(markdown, '-');
+            if (standardised != markdown)
+            {
+                ViewModel.MarkdownText = standardised;
+                UpdateOutlineStats();
+                ViewModel.StatusMessage = "Standardised outline bullet markers to '-'.";
+            }
+            else
+            {
+                ViewModel.StatusMessage = "All bullet points are already standardised.";
+            }
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

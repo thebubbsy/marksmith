@@ -90,4 +90,32 @@ public sealed class RecentFilesService
         if (files is null) return new List<string>();
         return files.Select(f => Path.GetFileName(f)).Where(name => !string.IsNullOrEmpty(name)).ToList();
     }
+
+    /// <summary>
+    /// Extracts distinct parent directory paths from a sequence of file paths,
+    /// preserving original appearance order and ignoring invalid or empty paths.
+    /// </summary>
+    public static List<string> ExtractParentDirectories(IEnumerable<string>? files)
+    {
+        if (files is null) return new List<string>();
+        var dirs = new List<string>();
+        var seen = new HashSet<string>(PathEquality.Comparer);
+        foreach (var file in files)
+        {
+            if (string.IsNullOrWhiteSpace(file)) continue;
+            try
+            {
+                var dir = Path.GetDirectoryName(file);
+                if (!string.IsNullOrEmpty(dir) && seen.Add(dir))
+                {
+                    dirs.Add(dir);
+                }
+            }
+            catch
+            {
+                // Ignore malformed paths
+            }
+        }
+        return dirs;
+    }
 }

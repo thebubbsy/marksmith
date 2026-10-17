@@ -426,4 +426,30 @@ public class ShapeStudioPolishTests
         var empty = ShapeDesignStudioViewModel.ComputeEqualSpacing(startPos: 0, totalSpan: 100, itemSizes: Array.Empty<double>());
         Assert.Empty(empty);
     }
+
+    [Fact]
+    public void ComputeClampOffset_CalculatesAccurateClampingDeltas()
+    {
+        // 1. Fully inside canvas -> (0, 0)
+        var inside = ShapeDesignStudioViewModel.ComputeClampOffset(
+            minX: 100, minY: 100, maxX: 500, maxY: 400, canvasWidth: 2200, canvasHeight: 1800, padding: 40);
+        Assert.Equal((0.0, 0.0), inside);
+
+        // 2. Off-screen left (negative X)
+        var offLeft = ShapeDesignStudioViewModel.ComputeClampOffset(
+            minX: -60, minY: 100, maxX: 300, maxY: 400, canvasWidth: 2200, canvasHeight: 1800, padding: 40);
+        Assert.Equal(100.0, offLeft.DeltaX); // 40 - (-60) = 100
+        Assert.Equal(0.0, offLeft.DeltaY);
+
+        // 3. Off-screen right (> 2200 - 40 = 2160)
+        var offRight = ShapeDesignStudioViewModel.ComputeClampOffset(
+            minX: 1800, minY: 100, maxX: 2300, maxY: 400, canvasWidth: 2200, canvasHeight: 1800, padding: 40);
+        Assert.Equal(-140.0, offRight.DeltaX); // 2160 - 2300 = -140
+        Assert.Equal(0.0, offRight.DeltaY);
+
+        // 4. Off-screen top and bottom
+        var offTopBottom = ShapeDesignStudioViewModel.ComputeClampOffset(
+            minX: 100, minY: -20, maxX: 500, maxY: 1900, canvasWidth: 2200, canvasHeight: 1800, padding: 40);
+        Assert.Equal(60.0, offTopBottom.DeltaY); // 40 - (-20) = 60
+    }
 }

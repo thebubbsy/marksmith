@@ -193,4 +193,19 @@ public static class TextSearch
         }
         return list;
     }
+
+    /// <summary>
+    /// Formats the find match count display (e.g. "3 of 12", "1 of 5 (wrapped)", "No results").
+    /// </summary>
+    public static string FormatFindMatchStatus(int currentIndex, int totalCount, bool wrapped = false)
+    {
+        if (totalCount <= 0)
+            return "No results";
+
+        if (currentIndex <= 0 || currentIndex > totalCount)
+            return totalCount == 1 ? "1 match" : $"{totalCount} matches";
+
+        var baseText = $"{currentIndex} of {totalCount}";
+        return wrapped ? $"{baseText} (wrapped)" : baseText;
+    }
 }

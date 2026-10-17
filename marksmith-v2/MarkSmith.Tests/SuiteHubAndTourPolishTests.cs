@@ -652,5 +652,74 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentFileNamesOnlyClick", suiteXaml);
         Assert.Contains("OnCopyRecentFileNamesOnlyClick", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_ExtractParentDirectories_ExtractsUniqueDirectoriesInOrder()
+    {
+        var samplePaths = new[]
+        {
+            @"C:\Users\Docs\Report.md",
+            @"C:\Users\Docs\Summary.md",
+            @"D:\Projects\MarkSmith\Notes.txt",
+            @"C:\Users\Docs\Draft.md",
+            @"E:\Archive\2026\readme.markdown"
+        };
+
+        var dirs = RecentFilesService.ExtractParentDirectories(samplePaths);
+        Assert.Equal(3, dirs.Count);
+        Assert.Equal(@"C:\Users\Docs", dirs[0]);
+        Assert.Equal(@"D:\Projects\MarkSmith", dirs[1]);
+        Assert.Equal(@"E:\Archive\2026", dirs[2]);
+
+        Assert.Empty(RecentFilesService.ExtractParentDirectories(null));
+        Assert.Empty(RecentFilesService.ExtractParentDirectories(Array.Empty<string>()));
+    }
+
+    [Fact]
+    public void Run133_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: _lastFindWrapped and FormatFindMatchStatus
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("_lastFindWrapped", mainCs);
+        Assert.Contains("FormatFindMatchStatus", mainCs);
+
+        // 2. MindMapGalaxy: Copy connection style summary item in flyout & ToggleArrowheads
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("CopyConnectionStyleSummaryItem", galaxyXaml);
+        Assert.Contains("OnCopyConnectionStyleSummaryClick", galaxyXaml);
+        Assert.Contains("OnCopyConnectionStyleSummaryClick", galaxyCs);
+        Assert.Contains("ToggleArrowheads", galaxyCs);
+
+        // 3. ShapeStudio: Fit inside canvas item & OnSelectionFitInsideCanvasClick
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OnSelectionFitInsideCanvasClick", shapeXaml);
+        Assert.Contains("OnSelectionFitInsideCanvasClick", shapeCs);
+        Assert.Contains("ComputeClampOffset", shapeCs);
+
+        // 4. SmartArtStudio: Standardise bullets menu item & click handler
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("Standardise bullet points (-)", smartArtXaml);
+        Assert.Contains("OnStandardiseBulletsClick", smartArtCs);
+        Assert.Contains("StandardiseBullets", smartArtCs);
+
+        // 5. HistoryWindow: Copy diff statistics item & click handler
+        var historyXaml = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml"));
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("CopyDiffStatsContextItem", historyXaml);
+        Assert.Contains("OnCopyDiffStatsContextClick", historyXaml);
+        Assert.Contains("OnCopyDiffStatsContextClick", historyCs);
+        Assert.Contains("FormatDiffStatistics", historyCs);
+
+        // 6. SuiteHub: Copy parent folders only menu item & click handler
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("Copy parent folders only", suiteXaml);
+        Assert.Contains("OnCopyRecentParentFoldersClick", suiteXaml);
+        Assert.Contains("OnCopyRecentParentFoldersClick", suiteCs);
+        Assert.Contains("ExtractParentDirectories", suiteCs);
+    }
 }
 

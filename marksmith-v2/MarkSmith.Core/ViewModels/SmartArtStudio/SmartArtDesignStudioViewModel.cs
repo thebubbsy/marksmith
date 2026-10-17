@@ -1166,4 +1166,36 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         var result = string.Join("\n", lines);
         return hasCr ? result.Replace("\n", "\r\n") : result;
     }
+
+    /// <summary>
+    /// Standardises bullet list markers (e.g. converting '*', '+', or custom markers to '-')
+    /// while strictly preserving indentation whitespace, tabs, and line ending format (CRLF vs LF).
+    /// </summary>
+    public static string StandardiseBullets(string markdown, char targetBullet = '-')
+    {
+        if (string.IsNullOrEmpty(markdown)) return markdown ?? "";
+        bool hasCr = markdown.Contains("\r");
+        var normalized = markdown.Replace("\r", "");
+        var lines = normalized.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            int leadWs = 0;
+            while (leadWs < line.Length && (line[leadWs] == ' ' || line[leadWs] == '\t'))
+            {
+                leadWs++;
+            }
+
+            if (leadWs < line.Length)
+            {
+                var rest = line.Substring(leadWs);
+                if (rest.StartsWith("* ") || rest.StartsWith("+ ") || rest.StartsWith("- "))
+                {
+                    lines[i] = line.Substring(0, leadWs) + targetBullet + " " + rest.Substring(2);
+                }
+            }
+        }
+        var result = string.Join("\n", lines);
+        return hasCr ? result.Replace("\n", "\r\n") : result;
+    }
 }

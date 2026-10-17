@@ -10002,3 +10002,80 @@ Reviewed: the 2026-10-17 run #131 entry above. Followed the AI-Executable 3-Bloc
 - `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,874 passed, 0 failed, 1 skipped (100% pass rate)**.
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 31800, responsive startup (`Responding: True`), clean exit.
+
+### 2026-10-17 (scheduled routine run #133 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #132 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #132:
+    * Target A: `MainWindow` find bar match navigation keyboard accelerators & wrap indicator.
+    * Target B: `MindMapGalaxyWindow` arrowhead state toggle helper & style summary export.
+  - Generated:
+    1. `MainWindow`: Find Bar Match Status Formatter & Wrap-Around Indicator (`TextSearch.FormatFindMatchStatus(currentIndex, totalCount, wrapped)`, `_lastFindWrapped` runtime state tracking, dynamic update in `UpdateFindCount`, status bar cues, and informative tooltip).
+    2. `MindMapGalaxyWindow`: Arrowhead Toggle Helper & Flyout Style Summary Copy (`MindMapStudioViewModel.ToggleArrowheads`, "Copy connection style summary" `\uE8C8` item in `ConnectionStyleDropDownButton.Flyout`, instant tick feedback via `CopyFeedback.ApplyButtonTick`).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.cs` with `FormatFindMatchStatus` returning "No results", "1 match", "N matches", "X of Y", and "X of Y (wrapped)". Wired `_lastFindWrapped` into `MainWindow.xaml.cs` (cleared on typing/recomputing, set on `StepFind`, and displayed in `FindCountText` and tooltip).
+    * For Idea 2: Implemented `ToggleArrowheads(bool current)` in `MindMapStudioViewModel.cs` returning `(bool ShowArrows, string Label)`. Wired `OnToggleArrowsClick` with tick feedback and mounted `CopyConnectionStyleSummaryItem` (`\uE8C8`) in `ConnectionStyleDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml`.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Selection Clamp & Fit Inside Canvas Bounds (`ShapeDesignStudioViewModel.ComputeClampOffset` algorithm clamping bounding box with 40px padding, "Fit inside canvas (clamp with 40px padding)" `\uE73F` item in `SelectionBoundsFlyout`).
+    4. `SmartArtDesignStudioWindow`: Bullet Prefix Standardiser (`SmartArtDesignStudioViewModel.StandardiseBullets` converting mixed `*` and `+` markers to `-` while strictly preserving indentation whitespace, tabs, and CRLF/LF line endings, "Standardise bullet points (-)" `\uE8D2` item in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionFitInsideCanvasItem` with icon `\uE73F` in `SelectionBoundsFlyout` in `ShapeDesignStudioWindow.xaml`. Implemented `OnSelectionFitInsideCanvasClick` in `ShapeDesignStudioWindow.xaml.cs`, calculating selection bounds, computing clamp offset, translating shapes, updating adorners and bounds pill, and recording undo snapshots.
+    * For Idea 4: Mounted `OutlineStandardiseBulletsItem` with icon `\uE8D2` in `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`. Implemented `StandardiseBullets` in `SmartArtDesignStudioViewModel.cs`, and wired `OnStandardiseBulletsClick` in `SmartArtDesignStudioWindow.xaml.cs` updating editor text and showing status message.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `FormatFindMatchStatus` outputs clean formatting across all match counts, bounds, and wrap states.
+    * Verified `ToggleArrowheads` cleanly toggles boolean state and returns friendly status labels.
+  - Generated:
+    5. `HistoryWindow`: Diff Comprehensive Statistics Breakdown & Clipboard Export (`LineDiff.FormatDiffStatistics(added, removed, unchanged, hunkCount)` reporting churn percentage and change hunks e.g. `+12 -4 =95 (14% churn) · 3 change hunks`, and "Copy diff statistics summary" `\uE9F9` item in `CopyToolbarButton.ContextFlyout`).
+    6. `SuiteHubView`: Recent Parent Folders Extractor & Clipboard Copy (`RecentFilesService.ExtractParentDirectories(IEnumerable<string>? files)` extracting unique parent directories preserving MRU order, and "Copy parent folders only" `\uE8B7` item in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Added `CopyDiffStatsContextItem` to `CopyToolbarButton.ContextFlyout` in `HistoryWindow.xaml` with icon `\uE9F9`, implemented `LineDiff.FormatDiffStatistics` in `LineDiff.cs`, and wired `OnCopyDiffStatsContextClick` in `HistoryWindow.xaml.cs` with tick feedback.
+    * For Idea 6: Added `CopyRecentParentFoldersItem` to `RecentDocsFlyout` in `SuiteHubView.xaml` with icon `\uE8B7`, implemented `RecentFilesService.ExtractParentDirectories` in `RecentFilesService.cs`, and wired `OnCopyRecentParentFoldersClick` in `SuiteHubView.xaml.cs`.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `FormatFindMatchStatus_FormatsAccurateStatus` (Passed).
+    * `MindMapGalaxyPolishTests.cs`: `Run133_ToggleArrowheads_TogglesVisibilityAndReturnsExpectedLabel` (Passed).
+    * `ShapeStudioPolishTests.cs`: `ComputeClampOffset_CalculatesAccurateClampingDeltas` (Passed).
+    * `SmartArtStudioPolishTests.cs`: `Run133_StandardiseBullets_NormalizesMixedBulletsPreservingIndentAndLineEndings` (Passed).
+    * `HistoryPolishTests.cs`: `Run133_FormatDiffStatistics_FormatsCompositeRatioAndHunks` (Passed).
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_ExtractParentDirectories_ExtractsUniqueDirectoriesInOrder`, `Run133_Polish_Elements_Wired_Across_Surfaces` (Passed).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,880 passed, 0 failed, 1 skipped (100% pass rate)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 30076, responsive startup (`Responding: True`), clean exit.
+  - Carried forward ideas / next targets into Run #134:
+    * Target A: `MainWindow` find bar match index jump accelerator.
+    * Target B: `MindMapGalaxyWindow` edge routing curvature preset selector.
+    * Target C: `ShapeDesignStudioWindow` quick canvas grid snap toggle indicator.
+
+**Shipped:**
+1. **`MainWindow` Find Bar Match Status Formatter & Wrap-Around Indicator (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - `TextSearch.FormatFindMatchStatus` formatting count strings with wrapped navigation awareness ("3 of 10 (wrapped)").
+   - `_lastFindWrapped` tracking in `MainWindow.xaml.cs` with tooltip cues and status feedback.
+2. **`MindMapGalaxyWindow` Arrowhead Toggle Helper & Flyout Summary Export (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `MindMapStudioViewModel.ToggleArrowheads` providing deterministic state transitions and labels.
+   - `CopyConnectionStyleSummaryItem` (`\uE8C8`) in `ConnectionStyleDropDownButton.Flyout` with tick animation.
+3. **`ShapeDesignStudioWindow` Selection Clamp & Fit Inside Canvas Bounds (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ShapeDesignStudioViewModel.ComputeClampOffset` translation algorithm clamping off-canvas shapes with 40px padding.
+   - `SelectionFitInsideCanvasItem` (`\uE73F`) in `SelectionBoundsFlyout` with undo support.
+4. **`SmartArtDesignStudioWindow` Bullet Prefix Standardiser (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `SmartArtDesignStudioViewModel.StandardiseBullets` converting mixed `*` and `+` bullets to standard `- ` while preserving hierarchy and newline format.
+   - `OutlineStandardiseBulletsItem` (`\uE8D2`) in `OutlineStatsFlyout`.
+5. **`HistoryWindow` Diff Statistics Breakdown & Summary Copy (`HistoryWindow.xaml`, `HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.FormatDiffStatistics` formatting composite churn metrics and hunk counts.
+   - `CopyDiffStatsContextItem` (`\uE9F9`) in `CopyToolbarButton.ContextFlyout`.
+6. **`SuiteHubView` Recent Parent Folders Extractor & Clipboard Export (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.ExtractParentDirectories` extracting distinct parent directories in MRU order.
+   - `CopyRecentParentFoldersItem` (`\uE8B7`) in `RecentDocsFlyout`.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,880 passed, 0 failed, 1 skipped (100% pass rate)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 30076, responsive startup (`Responding: True`), clean exit.

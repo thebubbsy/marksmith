@@ -296,6 +296,9 @@
                                     <MenuFlyoutItem x:Name="ToggleArrowsItem" Text="Toggle arrowheads" Click="OnToggleArrowsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyConnectionStyleSummaryItem" Text="Copy connection style summary" Click="OnCopyConnectionStyleSummaryClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>
