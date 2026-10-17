@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace MarkSmith.Services;
 
@@ -919,5 +920,142 @@ public static class TextSearch
 
         string totalLabel = total == 1 ? "1 safe issue fixed" : $"{total} safe issues fixed";
         return $"Markdown lint auto-fix: {totalLabel} ({trailingSpacesFixed} trailing space, {hardTabsFixed} hard tab, {headingSpacesFixed} '#' heading space, {blankLineClustersFixed} blank-line cluster)";
+    }
+
+    private static readonly string[] CommonAiFillerPhrases =
+    [
+        "delve into",
+        "it is important to note",
+        "in conclusion",
+        "testament to",
+        "tapestry of",
+        "furthermore,",
+        "moreover,"
+    ];
+
+    private static readonly System.Text.RegularExpressions.Regex RepeatedWordRegex =
+        new(@"\b([A-Za-z]{2,})\s+\1\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// Audits prose text outside fenced code blocks for common cleanup and typography normalization opportunities:
+    /// inline double spaces, curly smart quotes, em/en-dashes and ellipses, AI filler phrases, and repeated adjacent words.
+    /// </summary>
+    public static (int DoubleSpaces, int SmartQuotes, int TypographyDashesAndEllipses, int AiFillerPhrases, int RepeatedWords, int TotalOpportunities) AuditCommonProseCleanupOpportunities(
+        string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return (0, 0, 0, 0, 0, 0);
+
+        string normalized = text.Replace("\r\n", "\n");
+        string[] lines = normalized.Split('\n');
+
+        int doubleSpaces = 0;
+        int smartQuotes = 0;
+        int typographyDashes = 0;
+        int aiFiller = 0;
+        int repeatedWords = 0;
+
+        char fenceChar = '\0';
+        int fenceLen = 0;
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.TrimStart();
+            if (fenceLen > 0)
+            {
+                int run = 0;
+                while (run < trimmed.Length && trimmed[run] == fenceChar) run++;
+                if (run >= fenceLen && trimmed[run..].All(char.IsWhiteSpace))
+                {
+                    fenceLen = 0;
+                }
+                continue;
+            }
+
+            if (trimmed.Length >= 3 && (trimmed[0] == '`' || trimmed[0] == '~'))
+            {
+                char ch = trimmed[0];
+                int run = 0;
+                while (run < trimmed.Length && trimmed[run] == ch) run++;
+                if (run >= 3)
+                {
+                    fenceChar = ch;
+                    fenceLen = run;
+                    continue;
+                }
+            }
+
+            string content = rawLine.Trim();
+            if (content.Length == 0) continue;
+
+            // 1. Inline double+ spaces within trimmed content
+            int idx = 0;
+            while (idx < content.Length - 1)
+            {
+                if (content[idx] == ' ' && content[idx + 1] == ' ')
+                {
+                    doubleSpaces++;
+                    while (idx < content.Length && content[idx] == ' ') idx++;
+                }
+                else
+                {
+                    idx++;
+                }
+            }
+
+            // 2. Smart quotes & 3. Typography dashes / ellipses
+            foreach (char c in content)
+            {
+                if (c is '\u2018' or '\u2019' or '\u201C' or '\u201D')
+                    smartQuotes++;
+                else if (c is '\u2013' or '\u2014' or '\u2026')
+                    typographyDashes++;
+            }
+
+            // 4. Common AI filler phrases
+            foreach (var phrase in CommonAiFillerPhrases)
+            {
+                int pIdx = 0;
+                while ((pIdx = content.IndexOf(phrase, pIdx, StringComparison.OrdinalIgnoreCase)) >= 0)
+                {
+                    aiFiller++;
+                    pIdx += phrase.Length;
+                }
+            }
+
+            // 5. Repeated adjacent words ("the the", "is is")
+            repeatedWords += RepeatedWordRegex.Matches(content).Count;
+        }
+
+        int total = doubleSpaces + smartQuotes + typographyDashes + aiFiller + repeatedWords;
+        return (doubleSpaces, smartQuotes, typographyDashes, aiFiller, repeatedWords, total);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of prose cleanup and typography normalization opportunities in <paramref name="text"/>.
+    /// </summary>
+    public static string FormatProseCleanupAuditSummary(string? text)
+    {
+        var (doubleSpaces, smartQuotes, typographyDashes, aiFiller, repeatedWords, _) =
+            AuditCommonProseCleanupOpportunities(text);
+        return FormatProseCleanupAuditSummary(doubleSpaces, smartQuotes, typographyDashes, aiFiller, repeatedWords);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of prose cleanup and typography normalization counts.
+    /// </summary>
+    public static string FormatProseCleanupAuditSummary(
+        int doubleSpaces,
+        int smartQuotes,
+        int typographyDashesAndEllipses,
+        int aiFillerPhrases,
+        int repeatedWords)
+    {
+        int total = doubleSpaces + smartQuotes + typographyDashesAndEllipses + aiFillerPhrases + repeatedWords;
+        if (total <= 0)
+            return "Prose cleanup audit: 0 issues detected (Clean typography & prose)";
+
+        string totalLabel = total == 1 ? "1 opportunity" : $"{total} opportunities";
+        return $"Prose cleanup audit ({totalLabel}): {doubleSpaces} double-space, {smartQuotes} smart-quote, {typographyDashesAndEllipses} dash/ellipsis, {aiFillerPhrases} filler phrase, {repeatedWords} repeated word";
     }
 }

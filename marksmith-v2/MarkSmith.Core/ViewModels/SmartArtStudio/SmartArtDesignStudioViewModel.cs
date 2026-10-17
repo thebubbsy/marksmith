@@ -1991,6 +1991,114 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string splitStr = splitCount == 1 ? "1 long bullet split" : $"{splitCount} long bullets split";
         return $"Split long outline items (>{limit} chars): {splitStr} into parent + sub-bullet ({nodeStr} total)";
     }
+
+    private static readonly System.Text.RegularExpressions.Regex ExistingHierarchicalNumberPrefixRegex =
+        new(@"^\d+(?:\.\d+)*[\.\)]\s+", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// Applies (or strips when <paramref name="stripExistingOnly"/> is <c>true</c>) hierarchical outline numbering
+    /// (e.g., <c>1.</c>, <c>1.1.</c>, <c>1.2.</c>, <c>2.</c>) across all outline bullets according to indentation depth.
+    /// </summary>
+    public static (string NumberedMarkdown, int NumberedNodes, int MaxDepth) ApplyHierarchicalNumbering(
+        string? markdown,
+        bool stripExistingOnly = false)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return (markdown ?? string.Empty, 0, 0);
+
+        bool hasCr = markdown.Contains("\r\n", StringComparison.Ordinal);
+        string normalized = hasCr ? markdown.Replace("\r\n", "\n") : markdown;
+        var rawLines = normalized.Split('\n');
+
+        var outputLines = new List<string>(rawLines.Length);
+        var counters = new List<int>();
+        int numberedNodes = 0;
+        int maxDepth = 0;
+
+        foreach (var rawLine in rawLines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine))
+            {
+                outputLines.Add(rawLine);
+                continue;
+            }
+
+            int indentSpaces = 0;
+            int rawIndentChars = 0;
+            while (rawIndentChars < rawLine.Length && (rawLine[rawIndentChars] == ' ' || rawLine[rawIndentChars] == '\t'))
+            {
+                indentSpaces += rawLine[rawIndentChars] == '\t' ? 2 : 1;
+                rawIndentChars++;
+            }
+
+            string indentPrefix = rawLine[..rawIndentChars];
+            string trimmed = rawLine[rawIndentChars..].TrimEnd();
+            string bulletMarker = "- ";
+            string cleanLabel = trimmed;
+
+            if (trimmed.StartsWith("- ", StringComparison.Ordinal) ||
+                trimmed.StartsWith("* ", StringComparison.Ordinal) ||
+                trimmed.StartsWith("+ ", StringComparison.Ordinal))
+            {
+                bulletMarker = trimmed[..2];
+                cleanLabel = trimmed[2..].Trim();
+            }
+
+            var match = ExistingHierarchicalNumberPrefixRegex.Match(cleanLabel);
+            if (match.Success)
+            {
+                cleanLabel = cleanLabel[match.Length..].TrimStart();
+            }
+
+            int depth = indentSpaces / 2;
+            if (depth + 1 > maxDepth) maxDepth = depth + 1;
+
+            if (stripExistingOnly)
+            {
+                outputLines.Add($"{indentPrefix}{bulletMarker}{cleanLabel}");
+                numberedNodes++;
+                continue;
+            }
+
+            while (counters.Count <= depth)
+            {
+                counters.Add(0);
+            }
+            while (counters.Count > depth + 1)
+            {
+                counters.RemoveAt(counters.Count - 1);
+            }
+
+            counters[depth]++;
+            for (int d = 0; d < depth; d++)
+            {
+                if (counters[d] == 0) counters[d] = 1;
+            }
+
+            string numberPrefix = string.Join(".", counters) + ".";
+            outputLines.Add($"{indentPrefix}{bulletMarker}{numberPrefix} {cleanLabel}");
+            numberedNodes++;
+        }
+
+        string joined = string.Join("\n", outputLines);
+        return (hasCr ? joined.Replace("\n", "\r\n") : joined, numberedNodes, maxDepth);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of hierarchical outline auto-numbering.
+    /// </summary>
+    public static string FormatOutlineNumberingSummary(int numberedNodes, int maxDepth, bool stripped = false)
+    {
+        if (numberedNodes <= 0)
+            return "Outline numbering: Empty outline (0 nodes)";
+
+        string nodeStr = numberedNodes == 1 ? "1 node" : $"{numberedNodes} nodes";
+        string depthStr = maxDepth == 1 ? "1 level" : $"{maxDepth} levels";
+        if (stripped)
+            return $"Outline numbering: Stripped numeric prefixes from {nodeStr} across {depthStr}";
+
+        return $"Outline numbering: Applied hierarchical numbering (1., 1.1.) to {nodeStr} across {depthStr}";
+    }
 }
 
 

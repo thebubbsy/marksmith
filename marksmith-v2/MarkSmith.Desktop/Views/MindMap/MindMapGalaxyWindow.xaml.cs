@@ -3879,6 +3879,17 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = summary;
         }
 
+        private void OnRollupSubtreeProgressClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (updatedParents, leafCount, rootProgress) = ViewModel.RollupSubtreeProgress();
+            var summary = MindMapStudioViewModel.FormatSubtreeProgressRollupSummary(
+                updatedParents, leafCount, rootProgress, ViewModel.Nodes.Count);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = summary;
+            RequestRedraw();
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
         private void OnCenterOnRootDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -4653,6 +4664,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditLinkedFilesItem.Click += OnAuditLinkedFilesClick;
             menu.Items.Add(auditLinkedFilesItem);
+
+            var rollupProgressItem = new MenuFlyoutItem
+            {
+                Text = "Roll up subtree completion progress to parent hubs",
+                Icon = new FontIcon { Glyph = "\uE9D2" }
+            };
+            rollupProgressItem.Click += OnRollupSubtreeProgressClick;
+            menu.Items.Add(rollupProgressItem);
 
             var fitItem = new MenuFlyoutItem
             {

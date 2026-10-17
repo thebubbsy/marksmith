@@ -240,6 +240,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentSortedCatalogItem" Text="Copy sorted &amp; folder-grouped recent catalog (A–Z)" Click="OnCopyRecentSortedCatalogClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentWorkspaceClustersItem" Text="Copy project workspace clusters" Click="OnCopyRecentWorkspaceClustersClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

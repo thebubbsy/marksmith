@@ -9025,6 +9025,24 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         fixSafeLintItem.Click += (_, _) => ApplySafeMarkdownLintFixes();
         menu.Items.Add(fixSafeLintItem);
 
+        var auditProseCleanupItem = new MenuFlyoutItem
+        {
+            Text = "Copy prose cleanup & typography audit",
+            Icon = new FontIcon { Glyph = "\uE8D2" },
+            IsEnabled = !string.IsNullOrEmpty(PasteTextBox?.Text)
+        };
+        auditProseCleanupItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var (doubleSpaces, smartQuotes, typographyDashes, aiFiller, repeatedWords, _) =
+                MarkSmith.Services.TextSearch.AuditCommonProseCleanupOpportunities(text);
+            var summary = MarkSmith.Services.TextSearch.FormatProseCleanupAuditSummary(
+                doubleSpaces, smartQuotes, typographyDashes, aiFiller, repeatedWords);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditProseCleanupItem);
+
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
         e.Handled = true;
     }

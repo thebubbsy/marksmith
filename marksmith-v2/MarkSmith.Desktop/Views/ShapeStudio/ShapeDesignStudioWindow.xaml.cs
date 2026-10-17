@@ -6179,5 +6179,16 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
+
+        private void OnSelectionFlipHorizontalClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (flipped, pivotX, pivotY) = ViewModel.FlipSelectedShapes(horizontal: true, vertical: false);
+            var summary = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.FormatFlipTransformSummary(flipped, horizontal: true, vertical: false, pivotX, pivotY);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
     }
 }
+

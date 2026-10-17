@@ -272,6 +272,9 @@
                                         <MenuFlyoutItem x:Name="SplitLongOutlineItem" Text="Split long outline items into parent + sub-bullet (&gt;45 chars)" Click="OnSplitLongOutlineClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C6;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AutoNumberOutlineItem" Text="Apply hierarchical outline numbering (1., 1.1., 2.)" Click="OnAutoNumberOutlineClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

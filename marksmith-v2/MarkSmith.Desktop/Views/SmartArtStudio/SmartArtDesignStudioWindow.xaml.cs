@@ -4642,6 +4642,27 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = $"✓ {summary}";
         }
 
+        private void OnAutoNumberOutlineClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            var (numberedMd, numberedNodes, maxDepth) = SmartArtDesignStudioViewModel.ApplyHierarchicalNumbering(markdown, stripExistingOnly: false);
+            bool stripped = false;
+            if (numberedNodes > 0 && string.Equals(numberedMd, markdown, StringComparison.Ordinal))
+            {
+                // Toggle off if already hierarchically numbered
+                (numberedMd, numberedNodes, maxDepth) = SmartArtDesignStudioViewModel.ApplyHierarchicalNumbering(markdown, stripExistingOnly: true);
+                stripped = true;
+            }
+            if (numberedNodes > 0 && !string.Equals(numberedMd, markdown, StringComparison.Ordinal))
+            {
+                ViewModel.PushUndo();
+                ViewModel.MarkdownText = numberedMd;
+            }
+            var summary = SmartArtDesignStudioViewModel.FormatOutlineNumberingSummary(numberedNodes, maxDepth, stripped);
+            Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = $"✓ {summary}";
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

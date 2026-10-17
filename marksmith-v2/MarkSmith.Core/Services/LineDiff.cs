@@ -773,4 +773,192 @@ public static class LineDiff
 
         return sb.ToString().TrimEnd();
     }
+
+    private static List<(int Level, string Title)> ExtractMarkdownHeadings(string? markdown)
+    {
+        var list = new List<(int Level, string Title)>();
+        if (string.IsNullOrWhiteSpace(markdown)) return list;
+
+        var lines = SplitLines(markdown);
+        char fenceChar = '\0';
+        int fenceLen = 0;
+
+        foreach (var raw in lines)
+        {
+            string trimmed = raw.TrimStart();
+            if (fenceLen > 0)
+            {
+                int run = 0;
+                while (run < trimmed.Length && trimmed[run] == fenceChar) run++;
+                if (run >= fenceLen && trimmed[run..].All(char.IsWhiteSpace))
+                {
+                    fenceLen = 0;
+                }
+                continue;
+            }
+
+            if (trimmed.Length >= 3 && (trimmed[0] == '`' || trimmed[0] == '~'))
+            {
+                char ch = trimmed[0];
+                int run = 0;
+                while (run < trimmed.Length && trimmed[run] == ch) run++;
+                if (run >= 3)
+                {
+                    fenceChar = ch;
+                    fenceLen = run;
+                    continue;
+                }
+            }
+
+            if (TryParseAtxHeading(trimmed, out int level, out string title))
+            {
+                list.Add((level, title));
+            }
+        }
+
+        return list;
+    }
+
+    private static bool TryParseAtxHeading(string? line, out int level, out string title)
+    {
+        level = 0;
+        title = string.Empty;
+        if (string.IsNullOrWhiteSpace(line)) return false;
+
+        string trimmed = line.TrimStart();
+        if (!trimmed.StartsWith('#')) return false;
+
+        int h = 0;
+        while (h < trimmed.Length && trimmed[h] == '#') h++;
+        if (h is < 1 or > 6 || h >= trimmed.Length || trimmed[h] != ' ')
+            return false;
+
+        title = trimmed[(h + 1)..].Trim().TrimEnd('#').Trim();
+        if (string.IsNullOrEmpty(title)) return false;
+
+        level = h;
+        return true;
+    }
+
+    /// <summary>
+    /// Audits structural ATX heading changes (<c># H1</c> through <c>###### H6</c>) between <paramref name="oldText"/>
+    /// and <paramref name="newText"/>, detecting added headings, removed headings, and promoted/demoted heading levels.
+    /// </summary>
+    public static (int AddedHeadings, int RemovedHeadings, int LevelChangedHeadings, int UnchangedHeadings, List<string> ChangeDetails) AuditStructuralHeadingChanges(
+        string? oldText,
+        string? newText)
+    {
+        var oldHeadings = ExtractMarkdownHeadings(oldText);
+        var newHeadings = ExtractMarkdownHeadings(newText);
+
+        var details = new List<string>();
+        int added = 0;
+        int removed = 0;
+        int levelChanged = 0;
+        int unchanged = 0;
+
+        var usedOld = new bool[oldHeadings.Count];
+        var usedNew = new bool[newHeadings.Count];
+
+        // Pass 1: exact title + level matches
+        for (int n = 0; n < newHeadings.Count; n++)
+        {
+            for (int o = 0; o < oldHeadings.Count; o++)
+            {
+                if (usedOld[o]) continue;
+                if (oldHeadings[o].Level == newHeadings[n].Level &&
+                    string.Equals(oldHeadings[o].Title, newHeadings[n].Title, StringComparison.OrdinalIgnoreCase))
+                {
+                    usedOld[o] = true;
+                    usedNew[n] = true;
+                    unchanged++;
+                    break;
+                }
+            }
+        }
+
+        // Pass 2: same title, different heading level (promoted/demoted)
+        for (int n = 0; n < newHeadings.Count; n++)
+        {
+            if (usedNew[n]) continue;
+            for (int o = 0; o < oldHeadings.Count; o++)
+            {
+                if (usedOld[o]) continue;
+                if (string.Equals(oldHeadings[o].Title, newHeadings[n].Title, StringComparison.OrdinalIgnoreCase))
+                {
+                    usedOld[o] = true;
+                    usedNew[n] = true;
+                    levelChanged++;
+                    details.Add($"H{oldHeadings[o].Level}→H{newHeadings[n].Level} '{newHeadings[n].Title}'");
+                    break;
+                }
+            }
+        }
+
+        // Pass 3: remaining unmatched old headings are removed; remaining new headings are added
+        for (int o = 0; o < oldHeadings.Count; o++)
+        {
+            if (!usedOld[o])
+            {
+                removed++;
+                details.Add($"-H{oldHeadings[o].Level} '{oldHeadings[o].Title}'");
+            }
+        }
+
+        for (int n = 0; n < newHeadings.Count; n++)
+        {
+            if (!usedNew[n])
+            {
+                added++;
+                details.Add($"+H{newHeadings[n].Level} '{newHeadings[n].Title}'");
+            }
+        }
+
+        return (added, removed, levelChanged, unchanged, details);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of structural Markdown heading changes between two document versions.
+    /// </summary>
+    public static string FormatStructuralHeadingDiffSummary(string? oldText, string? newText)
+    {
+        var (added, removed, levelChanged, unchanged, details) = AuditStructuralHeadingChanges(oldText, newText);
+        if (added == 0 && removed == 0 && levelChanged == 0 && unchanged == 0)
+            return "Structural heading diff: 0 headings found in compared versions";
+
+        if (added == 0 && removed == 0 && levelChanged == 0)
+        {
+            string unchLabel = unchanged == 1 ? "1 heading" : $"{unchanged} headings";
+            return $"Structural heading diff: No structural changes ({unchLabel} unchanged)";
+        }
+
+        string preview = string.Join(", ", details.Take(4));
+        if (details.Count > 4) preview += $", +{details.Count - 4} more";
+
+        return $"Structural heading diff: +{added} added, -{removed} removed, {levelChanged} level-shifted, ={unchanged} unchanged ({preview})";
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of structural Markdown heading changes from unified diff rows.
+    /// </summary>
+    public static string FormatStructuralHeadingDiffSummary(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows is null || unifiedRows.Count == 0)
+            return "Structural heading diff: 0 headings found in compared versions";
+
+        var oldSb = new System.Text.StringBuilder();
+        var newSb = new System.Text.StringBuilder();
+
+        foreach (var r in unifiedRows)
+        {
+            if (r.IsGap) continue;
+            if (r.Kind is Kind.Same or Kind.Removed)
+                oldSb.AppendLine(r.Text ?? string.Empty);
+            if (r.Kind is Kind.Same or Kind.Added)
+                newSb.AppendLine(r.Text ?? string.Empty);
+        }
+
+        return FormatStructuralHeadingDiffSummary(oldSb.ToString(), newSb.ToString());
+    }
 }
+

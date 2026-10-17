@@ -776,4 +776,42 @@ public class ShapeStudioPolishTests
         Assert.Equal(100, vm.Shapes[1].Width);
         Assert.Equal(50, vm.Shapes[1].Height);
     }
+
+    [Fact]
+    public async Task Run145_FlipSelectedShapes_And_FormatFlipTransformSummary()
+    {
+        Assert.Equal("Mirror flip (Horizontal): 0 shapes (Empty selection)",
+            ShapeDesignStudioViewModel.FormatFlipTransformSummary(0, true, false, 0, 0));
+
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+        vm.AddShapeAt("rect", 10, 20, 40, 30, "FF0000", "Left Box");   // X: 10..50
+        vm.AddShapeAt("ellipse", 110, 20, 40, 30, "00FF00", "Right Box"); // X: 110..150
+        vm.Shapes[0].Rotation = 30;
+
+        vm.SelectedShape = vm.Shapes[0];
+        vm.Shapes[0].IsSelected = true;
+        vm.Shapes[1].IsSelected = true;
+
+        // Collective bounds: minX=10, maxX=150 -> pivotCenterX=80, minY=20, maxY=50 -> pivotCenterY=35
+        var (flipped, pivotX, pivotY) = vm.FlipSelectedShapes(horizontal: true, vertical: false);
+        Assert.Equal(2, flipped);
+        Assert.Equal(80, pivotX);
+        Assert.Equal(35, pivotY);
+
+        // Left Box (10..50) mirrors to (110..150) => X=110, rotation 30 => -30
+        Assert.Equal(110, vm.Shapes[0].X);
+        Assert.Equal(-30, vm.Shapes[0].Rotation);
+        // Right Box (110..150) mirrors to (10..50) => X=10
+        Assert.Equal(10, vm.Shapes[1].X);
+
+        var summary = ShapeDesignStudioViewModel.FormatFlipTransformSummary(flipped, true, false, pivotX, pivotY);
+        Assert.Equal("Mirror flip (Horizontal): 2 shapes mirrored across pivot (80, 35)", summary);
+
+        Assert.True(vm.CanUndo);
+        await vm.UndoAsync();
+        Assert.Equal(10, vm.Shapes[0].X);
+        Assert.Equal(110, vm.Shapes[1].X);
+    }
 }
+

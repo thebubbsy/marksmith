@@ -710,4 +710,85 @@ public sealed class RecentFilesService
 
         return $"Sorted recent catalog ({docLabel} across {folderLabel}): A–Z [{azPreview}] · By folder [{folderPreview}]";
     }
+
+    public static string FormatProjectWorkspaceClusters(IEnumerable<string>? filePaths)
+    {
+        if (filePaths == null)
+        {
+            return "Project workspace clusters: 0 workspaces (no recent files recorded)";
+        }
+
+        var entries = new List<(string WorkspaceName, string FileName)>();
+        foreach (var raw in filePaths)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            string trimmed = raw.Trim();
+            try
+            {
+                string fileName = Path.GetFileName(trimmed);
+                if (string.IsNullOrWhiteSpace(fileName)) fileName = trimmed;
+
+                string? dir = Path.GetDirectoryName(trimmed);
+                string workspaceName = "(root)";
+                if (!string.IsNullOrWhiteSpace(dir))
+                {
+                    var segments = dir.Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (segments.Length >= 2)
+                    {
+                        string leafDir = segments[^1];
+                        if (leafDir.Equals("docs", StringComparison.OrdinalIgnoreCase) ||
+                            leafDir.Equals("notes", StringComparison.OrdinalIgnoreCase) ||
+                            leafDir.Equals("specs", StringComparison.OrdinalIgnoreCase) ||
+                            leafDir.Equals("src", StringComparison.OrdinalIgnoreCase))
+                        {
+                            workspaceName = $"{segments[^2]}/{leafDir}";
+                        }
+                        else
+                        {
+                            workspaceName = leafDir;
+                        }
+                    }
+                    else if (segments.Length == 1)
+                    {
+                        workspaceName = segments[0];
+                    }
+                }
+
+                entries.Add((workspaceName, fileName));
+            }
+            catch
+            {
+                entries.Add(("(unknown)", trimmed));
+            }
+        }
+
+        if (entries.Count == 0)
+        {
+            return "Project workspace clusters: 0 workspaces (no recent files recorded)";
+        }
+
+        var clusters = entries
+            .GroupBy(e => e.WorkspaceName, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        int multiFileHubs = clusters.Count(g => g.Count() >= 2);
+        string wsLabel = clusters.Count == 1 ? "1 workspace" : $"{clusters.Count} workspaces";
+        string docLabel = entries.Count == 1 ? "1 file" : $"{entries.Count} files";
+
+        var clusterSummaries = clusters
+            .Take(4)
+            .Select(g =>
+            {
+                var sampleFiles = string.Join(", ", g.Select(x => x.FileName).Distinct(StringComparer.OrdinalIgnoreCase).Take(2));
+                int extra = g.Count() - 2;
+                string suffix = extra > 0 ? $", +{extra} more" : "";
+                return $"{g.Key} ({g.Count()}: {sampleFiles}{suffix})";
+            });
+
+        string extraClusters = clusters.Count > 4 ? $" · +{clusters.Count - 4} more workspaces" : "";
+        return $"Project workspace clusters ({docLabel} in {wsLabel}, {multiFileHubs} multi-file hub(s)): {string.Join(" · ", clusterSummaries)}{extraClusters}";
+    }
 }
+

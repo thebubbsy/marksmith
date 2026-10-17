@@ -246,6 +246,9 @@
                                     <MenuFlyoutItem x:Name="AuditLinkedFilesItem" Text="Audit linked files health (Valid vs missing paths)" Click="OnAuditLinkedFilesClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A7;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="RollupSubtreeProgressItem" Text="Roll up subtree completion progress to parent hubs" Click="OnRollupSubtreeProgressClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9D2;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>

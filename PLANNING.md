@@ -10997,7 +10997,7 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #145 Blueprint — Cleanup Rule Presets, Subtree Progress Rollup, Shape Mirror Flip, Outline Auto-Numbering, Structural Heading Diff & Workspace Detector (Status: Pending)
+### Run #145 Blueprint — Cleanup Rule Presets, Subtree Progress Rollup, Shape Mirror Flip, Outline Auto-Numbering, Structural Heading Diff & Workspace Detector (Status: Completed — Shipped)
 1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
    - **What is missing**: `Custom cleanup rules` in `StyleContentExpander` (`MainWindow.xaml` lines 2013–2095) requires manual typing of find/replace rules and lacks built-in cleanup preset diagnostics/snippets (e.g., AI filler phrase stripping, smart-quote normalization, double-space cleanup).
    - **Deliverable**: Add `TextSearch.AuditCommonProseCleanupOpportunities(text)` and `FormatProseCleanupAuditSummary(text)`, wired to `FindCountText` / `StyleContentExpander` context action.
@@ -11080,3 +11080,24 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
     - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors.
     - Verified `55/55` targeted Run #144 + `CommandIconsTests` and `582/582` full desktop polish tests passing (`100%` pass rate).
     - Verified live `Marksmith.exe` startup (`PID=24676, Alive=True, Responding=True, WorkingSet=184.76MB`).
+
+---
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #145 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-18
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Prose Cleanup & Typography Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditCommonProseCleanupOpportunities(text)` and `FormatProseCleanupAuditSummary(...)` to audit inline double spaces, curly smart quotes, typography dashes/ellipses, common AI filler phrases, and repeated adjacent words outside fenced code blocks, wired to `auditProseCleanupItem` (`\uE8D2`) in `OnFindCountTextRightTapped`.
+    2. **MindMapGalaxyWindow Subtree Completion Progress Roll-Up (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.RollupSubtreeProgress()` and `FormatSubtreeProgressRollupSummary(...)` to recursively roll up leaf node completion percentages (`0..100%`) into parent hub nodes with single-step atomic undo (`SuspendEditTracking()`), wired to `RollupSubtreeProgressItem` (`\uE9D2`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Horizontal & Vertical Bounding-Box Mirror Flip (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.FlipSelectedShapes(horizontal, vertical)` and `FormatFlipTransformSummary(...)` to mirror selected shapes across their collective bounding-box center and invert rotation angles with single-step undo recording, wired to `SelectionFlipHorizontalItem` (`\uE8AB`) in `SelectionBoundsFlyout`.
+    4. **SmartArtDesignStudioWindow Hierarchical Outline Auto-Numbering (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.ApplyHierarchicalNumbering(markdown, stripExistingOnly)` and `FormatOutlineNumberingSummary(...)` to apply or strip hierarchical numeric prefixes (`1.`, `1.1.`, `1.2.`, `2.`) across multi-level outlines idempotently, wired to `AutoNumberOutlineItem` (`\uE8FD`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Structural Heading Diff Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditStructuralHeadingChanges(oldText, newText)` and `FormatStructuralHeadingDiffSummary(...)` to audit added, removed, and level-shifted (`H3→H2`) ATX headings outside fenced code blocks, wired to `copyHeadingDiff` (`\uE8FD`) in `OnTimelineHeaderRightTapped`.
+    6. **SuiteHubView Project Workspace Clusters Detector (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.FormatProjectWorkspaceClusters(filePaths)` to group recent documents by project workspace root (`repo/docs`, `repo/specs`, or parent workspace directory) and highlight multi-file project hubs, wired to `CopyRecentWorkspaceClustersItem` (`\uE8B7`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors.
+    - Verified `55/55` targeted Run #145 + `CommandIconsTests` and `589/589` full desktop polish tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` startup (`PID=30044, HasExited=False, Responding=True, WorkingSetMB=110.39`).
+

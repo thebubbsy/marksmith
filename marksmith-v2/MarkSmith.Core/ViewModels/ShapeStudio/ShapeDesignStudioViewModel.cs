@@ -3708,4 +3708,85 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string resizedLabel = resizedShapes == 1 ? "1 shape resized" : $"{resizedShapes} shapes resized";
         return $"Match dimensions ('{refName}' · {targetWidth:0.##}×{targetHeight:0.##}px): {resizedLabel} across {totalSelected} selected shapes";
     }
+
+    /// <summary>
+    /// Mirrors selected shapes (or all canvas shapes if fewer than 2 are selected) horizontally and/or vertically
+    /// across their collective bounding-box center, recording a single undo step.
+    /// </summary>
+    public (int FlippedShapes, double PivotCenterX, double PivotCenterY) FlipSelectedShapes(
+        bool horizontal = true,
+        bool vertical = false)
+    {
+        if (Shapes.Count == 0 || (!horizontal && !vertical))
+        {
+            StatusMessage = FormatFlipTransformSummary(0, horizontal, vertical, 0, 0);
+            return (0, 0, 0);
+        }
+
+        var targets = SelectedItems.ToList();
+        if (targets.Count == 0)
+        {
+            targets = Shapes.ToList();
+        }
+
+        double minX = targets.Min(s => s.X);
+        double maxX = targets.Max(s => s.X + s.Width);
+        double minY = targets.Min(s => s.Y);
+        double maxY = targets.Max(s => s.Y + s.Height);
+
+        double pivotCenterX = Math.Round((minX + maxX) / 2.0, 2);
+        double pivotCenterY = Math.Round((minY + maxY) / 2.0, 2);
+
+        RecordUndo();
+        foreach (var s in targets)
+        {
+            if (horizontal)
+            {
+                s.X = Math.Round((minX + maxX) - (s.X + s.Width), 2);
+                if (s.Rotation != 0)
+                {
+                    s.Rotation = WrapRotationAngle(-s.Rotation);
+                }
+            }
+
+            if (vertical)
+            {
+                s.Y = Math.Round((minY + maxY) - (s.Y + s.Height), 2);
+                if (s.Rotation != 0)
+                {
+                    s.Rotation = WrapRotationAngle(180 - s.Rotation);
+                }
+            }
+        }
+
+        string summary = FormatFlipTransformSummary(targets.Count, horizontal, vertical, pivotCenterX, pivotCenterY);
+        StatusMessage = $"✓ {summary}";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        return (targets.Count, pivotCenterX, pivotCenterY);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of a horizontal/vertical bounding-box mirror flip operation.
+    /// </summary>
+    public static string FormatFlipTransformSummary(
+        int flippedShapes,
+        bool horizontal,
+        bool vertical,
+        double pivotCenterX,
+        double pivotCenterY)
+    {
+        string axisLabel = (horizontal, vertical) switch
+        {
+            (true, true) => "Horizontal & Vertical",
+            (true, false) => "Horizontal",
+            (false, true) => "Vertical",
+            _ => "None"
+        };
+
+        if (flippedShapes <= 0 || (!horizontal && !vertical))
+            return $"Mirror flip ({axisLabel}): 0 shapes (Empty selection)";
+
+        string shapeLabel = flippedShapes == 1 ? "1 shape mirrored" : $"{flippedShapes} shapes mirrored";
+        return $"Mirror flip ({axisLabel}): {shapeLabel} across pivot ({pivotCenterX:0.##}, {pivotCenterY:0.##})";
+    }
 }

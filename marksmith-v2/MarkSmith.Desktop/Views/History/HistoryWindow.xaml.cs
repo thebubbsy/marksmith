@@ -3118,6 +3118,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied cherry-pick payload: {firstLine}");
                 };
                 menu.Items.Add(copyCherryPickHunks);
+
+                var copyHeadingDiff = new MenuFlyoutItem
+                {
+                    Text = "Copy structural heading diff (# H1–H6)",
+                    Icon = new FontIcon { Glyph = "\uE8FD" }
+                };
+                copyHeadingDiff.Click += (_, _) =>
+                {
+                    var headingSummary = MarkSmith.Services.LineDiff.FormatStructuralHeadingDiffSummary(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(headingSummary);
+                    _vm.ShowNotice($"Copied heading diff: {headingSummary}");
+                };
+                menu.Items.Add(copyHeadingDiff);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

@@ -1476,4 +1476,71 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentSortedCatalogClick", suiteCs);
         Assert.Contains("FormatRecentFilesSortedCatalog", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_FormatProjectWorkspaceClusters_ComputesAccurately()
+    {
+        Assert.Equal("Project workspace clusters: 0 workspaces (no recent files recorded)",
+            RecentFilesService.FormatProjectWorkspaceClusters(null));
+        Assert.Equal("Project workspace clusters: 0 workspaces (no recent files recorded)",
+            RecentFilesService.FormatProjectWorkspaceClusters(Array.Empty<string>()));
+
+        var paths = new[]
+        {
+            @"C:\Repos\MarkSmith\docs\architecture.md",
+            @"C:\Repos\MarkSmith\docs\governance.md",
+            @"C:\Repos\MarkSmith\docs\roadmap.md",
+            @"C:\Repos\CloudflareOS\README.md"
+        };
+
+        var clusters = RecentFilesService.FormatProjectWorkspaceClusters(paths);
+        Assert.Equal("Project workspace clusters (4 files in 2 workspaces, 1 multi-file hub(s)): MarkSmith/docs (3: architecture.md, governance.md, +1 more) · CloudflareOS (1: README.md)", clusters);
+    }
+
+    [Fact]
+    public void Run145_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: auditProseCleanupItem & FormatProseCleanupAuditSummary
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy prose cleanup & typography audit", mainCs);
+        Assert.Contains("FormatProseCleanupAuditSummary", mainCs);
+
+        // 2. MindMapGalaxy: RollupSubtreeProgressItem & OnRollupSubtreeProgressClick
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("RollupSubtreeProgressItem", galaxyXaml);
+        Assert.Contains("OnRollupSubtreeProgressClick", galaxyXaml);
+        Assert.Contains("OnRollupSubtreeProgressClick", galaxyCs);
+        Assert.Contains("RollupSubtreeProgress", galaxyCs);
+
+        // 3. ShapeStudio: SelectionFlipHorizontalItem & OnSelectionFlipHorizontalClick
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionFlipHorizontalItem", shapeXaml);
+        Assert.Contains("OnSelectionFlipHorizontalClick", shapeXaml);
+        Assert.Contains("OnSelectionFlipHorizontalClick", shapeCs);
+        Assert.Contains("FlipSelectedShapes", shapeCs);
+
+        // 4. SmartArtStudio: AutoNumberOutlineItem & OnAutoNumberOutlineClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AutoNumberOutlineItem", smartArtXaml);
+        Assert.Contains("OnAutoNumberOutlineClick", smartArtXaml);
+        Assert.Contains("OnAutoNumberOutlineClick", smartArtCs);
+        Assert.Contains("ApplyHierarchicalNumbering", smartArtCs);
+
+        // 5. HistoryWindow: copyHeadingDiff & FormatStructuralHeadingDiffSummary
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy structural heading diff (# H1–H6)", historyCs);
+        Assert.Contains("FormatStructuralHeadingDiffSummary", historyCs);
+
+        // 6. SuiteHub: CopyRecentWorkspaceClustersItem & OnCopyRecentWorkspaceClustersClick
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentWorkspaceClustersItem", suiteXaml);
+        Assert.Contains("OnCopyRecentWorkspaceClustersClick", suiteXaml);
+        Assert.Contains("OnCopyRecentWorkspaceClustersClick", suiteCs);
+        Assert.Contains("FormatProjectWorkspaceClusters", suiteCs);
+    }
 }
+

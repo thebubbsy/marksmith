@@ -669,4 +669,32 @@ public class SmartArtStudioPolishTests
         var summary = SmartArtDesignStudioViewModel.FormatLongItemSplitSummary(splitCount, resultingNodes, 45);
         Assert.Equal("Split long outline items (>45 chars): 2 long bullets split into parent + sub-bullet (5 nodes total)", summary);
     }
+
+    [Fact]
+    public void Run145_ApplyHierarchicalNumbering_And_FormatOutlineNumberingSummary()
+    {
+        Assert.Equal("Outline numbering: Empty outline (0 nodes)",
+            SmartArtDesignStudioViewModel.FormatOutlineNumberingSummary(0, 0));
+
+        var raw = "- Discovery\n  - Stakeholder Interviews\n  - Architecture Audit\n- Delivery\n  - Rollout";
+        var (numbered, count, maxDepth) = SmartArtDesignStudioViewModel.ApplyHierarchicalNumbering(raw);
+
+        Assert.Equal(5, count);
+        Assert.Equal(2, maxDepth);
+        Assert.Equal("- 1. Discovery\n  - 1.1. Stakeholder Interviews\n  - 1.2. Architecture Audit\n- 2. Delivery\n  - 2.1. Rollout", numbered);
+
+        var summary = SmartArtDesignStudioViewModel.FormatOutlineNumberingSummary(count, maxDepth);
+        Assert.Equal("Outline numbering: Applied hierarchical numbering (1., 1.1.) to 5 nodes across 2 levels", summary);
+
+        // Idempotent re-numbering strips old prefix before re-applying
+        var (renumbered, _, _) = SmartArtDesignStudioViewModel.ApplyHierarchicalNumbering(numbered);
+        Assert.Equal(numbered, renumbered);
+
+        // Strip mode restores clean unnumbered bullets
+        var (stripped, stripCount, stripDepth) = SmartArtDesignStudioViewModel.ApplyHierarchicalNumbering(numbered, stripExistingOnly: true);
+        Assert.Equal(raw, stripped);
+        Assert.Equal("Outline numbering: Stripped numeric prefixes from 5 nodes across 2 levels",
+            SmartArtDesignStudioViewModel.FormatOutlineNumberingSummary(stripCount, stripDepth, stripped: true));
+    }
 }
+

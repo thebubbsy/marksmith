@@ -1471,5 +1471,45 @@ namespace MarkSmith.Tests
             var allValidSummary = MindMapStudioViewModel.FormatLinkedFilesAuditSummary(2, 2, 0, Array.Empty<string>(), 3);
             Assert.Equal("Linked files audit (2 linked files): 100% valid on disk (2 verified · 0 broken links)", allValidSummary);
         }
+
+        [Fact]
+        public void Run145_RollupSubtreeProgress_And_FormatSubtreeProgressRollupSummary()
+        {
+            var vm = new MindMapStudioViewModel();
+
+            Assert.Equal("Subtree progress rollup: 0 nodes (Empty map)",
+                MindMapStudioViewModel.FormatSubtreeProgressRollupSummary(0, 0, 0, 0));
+
+            var doc = new MindMapDocument
+            {
+                RootNodeId = "r",
+                Nodes = new List<MindMapNode>
+                {
+                    new MindMapNode { Id = "r", Title = "Root", Progress = 0 },
+                    new MindMapNode { Id = "a", Title = "Branch A", ParentId = "r", Progress = 0 },
+                    new MindMapNode { Id = "a1", Title = "Leaf A1", ParentId = "a", Progress = 100 },
+                    new MindMapNode { Id = "a2", Title = "Leaf A2", ParentId = "a", Progress = 50 },
+                    new MindMapNode { Id = "b", Title = "Leaf B", ParentId = "r", Progress = 25 }
+                }
+            };
+            vm.LoadDocument(doc);
+
+            var (updatedParents, leafCount, rootProgress) = vm.RollupSubtreeProgress();
+            // Leaf A1 (100) + Leaf A2 (50) => Branch A = 75
+            // Branch A (75) + Leaf B (25) => Root = 50
+            Assert.Equal(2, updatedParents);
+            Assert.Equal(3, leafCount);
+            Assert.Equal(75, vm.Nodes.Single(n => n.Id == "a").Progress);
+            Assert.Equal(50, vm.Nodes.Single(n => n.Id == "r").Progress);
+            Assert.Equal(50, rootProgress);
+
+            var summary = MindMapStudioViewModel.FormatSubtreeProgressRollupSummary(updatedParents, leafCount, rootProgress, vm.Nodes.Count);
+            Assert.Equal("Subtree progress rollup: 2 parent hubs updated from 3 leaf nodes (Root completion: 50%)", summary);
+
+            Assert.True(vm.CanUndo);
+            vm.Undo();
+            Assert.Equal(0, vm.Nodes.Single(n => n.Id == "r").Progress);
+        }
     }
 }
+

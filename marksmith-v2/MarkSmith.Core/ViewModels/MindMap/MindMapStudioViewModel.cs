@@ -2671,5 +2671,143 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Linked files audit ({linkedLabel}): {validCount} valid ({validPct:0.#}%), {missingCount} broken/missing{sampleStr}";
         }
+
+        /// <summary>
+        /// Recursively rolls up completion progress (<see cref="MindMapNodeViewModel.Progress"/>) from leaf nodes
+        /// to parent/hub nodes across the mind map hierarchy.
+        /// </summary>
+        public (int UpdatedParentNodes, int LeafCount, int RootProgressPercent) RollupSubtreeProgress()
+        {
+            if (Nodes.Count == 0)
+            {
+                StatusMessage = FormatSubtreeProgressRollupSummary(0, 0, 0, 0);
+                return (0, 0, 0);
+            }
+
+            var nodeById = Nodes.ToDictionary(n => n.Id, StringComparer.Ordinal);
+            var childrenMap = new Dictionary<string, List<MindMapNodeViewModel>>(StringComparer.Ordinal);
+            foreach (var n in Nodes)
+            {
+                childrenMap[n.Id] = new List<MindMapNodeViewModel>();
+            }
+
+            foreach (var n in Nodes)
+            {
+                if (!string.IsNullOrWhiteSpace(n.ParentId) &&
+                    nodeById.TryGetValue(n.ParentId, out var pNode) &&
+                    !ReferenceEquals(pNode, n) &&
+                    !childrenMap[pNode.Id].Contains(n))
+                {
+                    childrenMap[pNode.Id].Add(n);
+                }
+            }
+
+            foreach (var l in Links)
+            {
+                if (nodeById.TryGetValue(l.SourceNodeId, out var src) &&
+                    nodeById.TryGetValue(l.TargetNodeId, out var tgt) &&
+                    !ReferenceEquals(src, tgt) &&
+                    !childrenMap[src.Id].Contains(tgt))
+                {
+                    childrenMap[src.Id].Add(tgt);
+                }
+            }
+
+            var computedProgress = new Dictionary<string, int>(StringComparer.Ordinal);
+            var visiting = new HashSet<string>(StringComparer.Ordinal);
+            int leafCount = 0;
+
+            int ComputeNodeProgress(MindMapNodeViewModel node)
+            {
+                if (computedProgress.TryGetValue(node.Id, out int cached))
+                    return cached;
+
+                if (!visiting.Add(node.Id))
+                    return Math.Clamp(node.Progress, 0, 100);
+
+                var kids = childrenMap[node.Id]
+                    .Where(k => !visiting.Contains(k.Id))
+                    .ToList();
+
+                int result;
+                if (kids.Count == 0)
+                {
+                    leafCount++;
+                    result = Math.Clamp(node.Progress, 0, 100);
+                }
+                else
+                {
+                    double sum = 0;
+                    foreach (var k in kids)
+                    {
+                        sum += ComputeNodeProgress(k);
+                    }
+                    result = Math.Clamp((int)Math.Round(sum / kids.Count, MidpointRounding.AwayFromZero), 0, 100);
+                }
+
+                visiting.Remove(node.Id);
+                computedProgress[node.Id] = result;
+                return result;
+            }
+
+            var rootNode = GetRootNode() ?? Nodes[0];
+            ComputeNodeProgress(rootNode);
+            foreach (var n in Nodes)
+            {
+                if (!computedProgress.ContainsKey(n.Id))
+                {
+                    ComputeNodeProgress(n);
+                }
+            }
+
+            int updatedParents = 0;
+            bool undoPushed = false;
+            foreach (var n in Nodes)
+            {
+                if (childrenMap[n.Id].Count > 0 &&
+                    computedProgress.TryGetValue(n.Id, out int targetProg) &&
+                    n.Progress != targetProg)
+                {
+                    if (!undoPushed)
+                    {
+                        PushUndo("Roll up subtree progress");
+                        undoPushed = true;
+                    }
+                    using (SuspendEditTracking())
+                    {
+                        n.Progress = targetProg;
+                        n.SyncToModel();
+                    }
+                    updatedParents++;
+                }
+            }
+
+            int rootProg = computedProgress.TryGetValue(rootNode.Id, out int rp) ? rp : rootNode.Progress;
+            if (updatedParents > 0)
+            {
+                IsDirty = true;
+                CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+            }
+
+            StatusMessage = FormatSubtreeProgressRollupSummary(updatedParents, leafCount, rootProg, Nodes.Count);
+            return (updatedParents, leafCount, rootProg);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of hierarchical subtree completion progress rollup.
+        /// </summary>
+        public static string FormatSubtreeProgressRollupSummary(
+            int updatedParentNodes,
+            int leafCount,
+            int rootProgressPercent,
+            int totalNodes = 0)
+        {
+            if (totalNodes <= 0 && leafCount <= 0 && updatedParentNodes <= 0)
+                return "Subtree progress rollup: 0 nodes (Empty map)";
+
+            string parentStr = updatedParentNodes == 1 ? "1 parent hub updated" : $"{updatedParentNodes} parent hubs updated";
+            string leafStr = leafCount == 1 ? "1 leaf node" : $"{leafCount} leaf nodes";
+            return $"Subtree progress rollup: {parentStr} from {leafStr} (Root completion: {Math.Clamp(rootProgressPercent, 0, 100)}%)";
+        }
     }
 }

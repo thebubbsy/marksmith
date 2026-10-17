@@ -857,4 +857,27 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("=== Hunk #2 (@ line 5, +1/-1) ===", payload);
         Assert.Contains("new line B1", payload);
     }
+
+    [Fact]
+    public void Run145_AuditStructuralHeadingChanges_And_FormatStructuralHeadingDiffSummary()
+    {
+        Assert.Equal("Structural heading diff: 0 headings found in compared versions",
+            LineDiff.FormatStructuralHeadingDiffSummary("plain text", "more plain text"));
+
+        var oldDoc = "# Architecture Overview\n## Legacy Pipeline\n### Submodule A\n```markdown\n# Ignored Fenced Heading\n```";
+        var newDoc = "# Architecture Overview\n##Submodule A\n## Submodule A\n### New Telemetry Section";
+
+        var (added, removed, levelChanged, unchanged, details) = LineDiff.AuditStructuralHeadingChanges(oldDoc, newDoc);
+        Assert.Equal(1, unchanged);    // # Architecture Overview
+        Assert.Equal(1, levelChanged); // ### Submodule A -> ## Submodule A (H3->H2)
+        Assert.Equal(1, removed);      // ## Legacy Pipeline
+        Assert.Equal(1, added);        // ### New Telemetry Section
+        Assert.Contains("H3→H2 'Submodule A'", details);
+        Assert.Contains("-H2 'Legacy Pipeline'", details);
+        Assert.Contains("+H3 'New Telemetry Section'", details);
+
+        var summary = LineDiff.FormatStructuralHeadingDiffSummary(oldDoc, newDoc);
+        Assert.Equal("Structural heading diff: +1 added, -1 removed, 1 level-shifted, =1 unchanged (H3→H2 'Submodule A', -H2 'Legacy Pipeline', +H3 'New Telemetry Section')", summary);
+    }
 }
+

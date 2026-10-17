@@ -560,4 +560,33 @@ public class TextSearchTests
         var summary = TextSearch.FormatSafeLintFixSummary(trailingFixed, tabsFixed, headingsFixed, blankClustersFixed);
         Assert.Equal("Markdown lint auto-fix: 5 safe issues fixed (1 trailing space, 1 hard tab, 2 '#' heading space, 1 blank-line cluster)", summary);
     }
+
+    [Fact]
+    public void Run145_AuditCommonProseCleanupOpportunities_And_FormatProseCleanupAuditSummary()
+    {
+        Assert.Equal("Prose cleanup audit: 0 issues detected (Clean typography & prose)",
+            TextSearch.FormatProseCleanupAuditSummary("Clean prose sentence with standard punctuation."));
+
+        var sample = """
+            Here is  a double space and “smart quotes” plus an em—dash…
+            It is important to note that the the repeated word is outside fences.
+            ```markdown
+            Inside  fenced  code “quotes” — delve into the the ignored block.
+            ```
+            """;
+
+        var (doubleSpaces, smartQuotes, typographyDashes, aiFiller, repeatedWords, total) =
+            TextSearch.AuditCommonProseCleanupOpportunities(sample);
+
+        Assert.Equal(1, doubleSpaces);
+        Assert.Equal(2, smartQuotes);
+        Assert.Equal(2, typographyDashes); // '—' and '…'
+        Assert.Equal(1, aiFiller);         // "It is important to note"
+        Assert.Equal(1, repeatedWords);    // "the the"
+        Assert.Equal(7, total);
+
+        var formatted = TextSearch.FormatProseCleanupAuditSummary(sample);
+        Assert.Equal("Prose cleanup audit (7 opportunities): 1 double-space, 2 smart-quote, 2 dash/ellipsis, 1 filler phrase, 1 repeated word", formatted);
+    }
 }
+
