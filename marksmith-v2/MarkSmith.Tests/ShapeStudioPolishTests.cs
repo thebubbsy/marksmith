@@ -813,5 +813,57 @@ public class ShapeStudioPolishTests
         Assert.Equal(10, vm.Shapes[0].X);
         Assert.Equal(110, vm.Shapes[1].X);
     }
+
+    [Fact]
+    public void Run146_SelectSimilarShapes_And_FormatSimilarShapesSummary()
+    {
+        Assert.Equal("Select similar: 0 shapes (Empty canvas)",
+            ShapeDesignStudioViewModel.FormatSimilarShapesSummary(0, 0));
+
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        vm.AddShapeAt("rect", 10, 10, 100, 60, "0078D4", "Button 1");
+        vm.AddShapeAt("rect", 120, 10, 100, 60, "0078D4", "Button 2");
+        vm.AddShapeAt("rect", 230, 10, 100, 60, "D83B01", "Alert Button");
+        vm.AddShapeAt("ellipse", 10, 100, 60, 60, "0078D4", "Indicator 1");
+        vm.AddShapeAt("ellipse", 80, 100, 60, 60, "107C41", "Success Bubble");
+
+        // Select Button 1 as reference
+        vm.SelectedShape = vm.Shapes[0];
+
+        // 1. Select similar by kind (all 3 "rect" shapes)
+        var (kindMatched, totalKind, refKind, _, kindSummary) = vm.SelectSimilarShapes(matchKind: true, matchFill: false);
+        Assert.Equal(3, kindMatched);
+        Assert.Equal(5, totalKind);
+        Assert.Equal("rect", refKind);
+        Assert.Equal(3, vm.Shapes.Count(s => s.IsSelected));
+        Assert.True(vm.Shapes[0].IsSelected);
+        Assert.True(vm.Shapes[1].IsSelected);
+        Assert.True(vm.Shapes[2].IsSelected);
+        Assert.False(vm.Shapes[3].IsSelected);
+        Assert.Contains("Select similar (kind 'rect'): 3 shapes matched across 5 canvas shapes", kindSummary);
+
+        // 2. Select similar by fill (all shapes with fill #0078D4: Button 1, Button 2, Indicator 1)
+        var (fillMatched, _, _, refFill, fillSummary) = vm.SelectSimilarShapes(matchKind: false, matchFill: true);
+        Assert.Equal(3, fillMatched);
+        Assert.Equal(3, vm.Shapes.Count(s => s.IsSelected));
+        Assert.True(vm.Shapes[0].IsSelected);
+        Assert.True(vm.Shapes[1].IsSelected);
+        Assert.True(vm.Shapes[3].IsSelected);
+        Assert.False(vm.Shapes[2].IsSelected); // Alert Button is D83B01
+        Assert.Contains("Select similar (fill #0078D4): 3 shapes matched across 5 canvas shapes", fillSummary);
+
+        // 3. Select similar by both kind AND fill (only Button 1 and Button 2)
+        var (bothMatched, _, _, _, bothSummary) = vm.SelectSimilarShapes(matchKind: true, matchFill: true);
+        Assert.Equal(2, bothMatched);
+        Assert.Equal(2, vm.Shapes.Count(s => s.IsSelected));
+        Assert.True(vm.Shapes[0].IsSelected);
+        Assert.True(vm.Shapes[1].IsSelected);
+        Assert.False(vm.Shapes[2].IsSelected);
+        Assert.False(vm.Shapes[3].IsSelected);
+        Assert.Contains("Select similar (kind 'rect' & fill #0078D4): 2 shapes matched across 5 canvas shapes", bothSummary);
+    }
 }
+
 

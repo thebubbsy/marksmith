@@ -1510,6 +1510,58 @@ namespace MarkSmith.Tests
             vm.Undo();
             Assert.Equal(0, vm.Nodes.Single(n => n.Id == "r").Progress);
         }
+
+        [Fact]
+        public void Run146_AutoColorizeByPrimaryTag_And_FormatTagCoOccurrenceSummary()
+        {
+            var vm = new MindMapStudioViewModel();
+
+            Assert.Equal("Tag co-occurrence audit: 0 nodes (Empty map)",
+                MindMapStudioViewModel.FormatTagCoOccurrenceSummary(0, 0, null, 0));
+
+            var doc = new MindMapDocument
+            {
+                RootNodeId = "r",
+                Nodes = new List<MindMapNode>
+                {
+                    new MindMapNode { Id = "r", Title = "Architecture", Tags = new List<string> { "core", "winui" } },
+                    new MindMapNode { Id = "a", Title = "Markdown Pipeline", ParentId = "r", Tags = new List<string> { "core", "parser" } },
+                    new MindMapNode { Id = "b", Title = "Desktop Views", ParentId = "r", Tags = new List<string> { "winui", "ux" } },
+                    new MindMapNode { Id = "c", Title = "Core Services", ParentId = "r", Tags = new List<string> { "core", "winui" } },
+                    new MindMapNode { Id = "d", Title = "Untagged Leaf", ParentId = "r" }
+                }
+            };
+            vm.LoadDocument(doc);
+
+            // Auto-colorize by primary tag
+            var (colorized, uniqueTags, appliedColors) = vm.AutoColorizeByPrimaryTag();
+            Assert.Equal(4, colorized);
+            Assert.Equal(2, uniqueTags); // "core" and "winui" as primary tags
+            Assert.Equal(2, appliedColors);
+            Assert.Contains("Auto-colorized 4 nodes across 2 tag categories", vm.StatusMessage);
+
+            // Node 'r', 'a', 'c' have primary tag "core", so they share the same color
+            Assert.Equal(vm.Nodes.Single(n => n.Id == "r").ColorHex, vm.Nodes.Single(n => n.Id == "a").ColorHex);
+            Assert.Equal(vm.Nodes.Single(n => n.Id == "r").ColorHex, vm.Nodes.Single(n => n.Id == "c").ColorHex);
+
+            // Tag co-occurrence audit
+            var (multiTagged, totalInstances, pairs) = vm.AuditTagCoOccurrence();
+            Assert.Equal(4, multiTagged); // r, a, b, c all have 2 tags
+            Assert.Equal(8, totalInstances);
+            Assert.True(pairs.Count >= 3);
+
+            // 'core' + 'winui' appears in r and c (2 times)
+            var coreWinuiPair = pairs.FirstOrDefault(p => (p.TagA == "core" && p.TagB == "winui") || (p.TagA == "winui" && p.TagB == "core"));
+            Assert.Equal(2, coreWinuiPair.CoOccurrenceCount);
+
+            var summary = vm.FormatTagCoOccurrenceSummary();
+            Assert.Contains("Tag co-occurrence audit (4 multi-tagged nodes", summary);
+            Assert.Contains("'core' + 'winui' (2×)", summary);
+
+            Assert.True(vm.CanUndo);
+            vm.Undo();
+        }
     }
 }
+
 

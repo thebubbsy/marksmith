@@ -2809,5 +2809,181 @@ namespace MarkSmith.ViewModels.MindMap
             string leafStr = leafCount == 1 ? "1 leaf node" : $"{leafCount} leaf nodes";
             return $"Subtree progress rollup: {parentStr} from {leafStr} (Root completion: {Math.Clamp(rootProgressPercent, 0, 100)}%)";
         }
+
+        /// <summary>
+        /// Auto-colorizes nodes according to their primary tag category using a distinct palette.
+        /// Returns total colorized nodes, distinct tag count, and distinct colors applied.
+        /// </summary>
+        public (int ColorizedNodes, int DistinctTags, int ColorsApplied) AutoColorizeByPrimaryTag(IReadOnlyList<string>? customPalette = null)
+        {
+            if (Nodes.Count == 0)
+            {
+                StatusMessage = "Auto-colorize by tag: 0 nodes (Empty map)";
+                return (0, 0, 0);
+            }
+
+            var palette = customPalette != null && customPalette.Count > 0 ? customPalette : PaletteColors;
+
+            // Collect all unique primary tags (normalized by trimming and stripping leading '#')
+            var tagMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var uniqueTags = new List<string>();
+
+            foreach (var node in Nodes)
+            {
+                string? primaryTag = null;
+                foreach (var t in node.Tags)
+                {
+                    if (!string.IsNullOrWhiteSpace(t))
+                    {
+                        var norm = t.Trim().TrimStart('#').ToLowerInvariant();
+                        if (!string.IsNullOrEmpty(norm))
+                        {
+                            primaryTag = norm;
+                            break;
+                        }
+                    }
+                }
+
+                if (primaryTag != null && !tagMap.ContainsKey(primaryTag))
+                {
+                    tagMap[primaryTag] = palette[uniqueTags.Count % palette.Count];
+                    uniqueTags.Add(primaryTag);
+                }
+            }
+
+            if (uniqueTags.Count == 0)
+            {
+                StatusMessage = "Auto-colorize by tag: No tagged nodes found in the map.";
+                return (0, 0, 0);
+            }
+
+            PushUndo("Auto-colorize by tag");
+            int colorizedCount = 0;
+            var appliedColors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            using (SuspendEditTracking())
+            {
+                foreach (var node in Nodes)
+                {
+                    string? primaryTag = null;
+                    foreach (var t in node.Tags)
+                    {
+                        if (!string.IsNullOrWhiteSpace(t))
+                        {
+                            var norm = t.Trim().TrimStart('#').ToLowerInvariant();
+                            if (!string.IsNullOrEmpty(norm))
+                            {
+                                primaryTag = norm;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (primaryTag != null && tagMap.TryGetValue(primaryTag, out var hex))
+                    {
+                        node.ColorHex = MindMapGraph.NormalizeHex(hex, node.ColorHex);
+                        node.SyncToModel();
+                        colorizedCount++;
+                        appliedColors.Add(node.ColorHex);
+                    }
+                }
+            }
+
+            if (colorizedCount > 0)
+            {
+                IsDirty = true;
+                CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+            }
+
+            string nodeLabel = colorizedCount == 1 ? "1 node" : $"{colorizedCount} nodes";
+            string tagLabel = uniqueTags.Count == 1 ? "1 tag category" : $"{uniqueTags.Count} tag categories";
+            StatusMessage = $"Auto-colorized {nodeLabel} across {tagLabel} ({appliedColors.Count} palette colors applied).";
+            return (colorizedCount, uniqueTags.Count, appliedColors.Count);
+        }
+
+        /// <summary>
+        /// Audits tag co-occurrence across multi-tagged nodes in the galaxy.
+        /// Returns total multi-tagged nodes, total tag instances, and pairwise co-occurrence frequencies sorted descending.
+        /// </summary>
+        public (int MultiTaggedNodes, int TotalTagInstances, List<(string TagA, string TagB, int CoOccurrenceCount)> PairwiseFrequencies)
+            AuditTagCoOccurrence()
+        {
+            var pairs = new Dictionary<(string, string), int>();
+            int multiTaggedNodes = 0;
+            int totalTagInstances = 0;
+
+            foreach (var node in Nodes)
+            {
+                var normTags = node.Tags
+                    .Where(t => !string.IsNullOrWhiteSpace(t))
+                    .Select(t => t.Trim().TrimStart('#').ToLowerInvariant())
+                    .Where(t => !string.IsNullOrEmpty(t))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                totalTagInstances += normTags.Count;
+                if (normTags.Count >= 2)
+                {
+                    multiTaggedNodes++;
+                    for (int i = 0; i < normTags.Count; i++)
+                    {
+                        for (int j = i + 1; j < normTags.Count; j++)
+                        {
+                            var pairKey = (normTags[i], normTags[j]);
+                            pairs[pairKey] = pairs.TryGetValue(pairKey, out int count) ? count + 1 : 1;
+                        }
+                    }
+                }
+            }
+
+            var sortedPairs = pairs
+                .Select(kv => (kv.Key.Item1, kv.Key.Item2, kv.Value))
+                .OrderByDescending(p => p.Value)
+                .ThenBy(p => p.Item1)
+                .ThenBy(p => p.Item2)
+                .ToList();
+
+            return (multiTaggedNodes, totalTagInstances, sortedPairs);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of tag co-occurrence matrix and multi-tag clusters.
+        /// </summary>
+        public string FormatTagCoOccurrenceSummary()
+        {
+            var (multiTagged, totalInstances, pairs) = AuditTagCoOccurrence();
+            return FormatTagCoOccurrenceSummary(multiTagged, totalInstances, pairs, Nodes.Count);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of tag co-occurrence counts and top pairwise clusters.
+        /// </summary>
+        public static string FormatTagCoOccurrenceSummary(
+            int multiTaggedNodes,
+            int totalTagInstances,
+            IReadOnlyList<(string TagA, string TagB, int CoOccurrenceCount)>? pairs,
+            int totalNodes = 0)
+        {
+            if (totalNodes <= 0 && multiTaggedNodes <= 0 && totalTagInstances <= 0)
+                return "Tag co-occurrence audit: 0 nodes (Empty map)";
+
+            if (totalTagInstances <= 0)
+                return $"Tag co-occurrence audit: 0 tags across {totalNodes} nodes (No tags defined)";
+
+            if (multiTaggedNodes <= 0 || pairs == null || pairs.Count == 0)
+            {
+                string tagLabel = totalTagInstances == 1 ? "1 tag instance" : $"{totalTagInstances} tag instances";
+                return $"Tag co-occurrence audit: {tagLabel} across {totalNodes} nodes (0 multi-tagged nodes · No co-occurring pairs)";
+            }
+
+            string nodeLabel = multiTaggedNodes == 1 ? "1 multi-tagged node" : $"{multiTaggedNodes} multi-tagged nodes";
+            var topPairs = pairs.Take(3).Select(p => $"'{p.TagA}' + '{p.TagB}' ({p.CoOccurrenceCount}×)");
+            string topSummary = string.Join(", ", topPairs);
+            if (pairs.Count > 3) topSummary += $", +{pairs.Count - 3} more pairs";
+
+            return $"Tag co-occurrence audit ({nodeLabel} · {pairs.Count} unique pairs): Top co-occurrences: {topSummary}";
+        }
     }
 }
+

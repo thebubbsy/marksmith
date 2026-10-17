@@ -960,5 +960,131 @@ public static class LineDiff
 
         return FormatStructuralHeadingDiffSummary(oldSb.ToString(), newSb.ToString());
     }
+
+    /// <summary>
+    /// Represents a flagged low-entropy / micro-save snapshot in a version timeline.
+    /// </summary>
+    public sealed record LowEntropySnapshotRecord(
+        int SnapshotIndex,
+        int ChangedLines,
+        int ChangedChars,
+        bool IsWhitespaceOnly);
+
+    /// <summary>
+    /// Audits version history snapshots to identify low-entropy micro-saves (e.g. 1-2 line changes,
+    /// minor typo fixes of less than 10 characters, or whitespace-only delta between adjacent versions).
+    /// </summary>
+    public static (int LowEntropyCount, int TotalSnapshots, List<LowEntropySnapshotRecord> FlaggedSnapshots, double RedundancyPercentage)
+        AuditLowEntropySnapshots(
+            IReadOnlyList<string>? versionContents,
+            int maxLineDelta = 2,
+            int maxCharDelta = 10)
+    {
+        var flagged = new List<LowEntropySnapshotRecord>();
+        if (versionContents == null || versionContents.Count <= 1)
+        {
+            return (0, versionContents?.Count ?? 0, flagged, 0.0);
+        }
+
+        for (int i = 1; i < versionContents.Count; i++)
+        {
+            string prev = versionContents[i - 1] ?? string.Empty;
+            string curr = versionContents[i] ?? string.Empty;
+
+            bool wsOnly = string.Equals(prev.Trim(), curr.Trim(), StringComparison.Ordinal);
+            int charDelta = Math.Abs(curr.Length - prev.Length);
+
+            var diff = Diff(prev, curr);
+            int changedLines = diff.Count(d => d.Kind != Kind.Same);
+
+            if (wsOnly || (changedLines <= maxLineDelta && charDelta <= maxCharDelta))
+            {
+                flagged.Add(new LowEntropySnapshotRecord(i, changedLines, charDelta, wsOnly));
+            }
+        }
+
+        double redundancyPct = (double)flagged.Count / (versionContents.Count - 1) * 100.0;
+        return (flagged.Count, versionContents.Count, flagged, redundancyPct);
+    }
+
+    /// <summary>
+    /// Audits version history metadata deltas (LinesAdded, LinesRemoved) to identify micro-saves.
+    /// </summary>
+    public static (int LowEntropyCount, int TotalSnapshots, List<LowEntropySnapshotRecord> FlaggedSnapshots, double RedundancyPercentage)
+        AuditLowEntropySnapshots(
+            IReadOnlyList<(int Added, int Removed)>? versionDeltas,
+            int maxTotalDelta = 2)
+    {
+        var flagged = new List<LowEntropySnapshotRecord>();
+        if (versionDeltas == null || versionDeltas.Count <= 1)
+        {
+            return (0, versionDeltas?.Count ?? 0, flagged, 0.0);
+        }
+
+        for (int i = 1; i < versionDeltas.Count; i++)
+        {
+            var (added, removed) = versionDeltas[i];
+            int totalDelta = added + removed;
+            bool wsOnly = totalDelta == 0;
+
+            if (wsOnly || totalDelta <= maxTotalDelta)
+            {
+                flagged.Add(new LowEntropySnapshotRecord(i, totalDelta, 0, wsOnly));
+            }
+        }
+
+        double redundancyPct = (double)flagged.Count / (versionDeltas.Count - 1) * 100.0;
+        return (flagged.Count, versionDeltas.Count, flagged, redundancyPct);
+    }
+
+    /// <summary>
+    /// Formats a human-readable audit summary of low-entropy / micro-save snapshots across version history.
+    /// </summary>
+    public static string FormatLowEntropySnapshotAudit(
+        IReadOnlyList<string>? versionContents,
+        int maxLineDelta = 2,
+        int maxCharDelta = 10)
+    {
+        var (count, total, flagged, pct) = AuditLowEntropySnapshots(versionContents, maxLineDelta, maxCharDelta);
+        return FormatLowEntropySnapshotAuditSummary(count, total, flagged, pct);
+    }
+
+    /// <summary>
+    /// Formats a human-readable audit summary from version delta tuples.
+    /// </summary>
+    public static string FormatLowEntropySnapshotAudit(
+        IReadOnlyList<(int Added, int Removed)>? versionDeltas,
+        int maxTotalDelta = 2)
+    {
+        var (count, total, flagged, pct) = AuditLowEntropySnapshots(versionDeltas, maxTotalDelta);
+        return FormatLowEntropySnapshotAuditSummary(count, total, flagged, pct);
+    }
+
+    private static string FormatLowEntropySnapshotAuditSummary(
+        int lowEntropyCount,
+        int totalSnapshots,
+        IReadOnlyList<LowEntropySnapshotRecord> flagged,
+        double redundancyPct)
+    {
+        if (totalSnapshots <= 1)
+        {
+            string snapLabel = totalSnapshots == 1 ? "1 snapshot" : "0 snapshots";
+            return $"Micro-save audit ({snapLabel}): Baseline history (No redundant saves to prune)";
+        }
+
+        if (lowEntropyCount <= 0)
+        {
+            return $"Micro-save audit ({totalSnapshots} snapshots): 0 micro-saves detected (100% substantive revisions · 0.0% redundancy)";
+        }
+
+        var sampleItems = flagged.Take(3).Select(f =>
+            f.IsWhitespaceOnly ? $"#{f.SnapshotIndex} [ws-only]" : $"#{f.SnapshotIndex} [{f.ChangedLines}L/Δ{f.ChangedChars}c]");
+        string samples = string.Join(", ", sampleItems);
+        if (flagged.Count > 3) samples += $", +{flagged.Count - 3} more";
+
+        string saveLabel = lowEntropyCount == 1 ? "1 micro-save" : $"{lowEntropyCount} micro-saves";
+        return $"Micro-save audit ({totalSnapshots} snapshots · {redundancyPct:0.#}% redundant): {saveLabel} identified ({samples})";
+    }
 }
+
 

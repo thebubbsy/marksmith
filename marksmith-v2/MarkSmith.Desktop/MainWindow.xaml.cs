@@ -8790,7 +8790,26 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditProseCleanupItem);
 
+        var portalFocusProfileItem = new MenuFlyoutItem
+        {
+            Text = "Copy Looking Glass focus reading profile",
+            Icon = new FontIcon { Glyph = "\uE7B3" },
+            IsEnabled = !string.IsNullOrEmpty(PasteTextBox?.Text)
+        };
+        portalFocusProfileItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            int scope = (int)System.Math.Round(PortalRevealSlider?.Value ?? 45);
+            bool insideBlur = ViewModel?.PortalInsideBlur == true;
+            bool surroundBlur = ViewModel?.PortalFocusBlur == true;
+            var summary = MarkSmith.Services.TextSearch.FormatFocusWindowReadingProfile(text, scope, insideBlur, surroundBlur);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(portalFocusProfileItem);
+
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
+
         e.Handled = true;
     }
 
@@ -10079,6 +10098,50 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var js = "if (window.__portalSetShape) { window.__portalSetShape('" + shape + "'); }";
         _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(js);
     }
+
+    private void OnResetPortalDialsClick(object sender, RoutedEventArgs e)
+    {
+        ResetPortalDials();
+    }
+
+    public void ResetPortalDials()
+    {
+        if (PortalRevealSlider != null)
+        {
+            PortalRevealSlider.Value = 45;
+        }
+        App.Settings.Current.PortalRevealScope = 45;
+
+        if (PortalShapeCombo != null)
+        {
+            PortalShapeCombo.SelectedIndex = 0;
+        }
+        App.Settings.Current.PortalShape = "circle";
+
+        ViewModel.PortalInsideBlur = false;
+        ViewModel.PortalInsideBlurRadius = 5.0;
+        if (PortalInsideBlurToggle != null) PortalInsideBlurToggle.IsChecked = false;
+        if (PortalInsideBlurSlider != null) PortalInsideBlurSlider.Value = 5.0;
+
+        ViewModel.PortalFocusBlur = false;
+        ViewModel.PortalSurroundBlurRadius = 6.0;
+        if (PortalSurroundBlurToggle != null) PortalSurroundBlurToggle.IsChecked = false;
+        if (PortalSurroundBlurSlider != null) PortalSurroundBlurSlider.Value = 6.0;
+
+        App.Settings.Save();
+
+        var jsReveal = "if (window.__portalSetReveal) { window.__portalSetReveal(45); }";
+        var jsShape = "if (window.__portalSetShape) { window.__portalSetShape('circle'); }";
+        _ = PreviewWebView?.CoreWebView2?.ExecuteScriptAsync(jsReveal);
+        _ = PreviewWebView?.CoreWebView2?.ExecuteScriptAsync(jsShape);
+        PushPortalInsideBlurToPage(false, 5.0);
+        PushPortalBlurToPage(false, 6.0);
+
+        var text = PasteTextBox?.Text ?? string.Empty;
+        var profile = MarkSmith.Services.TextSearch.FormatFocusWindowReadingProfile(text, 45, false, false);
+        AnnounceStatus($"Reset Looking Glass dials to defaults (Scope 45%, Blur Off, Circle) · {profile}");
+    }
+
 
     private void ApplyWordWrap(bool wrap, bool persist)
     {

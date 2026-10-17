@@ -879,5 +879,50 @@ public class HistoryPolishTests : IDisposable
         var summary = LineDiff.FormatStructuralHeadingDiffSummary(oldDoc, newDoc);
         Assert.Equal("Structural heading diff: +1 added, -1 removed, 1 level-shifted, =1 unchanged (H3→H2 'Submodule A', -H2 'Legacy Pipeline', +H3 'New Telemetry Section')", summary);
     }
+
+    [Fact]
+    public void Run146_AuditLowEntropySnapshots_And_FormatLowEntropySnapshotAudit()
+    {
+        Assert.Equal("Micro-save audit (1 snapshot): Baseline history (No redundant saves to prune)",
+            LineDiff.FormatLowEntropySnapshotAudit(new[] { "only version" }));
+
+        // Test with string snapshots:
+        // Snap 0: Baseline
+        // Snap 1: Identical / whitespace only -> low entropy
+        // Snap 2: +1 word ("edit") -> low entropy (<= 2 lines delta, <= 10 chars delta)
+        // Snap 3: Major paragraph addition -> substantive revision
+        var snap0 = "Line one\nLine two\nLine three";
+        var snap1 = "Line one\nLine two\nLine three  ";
+        var snap2 = "Line one\nLine two\nLine three edited";
+        var snap3 = "Line one\nLine two\nLine three edited\nAdded major section\nWith extensive multi-line documentation block.";
+
+        var history = new[] { snap0, snap1, snap2, snap3 };
+        var (flaggedCount, totalSnapshots, flagged, pct) = LineDiff.AuditLowEntropySnapshots(history);
+
+        Assert.Equal(2, flaggedCount); // snap1 and snap2
+        Assert.Equal(4, totalSnapshots);
+        Assert.True(flagged[0].IsWhitespaceOnly);
+        Assert.False(flagged[1].IsWhitespaceOnly);
+        Assert.True(pct > 60.0); // 2 / 3 = 66.7%
+
+        var auditText = LineDiff.FormatLowEntropySnapshotAudit(history);
+        Assert.Contains("Micro-save audit (4 snapshots · 66.7% redundant): 2 micro-saves identified", auditText);
+        Assert.Contains("#1 [ws-only]", auditText);
+
+        // Test with delta tuples
+        var deltas = new List<(int Added, int Removed)>
+        {
+            (10, 0), // #0 baseline
+            (1, 0),  // #1 micro-save
+            (0, 0),  // #2 whitespace / 0 delta micro-save
+            (25, 8)  // #3 substantive
+        };
+        var (deltaFlagged, deltaTotal, _, deltaPct) = LineDiff.AuditLowEntropySnapshots(deltas, maxTotalDelta: 2);
+        Assert.Equal(2, deltaFlagged);
+        Assert.Equal(4, deltaTotal);
+        var deltaSummary = LineDiff.FormatLowEntropySnapshotAudit(deltas);
+        Assert.Contains("Micro-save audit (4 snapshots · 66.7% redundant): 2 micro-saves identified", deltaSummary);
+    }
 }
+
 

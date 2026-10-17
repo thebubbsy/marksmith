@@ -4663,7 +4663,16 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = $"✓ {summary}";
         }
 
+        private void OnRecommendLayoutsOutlineClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            var summary = SmartArtDesignStudioViewModel.FormatLayoutRecommendationSummary(markdown);
+            Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = $"✓ {summary}";
+        }
+
         #endregion
+
 
         #region Outline Real-Time Search & Match Navigation
 

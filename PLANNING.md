@@ -11019,7 +11019,7 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #146 Blueprint — Portal Dials Reset & Presets, Tag Batch Actions, Select Same Shape Property, Smart Layout Recommender, Micro-Save Pruner & Duplicate File Detector (Status: Pending)
+### Run #146 Blueprint — Portal Dials Reset & Presets, Tag Batch Actions, Select Same Shape Property, Smart Layout Recommender, Micro-Save Pruner & Duplicate File Detector (Status: Completed — Shipped)
 1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
    - **What is missing**: `PortalControlsRow` (`MainWindow.xaml` lines 1256–1303) has sliders for Portal size, Glass blur, and Surround blur, but lacks a quick reset-to-defaults action and focus reading window density audit.
    - **Deliverable**: Add `TextSearch.FormatFocusWindowReadingProfile(text, portalRadiusPx, glassBlur, surroundBlur)` and wire double-click/context reset + profile copy on `PortalControlsRow` / `FindCountText`.
@@ -11100,4 +11100,27 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
     - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors.
     - Verified `55/55` targeted Run #145 + `CommandIconsTests` and `589/589` full desktop polish tests passing (`100%` pass rate).
     - Verified live `Marksmith.exe` startup (`PID=30044, HasExited=False, Responding=True, WorkingSetMB=110.39`).
+
+---
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #146 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-18
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Looking Glass Portal Dials Reset & Reading Density Profile (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `PortalResetDialsButton` (`\uE777`) to `PortalControlsRow` with `ResetPortalDials()` (resets scope radius slider to default 45%, turns off glass and surround blurs, resets portal shape to circle, syncs app settings, and triggers CoreWebView2 scripts `__portalSetReveal`, `__portalSetShape`, `__portalSetInsideBlur`, `__portalSetBlur`). Added `TextSearch.AuditFocusWindowReadingProfile(text, ...)` and `FormatFocusWindowReadingProfile(...)` calculating document word/line count, estimated words within aperture, reading seconds, and total reading time; wired to `portalFocusProfileItem` (`\uE7B3`) in `OnFindCountTextRightTapped`.
+    2. **MindMapGalaxyWindow Tag Category Auto-Colorizer & Co-Occurrence Matrix Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AutoColorizeByPrimaryTag()` mapping unique primary tags to a 12-color harmonious palette with atomic undo recording (`SuspendEditTracking()`), and `AuditTagCoOccurrence()` / `FormatTagCoOccurrenceSummary(...)` calculating pairwise tag co-occurrence frequencies across multi-tagged nodes; wired to `AutoColorizeByTagItem` (`\uE8EC`) and `CopyTagCoOccurrenceItem` (`\uE8D2`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Select Similar Shapes by Geometry or Fill (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.SelectSimilarShapes(matchKind, matchFill)` and `FormatSimilarShapesSummary(...)` to select all canvas shapes matching the reference shape's preset geometry (`Prst`), fill color hex, or both simultaneously; wired to `SelectionSelectSimilarKindItem` (`\uE762`) and `SelectionSelectSimilarFillItem` (`\uE790`) in `SelectionBoundsFlyout`.
+    4. **SmartArtDesignStudioWindow Smart Layout Family Recommendation Engine (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.RecommendLayoutFamiliesForOutline(markdown)` and `FormatLayoutRecommendationSummary(...)` analyzing outline depth, root counts, branching, leaf symmetry, and keywords to score and rank optimal layout families (`Process`, `Hierarchy`, `Matrix`, `Pyramid`, `Cycle`, `Comparison`, `List`); wired to `RecommendLayoutsOutlineItem` (`\uE946`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Low-Entropy / Micro-Save Snapshot Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditLowEntropySnapshots(versionContents/versionDeltas, ...)` and `FormatLowEntropySnapshotAudit(...)` to detect redundant micro-saves (whitespace-only or <= 2 line deltas and <= 10 character deltas) and compute redundancy percentages across document history; wired to `copyMicroSaveAudit` (`\uE74D`) in `TimelineHeaderBorder` context flyout.
+    6. **SuiteHubView Duplicate Filename & Version-Suffixed File Detector (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.DetectDuplicateAndVersionedFiles(files)` and `FormatDuplicateAndVersionedFilesAudit(...)` detecting duplicate base names across disparate folders and identifying version-suffixed files (`(1)`, `- Copy`, `_v2`, `_backup`); wired to `CopyRecentDuplicatesAuditItem` (`\uE8C8`) in `RecentDocsFlyout` with `Services.CopyFeedback.ApplyButtonTick`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Core.csproj` and `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (identical 23 baseline warnings).
+    - Added `Run146_...` unit test coverage in `TextSearchTests.cs`, `MindMapGalaxyPolishTests.cs`, `ShapeStudioPolishTests.cs`, `SmartArtStudioPolishTests.cs`, `HistoryPolishTests.cs`, and `SuiteHubAndTourPolishTests.cs`.
+    - Verified `6/6` targeted Run #146 tests passing (`100%` pass rate).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`PID=16784, HasExited=False, Responding=True`).
+
 

@@ -6189,6 +6189,25 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
+
+        private void OnSelectionSelectSimilarKindClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (matched, total, kind, fill, summary) = ViewModel.SelectSimilarShapes(matchKind: true, matchFill: false);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void OnSelectionSelectSimilarFillClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (matched, total, kind, fill, summary) = ViewModel.SelectSimilarShapes(matchKind: false, matchFill: true);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
     }
 }
+
 

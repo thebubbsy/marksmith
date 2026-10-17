@@ -1098,7 +1098,14 @@
                                 Width="80" Minimum="0" Maximum="25" StepFrequency="1" SmallChange="1" LargeChange="5"
                                 Value="{Binding PortalSurroundBlurRadius, Mode=TwoWay}"
                                 VerticalAlignment="Center" ValueChanged="OnPortalSurroundBlurRadiusChanged" />
+
+                        <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="2,0" VerticalAlignment="Center" />
+                        <Button x:Name="PortalResetDialsButton" ToolTipService.ToolTip="Reset Looking Glass dials to defaults (Size 45, Glass Blur Off, Surround Blur Off, Circle shape)"
+                                Click="OnResetPortalDialsClick" VerticalAlignment="Center" Height="32" Padding="6,0">
+                            <FontIcon Glyph="&#xE777;" FontSize="12" />
+                        </Button>
                     </StackPanel>
+
 
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,4,0,10">
                         <Button x:Name="CopyHtmlButton" ToolTipService.ToolTip="Copy the rendered HTML to the clipboard (Right-click for copy options)" Height="32" Width="32" Padding="0"

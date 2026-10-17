@@ -1058,4 +1058,70 @@ public static class TextSearch
         string totalLabel = total == 1 ? "1 opportunity" : $"{total} opportunities";
         return $"Prose cleanup audit ({totalLabel}): {doubleSpaces} double-space, {smartQuotes} smart-quote, {typographyDashesAndEllipses} dash/ellipsis, {aiFillerPhrases} filler phrase, {repeatedWords} repeated word";
     }
+
+    /// <summary>
+    /// Audits the focus reading window profile and density metrics for the Looking Glass portal aperture.
+    /// Returns total document words, line count, estimated words visible within the aperture,
+    /// estimated reading time in aperture (seconds at 200 wpm), and total document reading time (minutes).
+    /// </summary>
+    public static (int TotalWords, int TotalLines, int ApertureWords, double ApertureReadSeconds, double TotalReadMinutes, string ApertureState)
+        AuditFocusWindowReadingProfile(
+            string? text,
+            int portalRadiusPx = 45,
+            bool glassBlur = false,
+            bool surroundBlur = false)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            string emptyState = $"Scope {portalRadiusPx}% · Glass: {(glassBlur ? "On" : "Off")} · Surround: {(surroundBlur ? "On" : "Off")}";
+            return (0, 0, 0, 0.0, 0.0, emptyState);
+        }
+
+        int totalLines = text.Split('\n').Length;
+        var words = text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        int totalWords = words.Length;
+
+        // Effective reading window scale based on portal radius (0-100 range)
+        int clampedScope = Math.Clamp(portalRadiusPx, 5, 100);
+        // Average paragraph density: estimated words per aperture area.
+        // At 45% standard spotlight, aperture spans roughly 3-5 lines of text (~18-25 words).
+        int apertureWords = Math.Max(1, (int)Math.Round(clampedScope * 0.42));
+        if (totalWords < apertureWords) apertureWords = totalWords;
+
+        // At 200 words per minute = ~3.33 words/sec
+        double apertureReadSeconds = Math.Round((double)apertureWords / (200.0 / 60.0), 1);
+        double totalReadMinutes = Math.Round((double)totalWords / 200.0, 1);
+
+        string blurSummary;
+        if (glassBlur && surroundBlur) blurSummary = "Glass & Surround Blur Active";
+        else if (glassBlur) blurSummary = "Glass Blur Active";
+        else if (surroundBlur) blurSummary = "Surround Blur Active";
+        else blurSummary = "Clear Preview (No Blur)";
+
+        string state = $"Scope {clampedScope}% · {blurSummary}";
+        return (totalWords, totalLines, apertureWords, apertureReadSeconds, totalReadMinutes, state);
+    }
+
+    /// <summary>
+    /// Formats a human-readable focus reading window profile summary for the Looking Glass portal.
+    /// </summary>
+    public static string FormatFocusWindowReadingProfile(
+        string? text,
+        int portalRadiusPx = 45,
+        bool glassBlur = false,
+        bool surroundBlur = false)
+    {
+        var (totalWords, totalLines, apertureWords, apertureReadSec, totalReadMin, state) =
+            AuditFocusWindowReadingProfile(text, portalRadiusPx, glassBlur, surroundBlur);
+
+        if (totalWords <= 0)
+        {
+            return $"Focus reading profile ({state}): 0 words in document (Empty document)";
+        }
+
+        string docLabel = totalWords == 1 ? "1 word" : $"{totalWords:N0} words";
+        string lineLabel = totalLines == 1 ? "1 line" : $"{totalLines:N0} lines";
+        return $"Focus reading profile ({state}): ~{apertureWords} words in aperture (~{apertureReadSec:0.#}s read) · Document: {docLabel} across {lineLabel} (~{totalReadMin:0.#}m total)";
+    }
 }
+

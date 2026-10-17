@@ -3131,9 +3131,24 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied heading diff: {headingSummary}");
                 };
                 menu.Items.Add(copyHeadingDiff);
+
+                var copyMicroSaveAudit = new MenuFlyoutItem
+                {
+                    Text = "Copy auto-save micro-saves audit (low-entropy snapshots)",
+                    Icon = new FontIcon { Glyph = "\uE74D" }
+                };
+                copyMicroSaveAudit.Click += (_, _) =>
+                {
+                    var deltas = _vm.VisibleVersions.Select(v => (v.LinesAdded, v.LinesRemoved)).ToList();
+                    var microSummary = MarkSmith.Services.LineDiff.FormatLowEntropySnapshotAudit(deltas);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(microSummary);
+                    _vm.ShowNotice($"Copied micro-save audit: {microSummary}");
+                };
+                menu.Items.Add(copyMicroSaveAudit);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());
+
         }
 
         var refresh = new MenuFlyoutItem

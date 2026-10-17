@@ -631,7 +631,14 @@
                                         <MenuFlyoutItem x:Name="SelectionFlipHorizontalItem" Text="Mirror flip selected shapes horizontally (⇄)" Click="OnSelectionFlipHorizontalClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AB;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionSelectSimilarKindItem" Text="Select same shape kind (e.g. all Rectangles)" Click="OnSelectionSelectSimilarKindClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE762;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionSelectSimilarFillItem" Text="Select same fill colour" Click="OnSelectionSelectSimilarFillClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
+
                                 </Border.ContextFlyout>
                             </Border>
                             <DropDownButton x:Name="PaletteButton" Padding="8,4" AutomationProperties.Name="Colour scheme"

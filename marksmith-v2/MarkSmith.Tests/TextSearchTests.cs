@@ -588,5 +588,38 @@ public class TextSearchTests
         var formatted = TextSearch.FormatProseCleanupAuditSummary(sample);
         Assert.Equal("Prose cleanup audit (7 opportunities): 1 double-space, 2 smart-quote, 2 dash/ellipsis, 1 filler phrase, 1 repeated word", formatted);
     }
+
+    [Fact]
+    public void Run146_FormatFocusWindowReadingProfile_And_ResetDials()
+    {
+        Assert.Equal("Focus reading profile (Scope 45% · Glass: Off · Surround: Off): 0 words in document (Empty document)",
+            TextSearch.FormatFocusWindowReadingProfile(""));
+
+        var sample = """
+            # Executive Summary
+            MarkSmith provides high-fidelity native document compilation with zero external runtime dependencies.
+            The Looking Glass focus aperture isolates text for rapid distraction-free reading and density assessment.
+            Users can dynamically adjust scope radius, blur profiles, and reading speed metrics in real time.
+            """;
+
+        var (totalWords, totalLines, apertureWords, apertureReadSec, totalReadMin, state) =
+            TextSearch.AuditFocusWindowReadingProfile(sample, portalRadiusPx: 45, glassBlur: false, surroundBlur: false);
+
+        Assert.True(totalWords >= 35);
+        Assert.Equal(4, totalLines);
+        Assert.Equal(19, apertureWords); // Math.Round(45 * 0.42) = 19
+        Assert.True(apertureReadSec > 5.0);
+        Assert.True(totalReadMin > 0.0);
+        Assert.Equal("Scope 45% · Clear Preview (No Blur)", state);
+
+        var formatted = TextSearch.FormatFocusWindowReadingProfile(sample, 45, false, false);
+        Assert.StartsWith("Focus reading profile (Scope 45% · Clear Preview (No Blur)): ~19 words in aperture", formatted);
+        Assert.Contains("words across 4 lines", formatted);
+
+        // Test with blurs enabled
+        var blurProfile = TextSearch.FormatFocusWindowReadingProfile(sample, 60, glassBlur: true, surroundBlur: true);
+        Assert.Contains("Scope 60% · Glass & Surround Blur Active", blurProfile);
+    }
 }
+
 

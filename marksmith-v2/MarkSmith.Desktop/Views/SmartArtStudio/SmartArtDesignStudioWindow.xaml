@@ -275,7 +275,11 @@
                                         <MenuFlyoutItem x:Name="AutoNumberOutlineItem" Text="Apply hierarchical outline numbering (1., 1.1., 2.)" Click="OnAutoNumberOutlineClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="RecommendLayoutsOutlineItem" Text="Recommend best-fitting SmartArt layouts for outline" Click="OnRecommendLayoutsOutlineClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE946;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
+
                                 </Border.ContextFlyout>
                             </Border>
 

@@ -3789,4 +3789,101 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string shapeLabel = flippedShapes == 1 ? "1 shape mirrored" : $"{flippedShapes} shapes mirrored";
         return $"Mirror flip ({axisLabel}): {shapeLabel} across pivot ({pivotCenterX:0.##}, {pivotCenterY:0.##})";
     }
+
+    /// <summary>
+    /// Selects all shapes on the canvas that match the geometry kind (preset) and/or fill color
+    /// of the active reference shape.
+    /// Returns total matched shapes, total canvas shapes, reference kind, reference fill, and summary.
+    /// </summary>
+    public (int MatchedShapes, int TotalCanvasShapes, string ReferenceKind, string? ReferenceFill, string Summary)
+        SelectSimilarShapes(bool matchKind = true, bool matchFill = false)
+    {
+        if (Shapes.Count == 0 || (!matchKind && !matchFill))
+        {
+            string emptySummary = FormatSimilarShapesSummary(0, Shapes.Count, null, null, matchKind, matchFill);
+            StatusMessage = emptySummary;
+            return (0, Shapes.Count, "None", null, emptySummary);
+        }
+
+        var refShape = SelectedShape ?? SelectedItems.FirstOrDefault() ?? Shapes.FirstOrDefault();
+        if (refShape == null)
+        {
+            string noRefSummary = FormatSimilarShapesSummary(0, Shapes.Count, null, null, matchKind, matchFill);
+            StatusMessage = noRefSummary;
+            return (0, Shapes.Count, "None", null, noRefSummary);
+        }
+
+        string refKind = refShape.Prst ?? "shape";
+        string? refFill = refShape.Fill;
+
+        var matches = new List<ShapeCanvasItemViewModel>();
+        foreach (var s in Shapes)
+        {
+            bool kindMatch = !matchKind || string.Equals(s.Prst, refKind, StringComparison.OrdinalIgnoreCase);
+            bool fillMatch = !matchFill || string.Equals(s.Fill?.TrimStart('#'), refFill?.TrimStart('#'), StringComparison.OrdinalIgnoreCase);
+
+            if (kindMatch && fillMatch)
+            {
+                matches.Add(s);
+            }
+        }
+
+        _additiveSelect = true;
+        try
+        {
+            foreach (var s in Shapes)
+            {
+                s.IsSelected = matches.Contains(s);
+            }
+            if (matches.Count > 0)
+            {
+                SelectedShape = matches.Contains(refShape) ? refShape : matches[^1];
+            }
+            else
+            {
+                SelectedShape = null;
+            }
+        }
+        finally
+        {
+            _additiveSelect = false;
+        }
+
+        RaiseSelectionChanged();
+        string summary = FormatSimilarShapesSummary(matches.Count, Shapes.Count, refKind, refFill, matchKind, matchFill);
+        StatusMessage = $"✓ {summary}";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+
+        return (matches.Count, Shapes.Count, refKind, refFill, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of a similar-shapes selection operation.
+    /// </summary>
+    public static string FormatSimilarShapesSummary(
+        int matchedShapes,
+        int totalCanvasShapes,
+        string? referenceKind = null,
+        string? referenceFill = null,
+        bool matchedByKind = true,
+        bool matchedByFill = false)
+    {
+        if (totalCanvasShapes <= 0)
+            return "Select similar: 0 shapes (Empty canvas)";
+
+        string criteriaLabel = (matchedByKind, matchedByFill) switch
+        {
+            (true, true) => $"kind '{referenceKind}' & fill #{referenceFill?.TrimStart('#')}",
+            (true, false) => $"kind '{referenceKind}'",
+            (false, true) => $"fill #{referenceFill?.TrimStart('#')}",
+            _ => "no criteria"
+        };
+
+        if (matchedShapes <= 0)
+            return $"Select similar ({criteriaLabel}): 0 matching shapes found across {totalCanvasShapes} canvas shapes";
+
+        string shapeLabel = matchedShapes == 1 ? "1 shape matched" : $"{matchedShapes} shapes matched";
+        return $"Select similar ({criteriaLabel}): {shapeLabel} across {totalCanvasShapes} canvas shapes";
+    }
 }
+

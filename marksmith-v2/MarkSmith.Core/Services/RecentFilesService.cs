@@ -790,5 +790,171 @@ public sealed class RecentFilesService
         string extraClusters = clusters.Count > 4 ? $" · +{clusters.Count - 4} more workspaces" : "";
         return $"Project workspace clusters ({docLabel} in {wsLabel}, {multiFileHubs} multi-file hub(s)): {string.Join(" · ", clusterSummaries)}{extraClusters}";
     }
+
+    /// <summary>
+    /// Represents a detected duplicate or version-suffixed recent document cluster.
+    /// </summary>
+    public sealed record DuplicateFileCluster(
+        string CanonicalBaseName,
+        IReadOnlyList<string> FilePaths,
+        bool IsCrossDirectoryDuplicate,
+        bool IsVersionSuffixed);
+
+    /// <summary>
+    /// Normalizes a document filename by stripping copy and version suffixes
+    /// (e.g. "report (1)" -> "report", "doc - Copy" -> "doc", "spec_v2" -> "spec", "notes_backup" -> "notes").
+    /// </summary>
+    public static string NormalizeVersionedBaseName(string fileNameWithoutExtension)
+    {
+        if (string.IsNullOrWhiteSpace(fileNameWithoutExtension)) return string.Empty;
+        var s = fileNameWithoutExtension.Trim();
+
+        // Repeatedly strip recognized version suffixes
+        bool stripped = true;
+        while (stripped)
+        {
+            stripped = false;
+            // (1), (2), etc.
+            var mParen = System.Text.RegularExpressions.Regex.Match(s, @"\s*\(\d+\)$");
+            if (mParen.Success)
+            {
+                s = s.Substring(0, mParen.Index).Trim();
+                stripped = true;
+                continue;
+            }
+
+            // - Copy, - Copy (1)
+            var mCopy = System.Text.RegularExpressions.Regex.Match(s, @"[\s_-]+copy(?:\s*\(\d+\))?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (mCopy.Success)
+            {
+                s = s.Substring(0, mCopy.Index).Trim();
+                stripped = true;
+                continue;
+            }
+
+            // _v1, _v2, -v1.0
+            var mVer = System.Text.RegularExpressions.Regex.Match(s, @"[\s_-]+v\d+(?:\.\d+)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (mVer.Success)
+            {
+                s = s.Substring(0, mVer.Index).Trim();
+                stripped = true;
+                continue;
+            }
+
+            // _backup, -backup
+            var mBackup = System.Text.RegularExpressions.Regex.Match(s, @"[\s_-]+backup$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (mBackup.Success)
+            {
+                s = s.Substring(0, mBackup.Index).Trim();
+                stripped = true;
+                continue;
+            }
+        }
+
+        return string.IsNullOrEmpty(s) ? fileNameWithoutExtension.Trim() : s;
+    }
+
+    /// <summary>
+    /// Audits recent document paths for exact filename duplicates across different folders
+    /// and copy/version-suffixed document families.
+    /// </summary>
+    public static (int DuplicateClustersCount, int RedundantFilesCount, List<DuplicateFileCluster> Clusters)
+        DetectDuplicateAndVersionedFiles(IEnumerable<string>? filePaths)
+    {
+        var clusters = new List<DuplicateFileCluster>();
+        if (filePaths == null) return (0, 0, clusters);
+
+        var list = filePaths.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (list.Count <= 1) return (0, 0, clusters);
+
+        var entries = new List<(string FullPath, string FileName, string BaseName, string CanonicalBase, string Extension)>();
+        foreach (var p in list)
+        {
+            string fn;
+            string bn;
+            string ext;
+            try
+            {
+                fn = Path.GetFileName(p);
+                bn = Path.GetFileNameWithoutExtension(p);
+                ext = Path.GetExtension(p).ToLowerInvariant();
+            }
+            catch
+            {
+                fn = p;
+                bn = p;
+                ext = "";
+            }
+
+            string canonical = NormalizeVersionedBaseName(bn);
+            entries.Add((p, fn, bn, canonical, ext));
+        }
+
+        // Group by CanonicalBase + Extension
+        var groups = entries
+            .GroupBy(e => $"{e.CanonicalBase}{e.Extension}", StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() >= 2)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        int redundantCount = 0;
+        foreach (var g in groups)
+        {
+            var paths = g.Select(x => x.FullPath).ToList();
+            bool isCrossDir = g.Select(x =>
+            {
+                try { return Path.GetDirectoryName(x.FullPath) ?? ""; }
+                catch { return ""; }
+            }).Distinct(StringComparer.OrdinalIgnoreCase).Count() >= 2;
+            bool isVersioned = g.Any(x => !string.Equals(x.BaseName, x.CanonicalBase, StringComparison.OrdinalIgnoreCase));
+
+            clusters.Add(new DuplicateFileCluster(
+                g.First().CanonicalBase + g.First().Extension,
+                paths,
+                isCrossDir,
+                isVersioned));
+
+            redundantCount += paths.Count - 1; // all copies beyond the primary
+        }
+
+        return (clusters.Count, redundantCount, clusters);
+    }
+
+    /// <summary>
+    /// Formats a human-readable audit summary of duplicate filenames and versioned document clusters.
+    /// </summary>
+    public static string FormatDuplicateAndVersionedFilesAudit(IEnumerable<string>? filePaths)
+    {
+        var (clusterCount, redundantCount, clusters) = DetectDuplicateAndVersionedFiles(filePaths);
+        if (clusterCount == 0)
+        {
+            int total = filePaths?.Count(f => !string.IsNullOrWhiteSpace(f)) ?? 0;
+            return total <= 0
+                ? "Duplicate & versioned files audit: 0 files (No recent files recorded)"
+                : $"Duplicate & versioned files audit ({total} files): 0 duplicates or versioned clusters (Clean library)";
+        }
+
+        string clusterLabel = clusterCount == 1 ? "1 duplicate cluster" : $"{clusterCount} duplicate clusters";
+        string redundantLabel = redundantCount == 1 ? "1 redundant copy" : $"{redundantCount} redundant copies";
+
+        var previews = clusters.Take(3).Select(c =>
+        {
+            string typeTag = (c.IsCrossDirectoryDuplicate, c.IsVersionSuffixed) switch
+            {
+                (true, true) => "cross-dir & versioned",
+                (true, false) => "same name in diff folders",
+                (false, true) => "version suffixes",
+                _ => "clones"
+            };
+            return $"'{c.CanonicalBaseName}' ({c.FilePaths.Count} copies · {typeTag})";
+        });
+
+        string previewStr = string.Join(", ", previews);
+        if (clusters.Count > 3) previewStr += $", +{clusters.Count - 3} more clusters";
+
+        return $"Duplicate & versioned files audit ({clusterLabel} · {redundantLabel}): {previewStr}";
+    }
 }
+
 

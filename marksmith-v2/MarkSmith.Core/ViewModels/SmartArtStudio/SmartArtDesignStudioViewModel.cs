@@ -2099,6 +2099,159 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Outline numbering: Applied hierarchical numbering (1., 1.1.) to {nodeStr} across {depthStr}";
     }
+
+    /// <summary>
+    /// Represents a scored SmartArt layout family recommendation for an outline structure.
+    /// </summary>
+    public sealed record LayoutFamilyRecommendation(
+        string Family,
+        int MatchScorePercent,
+        string Rationale,
+        IReadOnlyList<string> RecommendedLayouts);
+
+    /// <summary>
+    /// Analyzes an outline's hierarchy structure (total nodes, root count, max depth, balance)
+    /// and scores the best-fitting SmartArt layout families (Process, Hierarchy, Matrix, Pyramid, Cycle, Comparison/Relationship, List).
+    /// </summary>
+    public static List<LayoutFamilyRecommendation> RecommendLayoutFamiliesForOutline(string? markdown)
+    {
+        var recommendations = new List<LayoutFamilyRecommendation>();
+        if (string.IsNullOrWhiteSpace(markdown)) return recommendations;
+
+        var (totalNodes, maxDepth, avgDepth, levelCounts, isStepUniform) = AuditOutlineDepths(markdown);
+        if (totalNodes == 0) return recommendations;
+
+        var (rootCount, subtreeSizes, stdDev, isBalanced) = AuditOutlineBalance(markdown);
+        var (branchTotal, branchCount, leafCount, avgBranch, maxBranch) = AuditOutlineBranching(markdown);
+
+        // 1. Hierarchy: Best when 1 root tree with 2+ levels and high branching
+        if (rootCount == 1 && maxDepth >= 2)
+        {
+            int score = maxDepth >= 3 ? 95 : 85;
+            recommendations.Add(new LayoutFamilyRecommendation(
+                "Hierarchy",
+                score,
+                $"Single root hierarchy spanning {maxDepth} levels with {leafCount} leaf items",
+                new[] { "Horizontal Hierarchy", "Hierarchy Tree", "Grouped List" }));
+        }
+
+        // 2. Matrix: Exactly 4 roots or 4 balanced categories
+        if (rootCount == 4 && isBalanced)
+        {
+            recommendations.Add(new LayoutFamilyRecommendation(
+                "Matrix",
+                92,
+                "4 balanced root quadrants suitable for 2×2 quadrant mapping",
+                new[] { "Grid Matrix", "Titled Matrix", "Cycle Matrix" }));
+        }
+        else if (rootCount == 4)
+        {
+            recommendations.Add(new LayoutFamilyRecommendation(
+                "Matrix",
+                80,
+                "4 root categories adaptable for 2×2 grid layout",
+                new[] { "Grid Matrix", "Titled Matrix" }));
+        }
+
+        // 3. Comparison / Relationship: Exactly 2 balanced root trees
+        if (rootCount == 2 && isBalanced)
+        {
+            recommendations.Add(new LayoutFamilyRecommendation(
+                "Relationship & Comparison",
+                90,
+                "2 balanced root trees ideal for side-by-side comparison or opposing relationships",
+                new[] { "Balance", "Opposing Arrows", "Converging Arrows" }));
+        }
+
+        // 4. Process: Flat or shallow linear flow of 3–7 items
+        if (maxDepth == 1 && totalNodes >= 3 && totalNodes <= 8)
+        {
+            recommendations.Add(new LayoutFamilyRecommendation(
+                "Process",
+                90,
+                $"Linear sequence of {totalNodes} sequential steps with uniform depth",
+                new[] { "Basic Process", "Chevron Process", "Step Down Process" }));
+        }
+        else if (maxDepth == 2 && rootCount >= 3 && rootCount <= 6)
+        {
+            recommendations.Add(new LayoutFamilyRecommendation(
+                "Process",
+                82,
+                $"{rootCount} major phases with indented detail bullet points",
+                new[] { "Detailed Process", "Grouped Process", "Process List" }));
+        }
+
+        // 5. Cycle: 3–6 items, especially with looping terminology or flat sequential flow
+        bool hasCycleKeywords = markdown.Contains("cycle", StringComparison.OrdinalIgnoreCase) ||
+                                markdown.Contains("repeat", StringComparison.OrdinalIgnoreCase) ||
+                                markdown.Contains("review", StringComparison.OrdinalIgnoreCase) ||
+                                markdown.Contains("feedback", StringComparison.OrdinalIgnoreCase) ||
+                                markdown.Contains("iterate", StringComparison.OrdinalIgnoreCase);
+        if (maxDepth == 1 && totalNodes >= 3 && totalNodes <= 6)
+        {
+            int cycleScore = hasCycleKeywords ? 94 : 75;
+            recommendations.Add(new LayoutFamilyRecommendation(
+                "Cycle",
+                cycleScore,
+                $"Circular flow of {totalNodes} contiguous stages{(hasCycleKeywords ? " with continuous loop semantics" : "")}",
+                new[] { "Basic Cycle", "Block Cycle", "Radial Cycle" }));
+        }
+
+        // 6. Pyramid: 3–5 levels with decreasing node counts per level
+        if (maxDepth >= 3 && maxDepth <= 5 && levelCounts.Count >= 3)
+        {
+            bool isDecreasing = true;
+            for (int lvl = 1; lvl < maxDepth; lvl++)
+            {
+                if (levelCounts.TryGetValue(lvl, out int cur) && levelCounts.TryGetValue(lvl + 1, out int next))
+                {
+                    if (next >= cur) { isDecreasing = false; break; }
+                }
+            }
+            if (isDecreasing)
+            {
+                recommendations.Add(new LayoutFamilyRecommendation(
+                    "Pyramid",
+                    88,
+                    $"Layered structure of {maxDepth} tiers with tapering proportions",
+                    new[] { "Basic Pyramid", "Inverted Pyramid", "Segmented Pyramid" }));
+            }
+        }
+
+        // 7. List / Block List: Fallback or flat listing
+        if (maxDepth == 1 || recommendations.Count == 0)
+        {
+            int listScore = maxDepth == 1 ? 80 : 65;
+            recommendations.Add(new LayoutFamilyRecommendation(
+                "List",
+                listScore,
+                $"Structured bullet catalog of {totalNodes} items",
+                new[] { "Vertical Block List", "Horizontal Bullet List", "Table Hierarchy" }));
+        }
+
+        return recommendations
+            .OrderByDescending(r => r.MatchScorePercent)
+            .ThenBy(r => r.Family)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of SmartArt layout family recommendations for an outline.
+    /// </summary>
+    public static string FormatLayoutRecommendationSummary(string? markdown)
+    {
+        var recs = RecommendLayoutFamiliesForOutline(markdown);
+        if (recs.Count == 0)
+            return "SmartArt layout recommendations: Empty outline (0 nodes)";
+
+        var top = recs[0];
+        string suggestedList = string.Join(", ", top.RecommendedLayouts.Take(2));
+        var otherRecs = recs.Skip(1).Take(2).Select(r => $"{r.Family} ({r.MatchScorePercent}%)");
+        string alternatives = otherRecs.Any() ? $" · Alt: {string.Join(", ", otherRecs)}" : "";
+
+        return $"SmartArt layout recommendation: #1 {top.Family} ({top.MatchScorePercent}% match · {top.Rationale}) → Suggested: {suggestedList}{alternatives}";
+    }
 }
+
 
 

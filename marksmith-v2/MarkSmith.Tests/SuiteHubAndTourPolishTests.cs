@@ -1538,5 +1538,78 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentWorkspaceClustersClick", suiteCs);
         Assert.Contains("FormatProjectWorkspaceClusters", suiteCs);
     }
+
+    [Fact]
+    public void Run146_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: PortalResetDialsButton & ResetPortalDials & portalFocusProfileItem
+        var mainXaml = File.ReadAllText(DesktopPath("MainWindow.xaml"));
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"PortalResetDialsButton\"", mainXaml);
+        Assert.Contains("OnResetPortalDialsClick", mainXaml);
+        Assert.Contains("ResetPortalDials", mainCs);
+        Assert.Contains("portalFocusProfileItem", mainCs);
+        Assert.Contains("FormatFocusWindowReadingProfile", mainCs);
+
+        // 2. MindMapGalaxy: AutoColorizeByTagItem & CopyTagCoOccurrenceItem
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AutoColorizeByTagItem", galaxyXaml);
+        Assert.Contains("CopyTagCoOccurrenceItem", galaxyXaml);
+        Assert.Contains("OnAutoColorizeByTagClick", galaxyCs);
+        Assert.Contains("OnCopyTagCoOccurrenceClick", galaxyCs);
+        Assert.Contains("AutoColorizeByPrimaryTag", galaxyCs);
+        Assert.Contains("FormatTagCoOccurrenceSummary", galaxyCs);
+
+        // 3. ShapeStudio: SelectionSelectSimilarKindItem & SelectionSelectSimilarFillItem
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionSelectSimilarKindItem", shapeXaml);
+        Assert.Contains("SelectionSelectSimilarFillItem", shapeXaml);
+        Assert.Contains("OnSelectionSelectSimilarKindClick", shapeCs);
+        Assert.Contains("OnSelectionSelectSimilarFillClick", shapeCs);
+        Assert.Contains("SelectSimilarShapes", shapeCs);
+
+        // 4. SmartArtStudio: RecommendLayoutsOutlineItem & OnRecommendLayoutsOutlineClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("RecommendLayoutsOutlineItem", smartArtXaml);
+        Assert.Contains("OnRecommendLayoutsOutlineClick", smartArtCs);
+        Assert.Contains("FormatLayoutRecommendationSummary", smartArtCs);
+
+        // 5. HistoryWindow: copyMicroSaveAudit & FormatLowEntropySnapshotAudit
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy auto-save micro-saves audit (low-entropy snapshots)", historyCs);
+        Assert.Contains("FormatLowEntropySnapshotAudit", historyCs);
+
+        // 6. SuiteHub: CopyRecentDuplicatesAuditItem & FormatDuplicateAndVersionedFilesAudit
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentDuplicatesAuditItem", suiteXaml);
+        Assert.Contains("OnCopyRecentDuplicatesAuditClick", suiteCs);
+        Assert.Contains("FormatDuplicateAndVersionedFilesAudit", suiteCs);
+
+        // RecentFilesService duplicate and versioned files audit logic test
+        var files = new[]
+        {
+            @"C:\Projects\Doc.md",
+            @"C:\Projects\Doc (1).md",
+            @"C:\Projects\Doc - Copy.md",
+            @"C:\Projects\Doc_backup.md",
+            @"D:\Other\Doc.md",
+            @"C:\Projects\Unique.md"
+        };
+        var (clusterCount, redundantCount, clusters) = RecentFilesService.DetectDuplicateAndVersionedFiles(files);
+        Assert.Equal(1, clusterCount);
+        Assert.Equal(4, redundantCount);
+        Assert.Equal("Doc.md", clusters[0].CanonicalBaseName);
+        Assert.True(clusters[0].IsCrossDirectoryDuplicate);
+        Assert.True(clusters[0].IsVersionSuffixed);
+
+        var audit = RecentFilesService.FormatDuplicateAndVersionedFilesAudit(files);
+        Assert.Contains("Duplicate & versioned files audit (1 duplicate cluster · 4 redundant copies)", audit);
+        Assert.Contains("'Doc.md'", audit);
+    }
 }
+
 

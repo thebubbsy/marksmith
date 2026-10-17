@@ -696,5 +696,45 @@ public class SmartArtStudioPolishTests
         Assert.Equal("Outline numbering: Stripped numeric prefixes from 5 nodes across 2 levels",
             SmartArtDesignStudioViewModel.FormatOutlineNumberingSummary(stripCount, stripDepth, stripped: true));
     }
+
+    [Fact]
+    public void Run146_RecommendLayoutFamiliesForOutline_And_FormatLayoutRecommendationSummary()
+    {
+        Assert.Equal("SmartArt layout recommendations: Empty outline (0 nodes)",
+            SmartArtDesignStudioViewModel.FormatLayoutRecommendationSummary(null));
+
+        // 1. Hierarchy outline (3 levels)
+        var hierOutline = "- Enterprise Architecture\n  - Cloud Platforms\n    - Azure\n    - AWS\n  - Data Governance\n    - Lineage";
+        var hierRecs = SmartArtDesignStudioViewModel.RecommendLayoutFamiliesForOutline(hierOutline);
+        Assert.NotEmpty(hierRecs);
+        Assert.Equal("Hierarchy", hierRecs[0].Family);
+        Assert.True(hierRecs[0].MatchScorePercent >= 90);
+
+        var hierSummary = SmartArtDesignStudioViewModel.FormatLayoutRecommendationSummary(hierOutline);
+        Assert.Contains("SmartArt layout recommendation: #1 Hierarchy", hierSummary);
+        Assert.Contains("Horizontal Hierarchy", hierSummary);
+
+        // 2. Matrix outline (4 quadrant roots)
+        var matrixOutline = "- Strengths\n  - Internal advantages\n- Weaknesses\n  - Resource gaps\n- Opportunities\n  - Market tailwinds\n- Threats\n  - Competitive risks";
+        var matrixRecs = SmartArtDesignStudioViewModel.RecommendLayoutFamiliesForOutline(matrixOutline);
+        var matrixTop = matrixRecs.FirstOrDefault(r => r.Family == "Matrix");
+        Assert.NotNull(matrixTop);
+        Assert.True(matrixTop!.MatchScorePercent >= 88);
+
+        // 3. Cycle outline (with iteration/feedback keywords)
+        var cycleOutline = "- Plan\n- Execute\n- Review Feedback\n- Repeat Cycle";
+        var cycleRecs = SmartArtDesignStudioViewModel.RecommendLayoutFamiliesForOutline(cycleOutline);
+        var cycleTop = cycleRecs.FirstOrDefault(r => r.Family == "Cycle");
+        Assert.NotNull(cycleTop);
+        Assert.True(cycleTop!.MatchScorePercent >= 90);
+
+        // 4. Pyramid outline (tapering levels: 3 at L1, 2 at L2, 1 at L3)
+        var pyramidOutline = "- Level 1 Base A\n- Level 1 Base B\n- Level 1 Base C\n  - Level 2 Mid A\n  - Level 2 Mid B\n    - Level 3 Apex";
+        var pyramidRecs = SmartArtDesignStudioViewModel.RecommendLayoutFamiliesForOutline(pyramidOutline);
+        var pyramidTop = pyramidRecs.FirstOrDefault(r => r.Family == "Pyramid");
+        Assert.NotNull(pyramidTop);
+        Assert.True(pyramidTop!.MatchScorePercent >= 80);
+    }
 }
+
 

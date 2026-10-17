@@ -3890,7 +3890,24 @@ namespace MarkSmith.Views.MindMap
             RequestRedraw();
         }
 
+        private void OnAutoColorizeByTagClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (colorizedNodes, distinctTags, colorsApplied) = ViewModel.AutoColorizeByPrimaryTag();
+            _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusMessage);
+            RequestRedraw();
+        }
+
+        private void OnCopyTagCoOccurrenceClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var summary = ViewModel.FormatTagCoOccurrenceSummary();
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = summary;
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
+
 
         private void OnCenterOnRootDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
@@ -4673,7 +4690,24 @@ namespace MarkSmith.Views.MindMap
             rollupProgressItem.Click += OnRollupSubtreeProgressClick;
             menu.Items.Add(rollupProgressItem);
 
+            var autoColorizeByTagItem = new MenuFlyoutItem
+            {
+                Text = "Auto-colorize nodes by primary tag",
+                Icon = new FontIcon { Glyph = "\uE8EC" }
+            };
+            autoColorizeByTagItem.Click += OnAutoColorizeByTagClick;
+            menu.Items.Add(autoColorizeByTagItem);
+
+            var copyTagCoOccurrenceItem = new MenuFlyoutItem
+            {
+                Text = "Copy tag co-occurrence matrix",
+                Icon = new FontIcon { Glyph = "\uE8D2" }
+            };
+            copyTagCoOccurrenceItem.Click += OnCopyTagCoOccurrenceClick;
+            menu.Items.Add(copyTagCoOccurrenceItem);
+
             var fitItem = new MenuFlyoutItem
+
             {
                 Text = "Fit all nodes in window (Ctrl+0)",
                 Icon = new FontIcon { Glyph = "\uE9A6" }
