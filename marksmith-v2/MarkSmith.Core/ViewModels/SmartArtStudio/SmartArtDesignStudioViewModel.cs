@@ -1625,4 +1625,92 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string status = isBalanced ? "Balanced" : "Skewed";
         return $"Outline balance: {roots} root trees ({status}: subtree sizes [{sizeList}] · σ={stdDev:0.#})";
     }
+
+    /// <summary>
+    /// Audits the outline hierarchy depth distribution across all nodes.
+    /// Returns total nodes, max depth, average depth, distribution per level, and whether indentation steps are uniform (no skipped levels).
+    /// </summary>
+    public static (int TotalNodes, int MaxDepth, double AvgDepth, Dictionary<int, int> LevelCounts, bool IsStepUniform) AuditOutlineDepths(string? markdown)
+    {
+        var levelCounts = new Dictionary<int, int>();
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            return (0, 0, 0.0, levelCounts, true);
+        }
+
+        var lines = markdown.Replace("\r", "").Split('\n');
+        var depths = new List<int>();
+
+        foreach (var rawLine in lines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+
+            int leadWs = 0;
+            int spaceCount = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t'))
+            {
+                if (rawLine[leadWs] == '\t') spaceCount += 2;
+                else spaceCount += 1;
+                leadWs++;
+            }
+
+            if (leadWs < rawLine.Length)
+            {
+                var rest = rawLine.Substring(leadWs);
+                if (rest.StartsWith("- ") || rest.StartsWith("* ") || rest.StartsWith("+ ") ||
+                    (rest.Length > 2 && char.IsDigit(rest[0]) && rest[1] == '.' && rest[2] == ' '))
+                {
+                    int depth = (spaceCount / 2) + 1;
+                    depths.Add(depth);
+                    levelCounts[depth] = levelCounts.TryGetValue(depth, out int c) ? c + 1 : 1;
+                }
+            }
+        }
+
+        if (depths.Count == 0)
+        {
+            return (0, 0, 0.0, levelCounts, true);
+        }
+
+        int maxDepth = depths.Max();
+        double avgDepth = (double)depths.Sum() / depths.Count;
+
+        bool isStepUniform = true;
+        int prevDepth = 1;
+        for (int i = 0; i < depths.Count; i++)
+        {
+            int d = depths[i];
+            if (d > prevDepth + 1)
+            {
+                isStepUniform = false;
+                break;
+            }
+            prevDepth = d;
+        }
+
+        return (depths.Count, maxDepth, avgDepth, levelCounts, isStepUniform);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of outline depth distribution and indentation uniformity.
+    /// </summary>
+    public static string FormatOutlineDepthDistributionSummary(string? markdown)
+    {
+        var (total, maxDepth, avgDepth, levelCounts, isStepUniform) = AuditOutlineDepths(markdown);
+        if (total == 0) return "Outline depth: Empty outline (0 nodes)";
+
+        if (maxDepth == 1)
+        {
+            return $"Outline depth: {total} nodes (All flat at Level 1 · Uniform)";
+        }
+
+        var levelsList = levelCounts
+            .OrderBy(kv => kv.Key)
+            .Select(kv => $"L{kv.Key}: {kv.Value}")
+            .ToList();
+        string levelsStr = string.Join(", ", levelsList);
+
+        string uniformityStr = isStepUniform ? "Uniform step hierarchy" : "Non-uniform indentation (contains skipped levels)";
+        return $"Outline depth: {total} nodes (Max: L{maxDepth}, Avg: {avgDepth:0.#}) · [{levelsStr}] · {uniformityStr}";
+    }
 }

@@ -3057,6 +3057,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied retention rate: {retentionSummary}");
                 };
                 menu.Items.Add(copyRetention);
+
+                var entropySummary = MarkSmith.Services.LineDiff.FormatVersionEditEntropy(sel.LinesAdded, sel.LinesRemoved);
+                var copyEntropy = new MenuFlyoutItem
+                {
+                    Text = "Copy edit dispersion & entropy index",
+                    Icon = new FontIcon { Glyph = "\uE9F9" }
+                };
+                copyEntropy.Click += (_, _) =>
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(entropySummary);
+                    _vm.ShowNotice($"Copied edit entropy: {entropySummary}");
+                };
+                menu.Items.Add(copyEntropy);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

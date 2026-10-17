@@ -410,4 +410,79 @@ public sealed class RecentFilesService
         if (bytes < 1024L * 1024 * 1024) return $"{(bytes / (1024.0 * 1024)):0.#} MB";
         return $"{(bytes / (1024.0 * 1024 * 1024)):0.#} GB";
     }
+
+    /// <summary>
+    /// Audits recent document folder spread, subfolder depth, and directory dispersion.
+    /// Returns unique directory count, min/max/average depth, and formatted summary.
+    /// </summary>
+    public static string FormatRecentDirectorySpread(IEnumerable<string>? files)
+    {
+        if (files is null) return "0 documents in recent history";
+        var list = files.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).ToList();
+        if (list.Count == 0) return "0 documents in recent history";
+
+        var dirGroups = list
+            .Select(f =>
+            {
+                try
+                {
+                    var dir = Path.GetDirectoryName(f);
+                    return string.IsNullOrEmpty(dir) ? "(root / relative)" : dir;
+                }
+                catch
+                {
+                    return "(unknown)";
+                }
+            })
+            .GroupBy(d => d, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key)
+            .ToList();
+
+        var depths = list.Select(f =>
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(f) ?? "";
+                var parts = dir.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+                return parts.Length;
+            }
+            catch
+            {
+                return 0;
+            }
+        }).ToList();
+
+        int totalDirs = dirGroups.Count;
+        int minDepth = depths.Count > 0 ? depths.Min() : 0;
+        int maxDepth = depths.Count > 0 ? depths.Max() : 0;
+        double avgDepth = depths.Count > 0 ? depths.Average() : 0.0;
+
+        var topGroup = dirGroups[0];
+        string topFolderDisplay;
+        try
+        {
+            topFolderDisplay = Path.GetFileName(topGroup.Key);
+            if (string.IsNullOrEmpty(topFolderDisplay)) topFolderDisplay = topGroup.Key;
+        }
+        catch
+        {
+            topFolderDisplay = topGroup.Key;
+        }
+
+        string docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
+        string folderLabel = totalDirs == 1 ? "1 folder" : $"{totalDirs} folders";
+
+        string spreadClassification = totalDirs switch
+        {
+            1 => "Centralized",
+            <= 3 => "Clustered",
+            _ => "Scattered"
+        };
+
+        double topPct = (double)topGroup.Count() / list.Count * 100.0;
+        string topSummary = $"Primary: '{topFolderDisplay}' ({topGroup.Count()}/{list.Count}, {topPct:0.#}%)";
+
+        return $"Directory spread ({docLabel} across {folderLabel} · {spreadClassification}): Depth: Min {minDepth}, Max {maxDepth}, Avg {avgDepth:0.#} · {topSummary}";
+    }
 }

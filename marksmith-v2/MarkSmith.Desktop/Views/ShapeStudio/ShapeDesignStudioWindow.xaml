@@ -616,6 +616,9 @@
                                         <MenuFlyoutItem x:Name="SelectionCycleCornerRadiusItem" Text="Cycle corner radius (0px / 4px / 8px / 16px)" Click="OnSelectionCycleCornerRadiusClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionCycleStrokeDashOffsetItem" Text="Cycle stroke dash offset (0 / 2 / 4 / 6)" Click="OnSelectionCycleStrokeDashOffsetClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B2;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

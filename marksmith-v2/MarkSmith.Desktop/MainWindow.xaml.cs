@@ -8926,6 +8926,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(matchRateItem);
 
+        var matchHotspotsItem = new MenuFlyoutItem
+        {
+            Text = "Copy search match hotspots & clustering",
+            Icon = new FontIcon { Glyph = "\uE8EB" },
+            IsEnabled = !string.IsNullOrEmpty(FindTextBox?.Text) && _findMatches.Count > 0
+        };
+        matchHotspotsItem.Click += (_, _) =>
+        {
+            var docLen = PasteTextBox?.Text?.Length ?? 0;
+            var hotspotsStr = MarkSmith.Services.TextSearch.FormatSearchMatchHotspots(_findMatches, clusterDistance: 200, totalDocLength: docLen);
+            _ = Services.ClipboardWriter.TrySetTextAsync(hotspotsStr);
+            AnnounceStatus($"Search hotspots: {hotspotsStr}");
+        };
+        menu.Items.Add(matchHotspotsItem);
+
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
         e.Handled = true;
     }

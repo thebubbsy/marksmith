@@ -2345,5 +2345,34 @@ namespace MarkSmith.ViewModels.MindMap
             if (thickness <= 3.0) return $"Stroke thickness: {thickness:0.#}px (Bold)";
             return $"Stroke thickness: {thickness:0.#}px (Heavy)";
         }
+
+        /// <summary>
+        /// Cycles connection link direction (SourceToTarget -> Bidirectional -> TargetToSource -> None -> SourceToTarget)
+        /// and returns the next direction and display label.
+        /// </summary>
+        public static (MindMapLinkDirection NextDirection, string Label) CycleLinkDirection(MindMapLinkDirection current)
+        {
+            return current switch
+            {
+                MindMapLinkDirection.SourceToTarget => (MindMapLinkDirection.Bidirectional, "Arrow: Bidirectional (↔)"),
+                MindMapLinkDirection.Bidirectional => (MindMapLinkDirection.TargetToSource, "Arrow: Target to source (←)"),
+                MindMapLinkDirection.TargetToSource => (MindMapLinkDirection.None, "Arrow: Plain line (—)"),
+                _ => (MindMapLinkDirection.SourceToTarget, "Arrow: Source to target (→)")
+            };
+        }
+
+        /// <summary>
+        /// Formats a connection link direction summary for inspector and status readout.
+        /// </summary>
+        public static string FormatLinkDirectionSummary(MindMapLinkDirection direction)
+        {
+            return direction switch
+            {
+                MindMapLinkDirection.SourceToTarget => "Arrow direction: Forward (Source → Target)",
+                MindMapLinkDirection.TargetToSource => "Arrow direction: Reverse (Target → Source)",
+                MindMapLinkDirection.Bidirectional => "Arrow direction: Mutual (Bidirectional ↔)",
+                _ => "Arrow direction: Undirected (Plain line —)"
+            };
+        }
     }
 }

@@ -10632,6 +10632,85 @@ Reviewed: the 2026-10-17 run #139 entry above. Followed the AI-Executable 3-Bloc
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 31856, responsive startup (`Alive=True Responding=True`), clean exit.
 
+### 2026-10-17 (scheduled routine run #141 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #140 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #140:
+    * Target A: `MainWindow` find bar match proximity clustering and hotspot detector.
+    * Target B: `MindMapGalaxyWindow` connection line arrow style cycle helper.
+  - Generated:
+    1. `MainWindow`: Find Bar Search Match Proximity Clustering & Hotspot Detector (`TextSearch.ClusterSearchMatches(matches, clusterDistance)` grouping adjacent matches within character distance windows and `TextSearch.FormatSearchMatchHotspots(matches, clusterDistance, totalDocLength)` analyzing match clusters, isolated hits, and high-density hotspots, wired to `matchHotspotsItem` "Copy search match hotspots & clustering" `\uE8EB` in `FindCountText` context menu).
+    2. `MindMapGalaxyWindow`: Connection Line Arrowhead Direction Cycle Helper & Summary Formatter (`MindMapStudioViewModel.CycleLinkDirection(currentDirection)` cycling forward (`SourceToTarget`), mutual (`Bidirectional`), reverse (`TargetToSource`), and undirected (`None`), `FormatLinkDirectionSummary(direction)`, and `CycleLinkDirectionItem` `\uE8A7` in `ConnectionStyleDropDownButton.Flyout` with tick feedback and canvas redraw).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.cs` with defensive empty/null checks and formatted cluster spans. Mounted `matchHotspotsItem` with icon `\uE8EB` in `MainWindow.xaml.cs`'s `FindCountText` context menu pulling active document length, copying to clipboard, and announcing status.
+    * For Idea 2: Implemented `CycleLinkDirection` and `FormatLinkDirectionSummary` in `MindMapStudioViewModel.cs`. Mounted `CycleLinkDirectionItem` with icon `\uE8A7` in `MindMapGalaxyWindow.xaml`, and wired `OnCycleLinkDirectionClick` in `MindMapGalaxyWindow.xaml.cs` cycling selected link direction (or toggling arrows when no link is selected) with undo snapshot, button tick feedback, and redraw.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Shape Border Stroke Dash Offset Cycle Helper & Phase Formatter (`ShapeDesignStudioViewModel.CycleStrokeDashOffset(currentOffset)` cycling phase presets 0.0 -> 2.0 -> 4.0 -> 6.0 -> 0.0, `FormatStrokeDashOffsetSummary(offset)`, mounting `SelectionCycleStrokeDashOffsetItem` `\uE8B2` in `SelectionBoundsFlyout`, and wiring `OnSelectionCycleStrokeDashOffsetClick` with undo snapshot and adorner update).
+    4. `SmartArtDesignStudioWindow`: Outline Hierarchy Depth Distribution & Indentation Uniformity Auditor (`SmartArtDesignStudioViewModel.AuditOutlineDepths(markdown)` auditing distribution of nodes per hierarchy level, max/average depth, and detecting skipped levels, `FormatOutlineDepthDistributionSummary(markdown)`, and `OutlineDepthDistributionItem` `\uE8EC` in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionCycleStrokeDashOffsetItem` with icon `\uE8B2` in `SelectionBoundsFlyout` in `ShapeDesignStudioWindow.xaml`. Implemented `OnSelectionCycleStrokeDashOffsetClick` in `ShapeDesignStudioWindow.xaml.cs` updating `path.StrokeDashOffset` across selected shapes (or all shapes), recording undo snapshots, updating adorners, and announcing status.
+    * For Idea 4: Mounted `OutlineDepthDistributionItem` with icon `\uE8EC` in `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`. Implemented `AuditOutlineDepths` and `FormatOutlineDepthDistributionSummary` in `SmartArtDesignStudioViewModel.cs` and wired `OnAuditOutlineDepthDistributionClick` in `SmartArtDesignStudioWindow.xaml.cs` with clipboard export and status notification.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `ClusterSearchMatches` correctly groups adjacent matches within `clusterDistance` while preserving isolated hits and formatting clean hotspot summaries.
+    * Verified `CycleLinkDirection` preserves full round-trip cycling across all four `MindMapLinkDirection` states without skipping any orientation.
+  - Generated:
+    5. `HistoryWindow`: Version Edit Entropy & Churn Dispersion Formatter (`LineDiff.FormatVersionEditEntropy(linesAdded, linesRemoved, totalDocLines)` computing normalized Shannon entropy $H = -\sum p \log_2 p$ between 0.00 and 1.00, identifying localized vs balanced refactor churn, wired to `copyEntropy` "Copy edit dispersion & entropy index" `\uE9F9` in `TimelineHeaderBorder` context flyout).
+    6. `SuiteHubView`: Recent Documents Directory Spread & Folder Dispersion Auditor (`RecentFilesService.FormatRecentDirectorySpread(files)` auditing unique directory count, subfolder depth distribution min/max/average, primary folder concentration, and dispersion classification, wired to `CopyRecentDirectorySpreadItem` `\uE8B7` in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Implemented `LineDiff.FormatVersionEditEntropy` in `LineDiff.cs` handling pure additions (0.00 entropy), pure deletions (0.00 entropy), and balanced refactorings (1.00 entropy). Mounted `copyEntropy` item with icon `\uE9F9` in `OnTimelineHeaderRightTapped` in `HistoryWindow.xaml.cs`.
+    * For Idea 6: Added `CopyRecentDirectorySpreadItem` to `RecentDocsFlyout` in `SuiteHubView.xaml` with icon `\uE8B7`, implemented `RecentFilesService.FormatRecentDirectorySpread` in `RecentFilesService.cs`, and wired `OnCopyRecentDirectorySpreadClick` in `SuiteHubView.xaml.cs` with tick feedback on `RecentDocsActionBtn`.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `Run141_ClusterSearchMatches_And_FormatSearchMatchHotspots` (Passed).
+    * `MindMapGalaxyPolishTests.cs`: `Run141_CycleLinkDirection_And_FormatLinkDirectionSummary` (Passed).
+    * `ShapeStudioPolishTests.cs`: `Run141_CycleStrokeDashOffset_And_FormatStrokeDashOffsetSummary` (Passed).
+    * `SmartArtStudioPolishTests.cs`: `Run141_AuditOutlineDepths_And_FormatOutlineDepthDistributionSummary` (Passed).
+    * `HistoryPolishTests.cs`: `Run141_FormatVersionEditEntropy_CalculatesEntropy` (Passed).
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FormatRecentDirectorySpread_ComputesAccurately`, `Run141_Polish_Elements_Wired_Across_Surfaces` (Passed).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run141"`: **6 passed, 0 failed (100% pass rate)**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "RecentFilesService_FormatRecentDirectorySpread"`: **1 passed, 0 failed (100% pass rate)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 28564, responsive startup (`Alive=True Responding=True`), clean exit.
+  - Carried forward ideas / next targets into Run #142:
+    * Target A: `MainWindow` find bar regex capture group extractor and token preview.
+    * Target B: `MindMapGalaxyWindow` node hierarchy level auto-colorizer palette applicator.
+    * Target C: `ShapeDesignStudioWindow` shape z-order normalization and compact re-indexer.
+
+**Shipped:**
+1. **`MainWindow` Find Bar Search Match Proximity Clustering & Hotspot Detector (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - `TextSearch.ClusterSearchMatches` and `TextSearch.FormatSearchMatchHotspots` detecting match clusters, isolated hits, and high-density hotspots.
+   - `matchHotspotsItem` ("Copy search match hotspots & clustering", `\uE8EB`) in `FindCountText` context menu.
+2. **`MindMapGalaxyWindow` Connection Line Arrowhead Direction Cycle Helper & Summary Formatter (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `MindMapStudioViewModel.CycleLinkDirection` and `MindMapStudioViewModel.FormatLinkDirectionSummary` cycling across forward/mutual/reverse/undirected arrow directions.
+   - `CycleLinkDirectionItem` (`\uE8A7`) in `ConnectionStyleDropDownButton.Flyout` with tick feedback and visual redraw.
+3. **`ShapeDesignStudioWindow` Shape Border Stroke Dash Offset Cycle Helper & Phase Formatter (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ShapeDesignStudioViewModel.CycleStrokeDashOffset` and `ShapeDesignStudioViewModel.FormatStrokeDashOffsetSummary` cycling 0.0/2.0/4.0/6.0 stroke dash phase offsets.
+   - `SelectionCycleStrokeDashOffsetItem` (`\uE8B2`) in `SelectionBoundsFlyout` with undo recording and adorner refresh.
+4. **`SmartArtDesignStudioWindow` Outline Hierarchy Depth Distribution & Indentation Uniformity Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `SmartArtDesignStudioViewModel.AuditOutlineDepths` and `SmartArtDesignStudioViewModel.FormatOutlineDepthDistributionSummary` auditing per-level node counts, max/average depth, and step uniformity.
+   - `OutlineDepthDistributionItem` (`\uE8EC`) in `OutlineStatsFlyout` with clipboard export.
+5. **`HistoryWindow` Version Edit Entropy & Churn Dispersion Formatter (`HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.FormatVersionEditEntropy` computing normalized Shannon entropy and classifying churn dispersion.
+   - `copyEntropy` item (`\uE9F9`) in `TimelineHeaderBorder` context menu.
+6. **`SuiteHubView` Recent Documents Directory Spread & Folder Dispersion Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.FormatRecentDirectorySpread` auditing unique directory count, subfolder depths, primary folder concentration, and dispersion classification.
+   - `CopyRecentDirectorySpreadItem` (`\uE8B7`) in `RecentDocsFlyout` with button tick feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run141"`: **6 passed, 0 failed (100% pass rate)**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "RecentFilesService_FormatRecentDirectorySpread"`: **1 passed, 0 failed (100% pass rate)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 28564, responsive startup (`Alive=True Responding=True`), clean exit.
+
 
 
 

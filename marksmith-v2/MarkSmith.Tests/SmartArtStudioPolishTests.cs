@@ -577,4 +577,39 @@ public class SmartArtStudioPolishTests
         var singleSummary = SmartArtDesignStudioViewModel.FormatOutlineBalanceSummary(singleRoot);
         Assert.Equal("Outline balance: 1 root tree (3 total nodes)", singleSummary);
     }
+
+    [Fact]
+    public void Run141_AuditOutlineDepths_And_FormatOutlineDepthDistributionSummary()
+    {
+        var outline = @"- Root
+  - Child 1
+    - Grandchild 1
+  - Child 2";
+
+        var (total, maxDepth, avgDepth, levelCounts, isStepUniform) = SmartArtDesignStudioViewModel.AuditOutlineDepths(outline);
+        Assert.Equal(4, total);
+        Assert.Equal(3, maxDepth);
+        Assert.Equal(2.0, avgDepth);
+        Assert.True(isStepUniform);
+        Assert.Equal(1, levelCounts[1]);
+        Assert.Equal(2, levelCounts[2]);
+        Assert.Equal(1, levelCounts[3]);
+
+        var summary = SmartArtDesignStudioViewModel.FormatOutlineDepthDistributionSummary(outline);
+        Assert.Equal("Outline depth: 4 nodes (Max: L3, Avg: 2) · [L1: 1, L2: 2, L3: 1] · Uniform step hierarchy", summary);
+
+        var emptySummary = SmartArtDesignStudioViewModel.FormatOutlineDepthDistributionSummary(null);
+        Assert.Equal("Outline depth: Empty outline (0 nodes)", emptySummary);
+
+        var flatOutline = "- Flat 1\n- Flat 2";
+        var flatSummary = SmartArtDesignStudioViewModel.FormatOutlineDepthDistributionSummary(flatOutline);
+        Assert.Equal("Outline depth: 2 nodes (All flat at Level 1 · Uniform)", flatSummary);
+
+        // Skipped level: Root directly to Grandchild (L1 -> L3)
+        var skippedOutline = "- Root\n    - Grandchild without Child";
+        var (_, _, _, _, isUniform) = SmartArtDesignStudioViewModel.AuditOutlineDepths(skippedOutline);
+        Assert.False(isUniform);
+        var skippedSummary = SmartArtDesignStudioViewModel.FormatOutlineDepthDistributionSummary(skippedOutline);
+        Assert.Contains("Non-uniform indentation (contains skipped levels)", skippedSummary);
+    }
 }

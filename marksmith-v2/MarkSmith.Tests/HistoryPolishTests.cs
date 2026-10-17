@@ -776,6 +776,28 @@ public class HistoryPolishTests : IDisposable
         var partial = LineDiff.FormatVersionRetentionRate(200, 160);
         Assert.Equal("Retention: 80.0% (160/200 lines preserved · 20.0% loss)", partial);
     }
+
+    [Fact]
+    public void Run141_FormatVersionEditEntropy_CalculatesEntropy()
+    {
+        var zero = LineDiff.FormatVersionEditEntropy(0, 0);
+        Assert.Equal("Edit entropy: 0.00 (0 lines changed · Stable)", zero);
+
+        var pureAdd = LineDiff.FormatVersionEditEntropy(20, 0);
+        Assert.Equal("Edit entropy: 0.00 (+20 lines · Pure addition)", pureAdd);
+
+        var pureDel = LineDiff.FormatVersionEditEntropy(0, 15);
+        Assert.Equal("Edit entropy: 0.00 (-15 lines · Pure deletion)", pureDel);
+
+        // Equal additions and deletions: max entropy 1.00
+        var balanced = LineDiff.FormatVersionEditEntropy(50, 50, 500);
+        Assert.Contains("Edit entropy: 1.00 (+50/-50 lines · High entropy (Balanced refactor))", balanced);
+        Assert.Contains("20% document impact", balanced);
+
+        // Asymmetric
+        var asymmetric = LineDiff.FormatVersionEditEntropy(95, 5);
+        Assert.Contains("Localized / Asymmetric", asymmetric);
+    }
 }
 
 

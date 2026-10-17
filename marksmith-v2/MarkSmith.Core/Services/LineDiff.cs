@@ -484,4 +484,44 @@ public static class LineDiff
 
         return $"Retention: {retentionPct:0.0}% ({survivingLines:N0}/{totalOriginalLines:N0} lines preserved · {churnPct:0.0}% loss)";
     }
+
+    /// <summary>
+    /// Formats a version edit entropy and churn dispersion summary comparing additions to deletions.
+    /// Shannon entropy H = -sum(p * log2(p)) normalized between 0.00 (unidirectional) and 1.00 (balanced refactor).
+    /// </summary>
+    public static string FormatVersionEditEntropy(int linesAdded, int linesRemoved, int totalDocumentLines = 0)
+    {
+        int totalChanged = linesAdded + linesRemoved;
+        if (totalChanged == 0)
+        {
+            return "Edit entropy: 0.00 (0 lines changed · Stable)";
+        }
+
+        if (linesAdded > 0 && linesRemoved == 0)
+        {
+            return $"Edit entropy: 0.00 (+{linesAdded} lines · Pure addition)";
+        }
+
+        if (linesAdded == 0 && linesRemoved > 0)
+        {
+            return $"Edit entropy: 0.00 (-{linesRemoved} lines · Pure deletion)";
+        }
+
+        double p1 = (double)linesAdded / totalChanged;
+        double p2 = (double)linesRemoved / totalChanged;
+        double entropy = -(p1 * Math.Log2(p1) + p2 * Math.Log2(p2));
+
+        string classification = entropy switch
+        {
+            < 0.50 => "Localized / Asymmetric",
+            < 0.85 => "Moderate churn",
+            _ => "High entropy (Balanced refactor)"
+        };
+
+        string impact = totalDocumentLines > 0
+            ? $" · {((double)totalChanged / totalDocumentLines * 100.0):0.#}% document impact"
+            : "";
+
+        return $"Edit entropy: {entropy:0.00} (+{linesAdded}/-{linesRemoved} lines · {classification}){impact}";
+    }
 }

@@ -1353,5 +1353,30 @@ namespace MarkSmith.Tests
             Assert.Equal("Stroke thickness: 2.8px (Bold)", MindMapStudioViewModel.FormatStrokeThicknessSummary(2.8));
             Assert.Equal("Stroke thickness: 4px (Heavy)", MindMapStudioViewModel.FormatStrokeThicknessSummary(4.0));
         }
+
+        [Fact]
+        public void Run141_CycleLinkDirection_And_FormatLinkDirectionSummary()
+        {
+            var (d1, l1) = MindMapStudioViewModel.CycleLinkDirection(MindMapLinkDirection.SourceToTarget);
+            Assert.Equal(MindMapLinkDirection.Bidirectional, d1);
+            Assert.Contains("Bidirectional", l1);
+
+            var (d2, l2) = MindMapStudioViewModel.CycleLinkDirection(MindMapLinkDirection.Bidirectional);
+            Assert.Equal(MindMapLinkDirection.TargetToSource, d2);
+            Assert.Contains("Target to source", l2);
+
+            var (d3, l3) = MindMapStudioViewModel.CycleLinkDirection(MindMapLinkDirection.TargetToSource);
+            Assert.Equal(MindMapLinkDirection.None, d3);
+            Assert.Contains("Plain line", l3);
+
+            var (d4, l4) = MindMapStudioViewModel.CycleLinkDirection(MindMapLinkDirection.None);
+            Assert.Equal(MindMapLinkDirection.SourceToTarget, d4);
+            Assert.Contains("Source to target", l4);
+
+            Assert.Equal("Arrow direction: Forward (Source → Target)", MindMapStudioViewModel.FormatLinkDirectionSummary(MindMapLinkDirection.SourceToTarget));
+            Assert.Equal("Arrow direction: Reverse (Target → Source)", MindMapStudioViewModel.FormatLinkDirectionSummary(MindMapLinkDirection.TargetToSource));
+            Assert.Equal("Arrow direction: Mutual (Bidirectional ↔)", MindMapStudioViewModel.FormatLinkDirectionSummary(MindMapLinkDirection.Bidirectional));
+            Assert.Equal("Arrow direction: Undirected (Plain line —)", MindMapStudioViewModel.FormatLinkDirectionSummary(MindMapLinkDirection.None));
+        }
     }
 }

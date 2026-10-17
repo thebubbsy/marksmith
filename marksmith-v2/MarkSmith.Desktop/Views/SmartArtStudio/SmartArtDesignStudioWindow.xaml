@@ -260,6 +260,9 @@
                                         <MenuFlyoutItem x:Name="OutlineTreeBalanceItem" Text="Audit outline hierarchy balance &amp; skew" Click="OnAuditOutlineTreeBalanceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EB;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineDepthDistributionItem" Text="Audit outline depth distribution &amp; step uniformity" Click="OnAuditOutlineDepthDistributionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EC;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

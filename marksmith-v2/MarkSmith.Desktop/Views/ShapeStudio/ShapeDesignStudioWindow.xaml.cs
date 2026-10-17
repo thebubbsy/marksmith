@@ -6118,5 +6118,36 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateMultiSelectionAdorner();
             ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
         }
+
+        private double _currentStrokeDashOffset = 0.0;
+
+        private void OnSelectionCycleStrokeDashOffsetClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0)
+            {
+                ViewModel.StatusMessage = "No shapes to change dash offset.";
+                return;
+            }
+
+            ViewModel.RecordUndo();
+            var (nextOffset, label) = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.CycleStrokeDashOffset(_currentStrokeDashOffset);
+            _currentStrokeDashOffset = nextOffset;
+
+            int updatedCount = 0;
+            foreach (var s in sel)
+            {
+                if (_shapePaths.TryGetValue(s, out var path))
+                {
+                    path.StrokeDashOffset = nextOffset;
+                    updatedCount++;
+                }
+            }
+
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+            ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
+        }
     }
 }

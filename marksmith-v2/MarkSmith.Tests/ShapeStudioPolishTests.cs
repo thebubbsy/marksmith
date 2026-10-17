@@ -632,4 +632,29 @@ public class ShapeStudioPolishTests
         Assert.Equal("Corner radius: 8px (Medium rounded)", ShapeDesignStudioViewModel.FormatCornerRadiusSummary(8.0));
         Assert.Equal("Corner radius: 16px (Pill / Deeply rounded)", ShapeDesignStudioViewModel.FormatCornerRadiusSummary(16.0));
     }
+
+    [Fact]
+    public void Run141_CycleStrokeDashOffset_And_FormatStrokeDashOffsetSummary()
+    {
+        var (o1, l1) = ShapeDesignStudioViewModel.CycleStrokeDashOffset(0.0);
+        Assert.Equal(2.0, o1);
+        Assert.Contains("2.0", l1);
+
+        var (o2, l2) = ShapeDesignStudioViewModel.CycleStrokeDashOffset(o1);
+        Assert.Equal(4.0, o2);
+        Assert.Contains("4.0", l2);
+
+        var (o3, l3) = ShapeDesignStudioViewModel.CycleStrokeDashOffset(o2);
+        Assert.Equal(6.0, o3);
+        Assert.Contains("6.0", l3);
+
+        var (o4, l4) = ShapeDesignStudioViewModel.CycleStrokeDashOffset(o3);
+        Assert.Equal(0.0, o4);
+        Assert.Contains("0.0", l4);
+
+        Assert.Equal("Stroke dash offset: 0.0 (Zero / Aligned)", ShapeDesignStudioViewModel.FormatStrokeDashOffsetSummary(0.0));
+        Assert.Equal("Stroke dash offset: 2 (Phase 1)", ShapeDesignStudioViewModel.FormatStrokeDashOffsetSummary(2.0));
+        Assert.Equal("Stroke dash offset: 4 (Phase 2)", ShapeDesignStudioViewModel.FormatStrokeDashOffsetSummary(4.0));
+        Assert.Equal("Stroke dash offset: 6 (Phase 3)", ShapeDesignStudioViewModel.FormatStrokeDashOffsetSummary(6.0));
+    }
 }

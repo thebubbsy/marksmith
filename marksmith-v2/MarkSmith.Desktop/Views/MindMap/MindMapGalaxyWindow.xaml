@@ -323,6 +323,9 @@
                                     <MenuFlyoutItem x:Name="StepStrokeThicknessItem" Text="Cycle stroke thickness (1.0px / 1.8px / 2.8px / 4.0px)" Click="OnStepStrokeThicknessClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B2;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CycleLinkDirectionItem" Text="Cycle link arrow direction (→ / ↔ / ← / —)" Click="OnCycleLinkDirectionClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A7;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>

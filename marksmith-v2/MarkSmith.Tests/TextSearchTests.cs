@@ -437,4 +437,38 @@ public class TextSearchTests
         var noWords = TextSearch.FormatSearchMatchRate(3, 0, 0);
         Assert.Equal("3 matches (Word count unavailable)", noWords);
     }
+
+    [Fact]
+    public void Run141_ClusterSearchMatches_And_FormatSearchMatchHotspots()
+    {
+        var emptyClusters = TextSearch.ClusterSearchMatches(null);
+        Assert.Empty(emptyClusters);
+
+        var emptySummary = TextSearch.FormatSearchMatchHotspots(null);
+        Assert.Equal("0 matches (No clusters)", emptySummary);
+
+        // Dispersed matches
+        var dispersedOffsets = new[] { 100, 500, 1000 };
+        var dispersedClusters = TextSearch.ClusterSearchMatches(dispersedOffsets, clusterDistance: 200);
+        Assert.Equal(3, dispersedClusters.Count);
+        Assert.All(dispersedClusters, c => Assert.Equal(1, c.MatchCount));
+
+        var dispersedSummary = TextSearch.FormatSearchMatchHotspots(dispersedOffsets, clusterDistance: 200);
+        Assert.Equal("3 matches across 3 isolated locations (Evenly dispersed · 0 hotspots)", dispersedSummary);
+
+        // Clustered matches (hotspot)
+        var clusteredOffsets = new[] { 50, 70, 90, 600, 650 };
+        var clusters = TextSearch.ClusterSearchMatches(clusteredOffsets, clusterDistance: 100);
+        Assert.Equal(2, clusters.Count);
+        Assert.Equal(3, clusters[0].MatchCount);
+        Assert.Equal(50, clusters[0].StartOffset);
+        Assert.Equal(90, clusters[0].EndOffset);
+        Assert.Equal(2, clusters[1].MatchCount);
+        Assert.Equal(600, clusters[1].StartOffset);
+        Assert.Equal(650, clusters[1].EndOffset);
+
+        var clusteredSummary = TextSearch.FormatSearchMatchHotspots(clusteredOffsets, clusterDistance: 100, totalDocLength: 2000);
+        Assert.Contains("5 matches in 2 clusters (2 hotspots: 3 matches @ char 50–90, 2 matches @ char 600–650)", clusteredSummary);
+        Assert.Contains("(Doc len: 2,000 chars)", clusteredSummary);
+    }
 }

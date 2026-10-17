@@ -1207,5 +1207,69 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentSizeDistributionClick", suiteCs);
         Assert.Contains("FormatRecentSizeDistribution", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_FormatRecentDirectorySpread_ComputesAccurately()
+    {
+        var samplePaths = new[]
+        {
+            @"C:\Docs\Work\Project1\spec.md",
+            @"C:\Docs\Work\Project1\notes.md",
+            @"C:\Docs\Personal\todo.md"
+        };
+
+        var summary = RecentFilesService.FormatRecentDirectorySpread(samplePaths);
+        Assert.Contains("3 documents across 2 folders · Clustered", summary);
+        Assert.Contains("Primary: 'Project1' (2/3, 66.7%)", summary);
+
+        Assert.Equal("0 documents in recent history", RecentFilesService.FormatRecentDirectorySpread(null));
+        Assert.Equal("0 documents in recent history", RecentFilesService.FormatRecentDirectorySpread(Array.Empty<string>()));
+    }
+
+    [Fact]
+    public void Run141_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: matchHotspotsItem & FormatSearchMatchHotspots
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy search match hotspots & clustering", mainCs);
+        Assert.Contains("FormatSearchMatchHotspots", mainCs);
+
+        // 2. MindMapGalaxy: CycleLinkDirectionItem & OnCycleLinkDirectionClick
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("CycleLinkDirectionItem", galaxyXaml);
+        Assert.Contains("OnCycleLinkDirectionClick", galaxyXaml);
+        Assert.Contains("OnCycleLinkDirectionClick", galaxyCs);
+        Assert.Contains("CycleLinkDirection", galaxyCs);
+
+        // 3. ShapeStudio: SelectionCycleStrokeDashOffsetItem & OnSelectionCycleStrokeDashOffsetClick
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionCycleStrokeDashOffsetItem", shapeXaml);
+        Assert.Contains("OnSelectionCycleStrokeDashOffsetClick", shapeXaml);
+        Assert.Contains("OnSelectionCycleStrokeDashOffsetClick", shapeCs);
+        Assert.Contains("CycleStrokeDashOffset", shapeCs);
+
+        // 4. SmartArtStudio: OutlineDepthDistributionItem & OnAuditOutlineDepthDistributionClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineDepthDistributionItem", smartArtXaml);
+        Assert.Contains("OnAuditOutlineDepthDistributionClick", smartArtXaml);
+        Assert.Contains("OnAuditOutlineDepthDistributionClick", smartArtCs);
+        Assert.Contains("FormatOutlineDepthDistributionSummary", smartArtCs);
+
+        // 5. HistoryWindow: copyEntropy item & FormatVersionEditEntropy
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy edit dispersion & entropy index", historyCs);
+        Assert.Contains("FormatVersionEditEntropy", historyCs);
+
+        // 6. SuiteHub: CopyRecentDirectorySpreadItem & OnCopyRecentDirectorySpreadClick
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentDirectorySpreadItem", suiteXaml);
+        Assert.Contains("OnCopyRecentDirectorySpreadClick", suiteXaml);
+        Assert.Contains("OnCopyRecentDirectorySpreadClick", suiteCs);
+        Assert.Contains("FormatRecentDirectorySpread", suiteCs);
+    }
 }
 

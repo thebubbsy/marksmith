@@ -3418,4 +3418,26 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         if (cornerRadius <= 8.0) return $"Corner radius: {cornerRadius:0.#}px (Medium rounded)";
         return $"Corner radius: {cornerRadius:0.#}px (Pill / Deeply rounded)";
     }
+
+    /// <summary>
+    /// Cycles shape stroke dash offset / phase (0.0 -> 2.0 -> 4.0 -> 6.0 -> 0.0) and returns the next offset and display label.
+    /// </summary>
+    public static (double NextOffset, string Label) CycleStrokeDashOffset(double currentOffset)
+    {
+        if (currentOffset < 1.0) return (2.0, "Dash offset: 2.0 (Phase 1)");
+        if (currentOffset < 3.0) return (4.0, "Dash offset: 4.0 (Phase 2)");
+        if (currentOffset < 5.0) return (6.0, "Dash offset: 6.0 (Phase 3)");
+        return (0.0, "Dash offset: 0.0 (Aligned / Zero)");
+    }
+
+    /// <summary>
+    /// Formats a human-readable stroke dash offset and phase summary for inspector and status readout.
+    /// </summary>
+    public static string FormatStrokeDashOffsetSummary(double dashOffset)
+    {
+        if (dashOffset <= 0.0) return "Stroke dash offset: 0.0 (Zero / Aligned)";
+        if (dashOffset <= 2.0) return $"Stroke dash offset: {dashOffset:0.#} (Phase 1)";
+        if (dashOffset <= 4.0) return $"Stroke dash offset: {dashOffset:0.#} (Phase 2)";
+        return $"Stroke dash offset: {dashOffset:0.#} (Phase 3)";
+    }
 }

@@ -4583,6 +4583,21 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnAuditOutlineDepthDistributionClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            var summary = SmartArtDesignStudioViewModel.FormatOutlineDepthDistributionSummary(markdown);
+            try
+            {
+                Services.ClipboardWriter.TrySetTextAsync(summary);
+                ViewModel.StatusMessage = $"✓ Copied depth audit: {summary}";
+            }
+            catch
+            {
+                ViewModel.StatusMessage = summary;
+            }
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

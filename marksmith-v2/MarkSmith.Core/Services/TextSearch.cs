@@ -453,5 +453,74 @@ public static class TextSearch
 
         return $"{matchLabel} across {totalWordCount:N0} words ({densityPct:0.00}% density · {freqStr})";
     }
+
+    /// <summary>
+    /// Represents a cluster / hotspot of search matches within a document.
+    /// </summary>
+    public sealed record SearchMatchCluster(int StartOffset, int EndOffset, int MatchCount);
+
+    /// <summary>
+    /// Groups match character offsets into clusters where adjacent matches are separated by no more than <paramref name="clusterDistance"/> characters.
+    /// </summary>
+    public static List<SearchMatchCluster> ClusterSearchMatches(IEnumerable<int>? matchOffsets, int clusterDistance = 200)
+    {
+        var clusters = new List<SearchMatchCluster>();
+        if (matchOffsets == null) return clusters;
+
+        var sorted = matchOffsets.OrderBy(o => o).ToList();
+        if (sorted.Count == 0) return clusters;
+
+        int currentStart = sorted[0];
+        int currentEnd = sorted[0];
+        int currentCount = 1;
+
+        for (int i = 1; i < sorted.Count; i++)
+        {
+            int offset = sorted[i];
+            if (offset - currentEnd <= clusterDistance)
+            {
+                currentEnd = offset;
+                currentCount++;
+            }
+            else
+            {
+                clusters.Add(new SearchMatchCluster(currentStart, currentEnd, currentCount));
+                currentStart = offset;
+                currentEnd = offset;
+                currentCount = 1;
+            }
+        }
+
+        clusters.Add(new SearchMatchCluster(currentStart, currentEnd, currentCount));
+        return clusters;
+    }
+
+    /// <summary>
+    /// Formats a search match clustering and hotspots summary detailing match concentration and document dispersion.
+    /// </summary>
+    public static string FormatSearchMatchHotspots(IEnumerable<int>? matchOffsets, int clusterDistance = 200, int totalDocLength = 0)
+    {
+        var clusters = ClusterSearchMatches(matchOffsets, clusterDistance);
+        if (clusters.Count == 0) return "0 matches (No clusters)";
+
+        int totalMatches = clusters.Sum(c => c.MatchCount);
+        string matchLabel = totalMatches == 1 ? "1 match" : $"{totalMatches} matches";
+
+        var hotspots = clusters.Where(c => c.MatchCount >= 2).OrderByDescending(c => c.MatchCount).ToList();
+        if (hotspots.Count == 0)
+        {
+            return $"{matchLabel} across {clusters.Count} isolated locations (Evenly dispersed · 0 hotspots)";
+        }
+
+        var hotspotPreviews = hotspots.Take(3).Select(h => $"{h.MatchCount} matches @ char {h.StartOffset}–{h.EndOffset}");
+        string hotspotList = string.Join(", ", hotspotPreviews);
+        if (hotspots.Count > 3) hotspotList += ", …";
+
+        string clusterLabel = clusters.Count == 1 ? "1 cluster" : $"{clusters.Count} clusters";
+        string hotspotSummary = hotspots.Count == 1 ? "1 hotspot" : $"{hotspots.Count} hotspots";
+
+        string docSpan = totalDocLength > 0 ? $" (Doc len: {totalDocLength:N0} chars)" : "";
+        return $"{matchLabel} in {clusterLabel} ({hotspotSummary}: {hotspotList}){docSpan}";
+    }
 }
 

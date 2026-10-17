@@ -4154,6 +4154,35 @@ namespace MarkSmith.Views.MindMap
             RequestRedraw(RedrawScope.Appearance);
         }
 
+        private void OnCycleLinkDirectionClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SelectedLink != null)
+            {
+                var cur = ViewModel.SelectedLink.Direction;
+                var (next, label) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.CycleLinkDirection(cur);
+                ViewModel.PushUndo("Cycle link direction");
+                ViewModel.SelectedLink.Direction = next;
+                ViewModel.SelectedLink.SyncToModel();
+                ViewModel.StatusMessage = $"Selected link: {label}";
+                if (ConnectionStyleDropDownButton != null)
+                {
+                    CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");
+                }
+                RequestRedraw(RedrawScope.Appearance);
+            }
+            else
+            {
+                var (show, label) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.ToggleArrowheads(_showConnectionArrows);
+                _showConnectionArrows = show;
+                ViewModel.StatusMessage = $"All connections: {label}";
+                if (ConnectionStyleDropDownButton != null)
+                {
+                    CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");
+                }
+                RequestRedraw(RedrawScope.Geometry | RedrawScope.Appearance);
+            }
+        }
+
         private void OnCycleAnchorPositionClick(object sender, RoutedEventArgs e)
         {
             var (next, label) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.CycleAnchorPosition(_connectionAnchorPosition);
