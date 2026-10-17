@@ -798,6 +798,34 @@ public class HistoryPolishTests : IDisposable
         var asymmetric = LineDiff.FormatVersionEditEntropy(95, 5);
         Assert.Contains("Localized / Asymmetric", asymmetric);
     }
+
+    [Fact]
+    public void Run142_AuditDiffHunks_And_FormatDiffHunkSummary()
+    {
+        var zero = LineDiff.FormatDiffHunkSummary("", "");
+        Assert.Equal("Edit distribution: 0 edit hunks (Identical versions · 0 lines changed)", zero);
+
+        var before = "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10";
+        var after = "line 1\nline 2 MOD\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8 NEW\nline 8 NEW2\nline 9\nline 10";
+
+        var hunks = LineDiff.AuditDiffHunks(before, after);
+        Assert.Equal(2, hunks.Count);
+        Assert.Equal(1, hunks[0].HunkIndex);
+        Assert.Equal(2, hunks[1].HunkIndex);
+
+        var summary = LineDiff.FormatDiffHunkSummary(before, after, totalDocumentLines: 10);
+        Assert.Contains("2 edit hunks", summary);
+        Assert.Contains("Concentrated refactor", summary);
+        Assert.Contains("Largest hunk:", summary);
+
+        // Pre-aggregated metrics overload
+        var preAgg = LineDiff.FormatDiffHunkSummary(3, 15, 5, totalDocumentLines: 100, largestHunk: 10);
+        Assert.Contains("3 edit hunks (+15/-5 lines · Concentrated refactor)", preAgg);
+        Assert.Contains("Largest hunk: ~10 lines", preAgg);
+        Assert.Contains("Avg: 6.7 lines", preAgg);
+        Assert.Contains("20% doc impact", preAgg);
+    }
 }
+
 
 

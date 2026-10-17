@@ -3070,6 +3070,20 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied edit entropy: {entropySummary}");
                 };
                 menu.Items.Add(copyEntropy);
+
+                var hunksList = GetChangeHunkIndices();
+                var hunksSummary = MarkSmith.Services.LineDiff.FormatDiffHunkSummary(hunksList.Count, sel.LinesAdded, sel.LinesRemoved);
+                var copyHunks = new MenuFlyoutItem
+                {
+                    Text = "Copy edit hunk distribution & dispersion",
+                    Icon = new FontIcon { Glyph = "\uE8A9" }
+                };
+                copyHunks.Click += (_, _) =>
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(hunksSummary);
+                    _vm.ShowNotice($"Copied edit distribution: {hunksSummary}");
+                };
+                menu.Items.Add(copyHunks);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

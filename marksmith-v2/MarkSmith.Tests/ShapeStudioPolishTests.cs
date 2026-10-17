@@ -657,4 +657,47 @@ public class ShapeStudioPolishTests
         Assert.Equal("Stroke dash offset: 4 (Phase 2)", ShapeDesignStudioViewModel.FormatStrokeDashOffsetSummary(4.0));
         Assert.Equal("Stroke dash offset: 6 (Phase 3)", ShapeDesignStudioViewModel.FormatStrokeDashOffsetSummary(6.0));
     }
+
+    [Fact]
+    public async Task Run142_ReverseSelectedZOrder_And_FormatZOrderSummary()
+    {
+        Assert.Equal("Layer stack: 0 shapes (Empty canvas)", ShapeDesignStudioViewModel.FormatZOrderSummary(null));
+        Assert.Equal("Layer stack: 0 shapes (Empty canvas)", ShapeDesignStudioViewModel.FormatZOrderSummary(Array.Empty<ShapeCanvasItemViewModel>()));
+
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+        vm.AddShapeAt("rect", 10, 10, 100, 100, "FF0000", "Shape A");
+        vm.AddShapeAt("ellipse", 50, 50, 100, 100, "00FF00", "Shape B");
+        vm.AddShapeAt("roundrect", 90, 90, 100, 100, "0000FF", "Shape C");
+
+        Assert.Equal(3, vm.Shapes.Count);
+        Assert.Equal("Shape A", vm.Shapes[0].Text);
+        Assert.Equal("Shape B", vm.Shapes[1].Text);
+        Assert.Equal("Shape C", vm.Shapes[2].Text);
+
+        var sum1 = ShapeDesignStudioViewModel.FormatZOrderSummary(vm.Shapes);
+        Assert.Contains("3 shapes", sum1);
+        Assert.Contains("0 selected", sum1);
+
+        // Select Shape A and Shape C (indices 0 and 2)
+        vm.Shapes[0].IsSelected = true;
+        vm.Shapes[2].IsSelected = true;
+
+        var sum2 = ShapeDesignStudioViewModel.FormatZOrderSummary(vm.Shapes, vm.Shapes.Where(s => s.IsSelected));
+        Assert.Contains("2 selected shapes @ layer [1, 3]", sum2);
+
+        // Reverse selected items (0 and 2 swap, 1 stays)
+        vm.ReverseSelectedZOrder();
+        Assert.Equal("Shape C", vm.Shapes[0].Text);
+        Assert.Equal("Shape B", vm.Shapes[1].Text);
+        Assert.Equal("Shape A", vm.Shapes[2].Text);
+
+        // Undo restores original order
+        Assert.True(vm.CanUndo);
+        await vm.UndoAsync();
+        Assert.Equal("Shape A", vm.Shapes[0].Text);
+        Assert.Equal("Shape B", vm.Shapes[1].Text);
+        Assert.Equal("Shape C", vm.Shapes[2].Text);
+    }
 }
+

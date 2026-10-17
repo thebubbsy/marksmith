@@ -4598,6 +4598,22 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnReverseHierarchyOutlineClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            var (reversed, blockCount, lineCount) = SmartArtDesignStudioViewModel.ReverseOutlineHierarchically(markdown);
+            if (blockCount <= 1)
+            {
+                ViewModel.StatusMessage = "At least 2 top-level outline blocks required to reverse.";
+                return;
+            }
+            ViewModel.PushUndo();
+            ViewModel.MarkdownText = reversed;
+            var summary = SmartArtDesignStudioViewModel.FormatHierarchyReverseSummary(blockCount, lineCount);
+            Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = $"✓ {summary}";
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

@@ -3849,6 +3849,16 @@ namespace MarkSmith.Views.MindMap
 
         private void OnFitToWindowClick(object sender, RoutedEventArgs e) => FitToWindow();
 
+        private void OnAutoColorizeHierarchyClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (nodeCount, maxDepth, distinctColors) = ViewModel.AutoColorizeByHierarchy();
+            var summary = MindMapStudioViewModel.FormatHierarchyColorSummary(nodeCount, maxDepth, distinctColors);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = summary;
+            RequestRedraw();
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
         private void OnCenterOnRootDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -4599,6 +4609,14 @@ namespace MarkSmith.Views.MindMap
             menu.Items.Add(forceItem);
 
             menu.Items.Add(new MenuFlyoutSeparator());
+
+            var autoColorItem = new MenuFlyoutItem
+            {
+                Text = "Auto-colorize nodes by hierarchy depth",
+                Icon = new FontIcon { Glyph = "\uE790" }
+            };
+            autoColorItem.Click += OnAutoColorizeHierarchyClick;
+            menu.Items.Add(autoColorItem);
 
             var fitItem = new MenuFlyoutItem
             {

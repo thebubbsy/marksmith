@@ -524,4 +524,122 @@ public static class LineDiff
 
         return $"Edit entropy: {entropy:0.00} (+{linesAdded}/-{linesRemoved} lines · {classification}){impact}";
     }
+
+    /// <summary>
+    /// Represents an edit hunk cluster (island of contiguous line additions and removals) between two texts.
+    /// </summary>
+    public sealed record EditHunkCluster(int HunkIndex, int StartLineBefore, int StartLineAfter, int AddedCount, int RemovedCount, int TotalChangedLines);
+
+    /// <summary>
+    /// Identifies all discrete edit hunks between before and after text versions.
+    /// </summary>
+    public static List<EditHunkCluster> AuditDiffHunks(string before, string after, int hunkContextSeparation = 2)
+    {
+        var hunks = new List<EditHunkCluster>();
+        var diff = Diff(before, after);
+        if (diff.Count == 0) return hunks;
+
+        int currentAdded = 0;
+        int currentRemoved = 0;
+        int hunkStartBefore = -1;
+        int hunkStartAfter = -1;
+        int unchangedStreak = 0;
+
+        foreach (var line in diff)
+        {
+            if (line.Kind == Kind.Same)
+            {
+                if (currentAdded > 0 || currentRemoved > 0)
+                {
+                    unchangedStreak++;
+                    if (unchangedStreak >= hunkContextSeparation)
+                    {
+                        hunks.Add(new EditHunkCluster(hunks.Count + 1, hunkStartBefore, hunkStartAfter, currentAdded, currentRemoved, currentAdded + currentRemoved));
+                        currentAdded = 0;
+                        currentRemoved = 0;
+                        hunkStartBefore = -1;
+                        hunkStartAfter = -1;
+                        unchangedStreak = 0;
+                    }
+                }
+            }
+            else
+            {
+                if (currentAdded == 0 && currentRemoved == 0)
+                {
+                    hunkStartBefore = line.OldNumber ?? 1;
+                    hunkStartAfter = line.NewNumber ?? 1;
+                }
+                unchangedStreak = 0;
+                if (line.Kind == Kind.Added) currentAdded++;
+                else if (line.Kind == Kind.Removed) currentRemoved++;
+            }
+        }
+
+        if (currentAdded > 0 || currentRemoved > 0)
+        {
+            hunks.Add(new EditHunkCluster(hunks.Count + 1, hunkStartBefore, hunkStartAfter, currentAdded, currentRemoved, currentAdded + currentRemoved));
+        }
+
+        return hunks;
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of edit hunks, largest change cluster, and document churn dispersion.
+    /// </summary>
+    public static string FormatDiffHunkSummary(string before, string after, int totalDocumentLines = 0)
+    {
+        var hunks = AuditDiffHunks(before, after);
+        if (hunks.Count == 0) return "Edit distribution: 0 edit hunks (Identical versions · 0 lines changed)";
+
+        int totalAdded = hunks.Sum(h => h.AddedCount);
+        int totalRemoved = hunks.Sum(h => h.RemovedCount);
+        int totalChanged = totalAdded + totalRemoved;
+
+        var largestHunk = hunks.OrderByDescending(h => h.TotalChangedLines).First();
+        double avgHunkSize = (double)totalChanged / hunks.Count;
+
+        string hunkLabel = hunks.Count == 1 ? "1 edit hunk" : $"{hunks.Count} edit hunks";
+        string dispersion = hunks.Count switch
+        {
+            1 => "Single localized block",
+            <= 3 => "Concentrated refactor",
+            _ => "Dispersed churn across document"
+        };
+
+        string docImpact = totalDocumentLines > 0
+            ? $" · {((double)totalChanged / totalDocumentLines * 100.0):0.#}% doc impact"
+            : "";
+
+        return $"Edit distribution: {hunkLabel} (+{totalAdded}/-{totalRemoved} lines · {dispersion}) · Largest hunk: {largestHunk.TotalChangedLines} lines @ line {largestHunk.StartLineAfter} · Avg: {avgHunkSize:0.#} lines{docImpact}";
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of edit hunks, largest change cluster, and document churn dispersion from pre-aggregated metrics.
+    /// </summary>
+    public static string FormatDiffHunkSummary(int hunkCount, int totalAdded, int totalRemoved, int totalDocumentLines = 0, int largestHunk = 0)
+    {
+        if (hunkCount <= 0 && totalAdded == 0 && totalRemoved == 0)
+            return "Edit distribution: 0 edit hunks (Identical versions · 0 lines changed)";
+
+        int totalChanged = totalAdded + totalRemoved;
+        int count = Math.Max(1, hunkCount);
+        double avgHunkSize = (double)totalChanged / count;
+        int maxHunk = largestHunk > 0 ? largestHunk : (int)Math.Ceiling(avgHunkSize);
+
+        string hunkLabel = count == 1 ? "1 edit hunk" : $"{count} edit hunks";
+        string dispersion = count switch
+        {
+            1 => "Single localized block",
+            <= 3 => "Concentrated refactor",
+            _ => "Dispersed churn across document"
+        };
+
+        string docImpact = totalDocumentLines > 0
+            ? $" · {((double)totalChanged / totalDocumentLines * 100.0):0.#}% doc impact"
+            : "";
+
+        return $"Edit distribution: {hunkLabel} (+{totalAdded}/-{totalRemoved} lines · {dispersion}) · Largest hunk: ~{maxHunk} lines · Avg: {avgHunkSize:0.#} lines{docImpact}";
+    }
 }
+

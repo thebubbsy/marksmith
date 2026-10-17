@@ -231,6 +231,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentDirectorySpreadItem" Text="Copy directory spread &amp; folder dispersion audit" Click="OnCopyRecentDirectorySpreadClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentNamingPatternsItem" Text="Copy file naming patterns &amp; casing audit" Click="OnCopyRecentNamingPatternsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

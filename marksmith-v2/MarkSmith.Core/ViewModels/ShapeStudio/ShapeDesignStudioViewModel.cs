@@ -3440,4 +3440,96 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         if (dashOffset <= 4.0) return $"Stroke dash offset: {dashOffset:0.#} (Phase 2)";
         return $"Stroke dash offset: {dashOffset:0.#} (Phase 3)";
     }
+
+    /// <summary>
+    /// Reverses the stacking (Z-order) of selected shapes, or of the entire canvas if fewer than two shapes are selected.
+    /// Preserves selection and records an undo snapshot.
+    /// </summary>
+    public void ReverseSelectedZOrder()
+    {
+        if (Shapes.Count < 2)
+        {
+            StatusMessage = "At least 2 shapes required to reverse layer stacking order.";
+            return;
+        }
+
+        var selected = SelectedItems.ToList();
+        RecordUndo();
+        var primary = SelectedShape;
+        _additiveSelect = true;
+
+        try
+        {
+            if (selected.Count >= 2)
+            {
+                var indices = selected.Select(s => Shapes.IndexOf(s)).Where(i => i >= 0).OrderBy(i => i).ToList();
+                var itemsReversed = indices.Select(i => Shapes[i]).Reverse().ToList();
+                for (int k = 0; k < indices.Count; k++)
+                {
+                    int targetIndex = indices[k];
+                    var item = itemsReversed[k];
+                    int currentIndex = Shapes.IndexOf(item);
+                    if (currentIndex != targetIndex)
+                    {
+                        Shapes.Move(currentIndex, targetIndex);
+                    }
+                }
+                foreach (var s in selected) s.IsSelected = true;
+                SelectedShape = primary;
+                StatusMessage = $"✓ Reversed layer stacking order for {selected.Count} selected shapes";
+            }
+            else
+            {
+                var reversedList = Shapes.Reverse().ToList();
+                Shapes.Clear();
+                foreach (var item in reversedList)
+                {
+                    Shapes.Add(item);
+                }
+                if (primary != null)
+                {
+                    primary.IsSelected = true;
+                    SelectedShape = primary;
+                }
+                StatusMessage = $"✓ Reversed canvas layer stacking order ({Shapes.Count} shapes flipped)";
+            }
+        }
+        finally
+        {
+            _additiveSelect = false;
+        }
+
+        RaiseSelectionChanged();
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Formats a human-readable audit of canvas layer Z-order stacking and selected item depths.
+    /// </summary>
+    public static string FormatZOrderSummary(IEnumerable<ShapeCanvasItemViewModel>? shapes, IEnumerable<ShapeCanvasItemViewModel>? selected = null)
+    {
+        if (shapes == null) return "Layer stack: 0 shapes (Empty canvas)";
+        var shapeList = shapes.ToList();
+        if (shapeList.Count == 0) return "Layer stack: 0 shapes (Empty canvas)";
+
+        string countLabel = shapeList.Count == 1 ? "1 shape" : $"{shapeList.Count} shapes";
+        string bottomName = shapeList[0].DisplayName;
+        string topName = shapeList[^1].DisplayName;
+
+        var selList = selected?.ToList() ?? new List<ShapeCanvasItemViewModel>();
+        string selSummary;
+        if (selList.Count == 0)
+        {
+            selSummary = "0 selected";
+        }
+        else
+        {
+            var indices = selList.Select(s => shapeList.IndexOf(s) + 1).Where(idx => idx > 0).OrderBy(idx => idx).ToList();
+            string idxStr = string.Join(", ", indices);
+            string selCountStr = selList.Count == 1 ? "1 selected shape" : $"{selList.Count} selected shapes";
+            selSummary = $"{selCountStr} @ layer [{idxStr}]";
+        }
+
+        return $"Layer stack: {countLabel} (Bottom: '{bottomName}', Top: '{topName}' · {selSummary})";
+    }
 }

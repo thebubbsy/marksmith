@@ -619,6 +619,9 @@
                                         <MenuFlyoutItem x:Name="SelectionCycleStrokeDashOffsetItem" Text="Cycle stroke dash offset (0 / 2 / 4 / 6)" Click="OnSelectionCycleStrokeDashOffsetClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B2;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionReverseZOrderItem" Text="Reverse layer stacking order (Flip Z-order)" Click="OnSelectionReverseZOrderClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

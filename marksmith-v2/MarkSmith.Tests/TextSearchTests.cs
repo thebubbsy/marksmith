@@ -471,4 +471,40 @@ public class TextSearchTests
         Assert.Contains("5 matches in 2 clusters (2 hotspots: 3 matches @ char 50–90, 2 matches @ char 600–650)", clusteredSummary);
         Assert.Contains("(Doc len: 2,000 chars)", clusteredSummary);
     }
+
+    [Fact]
+    public void Run142_ExtractRegexCaptureGroups_And_FormatRegexCaptureGroupsSummary()
+    {
+        // Empty text and query
+        Assert.Empty(TextSearch.ExtractRegexCaptureGroups("", @"\w+"));
+        Assert.Equal("Regex capture groups: (No query specified)", TextSearch.FormatRegexCaptureGroupsSummary("text", ""));
+        Assert.Equal("Regex capture groups for '\\w+': (Document is empty)", TextSearch.FormatRegexCaptureGroupsSummary("", @"\w+"));
+
+        // Non-grouping regex
+        var text1 = "Item doc1 and doc2 and doc3";
+        var caps1 = TextSearch.ExtractRegexCaptureGroups(text1, @"doc\d+");
+        Assert.Equal(3, caps1.Count);
+        Assert.Empty(caps1[0].Groups);
+        var sum1 = TextSearch.FormatRegexCaptureGroupsSummary(text1, @"doc\d+");
+        Assert.Contains("0 capturing groups", sum1);
+        Assert.Contains("\"doc1\" @ char 5", sum1);
+
+        // Named and numbered capture groups
+        var text2 = "user: 101; admin: 202; guest: 303";
+        var pattern2 = @"(?<role>\w+):\s*(?<id>\d+)";
+        var caps2 = TextSearch.ExtractRegexCaptureGroups(text2, pattern2, maxMatches: 2);
+        Assert.Equal(2, caps2.Count);
+        Assert.Equal("user: 101", caps2[0].Value);
+        Assert.Equal(2, caps2[0].Groups.Count);
+        Assert.Equal("role", caps2[0].Groups[0].GroupName);
+        Assert.Equal("user", caps2[0].Groups[0].Value);
+        Assert.Equal("id", caps2[0].Groups[1].GroupName);
+        Assert.Equal("101", caps2[0].Groups[1].Value);
+
+        var sum2 = TextSearch.FormatRegexCaptureGroupsSummary(text2, pattern2, maxMatches: 2);
+        Assert.Contains("2 matches, 4 captured tokens", sum2);
+        Assert.Contains("[role]=\"user\"", sum2);
+        Assert.Contains("[id]=\"101\"", sum2);
+    }
 }
+

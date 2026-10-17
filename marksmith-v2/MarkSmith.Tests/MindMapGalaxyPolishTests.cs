@@ -1378,5 +1378,29 @@ namespace MarkSmith.Tests
             Assert.Equal("Arrow direction: Mutual (Bidirectional ↔)", MindMapStudioViewModel.FormatLinkDirectionSummary(MindMapLinkDirection.Bidirectional));
             Assert.Equal("Arrow direction: Undirected (Plain line —)", MindMapStudioViewModel.FormatLinkDirectionSummary(MindMapLinkDirection.None));
         }
+
+        [Fact]
+        public void Run142_AutoColorizeByHierarchy_And_FormatHierarchyColorSummary()
+        {
+            var vm = new MindMapStudioViewModel();
+            // Tutorial galaxy has multiple nodes
+            var (nodeCount, maxDepth, distinctColors) = vm.AutoColorizeByHierarchy();
+            Assert.True(nodeCount > 0);
+            Assert.True(maxDepth >= 1);
+            Assert.True(distinctColors >= 2);
+
+            var summary = MindMapStudioViewModel.FormatHierarchyColorSummary(nodeCount, maxDepth, distinctColors);
+            Assert.Contains($"{nodeCount} nodes across", summary);
+            Assert.Contains($"{distinctColors} distinct colors applied", summary);
+
+            // Undo test
+            Assert.True(vm.CanUndo);
+            vm.Undo();
+
+            // Empty summary formatting
+            Assert.Equal("Auto-colorize: 0 nodes (Empty map)", MindMapStudioViewModel.FormatHierarchyColorSummary(0, 0, 0));
+            Assert.Equal("Auto-colorized 1 node across 1 level (Flat) (1 color applied)", MindMapStudioViewModel.FormatHierarchyColorSummary(1, 0, 1));
+        }
     }
 }
+

@@ -2374,5 +2374,117 @@ namespace MarkSmith.ViewModels.MindMap
                 _ => "Arrow direction: Undirected (Plain line —)"
             };
         }
+
+        /// <summary>
+        /// Traverses the mind map graph hierarchy using BFS from root nodes (or unvisited component heads)
+        /// and assigns palette colors by depth level. Returns the number of colorized nodes, maximum hierarchy depth,
+        /// and count of distinct colors applied.
+        /// </summary>
+        public (int NodeCount, int MaxDepth, int DistinctColors) AutoColorizeByHierarchy(IReadOnlyList<string>? customPalette = null)
+        {
+            if (Nodes.Count == 0) return (0, 0, 0);
+
+            var palette = customPalette != null && customPalette.Count > 0 ? customPalette : PaletteColors;
+            PushUndo("Auto-colorize by hierarchy");
+
+            var inDegree = new Dictionary<string, int>(StringComparer.Ordinal);
+            var adj = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (var n in Nodes)
+            {
+                inDegree[n.Id] = 0;
+                adj[n.Id] = new List<string>();
+            }
+
+            foreach (var l in Links)
+            {
+                if (inDegree.ContainsKey(l.TargetNodeId)) inDegree[l.TargetNodeId]++;
+                if (adj.ContainsKey(l.SourceNodeId)) adj[l.SourceNodeId].Add(l.TargetNodeId);
+            }
+
+            var depths = new Dictionary<string, int>(StringComparer.Ordinal);
+            var queue = new Queue<string>();
+
+            var roots = Nodes.Where(n => inDegree[n.Id] == 0).ToList();
+            if (roots.Count == 0)
+            {
+                roots = Nodes.OrderByDescending(n => adj[n.Id].Count).Take(1).ToList();
+            }
+
+            foreach (var r in roots)
+            {
+                if (!depths.ContainsKey(r.Id))
+                {
+                    depths[r.Id] = 0;
+                    queue.Enqueue(r.Id);
+                }
+            }
+
+            while (queue.Count > 0)
+            {
+                var curId = queue.Dequeue();
+                int curDepth = depths[curId];
+
+                foreach (var childId in adj[curId])
+                {
+                    if (!depths.TryGetValue(childId, out int existingDepth) || curDepth + 1 < existingDepth)
+                    {
+                        depths[childId] = curDepth + 1;
+                        queue.Enqueue(childId);
+                    }
+                }
+            }
+
+            foreach (var n in Nodes)
+            {
+                if (!depths.ContainsKey(n.Id))
+                {
+                    depths[n.Id] = 0;
+                    queue.Enqueue(n.Id);
+                    while (queue.Count > 0)
+                    {
+                        var curId = queue.Dequeue();
+                        int curDepth = depths[curId];
+                        foreach (var childId in adj[curId])
+                        {
+                            if (!depths.TryGetValue(childId, out int existingDepth) || curDepth + 1 < existingDepth)
+                            {
+                                depths[childId] = curDepth + 1;
+                                queue.Enqueue(childId);
+                            }
+                        }
+                    }
+                }
+            }
+
+            var appliedColors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int maxDepth = 0;
+
+            foreach (var n in Nodes)
+            {
+                int depth = depths.TryGetValue(n.Id, out int d) ? d : 0;
+                if (depth > maxDepth) maxDepth = depth;
+                string color = palette[depth % palette.Count];
+                n.ColorHex = MindMapGraph.NormalizeHex(color, n.ColorHex);
+                appliedColors.Add(n.ColorHex);
+            }
+
+            IsDirty = true;
+            CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+            StatusMessage = FormatHierarchyColorSummary(Nodes.Count, maxDepth, appliedColors.Count);
+            return (Nodes.Count, maxDepth, appliedColors.Count);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of hierarchy level colorization.
+        /// </summary>
+        public static string FormatHierarchyColorSummary(int nodeCount, int maxDepth, int distinctColors)
+        {
+            if (nodeCount == 0) return "Auto-colorize: 0 nodes (Empty map)";
+            string nodeLabel = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+            int levels = maxDepth + 1;
+            string levelLabel = levels == 1 ? "1 level (Flat)" : $"{levels} levels (Depth 0–{maxDepth})";
+            string colorLabel = distinctColors == 1 ? "1 color" : $"{distinctColors} distinct colors";
+            return $"Auto-colorized {nodeLabel} across {levelLabel} ({colorLabel} applied)";
+        }
     }
 }

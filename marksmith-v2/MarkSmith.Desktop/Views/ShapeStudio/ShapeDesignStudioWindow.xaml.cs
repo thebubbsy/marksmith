@@ -6149,5 +6149,16 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateMultiSelectionAdorner();
             ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
         }
+
+        private void OnSelectionReverseZOrderClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            ViewModel.ReverseSelectedZOrder();
+            var summary = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.FormatZOrderSummary(ViewModel.Shapes, ViewModel.Shapes.Where(s => s.IsSelected));
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
     }
 }
+

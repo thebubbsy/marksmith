@@ -236,6 +236,10 @@
                                     <MenuFlyoutItem Text="Force-directed web" Click="OnLayoutForceClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEC26;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem x:Name="AutoColorizeHierarchyItem" Text="Auto-colorize nodes by hierarchy depth" Click="OnAutoColorizeHierarchyClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>

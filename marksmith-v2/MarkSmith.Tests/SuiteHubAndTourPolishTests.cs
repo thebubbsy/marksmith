@@ -1271,5 +1271,77 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentDirectorySpreadClick", suiteCs);
         Assert.Contains("FormatRecentDirectorySpread", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_FormatRecentFileNamingPatterns_ComputesAccurately()
+    {
+        Assert.Equal("Naming patterns: 0 documents (No recent files)", RecentFilesService.FormatRecentFileNamingPatterns(null));
+        Assert.Equal("Naming patterns: 0 documents (No recent files)", RecentFilesService.FormatRecentFileNamingPatterns(Array.Empty<string>()));
+
+        var samplePaths = new[]
+        {
+            @"C:\docs\2026-10-17-meeting-notes.md",
+            @"C:\docs\2026-10-16-daily-standup.md",
+            @"C:\projects\system-architecture.md",
+            @"C:\projects\user-guide.markdown",
+            @"C:\projects\data_pipeline.py",
+            @"C:\projects\AppLauncher.cs"
+        };
+
+        var summary = RecentFilesService.FormatRecentFileNamingPatterns(samplePaths);
+        Assert.Contains("6 documents", summary);
+        Assert.Contains("date-prefixed", summary);
+        Assert.Contains("kebab-case", summary);
+        Assert.Contains("snake_case", summary);
+        Assert.Contains("Pascal/camelCase", summary);
+        Assert.Contains(".md", summary);
+    }
+
+    [Fact]
+    public void Run142_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: copyCaptureGroupsItem & FormatRegexCaptureGroupsSummary
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy regex capture groups & token matches", mainCs);
+        Assert.Contains("FormatRegexCaptureGroupsSummary", mainCs);
+
+        // 2. MindMapGalaxy: AutoColorizeHierarchyItem & OnAutoColorizeHierarchyClick
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AutoColorizeHierarchyItem", galaxyXaml);
+        Assert.Contains("OnAutoColorizeHierarchyClick", galaxyXaml);
+        Assert.Contains("OnAutoColorizeHierarchyClick", galaxyCs);
+        Assert.Contains("AutoColorizeByHierarchy", galaxyCs);
+
+        // 3. ShapeStudio: SelectionReverseZOrderItem & OnSelectionReverseZOrderClick
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionReverseZOrderItem", shapeXaml);
+        Assert.Contains("OnSelectionReverseZOrderClick", shapeXaml);
+        Assert.Contains("OnSelectionReverseZOrderClick", shapeCs);
+        Assert.Contains("ReverseSelectedZOrder", shapeCs);
+
+        // 4. SmartArtStudio: ReverseHierarchyOutlineItem & OnReverseHierarchyOutlineClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("ReverseHierarchyOutlineItem", smartArtXaml);
+        Assert.Contains("OnReverseHierarchyOutlineClick", smartArtXaml);
+        Assert.Contains("OnReverseHierarchyOutlineClick", smartArtCs);
+        Assert.Contains("ReverseOutlineHierarchically", smartArtCs);
+
+        // 5. HistoryWindow: copyHunks item & FormatDiffHunkSummary
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy edit hunk distribution & dispersion", historyCs);
+        Assert.Contains("FormatDiffHunkSummary", historyCs);
+
+        // 6. SuiteHub: CopyRecentNamingPatternsItem & OnCopyRecentNamingPatternsClick
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentNamingPatternsItem", suiteXaml);
+        Assert.Contains("OnCopyRecentNamingPatternsClick", suiteXaml);
+        Assert.Contains("OnCopyRecentNamingPatternsClick", suiteCs);
+        Assert.Contains("FormatRecentFileNamingPatterns", suiteCs);
+    }
 }
+
 

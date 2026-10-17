@@ -1713,4 +1713,68 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string uniformityStr = isStepUniform ? "Uniform step hierarchy" : "Non-uniform indentation (contains skipped levels)";
         return $"Outline depth: {total} nodes (Max: L{maxDepth}, Avg: {avgDepth:0.#}) · [{levelsStr}] · {uniformityStr}";
     }
+
+    /// <summary>
+    /// Reverses the top-level blocks of an outline markdown string while preserving all child sub-bullets
+    /// under their respective parents in original order.
+    /// </summary>
+    public static (string ReversedMarkdown, int BlockCount, int TotalLineCount) ReverseOutlineHierarchically(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return (markdown ?? "", 0, 0);
+
+        bool hasCr = markdown.Contains("\r");
+        var normalized = markdown.Replace("\r", "");
+        var rawLines = normalized.Split('\n');
+        var blocks = new List<List<string>>();
+        List<string>? currentBlock = null;
+        int totalValidLines = 0;
+
+        foreach (var rawLine in rawLines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine))
+            {
+                if (currentBlock != null) currentBlock.Add(rawLine);
+                continue;
+            }
+
+            int leadWs = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t')) leadWs++;
+
+            bool isTopLevel = leadWs == 0 || currentBlock == null;
+            if (isTopLevel)
+            {
+                currentBlock = new List<string> { rawLine };
+                blocks.Add(currentBlock);
+            }
+            else
+            {
+                currentBlock.Add(rawLine);
+            }
+            totalValidLines++;
+        }
+
+        if (blocks.Count == 0) return (markdown, 0, 0);
+
+        blocks.Reverse();
+        var flattened = new List<string>();
+        foreach (var b in blocks)
+        {
+            flattened.AddRange(b);
+        }
+
+        var result = string.Join("\n", flattened);
+        return (hasCr ? result.Replace("\n", "\r\n") : result, blocks.Count, totalValidLines);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of hierarchical outline reversal.
+    /// </summary>
+    public static string FormatHierarchyReverseSummary(int blockCount, int totalLineCount)
+    {
+        if (blockCount == 0) return "Reversed outline: 0 blocks (Empty outline)";
+        string blockLabel = blockCount == 1 ? "1 top-level block" : $"{blockCount} top-level blocks";
+        string lineLabel = totalLineCount == 1 ? "1 line" : $"{totalLineCount} lines";
+        return $"Reversed {blockLabel} ({lineLabel} · Child subtrees preserved)";
+    }
 }
+

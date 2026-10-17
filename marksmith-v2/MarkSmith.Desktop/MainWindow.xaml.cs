@@ -8941,6 +8941,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(matchHotspotsItem);
 
+        var copyCaptureGroupsItem = new MenuFlyoutItem
+        {
+            Text = "Copy regex capture groups & token matches",
+            Icon = new FontIcon { Glyph = "\uE943" },
+            IsEnabled = !string.IsNullOrEmpty(FindTextBox?.Text) && _findMatches.Count > 0 && UseRegexCheck?.IsChecked == true
+        };
+        copyCaptureGroupsItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var pattern = FindTextBox?.Text ?? string.Empty;
+            var ignoreCase = FindComparison == StringComparison.OrdinalIgnoreCase;
+            var groupsStr = MarkSmith.Services.TextSearch.FormatRegexCaptureGroupsSummary(text, pattern, ignoreCase, maxMatches: 5);
+            _ = Services.ClipboardWriter.TrySetTextAsync(groupsStr);
+            AnnounceStatus($"Regex capture groups: {groupsStr}");
+        };
+        menu.Items.Add(copyCaptureGroupsItem);
+
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
         e.Handled = true;
     }

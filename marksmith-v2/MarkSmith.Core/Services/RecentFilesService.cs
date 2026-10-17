@@ -485,4 +485,103 @@ public sealed class RecentFilesService
 
         return $"Directory spread ({docLabel} across {folderLabel} · {spreadClassification}): Depth: Min {minDepth}, Max {maxDepth}, Avg {avgDepth:0.#} · {topSummary}";
     }
+
+    /// <summary>
+    /// Audits file naming conventions, casing patterns, and file extensions across recent document paths.
+    /// </summary>
+    public static string FormatRecentFileNamingPatterns(IEnumerable<string>? filePaths)
+    {
+        if (filePaths == null) return "Naming patterns: 0 documents (No recent files)";
+        var list = filePaths.Where(f => !string.IsNullOrWhiteSpace(f)).ToList();
+        if (list.Count == 0) return "Naming patterns: 0 documents (No recent files)";
+
+        int datePrefixed = 0;
+        int kebabCase = 0;
+        int snakeCase = 0;
+        int pascalOrCamel = 0;
+        int spaced = 0;
+        int other = 0;
+
+        var extCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var dateRx = new System.Text.RegularExpressions.Regex(@"^\d{4}[-_]\d{2}[-_]\d{2}", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromMilliseconds(50));
+
+        foreach (var path in list)
+        {
+            string nameWithoutExt;
+            string ext;
+            try
+            {
+                nameWithoutExt = Path.GetFileNameWithoutExtension(path) ?? "";
+                ext = Path.GetExtension(path)?.ToLowerInvariant() ?? "";
+            }
+            catch
+            {
+                nameWithoutExt = path;
+                ext = "";
+            }
+
+            if (string.IsNullOrEmpty(ext)) ext = "(none)";
+            extCounts[ext] = extCounts.TryGetValue(ext, out int ec) ? ec + 1 : 1;
+
+            if (string.IsNullOrEmpty(nameWithoutExt))
+            {
+                other++;
+                continue;
+            }
+
+            try
+            {
+                if (dateRx.IsMatch(nameWithoutExt))
+                {
+                    datePrefixed++;
+                }
+                else if (nameWithoutExt.Contains(' '))
+                {
+                    spaced++;
+                }
+                else if (nameWithoutExt.Contains('-') && !nameWithoutExt.Contains('_') && nameWithoutExt.ToLowerInvariant() == nameWithoutExt)
+                {
+                    kebabCase++;
+                }
+                else if (nameWithoutExt.Contains('_') && !nameWithoutExt.Contains('-') && nameWithoutExt.ToLowerInvariant() == nameWithoutExt)
+                {
+                    snakeCase++;
+                }
+                else if (!nameWithoutExt.Contains('-') && !nameWithoutExt.Contains('_') && nameWithoutExt.Any(char.IsUpper) && nameWithoutExt.Any(char.IsLower))
+                {
+                    pascalOrCamel++;
+                }
+                else
+                {
+                    other++;
+                }
+            }
+            catch
+            {
+                other++;
+            }
+        }
+
+        var patterns = new List<(string Name, int Tally)>
+        {
+            ("kebab-case", kebabCase),
+            ("date-prefixed", datePrefixed),
+            ("snake_case", snakeCase),
+            ("Pascal/camelCase", pascalOrCamel),
+            ("spaced title", spaced),
+            ("other", other)
+        }.Where(p => p.Tally > 0).OrderByDescending(p => p.Tally).ToList();
+
+        (string Name, int Tally) topPattern = patterns.Count > 0 ? patterns[0] : ("unspecified", 0);
+        double topPct = (double)topPattern.Tally / list.Count * 100.0;
+
+        var patternParts = patterns.Select(p => $"{p.Tally} {p.Name}");
+        string patternSummary = string.Join(", ", patternParts);
+
+        var topExts = extCounts.OrderByDescending(kv => kv.Value).Take(3).Select(kv => $"{kv.Value} {kv.Key}");
+        string extSummary = string.Join(", ", topExts);
+
+        string docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
+        return $"Naming patterns ({docLabel} · Dominant: {topPattern.Name} {topPct:0.#}%): {patternSummary} · Extensions: {extSummary}";
+    }
 }

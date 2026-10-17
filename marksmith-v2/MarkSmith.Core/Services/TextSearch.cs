@@ -522,5 +522,97 @@ public static class TextSearch
         string docSpan = totalDocLength > 0 ? $" (Doc len: {totalDocLength:N0} chars)" : "";
         return $"{matchLabel} in {clusterLabel} ({hotspotSummary}: {hotspotList}){docSpan}";
     }
+
+    /// <summary>
+    /// Represents an extracted regex match with its captured groups (group index, group name, value).
+    /// </summary>
+    public sealed record RegexMatchCapture(int MatchIndex, int Offset, int Length, string Value, IReadOnlyList<(int GroupIndex, string GroupName, string Value)> Groups);
+
+    /// <summary>
+    /// Extracts captured groups for non-overlapping regex matches in text, up to <paramref name="maxMatches"/>.
+    /// </summary>
+    public static List<RegexMatchCapture> ExtractRegexCaptureGroups(string text, string pattern, bool ignoreCase = true, int maxMatches = 10)
+    {
+        var result = new List<RegexMatchCapture>();
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(pattern) || maxMatches <= 0) return result;
+
+        try
+        {
+            var options = ignoreCase
+                ? System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                : System.Text.RegularExpressions.RegexOptions.None;
+            var rx = new System.Text.RegularExpressions.Regex(pattern, options, TimeSpan.FromMilliseconds(250));
+            var groupNames = rx.GetGroupNames();
+            var matches = rx.Matches(text);
+
+            int count = 0;
+            foreach (System.Text.RegularExpressions.Match m in matches)
+            {
+                if (!m.Success || m.Length == 0) continue;
+
+                var groups = new List<(int, string, string)>();
+                for (int g = 1; g < m.Groups.Count; g++) // Group 0 is the entire match
+                {
+                    var grp = m.Groups[g];
+                    if (grp.Success)
+                    {
+                        string name = groupNames.Length > g ? groupNames[g] : g.ToString();
+                        groups.Add((g, name, grp.Value));
+                    }
+                }
+
+                result.Add(new RegexMatchCapture(count + 1, m.Index, m.Length, m.Value, groups));
+                count++;
+                if (count >= maxMatches) break;
+            }
+        }
+        catch (ArgumentException)
+        {
+            // Invalid regex query
+        }
+        catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
+        {
+            // Timeout returns whatever was accumulated
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of regex matches and their captured groups for inspection or clipboard export.
+    /// </summary>
+    public static string FormatRegexCaptureGroupsSummary(string text, string pattern, bool ignoreCase = true, int maxMatches = 5)
+    {
+        if (string.IsNullOrEmpty(pattern)) return "Regex capture groups: (No query specified)";
+        if (string.IsNullOrEmpty(text)) return $"Regex capture groups for '{pattern}': (Document is empty)";
+
+        var captures = ExtractRegexCaptureGroups(text, pattern, ignoreCase, maxMatches);
+        if (captures.Count == 0) return $"Regex capture groups for '{pattern}': 0 matches";
+
+        var sb = new StringBuilder();
+        int totalGroups = captures.Sum(c => c.Groups.Count);
+        string matchCountStr = captures.Count == 1 ? "1 match" : $"{captures.Count} matches";
+
+        if (totalGroups == 0)
+        {
+            sb.Append($"Regex matches for '{pattern}' ({matchCountStr}, 0 capturing groups): ");
+            var values = captures.Select(c => $"\"{c.Value}\" @ char {c.Offset}");
+            sb.Append(string.Join(", ", values));
+            return sb.ToString();
+        }
+
+        sb.AppendLine($"Regex capture groups for '{pattern}' ({matchCountStr}, {totalGroups} captured tokens):");
+        for (int i = 0; i < captures.Count; i++)
+        {
+            var c = captures[i];
+            sb.Append($"  Match {c.MatchIndex} (\"{c.Value}\" @ {c.Offset}): ");
+            var grpStrs = c.Groups.Select(g => g.GroupName == g.GroupIndex.ToString() ? $"[{g.GroupIndex}]=\"{g.Value}\"" : $"[{g.GroupName}]=\"{g.Value}\"");
+            sb.Append(string.Join(", ", grpStrs));
+            if (i < captures.Count - 1) sb.AppendLine();
+        }
+
+        return sb.ToString();
+    }
 }
+
 

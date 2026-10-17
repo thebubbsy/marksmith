@@ -10711,6 +10711,81 @@ Reviewed: the 2026-10-17 run #140 entry above. Followed the AI-Executable 3-Bloc
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 28564, responsive startup (`Alive=True Responding=True`), clean exit.
 
+### 2026-10-17 (scheduled routine run #142 — 3-Block Cycle + Execution Phase)
 
+Reviewed: the 2026-10-17 run #141 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
 
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #141:
+    * Target A: `MainWindow` find bar regex capture group extractor and token preview.
+    * Target B: `MindMapGalaxyWindow` node hierarchy level auto-colorizer palette applicator.
+  - Generated:
+    1. `MainWindow`: Search Query Regex Capture Group Extractor & Token Match Formatter (`TextSearch.ExtractRegexCaptureGroups(text, pattern, options)` extracting named and numbered capture groups across regex matches, and `TextSearch.FormatRegexCaptureGroupsSummary(text, pattern, options)` formatting match index, group names, captured spans, and frequency distributions; wired to `copyCaptureGroupsItem` "Copy regex capture groups & token breakdown" `\uE943` in `FindCountText` context menu with status feedback).
+    2. `MindMapGalaxyWindow`: Graph Hierarchy BFS Depth Auto-Colorizer & Summary Formatter (`MindMapStudioViewModel.AutoColorizeByHierarchy(palette)` running BFS traversal from root nodes/islands, applying distinct level-tiered colors across hierarchical tiers, `FormatHierarchyColorSummary(nodeLevels)`, and `AutoColorizeHierarchyItem` `\uE790` in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped` with undo tracking, redraw, and status toast).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.cs` with defensive empty/null checks, safe regex timeout handling, and formatted capture group spans. Mounted `copyCaptureGroupsItem` with icon `\uE943` in `MainWindow.xaml.cs`'s `FindCountText` context flyout, extracting active regex query groups, copying diagnostic summary to clipboard, and announcing status.
+    * For Idea 2: Implemented `AutoColorizeByHierarchy` (undo-safe via `RecordAction`) and `FormatHierarchyColorSummary` in `MindMapStudioViewModel.cs`. Mounted `AutoColorizeHierarchyItem` with icon `\uE790` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs`, wiring `OnAutoColorizeHierarchyClick` with node level assignment, button tick feedback, and canvas redraw.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Canvas Shape Layer Z-Order Inversion & Inspector Formatter (`ShapeDesignStudioViewModel.ReverseSelectedZOrder()` reversing z-index ordering among selected canvas shapes or entire shape layers, `FormatZOrderSummary()`, mounting `SelectionReverseZOrderItem` `\uE8CB` in `SelectionBoundsFlyout`, and wiring `OnSelectionReverseZOrderClick` with undo snapshot and canvas visual refresh).
+    4. `SmartArtDesignStudioWindow`: Hierarchical Outline Reversal with Preserved Subtrees & Formatter (`SmartArtDesignStudioViewModel.ReverseOutlineHierarchically(markdown)` inverting top-level and nested sibling order while preserving hierarchical parent-child relationships, `FormatHierarchyReverseSummary(markdown)`, and `ReverseHierarchyOutlineItem` `\uE8CB` in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionReverseZOrderItem` with icon `\uE8CB` in `SelectionBoundsFlyout` in `ShapeDesignStudioWindow.xaml`. Implemented `OnSelectionReverseZOrderClick` in `ShapeDesignStudioWindow.xaml.cs` executing `ReverseSelectedZOrder()`, recording undo snapshots, refreshing adorners and properties, and announcing status toast.
+    * For Idea 4: Mounted `ReverseHierarchyOutlineItem` with icon `\uE8CB` in `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`. Implemented `ReverseOutlineHierarchically` and `FormatHierarchyReverseSummary` in `SmartArtDesignStudioViewModel.cs` and wired `OnReverseHierarchyOutlineClick` in `SmartArtDesignStudioWindow.xaml.cs` updating editor text, copying diagnosis to clipboard, and announcing status toast.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `ExtractRegexCaptureGroups` handles named capture groups (`(?<name>...)`), numbered groups, multiple occurrences, and invalid regexes defensively without throwing unhandled exceptions.
+    * Verified `AutoColorizeByHierarchy` handles cyclic graphs and disconnected components via multi-root BFS traversal with visited-node tracking and undo-safe color restorations.
+  - Generated:
+    5. `HistoryWindow`: Document Edit Hunk Cluster Distribution & Dispersion Auditor (`LineDiff.AuditDiffHunks(lines, clusterThreshold)` grouping adjacent diff changes into cohesive edit hunks, `FormatDiffHunkSummary(hunks)` reporting hunk count, max hunk span, average hunk size, and line churn spread; wired to `copyHunks` "Copy diff hunk clustering & dispersion audit" `\uE8A9` in `TimelineHeaderBorder` context flyout).
+    6. `SuiteHubView`: Recent Documents File Naming Convention & Casing Style Auditor (`RecentFilesService.FormatRecentFileNamingPatterns(files)` classifying file naming styles across kebab-case, camelCase, PascalCase, snake_case, mixed, and date-prefixed formats; wired to `CopyRecentNamingPatternsItem` `\uE8C8` in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Implemented `EditHunkCluster`, `AuditDiffHunks`, and `FormatDiffHunkSummary` in `LineDiff.cs` handling empty diffs, consecutive additions/deletions, and multi-hunk clusters. Mounted `copyHunks` item with icon `\uE8A9` in `OnTimelineHeaderRightTapped` in `HistoryWindow.xaml.cs`.
+    * For Idea 6: Added `CopyRecentNamingPatternsItem` to `RecentDocsFlyout` in `SuiteHubView.xaml` with icon `\uE8C8`, implemented `RecentFilesService.FormatRecentFileNamingPatterns` in `RecentFilesService.cs`, and wired `OnCopyRecentNamingPatternsClick` in `SuiteHubView.xaml.cs` with button tick feedback on `RecentDocsActionBtn`.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `Run142_ExtractRegexCaptureGroups_And_FormatRegexCaptureGroupsSummary` (Passed).
+    * `MindMapGalaxyPolishTests.cs`: `Run142_AutoColorizeByHierarchy_And_FormatHierarchyColorSummary` (Passed).
+    * `ShapeStudioPolishTests.cs`: `Run142_ReverseSelectedZOrder_And_FormatZOrderSummary` (Passed).
+    * `SmartArtStudioPolishTests.cs`: `Run142_ReverseOutlineHierarchically_And_FormatHierarchyReverseSummary` (Passed).
+    * `HistoryPolishTests.cs`: `Run142_AuditDiffHunks_And_FormatDiffHunkSummary` (Passed).
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FormatRecentFileNamingPatterns_ComputesAccurately`, `Run142_Polish_Elements_Wired_Across_Surfaces` (Passed).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 23 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run142|RecentFilesService_FormatRecentFileNamingPatterns|CommandIconsTests"`: **55 passed, 0 failed (100% pass rate)**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj` (Full suite): **4,983 passed, 0 failed, 1 skipped (100% pass rate across 4,984 tests)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 12576, responsive startup (`Responding=True, WorkingSet=269.34MB`), clean exit.
+  - Carried forward ideas / next targets into Run #143:
+    * Target A: `MainWindow` find & replace token swap and case-preserving template interpolator.
+    * Target B: `MindMapGalaxyWindow` orphaned nodes cluster aggregator and magnetic attachment helper.
+    * Target C: `ShapeDesignStudioWindow` shape path point precision normalizer and sub-pixel snapping cleaner.
 
+**Shipped:**
+1. **`MainWindow` Find Bar Regex Capture Group Extractor & Token Match Formatter (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - `TextSearch.ExtractRegexCaptureGroups` and `TextSearch.FormatRegexCaptureGroupsSummary` extracting named and numbered regex capture groups, captured string values, character spans, and frequency distributions.
+   - `copyCaptureGroupsItem` ("Copy regex capture groups & token breakdown", `\uE943`) in `FindCountText` context flyout.
+2. **`MindMapGalaxyWindow` Graph Hierarchy BFS Depth Auto-Colorizer & Summary Formatter (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `MindMapStudioViewModel.AutoColorizeByHierarchy` and `MindMapStudioViewModel.FormatHierarchyColorSummary` running BFS traversal from root nodes/islands, applying distinct level-tiered colors across hierarchical tiers with undo tracking.
+   - `AutoColorizeHierarchyItem` (`\uE790`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped` with tick feedback and visual redraw.
+3. **`ShapeDesignStudioWindow` Canvas Shape Layer Z-Order Inversion & Inspector Formatter (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ShapeDesignStudioViewModel.ReverseSelectedZOrder` and `ShapeDesignStudioViewModel.FormatZOrderSummary` inverting layer Z-index ordering among selected canvas shapes or entire shape layers with undo recording.
+   - `SelectionReverseZOrderItem` (`\uE8CB`) in `SelectionBoundsFlyout` with undo recording and adorner refresh.
+4. **`SmartArtDesignStudioWindow` Hierarchical Outline Reversal with Preserved Subtrees (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `SmartArtDesignStudioViewModel.ReverseOutlineHierarchically` and `SmartArtDesignStudioViewModel.FormatHierarchyReverseSummary` inverting sibling order while preserving hierarchical parent-child relationships and formatting reversal diagnostics.
+   - `ReverseHierarchyOutlineItem` (`\uE8CB`) in `OutlineStatsFlyout` with clipboard export and editor text update.
+5. **`HistoryWindow` Document Edit Hunk Cluster Distribution & Dispersion Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.AuditDiffHunks` and `LineDiff.FormatDiffHunkSummary` grouping adjacent diff changes into edit hunks, reporting hunk counts, maximum hunk spans, average hunk sizes, and line churn spread.
+   - `copyHunks` item (`\uE8A9`) in `TimelineHeaderBorder` context menu.
+6. **`SuiteHubView` Recent Documents File Naming Convention & Casing Style Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.FormatRecentFileNamingPatterns` classifying file naming styles across kebab-case, camelCase, PascalCase, snake_case, mixed, and date-prefixed formats.
+   - `CopyRecentNamingPatternsItem` (`\uE8C8`) in `RecentDocsFlyout` with button tick feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 23 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run142|RecentFilesService_FormatRecentFileNamingPatterns|CommandIconsTests"`: **55 passed, 0 failed (100% pass rate)**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj` (Full suite): **4,983 passed, 0 failed, 1 skipped (100% pass rate across 4,984 tests)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 12576, responsive startup (`Responding=True, WorkingSet=269.34MB`), clean exit.

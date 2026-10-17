@@ -612,4 +612,23 @@ public class SmartArtStudioPolishTests
         var skippedSummary = SmartArtDesignStudioViewModel.FormatOutlineDepthDistributionSummary(skippedOutline);
         Assert.Contains("Non-uniform indentation (contains skipped levels)", skippedSummary);
     }
+
+    [Fact]
+    public void Run142_ReverseOutlineHierarchically_And_FormatHierarchyReverseSummary()
+    {
+        Assert.Equal(0, SmartArtDesignStudioViewModel.ReverseOutlineHierarchically(null).BlockCount);
+        Assert.Equal("Reversed outline: 0 blocks (Empty outline)", SmartArtDesignStudioViewModel.FormatHierarchyReverseSummary(0, 0));
+
+        var outline = "- Strategy\n  - Research\n  - Interviews\n- Execution\n  - Build\n  - Test";
+        var (reversed, blockCount, lineCount) = SmartArtDesignStudioViewModel.ReverseOutlineHierarchically(outline);
+
+        Assert.Equal(2, blockCount);
+        Assert.Equal(6, lineCount);
+        var expected = "- Execution\n  - Build\n  - Test\n- Strategy\n  - Research\n  - Interviews";
+        Assert.Equal(expected, reversed);
+
+        var summary = SmartArtDesignStudioViewModel.FormatHierarchyReverseSummary(blockCount, lineCount);
+        Assert.Equal("Reversed 2 top-level blocks (6 lines · Child subtrees preserved)", summary);
+    }
 }
+
