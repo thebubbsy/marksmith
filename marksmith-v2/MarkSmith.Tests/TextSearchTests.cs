@@ -362,4 +362,28 @@ public class TextSearchTests
         Assert.DoesNotContain("\n", multiSnippet);
         Assert.Contains("[[TARGET]]", multiSnippet);
     }
+
+    [Fact]
+    public void Run137_UnwrapMatchText_NormalizesWhitespaceAndNewlines()
+    {
+        Assert.Equal("", TextSearch.UnwrapMatchText(""));
+        Assert.Equal("", TextSearch.UnwrapMatchText("   \r\n\t  "));
+        Assert.Equal("hello world", TextSearch.UnwrapMatchText("hello   world"));
+        Assert.Equal("first line second line", TextSearch.UnwrapMatchText("first line\r\n   second line"));
+        Assert.Equal("a b c", TextSearch.UnwrapMatchText("\t a \n b \r\n c \t"));
+    }
+
+    [Fact]
+    public void Run137_FormatMatchLineContext_FormatsLineAndColumnContext()
+    {
+        var doc = "First header\nvar x = CalculateValue();\nThird line";
+        var calcOffset = doc.IndexOf("CalculateValue", StringComparison.Ordinal);
+        var ctx = TextSearch.FormatMatchLineContext(doc, calcOffset, "CalculateValue".Length);
+
+        Assert.Equal("L2 (Col 9): var x = CalculateValue();", ctx);
+
+        // Edge case: invalid bounds
+        Assert.Equal("No line context available", TextSearch.FormatMatchLineContext("", -1, 0));
+        Assert.Equal("No line context available", TextSearch.FormatMatchLineContext(doc, 9999, 5));
+    }
 }

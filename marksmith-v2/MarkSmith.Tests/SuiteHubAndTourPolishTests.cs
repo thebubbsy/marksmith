@@ -919,5 +919,78 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentExtensionBreakdownClick", suiteCs);
         Assert.Contains("FormatRecentExtensionBreakdown", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_FormatRecentDriveDistribution_GroupsDrivesCorrectly()
+    {
+        var samplePaths = new[]
+        {
+            @"C:\Users\Docs\Report.md",
+            @"C:\Users\Docs\Notes.txt",
+            @"D:\Projects\MarkSmith\Readme.md",
+            @"E:\Backup\Archive.zip"
+        };
+
+        var summary = RecentFilesService.FormatRecentDriveDistribution(samplePaths);
+        Assert.Contains("4 documents across 3 storage roots", summary);
+        Assert.Contains("C: (2)", summary);
+        Assert.Contains("D: (1)", summary);
+        Assert.Contains("E: (1)", summary);
+
+        // Single drive
+        var singleDrivePaths = new[] { @"C:\doc1.md", @"C:\doc2.md" };
+        var singleDriveSummary = RecentFilesService.FormatRecentDriveDistribution(singleDrivePaths);
+        Assert.Equal("All 2 documents on C:", singleDriveSummary);
+
+        // Empty
+        Assert.Equal("0 documents in recent history", RecentFilesService.FormatRecentDriveDistribution(null));
+        Assert.Equal("0 documents in recent history", RecentFilesService.FormatRecentDriveDistribution(Array.Empty<string>()));
+    }
+
+    [Fact]
+    public void Run137_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: Copy match line context
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy match line context", mainCs);
+        Assert.Contains("FormatMatchLineContext", mainCs);
+
+        // 2. MindMapGalaxy: CopyFullConnectionConfigurationItem & OnCopyFullConnectionConfigurationClick
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("CopyFullConnectionConfigurationItem", galaxyXaml);
+        Assert.Contains("OnCopyFullConnectionConfigurationClick", galaxyXaml);
+        Assert.Contains("OnCopyFullConnectionConfigurationClick", galaxyCs);
+        Assert.Contains("FormatFullConnectionConfiguration", galaxyCs);
+
+        // 3. ShapeStudio: SelectionCycleStrokeDashItem, OnSelectionCycleStrokeDashClick
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionCycleStrokeDashItem", shapeXaml);
+        Assert.Contains("OnSelectionCycleStrokeDashClick", shapeXaml);
+        Assert.Contains("OnSelectionCycleStrokeDashClick", shapeCs);
+        Assert.Contains("CycleStrokeDashStyle", shapeCs);
+
+        // 4. SmartArtStudio: OutlineAuditLineLengthsItem & OnAuditOutlineLineLengthsClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineAuditLineLengthsItem", smartArtXaml);
+        Assert.Contains("OnAuditOutlineLineLengthsClick", smartArtXaml);
+        Assert.Contains("OnAuditOutlineLineLengthsClick", smartArtCs);
+        Assert.Contains("FormatOutlineLineLengthAuditSummary", smartArtCs);
+
+        // 5. HistoryWindow: Copy version audit record item
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy version audit record", historyCs);
+        Assert.Contains("FormatVersionAuditRecord", historyCs);
+
+        // 6. SuiteHub: CopyRecentDriveDistributionItem & OnCopyRecentDriveDistributionClick
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentDriveDistributionItem", suiteXaml);
+        Assert.Contains("OnCopyRecentDriveDistributionClick", suiteXaml);
+        Assert.Contains("OnCopyRecentDriveDistributionClick", suiteCs);
+        Assert.Contains("FormatRecentDriveDistribution", suiteCs);
+    }
 }
 

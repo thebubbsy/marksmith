@@ -1268,5 +1268,27 @@ namespace MarkSmith.Tests
             Assert.Equal(0.0, p4);
             Assert.Contains("0px", l4);
         }
+
+        [Fact]
+        public void Run137_FormatFullConnectionConfiguration_FormatsExpectedSummary()
+        {
+            var summary = MindMapStudioViewModel.FormatFullConnectionConfiguration(
+                "curved",
+                1.8,
+                MindMapStudioViewModel.NodeAnchorPosition.Auto,
+                4.0,
+                true);
+
+            Assert.Equal("Connection: Curved (Bezier) · Weight: Normal (1.8px) · Anchor: Auto (4px) · Arrows: On", summary);
+
+            var straightSummary = MindMapStudioViewModel.FormatFullConnectionConfiguration(
+                "straight",
+                1.2,
+                MindMapStudioViewModel.NodeAnchorPosition.Right,
+                0.0,
+                false);
+
+            Assert.Equal("Connection: Straight (Direct) · Weight: Thin (1.2px) · Anchor: Right Edge (Flush (0px)) · Arrows: Off", straightSummary);
+        }
     }
 }

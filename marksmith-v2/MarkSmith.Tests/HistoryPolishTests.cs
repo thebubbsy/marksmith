@@ -704,6 +704,36 @@ public class HistoryPolishTests : IDisposable
         var noChange = LineDiff.FormatVersionStatsCard("", null, 0, 0);
         Assert.Equal("Version · No line changes recorded", noChange);
     }
+
+    [Fact]
+    public void Run137_FormatRelativeAge_CalculatesCorrectBuckets()
+    {
+        var refTime = new DateTimeOffset(2026, 10, 17, 16, 0, 0, TimeSpan.FromHours(11));
+
+        Assert.Equal("Just now", LineDiff.FormatRelativeAge(refTime.AddSeconds(-30), refTime));
+        Assert.Equal("1 minute ago", LineDiff.FormatRelativeAge(refTime.AddMinutes(-1), refTime));
+        Assert.Equal("25 minutes ago", LineDiff.FormatRelativeAge(refTime.AddMinutes(-25), refTime));
+        Assert.Equal("1 hour ago", LineDiff.FormatRelativeAge(refTime.AddHours(-1), refTime));
+        Assert.Equal("4 hours ago", LineDiff.FormatRelativeAge(refTime.AddHours(-4), refTime));
+        Assert.Equal("1 day ago", LineDiff.FormatRelativeAge(refTime.AddDays(-1), refTime));
+        Assert.Equal("5 days ago", LineDiff.FormatRelativeAge(refTime.AddDays(-5), refTime));
+        Assert.Equal("2 months ago", LineDiff.FormatRelativeAge(refTime.AddDays(-65), refTime));
+    }
+
+    [Fact]
+    public void Run137_FormatVersionAuditRecord_FormatsCompleteRecord()
+    {
+        var refTime = new DateTimeOffset(2026, 10, 17, 16, 0, 0, TimeSpan.FromHours(11));
+        var createdAt = refTime.AddMinutes(-15);
+
+        var record = LineDiff.FormatVersionAuditRecord("Auto-Save", createdAt, 12, 3, refTime);
+        Assert.Contains("Auto-Save", record);
+        Assert.Contains("(15 minutes ago)", record);
+        Assert.Contains("+12/-3 lines", record);
+
+        var emptyRecord = LineDiff.FormatVersionAuditRecord("", null, 0, 0, refTime);
+        Assert.Equal("Version · Unknown time · no line changes", emptyRecord);
+    }
 }
 
 

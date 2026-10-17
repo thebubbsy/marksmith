@@ -2239,5 +2239,46 @@ namespace MarkSmith.ViewModels.MindMap
                 _ => (0.0, "Anchor padding: 0px (Flush)")
             };
         }
+
+        /// <summary>
+        /// Formats an executive summary of the complete connection style configuration including routing, stroke weight, anchor mode, padding, and arrowheads.
+        /// </summary>
+        public static string FormatFullConnectionConfiguration(
+            string? routingStyle,
+            double strokeWeight,
+            NodeAnchorPosition anchorMode,
+            double anchorPadding,
+            bool showArrows)
+        {
+            string routingName = (routingStyle ?? "").ToLowerInvariant() switch
+            {
+                "straight" => "Straight (Direct)",
+                "orthogonal" or "stepped" => "Stepped (Orthogonal)",
+                _ => "Curved (Bezier)"
+            };
+
+            string weightName = strokeWeight switch
+            {
+                < 1.5 => "Thin (1.2px)",
+                < 2.2 => "Normal (1.8px)",
+                _ => "Thick (2.8px)"
+            };
+
+            string anchorName = anchorMode switch
+            {
+                NodeAnchorPosition.Auto => "Auto",
+                NodeAnchorPosition.Left => "Left Edge",
+                NodeAnchorPosition.Right => "Right Edge",
+                NodeAnchorPosition.Top => "Top Edge",
+                NodeAnchorPosition.Bottom => "Bottom Edge",
+                NodeAnchorPosition.Center => "Center",
+                _ => anchorMode.ToString()
+            };
+
+            string padStr = anchorPadding <= 0.5 ? "Flush (0px)" : $"{anchorPadding:0}px";
+            string arrowStr = showArrows ? "Arrows: On" : "Arrows: Off";
+
+            return $"Connection: {routingName} · Weight: {weightName} · Anchor: {anchorName} ({padStr}) · {arrowStr}";
+        }
     }
 }

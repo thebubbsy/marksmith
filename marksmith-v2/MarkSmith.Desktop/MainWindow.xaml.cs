@@ -8842,6 +8842,26 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(snippetItem);
 
+        var lineCtxItem = new MenuFlyoutItem
+        {
+            Text = "Copy match line context",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = _findMatches.Count > 0 && _findMatchIndex >= 0 && _findMatchIndex < _findMatches.Count
+        };
+        lineCtxItem.Click += (_, _) =>
+        {
+            if (_findMatches.Count > 0 && _findMatchIndex >= 0 && _findMatchIndex < _findMatches.Count)
+            {
+                var offset = _findMatches[_findMatchIndex];
+                var len = _findMatchIndex < _findMatchLengths.Count ? _findMatchLengths[_findMatchIndex] : (FindTextBox?.Text.Length ?? 0);
+                var fullText = PasteTextBox?.Text ?? "";
+                var lineCtx = MarkSmith.Services.TextSearch.FormatMatchLineContext(fullText, offset, len);
+                _ = Services.ClipboardWriter.TrySetTextAsync(lineCtx);
+                AnnounceStatus($"Match line: {lineCtx}");
+            }
+        };
+        menu.Items.Add(lineCtxItem);
+
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
         e.Handled = true;
     }

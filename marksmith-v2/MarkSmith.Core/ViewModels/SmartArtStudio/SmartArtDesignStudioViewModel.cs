@@ -1340,4 +1340,73 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         var result = string.Join("\n", resultLines);
         return hasCr ? result.Replace("\n", "\r\n") : result;
     }
+
+    public record OutlineLineLengthAudit(int TotalLines, int LongestLineLength, string LongestLineText, int ExceedingCount, int Threshold);
+
+    /// <summary>
+    /// Audits markdown outline lines for character lengths against a recommended threshold (default 40 chars).
+    /// </summary>
+    public static OutlineLineLengthAudit AuditOutlineLineLengths(string? markdown, int maxRecommendedLength = 40)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return new OutlineLineLengthAudit(0, 0, string.Empty, 0, maxRecommendedLength);
+
+        var lines = markdown.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        int totalLines = 0;
+        int longestLen = 0;
+        string longestText = string.Empty;
+        int exceedingCount = 0;
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
+            if (string.IsNullOrEmpty(trimmed)) continue;
+            totalLines++;
+
+            var content = trimmed;
+            if (content.StartsWith("- ") || content.StartsWith("* ") || content.StartsWith("+ "))
+                content = content.Substring(2).TrimStart();
+            else if (char.IsDigit(content[0]))
+            {
+                int dotIdx = content.IndexOf('.');
+                if (dotIdx > 0 && dotIdx < 4 && dotIdx + 1 < content.Length && content[dotIdx + 1] == ' ')
+                    content = content.Substring(dotIdx + 2).TrimStart();
+            }
+
+            if (content.Length > longestLen)
+            {
+                longestLen = content.Length;
+                longestText = content;
+            }
+
+            if (content.Length > maxRecommendedLength)
+            {
+                exceedingCount++;
+            }
+        }
+
+        return new OutlineLineLengthAudit(totalLines, longestLen, longestText, exceedingCount, maxRecommendedLength);
+    }
+
+    /// <summary>
+    /// Formats the outline line length audit into a clear single-line summary string.
+    /// </summary>
+    public static string FormatOutlineLineLengthAuditSummary(string? markdown, int maxRecommendedLength = 40)
+    {
+        var audit = AuditOutlineLineLengths(markdown, maxRecommendedLength);
+        if (audit.TotalLines == 0) return "Outline is empty (0 lines)";
+
+        var warning = audit.ExceedingCount > 0
+            ? $" · ⚠️ {audit.ExceedingCount} lines exceed {audit.Threshold} chars"
+            : $" · All lines within {audit.Threshold}-char limit";
+
+        var preview = audit.LongestLineLength > 0
+            ? $" (Longest: {audit.LongestLineLength} chars: \"{TruncateString(audit.LongestLineText, 25)}\")"
+            : string.Empty;
+
+        return $"{audit.TotalLines} lines{warning}{preview}";
+    }
+
+    private static string TruncateString(string text, int max) =>
+        text.Length <= max ? text : text.Substring(0, max - 3) + "...";
 }

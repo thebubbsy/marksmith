@@ -311,6 +311,9 @@
                                     <MenuFlyoutItem x:Name="CopyConnectionStyleSummaryItem" Text="Copy connection style summary" Click="OnCopyConnectionStyleSummaryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyFullConnectionConfigurationItem" Text="Copy full connection configuration" Click="OnCopyFullConnectionConfigurationClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EC;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>

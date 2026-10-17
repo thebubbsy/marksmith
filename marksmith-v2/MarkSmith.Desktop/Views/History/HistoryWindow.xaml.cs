@@ -3005,6 +3005,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied version card: {cardSummary}");
                 };
                 menu.Items.Add(copyCard);
+
+                var auditRecord = MarkSmith.Services.LineDiff.FormatVersionAuditRecord(sel.Label, sel.Entry.CreatedAt, sel.LinesAdded, sel.LinesRemoved);
+                var copyAudit = new MenuFlyoutItem
+                {
+                    Text = "Copy version audit record",
+                    Icon = new FontIcon { Glyph = "\uE81C" }
+                };
+                copyAudit.Click += (_, _) =>
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(auditRecord);
+                    _vm.ShowNotice($"Copied version audit: {auditRecord}");
+                };
+                menu.Items.Add(copyAudit);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

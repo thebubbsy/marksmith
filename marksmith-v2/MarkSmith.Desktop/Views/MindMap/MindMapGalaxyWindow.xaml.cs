@@ -4050,6 +4050,37 @@ namespace MarkSmith.Views.MindMap
             catch { /* non-critical clipboard failure */ }
         }
 
+        private void OnCopyFullConnectionConfigurationClick(object sender, RoutedEventArgs e)
+        {
+            var routing = _connectionRoutingStyle switch
+            {
+                ConnectionRoutingStyle.Straight => "Straight",
+                ConnectionRoutingStyle.Orthogonal => "Orthogonal",
+                _ => "Curved"
+            };
+            double weight = _connectionStrokeWeight switch
+            {
+                MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.ConnectionStrokeWeight.Thin => 1.2,
+                MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.ConnectionStrokeWeight.Thick => 2.8,
+                _ => 1.8
+            };
+            var config = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.FormatFullConnectionConfiguration(
+                routing, weight, _connectionAnchorPosition, _connectionAnchorPadding, _showConnectionArrows);
+
+            try
+            {
+                var pkg = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                pkg.SetText(config);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(pkg);
+                if (ConnectionStyleDropDownButton != null)
+                {
+                    CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, "\u2713 Config Copied");
+                }
+                ViewModel.StatusMessage = $"Copied: {config}";
+            }
+            catch { /* non-critical clipboard failure */ }
+        }
+
         private void OnCycleConnectionRoutingClick(object sender, RoutedEventArgs e)
         {
             var cur = _connectionRoutingStyle switch

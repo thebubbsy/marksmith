@@ -10316,3 +10316,80 @@ Reviewed: the 2026-10-17 run #135 entry above. Followed the AI-Executable 3-Bloc
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 15072, responsive startup (`Alive=True`), clean exit.
 
+### 2026-10-17 (scheduled routine run #137 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #136 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #136:
+    * Target A: `MainWindow` find bar multi-line match unwrapper.
+    * Target B: `MindMapGalaxyWindow` custom connection anchor indicator badge.
+  - Generated:
+    1. `MainWindow`: Search Match Line Context & Clean Unwrapper (`TextSearch.UnwrapMatchText(matchText)` collapsing internal tabs/newlines/multispaces into single spaces, `TextSearch.FormatMatchLineContext(text, matchIndex, matchLength)` extracting the full line with line/col prefix `L{line} (Col {col}): {content}`, "Copy match line context" `\uE8C8` context menu item in `FindCountText` flyout with clipboard export).
+    2. `MindMapGalaxyWindow`: Full Connection Configuration Formatter & Clipboard Exporter (`MindMapStudioViewModel.FormatFullConnectionConfiguration(routing, weight, anchorMode, anchorPadding, showArrows)` producing complete connection specs, "Copy full connection configuration" `\uE8EC` item in `ConnectionStyleDropDownButton.Flyout` with tick feedback).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.cs` with empty/boundary guards, line start/end scanner, and clean formatting. Mounted `lineCtxItem` with icon `\uE8C8` in `FindCountText` context menu in `MainWindow.xaml.cs` with clipboard export and status announcement.
+    * For Idea 2: Implemented `FormatFullConnectionConfiguration` in `MindMapStudioViewModel.cs` combining routing name, stroke weight, anchor position, padding clearance, and arrowheads. Mounted `CopyFullConnectionConfigurationItem` with icon `\uE8EC` in `ConnectionStyleDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and wired `OnCopyFullConnectionConfigurationClick` with tick feedback.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Stroke Dash Pattern Cycle Helper & Canvas Normalizer (`ShapeDesignStudioViewModel.CycleStrokeDashStyle(currentDash)` cycling `"solid" -> "dashed" (4 2) -> "dotted" (2 2) -> "solid"`, "Cycle stroke dash (Solid / Dashed / Dotted)" `\uE8B2` item in `SelectionBoundsFlyout`, undo recording, and adorner refresh).
+    4. `SmartArtDesignStudioWindow`: Outline Line Length & Character Limit Auditor (`SmartArtDesignStudioViewModel.AuditOutlineLineLengths(markdown, threshold)` measuring actual content length stripped of bullet markers, tracking longest lines and lines exceeding 40-char limit, `SmartArtDesignStudioViewModel.FormatOutlineLineLengthAuditSummary(markdown, threshold)`, "Audit line lengths (max 40 chars recommended)" `\uE9F9` item in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionCycleStrokeDashItem` with icon `\uE8B2` in `SelectionBoundsFlyout` in `ShapeDesignStudioWindow.xaml`. Implemented `OnSelectionCycleStrokeDashClick` in `ShapeDesignStudioWindow.xaml.cs`, applying dash arrays to selected shapes (or all shapes if none selected), recording undo snapshots, updating adorners, and announcing status.
+    * For Idea 4: Mounted `OutlineAuditLineLengthsItem` with icon `\uE9F9` in `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`. Implemented `AuditOutlineLineLengths` and `FormatOutlineLineLengthAuditSummary` in `SmartArtDesignStudioViewModel.cs` and wired `OnAuditOutlineLineLengthsClick` in `SmartArtDesignStudioWindow.xaml.cs` with clipboard export and notification.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `FormatMatchLineContext` and `UnwrapMatchText` handle multi-line documents, leading/trailing whitespace, and empty strings.
+    * Verified `FormatFullConnectionConfiguration` handles all routing styles (Curved, Straight, Orthogonal) and anchor padding values.
+  - Generated:
+    5. `HistoryWindow`: Version Relative Age & Audit Record Formatter (`LineDiff.FormatRelativeAge(createdAt, refTime)` producing clean relative time buckets, `LineDiff.FormatVersionAuditRecord(name, createdAt, added, removed, refTime)`, "Copy version audit record" `\uE81C` item in `TimelineHeaderBorder` context flyout in `HistoryWindow.xaml.cs`).
+    6. `SuiteHubView`: Recent Documents Storage Drive & Volume Distribution Formatter (`RecentFilesService.FormatRecentDriveDistribution(files)` analyzing root volume letters, e.g. "4 documents across 2 storage roots: C: (3), D: (1)", and "Copy storage drive breakdown (C:, D:...)" `\uE8EA` item in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Implemented `LineDiff.FormatRelativeAge` and `LineDiff.FormatVersionAuditRecord` in `LineDiff.cs`. Mounted `copyAudit` item with icon `\uE81C` in `OnTimelineHeaderRightTapped` in `HistoryWindow.xaml.cs` with notice notification.
+    * For Idea 6: Added `CopyRecentDriveDistributionItem` to `RecentDocsFlyout` in `SuiteHubView.xaml` with icon `\uE8EA`, implemented `RecentFilesService.FormatRecentDriveDistribution` in `RecentFilesService.cs`, and wired `OnCopyRecentDriveDistributionClick` in `SuiteHubView.xaml.cs` with tick feedback on `RecentDocsActionBtn`.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `Run137_UnwrapMatchText_NormalizesWhitespaceAndNewlines`, `Run137_FormatMatchLineContext_FormatsLineAndColumnContext` (Passed).
+    * `MindMapGalaxyPolishTests.cs`: `Run137_FormatFullConnectionConfiguration_FormatsExpectedSummary` (Passed).
+    * `ShapeStudioPolishTests.cs`: `Run137_CycleStrokeDashStyle_CyclesPatternsDeterministically` (Passed).
+    * `SmartArtStudioPolishTests.cs`: `Run137_AuditOutlineLineLengths_CalculatesLengthsAccurately`, `Run137_FormatOutlineLineLengthAuditSummary_FormatsExpectedSummary` (Passed).
+    * `HistoryPolishTests.cs`: `Run137_FormatRelativeAge_CalculatesCorrectBuckets`, `Run137_FormatVersionAuditRecord_FormatsCompleteRecord` (Passed).
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FormatRecentDriveDistribution_GroupsDrivesCorrectly`, `Run137_Polish_Elements_Wired_Across_Surfaces` (Passed).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run137" -c Debug`: **9 passed, 0 failed (100% pass rate)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 19244, responsive startup (`Alive=True Responding=True`), clean exit.
+  - Carried forward ideas / next targets into Run #138:
+    * Target A: `MainWindow` find bar search history clear / trim accelerator.
+    * Target B: `MindMapGalaxyWindow` custom connection anchor snap angle cycle helper.
+    * Target C: `ShapeDesignStudioWindow` quick shape shadow blur radius cycle helper.
+
+**Shipped:**
+1. **`MainWindow` Find Bar Line Context Formatter & Text Unwrapper (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - `TextSearch.UnwrapMatchText` and `TextSearch.FormatMatchLineContext` extracting clean single-line context with line/col numbers.
+   - `lineCtxItem` ("Copy match line context", `\uE8C8`) in `FindCountText` context menu with status notice and clipboard export.
+2. **`MindMapGalaxyWindow` Full Connection Configuration Formatter & Clipboard Exporter (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `MindMapStudioViewModel.FormatFullConnectionConfiguration` formatting complete connection specs (routing, weight, anchor, padding, arrows).
+   - `CopyFullConnectionConfigurationItem` (`\uE8EC`) in `ConnectionStyleDropDownButton.Flyout` with tick feedback.
+3. **`ShapeDesignStudioWindow` Stroke Dash Pattern Cycle Helper (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ShapeDesignStudioViewModel.CycleStrokeDashStyle` cycling solid -> dashed -> dotted -> solid.
+   - `SelectionCycleStrokeDashItem` (`\uE8B2`) in `SelectionBoundsFlyout` with undo recording and adorner refresh.
+4. **`SmartArtDesignStudioWindow` Outline Line Length & Character Limit Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `SmartArtDesignStudioViewModel.AuditOutlineLineLengths` and `FormatOutlineLineLengthAuditSummary` auditing line length thresholds.
+   - `OutlineAuditLineLengthsItem` (`\uE9F9`) in `OutlineStatsFlyout` with clipboard export.
+5. **`HistoryWindow` Version Relative Age & Audit Record Formatter (`HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.FormatRelativeAge` and `LineDiff.FormatVersionAuditRecord` calculating relative time and complete audit logs.
+   - `copyAudit` item (`\uE81C`) in `TimelineHeaderBorder` context menu.
+6. **`SuiteHubView` Recent Documents Storage Drive Distribution Formatter (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.FormatRecentDriveDistribution` aggregating root volume/drive distributions.
+   - `CopyRecentDriveDistributionItem` (`\uE8EA`) in `RecentDocsFlyout` with button tick feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run137"`: **9 passed, 0 failed (100% pass rate)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 19244, responsive startup (`Alive=True Responding=True`), clean exit.
+

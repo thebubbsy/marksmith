@@ -5991,5 +5991,41 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateMultiSelectionAdorner();
             ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
         }
+
+        private string _currentStrokeDash = "solid";
+
+        private void OnSelectionCycleStrokeDashClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0)
+            {
+                ViewModel.StatusMessage = "No shapes to change stroke dash style.";
+                return;
+            }
+
+            ViewModel.RecordUndo();
+            var (nextDash, label) = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.CycleStrokeDashStyle(_currentStrokeDash);
+            _currentStrokeDash = nextDash;
+
+            int updatedCount = 0;
+            foreach (var s in sel)
+            {
+                if (_shapePaths.TryGetValue(s, out var path))
+                {
+                    path.StrokeDashArray = nextDash switch
+                    {
+                        "dashed" => new DoubleCollection { 4, 2 },
+                        "dotted" => new DoubleCollection { 2, 2 },
+                        _ => null
+                    };
+                    updatedCount++;
+                }
+            }
+
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+            ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
+        }
     }
 }

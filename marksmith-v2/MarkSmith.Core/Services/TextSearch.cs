@@ -307,4 +307,33 @@ public static class TextSearch
         var suffixPart = string.IsNullOrEmpty(suffix) ? "" : " " + suffix;
         return $"{prefixPart}[{matchWord}]{suffixPart}".Trim();
     }
+
+    /// <summary>
+    /// Normalizes and unwraps text within a match (e.g. collapsing internal whitespace and newlines to single spaces).
+    /// </summary>
+    public static string UnwrapMatchText(string matchText)
+    {
+        if (string.IsNullOrWhiteSpace(matchText)) return string.Empty;
+        var parts = matchText.Split(new[] { '\r', '\n', '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>
+    /// Extracts the full single line in text containing the match at matchIndex, prefixing it with the 1-based line number.
+    /// </summary>
+    public static string FormatMatchLineContext(string text, int matchIndex, int matchLength)
+    {
+        if (string.IsNullOrEmpty(text) || matchIndex < 0 || matchIndex >= text.Length)
+            return "No line context available";
+
+        var (line, col, _) = GetMatchLocation(text, matchIndex, matchLength);
+        int lineStart = matchIndex;
+        while (lineStart > 0 && text[lineStart - 1] != '\n') lineStart--;
+
+        int lineEnd = matchIndex + Math.Max(0, matchLength);
+        while (lineEnd < text.Length && text[lineEnd] != '\r' && text[lineEnd] != '\n') lineEnd++;
+
+        string lineContent = text.Substring(lineStart, lineEnd - lineStart).Trim();
+        return $"L{line} (Col {col}): {lineContent}";
+    }
 }

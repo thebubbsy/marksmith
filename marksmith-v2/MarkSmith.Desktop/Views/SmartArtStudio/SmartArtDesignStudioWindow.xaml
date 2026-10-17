@@ -248,6 +248,9 @@
                                         <MenuFlyoutItem x:Name="OutlineRootsOnlyItem" Text="Copy top-level outline roots only" Click="OnCopyOutlineRootsOnlyClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineAuditLineLengthsItem" Text="Audit line lengths (max 40 chars recommended)" Click="OnAuditOutlineLineLengthsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

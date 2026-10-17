@@ -189,4 +189,51 @@ public sealed class RecentFilesService
         var docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
         return $"{docLabel}: {string.Join(", ", groups)}";
     }
+
+    /// <summary>
+    /// Analyzes recent document file paths and formats a storage drive / root volume distribution summary (e.g. "4 documents across 2 storage roots: C: (3), D: (1)").
+    /// </summary>
+    public static string FormatRecentDriveDistribution(IEnumerable<string>? files)
+    {
+        if (files is null) return "0 documents in recent history";
+        var list = files.Where(f => !string.IsNullOrWhiteSpace(f)).ToList();
+        if (list.Count == 0) return "0 documents in recent history";
+
+        var driveGroups = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in list)
+        {
+            string root = string.Empty;
+            try
+            {
+                var pathRoot = Path.GetPathRoot(file);
+                if (!string.IsNullOrEmpty(pathRoot))
+                {
+                    root = pathRoot.TrimEnd('\\', '/').ToUpperInvariant();
+                }
+            }
+            catch
+            {
+                // Fallback for non-standard paths
+            }
+
+            if (string.IsNullOrEmpty(root))
+            {
+                root = "Relative";
+            }
+
+            driveGroups[root] = driveGroups.TryGetValue(root, out var count) ? count + 1 : 1;
+        }
+
+        var ordered = driveGroups.OrderByDescending(g => g.Value).ThenBy(g => g.Key).ToList();
+        var breakdown = string.Join(", ", ordered.Select(g => $"{g.Key} ({g.Value})"));
+
+        if (ordered.Count == 1)
+        {
+            var singleDocLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
+            return $"All {singleDocLabel} on {ordered[0].Key}";
+        }
+
+        var docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
+        return $"{docLabel} across {ordered.Count} storage roots: {breakdown}";
+    }
 }

@@ -3349,4 +3349,18 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             return ("rect", "Sharp corners (rect)");
         return ("roundrect", "Rounded corners (roundrect)");
     }
+
+    /// <summary>
+    /// Cycles stroke dash pattern ("solid" -> "dashed" -> "dotted" -> "solid") and returns the next style token and display label.
+    /// </summary>
+    public static (string NextDashStyle, string Label) CycleStrokeDashStyle(string? currentDashStyle)
+    {
+        var normalized = (currentDashStyle ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "dashed" or "dash" or "4 2" or "4,2" => ("dotted", "Stroke dash: Dotted (2 2)"),
+            "dotted" or "dot" or "2 2" or "2,2" => ("solid", "Stroke dash: Solid (Continuous)"),
+            _ => ("dashed", "Stroke dash: Dashed (4 2)")
+        };
+    }
 }

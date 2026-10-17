@@ -356,4 +356,51 @@ public static class LineDiff
 
         return $"{name}{timePart} · {deltaPart}";
     }
+
+    /// <summary>
+    /// Formats a human-friendly relative age string (e.g. "Just now", "5 minutes ago", "2 hours ago", "3 days ago").
+    /// </summary>
+    public static string FormatRelativeAge(DateTimeOffset createdAt, DateTimeOffset? referenceTime = null)
+    {
+        var now = referenceTime ?? DateTimeOffset.Now;
+        var diff = now - createdAt;
+
+        if (diff.TotalSeconds < 60) return "Just now";
+        if (diff.TotalMinutes < 60)
+        {
+            int mins = (int)diff.TotalMinutes;
+            return mins == 1 ? "1 minute ago" : $"{mins} minutes ago";
+        }
+        if (diff.TotalHours < 24)
+        {
+            int hours = (int)diff.TotalHours;
+            return hours == 1 ? "1 hour ago" : $"{hours} hours ago";
+        }
+        if (diff.TotalDays < 30)
+        {
+            int days = (int)diff.TotalDays;
+            return days == 1 ? "1 day ago" : $"{days} days ago";
+        }
+        int months = (int)(diff.TotalDays / 30);
+        return months <= 1 ? "1 month ago" : $"{months} months ago";
+    }
+
+    /// <summary>
+    /// Formats a complete version audit log record combining version name, timestamp, relative age, and line changes.
+    /// </summary>
+    public static string FormatVersionAuditRecord(string? versionName, DateTimeOffset? createdAt, int linesAdded, int linesRemoved, DateTimeOffset? referenceTime = null)
+    {
+        var name = string.IsNullOrWhiteSpace(versionName) ? "Version" : versionName.Trim();
+        var timeStr = createdAt.HasValue ? createdAt.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm") : "Unknown time";
+        var relAge = createdAt.HasValue ? $" ({FormatRelativeAge(createdAt.Value, referenceTime)})" : "";
+        var delta = (linesAdded == 0 && linesRemoved == 0)
+            ? "no line changes"
+            : linesAdded > 0 && linesRemoved > 0
+                ? $"+{linesAdded}/-{linesRemoved} lines"
+                : linesAdded > 0
+                    ? $"+{linesAdded} lines"
+                    : $"-{linesRemoved} lines";
+
+        return $"{name} · {timeStr}{relAge} · {delta}";
+    }
 }

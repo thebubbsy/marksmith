@@ -537,4 +537,24 @@ public class ShapeStudioPolishTests
         var (p3, _) = ShapeDesignStudioViewModel.ToggleCornerStyle(null);
         Assert.Equal("roundrect", p3);
     }
+
+    [Fact]
+    public void Run137_CycleStrokeDashStyle_CyclesPatternsDeterministically()
+    {
+        var (d1, l1) = ShapeDesignStudioViewModel.CycleStrokeDashStyle("solid");
+        Assert.Equal("dashed", d1);
+        Assert.Contains("Dashed", l1);
+
+        var (d2, l2) = ShapeDesignStudioViewModel.CycleStrokeDashStyle(d1);
+        Assert.Equal("dotted", d2);
+        Assert.Contains("Dotted", l2);
+
+        var (d3, l3) = ShapeDesignStudioViewModel.CycleStrokeDashStyle(d2);
+        Assert.Equal("solid", d3);
+        Assert.Contains("Solid", l3);
+
+        // Null / empty defaults to dashed
+        var (dDef, _) = ShapeDesignStudioViewModel.CycleStrokeDashStyle(null);
+        Assert.Equal("dashed", dDef);
+    }
 }

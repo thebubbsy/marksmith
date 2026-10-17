@@ -4523,6 +4523,21 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnAuditOutlineLineLengthsClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            var summary = SmartArtDesignStudioViewModel.FormatOutlineLineLengthAuditSummary(markdown, 40);
+            try
+            {
+                Services.ClipboardWriter.TrySetTextAsync(summary);
+                ViewModel.StatusMessage = $"✓ Copied line length audit: {summary}";
+            }
+            catch
+            {
+                ViewModel.StatusMessage = summary;
+            }
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

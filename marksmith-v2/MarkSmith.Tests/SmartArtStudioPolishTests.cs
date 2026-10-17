@@ -473,4 +473,33 @@ public class SmartArtStudioPolishTests
         // Empty input
         Assert.Equal("", SmartArtDesignStudioViewModel.FormatOutlineAtMaxDepth(""));
     }
+
+    [Fact]
+    public void Run137_AuditOutlineLineLengths_CalculatesLengthsAccurately()
+    {
+        var markdown = "- Short\n- Normal length node\n- This is a very long line that clearly exceeds the standard threshold of forty characters";
+        var audit = SmartArtDesignStudioViewModel.AuditOutlineLineLengths(markdown, 40);
+
+        Assert.Equal(3, audit.TotalLines);
+        Assert.Equal(1, audit.ExceedingCount);
+        Assert.True(audit.LongestLineLength > 40);
+        Assert.Equal(40, audit.Threshold);
+
+        // Empty input
+        var empty = SmartArtDesignStudioViewModel.AuditOutlineLineLengths("");
+        Assert.Equal(0, empty.TotalLines);
+        Assert.Equal(0, empty.ExceedingCount);
+    }
+
+    [Fact]
+    public void Run137_FormatOutlineLineLengthAuditSummary_FormatsExpectedSummary()
+    {
+        var shortDoc = "- Alpha\n- Beta\n- Gamma";
+        var summary = SmartArtDesignStudioViewModel.FormatOutlineLineLengthAuditSummary(shortDoc, 40);
+        Assert.Contains("3 lines", summary);
+        Assert.Contains("All lines within 40-char limit", summary);
+
+        var emptySummary = SmartArtDesignStudioViewModel.FormatOutlineLineLengthAuditSummary(null, 40);
+        Assert.Equal("Outline is empty (0 lines)", emptySummary);
+    }
 }

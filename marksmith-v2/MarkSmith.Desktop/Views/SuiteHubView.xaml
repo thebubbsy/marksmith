@@ -216,6 +216,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentExtensionBreakdownItem" Text="Copy file type breakdown (.md, .txt...)" Click="OnCopyRecentExtensionBreakdownClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentDriveDistributionItem" Text="Copy storage drive breakdown (C:, D:...)" Click="OnCopyRecentDriveDistributionClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EA;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
