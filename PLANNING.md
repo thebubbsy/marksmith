@@ -10862,6 +10862,78 @@ Reviewed: the 2026-10-17 run #142 entry above and the Run #143 section of the 5-
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 16572, responsive startup (`Responding=True, WorkingSet=268.08MB`), clean exit.
 
+### 2026-10-17 (scheduled routine run #144 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #143 entry above and the Run #144 section of the 5-Run GUI Missing Affordances Roadmap. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #143:
+    * Target A: `MainWindow` Lint flyout one-click safe auto-fix (`FixSafeMarkdownLintIssues`).
+    * Target B: `MindMapGalaxyWindow` missing file link batch auditor and folder relinker (`AuditLinkedFilesStatus`).
+  - Generated:
+    1. `MainWindow`: One-Click Safe Markdown Lint Auto-Fix (`TextSearch.FixSafeMarkdownLintIssues` safely stripping trailing spaces outside hard breaks, expanding tabs to 4 spaces, spacing `#` headings, and collapsing 3+ blank lines outside fenced code blocks, `FormatSafeLintFixSummary`, wired to `fixSafeLintItem` `\uE90F` in `FindCountText` and `ShowLintIssueContextMenu` context menus with status feedback).
+    2. `MindMapGalaxyWindow`: Missing File Link Batch Auditor & Diagnostic Summary (`MindMapStudioViewModel.AuditLinkedFilesStatus(fileExistsPredicate)` auditing file paths across all nodes, `FormatLinkedFilesAuditSummary`, and `AuditLinkedFilesItem` `\uE8A7` in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped` with clipboard export).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.FixSafeMarkdownLintIssues` with fenced code block state machine (protecting ``` and ~~~ code blocks from mutation), preserving CommonMark 2-space intentional line breaks, preserving CRLF vs LF line endings, and updating find matches.
+    * For Idea 2: Optimized `AuditLinkedFilesStatus` in `MindMapStudioViewModel.cs` with defensive exception handling for invalid/inaccessible drive paths, customizable predicate for deterministic unit testing, and sample truncation formatting for missing titles.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Multi-Selection Match Width / Height / Both Dimensions (`ShapeDesignStudioViewModel.MatchSelectedShapeDimensions(matchWidth, matchHeight)` resizing selected shapes to match primary reference shape dimensions, `FormatDimensionMatchSummary`, and `SelectionMatchSizeItem` `\uE740` in `SelectionBoundsFlyout` with undo recording and canvas adorner refresh).
+    4. `SmartArtDesignStudioWindow`: Long Bullet Auto-Splitter (Title + Sub-Bullet) (`SmartArtDesignStudioViewModel.SplitLongOutlineItems(markdown, maxChars)` splitting bullets exceeding length threshold at semantic delimiters `: `, ` — `, ` – `, ` - `, `; ` into parent node and indented sub-bullet, `FormatLongItemSplitSummary`, and `SplitLongOutlineItem` `\uE8C6` in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Refined `MatchSelectedShapeDimensions` in `ShapeDesignStudioViewModel.cs` to defensively fallback to `reference.Name` / `reference.Prst` for unlabeled shapes, guard against `targets.Count < 2`, record a single undo checkpoint, and refresh multi-selection adorners.
+    * For Idea 4: Refined `SplitLongOutlineItems` in `SmartArtDesignStudioViewModel.cs` to preserve bullet character types (`- `, `* `, `+ `), maintain nested tree indentation levels, handle fallback word break boundaries, and preserve CR/LF formatting.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `FixSafeMarkdownLintIssues` leaves documents clean with 0 remaining safe lint issues in `MarkdownLintService`.
+    * Verified `AuditLinkedFilesStatus` correctly partitions valid vs broken file references without throwing unhandled I/O exceptions.
+  - Generated:
+    5. `HistoryWindow`: Selective Diff Hunk Cherry-Pick Copy & Restore (`LineDiff.FormatCherryPickHunksPayload(unifiedRows)` extracting numbered, self-contained hunk blocks for selective restoration, wired to `copyCherryPickHunks` `\uE8C8` in `TimelineHeaderBorder` context flyout).
+    6. `SuiteHubView`: Recent Files Multi-Criteria Sort & Recency-Tier Grouping Catalog (`RecentFilesService.FormatRecentFilesSortedCatalog(filePaths)` formatting alphabetical A–Z file listings and parent folder distribution previews, wired to `CopyRecentSortedCatalogItem` `\uE8CB` in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Implemented `FormatCherryPickHunksPayload` in `LineDiff.cs`, grouping unified diff rows into contiguous hunks with start lines, change deltas, and clean payload formatting; wired `copyCherryPickHunks` with icon `\uE8C8` in `OnTimelineHeaderRightTapped` in `HistoryWindow.xaml.cs`.
+    * For Idea 6: Implemented `FormatRecentFilesSortedCatalog` in `RecentFilesService.cs` with alphabetical ordering and folder cluster grouping; wired `CopyRecentSortedCatalogItem` with icon `\uE8CB` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` with button tick feedback on `RecentDocsActionBtn`.
+  - Executed all 6 refined targets into 100% production code across all 6 surfaces.
+  - Verified test suite:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 23 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run144|RecentFilesService_FormatRecentFilesSortedCatalog|CommandIconsTests"`: **55 passed, 0 failed (100% pass rate)**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj` (Full suite): **4,997 passed, 0 failed, 1 skipped (100% pass rate across 4,998 tests)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 13156, responsive startup (`Responding=True, WorkingSet=269.69MB`), clean exit.
+  - Carried forward ideas / next targets into Run #145 (from 5-Run Roadmap):
+    * Target A: `MainWindow` Custom cleanup rules quick preset library flyout (`AuditCommonProseCleanupOpportunities`).
+    * Target B: `MindMapGalaxyWindow` parent node subtree progress roll-up calculator (`RollupSubtreeProgress`).
+    * Target C: `ShapeDesignStudioWindow` horizontal & vertical layout mirror / flip transform (`FlipSelectedShapes`).
+
+**Shipped:**
+1. **`MainWindow` One-Click Safe Markdown Lint Auto-Fix (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - `TextSearch.FixSafeMarkdownLintIssues` and `TextSearch.FormatSafeLintFixSummary` safely auto-fixing trailing spaces, hard tabs, heading spacing, and consecutive blank lines outside code fences.
+   - `fixSafeLintItem` (`\uE90F`) in `FindCountText` and `ShowLintIssueContextMenu` context menus with status feedback and clipboard copy.
+2. **`MindMapGalaxyWindow` Linked Files Health Batch Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `MindMapStudioViewModel.AuditLinkedFilesStatus` and `MindMapStudioViewModel.FormatLinkedFilesAuditSummary` verifying on-disk validity of all node `FilePath` references and formatting percentage/sample diagnostics.
+   - `AuditLinkedFilesItem` (`\uE8A7`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped` with status and clipboard export.
+3. **`ShapeDesignStudioWindow` Multi-Selection Match Width / Height Dimensions (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ShapeDesignStudioViewModel.MatchSelectedShapeDimensions` and `ShapeDesignStudioViewModel.FormatDimensionMatchSummary` resizing selected shapes to match primary reference shape dimensions with single-step undo recording.
+   - `SelectionMatchSizeItem` (`\uE740`) in `SelectionBoundsFlyout` with adorner updates.
+4. **`SmartArtDesignStudioWindow` Long Bullet Auto-Splitter into Parent + Sub-Bullet (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `SmartArtDesignStudioViewModel.SplitLongOutlineItems` and `SmartArtDesignStudioViewModel.FormatLongItemSplitSummary` breaking long outline bullets at semantic delimiters into concise parent nodes and indented child nodes.
+   - `SplitLongOutlineItem` (`\uE8C6`) in `OutlineStatsFlyout` with text editor update.
+5. **`HistoryWindow` Selective Numbered Diff Hunk Cherry-Pick Payload Formatter (`HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.FormatCherryPickHunksPayload` extracting numbered, self-contained hunk blocks with line coordinates and change deltas for selective restoration.
+   - `copyCherryPickHunks` item (`\uE8C8`) in `TimelineHeaderBorder` context menu.
+6. **`SuiteHubView` Recent Files Multi-Criteria Sort & Folder Grouping Catalog (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.FormatRecentFilesSortedCatalog` structuring recent file paths into alphabetical A–Z order and folder dispersion groups.
+   - `CopyRecentSortedCatalogItem` (`\uE8CB`) in `RecentDocsFlyout` with button tick feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 23 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run144|RecentFilesService_FormatRecentFilesSortedCatalog|CommandIconsTests"`: **55 passed, 0 failed (100% pass rate)**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj` (Full suite): **4,997 passed, 0 failed, 1 skipped (100% pass rate across 4,998 tests)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 13156, responsive startup (`Responding=True, WorkingSet=269.69MB`), clean exit.
+
 ---
 
 ## 5-Run GUI Missing Affordances & Polish Plan (Runs #143–#147)
