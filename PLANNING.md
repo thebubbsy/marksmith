@@ -10790,6 +10790,78 @@ Reviewed: the 2026-10-17 run #141 entry above. Followed the AI-Executable 3-Bloc
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 12576, responsive startup (`Responding=True, WorkingSet=269.34MB`), clean exit.
 
+### 2026-10-17 (scheduled routine run #143 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #142 entry above and the Run #143 section of the 5-Run GUI Missing Affordances Roadmap. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #142:
+    * Target A: `MainWindow` find & replace token swap and case-preserving template interpolator.
+    * Target B: `MindMapGalaxyWindow` orphaned nodes cluster aggregator and magnetic attachment helper.
+  - Generated:
+    1. `MainWindow`: Find & Replace Token Swap (`⇄`) & Case-Preserving Replace Formatter (`TextSearch.ReplacePreservingCase(text, query, replacement, wholeWord, useRegex)` preserving UPPERCASE, TitleCase, and lowercase across replacements, `FormatCasePreservingReplaceSummary`, wired to `swapFindReplaceItem` `\uE8AB` and `casePreserveReplaceItem` `\uE8D2` in `FindCountText` and `OnReplaceTextBoxRightTapped` context menus with status feedback).
+    2. `MindMapGalaxyWindow`: Orphaned Nodes Radial Cluster Aggregator & Magnetic Hub Attachment (`MindMapStudioViewModel.AttachOrphansToRoot(orbitRadius)` identifying 0-degree disconnected nodes and magnetically clustering them in a radial arc around the primary root hub with undo tracking, `FormatOrphanAttachmentSummary`, and `AttachOrphansItem` `\uE8B3` in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped` with canvas redraw).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.ReplacePreservingCase` with defensive null/empty validation, regex boundary checks, exact character case preservation mapping (`ApplyCasePattern`), and auto-expansion of `ReplaceRow` upon swapping.
+    * For Idea 2: Optimized `AttachOrphansToRoot` in `MindMapStudioViewModel.cs` with in-degree/out-degree graph analysis to automatically identify true root hub, calculating uniform radial spacing without collision, and requesting canvas redraw.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Shape Coordinate & Dimension Sub-Pixel Precision Normalizer (`ShapeDesignStudioViewModel.NormalizeShapePrecision(step)` rounding `X`, `Y`, `Width`, `Height`, and `Rotation` to the nearest pixel grid boundary, `FormatPrecisionNormalizationSummary`, and `SelectionNormalizePrecisionItem` `\uE8EF` in `SelectionBoundsFlyout` with undo recording and canvas refresh).
+    4. `SmartArtDesignStudioWindow`: Outline Sibling Deduplicator & Redundant Bullet Merger (`SmartArtDesignStudioViewModel.DeduplicateOutlineNodes(markdown, ignoreCase)` eliminating duplicate sibling bullets within the same hierarchical scope while preserving nested subtrees, `FormatOutlineDeduplicationSummary`, and `DeduplicateOutlineItem` `\uE8C8` in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Refined `NormalizeShapePrecision` in `ShapeDesignStudioViewModel.cs` to defensively enforce positive minimum dimension bounds (`Math.Max(gridStep, Snap(dim))`), properly wrap cardinal angles via `WrapRotationAngle`, record single-step undo snapshots, and refresh visual adorners.
+    * For Idea 4: Refined `DeduplicateOutlineNodes` in `SmartArtDesignStudioViewModel.cs` to track sibling sets by indentation depth scope, correctly invalidate child tracking upon unindenting, support case-insensitive comparison, and preserve CR/LF formatting.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `ReplacePreservingCase` handles mixed capitalization tokens, empty replace queries, and regex boundary flags cleanly without throwing unhandled exceptions.
+    * Verified `AttachOrphansToRoot` handles single-node and already-connected topologies cleanly without creating duplicate links or corrupting existing node coordinates.
+  - Generated:
+    5. `HistoryWindow`: Selected Snapshot Comparison Against Latest / Live Head (`LineDiff.ComputeDiffAgainstLatestSummary(selectedContent, latestContent, selectedLabel, latestLabel)` diffing selected historical version directly against timeline `HEAD`, calculating net line delta and Sorensen-Dice similarity index, wired to `copyDiffAgainstLatest` `\uE895` in `TimelineHeaderBorder` context flyout).
+    6. `SuiteHubView`: Recent Documents Missing & Moved Path Auditor (`RecentFilesService.AuditMissingRecentFiles(filePaths, fileExistsPredicate)` and `FormatMissingRecentFilesAudit` detecting missing or renamed documents on disk, calculating library path validity percentage, wired to `CopyRecentMissingAuditItem` `\uE7BA` in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Implemented `ComputeDiffAgainstLatestSummary` in `LineDiff.cs`, handling identical content, hunk count auditing, and formatting summary; wired `copyDiffAgainstLatest` with icon `\uE895` in `OnTimelineHeaderRightTapped` in `HistoryWindow.xaml.cs`.
+    * For Idea 6: Implemented `AuditMissingRecentFiles` and `FormatMissingRecentFilesAudit` in `RecentFilesService.cs` with custom predicate support for unit testing and safe disk checking; wired `CopyRecentMissingAuditItem` with icon `\uE7BA` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` with button tick feedback on `RecentDocsActionBtn`.
+  - Executed all 6 refined targets into 100% production code across all 6 surfaces.
+  - Verified test suite:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 23 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run143"`: **6 passed, 0 failed (100% pass rate)**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj` (Full suite): **4,990 passed, 0 failed, 1 skipped (100% pass rate across 4,991 tests)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 16572, responsive startup (`Responding=True, WorkingSet=268.08MB`), clean exit.
+  - Carried forward ideas / next targets into Run #144 (from 5-Run Roadmap):
+    * Target A: `MainWindow` Lint flyout one-click safe auto-fix (`FixSafeMarkdownLintIssues`).
+    * Target B: `MindMapGalaxyWindow` missing file link batch auditor and folder relinker (`AuditLinkedFilesStatus`).
+    * Target C: `ShapeDesignStudioWindow` multi-selection match width / height dimensions (`MatchSelectedShapeDimensions`).
+
+**Shipped:**
+1. **`MainWindow` Find Bar Token Swap & Case-Preserving Replace (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - `TextSearch.ReplacePreservingCase` and `TextSearch.FormatCasePreservingReplaceSummary` preserving UPPERCASE, TitleCase, and lowercase casing patterns across replacements.
+   - `swapFindReplaceItem` (`\uE8AB`) and `casePreserveReplaceItem` (`\uE8D2`) in `FindCountText` and `OnReplaceTextBoxRightTapped` context menus with auto-expansion of `ReplaceRow`.
+2. **`MindMapGalaxyWindow` Orphaned Nodes Radial Aggregator & Root Attachment (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `MindMapStudioViewModel.AttachOrphansToRoot` and `MindMapStudioViewModel.FormatOrphanAttachmentSummary` identifying disconnected nodes, computing optimal radial orbit coordinates around primary root hub, and creating links with undo tracking.
+   - `AttachOrphansItem` (`\uE8B3`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped` with tick feedback and visual redraw.
+3. **`ShapeDesignStudioWindow` Canvas Shape Coordinate & Dimension Sub-Pixel Normalizer (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ShapeDesignStudioViewModel.NormalizeShapePrecision` and `ShapeDesignStudioViewModel.FormatPrecisionNormalizationSummary` rounding `X`, `Y`, `Width`, `Height`, and `Rotation` to nearest pixel grid, eliminating floating-point sub-pixel rendering blur.
+   - `SelectionNormalizePrecisionItem` (`\uE8EF`) in `SelectionBoundsFlyout` with undo recording and canvas adorner refresh.
+4. **`SmartArtDesignStudioWindow` Outline Sibling Deduplication & Redundant Bullet Merger (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `SmartArtDesignStudioViewModel.DeduplicateOutlineNodes` and `SmartArtDesignStudioViewModel.FormatOutlineDeduplicationSummary` removing duplicate sibling items within parent hierarchy scope while preserving nested child subtrees.
+   - `DeduplicateOutlineItem` (`\uE8C8`) in `OutlineStatsFlyout` with clipboard diagnosis export and editor text update.
+5. **`HistoryWindow` Snapshot Direct Comparison Against Timeline Head (`HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.ComputeDiffAgainstLatestSummary` comparing selected historical snapshot directly against timeline `HEAD`, calculating net line delta and Sorensen-Dice line similarity percentage.
+   - `copyDiffAgainstLatest` item (`\uE895`) in `TimelineHeaderBorder` context menu.
+6. **`SuiteHubView` Recent Documents Missing & Moved Path Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.AuditMissingRecentFiles` and `RecentFilesService.FormatMissingRecentFilesAudit` identifying moved or deleted document paths on disk and computing library path validity percentage.
+   - `CopyRecentMissingAuditItem` (`\uE7BA`) in `RecentDocsFlyout` with button tick feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 23 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run143"`: **6 passed, 0 failed (100% pass rate)**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj` (Full suite): **4,990 passed, 0 failed, 1 skipped (100% pass rate across 4,991 tests)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 16572, responsive startup (`Responding=True, WorkingSet=268.08MB`), clean exit.
+
 ---
 
 ## 5-Run GUI Missing Affordances & Polish Plan (Runs #143–#147)
@@ -10916,44 +10988,5 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
    - **What is missing**: `SuiteHubView` lacks a comprehensive Recent Library Health & Portability Readiness Scorecard combining path validity, extension mix, naming consistency, and folder depth into a single executive readiness report.
    - **Deliverable**: Add `RecentFilesService.FormatLibraryHealthScorecard(files, fileExistsPredicate)` and wire `CopyRecentHealthScorecardItem` (`\uE9D9`) in `RecentDocsFlyout`.
-
----
-
-### Run #143 (2026-10-17 22:00) — 3-Block Cycle + Execution Phase: Find Swap & Case-Preserving Replace, Orphan Node Clustering, Sub-Pixel Precision Snap, Outline Sibling Deduplicator, HEAD Version Diff Summary & Missing Recent Paths Auditor
-
-**3-Block Cycle Trace:**
-- **Block 1 (0–15 min)**:
-  - Generated 2 new ideas:
-    1. `MainWindow`: Find & Replace Token Swap (`⇄`) & Case-Preserving Replace (`TextSearch.ApplyCasePattern`, `TextSearch.ReplacePreservingCase`, and `TextSearch.FormatCasePreservingReplaceSummary`, wired to `swapFindReplaceItem` `\uE8AB` and `casePreserveReplaceItem` `\uE8D2` in `FindCountText` context flyout).
-    2. `MindMapGalaxyWindow`: Orphaned Nodes Cluster Aggregator & Magnetic Root Attachment (`MindMapStudioViewModel.AttachOrphansToRoot` and `FormatOrphanAttachmentSummary`, wired to `AttachOrphansItem` `\uE8B3` in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`).
-- **Block 2 (15–30 min)**:
-  - Refined Block 1 (Pass 1):
-    * Preserved internal Pascal/camelCase capitalization when `replacement` contains mixed case and `sourceSample` is TitleCase.
-    * Ensured `AttachOrphansToRoot` resolves the primary root hub via connected zero-in-degree out-degree rank before falling back to `SelectedNode` or `Nodes[0]`.
-  - Generated 2 new ideas:
-    3. `ShapeDesignStudioWindow`: Shape Coordinate & Dimension Sub-Pixel Precision Normalizer (`ShapeDesignStudioViewModel.NormalizeShapePrecision` and `FormatPrecisionNormalizationSummary`, wired to `SelectionNormalizePrecisionItem` `\uE8EF` in `SelectionBoundsFlyout`).
-    4. `SmartArtDesignStudioWindow`: Outline Sibling Deduplicator & Redundant Subtree Cleaner (`SmartArtDesignStudioViewModel.DeduplicateOutlineNodes` and `FormatOutlineDeduplicationSummary`, wired to `DeduplicateOutlineItem` `\uE8C8` in `OutlineStatsFlyout`).
-- **Block 3 (30–45 min)**:
-  - Refined Block 2 (Pass 1) & Block 1 (Pass 2):
-    * Ensured `NormalizeShapePrecision` records undo only when sub-pixel drift (`> 1e-6`) is actually present and tracks maximum pixel adjustment delta (`maxDeltaPx`).
-    * Scoped `DeduplicateOutlineNodes` per indentation hierarchy level so identical child labels under different parent nodes are preserved while duplicate siblings under the same parent (and their redundant subtrees) are removed.
-  - Generated 2 new ideas:
-    5. `HistoryWindow`: Compare Selected Version Against Latest (`HEAD`) (`LineDiff.ComputeDiffAgainstLatestSummary` computing added/removed lines, hunk count, net change, and line similarity percentage against the newest timeline snapshot, wired to `copyDiffAgainstLatest` `\uE895` in `OnTimelineHeaderRightTapped`).
-    6. `SuiteHubView`: Missing & Moved Recent File Paths Auditor (`RecentFilesService.AuditMissingRecentFiles` and `FormatMissingRecentFilesAudit`, wired to `CopyRecentMissingAuditItem` `\uE7BA` in `RecentDocsFlyout`).
-- **⚡ Block 4 — Execution Phase (45–60 min)**:
-  - Refined Block 3 (Pass 1) and executed all 6 refined ideas into 100% production code across `MarkSmith.Core` and `MarkSmith.Desktop`.
-  - Added unit tests across all 6 test suites:
-    * `TextSearchTests.cs`: `Run143_ReplacePreservingCase_And_FormatCasePreservingReplaceSummary` (Passed).
-    * `MindMapGalaxyPolishTests.cs`: `Run143_AttachOrphansToRoot_And_FormatOrphanAttachmentSummary` (Passed).
-    * `ShapeStudioPolishTests.cs`: `Run143_NormalizeShapePrecision_And_FormatPrecisionNormalizationSummary` (Passed).
-    * `SmartArtStudioPolishTests.cs`: `Run143_DeduplicateOutlineNodes_And_FormatOutlineDeduplicationSummary` (Passed).
-    * `HistoryPolishTests.cs`: `Run143_ComputeDiffAgainstLatestSummary_ComputesDeltaAndSimilarity` (Passed).
-    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FormatMissingRecentFilesAudit_ComputesAccurately`, `Run143_Polish_Elements_Wired_Across_Surfaces` (Passed).
-  - Verification:
-    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors**.
-    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run143|RecentFilesService_FormatMissingRecentFilesAudit|CommandIconsTests"`: **55 passed, 0 failed (100% pass rate)**.
-    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --no-build --filter "TextSearchTests|MindMapGalaxyPolishTests|ShapeStudioPolishTests|SmartArtStudioPolishTests|HistoryPolishTests|SuiteHubAndTourPolishTests|CommandIconsTests"`: **575 passed, 0 failed (100% pass rate)**.
-    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 30096, responsive startup (`Responding=True, WorkingSet=206.95MB`), clean exit.
-  - Next scheduled run: **Run #144** (`Status: Pending`).
 
 
