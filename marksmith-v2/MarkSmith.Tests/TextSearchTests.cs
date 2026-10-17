@@ -386,4 +386,20 @@ public class TextSearchTests
         Assert.Equal("No line context available", TextSearch.FormatMatchLineContext("", -1, 0));
         Assert.Equal("No line context available", TextSearch.FormatMatchLineContext(doc, 9999, 5));
     }
+
+    [Fact]
+    public void Run138_FormatSearchQueryDiagnostics_FormatsOptionsAndValidation()
+    {
+        var diag1 = TextSearch.FormatSearchQueryDiagnostics("markdown", 5, isCaseSensitive: true, isWholeWord: true, isRegex: false);
+        Assert.Equal("Query: \"markdown\" · 5 matches · Options: [Match Case, Whole Word] · Mode: Plain Text", diag1);
+
+        var diag2 = TextSearch.FormatSearchQueryDiagnostics(@"\d{3}", 1, isCaseSensitive: false, isWholeWord: false, isRegex: true);
+        Assert.Equal("Query: \"\\d{3}\" · 1 match · Options: [Regex] · Mode: Regular Expression (Valid)", diag2);
+
+        var diag3 = TextSearch.FormatSearchQueryDiagnostics(@"(unclosed", 0, isCaseSensitive: false, isWholeWord: false, isRegex: true);
+        Assert.Contains("Mode: Regular Expression (Invalid:", diag3);
+
+        var emptyDiag = TextSearch.FormatSearchQueryDiagnostics("", 0, false, false, false);
+        Assert.Equal("Empty query (0 matches)", emptyDiag);
+    }
 }

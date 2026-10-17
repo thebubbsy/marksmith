@@ -992,5 +992,81 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentDriveDistributionClick", suiteCs);
         Assert.Contains("FormatRecentDriveDistribution", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_FormatRecentAgeDistribution_GroupsAgesCorrectly()
+    {
+        var refTime = new DateTime(2026, 10, 17, 16, 0, 0);
+        var files = new[]
+        {
+            @"C:\doc_today.md",
+            @"C:\doc_week.md",
+            @"D:\doc_older.txt",
+            @"E:\missing.doc"
+        };
+
+        var summary = RecentFilesService.FormatRecentAgeDistribution(
+            files,
+            refTime,
+            file => file switch
+            {
+                @"C:\doc_today.md" => refTime.AddHours(-2),
+                @"C:\doc_week.md" => refTime.AddDays(-3),
+                @"D:\doc_older.txt" => refTime.AddDays(-20),
+                _ => null
+            });
+
+        Assert.Equal("4 documents: 1 today, 1 this week, 1 older, 1 unverified", summary);
+
+        // Empty
+        Assert.Equal("0 documents in recent history", RecentFilesService.FormatRecentAgeDistribution(null));
+        Assert.Equal("0 documents in recent history", RecentFilesService.FormatRecentAgeDistribution(Array.Empty<string>()));
+    }
+
+    [Fact]
+    public void Run138_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: Copy search query diagnostics
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy search query diagnostics", mainCs);
+        Assert.Contains("FormatSearchQueryDiagnostics", mainCs);
+
+        // 2. MindMapGalaxy: CycleAnchorSnapAngleItem & OnCycleAnchorSnapAngleClick
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("CycleAnchorSnapAngleItem", galaxyXaml);
+        Assert.Contains("OnCycleAnchorSnapAngleClick", galaxyXaml);
+        Assert.Contains("OnCycleAnchorSnapAngleClick", galaxyCs);
+        Assert.Contains("CycleAnchorSnapAngle", galaxyCs);
+
+        // 3. ShapeStudio: SelectionCycleOpacityItem, OnSelectionCycleOpacityClick
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionCycleOpacityItem", shapeXaml);
+        Assert.Contains("OnSelectionCycleOpacityClick", shapeXaml);
+        Assert.Contains("OnSelectionCycleOpacityClick", shapeCs);
+        Assert.Contains("CycleShapeOpacity", shapeCs);
+
+        // 4. SmartArtStudio: OutlineHierarchyBreakdownItem & OnCopyOutlineHierarchyBreakdownClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineHierarchyBreakdownItem", smartArtXaml);
+        Assert.Contains("OnCopyOutlineHierarchyBreakdownClick", smartArtXaml);
+        Assert.Contains("OnCopyOutlineHierarchyBreakdownClick", smartArtCs);
+        Assert.Contains("FormatOutlineHierarchyBreakdown", smartArtCs);
+
+        // 5. HistoryWindow: Copy version change velocity item
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy version change velocity", historyCs);
+        Assert.Contains("FormatVersionChangeVelocity", historyCs);
+
+        // 6. SuiteHub: CopyRecentAgeDistributionItem & OnCopyRecentAgeDistributionClick
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentAgeDistributionItem", suiteXaml);
+        Assert.Contains("OnCopyRecentAgeDistributionClick", suiteXaml);
+        Assert.Contains("OnCopyRecentAgeDistributionClick", suiteCs);
+        Assert.Contains("FormatRecentAgeDistribution", suiteCs);
+    }
 }
 

@@ -6027,5 +6027,36 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateMultiSelectionAdorner();
             ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
         }
+
+        private double _currentShapeOpacity = 1.0;
+
+        private void OnSelectionCycleOpacityClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0)
+            {
+                ViewModel.StatusMessage = "No shapes to change opacity.";
+                return;
+            }
+
+            ViewModel.RecordUndo();
+            var (nextOpacity, label) = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.CycleShapeOpacity(_currentShapeOpacity);
+            _currentShapeOpacity = nextOpacity;
+
+            int updatedCount = 0;
+            foreach (var s in sel)
+            {
+                if (_shapePaths.TryGetValue(s, out var path))
+                {
+                    path.Opacity = nextOpacity;
+                    updatedCount++;
+                }
+            }
+
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+            ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
+        }
     }
 }

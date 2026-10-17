@@ -734,6 +734,19 @@ public class HistoryPolishTests : IDisposable
         var emptyRecord = LineDiff.FormatVersionAuditRecord("", null, 0, 0, refTime);
         Assert.Equal("Version · Unknown time · no line changes", emptyRecord);
     }
+
+    [Fact]
+    public void Run138_FormatVersionChangeVelocity_FormatsNetAndInterval()
+    {
+        var v1 = LineDiff.FormatVersionChangeVelocity(15, 3, TimeSpan.FromMinutes(25));
+        Assert.Equal("Velocity: 18 lines (+15/-3) (Net: +12) · 25m interval", v1);
+
+        var v2 = LineDiff.FormatVersionChangeVelocity(0, 5, TimeSpan.FromHours(2).Add(TimeSpan.FromMinutes(10)));
+        Assert.Equal("Velocity: -5 lines (Net: -5) · 2h 10m interval", v2);
+
+        var v3 = LineDiff.FormatVersionChangeVelocity(0, 0, null);
+        Assert.Equal("Velocity: 0 lines (Net: 0)", v3);
+    }
 }
 
 

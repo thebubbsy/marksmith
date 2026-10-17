@@ -607,6 +607,9 @@
                                         <MenuFlyoutItem x:Name="SelectionCycleStrokeDashItem" Text="Cycle stroke dash (Solid / Dashed / Dotted)" Click="OnSelectionCycleStrokeDashClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B2;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionCycleOpacityItem" Text="Cycle shape opacity (100% / 75% / 50% / 25%)" Click="OnSelectionCycleOpacityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

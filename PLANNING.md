@@ -10393,3 +10393,85 @@ Reviewed: the 2026-10-17 run #136 entry above. Followed the AI-Executable 3-Bloc
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 19244, responsive startup (`Alive=True Responding=True`), clean exit.
 
+### 2026-10-17 (scheduled routine run #138 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #137 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #137:
+    * Target A: `MainWindow` find bar search query diagnostics & validation.
+    * Target B: `MindMapGalaxyWindow` custom connection anchor snap angle cycle helper.
+  - Generated:
+    1. `MainWindow`: Find Bar Search Query Diagnostics & Regex Syntax Validator (`TextSearch.FormatSearchQueryDiagnostics(query, matchCount, isCaseSensitive, isWholeWord, isRegex)` reporting query string, match count, active option flags, and live regex syntax validation, with "Copy search query diagnostics" `\uE9F9` item in `FindCountText` flyout).
+    2. `MindMapGalaxyWindow`: Connection Anchor Snap Angle Cycle & Formatter (`MindMapStudioViewModel.CycleAnchorSnapAngle(currentAngle)` cycling `0° (Direct / Unsnapped) -> 45° (Diagonal Octant) -> 90° (Cardinal Orthogonal) -> 0°`, `MindMapStudioViewModel.FormatAnchorSnapSummary(angle)`, and "Cycle connection snap angle (0° / 45° / 90°)" `\uE7AD` item in `ConnectionStyleDropDownButton.Flyout` with tick feedback and visual redraw).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.cs` with empty/boundary guards, option bracket tokens `[Match Case, Whole Word, Regex]`, and exception-safe regex compiler syntax checking. Added `diagItem` with icon `\uE9F9` in `FindCountText` context menu in `MainWindow.xaml.cs` with clipboard export and status announcement.
+    * For Idea 2: Implemented `CycleAnchorSnapAngle` and `FormatAnchorSnapSummary` in `MindMapStudioViewModel.cs`. Mounted `CycleAnchorSnapAngleItem` with icon `\uE7AD` in `ConnectionStyleDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and wired `OnCycleAnchorSnapAngleClick` with button tick feedback and canvas redraw.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Shape Opacity Cycle Helper & Shadow Blur Estimator (`ShapeDesignStudioViewModel.CycleShapeOpacity(currentOpacity)` cycling `1.0 (100% Solid) -> 0.75 (75% Translucent) -> 0.50 (50% Semi-transparent) -> 0.25 (25% Faint) -> 1.0`, `ShapeDesignStudioViewModel.CycleShadowBlurRadius(currentBlur)`, and "Cycle shape opacity (100% / 75% / 50% / 25%)" `\uE790` item in `SelectionBoundsFlyout` with undo recording and adorner refresh).
+    4. `SmartArtDesignStudioWindow`: Outline Hierarchy Depth & Level Distribution Breakdown (`SmartArtDesignStudioViewModel.FormatOutlineHierarchyBreakdown(markdown)` parsing tree levels, item counts per depth L1..Ln, and tree depth balance, with "Copy hierarchy level breakdown (L1, L2...)" `\uE8B7` item in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionCycleOpacityItem` with icon `\uE790` in `SelectionBoundsFlyout` in `ShapeDesignStudioWindow.xaml`. Implemented `OnSelectionCycleOpacityClick` in `ShapeDesignStudioWindow.xaml.cs`, applying opacity directly to selected shapes (or all shapes if none selected), recording undo snapshots, updating adorners, and announcing status.
+    * For Idea 4: Mounted `OutlineHierarchyBreakdownItem` with icon `\uE8B7` in `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`. Implemented `FormatOutlineHierarchyBreakdown` in `SmartArtDesignStudioViewModel.cs` and wired `OnCopyOutlineHierarchyBreakdownClick` in `SmartArtDesignStudioWindow.xaml.cs` with clipboard export and status notification.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `FormatSearchQueryDiagnostics` handles empty queries, plain text queries, valid complex regular expressions, and invalid patterns (e.g. unclosed parentheses) cleanly without unhandled exceptions.
+    * Verified `CycleAnchorSnapAngle` correctly handles floating-point tolerances and cycles monotonically through standard angles.
+  - Generated:
+    5. `HistoryWindow`: Version Change Velocity & Density Formatter (`LineDiff.FormatVersionChangeVelocity(linesAdded, linesRemoved, interval)` formatting net change, total line volume, and optional elapsed interval between revisions, with "Copy version change velocity" `\uE823` item in `TimelineHeaderBorder` context flyout in `HistoryWindow.xaml.cs`).
+    6. `SuiteHubView`: Recent Documents Age & Recency Distribution Formatter (`RecentFilesService.FormatRecentAgeDistribution(files, referenceTime, lastWriteTimeProvider)` grouping documents into Today, This Week, Older, and Unverified recency buckets, with "Copy document age breakdown (Today, This week...)" `\uE823` item in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Implemented `LineDiff.FormatVersionChangeVelocity` in `LineDiff.cs` handling zero-change, pure addition, pure deletion, and mixed churn cases. Mounted `copyVelocity` item with icon `\uE823` in `OnTimelineHeaderRightTapped` in `HistoryWindow.xaml.cs` with notice notification.
+    * For Idea 6: Added `CopyRecentAgeDistributionItem` to `RecentDocsFlyout` in `SuiteHubView.xaml` with icon `\uE823`, implemented `RecentFilesService.FormatRecentAgeDistribution` in `RecentFilesService.cs` with dependency-injectable timestamp provider, and wired `OnCopyRecentAgeDistributionClick` in `SuiteHubView.xaml.cs` with tick feedback on `RecentDocsActionBtn`.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `Run138_FormatSearchQueryDiagnostics_FormatsOptionsAndValidation` (Passed).
+    * `MindMapGalaxyPolishTests.cs`: `Run138_CycleAnchorSnapAngle_CyclesAndFormatsDeterministically` (Passed).
+    * `ShapeStudioPolishTests.cs`: `Run138_CycleShapeOpacity_CyclesAcrossOpacityLevels`, `Run138_CycleShadowBlurRadius_CyclesBlurLevels` (Passed).
+    * `SmartArtStudioPolishTests.cs`: `Run138_FormatOutlineHierarchyBreakdown_ComputesLevelBreakdown` (Passed).
+    * `HistoryPolishTests.cs`: `Run138_FormatVersionChangeVelocity_FormatsNetAndInterval` (Passed).
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FormatRecentAgeDistribution_GroupsAgesCorrectly`, `Run138_Polish_Elements_Wired_Across_Surfaces` (Passed).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run138"`: **7 passed, 0 failed (100% pass rate)**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "RecentFilesService_FormatRecentAgeDistribution"`: **1 passed, 0 failed (100% pass rate)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 2056, responsive startup (`Alive=True Responding=True`), clean exit.
+  - Carried forward ideas / next targets into Run #139:
+    * Target A: `MainWindow` find bar search history clear / trim accelerator.
+    * Target B: `MindMapGalaxyWindow` connection line label toggle helper.
+    * Target C: `ShapeDesignStudioWindow` quick shape shadow blur radius cycle helper.
+
+**Shipped:**
+1. **`MainWindow` Find Bar Query Diagnostics & Regex Syntax Validator (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - `TextSearch.FormatSearchQueryDiagnostics` formatting query string, match count, active option flags, and live regex syntax validation.
+   - `diagItem` ("Copy search query diagnostics", `\uE9F9`) in `FindCountText` context menu with status notice and clipboard export.
+2. **`MindMapGalaxyWindow` Connection Anchor Snap Angle Cycle & Formatter (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `MindMapStudioViewModel.CycleAnchorSnapAngle` cycling 0° (free) -> 45° (octant) -> 90° (cardinal) -> 0°.
+   - `MindMapStudioViewModel.FormatAnchorSnapSummary` formatting anchor snap summaries.
+   - `CycleAnchorSnapAngleItem` (`\uE7AD`) in `ConnectionStyleDropDownButton.Flyout` with tick feedback and visual redraw.
+3. **`ShapeDesignStudioWindow` Shape Opacity Cycle Helper & Shadow Blur Estimator (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ShapeDesignStudioViewModel.CycleShapeOpacity` cycling 100% -> 75% -> 50% -> 25% -> 100%.
+   - `ShapeDesignStudioViewModel.CycleShadowBlurRadius` cycling 0px -> 4px -> 8px -> 16px -> 0px.
+   - `SelectionCycleOpacityItem` (`\uE790`) in `SelectionBoundsFlyout` with undo recording and adorner refresh.
+4. **`SmartArtDesignStudioWindow` Outline Hierarchy Depth & Level Distribution Breakdown (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `SmartArtDesignStudioViewModel.FormatOutlineHierarchyBreakdown` analyzing outline tree depth levels and item counts.
+   - `OutlineHierarchyBreakdownItem` (`\uE8B7`) in `OutlineStatsFlyout` with clipboard export.
+5. **`HistoryWindow` Version Change Velocity & Density Formatter (`HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.FormatVersionChangeVelocity` computing net change, total line churn, and interval between versions.
+   - `copyVelocity` item (`\uE823`) in `TimelineHeaderBorder` context menu.
+6. **`SuiteHubView` Recent Documents Age & Recency Distribution Formatter (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.FormatRecentAgeDistribution` grouping documents into Today, This Week, Older, and Unverified buckets.
+   - `CopyRecentAgeDistributionItem` (`\uE823`) in `RecentDocsFlyout` with button tick feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run138"`: **7 passed, 0 failed (100% pass rate)**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "RecentFilesService_FormatRecentAgeDistribution"`: **1 passed, 0 failed (100% pass rate)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 2056, responsive startup (`Alive=True Responding=True`), clean exit.
+
+

@@ -2280,5 +2280,28 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Connection: {routingName} · Weight: {weightName} · Anchor: {anchorName} ({padStr}) · {arrowStr}";
         }
+
+        /// <summary>
+        /// Cycles connection anchor snap angle (0° -> 45° -> 90° -> 0°) and returns the next angle and display label.
+        /// </summary>
+        public static (double NextSnapAngle, string Label) CycleAnchorSnapAngle(double currentSnapAngle)
+        {
+            return currentSnapAngle switch
+            {
+                < 22.5 => (45.0, "Snap angle: 45° (Diagonal Octant)"),
+                < 67.5 => (90.0, "Snap angle: 90° (Cardinal Orthogonal)"),
+                _ => (0.0, "Snap angle: 0° (Free / Direct)")
+            };
+        }
+
+        /// <summary>
+        /// Formats a connection anchor snap summary for display or export.
+        /// </summary>
+        public static string FormatAnchorSnapSummary(double snapAngle)
+        {
+            if (snapAngle < 22.5) return "Anchor snap: Free / Direct (0°)";
+            if (snapAngle < 67.5) return "Anchor snap: Diagonal / Octant (45°)";
+            return "Anchor snap: Cardinal / Orthogonal (90°)";
+        }
     }
 }

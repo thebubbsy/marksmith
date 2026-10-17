@@ -502,4 +502,25 @@ public class SmartArtStudioPolishTests
         var emptySummary = SmartArtDesignStudioViewModel.FormatOutlineLineLengthAuditSummary(null, 40);
         Assert.Equal("Outline is empty (0 lines)", emptySummary);
     }
+
+    [Fact]
+    public void Run138_FormatOutlineHierarchyBreakdown_ComputesLevelBreakdown()
+    {
+        var outline = @"- Root 1
+  - Child 1.1
+  - Child 1.2
+    - Grandchild 1.2.1
+- Root 2
+  - Child 2.1";
+
+        var summary = SmartArtDesignStudioViewModel.FormatOutlineHierarchyBreakdown(outline);
+        Assert.Contains("Outline: 6 items across 3 levels (L1: 2, L2: 3, L3: 1) · Max Depth: 3", summary);
+
+        var emptySummary = SmartArtDesignStudioViewModel.FormatOutlineHierarchyBreakdown("");
+        Assert.Equal("Outline is empty (0 items)", emptySummary);
+
+        var nonStructured = "Just a paragraph without list markers.";
+        var noListSummary = SmartArtDesignStudioViewModel.FormatOutlineHierarchyBreakdown(nonStructured);
+        Assert.Equal("Outline has 0 structured items", noListSummary);
+    }
 }

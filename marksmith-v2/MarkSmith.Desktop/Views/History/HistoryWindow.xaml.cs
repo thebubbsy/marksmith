@@ -3018,6 +3018,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied version audit: {auditRecord}");
                 };
                 menu.Items.Add(copyAudit);
+
+                var velocitySummary = MarkSmith.Services.LineDiff.FormatVersionChangeVelocity(sel.LinesAdded, sel.LinesRemoved);
+                var copyVelocity = new MenuFlyoutItem
+                {
+                    Text = "Copy version change velocity",
+                    Icon = new FontIcon { Glyph = "\uE823" }
+                };
+                copyVelocity.Click += (_, _) =>
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(velocitySummary);
+                    _vm.ShowNotice($"Copied version velocity: {velocitySummary}");
+                };
+                menu.Items.Add(copyVelocity);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

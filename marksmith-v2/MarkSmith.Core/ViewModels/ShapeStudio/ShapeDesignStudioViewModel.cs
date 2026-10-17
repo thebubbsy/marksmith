@@ -3363,4 +3363,26 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             _ => ("dashed", "Stroke dash: Dashed (4 2)")
         };
     }
+
+    /// <summary>
+    /// Cycles shape opacity (1.0 -> 0.75 -> 0.50 -> 0.25 -> 1.0) and returns the next opacity and display label.
+    /// </summary>
+    public static (double NextOpacity, string Label) CycleShapeOpacity(double currentOpacity)
+    {
+        if (currentOpacity > 0.87) return (0.75, "Opacity: 75% (Translucent)");
+        if (currentOpacity > 0.62) return (0.50, "Opacity: 50% (Semi-transparent)");
+        if (currentOpacity > 0.37) return (0.25, "Opacity: 25% (Faint)");
+        return (1.0, "Opacity: 100% (Solid)");
+    }
+
+    /// <summary>
+    /// Cycles shape shadow blur radius (0px -> 4px -> 8px -> 16px -> 0px) and returns the next blur radius and display label.
+    /// </summary>
+    public static (double NextBlur, string Label) CycleShadowBlurRadius(double currentBlur)
+    {
+        if (currentBlur < 2.0) return (4.0, "Shadow blur: 4px (Subtle)");
+        if (currentBlur < 6.0) return (8.0, "Shadow blur: 8px (Medium)");
+        if (currentBlur < 12.0) return (16.0, "Shadow blur: 16px (Deep)");
+        return (0.0, "Shadow blur: 0px (Crisp / Off)");
+    }
 }

@@ -1409,4 +1409,47 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     private static string TruncateString(string text, int max) =>
         text.Length <= max ? text : text.Substring(0, max - 3) + "...";
+
+    /// <summary>
+    /// Computes item counts per depth level (e.g. L1, L2, L3) and formats an executive hierarchy breakdown summary.
+    /// </summary>
+    public static string FormatOutlineHierarchyBreakdown(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return "Outline is empty (0 items)";
+        var lines = markdown.Replace("\r", "").Split('\n');
+        var depthCounts = new Dictionary<int, int>();
+        int totalItems = 0;
+
+        foreach (var rawLine in lines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+
+            int leadWs = 0;
+            int spaceCount = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t'))
+            {
+                if (rawLine[leadWs] == '\t') spaceCount += 2;
+                else spaceCount += 1;
+                leadWs++;
+            }
+
+            if (leadWs < rawLine.Length)
+            {
+                var rest = rawLine.Substring(leadWs);
+                if (rest.StartsWith("- ") || rest.StartsWith("* ") || rest.StartsWith("+ ") ||
+                    (rest.Length > 2 && char.IsDigit(rest[0]) && rest[1] == '.' && rest[2] == ' '))
+                {
+                    int depth = (spaceCount / 2) + 1;
+                    depthCounts[depth] = depthCounts.GetValueOrDefault(depth, 0) + 1;
+                    totalItems++;
+                }
+            }
+        }
+
+        if (totalItems == 0) return "Outline has 0 structured items";
+
+        int maxDepth = depthCounts.Keys.Max();
+        var breakdown = string.Join(", ", depthCounts.OrderBy(k => k.Key).Select(k => $"L{k.Key}: {k.Value}"));
+        return $"Outline: {totalItems} items across {depthCounts.Count} level{(depthCounts.Count == 1 ? "" : "s")} ({breakdown}) · Max Depth: {maxDepth}";
+    }
 }

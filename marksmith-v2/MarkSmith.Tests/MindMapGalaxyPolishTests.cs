@@ -1290,5 +1290,25 @@ namespace MarkSmith.Tests
 
             Assert.Equal("Connection: Straight (Direct) · Weight: Thin (1.2px) · Anchor: Right Edge (Flush (0px)) · Arrows: Off", straightSummary);
         }
+
+        [Fact]
+        public void Run138_CycleAnchorSnapAngle_CyclesAndFormatsDeterministically()
+        {
+            var (a1, l1) = MindMapStudioViewModel.CycleAnchorSnapAngle(0.0);
+            Assert.Equal(45.0, a1);
+            Assert.Contains("45°", l1);
+
+            var (a2, l2) = MindMapStudioViewModel.CycleAnchorSnapAngle(a1);
+            Assert.Equal(90.0, a2);
+            Assert.Contains("90°", l2);
+
+            var (a3, l3) = MindMapStudioViewModel.CycleAnchorSnapAngle(a2);
+            Assert.Equal(0.0, a3);
+            Assert.Contains("0°", l3);
+
+            Assert.Equal("Anchor snap: Free / Direct (0°)", MindMapStudioViewModel.FormatAnchorSnapSummary(0.0));
+            Assert.Equal("Anchor snap: Diagonal / Octant (45°)", MindMapStudioViewModel.FormatAnchorSnapSummary(45.0));
+            Assert.Equal("Anchor snap: Cardinal / Orthogonal (90°)", MindMapStudioViewModel.FormatAnchorSnapSummary(90.0));
+        }
     }
 }

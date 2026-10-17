@@ -8862,6 +8862,25 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(lineCtxItem);
 
+        var diagItem = new MenuFlyoutItem
+        {
+            Text = "Copy search query diagnostics",
+            Icon = new FontIcon { Glyph = "\uE9F9" },
+            IsEnabled = !string.IsNullOrEmpty(FindTextBox?.Text)
+        };
+        diagItem.Click += (_, _) =>
+        {
+            var queryDiag = MarkSmith.Services.TextSearch.FormatSearchQueryDiagnostics(
+                FindTextBox?.Text,
+                _findMatches.Count,
+                MatchCaseCheck?.IsChecked == true,
+                MatchWholeWordCheck?.IsChecked == true,
+                UseRegexCheck?.IsChecked == true);
+            _ = Services.ClipboardWriter.TrySetTextAsync(queryDiag);
+            AnnounceStatus($"Search diagnostics: {queryDiag}");
+        };
+        menu.Items.Add(diagItem);
+
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
         e.Handled = true;
     }

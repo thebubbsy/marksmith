@@ -4538,6 +4538,21 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnCopyOutlineHierarchyBreakdownClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            var summary = SmartArtDesignStudioViewModel.FormatOutlineHierarchyBreakdown(markdown);
+            try
+            {
+                Services.ClipboardWriter.TrySetTextAsync(summary);
+                ViewModel.StatusMessage = $"✓ Copied hierarchy breakdown: {summary}";
+            }
+            catch
+            {
+                ViewModel.StatusMessage = summary;
+            }
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

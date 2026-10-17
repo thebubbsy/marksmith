@@ -336,4 +336,52 @@ public static class TextSearch
         string lineContent = text.Substring(lineStart, lineEnd - lineStart).Trim();
         return $"L{line} (Col {col}): {lineContent}";
     }
+
+    /// <summary>
+    /// Formats a complete search query diagnostics summary including match count, option flags, and regex syntax validation.
+    /// </summary>
+    public static string FormatSearchQueryDiagnostics(
+        string? query,
+        int matchCount,
+        bool isCaseSensitive,
+        bool isWholeWord,
+        bool isRegex)
+    {
+        if (string.IsNullOrEmpty(query)) return "Empty query (0 matches)";
+
+        var optionsList = new List<string>();
+        if (isCaseSensitive) optionsList.Add("Match Case");
+        if (isWholeWord) optionsList.Add("Whole Word");
+        if (isRegex) optionsList.Add("Regex");
+
+        string optionsStr = optionsList.Count > 0
+            ? " · Options: [" + string.Join(", ", optionsList) + "]"
+            : " · Options: [Default]";
+
+        string matchLabel = matchCount == 1 ? "1 match" : $"{matchCount} matches";
+
+        string modeAndValidation;
+        if (isRegex)
+        {
+            try
+            {
+                var options = System.Text.RegularExpressions.RegexOptions.None;
+                if (!isCaseSensitive) options |= System.Text.RegularExpressions.RegexOptions.IgnoreCase;
+                _ = new System.Text.RegularExpressions.Regex(query, options);
+                modeAndValidation = "Mode: Regular Expression (Valid)";
+            }
+            catch (ArgumentException ex)
+            {
+                var firstLine = ex.Message.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
+                modeAndValidation = $"Mode: Regular Expression (Invalid: {firstLine})";
+            }
+        }
+        else
+        {
+            modeAndValidation = "Mode: Plain Text";
+        }
+
+        return $"Query: \"{query}\" · {matchLabel}{optionsStr} · {modeAndValidation}";
+    }
 }
+

@@ -403,4 +403,34 @@ public static class LineDiff
 
         return $"{name} · {timeStr}{relAge} · {delta}";
     }
+
+    /// <summary>
+    /// Formats a version change velocity and density summary including net line change and optional interval.
+    /// </summary>
+    public static string FormatVersionChangeVelocity(int linesAdded, int linesRemoved, TimeSpan? interval = null)
+    {
+        int totalChanged = linesAdded + linesRemoved;
+        int net = linesAdded - linesRemoved;
+        string netStr = net > 0 ? $"+{net}" : net < 0 ? $"{net}" : "0";
+
+        string deltaDetail = (linesAdded == 0 && linesRemoved == 0)
+            ? "0 lines"
+            : linesAdded > 0 && linesRemoved > 0
+                ? $"{totalChanged} lines (+{linesAdded}/-{linesRemoved})"
+                : linesAdded > 0
+                    ? $"+{linesAdded} line{(linesAdded == 1 ? "" : "s")}"
+                    : $"-{linesRemoved} line{(linesRemoved == 1 ? "" : "s")}";
+
+        string intervalStr = "";
+        if (interval.HasValue)
+        {
+            var span = interval.Value;
+            if (span.TotalMinutes < 1) intervalStr = " · <1m interval";
+            else if (span.TotalHours < 1) intervalStr = $" · {(int)span.TotalMinutes}m interval";
+            else if (span.TotalDays < 1) intervalStr = $" · {(int)span.TotalHours}h {(int)(span.TotalMinutes % 60)}m interval";
+            else intervalStr = $" · {(int)span.TotalDays}d interval";
+        }
+
+        return $"Velocity: {deltaDetail} (Net: {netStr}){intervalStr}";
+    }
 }

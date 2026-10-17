@@ -236,4 +236,77 @@ public sealed class RecentFilesService
         var docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
         return $"{docLabel} across {ordered.Count} storage roots: {breakdown}";
     }
+
+    /// <summary>
+    /// Analyzes the last modified timestamp of recent files and formats a recency/age distribution summary
+    /// (e.g. "4 documents: 2 today, 1 this week, 1 older").
+    /// </summary>
+    public static string FormatRecentAgeDistribution(
+        IEnumerable<string>? files,
+        DateTime? referenceTime = null,
+        Func<string, DateTime?>? lastWriteTimeProvider = null)
+    {
+        if (files is null) return "0 documents in recent history";
+        var list = files.Where(f => !string.IsNullOrWhiteSpace(f)).ToList();
+        if (list.Count == 0) return "0 documents in recent history";
+
+        var now = referenceTime ?? DateTime.Now;
+        var todayStart = now.Date;
+        var weekStart = todayStart.AddDays(-7);
+
+        int todayCount = 0;
+        int weekCount = 0;
+        int olderCount = 0;
+        int unverifiedCount = 0;
+
+        foreach (var file in list)
+        {
+            DateTime? mtime = null;
+            if (lastWriteTimeProvider != null)
+            {
+                mtime = lastWriteTimeProvider(file);
+            }
+            else
+            {
+                try
+                {
+                    if (File.Exists(file))
+                    {
+                        mtime = File.GetLastWriteTime(file);
+                    }
+                }
+                catch
+                {
+                    // Inaccessible or invalid path format
+                }
+            }
+
+            if (!mtime.HasValue)
+            {
+                unverifiedCount++;
+            }
+            else if (mtime.Value >= todayStart)
+            {
+                todayCount++;
+            }
+            else if (mtime.Value >= weekStart)
+            {
+                weekCount++;
+            }
+            else
+            {
+                olderCount++;
+            }
+        }
+
+        var parts = new List<string>();
+        if (todayCount > 0) parts.Add($"{todayCount} today");
+        if (weekCount > 0) parts.Add($"{weekCount} this week");
+        if (olderCount > 0) parts.Add($"{olderCount} older");
+        if (unverifiedCount > 0) parts.Add($"{unverifiedCount} unverified");
+
+        var docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
+        if (parts.Count == 0) return $"{docLabel}: status unknown";
+        return $"{docLabel}: {string.Join(", ", parts)}";
+    }
 }

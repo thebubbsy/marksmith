@@ -4081,6 +4081,20 @@ namespace MarkSmith.Views.MindMap
             catch { /* non-critical clipboard failure */ }
         }
 
+        private double _connectionAnchorSnapAngle = 0.0;
+
+        private void OnCycleAnchorSnapAngleClick(object sender, RoutedEventArgs e)
+        {
+            var (nextAngle, label) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.CycleAnchorSnapAngle(_connectionAnchorSnapAngle);
+            _connectionAnchorSnapAngle = nextAngle;
+            ViewModel.StatusMessage = label;
+            if (ConnectionStyleDropDownButton != null)
+            {
+                CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");
+            }
+            RequestRedraw(RedrawScope.Geometry | RedrawScope.Appearance);
+        }
+
         private void OnCycleConnectionRoutingClick(object sender, RoutedEventArgs e)
         {
             var cur = _connectionRoutingStyle switch

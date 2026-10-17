@@ -557,4 +557,44 @@ public class ShapeStudioPolishTests
         var (dDef, _) = ShapeDesignStudioViewModel.CycleStrokeDashStyle(null);
         Assert.Equal("dashed", dDef);
     }
+
+    [Fact]
+    public void Run138_CycleShapeOpacity_CyclesAcrossOpacityLevels()
+    {
+        var (o1, l1) = ShapeDesignStudioViewModel.CycleShapeOpacity(1.0);
+        Assert.Equal(0.75, o1);
+        Assert.Contains("75%", l1);
+
+        var (o2, l2) = ShapeDesignStudioViewModel.CycleShapeOpacity(o1);
+        Assert.Equal(0.50, o2);
+        Assert.Contains("50%", l2);
+
+        var (o3, l3) = ShapeDesignStudioViewModel.CycleShapeOpacity(o2);
+        Assert.Equal(0.25, o3);
+        Assert.Contains("25%", l3);
+
+        var (o4, l4) = ShapeDesignStudioViewModel.CycleShapeOpacity(o3);
+        Assert.Equal(1.0, o4);
+        Assert.Contains("100%", l4);
+    }
+
+    [Fact]
+    public void Run138_CycleShadowBlurRadius_CyclesBlurLevels()
+    {
+        var (b1, l1) = ShapeDesignStudioViewModel.CycleShadowBlurRadius(0.0);
+        Assert.Equal(4.0, b1);
+        Assert.Contains("4px", l1);
+
+        var (b2, l2) = ShapeDesignStudioViewModel.CycleShadowBlurRadius(b1);
+        Assert.Equal(8.0, b2);
+        Assert.Contains("8px", l2);
+
+        var (b3, l3) = ShapeDesignStudioViewModel.CycleShadowBlurRadius(b2);
+        Assert.Equal(16.0, b3);
+        Assert.Contains("16px", l3);
+
+        var (b4, l4) = ShapeDesignStudioViewModel.CycleShadowBlurRadius(b3);
+        Assert.Equal(0.0, b4);
+        Assert.Contains("0px", l4);
+    }
 }

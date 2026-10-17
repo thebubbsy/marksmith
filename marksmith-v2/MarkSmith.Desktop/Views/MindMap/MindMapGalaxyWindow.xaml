@@ -314,6 +314,9 @@
                                     <MenuFlyoutItem x:Name="CopyFullConnectionConfigurationItem" Text="Copy full connection configuration" Click="OnCopyFullConnectionConfigurationClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EC;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CycleAnchorSnapAngleItem" Text="Cycle connection snap angle (0° / 45° / 90°)" Click="OnCycleAnchorSnapAngleClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7AD;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>
