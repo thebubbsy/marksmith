@@ -118,4 +118,21 @@ public sealed class RecentFilesService
         }
         return dirs;
     }
+
+    /// <summary>
+    /// Formats a sequence of file paths into GitHub-Flavored Markdown bullet links (- [FileName](FilePath)).
+    /// </summary>
+    public static string FormatAsMarkdownList(IEnumerable<string>? files)
+    {
+        if (files is null) return string.Empty;
+        var lines = new List<string>();
+        foreach (var file in files)
+        {
+            if (string.IsNullOrWhiteSpace(file)) continue;
+            var name = Path.GetFileName(file);
+            if (string.IsNullOrEmpty(name)) name = file;
+            lines.Add($"- [{name}]({file})");
+        }
+        return string.Join(Environment.NewLine, lines);
+    }
 }

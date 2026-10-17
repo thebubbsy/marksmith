@@ -452,4 +452,26 @@ public class ShapeStudioPolishTests
             minX: 100, minY: -20, maxX: 500, maxY: 1900, canvasWidth: 2200, canvasHeight: 1800, padding: 40);
         Assert.Equal(60.0, offTopBottom.DeltaY); // 40 - (-20) = 60
     }
+
+    [Theory]
+    [InlineData(0.0, 10.0, 0.0)]
+    [InlineData(4.0, 10.0, 0.0)]
+    [InlineData(5.0, 10.0, 10.0)]
+    [InlineData(14.9, 10.0, 10.0)]
+    [InlineData(15.0, 10.0, 20.0)]
+    [InlineData(123.4, 10.0, 120.0)]
+    [InlineData(-14.0, 10.0, -10.0)]
+    [InlineData(50.0, 0.0, 50.0)] // 0 grid size returns unmodified value
+    public void Run134_SnapToGrid_SnapsAccurately(double value, double grid, double expected)
+    {
+        Assert.Equal(expected, ShapeDesignStudioViewModel.SnapToGrid(value, grid));
+    }
+
+    [Fact]
+    public void Run134_SnapPointToGrid_SnapsBothCoordinates()
+    {
+        var (x, y) = ShapeDesignStudioViewModel.SnapPointToGrid(42.3, 87.6, 10.0);
+        Assert.Equal(40.0, x);
+        Assert.Equal(90.0, y);
+    }
 }

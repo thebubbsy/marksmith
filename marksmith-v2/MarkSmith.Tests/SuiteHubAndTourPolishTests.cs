@@ -721,5 +721,68 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentParentFoldersClick", suiteCs);
         Assert.Contains("ExtractParentDirectories", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_FormatAsMarkdownList_FormatsLinks()
+    {
+        var samplePaths = new[]
+        {
+            @"C:\Users\Docs\Report.md",
+            @"D:\Projects\MarkSmith\Notes.txt"
+        };
+
+        var md = RecentFilesService.FormatAsMarkdownList(samplePaths);
+        Assert.Contains("- [Report.md](C:\\Users\\Docs\\Report.md)", md);
+        Assert.Contains("- [Notes.txt](D:\\Projects\\MarkSmith\\Notes.txt)", md);
+
+        Assert.Equal(string.Empty, RecentFilesService.FormatAsMarkdownList(null));
+        Assert.Equal(string.Empty, RecentFilesService.FormatAsMarkdownList(Array.Empty<string>()));
+    }
+
+    [Fact]
+    public void Run134_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: JumpToMatch, Alt+Home/End shortcuts and context items
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("JumpToMatch", mainCs);
+        Assert.Contains("First match (Alt+Home)", mainCs);
+        Assert.Contains("Last match (Alt+End)", mainCs);
+
+        // 2. MindMapGalaxy: CycleConnectionRoutingItem & CycleStrokeWeightItem
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("CycleConnectionRoutingItem", galaxyXaml);
+        Assert.Contains("CycleStrokeWeightItem", galaxyXaml);
+        Assert.Contains("OnCycleConnectionRoutingClick", galaxyCs);
+        Assert.Contains("OnCycleStrokeWeightClick", galaxyCs);
+
+        // 3. ShapeStudio: SelectionSnapToGridItem & OnSelectionSnapToGridClick
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionSnapToGridItem", shapeXaml);
+        Assert.Contains("OnSelectionSnapToGridClick", shapeXaml);
+        Assert.Contains("OnSelectionSnapToGridClick", shapeCs);
+        Assert.Contains("SnapPointToGrid", shapeCs);
+
+        // 4. SmartArtStudio: OutlineNormalizeIndentItem & OnNormalizeIndentationClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineNormalizeIndentItem", smartArtXaml);
+        Assert.Contains("OnNormalizeIndentationClick", smartArtXaml);
+        Assert.Contains("OnNormalizeIndentationClick", smartArtCs);
+        Assert.Contains("NormalizeIndentation", smartArtCs);
+
+        // 5. HistoryWindow: Copy version timestamp header item
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy version timestamp", historyCs);
+
+        // 6. SuiteHub: CopyRecentAsMarkdownListItem & OnCopyRecentAsMarkdownListClick
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentAsMarkdownListItem", suiteXaml);
+        Assert.Contains("OnCopyRecentAsMarkdownListClick", suiteXaml);
+        Assert.Contains("OnCopyRecentAsMarkdownListClick", suiteCs);
+        Assert.Contains("FormatAsMarkdownList", suiteCs);
+    }
 }
 

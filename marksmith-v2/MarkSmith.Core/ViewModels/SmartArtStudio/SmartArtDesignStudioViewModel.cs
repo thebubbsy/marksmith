@@ -1198,4 +1198,41 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         var result = string.Join("\n", lines);
         return hasCr ? result.Replace("\n", "\r\n") : result;
     }
+
+    /// <summary>
+    /// Normalizes outline bullet indentation to a uniform number of spaces per depth level (default 2),
+    /// converting mixed tabs or irregular space widths while strictly preserving line endings (CRLF vs LF).
+    /// </summary>
+    public static string NormalizeIndentation(string markdown, int spacesPerLevel = 2)
+    {
+        if (string.IsNullOrEmpty(markdown)) return markdown ?? string.Empty;
+        if (spacesPerLevel < 1) spacesPerLevel = 2;
+        bool hasCr = markdown.Contains("\r");
+        var normalized = markdown.Replace("\r", "");
+        var lines = normalized.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            int leadWs = 0;
+            int spaceCount = 0;
+            while (leadWs < line.Length && (line[leadWs] == ' ' || line[leadWs] == '\t'))
+            {
+                if (line[leadWs] == '\t') spaceCount += spacesPerLevel;
+                else spaceCount += 1;
+                leadWs++;
+            }
+
+            if (leadWs < line.Length)
+            {
+                var rest = line.Substring(leadWs);
+                if (rest.StartsWith("- ") || rest.StartsWith("* ") || rest.StartsWith("+ "))
+                {
+                    int depth = spaceCount / spacesPerLevel;
+                    lines[i] = new string(' ', depth * spacesPerLevel) + rest;
+                }
+            }
+        }
+        var result = string.Join("\n", lines);
+        return hasCr ? result.Replace("\n", "\r\n") : result;
+    }
 }

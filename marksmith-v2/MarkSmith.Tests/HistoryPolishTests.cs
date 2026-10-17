@@ -648,6 +648,20 @@ public class HistoryPolishTests : IDisposable
         var summary = LineDiff.FormatDiffStatistics(added, removed, unchanged, hunks);
         Assert.Equal(expected, summary);
     }
+
+    [Fact]
+    public void Run134_FormatVersionTimestampHeader_FormatsTimestampDisplay()
+    {
+        var time = new DateTimeOffset(2026, 10, 17, 14, 30, 0, TimeSpan.Zero);
+        var header = LineDiff.FormatVersionTimestampHeader("Draft v2", time);
+        Assert.Contains("Draft v2", header);
+        Assert.Contains("2026", header);
+        Assert.Contains("October", header);
+
+        // Null timestamp falls back to version name or "Version"
+        Assert.Equal("Milestone", LineDiff.FormatVersionTimestampHeader("Milestone", null));
+        Assert.Equal("Version", LineDiff.FormatVersionTimestampHeader("", null));
+    }
 }
 
 

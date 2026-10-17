@@ -208,4 +208,37 @@ public static class TextSearch
         var baseText = $"{currentIndex} of {totalCount}";
         return wrapped ? $"{baseText} (wrapped)" : baseText;
     }
+
+    /// <summary>
+    /// Clamps a target match index within [0, totalCount - 1], returning -1 if totalCount is 0 or negative.
+    /// </summary>
+    public static int ClampMatchIndex(int targetIndex, int totalCount)
+    {
+        if (totalCount <= 0) return -1;
+        return Math.Clamp(targetIndex, 0, totalCount - 1);
+    }
+
+    /// <summary>
+    /// Target destination when jumping between search matches.
+    /// </summary>
+    public enum MatchJumpTarget
+    {
+        First,
+        Last
+    }
+
+    /// <summary>
+    /// Calculates the match index for a quick jump target (First or Last match).
+    /// Returns (-1, false) when totalCount is 0 or negative.
+    /// </summary>
+    public static (int Index, bool Valid) JumpTo(int totalCount, MatchJumpTarget target)
+    {
+        if (totalCount <= 0) return (-1, false);
+        return target switch
+        {
+            MatchJumpTarget.First => (0, true),
+            MatchJumpTarget.Last => (totalCount - 1, true),
+            _ => (-1, false)
+        };
+    }
 }

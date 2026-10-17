@@ -1158,5 +1158,33 @@ namespace MarkSmith.Tests
             Assert.Equal(expectedNext, next);
             Assert.Equal(expectedLabel, label);
         }
+
+        [Theory]
+        [InlineData("curved", "Straight", "Straight Lines")]
+        [InlineData("straight", "Orthogonal", "Stepped (Orthogonal)")]
+        [InlineData("orthogonal", "Curved", "Curved (Bezier)")]
+        [InlineData(null, "Curved", "Curved (Bezier)")]
+        public void Run134_CycleRoutingStyle_CyclesCorrectly(string? current, string expectedNext, string expectedLabel)
+        {
+            var (next, label) = MindMapStudioViewModel.CycleRoutingStyle(current);
+            Assert.Equal(expectedNext, next);
+            Assert.Equal(expectedLabel, label);
+        }
+
+        [Fact]
+        public void Run134_CycleStrokeWeight_CyclesThroughWeightsDeterministically()
+        {
+            var (w1, l1) = MindMapStudioViewModel.CycleStrokeWeight(MindMapStudioViewModel.ConnectionStrokeWeight.Thin);
+            Assert.Equal(MindMapStudioViewModel.ConnectionStrokeWeight.Normal, w1);
+            Assert.Contains("Normal", l1);
+
+            var (w2, l2) = MindMapStudioViewModel.CycleStrokeWeight(w1);
+            Assert.Equal(MindMapStudioViewModel.ConnectionStrokeWeight.Thick, w2);
+            Assert.Contains("Thick", l2);
+
+            var (w3, l3) = MindMapStudioViewModel.CycleStrokeWeight(w2);
+            Assert.Equal(MindMapStudioViewModel.ConnectionStrokeWeight.Thin, w3);
+            Assert.Contains("Thin", l3);
+        }
     }
 }

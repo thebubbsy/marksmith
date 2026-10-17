@@ -1225,6 +1225,30 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyRecentAsMarkdownListClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var existingFiles = files.Where(File.Exists);
+            var list = RecentFilesService.FilterRecentFiles(existingFiles, _recentDocsFilter).ToList();
+            if (list.Count > 0)
+            {
+                var mdText = RecentFilesService.FormatAsMarkdownList(list);
+                await Services.ClipboardWriter.TrySetTextAsync(mdText);
+                SetNotification($"Copied {list.Count} recent document link(s) as Markdown.", success: true);
+            }
+            else
+            {
+                SetNotification("No recent documents to copy.", success: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't copy Markdown links: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

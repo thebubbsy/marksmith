@@ -2134,5 +2134,32 @@ namespace MarkSmith.ViewModels.MindMap
             var next = !current;
             return (next, next ? "Arrowheads Visible" : "Arrowheads Hidden");
         }
+
+        /// <summary>
+        /// Cycles the connection routing style (Curved -> Straight -> Orthogonal -> Curved) and returns the next style name and label.
+        /// </summary>
+        public static (string NextRouting, string Label) CycleRoutingStyle(string? currentRouting)
+        {
+            var cur = currentRouting?.ToLowerInvariant();
+            return cur switch
+            {
+                "curved" => ("Straight", "Straight Lines"),
+                "straight" => ("Orthogonal", "Stepped (Orthogonal)"),
+                _ => ("Curved", "Curved (Bezier)")
+            };
+        }
+
+        /// <summary>
+        /// Cycles the connection stroke weight (Thin -> Normal -> Thick -> Thin) and returns the next weight and label.
+        /// </summary>
+        public static (ConnectionStrokeWeight NextWeight, string Label) CycleStrokeWeight(ConnectionStrokeWeight current)
+        {
+            return current switch
+            {
+                ConnectionStrokeWeight.Thin => (ConnectionStrokeWeight.Normal, "Weight: Normal (1.8px)"),
+                ConnectionStrokeWeight.Normal => (ConnectionStrokeWeight.Thick, "Weight: Thick (2.8px)"),
+                _ => (ConnectionStrokeWeight.Thin, "Weight: Thin (1.2px)")
+            };
+        }
     }
 }

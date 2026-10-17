@@ -239,6 +239,9 @@
                                         <MenuFlyoutItem Text="Standardise bullet points (-)" Click="OnStandardiseBulletsClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineNormalizeIndentItem" Text="Normalize indentation (2 spaces per level)" Click="OnNormalizeIndentationClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E7;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

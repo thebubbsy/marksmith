@@ -310,4 +310,15 @@ public static class LineDiff
         var hunkLabel = hunkCount == 1 ? "1 change hunk" : $"{hunkCount} change hunks";
         return $"{ratio} · {hunkLabel}";
     }
+
+    /// <summary>
+    /// Formats a version timeline header timestamp into a clean, human-readable display string.
+    /// </summary>
+    public static string FormatVersionTimestampHeader(string? versionName, DateTimeOffset? timestamp)
+    {
+        var name = string.IsNullOrWhiteSpace(versionName) ? "Version" : versionName.Trim();
+        if (!timestamp.HasValue) return name;
+        var t = timestamp.Value.LocalDateTime;
+        return $"{name} · {t:dddd, d MMMM yyyy} · {t:HH:mm}";
+    }
 }

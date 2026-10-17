@@ -280,4 +280,33 @@ public class TextSearchTests
     {
         Assert.Equal(expected, TextSearch.FormatFindMatchStatus(current, total, wrapped));
     }
+
+    [Theory]
+    [InlineData(-5, 10, 0)]
+    [InlineData(0, 10, 0)]
+    [InlineData(4, 10, 4)]
+    [InlineData(9, 10, 9)]
+    [InlineData(15, 10, 9)]
+    [InlineData(2, 0, -1)]
+    [InlineData(0, -1, -1)]
+    public void Run134_ClampMatchIndex_ClampsBoundsAccurately(int target, int total, int expected)
+    {
+        Assert.Equal(expected, TextSearch.ClampMatchIndex(target, total));
+    }
+
+    [Fact]
+    public void Run134_JumpTo_ReturnsCorrectIndicesForTargets()
+    {
+        var (firstIdx, firstValid) = TextSearch.JumpTo(10, TextSearch.MatchJumpTarget.First);
+        Assert.True(firstValid);
+        Assert.Equal(0, firstIdx);
+
+        var (lastIdx, lastValid) = TextSearch.JumpTo(10, TextSearch.MatchJumpTarget.Last);
+        Assert.True(lastValid);
+        Assert.Equal(9, lastIdx);
+
+        var (emptyIdx, emptyValid) = TextSearch.JumpTo(0, TextSearch.MatchJumpTarget.First);
+        Assert.False(emptyValid);
+        Assert.Equal(-1, emptyIdx);
+    }
 }

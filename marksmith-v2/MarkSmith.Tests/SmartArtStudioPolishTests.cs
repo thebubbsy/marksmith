@@ -422,4 +422,21 @@ public class SmartArtStudioPolishTests
 
         Assert.Equal("", SmartArtDesignStudioViewModel.StandardiseBullets(""));
     }
+
+    [Fact]
+    public void Run134_NormalizeIndentation_NormalizesSpacingPreservingLineEndings()
+    {
+        // Tabs and uneven spaces normalized to 2 spaces per depth level
+        var inputLf = "* Root\n\t- Child One\n\t\t- Grandchild Two\n    - Four Space Child\n   - Three Space Child";
+        var expectedLf = "* Root\n  - Child One\n    - Grandchild Two\n    - Four Space Child\n  - Three Space Child";
+        var resultLf = SmartArtDesignStudioViewModel.NormalizeIndentation(inputLf, 2);
+        Assert.Equal(expectedLf, resultLf);
+
+        var inputCrlf = "* Root\r\n\t- Child One\r\n\t\t- Grandchild Two";
+        var expectedCrlf = "* Root\r\n  - Child One\r\n    - Grandchild Two";
+        var resultCrlf = SmartArtDesignStudioViewModel.NormalizeIndentation(inputCrlf, 2);
+        Assert.Equal(expectedCrlf, resultCrlf);
+
+        Assert.Equal("", SmartArtDesignStudioViewModel.NormalizeIndentation(""));
+    }
 }

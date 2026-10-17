@@ -592,6 +592,9 @@
                                         <MenuFlyoutItem Text="Fit inside canvas (clamp with 40px padding)" Click="OnSelectionFitInsideCanvasClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73F;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionSnapToGridItem" Text="Snap selection to 10px grid" Click="OnSelectionSnapToGridClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

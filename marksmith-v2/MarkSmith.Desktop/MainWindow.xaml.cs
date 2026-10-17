@@ -8766,14 +8766,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(copyCountItem);
 
-        var nextItem = new MenuFlyoutItem
+        var firstItem = new MenuFlyoutItem
         {
-            Text = "Next match (Enter)",
-            Icon = new FontIcon { Glyph = "\uE70D" },
+            Text = "First match (Alt+Home)",
+            Icon = new FontIcon { Glyph = "\uE892" },
             IsEnabled = _findMatches.Count > 0
         };
-        nextItem.Click += (_, _) => FindNext();
-        menu.Items.Add(nextItem);
+        firstItem.Click += (_, _) => JumpToMatch(0);
+        menu.Items.Add(firstItem);
 
         var prevItem = new MenuFlyoutItem
         {
@@ -8783,6 +8783,24 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         prevItem.Click += (_, _) => FindPrev();
         menu.Items.Add(prevItem);
+
+        var nextItem = new MenuFlyoutItem
+        {
+            Text = "Next match (Enter)",
+            Icon = new FontIcon { Glyph = "\uE70D" },
+            IsEnabled = _findMatches.Count > 0
+        };
+        nextItem.Click += (_, _) => FindNext();
+        menu.Items.Add(nextItem);
+
+        var lastItem = new MenuFlyoutItem
+        {
+            Text = "Last match (Alt+End)",
+            Icon = new FontIcon { Glyph = "\uE893" },
+            IsEnabled = _findMatches.Count > 0
+        };
+        lastItem.Click += (_, _) => JumpToMatch(_findMatches.Count - 1);
+        menu.Items.Add(lastItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
         e.Handled = true;
@@ -8893,8 +8911,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             FindCountText.Text = !hasQuery ? string.Empty
                 : MarkSmith.Services.TextSearch.FormatFindMatchStatus(_findMatchIndex + 1, count, _lastFindWrapped);
             ToolTipService.SetToolTip(FindCountText, _lastFindWrapped
-                ? "Search match count (navigation wrapped around document) · Click or right-click to copy"
-                : "Search match count · Click or right-click to copy");
+                ? "Search match count (navigation wrapped around document) · Alt+Home/End to jump · Click or right-click to copy"
+                : "Search match count · Alt+Home/End to jump · Click or right-click to copy");
             MarkSmith.Services.ThemeBrush.Set(FindCountText, TextBlock.ForegroundProperty,
                 hasQuery && count == 0 ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush");
         }
@@ -8918,6 +8936,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void FindNext() => StepFind(forward: true);
 
     private void FindPrev() => StepFind(forward: false);
+
+    private void JumpToMatch(int index)
+    {
+        RecordFindHistory(FindTextBox?.Text);
+        EnsureUnfoldedForFind();
+        if (_findMatches.Count == 0) return;
+        var clamped = MarkSmith.Services.TextSearch.ClampMatchIndex(index, _findMatches.Count);
+        if (clamped < 0) return;
+        _findMatchIndex = clamped;
+        _lastFindWrapped = false;
+        SelectFindMatch(keepFindFocus: FindBar.Visibility == Visibility.Visible && !PasteTextBoxHasFocus());
+        AnnounceStatus($"Jumped to match {_findMatchIndex + 1} of {_findMatches.Count}");
+    }
 
     // Enter / Shift+Enter, the arrows, and F3 / Shift+F3 (from the editor too). Going past either
     // end of the document says so on the status line, like Notepad, instead of silently jumping.
@@ -8994,6 +9025,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 UseRegexCheck.IsChecked = !(UseRegexCheck.IsChecked == true);
                 e.Handled = true;
             }
+        }
+        else if (e.Key == Windows.System.VirtualKey.Home && AltDown() && !CtrlDown())
+        {
+            JumpToMatch(0);
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.End && AltDown() && !CtrlDown())
+        {
+            JumpToMatch(_findMatches.Count - 1);
+            e.Handled = true;
         }
     }
 

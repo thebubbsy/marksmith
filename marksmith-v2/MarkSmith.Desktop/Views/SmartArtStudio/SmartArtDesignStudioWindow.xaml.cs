@@ -4469,6 +4469,23 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnNormalizeIndentationClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            if (string.IsNullOrEmpty(markdown)) return;
+            var normalized = SmartArtDesignStudioViewModel.NormalizeIndentation(markdown, 2);
+            if (normalized != markdown)
+            {
+                ViewModel.MarkdownText = normalized;
+                UpdateOutlineStats();
+                ViewModel.StatusMessage = "Normalized outline indentation to 2 spaces per level.";
+            }
+            else
+            {
+                ViewModel.StatusMessage = "Outline indentation is already uniform (2 spaces per level).";
+            }
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

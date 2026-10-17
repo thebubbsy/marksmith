@@ -5879,5 +5879,36 @@ namespace MarkSmith.Views.ShapeStudio
                 ViewModel.StatusMessage = "Selection is already completely inside canvas bounds with padding.";
             }
         }
+
+        private void OnSelectionSnapToGridClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0)
+            {
+                ViewModel.StatusMessage = "No shapes to snap to grid.";
+                return;
+            }
+
+            ViewModel.RecordUndo();
+            int movedCount = 0;
+            foreach (var s in sel)
+            {
+                var (snappedX, snappedY) = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.SnapPointToGrid(s.X, s.Y, 10.0);
+                if (Math.Abs(s.X - snappedX) > 0.001 || Math.Abs(s.Y - snappedY) > 0.001)
+                {
+                    s.X = snappedX;
+                    s.Y = snappedY;
+                    movedCount++;
+                }
+            }
+
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+            UpdateSelectionBoundsPill();
+            ViewModel.StatusMessage = movedCount > 0
+                ? $"✓ Snapped {sel.Count} shape{(sel.Count == 1 ? "" : "s")} to 10px grid ({movedCount} aligned)."
+                : "All selected shapes are already aligned to 10px grid.";
+        }
     }
 }

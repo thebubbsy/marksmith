@@ -2964,6 +2964,22 @@ public sealed partial class HistoryWindow : Window
         e.Handled = true;
         var menu = new MenuFlyout();
 
+        if (!string.IsNullOrWhiteSpace(_vm.SelectedHeader))
+        {
+            var copyHeader = new MenuFlyoutItem
+            {
+                Text = $"Copy version timestamp ({_vm.SelectedHeader})",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyHeader.Click += (_, _) =>
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(_vm.SelectedHeader);
+                _vm.ShowNotice($"Copied version timestamp: {_vm.SelectedHeader}");
+            };
+            menu.Items.Add(copyHeader);
+            menu.Items.Add(new MenuFlyoutSeparator());
+        }
+
         var refresh = new MenuFlyoutItem
         {
             Text = "Refresh version history",

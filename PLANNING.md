@@ -10079,3 +10079,81 @@ Reviewed: the 2026-10-17 run #132 entry above. Followed the AI-Executable 3-Bloc
 - `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,880 passed, 0 failed, 1 skipped (100% pass rate)**.
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 30076, responsive startup (`Responding: True`), clean exit.
+
+### 2026-10-17 (scheduled routine run #134 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #133 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #133:
+    * Target A: `MainWindow` find bar match index jump accelerator.
+    * Target B: `MindMapGalaxyWindow` edge routing curvature preset selector / cycle helper.
+  - Generated:
+    1. `MainWindow`: Find Bar Match Direct Jump Accelerator (`TextSearch.ClampMatchIndex(target, total)`, `TextSearch.JumpTo(total, target)`, `JumpToMatch(index)`, keyboard accelerators `Alt+Home` / `Alt+End` in `OnFindBarKeyDown`, context items "First match (Alt+Home)" `\uE892` and "Last match (Alt+End)" `\uE893` in `FindCountText` context menu, and updated find status tooltip).
+    2. `MindMapGalaxyWindow`: Edge Routing & Weight Cycle Helper (`MindMapStudioViewModel.CycleRoutingStyle(routing)`, `MindMapStudioViewModel.CycleStrokeWeight(weight)`, "Cycle line routing (Curved / Straight / Stepped)" `\uE895` item, "Cycle stroke weight (Thin / Normal / Thick)" `\uE8B2` item in `ConnectionStyleDropDownButton.Flyout`, instant tick feedback via `CopyFeedback.ApplyButtonTick`, and double-tap integration).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.cs` with `ClampMatchIndex` bounds protection returning -1 on 0/negative counts, and `JumpTo` mapping `MatchJumpTarget` enums. Added `JumpToMatch(int index)` in `MainWindow.xaml.cs` with `_lastFindWrapped` reset, history recording, unfolding guard, and announcement. Updated `FindCountText` tooltip to indicate `Alt+Home/End to jump`.
+    * For Idea 2: Implemented `CycleRoutingStyle` and `CycleStrokeWeight` in `MindMapStudioViewModel.cs` providing deterministic transitions (`Curved -> Straight -> Orthogonal -> Curved` and `Thin -> Normal -> Thick -> Thin`). Mounted `CycleConnectionRoutingItem` (`\uE895`) and `CycleStrokeWeightItem` (`\uE8B2`) in `ConnectionStyleDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml`.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Selection Grid Snapping Helper (`ShapeDesignStudioViewModel.SnapToGrid(coord, grid)` and `ShapeDesignStudioViewModel.SnapPointToGrid(x, y, grid)` using geometric `MidpointRounding.AwayFromZero`, "Snap selection to 10px grid" `\uE80A` item in `SelectionBoundsFlyout`, undo recording, adorner refresh, and status reporting).
+    4. `SmartArtDesignStudioWindow`: Outline Indentation Uniformity Normalizer (`SmartArtDesignStudioViewModel.NormalizeIndentation(markdown, spacesPerLevel)` normalizing uneven tabs and irregular space widths to 2 spaces per hierarchy level while strictly preserving CRLF/LF line endings, "Normalize indentation (2 spaces per level)" `\uE8E7` item in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionSnapToGridItem` with icon `\uE80A` in `SelectionBoundsFlyout` in `ShapeDesignStudioWindow.xaml`. Implemented `OnSelectionSnapToGridClick` in `ShapeDesignStudioWindow.xaml.cs`, aligning all selected shapes (or all canvas shapes if none explicitly selected) to 10px increments, tracking moved count, and recording undo snapshots.
+    * For Idea 4: Mounted `OutlineNormalizeIndentItem` with icon `\uE8E7` in `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`. Implemented `NormalizeIndentation` in `SmartArtDesignStudioViewModel.cs`, and wired `OnNormalizeIndentationClick` in `SmartArtDesignStudioWindow.xaml.cs` updating editor text, outline hierarchy, and status notice.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `ClampMatchIndex` and `JumpTo` cleanly handle empty/boundary collections.
+    * Verified `CycleRoutingStyle` and `CycleStrokeWeight` cycle transitions and display labels.
+  - Generated:
+    5. `HistoryWindow`: Version Timestamp Formatter & Header Context Copy (`LineDiff.FormatVersionTimestampHeader(versionName, timestamp)` formatting clean date/time strings, and "Copy version timestamp" `\uE8C8` item in `TimelineHeaderBorder` context flyout in `HistoryWindow.xaml.cs`).
+    6. `SuiteHubView`: Recent Documents Markdown Links Formatter & Clipboard Export (`RecentFilesService.FormatAsMarkdownList(IEnumerable<string>? files)` generating GitHub-Flavored Markdown bullet links `- [FileName](FilePath)`, and "Copy as Markdown links (- [name](path))" `\uE8D2` item in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Implemented `LineDiff.FormatVersionTimestampHeader` in `LineDiff.cs` handling null/custom timestamps and empty titles. Mounted copy timestamp header item with icon `\uE8C8` in `OnTimelineHeaderRightTapped` in `HistoryWindow.xaml.cs` with notice notification.
+    * For Idea 6: Added `CopyRecentAsMarkdownListItem` to `RecentDocsFlyout` in `SuiteHubView.xaml` with icon `\uE8D2`, implemented `RecentFilesService.FormatAsMarkdownList` in `RecentFilesService.cs`, and wired `OnCopyRecentAsMarkdownListClick` in `SuiteHubView.xaml.cs` with clipboard exception protection and tick feedback.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `Run134_ClampMatchIndex_ClampsBoundsAccurately`, `Run134_JumpTo_ReturnsCorrectIndicesForTargets` (Passed).
+    * `MindMapGalaxyPolishTests.cs`: `Run134_CycleRoutingStyle_CyclesCorrectly`, `Run134_CycleStrokeWeight_CyclesThroughWeightsDeterministically` (Passed).
+    * `ShapeStudioPolishTests.cs`: `Run134_SnapToGrid_SnapsAccurately`, `Run134_SnapPointToGrid_SnapsBothCoordinates` (Passed).
+    * `SmartArtStudioPolishTests.cs`: `Run134_NormalizeIndentation_NormalizesSpacingPreservingLineEndings` (Passed).
+    * `HistoryPolishTests.cs`: `Run134_FormatVersionTimestampHeader_FormatsTimestampDisplay` (Passed).
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FormatAsMarkdownList_FormatsLinks`, `Run134_Polish_Elements_Wired_Across_Surfaces` (Passed).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,918 passed, 0 failed, 1 skipped (100% pass rate)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 4144, responsive startup (`Responding: True`), clean exit.
+  - Carried forward ideas / next targets into Run #135:
+    * Target A: `MainWindow` find bar regex match capture inspector.
+    * Target B: `MindMapGalaxyWindow` node connection anchor snap point cycle helper.
+    * Target C: `ShapeDesignStudioWindow` quick shape aspect ratio lock toggle indicator.
+
+**Shipped:**
+1. **`MainWindow` Find Bar Direct Jump Accelerator (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - `TextSearch.ClampMatchIndex` and `TextSearch.JumpTo` calculating bounded match target indices.
+   - `JumpToMatch` helper in `MainWindow.xaml.cs` wired to `Alt+Home` (first match) and `Alt+End` (last match).
+   - "First match (Alt+Home)" (`\uE892`) and "Last match (Alt+End)" (`\uE893`) context menu items and updated find tooltip.
+2. **`MindMapGalaxyWindow` Line Routing & Stroke Weight Cycle Helpers (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `MindMapStudioViewModel.CycleRoutingStyle` and `CycleStrokeWeight` providing deterministic cyclical state transitions.
+   - `CycleConnectionRoutingItem` (`\uE895`) and `CycleStrokeWeightItem` (`\uE8B2`) in `ConnectionStyleDropDownButton.Flyout` with tick feedback.
+3. **`ShapeDesignStudioWindow` Selection Grid Snapping Helper (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ShapeDesignStudioViewModel.SnapToGrid` and `SnapPointToGrid` coordinate alignment using `MidpointRounding.AwayFromZero`.
+   - `SelectionSnapToGridItem` (`\uE80A`) in `SelectionBoundsFlyout` with undo snapshot and adorner update.
+4. **`SmartArtDesignStudioWindow` Outline Indentation Uniformity Normalizer (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `SmartArtDesignStudioViewModel.NormalizeIndentation` normalizing mixed tabs and uneven spaces to 2 spaces per depth level while preserving line endings.
+   - `OutlineNormalizeIndentItem` (`\uE8E7`) in `OutlineStatsFlyout`.
+5. **`HistoryWindow` Version Header Timestamp Formatter & Context Copy (`HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.FormatVersionTimestampHeader` formatting human-friendly date and time strings.
+   - "Copy version timestamp" (`\uE8C8`) in `TimelineHeaderBorder` context menu with status notice.
+6. **`SuiteHubView` Recent Documents Markdown Links Formatter & Clipboard Export (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.FormatAsMarkdownList` generating GitHub-Flavored Markdown bullet links.
+   - `CopyRecentAsMarkdownListItem` (`\uE8D2`) in `RecentDocsFlyout` with notification and feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,918 passed, 0 failed, 1 skipped (100% pass rate)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 4144, responsive startup (`Responding: True`), clean exit.

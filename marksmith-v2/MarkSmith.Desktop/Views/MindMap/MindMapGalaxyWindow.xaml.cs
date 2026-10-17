@@ -4048,16 +4048,38 @@ namespace MarkSmith.Views.MindMap
             catch { /* non-critical clipboard failure */ }
         }
 
+        private void OnCycleConnectionRoutingClick(object sender, RoutedEventArgs e)
+        {
+            var cur = _connectionRoutingStyle switch
+            {
+                ConnectionRoutingStyle.Straight => "Straight",
+                ConnectionRoutingStyle.Orthogonal => "Orthogonal",
+                _ => "Curved"
+            };
+            var (next, label) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.CycleRoutingStyle(cur);
+            var nextStyle = next switch
+            {
+                "Straight" => ConnectionRoutingStyle.Straight,
+                "Orthogonal" => ConnectionRoutingStyle.Orthogonal,
+                _ => ConnectionRoutingStyle.Curved
+            };
+            SetConnectionRoutingStyle(nextStyle);
+            if (ConnectionStyleDropDownButton != null)
+            {
+                CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");
+            }
+        }
+
+        private void OnCycleStrokeWeightClick(object sender, RoutedEventArgs e)
+        {
+            var (nextWeight, _) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.CycleStrokeWeight(_connectionStrokeWeight);
+            SetConnectionStrokeWeight(nextWeight);
+        }
+
         private void OnConnectionStyleDropDownDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
             e.Handled = true;
-            var next = _connectionRoutingStyle switch
-            {
-                ConnectionRoutingStyle.Curved => ConnectionRoutingStyle.Straight,
-                ConnectionRoutingStyle.Straight => ConnectionRoutingStyle.Orthogonal,
-                _ => ConnectionRoutingStyle.Curved
-            };
-            SetConnectionRoutingStyle(next);
+            OnCycleConnectionRoutingClick(sender, new RoutedEventArgs());
         }
 
         private void OnConnectionDashSolidClick(object sender, RoutedEventArgs e) => SetConnectionDashStyle(ConnectionDashStyle.Solid);

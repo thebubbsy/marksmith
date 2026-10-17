@@ -3277,4 +3277,21 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         return (dx, dy);
     }
+
+    /// <summary>
+    /// Snaps a scalar coordinate to the nearest grid increment (default 10px).
+    /// </summary>
+    public static double SnapToGrid(double value, double gridSize = 10.0)
+    {
+        if (gridSize <= 0) return value;
+        return Math.Round(value / gridSize, MidpointRounding.AwayFromZero) * gridSize;
+    }
+
+    /// <summary>
+    /// Snaps a 2D coordinate point to the nearest grid increments.
+    /// </summary>
+    public static (double X, double Y) SnapPointToGrid(double x, double y, double gridSize = 10.0)
+    {
+        return (SnapToGrid(x, gridSize), SnapToGrid(y, gridSize));
+    }
 }
