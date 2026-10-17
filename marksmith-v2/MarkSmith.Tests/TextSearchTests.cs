@@ -309,4 +309,28 @@ public class TextSearchTests
         Assert.False(emptyValid);
         Assert.Equal(-1, emptyIdx);
     }
+
+    [Fact]
+    public void Run135_GetMatchLocation_ReturnsCorrectLineColumnLength()
+    {
+        var text = "Line 1\nLine 2 is longer\nLine 3 target match\nLine 4";
+        // Target "target" starts at offset 24, length 6
+        var targetOffset = text.IndexOf("target", StringComparison.Ordinal);
+        var (line, col, len) = TextSearch.GetMatchLocation(text, targetOffset, 6);
+        Assert.Equal(3, line);
+        Assert.Equal(8, col); // "Line 3 " is 7 chars, so 1-based col is 8
+        Assert.Equal(6, len);
+    }
+
+    [Fact]
+    public void Run135_FormatMatchInspectorSummary_FormatsCorrectly()
+    {
+        var text = "First line\nSecond line hello world\nThird line";
+        var helloOffset = text.IndexOf("hello", StringComparison.Ordinal);
+        var summary = TextSearch.FormatMatchInspectorSummary(text, helloOffset, 5, 2, 7);
+        Assert.Equal("Match 2 of 7 · Line 2, Col 13 (Len: 5)", summary);
+
+        var emptySummary = TextSearch.FormatMatchInspectorSummary("", -1, 0, 0, 0);
+        Assert.Equal("No match selected", emptySummary);
+    }
 }

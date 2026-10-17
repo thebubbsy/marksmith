@@ -2161,5 +2161,51 @@ namespace MarkSmith.ViewModels.MindMap
                 _ => (ConnectionStrokeWeight.Thin, "Weight: Thin (1.2px)")
             };
         }
+
+        /// <summary>
+        /// Cardinal anchor attachment positions for node connections.
+        /// </summary>
+        public enum NodeAnchorPosition
+        {
+            Auto,
+            Left,
+            Right,
+            Top,
+            Bottom,
+            Center
+        }
+
+        /// <summary>
+        /// Computes the connection attachment point coordinate for a node bounding box and anchor position.
+        /// </summary>
+        public static (double X, double Y) CalculateNodeAnchorPoint(double nodeX, double nodeY, double nodeWidth, double nodeHeight, NodeAnchorPosition anchor)
+        {
+            var w = Math.Max(0, nodeWidth);
+            var h = Math.Max(0, nodeHeight);
+            return anchor switch
+            {
+                NodeAnchorPosition.Left => (nodeX, nodeY + (h / 2.0)),
+                NodeAnchorPosition.Right => (nodeX + w, nodeY + (h / 2.0)),
+                NodeAnchorPosition.Top => (nodeX + (w / 2.0), nodeY),
+                NodeAnchorPosition.Bottom => (nodeX + (w / 2.0), nodeY + h),
+                _ => (nodeX + (w / 2.0), nodeY + (h / 2.0))
+            };
+        }
+
+        /// <summary>
+        /// Cycles the connection anchor mode (Auto -> Left -> Right -> Top -> Bottom -> Center -> Auto) and returns the next mode and label.
+        /// </summary>
+        public static (NodeAnchorPosition NextAnchor, string Label) CycleAnchorPosition(NodeAnchorPosition current)
+        {
+            return current switch
+            {
+                NodeAnchorPosition.Auto => (NodeAnchorPosition.Left, "Anchor: Left edge"),
+                NodeAnchorPosition.Left => (NodeAnchorPosition.Right, "Anchor: Right edge"),
+                NodeAnchorPosition.Right => (NodeAnchorPosition.Top, "Anchor: Top edge"),
+                NodeAnchorPosition.Top => (NodeAnchorPosition.Bottom, "Anchor: Bottom edge"),
+                NodeAnchorPosition.Bottom => (NodeAnchorPosition.Center, "Anchor: Center point"),
+                _ => (NodeAnchorPosition.Auto, "Anchor: Auto (closest edge)")
+            };
+        }
     }
 }

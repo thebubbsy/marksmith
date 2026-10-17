@@ -241,4 +241,41 @@ public static class TextSearch
             _ => (-1, false)
         };
     }
+
+    /// <summary>
+    /// Computes the 1-based line number and column offset for a match index in text.
+    /// </summary>
+    public static (int Line, int Column, int Length) GetMatchLocation(string text, int matchIndex, int matchLength)
+    {
+        if (string.IsNullOrEmpty(text) || matchIndex < 0 || matchIndex >= text.Length)
+            return (1, 1, Math.Max(0, matchLength));
+
+        int line = 1;
+        int lastLineStart = 0;
+        for (int i = 0; i < matchIndex; i++)
+        {
+            if (text[i] == '\n')
+            {
+                line++;
+                lastLineStart = i + 1;
+            }
+        }
+        int col = (matchIndex - lastLineStart) + 1;
+        return (line, col, Math.Max(0, matchLength));
+    }
+
+    /// <summary>
+    /// Formats a comprehensive inspector summary for a search match including 1-based index, line number, column, and length.
+    /// </summary>
+    public static string FormatMatchInspectorSummary(string text, int matchIndex, int matchLength, int matchNumber, int totalCount)
+    {
+        if (totalCount <= 0 || matchIndex < 0 || string.IsNullOrEmpty(text) || matchIndex >= text.Length)
+            return "No match selected";
+
+        var (line, col, len) = GetMatchLocation(text, matchIndex, matchLength);
+        var baseInfo = matchNumber > 0 && totalCount > 0
+            ? $"Match {matchNumber} of {totalCount}"
+            : "Match";
+        return $"{baseInfo} · Line {line}, Col {col} (Len: {len})";
+    }
 }

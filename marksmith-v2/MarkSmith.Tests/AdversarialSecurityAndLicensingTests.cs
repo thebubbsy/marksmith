@@ -52,6 +52,15 @@ public class AdversarialSecurityAndLicensingTests
         return $"{B64Url(payloadBytes)}.{B64Url(signature)}";
     }
 
+    private static int GetFreePort()
+    {
+        using var tcp = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        tcp.Start();
+        int port = ((IPEndPoint)tcp.LocalEndpoint).Port;
+        tcp.Stop();
+        return port;
+    }
+
     // ==========================================
     // R3: API Server Security Stress Tests
     // ==========================================
@@ -60,7 +69,7 @@ public class AdversarialSecurityAndLicensingTests
     public async Task ApiServer_R3_IP_Binding_Locks_To_127_0_0_1()
     {
         using var server = CreateServer();
-        int port = 59401;
+        int port = GetFreePort();
         server.Start(port);
         Assert.True(server.IsRunning);
         Assert.Equal(port, server.Port);
@@ -80,7 +89,7 @@ public class AdversarialSecurityAndLicensingTests
     public async Task ApiServer_R3_CORS_Emits_No_Wildcard_Under_Any_Request()
     {
         using var server = CreateServer();
-        int port = 59402;
+        int port = GetFreePort();
         server.Start(port);
 
         using var client = new HttpClient();
@@ -144,7 +153,7 @@ public class AdversarialSecurityAndLicensingTests
     public async Task ApiServer_R3_CORS_Rejects_Lookalike_Untrusted_Origins()
     {
         using var server = CreateServer();
-        int port = 59403;
+        int port = GetFreePort();
         server.Start(port);
 
         using var client = new HttpClient();
@@ -177,7 +186,7 @@ public class AdversarialSecurityAndLicensingTests
     public async Task ApiServer_R3_Governance_Endpoints_Block_Browser_Origins()
     {
         using var server = CreateServer();
-        int port = 59404;
+        int port = GetFreePort();
         server.Start(port);
 
         using var client = new HttpClient();
@@ -205,7 +214,7 @@ public class AdversarialSecurityAndLicensingTests
     public async Task ApiServer_R1_Settings_And_Batch_Endpoints_Block_Browser_Origins()
     {
         using var server = CreateServer();
-        int port = 59405;
+        int port = GetFreePort();
         server.Start(port);
 
         using var client = new HttpClient();

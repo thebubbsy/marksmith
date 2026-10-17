@@ -10157,3 +10157,83 @@ Reviewed: the 2026-10-17 run #133 entry above. Followed the AI-Executable 3-Bloc
 - `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,918 passed, 0 failed, 1 skipped (100% pass rate)**.
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 4144, responsive startup (`Responding: True`), clean exit.
+
+### 2026-10-17 (scheduled routine run #135 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #134 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #134:
+    * Target A: `MainWindow` find bar regex match capture inspector.
+    * Target B: `MindMapGalaxyWindow` node connection anchor snap point cycle helper.
+  - Generated:
+    1. `MainWindow`: Find Bar Match Location & Line/Column Inspector (`TextSearch.GetMatchLocation(text, matchIndex, matchLength)` calculating 1-based line number, column, and span length, and `TextSearch.FormatMatchInspectorSummary(text, matchIndex, matchLength, matchNumber, totalCount)`, "Inspect match location (Line X, Col Y)" `\uE946` context menu item in `FindCountText` flyout, rich tooltip preview, and clipboard copying).
+    2. `MindMapGalaxyWindow`: Node Connection Anchor Snap Mode Helper (`NodeAnchorPosition` enum: `Auto`, `Left`, `Right`, `Top`, `Bottom`, `Center`, `MindMapStudioViewModel.CalculateNodeAnchorPoint(...)` bounding box math, `MindMapStudioViewModel.CycleAnchorPosition(current)`, "Cycle connection anchor mode (Auto / Edge / Center)" `\uE896` in `ConnectionStyleDropDownButton.Flyout` with tick feedback via `CopyFeedback.ApplyButtonTick`).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.cs` with empty/negative index guards, newline scanner (`\r\n` and `\n`), 1-based line and column calculations, and formatted output `"Match {matchNumber} of {totalCount} at Line {line}, Column {col} ({length} chars)"`. Mounted `inspectItem` in `FindCountText` context menu in `MainWindow.xaml.cs` with clipboard export and status notification.
+    * For Idea 2: Implemented `CalculateNodeAnchorPoint` in `MindMapStudioViewModel.cs` calculating precise bounding box coordinates for each anchor position mode. Added `CycleAnchorPosition` cycling `Auto -> Top -> Right -> Bottom -> Left -> Center -> Auto`. Mounted `CycleAnchorPositionItem` with icon `\uE896` in `ConnectionStyleDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and wired `OnCycleAnchorPositionClick` with tick feedback.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Selection Aspect Ratio Standardizer (`ShapeDesignStudioViewModel.CalculateAspectRatio(width, height)` recognizing standard 1:1, 16:9, 4:3, 3:2, 2:1, 9:16, 3:4, and `ApplyStandardAspectRatio(width, height, targetRatio)` with geometric `MidpointRounding.AwayFromZero`, "Standardize aspect ratio (16:9 widescreen)" `\uE790` item in `SelectionBoundsFlyout`, undo recording, and adorner refresh).
+    4. `SmartArtDesignStudioWindow`: Outline Hierarchy Metrics & Depth Analyzer (`SmartArtDesignStudioViewModel.AnalyzeHierarchyMetrics(markdown)` calculating total nodes, root nodes, leaf nodes, max tree depth, and formatting concise summaries, "Copy hierarchy depth & leaf stats" `\uE8E5` item in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionStandardizeRatioItem` with icon `\uE790` in `SelectionBoundsFlyout` in `ShapeDesignStudioWindow.xaml`. Implemented `OnSelectionStandardizeRatioClick` in `ShapeDesignStudioWindow.xaml.cs`, adjusting selected shapes to 16:9 proportions, recording undo snapshots, updating adorners, and announcing dimensions.
+    * For Idea 4: Mounted `OutlineHierarchyMetricsItem` with icon `\uE8E5` in `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`. Implemented `AnalyzeHierarchyMetrics` in `SmartArtDesignStudioViewModel.cs`, and wired `OnCopyHierarchyMetricsClick` in `SmartArtDesignStudioWindow.xaml.cs` with clipboard export and notification.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `GetMatchLocation` handles out-of-bounds, empty text, and single-line / multi-line scenarios cleanly.
+    * Verified `CalculateNodeAnchorPoint` and `CycleAnchorPosition` boundary conditions and transitions.
+  - Generated:
+    5. `HistoryWindow`: Version Delta Line Formatter & Context Copy (`LineDiff.FormatVersionDeltaSummary(versionName, linesAdded, linesRemoved)`, "Copy version delta ({summary})" `\uE9F9` item in `TimelineHeaderBorder` context flyout in `HistoryWindow.xaml.cs`).
+    6. `SuiteHubView`: Recent Documents Library Summary Formatter & Clipboard Export (`RecentFilesService.FormatRecentLibrarySummary(IEnumerable<string>? files)` summarizing document count, unique parent directories, and distinct file extensions, and "Copy document library summary" `\uE8EC` item in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Implemented `LineDiff.FormatVersionDeltaSummary` in `LineDiff.cs` handling null/custom names and zero delta cases. Mounted copy version delta item with icon `\uE9F9` in `OnTimelineHeaderRightTapped` in `HistoryWindow.xaml.cs` with status notice notification.
+    * For Idea 6: Added `CopyRecentLibrarySummaryItem` to `RecentDocsFlyout` in `SuiteHubView.xaml` with icon `\uE8EC`, implemented `RecentFilesService.FormatRecentLibrarySummary` in `RecentFilesService.cs`, and wired `OnCopyRecentLibrarySummaryClick` in `SuiteHubView.xaml.cs` with clipboard exception protection and tick feedback on `RecentDocsActionBtn`.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `Run135_GetMatchLocation_ComputesLineAndColumnAccurately`, `Run135_FormatMatchInspectorSummary_FormatsExpectedSummary` (Passed).
+    * `MindMapGalaxyPolishTests.cs`: `Run135_CalculateNodeAnchorPoint_ComputesCorrectAnchors`, `Run135_CycleAnchorPosition_CyclesDeterministically` (Passed).
+    * `ShapeStudioPolishTests.cs`: `Run135_CalculateAspectRatio_DetectsStandardRatios`, `Run135_ApplyStandardAspectRatio_AppliesProportionsAccurately` (Passed).
+    * `SmartArtStudioPolishTests.cs`: `Run135_AnalyzeHierarchyMetrics_CalculatesCorrectStats` (Passed).
+    * `HistoryPolishTests.cs`: `Run135_FormatVersionDeltaSummary_FormatsAccurately` (Passed).
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FormatRecentLibrarySummary_SummarizesLibrary`, `Run135_Polish_Elements_Wired_Across_Surfaces` (Passed).
+  - Hardened test harness:
+    * `AdversarialSecurityAndLicensingTests.cs`: Switched static API server test ports to dynamic loopback allocation via `GetFreePort()` (`System.Net.Sockets.TcpListener(IPAddress.Loopback, 0)`) to eliminate transient socket collisions with system background services.
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,928 passed, 0 failed, 1 skipped (100% pass rate)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 19532, responsive startup (`Responding: True`), clean exit.
+  - Carried forward ideas / next targets into Run #136:
+    * Target A: `MainWindow` find bar regex capture group token extractor.
+    * Target B: `MindMapGalaxyWindow` custom connection anchor offset adjuster.
+    * Target C: `ShapeDesignStudioWindow` shape corner radius preset cycle helper.
+
+**Shipped:**
+1. **`MainWindow` Find Bar Match Inspector & Location Calculator (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - `TextSearch.GetMatchLocation` and `TextSearch.FormatMatchInspectorSummary` computing 1-based line/col metrics.
+   - `inspectItem` ("Inspect match location", `\uE946`) in `FindCountText` context menu with status notice and clipboard export.
+2. **`MindMapGalaxyWindow` Node Connection Anchor Snap Mode Helper (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `NodeAnchorPosition` enum and `CalculateNodeAnchorPoint` computing boundary points for top, right, bottom, left, center, and auto.
+   - `CycleAnchorPositionItem` (`\uE896`) in `ConnectionStyleDropDownButton.Flyout` with tick feedback.
+3. **`ShapeDesignStudioWindow` Selection Aspect Ratio Standardizer (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ShapeDesignStudioViewModel.CalculateAspectRatio` and `ApplyStandardAspectRatio` for standard widescreen/square/portrait shapes.
+   - `SelectionStandardizeRatioItem` (`\uE790`) in `SelectionBoundsFlyout` with undo snapshot and adorner refresh.
+4. **`SmartArtDesignStudioWindow` Outline Hierarchy Metrics & Depth Analyzer (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `SmartArtDesignStudioViewModel.AnalyzeHierarchyMetrics` calculating total nodes, roots, leaves, and max depth.
+   - `OutlineHierarchyMetricsItem` (`\uE8E5`) in `OutlineStatsFlyout` with clipboard export.
+5. **`HistoryWindow` Version Delta Line Formatter & Context Copy (`HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.FormatVersionDeltaSummary` generating clean `+X / -Y` change summaries.
+   - `copyDelta` item (`\uE9F9`) in `TimelineHeaderBorder` context menu.
+6. **`SuiteHubView` Recent Documents Library Summary Formatter & Clipboard Export (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.FormatRecentLibrarySummary` aggregating document counts, distinct folders, and file extensions.
+   - `CopyRecentLibrarySummaryItem` (`\uE8EC`) in `RecentDocsFlyout` with button tick feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,928 passed, 0 failed, 1 skipped (100% pass rate)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 19532, responsive startup (`Responding: True`), clean exit.
+

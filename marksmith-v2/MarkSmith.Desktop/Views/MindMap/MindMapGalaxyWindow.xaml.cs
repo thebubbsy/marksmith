@@ -71,6 +71,7 @@ namespace MarkSmith.Views.MindMap
         private ConnectionRoutingStyle _connectionRoutingStyle = ConnectionRoutingStyle.Curved;
         private ConnectionDashStyle _connectionDashStyle = ConnectionDashStyle.Solid;
         private MindMapStudioViewModel.ConnectionStrokeWeight _connectionStrokeWeight = MindMapStudioViewModel.ConnectionStrokeWeight.Normal;
+        private MindMapStudioViewModel.NodeAnchorPosition _connectionAnchorPosition = MindMapStudioViewModel.NodeAnchorPosition.Auto;
         private bool _showConnectionArrows = true;
 
         public event EventHandler<string>? OpenDocumentRequested;
@@ -4074,6 +4075,18 @@ namespace MarkSmith.Views.MindMap
         {
             var (nextWeight, _) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.CycleStrokeWeight(_connectionStrokeWeight);
             SetConnectionStrokeWeight(nextWeight);
+        }
+
+        private void OnCycleAnchorPositionClick(object sender, RoutedEventArgs e)
+        {
+            var (next, label) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.CycleAnchorPosition(_connectionAnchorPosition);
+            _connectionAnchorPosition = next;
+            ViewModel.StatusMessage = $"Connection anchor mode: {label}";
+            if (ConnectionStyleDropDownButton != null)
+            {
+                CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");
+            }
+            RequestRedraw(RedrawScope.Geometry | RedrawScope.Appearance);
         }
 
         private void OnConnectionStyleDropDownDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

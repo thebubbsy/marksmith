@@ -2977,6 +2977,23 @@ public sealed partial class HistoryWindow : Window
                 _vm.ShowNotice($"Copied version timestamp: {_vm.SelectedHeader}");
             };
             menu.Items.Add(copyHeader);
+
+            if (_vm.Selected is { } sel)
+            {
+                var deltaSummary = MarkSmith.Services.LineDiff.FormatVersionDeltaSummary(sel.Label, sel.LinesAdded, sel.LinesRemoved);
+                var copyDelta = new MenuFlyoutItem
+                {
+                    Text = $"Copy version delta ({deltaSummary})",
+                    Icon = new FontIcon { Glyph = "\uE9F9" }
+                };
+                copyDelta.Click += (_, _) =>
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(deltaSummary);
+                    _vm.ShowNotice($"Copied version delta: {deltaSummary}");
+                };
+                menu.Items.Add(copyDelta);
+            }
+
             menu.Items.Add(new MenuFlyoutSeparator());
         }
 

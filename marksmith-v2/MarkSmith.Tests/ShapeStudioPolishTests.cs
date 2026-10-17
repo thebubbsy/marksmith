@@ -474,4 +474,28 @@ public class ShapeStudioPolishTests
         Assert.Equal(40.0, x);
         Assert.Equal(90.0, y);
     }
+
+    [Fact]
+    public void Run135_CalculateAspectRatio_DetectsStandardRatios()
+    {
+        var (r1, l1) = ShapeDesignStudioViewModel.CalculateAspectRatio(100, 100);
+        Assert.Equal(1.0, r1);
+        Assert.Contains("Square", l1);
+
+        var (r2, l2) = ShapeDesignStudioViewModel.CalculateAspectRatio(160, 90);
+        Assert.True(Math.Abs(r2 - 16.0 / 9.0) < 0.01);
+        Assert.Contains("Widescreen", l2);
+
+        var (r3, l3) = ShapeDesignStudioViewModel.CalculateAspectRatio(400, 300);
+        Assert.True(Math.Abs(r3 - 4.0 / 3.0) < 0.01);
+        Assert.Contains("Standard", l3);
+    }
+
+    [Fact]
+    public void Run135_ApplyStandardAspectRatio_AdjustsHeightCorrectly()
+    {
+        var (newW, newH) = ShapeDesignStudioViewModel.ApplyStandardAspectRatio(160, 100, 16.0 / 9.0);
+        Assert.Equal(160.0, newW);
+        Assert.Equal(90.0, newH); // 160 / (16/9) = 90
+    }
 }

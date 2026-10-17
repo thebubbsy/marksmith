@@ -1235,4 +1235,63 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         var result = string.Join("\n", lines);
         return hasCr ? result.Replace("\n", "\r\n") : result;
     }
+
+    /// <summary>
+    /// Analyzes bullet outline text to determine total nodes, root nodes, leaf nodes, maximum depth, and formats a summary.
+    /// </summary>
+    public static (int TotalNodes, int RootNodes, int LeafNodes, int MaxDepth, string FormattedSummary) AnalyzeHierarchyMetrics(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return (0, 0, 0, 0, "No nodes in outline");
+
+        var normalized = markdown.Replace("\r", "");
+        var rawLines = normalized.Split('\n');
+        var depths = new List<int>();
+
+        foreach (var rawLine in rawLines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+
+            int leadWs = 0;
+            int spaceCount = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t'))
+            {
+                if (rawLine[leadWs] == '\t') spaceCount += 2;
+                else spaceCount += 1;
+                leadWs++;
+            }
+
+            if (leadWs < rawLine.Length)
+            {
+                var rest = rawLine.Substring(leadWs);
+                if (rest.StartsWith("- ") || rest.StartsWith("* ") || rest.StartsWith("+ ") ||
+                    (rest.Length > 2 && char.IsDigit(rest[0]) && rest[1] == '.' && rest[2] == ' '))
+                {
+                    int depth = (spaceCount / 2) + 1; // 1-based depth
+                    depths.Add(depth);
+                }
+            }
+        }
+
+        if (depths.Count == 0)
+            return (0, 0, 0, 0, "No nodes in outline");
+
+        int total = depths.Count;
+        int roots = depths.Count(d => d == 1);
+        int maxDepth = depths.Max();
+        int leaves = 0;
+
+        for (int i = 0; i < depths.Count; i++)
+        {
+            if (i == depths.Count - 1 || depths[i + 1] <= depths[i])
+            {
+                leaves++;
+            }
+        }
+
+        var rootLabel = roots == 1 ? "1 root" : $"{roots} roots";
+        var leafLabel = leaves == 1 ? "1 leaf" : $"{leaves} leaves";
+        var summary = $"Hierarchy: {total} nodes · {rootLabel} · {leafLabel} · max depth {maxDepth}";
+        return (total, roots, leaves, maxDepth, summary);
+    }
 }

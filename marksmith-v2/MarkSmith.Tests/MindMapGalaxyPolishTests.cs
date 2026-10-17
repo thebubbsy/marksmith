@@ -1186,5 +1186,49 @@ namespace MarkSmith.Tests
             Assert.Equal(MindMapStudioViewModel.ConnectionStrokeWeight.Thin, w3);
             Assert.Contains("Thin", l3);
         }
+
+        [Fact]
+        public void Run135_CalculateNodeAnchorPoint_ComputesCardinalAnchors()
+        {
+            double x = 100, y = 200, w = 80, h = 40;
+            var center = MindMapStudioViewModel.CalculateNodeAnchorPoint(x, y, w, h, MindMapStudioViewModel.NodeAnchorPosition.Center);
+            Assert.Equal((140.0, 220.0), center);
+
+            var left = MindMapStudioViewModel.CalculateNodeAnchorPoint(x, y, w, h, MindMapStudioViewModel.NodeAnchorPosition.Left);
+            Assert.Equal((100.0, 220.0), left);
+
+            var right = MindMapStudioViewModel.CalculateNodeAnchorPoint(x, y, w, h, MindMapStudioViewModel.NodeAnchorPosition.Right);
+            Assert.Equal((180.0, 220.0), right);
+
+            var top = MindMapStudioViewModel.CalculateNodeAnchorPoint(x, y, w, h, MindMapStudioViewModel.NodeAnchorPosition.Top);
+            Assert.Equal((140.0, 200.0), top);
+
+            var bottom = MindMapStudioViewModel.CalculateNodeAnchorPoint(x, y, w, h, MindMapStudioViewModel.NodeAnchorPosition.Bottom);
+            Assert.Equal((140.0, 240.0), bottom);
+        }
+
+        [Fact]
+        public void Run135_CycleAnchorPosition_CyclesDeterministically()
+        {
+            var (a1, l1) = MindMapStudioViewModel.CycleAnchorPosition(MindMapStudioViewModel.NodeAnchorPosition.Auto);
+            Assert.Equal(MindMapStudioViewModel.NodeAnchorPosition.Left, a1);
+            Assert.Contains("Left", l1);
+
+            var (a2, _) = MindMapStudioViewModel.CycleAnchorPosition(a1);
+            Assert.Equal(MindMapStudioViewModel.NodeAnchorPosition.Right, a2);
+
+            var (a3, _) = MindMapStudioViewModel.CycleAnchorPosition(a2);
+            Assert.Equal(MindMapStudioViewModel.NodeAnchorPosition.Top, a3);
+
+            var (a4, _) = MindMapStudioViewModel.CycleAnchorPosition(a3);
+            Assert.Equal(MindMapStudioViewModel.NodeAnchorPosition.Bottom, a4);
+
+            var (a5, _) = MindMapStudioViewModel.CycleAnchorPosition(a4);
+            Assert.Equal(MindMapStudioViewModel.NodeAnchorPosition.Center, a5);
+
+            var (a6, l6) = MindMapStudioViewModel.CycleAnchorPosition(a5);
+            Assert.Equal(MindMapStudioViewModel.NodeAnchorPosition.Auto, a6);
+            Assert.Contains("Auto", l6);
+        }
     }
 }

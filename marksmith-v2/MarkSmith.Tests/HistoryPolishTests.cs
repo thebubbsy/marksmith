@@ -662,6 +662,31 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal("Milestone", LineDiff.FormatVersionTimestampHeader("Milestone", null));
         Assert.Equal("Version", LineDiff.FormatVersionTimestampHeader("", null));
     }
+
+    [Fact]
+    public void Run135_FormatVersionDeltaSummary_FormatsAccurately()
+    {
+        var both = LineDiff.FormatVersionDeltaSummary("Draft v2", 5, 2);
+        Assert.Equal("Draft v2 · +5 added, -2 removed", both);
+
+        var addedOnly = LineDiff.FormatVersionDeltaSummary("Initial commit", 10, 0);
+        Assert.Equal("Initial commit · +10 lines added", addedOnly);
+
+        var singleAdded = LineDiff.FormatVersionDeltaSummary("Hotfix", 1, 0);
+        Assert.Equal("Hotfix · +1 line added", singleAdded);
+
+        var removedOnly = LineDiff.FormatVersionDeltaSummary("Prune", 0, 4);
+        Assert.Equal("Prune · -4 lines removed", removedOnly);
+
+        var singleRemoved = LineDiff.FormatVersionDeltaSummary("Cleanup", 0, 1);
+        Assert.Equal("Cleanup · -1 line removed", singleRemoved);
+
+        var noChange = LineDiff.FormatVersionDeltaSummary("Unchanged", 0, 0);
+        Assert.Equal("Unchanged · No line changes recorded", noChange);
+
+        var emptyName = LineDiff.FormatVersionDeltaSummary("", 3, 1);
+        Assert.Equal("Version · +3 added, -1 removed", emptyName);
+    }
 }
 
 

@@ -4486,6 +4486,21 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnCopyHierarchyMetricsClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            var (_, _, _, _, summary) = SmartArtDesignStudioViewModel.AnalyzeHierarchyMetrics(markdown);
+            try
+            {
+                Services.ClipboardWriter.TrySetTextAsync(summary);
+                ViewModel.StatusMessage = $"✓ {summary}";
+            }
+            catch
+            {
+                ViewModel.StatusMessage = summary;
+            }
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

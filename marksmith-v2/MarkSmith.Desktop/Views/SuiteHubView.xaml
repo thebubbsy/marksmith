@@ -210,6 +210,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentAsMarkdownListItem" Text="Copy as Markdown links (- [name](path))" Click="OnCopyRecentAsMarkdownListClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentLibrarySummaryItem" Text="Copy document library summary" Click="OnCopyRecentLibrarySummaryClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EC;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

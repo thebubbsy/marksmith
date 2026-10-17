@@ -5910,5 +5910,35 @@ namespace MarkSmith.Views.ShapeStudio
                 ? $"✓ Snapped {sel.Count} shape{(sel.Count == 1 ? "" : "s")} to 10px grid ({movedCount} aligned)."
                 : "All selected shapes are already aligned to 10px grid.";
         }
+
+        private void OnSelectionStandardizeRatioClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0)
+            {
+                ViewModel.StatusMessage = "No shapes to standardize aspect ratio.";
+                return;
+            }
+
+            ViewModel.RecordUndo();
+            int updatedCount = 0;
+            foreach (var s in sel)
+            {
+                var (_, newH) = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.ApplyStandardAspectRatio(s.Width, s.Height, 16.0 / 9.0);
+                if (Math.Abs(s.Height - newH) > 0.001)
+                {
+                    s.Height = newH;
+                    updatedCount++;
+                }
+            }
+
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+            UpdateSelectionBoundsPill();
+            ViewModel.StatusMessage = updatedCount > 0
+                ? $"✓ Standardized {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to 16:9 widescreen aspect ratio."
+                : "Selected shapes already conform to 16:9 aspect ratio.";
+        }
     }
 }

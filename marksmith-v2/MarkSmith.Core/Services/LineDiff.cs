@@ -321,4 +321,19 @@ public static class LineDiff
         var t = timestamp.Value.LocalDateTime;
         return $"{name} · {t:dddd, d MMMM yyyy} · {t:HH:mm}";
     }
+
+    /// <summary>
+    /// Formats a concise delta summary of added and removed lines for a version (e.g. "Version 1.2 · +5 added, -2 removed").
+    /// </summary>
+    public static string FormatVersionDeltaSummary(string? versionName, int linesAdded, int linesRemoved)
+    {
+        var name = string.IsNullOrWhiteSpace(versionName) ? "Version" : versionName.Trim();
+        if (linesAdded == 0 && linesRemoved == 0)
+            return $"{name} · No line changes recorded";
+        if (linesAdded > 0 && linesRemoved > 0)
+            return $"{name} · +{linesAdded} added, -{linesRemoved} removed";
+        if (linesAdded > 0)
+            return $"{name} · +{linesAdded} line{(linesAdded == 1 ? "" : "s")} added";
+        return $"{name} · -{linesRemoved} line{(linesRemoved == 1 ? "" : "s")} removed";
+    }
 }

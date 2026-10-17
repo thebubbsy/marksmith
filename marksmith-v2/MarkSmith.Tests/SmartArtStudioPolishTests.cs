@@ -439,4 +439,19 @@ public class SmartArtStudioPolishTests
 
         Assert.Equal("", SmartArtDesignStudioViewModel.NormalizeIndentation(""));
     }
+
+    [Fact]
+    public void Run135_AnalyzeHierarchyMetrics_CalculatesCorrectCountsAndDepth()
+    {
+        var markdown = "- Root 1\n  - Child 1\n    - Grandchild 1\n- Root 2\n  - Child 2";
+        var (total, roots, leaves, maxDepth, summary) = SmartArtDesignStudioViewModel.AnalyzeHierarchyMetrics(markdown);
+        Assert.Equal(5, total);
+        Assert.Equal(2, roots);
+        Assert.Equal(2, leaves); // Grandchild 1, Child 2
+        Assert.Equal(3, maxDepth);
+        Assert.Equal("Hierarchy: 5 nodes · 2 roots · 2 leaves · max depth 3", summary);
+
+        var empty = SmartArtDesignStudioViewModel.AnalyzeHierarchyMetrics("");
+        Assert.Equal((0, 0, 0, 0, "No nodes in outline"), empty);
+    }
 }

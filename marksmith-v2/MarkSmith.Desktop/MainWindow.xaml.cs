@@ -8802,6 +8802,26 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         lastItem.Click += (_, _) => JumpToMatch(_findMatches.Count - 1);
         menu.Items.Add(lastItem);
 
+        var inspectItem = new MenuFlyoutItem
+        {
+            Text = "Inspect match location",
+            Icon = new FontIcon { Glyph = "\uE946" },
+            IsEnabled = _findMatches.Count > 0 && _findMatchIndex >= 0 && _findMatchIndex < _findMatches.Count
+        };
+        inspectItem.Click += (_, _) =>
+        {
+            if (_findMatches.Count > 0 && _findMatchIndex >= 0 && _findMatchIndex < _findMatches.Count)
+            {
+                var offset = _findMatches[_findMatchIndex];
+                var len = _findMatchIndex < _findMatchLengths.Count ? _findMatchLengths[_findMatchIndex] : (FindTextBox?.Text.Length ?? 0);
+                var fullText = PasteTextBox?.Text ?? "";
+                var summary = MarkSmith.Services.TextSearch.FormatMatchInspectorSummary(fullText, offset, len, _findMatchIndex + 1, _findMatches.Count);
+                _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+                AnnounceStatus($"Match location: {summary}");
+            }
+        };
+        menu.Items.Add(inspectItem);
+
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
         e.Handled = true;
     }
@@ -8911,8 +8931,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             FindCountText.Text = !hasQuery ? string.Empty
                 : MarkSmith.Services.TextSearch.FormatFindMatchStatus(_findMatchIndex + 1, count, _lastFindWrapped);
             ToolTipService.SetToolTip(FindCountText, _lastFindWrapped
-                ? "Search match count (navigation wrapped around document) · Alt+Home/End to jump · Click or right-click to copy"
-                : "Search match count · Alt+Home/End to jump · Click or right-click to copy");
+                ? "Search match count (navigation wrapped around document) · Alt+Home/End to jump · Right-click to inspect location"
+                : "Search match count · Alt+Home/End to jump · Right-click to inspect location");
             MarkSmith.Services.ThemeBrush.Set(FindCountText, TextBlock.ForegroundProperty,
                 hasQuery && count == 0 ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush");
         }

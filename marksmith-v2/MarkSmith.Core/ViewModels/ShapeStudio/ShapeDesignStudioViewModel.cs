@@ -3294,4 +3294,32 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         return (SnapToGrid(x, gridSize), SnapToGrid(y, gridSize));
     }
+
+    /// <summary>
+    /// Calculates the aspect ratio (width / height) and returns a human-readable label (e.g. "16:9 (Widescreen)", "1:1 (Square)").
+    /// </summary>
+    public static (double Ratio, string Label) CalculateAspectRatio(double width, double height)
+    {
+        if (width <= 0 || height <= 0) return (1.0, "1:1");
+        var ratio = width / height;
+        if (Math.Abs(ratio - 1.0) < 0.02) return (1.0, "1:1 (Square)");
+        if (Math.Abs(ratio - 16.0 / 9.0) < 0.03) return (16.0 / 9.0, "16:9 (Widescreen)");
+        if (Math.Abs(ratio - 4.0 / 3.0) < 0.03) return (4.0 / 3.0, "4:3 (Standard)");
+        if (Math.Abs(ratio - 3.0 / 2.0) < 0.03) return (3.0 / 2.0, "3:2 (Classic)");
+        if (Math.Abs(ratio - 2.0 / 1.0) < 0.03) return (2.0, "2:1 (Univisium)");
+        if (Math.Abs(ratio - 9.0 / 16.0) < 0.03) return (9.0 / 16.0, "9:16 (Portrait)");
+        if (Math.Abs(ratio - 3.0 / 4.0) < 0.03) return (3.0 / 4.0, "3:4 (Portrait)");
+        return (ratio, $"{ratio:0.##}:1");
+    }
+
+    /// <summary>
+    /// Applies a target aspect ratio to dimensions, preserving current width and recalculating height with geometric rounding.
+    /// </summary>
+    public static (double NewWidth, double NewHeight) ApplyStandardAspectRatio(double currentWidth, double currentHeight, double targetRatio = 16.0 / 9.0)
+    {
+        if (targetRatio <= 0 || currentWidth <= 0)
+            return (Math.Max(10, currentWidth), Math.Max(10, currentHeight));
+        var newHeight = Math.Max(10, Math.Round(currentWidth / targetRatio, MidpointRounding.AwayFromZero));
+        return (currentWidth, newHeight);
+    }
 }

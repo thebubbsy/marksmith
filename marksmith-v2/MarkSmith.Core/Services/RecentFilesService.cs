@@ -135,4 +135,29 @@ public sealed class RecentFilesService
         }
         return string.Join(Environment.NewLine, lines);
     }
+
+    /// <summary>
+    /// Formats a high-level summary of the recent documents library (e.g. "5 documents across 3 directories (.md, .txt)").
+    /// </summary>
+    public static string FormatRecentLibrarySummary(IEnumerable<string>? files)
+    {
+        if (files is null) return "0 documents in recent history";
+        var list = files.Where(f => !string.IsNullOrWhiteSpace(f)).ToList();
+        if (list.Count == 0) return "0 documents in recent history";
+
+        var dirs = ExtractParentDirectories(list);
+        var exts = list.Select(f =>
+        {
+            try { return Path.GetExtension(f)?.ToLowerInvariant() ?? ""; }
+            catch { return ""; }
+        })
+        .Where(e => !string.IsNullOrEmpty(e))
+        .Distinct()
+        .ToList();
+
+        var extLabel = exts.Count > 0 ? $" ({string.Join(", ", exts)})" : "";
+        var dirLabel = dirs.Count == 1 ? "1 directory" : $"{dirs.Count} directories";
+        var docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
+        return $"{docLabel} across {dirLabel}{extLabel}";
+    }
 }

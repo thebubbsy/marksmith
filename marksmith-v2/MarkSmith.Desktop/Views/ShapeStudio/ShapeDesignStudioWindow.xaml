@@ -595,6 +595,9 @@
                                         <MenuFlyoutItem x:Name="SelectionSnapToGridItem" Text="Snap selection to 10px grid" Click="OnSelectionSnapToGridClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionStandardizeRatioItem" Text="Standardize aspect ratio (16:9 widescreen)" Click="OnSelectionStandardizeRatioClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>
