@@ -1410,7 +1410,70 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentMissingAuditClick", suiteCs);
         Assert.Contains("FormatMissingRecentFilesAudit", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_FormatRecentFilesSortedCatalog_ComputesAccurately()
+    {
+        Assert.Equal("Sorted recent catalog: 0 documents (No recent files)",
+            RecentFilesService.FormatRecentFilesSortedCatalog(null));
+        Assert.Equal("Sorted recent catalog: 0 documents (No recent files)",
+            RecentFilesService.FormatRecentFilesSortedCatalog(Array.Empty<string>()));
+
+        var paths = new[]
+        {
+            @"C:\Specs\zeta-plan.md",
+            @"C:\Docs\alpha-notes.md",
+            @"C:\Docs\beta-guide.md"
+        };
+
+        var catalog = RecentFilesService.FormatRecentFilesSortedCatalog(paths);
+        Assert.Equal("Sorted recent catalog (3 documents across 2 folders): A–Z [alpha-notes.md, beta-guide.md, zeta-plan.md] · By folder [Docs (2), Specs (1)]", catalog);
+    }
+
+    [Fact]
+    public void Run144_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: fixSafeLintItem & FixSafeMarkdownLintIssues
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Auto-fix safe Markdown lint issues", mainCs);
+        Assert.Contains("FixSafeMarkdownLintIssues", mainCs);
+        Assert.Contains("FormatSafeLintFixSummary", mainCs);
+
+        // 2. MindMapGalaxy: AuditLinkedFilesItem & OnAuditLinkedFilesClick
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditLinkedFilesItem", galaxyXaml);
+        Assert.Contains("OnAuditLinkedFilesClick", galaxyXaml);
+        Assert.Contains("OnAuditLinkedFilesClick", galaxyCs);
+        Assert.Contains("AuditLinkedFilesStatus", galaxyCs);
+
+        // 3. ShapeStudio: SelectionMatchSizeItem & OnSelectionMatchSizeClick
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionMatchSizeItem", shapeXaml);
+        Assert.Contains("OnSelectionMatchSizeClick", shapeXaml);
+        Assert.Contains("OnSelectionMatchSizeClick", shapeCs);
+        Assert.Contains("MatchSelectedShapeDimensions", shapeCs);
+
+        // 4. SmartArtStudio: SplitLongOutlineItem & OnSplitLongOutlineClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SplitLongOutlineItem", smartArtXaml);
+        Assert.Contains("OnSplitLongOutlineClick", smartArtXaml);
+        Assert.Contains("OnSplitLongOutlineClick", smartArtCs);
+        Assert.Contains("SplitLongOutlineItems", smartArtCs);
+
+        // 5. HistoryWindow: copyCherryPickHunks & FormatCherryPickHunksPayload
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy numbered cherry-pick hunks payload", historyCs);
+        Assert.Contains("FormatCherryPickHunksPayload", historyCs);
+
+        // 6. SuiteHub: CopyRecentSortedCatalogItem & OnCopyRecentSortedCatalogClick
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentSortedCatalogItem", suiteXaml);
+        Assert.Contains("OnCopyRecentSortedCatalogClick", suiteXaml);
+        Assert.Contains("OnCopyRecentSortedCatalogClick", suiteCs);
+        Assert.Contains("FormatRecentFilesSortedCatalog", suiteCs);
+    }
 }
-
-
-

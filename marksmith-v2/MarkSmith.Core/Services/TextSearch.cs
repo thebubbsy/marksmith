@@ -761,7 +761,163 @@ public static class TextSearch
         string matchLabel = replacedCount == 1 ? "1 match replaced" : $"{replacedCount} matches replaced";
         return $"Case-preserving replace ('{q}' → '{r}'): {matchLabel} ({upperCount} UPPER, {titleCount} Title, {lowerCount} lower)";
     }
+
+    /// <summary>
+    /// Automatically fixes safe, non-destructive Markdown lint issues outside fenced code blocks:
+    /// - Trailing whitespace (while preserving intentional 2-space Markdown hard line breaks)
+    /// - Hard tab characters (expanded to 4 spaces)
+    /// - ATX headings missing a space after 1–6 leading '#' characters (e.g., "#Heading" → "# Heading")
+    /// - Runs of 3+ consecutive blank lines (collapsed to at most 2 blank lines)
+    /// </summary>
+    public static (string FixedMarkdown, int TrailingSpacesFixed, int HardTabsFixed, int HeadingSpacesFixed, int BlankLineClustersFixed, int TotalFixes) FixSafeMarkdownLintIssues(
+        string? markdown)
+    {
+        if (string.IsNullOrEmpty(markdown))
+            return (markdown ?? string.Empty, 0, 0, 0, 0, 0);
+
+        bool hasCrLf = markdown.Contains("\r\n", StringComparison.Ordinal);
+        string normalized = hasCrLf ? markdown.Replace("\r\n", "\n") : markdown;
+        string[] rawLines = normalized.Split('\n');
+
+        var outputLines = new List<string>(rawLines.Length);
+        char fenceChar = '\0';
+        int fenceLen = 0;
+        int blankRun = 0;
+
+        int trailingFixed = 0;
+        int tabsFixed = 0;
+        int headingsFixed = 0;
+        int blankClustersFixed = 0;
+
+        static bool IsHardBreakLine(string line) =>
+            line.EndsWith("  ", StringComparison.Ordinal) && line.Length >= 3 && !char.IsWhiteSpace(line[^3]);
+
+        static bool IsClosingFenceLine(string trimmed, char fChar, int fLen)
+        {
+            int run = 0;
+            while (run < trimmed.Length && trimmed[run] == fChar) run++;
+            if (run < fLen) return false;
+            for (int j = run; j < trimmed.Length; j++)
+            {
+                if (!char.IsWhiteSpace(trimmed[j])) return false;
+            }
+            return true;
+        }
+
+        foreach (var rawLine in rawLines)
+        {
+            string line = rawLine;
+            string trimmedStart = line.TrimStart();
+
+            if (fenceLen > 0)
+            {
+                blankRun = 0;
+                if (IsClosingFenceLine(trimmedStart, fenceChar, fenceLen))
+                {
+                    fenceLen = 0;
+                }
+                outputLines.Add(line);
+                continue;
+            }
+
+            if (trimmedStart.Length >= 3 && (trimmedStart[0] == '`' || trimmedStart[0] == '~'))
+            {
+                char ch = trimmedStart[0];
+                int runLen = 0;
+                while (runLen < trimmedStart.Length && trimmedStart[runLen] == ch) runLen++;
+                if (runLen >= 3)
+                {
+                    fenceChar = ch;
+                    fenceLen = runLen;
+                    blankRun = 0;
+                    outputLines.Add(line);
+                    continue;
+                }
+            }
+
+            // 1. Trailing whitespace check (preserve intentional 2-space hard breaks on non-empty lines)
+            if (line.Length > 0 && char.IsWhiteSpace(line[^1]))
+            {
+                string trimmedEnd = line.TrimEnd();
+                if (trimmedEnd.Length == 0)
+                {
+                    line = string.Empty;
+                    trailingFixed++;
+                }
+                else if (!IsHardBreakLine(line))
+                {
+                    line = trimmedEnd;
+                    trailingFixed++;
+                }
+            }
+
+            // 2. Hard tabs check
+            if (line.Contains('\t', StringComparison.Ordinal))
+            {
+                line = line.Replace("\t", "    ", StringComparison.Ordinal);
+                tabsFixed++;
+            }
+
+            // Re-evaluate trimmedStart after tab expansion & trailing trim
+            trimmedStart = line.TrimStart();
+
+            // 3. Consecutive blank lines (collapse 3+ blank lines to max 2)
+            if (trimmedStart.Length == 0)
+            {
+                blankRun++;
+                if (blankRun == 3)
+                {
+                    blankClustersFixed++;
+                }
+                if (blankRun >= 3)
+                {
+                    continue;
+                }
+                outputLines.Add(string.Empty);
+                continue;
+            }
+            else
+            {
+                blankRun = 0;
+            }
+
+            // 4. Missing space after ATX heading '#' (1..6 hashes followed immediately by non-space/non-#)
+            if (trimmedStart[0] == '#')
+            {
+                int h = 0;
+                while (h < trimmedStart.Length && trimmedStart[h] == '#') h++;
+                if (h <= 6 && h < trimmedStart.Length && trimmedStart[h] != ' ')
+                {
+                    int leadingLen = line.Length - trimmedStart.Length;
+                    string indent = leadingLen > 0 ? line[..leadingLen] : string.Empty;
+                    line = $"{indent}{trimmedStart[..h]} {trimmedStart[h..]}";
+                    headingsFixed++;
+                }
+            }
+
+            outputLines.Add(line);
+        }
+
+        int totalFixes = trailingFixed + tabsFixed + headingsFixed + blankClustersFixed;
+        string joined = string.Join("\n", outputLines);
+        string finalMarkdown = hasCrLf ? joined.Replace("\n", "\r\n") : joined;
+        return (finalMarkdown, trailingFixed, tabsFixed, headingsFixed, blankClustersFixed, totalFixes);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of safe Markdown lint auto-fixes.
+    /// </summary>
+    public static string FormatSafeLintFixSummary(
+        int trailingSpacesFixed,
+        int hardTabsFixed,
+        int headingSpacesFixed,
+        int blankLineClustersFixed)
+    {
+        int total = trailingSpacesFixed + hardTabsFixed + headingSpacesFixed + blankLineClustersFixed;
+        if (total <= 0)
+            return "Markdown lint auto-fix: 0 safe issues found (Document already clean)";
+
+        string totalLabel = total == 1 ? "1 safe issue fixed" : $"{total} safe issues fixed";
+        return $"Markdown lint auto-fix: {totalLabel} ({trailingSpacesFixed} trailing space, {hardTabsFixed} hard tab, {headingSpacesFixed} '#' heading space, {blankLineClustersFixed} blank-line cluster)";
+    }
 }
-
-
-

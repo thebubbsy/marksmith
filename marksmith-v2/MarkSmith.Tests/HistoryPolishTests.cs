@@ -839,8 +839,22 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("Net +1 lines", diffSummary);
         Assert.Contains("% similarity)", diffSummary);
     }
+
+    [Fact]
+    public void Run144_FormatCherryPickHunksPayload_ExtractsNumberedHunks()
+    {
+        Assert.Equal("Cherry-pick hunks: 0 hunks (Identical versions)",
+            LineDiff.FormatCherryPickHunksPayload("same\ncontent", "same\ncontent"));
+
+        var before = "header\nold line A\nmiddle\nold line B";
+        var after = "header\nnew line A1\nnew line A2\nmiddle\nnew line B1";
+        var payload = LineDiff.FormatCherryPickHunksPayload(before, after);
+
+        Assert.Contains("Cherry-pick hunks: 2 hunks (+3/-2 lines)", payload);
+        Assert.Contains("=== Hunk #1 (@ line 2, +2/-1) ===", payload);
+        Assert.Contains("new line A1", payload);
+        Assert.Contains("new line A2", payload);
+        Assert.Contains("=== Hunk #2 (@ line 5, +1/-1) ===", payload);
+        Assert.Contains("new line B1", payload);
+    }
 }
-
-
-
-

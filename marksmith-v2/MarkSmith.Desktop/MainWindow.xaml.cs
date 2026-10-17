@@ -9016,8 +9016,35 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(casePreserveReplaceItem);
 
+        var fixSafeLintItem = new MenuFlyoutItem
+        {
+            Text = "Auto-fix safe Markdown lint issues (tabs, trailing spaces, # headings)",
+            Icon = new FontIcon { Glyph = "\uE90F" },
+            IsEnabled = !string.IsNullOrEmpty(PasteTextBox?.Text)
+        };
+        fixSafeLintItem.Click += (_, _) => ApplySafeMarkdownLintFixes();
+        menu.Items.Add(fixSafeLintItem);
+
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
         e.Handled = true;
+    }
+
+    private void ApplySafeMarkdownLintFixes()
+    {
+        if (PasteTextBox is null) return;
+        EnsureUnfoldedForFind();
+        var text = PasteTextBox.Text ?? string.Empty;
+        var (fixedText, trailingFixed, tabsFixed, headingsFixed, blankClustersFixed, totalFixes) =
+            MarkSmith.Services.TextSearch.FixSafeMarkdownLintIssues(text);
+        if (totalFixes > 0)
+        {
+            PasteTextBox.Text = fixedText;
+            RecomputeFindMatches();
+        }
+        var summary = MarkSmith.Services.TextSearch.FormatSafeLintFixSummary(
+            trailingFixed, tabsFixed, headingsFixed, blankClustersFixed);
+        _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+        AnnounceStatus(summary);
     }
 
     private bool _suppressFindJump;
@@ -11412,6 +11439,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         copyAllItem.Click += (_, _) => OnCopyAllLintIssuesClick(this, new RoutedEventArgs());
         menu.Items.Add(copyAllItem);
+
+        var fixSafeLintItem = new MenuFlyoutItem
+        {
+            Text = "Auto-fix safe Markdown lint issues (tabs, trailing spaces, # headings)",
+            Icon = new FontIcon { Glyph = "\uE90F" },
+            IsEnabled = _lintIssues.Count > 0
+        };
+        fixSafeLintItem.Click += (_, _) => ApplySafeMarkdownLintFixes();
+        menu.Items.Add(fixSafeLintItem);
 
         if (position.HasValue)
             menu.ShowAt(anchor, position.Value);

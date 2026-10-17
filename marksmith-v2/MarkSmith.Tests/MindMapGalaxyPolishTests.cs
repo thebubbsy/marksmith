@@ -1437,7 +1437,39 @@ namespace MarkSmith.Tests
             var cleanSummary = MindMapStudioViewModel.FormatOrphanAttachmentSummary(0, rootLabel, totalNodes);
             Assert.Equal("Orphan check: 0 orphaned nodes found (4 total nodes connected to 'Central Hub')", cleanSummary);
         }
+
+        [Fact]
+        public void Run144_AuditLinkedFilesStatus_And_FormatLinkedFilesAuditSummary()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+
+            Assert.Equal("Linked files audit: 0 linked files (Empty map)",
+                MindMapStudioViewModel.FormatLinkedFilesAuditSummary(0, 0, 0, null, 0));
+
+            var n1 = new MindMapNodeViewModel(new MindMapNode { Id = "n1", Title = "Architecture Spec", FilePath = @"C:\docs\arch.md" });
+            var n2 = new MindMapNodeViewModel(new MindMapNode { Id = "n2", Title = "Missing Roadmap", FilePath = @"C:\docs\missing.md" });
+            var n3 = new MindMapNodeViewModel(new MindMapNode { Id = "n3", Title = "Unlinked Note", FilePath = "" });
+
+            vm.Nodes.Add(n1);
+            vm.Nodes.Add(n2);
+            vm.Nodes.Add(n3);
+
+            var (totalLinked, validCount, missingCount, missingTitles) =
+                vm.AuditLinkedFilesStatus(path => path.EndsWith("arch.md", StringComparison.OrdinalIgnoreCase));
+
+            Assert.Equal(2, totalLinked);
+            Assert.Equal(1, validCount);
+            Assert.Equal(1, missingCount);
+            Assert.Single(missingTitles);
+            Assert.Equal("Missing Roadmap", missingTitles[0]);
+
+            var summary = MindMapStudioViewModel.FormatLinkedFilesAuditSummary(totalLinked, validCount, missingCount, missingTitles, vm.Nodes.Count);
+            Assert.Equal("Linked files audit (2 linked files): 1 valid (50%), 1 broken/missing ('Missing Roadmap')", summary);
+
+            var allValidSummary = MindMapStudioViewModel.FormatLinkedFilesAuditSummary(2, 2, 0, Array.Empty<string>(), 3);
+            Assert.Equal("Linked files audit (2 linked files): 100% valid on disk (2 verified · 0 broken links)", allValidSummary);
+        }
     }
 }
-
-

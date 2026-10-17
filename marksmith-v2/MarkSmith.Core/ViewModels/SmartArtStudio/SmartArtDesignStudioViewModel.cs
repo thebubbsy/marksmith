@@ -1871,6 +1871,126 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string dupStr = removedDuplicates == 1 ? "1 duplicate sibling node" : $"{removedDuplicates} duplicate sibling nodes";
         return $"Deduplicated outline: Removed {dupStr} ({survivingStr} retained)";
     }
+
+    /// <summary>
+    /// Splits overly long outline bullet items (exceeding <paramref name="maxChars"/> characters) into a concise
+    /// parent heading bullet and an indented child sub-bullet (preferring natural clause separators such as ": ", " — ",
+    /// or " - ", or falling back to a word boundary near <paramref name="maxChars"/>).
+    /// </summary>
+    public static (string SplitMarkdown, int SplitCount, int ResultingNodeCount) SplitLongOutlineItems(
+        string? markdown,
+        int maxChars = 45)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return (markdown ?? string.Empty, 0, 0);
+
+        int limit = Math.Max(12, maxChars);
+        bool hasCr = markdown.Contains("\r\n", StringComparison.Ordinal);
+        string normalized = hasCr ? markdown.Replace("\r\n", "\n") : markdown;
+        var rawLines = normalized.Split('\n');
+
+        var outputLines = new List<string>(rawLines.Length);
+        int splitCount = 0;
+        int resultingNodes = 0;
+        string[] delimiters = [": ", " — ", " – ", " - ", "; "];
+
+        foreach (var rawLine in rawLines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine))
+            {
+                outputLines.Add(rawLine);
+                continue;
+            }
+
+            int indentLen = 0;
+            while (indentLen < rawLine.Length && (rawLine[indentLen] == ' ' || rawLine[indentLen] == '\t'))
+            {
+                indentLen++;
+            }
+
+            string indentPrefix = rawLine[..indentLen];
+            string trimmed = rawLine[indentLen..].TrimEnd();
+            string bulletMarker = "- ";
+            string cleanLabel = trimmed;
+
+            if (trimmed.StartsWith("- ", StringComparison.Ordinal) ||
+                trimmed.StartsWith("* ", StringComparison.Ordinal) ||
+                trimmed.StartsWith("+ ", StringComparison.Ordinal))
+            {
+                bulletMarker = trimmed[..2];
+                cleanLabel = trimmed[2..].Trim();
+            }
+
+            if (cleanLabel.Length <= limit)
+            {
+                outputLines.Add(rawLine);
+                resultingNodes++;
+                continue;
+            }
+
+            string? parentPart = null;
+            string? childPart = null;
+
+            foreach (var delim in delimiters)
+            {
+                int idx = cleanLabel.IndexOf(delim, StringComparison.Ordinal);
+                if (idx >= 3 && idx + delim.Length < cleanLabel.Length)
+                {
+                    parentPart = cleanLabel[..idx].Trim();
+                    childPart = cleanLabel[(idx + delim.Length)..].Trim();
+                    break;
+                }
+            }
+
+            if (string.IsNullOrEmpty(parentPart) || string.IsNullOrEmpty(childPart))
+            {
+                int breakIdx = cleanLabel.LastIndexOf(' ', Math.Min(limit, cleanLabel.Length - 1));
+                if (breakIdx < 4)
+                {
+                    breakIdx = cleanLabel.IndexOf(' ', Math.Min(limit, cleanLabel.Length - 1));
+                }
+
+                if (breakIdx > 0 && breakIdx < cleanLabel.Length - 1)
+                {
+                    parentPart = cleanLabel[..breakIdx].Trim();
+                    childPart = cleanLabel[(breakIdx + 1)..].Trim();
+                }
+            }
+
+            if (!string.IsNullOrEmpty(parentPart) && !string.IsNullOrEmpty(childPart))
+            {
+                outputLines.Add($"{indentPrefix}{bulletMarker}{parentPart}");
+                outputLines.Add($"{indentPrefix}  {bulletMarker}{childPart}");
+                splitCount++;
+                resultingNodes += 2;
+            }
+            else
+            {
+                outputLines.Add(rawLine);
+                resultingNodes++;
+            }
+        }
+
+        string joined = string.Join("\n", outputLines);
+        return (hasCr ? joined.Replace("\n", "\r\n") : joined, splitCount, resultingNodes);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of long outline bullet splitting.
+    /// </summary>
+    public static string FormatLongItemSplitSummary(int splitCount, int resultingNodeCount, int maxChars = 45)
+    {
+        int limit = Math.Max(12, maxChars);
+        if (resultingNodeCount <= 0 && splitCount <= 0)
+            return $"Split long outline items (>{limit} chars): Empty outline (0 nodes)";
+
+        string nodeStr = resultingNodeCount == 1 ? "1 node" : $"{resultingNodeCount} nodes";
+        if (splitCount <= 0)
+            return $"Split long outline items (>{limit} chars): 0 long bullets found ({nodeStr} within limit)";
+
+        string splitStr = splitCount == 1 ? "1 long bullet split" : $"{splitCount} long bullets split";
+        return $"Split long outline items (>{limit} chars): {splitStr} into parent + sub-bullet ({nodeStr} total)";
+    }
 }
 
 

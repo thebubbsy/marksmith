@@ -3869,6 +3869,16 @@ namespace MarkSmith.Views.MindMap
             RequestRedraw();
         }
 
+        private void OnAuditLinkedFilesClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (totalLinked, validCount, missingCount, missingTitles) = ViewModel.AuditLinkedFilesStatus();
+            var summary = MindMapStudioViewModel.FormatLinkedFilesAuditSummary(
+                totalLinked, validCount, missingCount, missingTitles, ViewModel.Nodes.Count);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = summary;
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
         private void OnCenterOnRootDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -4635,6 +4645,14 @@ namespace MarkSmith.Views.MindMap
             };
             attachOrphansItem.Click += OnAttachOrphansClick;
             menu.Items.Add(attachOrphansItem);
+
+            var auditLinkedFilesItem = new MenuFlyoutItem
+            {
+                Text = "Audit linked files health (Valid vs missing paths)",
+                Icon = new FontIcon { Glyph = "\uE8A7" }
+            };
+            auditLinkedFilesItem.Click += OnAuditLinkedFilesClick;
+            menu.Items.Add(auditLinkedFilesItem);
 
             var fitItem = new MenuFlyoutItem
             {

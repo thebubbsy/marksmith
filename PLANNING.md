@@ -10903,10 +10903,10 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #144 Blueprint — One-Click Safe Lint Auto-Fix, Missing Link Auditor, Match Shape Dimensions, Long Bullet Splitter, Hunk Cherry-Pick & Recent Sorter (Status: Pending)
+#### Run #144 Blueprint — One-Click Safe Lint Auto-Fix, Missing Link Auditor, Match Shape Dimensions, Long Bullet Splitter, Hunk Cherry-Pick & Recent Sorter (Status: Completed — Shipped)
 1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `MarkdownLintService.cs` / `TextSearch.cs`)**:
    - **What is missing**: `LintFlyout` (`MainWindow.xaml` lines 1086–1131) lists lint issues and copies them, but lacks a one-click safe auto-fix action for deterministic markdown lint issues (trailing whitespace, hard tabs, missing space after `#` headings, triple+ blank lines).
-   - **Deliverable**: Add `TextSearch.FixSafeMarkdownLintIssues(markdown, out int fixedCount)` and `FormatSafeLintFixSummary(markdown)`, wired to `LintAutoFixSafeButton` / context action in `LintFlyout`.
+   - **Deliverable**: Add `TextSearch.FixSafeMarkdownLintIssues(markdown)` and `FormatSafeLintFixSummary(...)`, wired to `fixSafeLintItem` (`\uE90F`) in `ShowLintIssueContextMenu` and `OnFindCountTextRightTapped`.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
    - **What is missing**: The inspector warns when a single selected node has a missing `LinkedFilePath`, but there is no galaxy-wide audit of linked files vs missing files across all nodes.
    - **Deliverable**: Add `MindMapStudioViewModel.AuditLinkedFilesStatus(fileExistsPredicate)` and `FormatLinkedFilesAuditSummary()`, wired to `AuditLinkedFilesItem` (`\uE8A7`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
@@ -10989,4 +10989,22 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
    - **What is missing**: `SuiteHubView` lacks a comprehensive Recent Library Health & Portability Readiness Scorecard combining path validity, extension mix, naming consistency, and folder depth into a single executive readiness report.
    - **Deliverable**: Add `RecentFilesService.FormatLibraryHealthScorecard(files, fileExistsPredicate)` and wire `CopyRecentHealthScorecardItem` (`\uE9D9`) in `RecentDocsFlyout`.
 
+---
 
+## Scheduled WinUI 3 Desktop Polish Routine — Run #144 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-17
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Safe Markdown Lint Auto-Fix (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.FixSafeMarkdownLintIssues(markdown)` and `FormatSafeLintFixSummary(...)` to automatically fix trailing whitespace (while preserving intentional 2-space Markdown hard breaks), hard tabs (`\t` → 4 spaces), missing spaces after `#` headings (1–6 `#`), and runs of 3+ consecutive blank lines outside fenced code blocks, wired to `fixSafeLintItem` (`\uE90F`) in both `ShowLintIssueContextMenu` and `OnFindCountTextRightTapped`.
+    2. **MindMapGalaxyWindow Linked Files Health Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditLinkedFilesStatus(fileExistsPredicate)` and `FormatLinkedFilesAuditSummary(...)` to audit valid vs broken/missing `FilePath` attachments across all nodes in the galaxy, wired to `AuditLinkedFilesItem` (`\uE8A7`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Multi-Shape Dimension Matcher (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.MatchSelectedShapeDimensions(matchWidth, matchHeight)` and `FormatDimensionMatchSummary(...)` to resize selected shapes (or all canvas shapes) to match the primary reference shape's width and height with single-step undo recording, wired to `SelectionMatchSizeItem` (`\uE740`) in `SelectionBoundsFlyout`.
+    4. **SmartArtDesignStudioWindow Long Outline Item Splitter (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.SplitLongOutlineItems(markdown, maxChars = 45)` and `FormatLongItemSplitSummary(...)` to split overflowing bullets on natural clause delimiters (`: `, ` — `, ` - `) or word boundaries into a concise parent bullet + indented child sub-bullet, wired to `SplitLongOutlineItem` (`\uE8C6`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Numbered Cherry-Pick Hunks Extractor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.FormatCherryPickHunksPayload(before, after)` and `FormatCherryPickHunksPayload(unifiedRows)` to extract numbered, self-contained hunk payloads for selective copy/paste recovery, wired to `copyCherryPickHunks` (`\uE8C8`) in `OnTimelineHeaderRightTapped`.
+    6. **SuiteHubView Sorted & Folder-Grouped Recent Catalog (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.FormatRecentFilesSortedCatalog(filePaths)` to format an alphabetical (A–Z) and parent-folder-grouped catalog of recent documents, wired to `CopyRecentSortedCatalogItem` (`\uE8CB`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors.
+    - Verified `55/55` targeted Run #144 + `CommandIconsTests` and `582/582` full desktop polish tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` startup (`PID=24676, Alive=True, Responding=True, WorkingSet=184.76MB`).

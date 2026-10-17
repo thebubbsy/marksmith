@@ -4628,6 +4628,20 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = $"✓ {summary}";
         }
 
+        private void OnSplitLongOutlineClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            var (splitMd, splitCount, resultingCount) = SmartArtDesignStudioViewModel.SplitLongOutlineItems(markdown, 45);
+            var summary = SmartArtDesignStudioViewModel.FormatLongItemSplitSummary(splitCount, resultingCount, 45);
+            if (splitCount > 0)
+            {
+                ViewModel.PushUndo();
+                ViewModel.MarkdownText = splitMd;
+            }
+            Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = $"✓ {summary}";
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

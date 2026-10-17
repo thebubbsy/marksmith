@@ -625,6 +625,9 @@
                                         <MenuFlyoutItem x:Name="SelectionNormalizePrecisionItem" Text="Snap coordinates &amp; sizes to whole pixels (1px precision)" Click="OnSelectionNormalizePrecisionClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EF;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionMatchSizeItem" Text="Match dimensions to primary selected shape (Width &amp; Height)" Click="OnSelectionMatchSizeClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE740;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

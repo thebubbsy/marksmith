@@ -647,5 +647,67 @@ public sealed class RecentFilesService
 
         return $"Recent path health ({docLabel}): {existing.Count} valid ({validPct:0.#}%), {missing.Count} missing/moved ({sampleStr})";
     }
-}
 
+    /// <summary>
+    /// Formats a sorted &amp; grouped catalog of recent document paths (alphabetical A–Z by filename and grouped by parent folder).
+    /// </summary>
+    public static string FormatRecentFilesSortedCatalog(IEnumerable<string>? filePaths)
+    {
+        if (filePaths == null)
+            return "Sorted recent catalog: 0 documents (No recent files)";
+
+        var entries = new List<(string FullPath, string FileName, string FolderName)>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var raw in filePaths)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            string p = raw.Trim();
+            if (!seen.Add(p)) continue;
+
+            string fileName;
+            string folderName;
+            try
+            {
+                fileName = Path.GetFileName(p);
+                if (string.IsNullOrWhiteSpace(fileName)) fileName = p;
+                string? dir = Path.GetDirectoryName(p);
+                folderName = string.IsNullOrWhiteSpace(dir) ? "(root)" : Path.GetFileName(dir.TrimEnd('\\', '/'));
+                if (string.IsNullOrWhiteSpace(folderName)) folderName = dir ?? "(root)";
+            }
+            catch
+            {
+                fileName = p;
+                folderName = "(unknown)";
+            }
+
+            entries.Add((p, fileName, folderName));
+        }
+
+        if (entries.Count == 0)
+            return "Sorted recent catalog: 0 documents (No recent files)";
+
+        var sortedAz = entries
+            .OrderBy(e => e.FileName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(e => e.FullPath, StringComparer.OrdinalIgnoreCase)
+            .Select(e => e.FileName)
+            .ToList();
+
+        var folderGroups = entries
+            .GroupBy(e => e.FolderName, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => $"{g.Key} ({g.Count()})")
+            .ToList();
+
+        string docLabel = entries.Count == 1 ? "1 document" : $"{entries.Count} documents";
+        string folderLabel = folderGroups.Count == 1 ? "1 folder" : $"{folderGroups.Count} folders";
+        string azPreview = string.Join(", ", sortedAz.Take(5));
+        if (sortedAz.Count > 5) azPreview += $", +{sortedAz.Count - 5} more";
+
+        string folderPreview = string.Join(", ", folderGroups.Take(3));
+        if (folderGroups.Count > 3) folderPreview += $", +{folderGroups.Count - 3} more";
+
+        return $"Sorted recent catalog ({docLabel} across {folderLabel}): A–Z [{azPreview}] · By folder [{folderPreview}]";
+    }
+}

@@ -530,6 +530,34 @@ public class TextSearchTests
         var zeroSummary = TextSearch.FormatCasePreservingReplaceSummary("missing", "target", 0, 0, 0, 0);
         Assert.Equal("Case-preserving replace ('missing' → 'target'): 0 matches replaced", zeroSummary);
     }
+
+    [Fact]
+    public void Run144_FixSafeMarkdownLintIssues_And_FormatSafeLintFixSummary()
+    {
+        Assert.Equal("Markdown lint auto-fix: 0 safe issues found (Document already clean)",
+            TextSearch.FormatSafeLintFixSummary(0, 0, 0, 0));
+
+        var rawMd = "#HeadingOne   \nLine with\thard tab\nIntentional break  \n\n\n\n```csharp\n#NotAHeading\t\n```\n##SubHeading";
+        var (fixedMd, trailingFixed, tabsFixed, headingsFixed, blankClustersFixed, totalFixes) =
+            TextSearch.FixSafeMarkdownLintIssues(rawMd);
+
+        Assert.Equal(1, trailingFixed);      // "#HeadingOne   " trimmed, while "Intentional break  " preserved
+        Assert.Equal(1, tabsFixed);          // "Line with\thard tab" expanded, fenced tab untouched
+        Assert.Equal(2, headingsFixed);      // "#HeadingOne" and "##SubHeading" fixed, fenced "#NotAHeading" untouched
+        Assert.Equal(1, blankClustersFixed); // 3 blank lines collapsed to 2
+        Assert.Equal(5, totalFixes);
+
+        Assert.Contains("# HeadingOne\n", fixedMd);
+        Assert.Contains("Line with    hard tab\n", fixedMd);
+        Assert.Contains("Intentional break  \n", fixedMd);
+        Assert.Contains("#NotAHeading\t\n", fixedMd);
+        Assert.EndsWith("## SubHeading", fixedMd);
+
+        // Verify MarkdownLintService finds 0 safe lint issues on the fixed output
+        var remainingIssues = MarkdownLintService.Analyze(fixedMd);
+        Assert.Empty(remainingIssues);
+
+        var summary = TextSearch.FormatSafeLintFixSummary(trailingFixed, tabsFixed, headingsFixed, blankClustersFixed);
+        Assert.Equal("Markdown lint auto-fix: 5 safe issues fixed (1 trailing space, 1 hard tab, 2 '#' heading space, 1 blank-line cluster)", summary);
+    }
 }
-
-

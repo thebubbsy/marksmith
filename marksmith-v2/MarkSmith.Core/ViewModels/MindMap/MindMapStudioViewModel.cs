@@ -2588,6 +2588,88 @@ namespace MarkSmith.ViewModels.MindMap
             string orphanStr = attachedCount == 1 ? "1 orphaned node" : $"{attachedCount} orphaned nodes";
             return $"Attached {orphanStr} to root '{rLabel}' ({totalStr} · 0 orphans remaining)";
         }
+
+        /// <summary>
+        /// Audits all nodes in the mind map that have a non-empty <see cref="MindMapNodeViewModel.FilePath"/>,
+        /// verifying whether each linked file exists on disk.
+        /// </summary>
+        public (int TotalLinked, int ValidCount, int MissingCount, List<string> MissingNodeTitles) AuditLinkedFilesStatus(
+            Func<string, bool>? fileExistsPredicate = null)
+        {
+            var missingTitles = new List<string>();
+            if (Nodes.Count == 0)
+            {
+                StatusMessage = FormatLinkedFilesAuditSummary(0, 0, 0, missingTitles, 0);
+                return (0, 0, 0, missingTitles);
+            }
+
+            var checkExists = fileExistsPredicate ?? System.IO.File.Exists;
+            int totalLinked = 0;
+            int validCount = 0;
+            int missingCount = 0;
+
+            foreach (var n in Nodes)
+            {
+                if (string.IsNullOrWhiteSpace(n.FilePath)) continue;
+                totalLinked++;
+                bool exists;
+                try
+                {
+                    exists = checkExists(n.FilePath);
+                }
+                catch
+                {
+                    exists = false;
+                }
+
+                if (exists)
+                {
+                    validCount++;
+                }
+                else
+                {
+                    missingCount++;
+                    string title = string.IsNullOrWhiteSpace(n.Title) ? "(Untitled)" : n.Title.Trim();
+                    missingTitles.Add(title);
+                }
+            }
+
+            StatusMessage = FormatLinkedFilesAuditSummary(totalLinked, validCount, missingCount, missingTitles, Nodes.Count);
+            return (totalLinked, validCount, missingCount, missingTitles);
+        }
+
+        /// <summary>
+        /// Formats a human-readable diagnostic summary of linked file health across mind map nodes.
+        /// </summary>
+        public static string FormatLinkedFilesAuditSummary(
+            int totalLinked,
+            int validCount,
+            int missingCount,
+            IEnumerable<string>? missingNodeTitles = null,
+            int totalNodes = 0)
+        {
+            if (totalNodes <= 0 && totalLinked <= 0)
+                return "Linked files audit: 0 linked files (Empty map)";
+
+            if (totalLinked <= 0)
+            {
+                string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+                return $"Linked files audit: 0 linked files across {nodeStr}";
+            }
+
+            string linkedLabel = totalLinked == 1 ? "1 linked file" : $"{totalLinked} linked files";
+            if (missingCount <= 0)
+            {
+                return $"Linked files audit ({linkedLabel}): 100% valid on disk ({validCount} verified · 0 broken links)";
+            }
+
+            double validPct = (double)validCount / totalLinked * 100.0;
+            var titles = missingNodeTitles?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? new List<string>();
+            string sampleStr = titles.Count > 0
+                ? $" ({string.Join(", ", titles.Take(3).Select(t => $"'{t}'"))}{(titles.Count > 3 ? $", +{titles.Count - 3} more" : "")})"
+                : "";
+
+            return $"Linked files audit ({linkedLabel}): {validCount} valid ({validPct:0.#}%), {missingCount} broken/missing{sampleStr}";
+        }
     }
 }
-

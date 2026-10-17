@@ -269,6 +269,9 @@
                                         <MenuFlyoutItem x:Name="DeduplicateOutlineItem" Text="Remove duplicate sibling bullets" Click="OnDeduplicateOutlineClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SplitLongOutlineItem" Text="Split long outline items into parent + sub-bullet (&gt;45 chars)" Click="OnSplitLongOutlineClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C6;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

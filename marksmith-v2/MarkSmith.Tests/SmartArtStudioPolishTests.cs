@@ -650,6 +650,23 @@ public class SmartArtStudioPolishTests
         var cleanSummary = SmartArtDesignStudioViewModel.FormatOutlineDeduplicationSummary(0, 5);
         Assert.Equal("Outline deduplication: 0 duplicates found (5 unique nodes verified)", cleanSummary);
     }
+
+    [Fact]
+    public void Run144_SplitLongOutlineItems_And_FormatLongItemSplitSummary()
+    {
+        Assert.Equal("Split long outline items (>45 chars): Empty outline (0 nodes)",
+            SmartArtDesignStudioViewModel.FormatLongItemSplitSummary(0, 0, 45));
+
+        var outline = "- Short node\n- Phase 1 Discovery: Conduct stakeholder interviews and baseline architecture review\n- Continual operational excellence across distributed cloud deployment regions";
+        var (splitMd, splitCount, resultingNodes) = SmartArtDesignStudioViewModel.SplitLongOutlineItems(outline, maxChars: 45);
+
+        Assert.Equal(2, splitCount);
+        Assert.Equal(5, resultingNodes);
+        Assert.Contains("- Short node\n", splitMd);
+        Assert.Contains("- Phase 1 Discovery\n  - Conduct stakeholder interviews and baseline architecture review\n", splitMd);
+        Assert.Contains("\n  - ", splitMd);
+
+        var summary = SmartArtDesignStudioViewModel.FormatLongItemSplitSummary(splitCount, resultingNodes, 45);
+        Assert.Equal("Split long outline items (>45 chars): 2 long bullets split into parent + sub-bullet (5 nodes total)", summary);
+    }
 }
-
-

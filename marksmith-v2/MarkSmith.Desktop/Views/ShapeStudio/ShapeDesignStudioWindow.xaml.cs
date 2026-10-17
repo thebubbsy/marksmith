@@ -6169,6 +6169,15 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
+
+        private void OnSelectionMatchSizeClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (resized, total, targetW, targetH, refLabel) = ViewModel.MatchSelectedShapeDimensions(matchWidth: true, matchHeight: true);
+            var summary = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.FormatDimensionMatchSummary(resized, total, targetW, targetH, refLabel);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
     }
 }
-

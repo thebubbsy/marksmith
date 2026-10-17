@@ -737,6 +737,43 @@ public class ShapeStudioPolishTests
         await vm.UndoAsync();
         Assert.Equal(10.37, vm.Shapes[0].X, 2);
     }
+
+    [Fact]
+    public async Task Run144_MatchSelectedShapeDimensions_And_FormatDimensionMatchSummary()
+    {
+        Assert.Equal("Match dimensions: 0 shapes (Empty selection)",
+            ShapeDesignStudioViewModel.FormatDimensionMatchSummary(0, 0, 0, 0, null));
+
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+        vm.AddShapeAt("rect", 10, 10, 160, 90, "FF0000", "Master Card");
+        vm.AddShapeAt("ellipse", 200, 10, 100, 50, "00FF00", "Badge B");
+        vm.AddShapeAt("diamond", 350, 10, 120, 120, "0000FF", "Node C");
+
+        vm.SelectedShape = vm.Shapes[0];
+        vm.Shapes[0].IsSelected = true;
+        vm.Shapes[1].IsSelected = true;
+        vm.Shapes[2].IsSelected = true;
+
+        var (resized, total, targetW, targetH, refLabel) = vm.MatchSelectedShapeDimensions(matchWidth: true, matchHeight: true);
+        Assert.Equal(2, resized);
+        Assert.Equal(3, total);
+        Assert.Equal(160, targetW);
+        Assert.Equal(90, targetH);
+        Assert.Equal("Master Card", refLabel);
+
+        Assert.Equal(160, vm.Shapes[1].Width);
+        Assert.Equal(90, vm.Shapes[1].Height);
+        Assert.Equal(160, vm.Shapes[2].Width);
+        Assert.Equal(90, vm.Shapes[2].Height);
+
+        var summary = ShapeDesignStudioViewModel.FormatDimensionMatchSummary(resized, total, targetW, targetH, refLabel);
+        Assert.Equal("Match dimensions ('Master Card' · 160×90px): 2 shapes resized across 3 selected shapes", summary);
+
+        // Undo restores original dimensions
+        Assert.True(vm.CanUndo);
+        await vm.UndoAsync();
+        Assert.Equal(100, vm.Shapes[1].Width);
+        Assert.Equal(50, vm.Shapes[1].Height);
+    }
 }
-
-

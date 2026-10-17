@@ -677,6 +677,100 @@ public static class LineDiff
 
         return $"Diff vs Latest ('{selName}' → '{headName}'): +{added}/-{removed} lines across {hunkStr} (Net {netStr} lines · {similarityPct:0.#}% similarity)";
     }
+
+    /// <summary>
+    /// Extracts numbered, self-contained cherry-pick hunk blocks from a <paramref name="before"/> and <paramref name="after"/>
+    /// comparison so users can selectively copy/paste added or modified passages.
+    /// </summary>
+    public static string FormatCherryPickHunksPayload(string? before, string? after)
+    {
+        var diffLines = Diff(before ?? string.Empty, after ?? string.Empty);
+        var unified = BuildUnified(diffLines);
+        return FormatCherryPickHunksPayload(unified);
+    }
+
+    /// <summary>
+    /// Extracts numbered, self-contained cherry-pick hunk blocks from unified diff rows.
+    /// </summary>
+    public static string FormatCherryPickHunksPayload(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows is null || unifiedRows.Count == 0)
+            return "Cherry-pick hunks: 0 hunks (Identical versions)";
+
+        var hunks = new List<(int StartLine, List<string> AddedLines, List<string> RemovedLines)>();
+        List<string>? curAdded = null;
+        List<string>? curRemoved = null;
+        int curStartLine = 1;
+        bool hasNewStart = false;
+
+        foreach (var row in unifiedRows)
+        {
+            if (row.Kind == Kind.Same)
+            {
+                if (curAdded is not null && curRemoved is not null && (curAdded.Count > 0 || curRemoved.Count > 0))
+                {
+                    hunks.Add((curStartLine, curAdded, curRemoved));
+                    curAdded = null;
+                    curRemoved = null;
+                    hasNewStart = false;
+                }
+                continue;
+            }
+
+            if (curAdded is null || curRemoved is null)
+            {
+                curAdded = new List<string>();
+                curRemoved = new List<string>();
+                curStartLine = row.NewNumber ?? row.OldNumber ?? 1;
+                hasNewStart = row.NewNumber.HasValue;
+            }
+            else if (!hasNewStart && row.NewNumber.HasValue)
+            {
+                curStartLine = row.NewNumber.Value;
+                hasNewStart = true;
+            }
+
+            if (row.Kind == Kind.Added)
+                curAdded.Add(row.Text ?? string.Empty);
+            else if (row.Kind == Kind.Removed)
+                curRemoved.Add(row.Text ?? string.Empty);
+        }
+
+        if (curAdded is not null && curRemoved is not null && (curAdded.Count > 0 || curRemoved.Count > 0))
+        {
+            hunks.Add((curStartLine, curAdded, curRemoved));
+        }
+
+        if (hunks.Count == 0)
+            return "Cherry-pick hunks: 0 hunks (Identical versions)";
+
+        int totalAdded = hunks.Sum(h => h.AddedLines.Count);
+        int totalRemoved = hunks.Sum(h => h.RemovedLines.Count);
+        string hunkLabel = hunks.Count == 1 ? "1 hunk" : $"{hunks.Count} hunks";
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Cherry-pick hunks: {hunkLabel} (+{totalAdded}/-{totalRemoved} lines)");
+
+        for (int i = 0; i < hunks.Count; i++)
+        {
+            var (startLine, addedLines, removedLines) = hunks[i];
+            sb.AppendLine($"=== Hunk #{i + 1} (@ line {startLine}, +{addedLines.Count}/-{removedLines.Count}) ===");
+            if (addedLines.Count > 0)
+            {
+                foreach (var a in addedLines)
+                {
+                    sb.AppendLine(a);
+                }
+            }
+            else
+            {
+                foreach (var r in removedLines)
+                {
+                    sb.AppendLine($"- {r}");
+                }
+            }
+        }
+
+        return sb.ToString().TrimEnd();
+    }
 }
-
-

@@ -3104,6 +3104,20 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied HEAD comparison: {headSummary}");
                 };
                 menu.Items.Add(copyDiffAgainstLatest);
+
+                var copyCherryPickHunks = new MenuFlyoutItem
+                {
+                    Text = "Copy numbered cherry-pick hunks payload",
+                    Icon = new FontIcon { Glyph = "\uE8C8" }
+                };
+                copyCherryPickHunks.Click += (_, _) =>
+                {
+                    var payload = MarkSmith.Services.LineDiff.FormatCherryPickHunksPayload(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(payload);
+                    var firstLine = payload.Split('\n')[0].Trim();
+                    _vm.ShowNotice($"Copied cherry-pick payload: {firstLine}");
+                };
+                menu.Items.Add(copyCherryPickHunks);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

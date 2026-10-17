@@ -237,6 +237,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentMissingAuditItem" Text="Copy missing &amp; moved file paths audit" Click="OnCopyRecentMissingAuditClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7BA;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentSortedCatalogItem" Text="Copy sorted &amp; folder-grouped recent catalog (A–Z)" Click="OnCopyRecentSortedCatalogClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

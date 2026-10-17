@@ -3616,5 +3616,96 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         return $"Precision snap ({gridStep:0.##}px grid): Normalized {adjustedShapes} of {totalStr} (Max sub-pixel drift: {maxDeltaPx:0.##}px)";
     }
-}
 
+    /// <summary>
+    /// Resizes all selected shapes (or all canvas shapes if none are selected) to match the width and/or height
+    /// of the primary reference shape (<see cref="SelectedShape"/> or first selected shape), recording a single undo step.
+    /// </summary>
+    public (int ResizedShapes, int TotalSelected, double TargetWidth, double TargetHeight, string ReferenceLabel) MatchSelectedShapeDimensions(
+        bool matchWidth = true,
+        bool matchHeight = true)
+    {
+        if (Shapes.Count == 0 || (!matchWidth && !matchHeight))
+        {
+            StatusMessage = FormatDimensionMatchSummary(0, 0, 0, 0, null);
+            return (0, 0, 0, 0, string.Empty);
+        }
+
+        var targets = SelectedItems.ToList();
+        if (targets.Count < 2)
+        {
+            targets = Shapes.ToList();
+        }
+
+        var reference = (SelectedShape is not null && targets.Contains(SelectedShape))
+            ? SelectedShape
+            : targets[0];
+
+        double targetW = reference.Width;
+        double targetH = reference.Height;
+        string refLabel = !string.IsNullOrWhiteSpace(reference.Text)
+            ? reference.Text.Trim()
+            : !string.IsNullOrWhiteSpace(reference.Name) ? reference.Name.Trim() : reference.Prst;
+
+        if (targets.Count < 2)
+        {
+            StatusMessage = FormatDimensionMatchSummary(0, targets.Count, targetW, targetH, refLabel);
+            return (0, targets.Count, targetW, targetH, refLabel);
+        }
+
+        int resized = 0;
+        bool undoRecorded = false;
+
+        foreach (var s in targets)
+        {
+            if (ReferenceEquals(s, reference)) continue;
+
+            double newW = matchWidth ? targetW : s.Width;
+            double newH = matchHeight ? targetH : s.Height;
+            if (Math.Abs(newW - s.Width) > 1e-6 || Math.Abs(newH - s.Height) > 1e-6)
+            {
+                if (!undoRecorded)
+                {
+                    RecordUndo();
+                    undoRecorded = true;
+                }
+                s.Width = newW;
+                s.Height = newH;
+                resized++;
+            }
+        }
+
+        string summary = FormatDimensionMatchSummary(resized, targets.Count, targetW, targetH, refLabel);
+        StatusMessage = $"✓ {summary}";
+        if (resized > 0)
+        {
+            CanvasChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        return (resized, targets.Count, targetW, targetH, refLabel);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of a multi-shape dimension-matching operation.
+    /// </summary>
+    public static string FormatDimensionMatchSummary(
+        int resizedShapes,
+        int totalSelected,
+        double targetWidth,
+        double targetHeight,
+        string? referenceLabel = null)
+    {
+        if (totalSelected <= 0)
+            return "Match dimensions: 0 shapes (Empty selection)";
+
+        string refName = string.IsNullOrWhiteSpace(referenceLabel) ? "Reference" : referenceLabel.Trim();
+        if (totalSelected < 2)
+            return $"Match dimensions ('{refName}' · {targetWidth:0.##}×{targetHeight:0.##}px): Select at least 2 shapes to match size";
+
+        if (resizedShapes <= 0)
+            return $"Match dimensions ('{refName}' · {targetWidth:0.##}×{targetHeight:0.##}px): All {totalSelected} shapes already match size";
+
+        string resizedLabel = resizedShapes == 1 ? "1 shape resized" : $"{resizedShapes} shapes resized";
+        return $"Match dimensions ('{refName}' · {targetWidth:0.##}×{targetHeight:0.##}px): {resizedLabel} across {totalSelected} selected shapes";
+    }
+}
