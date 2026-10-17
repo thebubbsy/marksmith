@@ -10789,3 +10789,131 @@ Reviewed: the 2026-10-17 run #141 entry above. Followed the AI-Executable 3-Bloc
 - `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj` (Full suite): **4,983 passed, 0 failed, 1 skipped (100% pass rate across 4,984 tests)**.
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 12576, responsive startup (`Responding=True, WorkingSet=269.34MB`), clean exit.
+
+---
+
+## 5-Run GUI Missing Affordances & Polish Plan (Runs #143–#147)
+
+This section documents the comprehensive audit of what the MarkSmith WinUI 3 Desktop GUI (`marksmith-v2/MarkSmith.Desktop` & `MarkSmith.Core`) is currently missing across all 6 primary studio surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, and `SuiteHubView` / `SettingsView`), structured into **5 consecutive hourly runs (Runs #143–#147, 6 deliverables per run = 30 concrete GUI features)**.
+
+### Summary Matrix of Identified GUI Gaps
+
+| Surface | Run #143 (Geometry, Case-Preserving Replace & Stale Cleanup) | Run #144 (One-Click Auto-Fix, Match Dimensions & Hunk Cherry-Pick) | Run #145 (Cleanup Library, Subtree Rollup, Mirror Flip & Workspaces) | Run #146 (Portal Reset, Tag Batch Actions, Smart Recommendations & Prune) | Run #147 (Section Scope Actions, Minimap Jump, Collision Resolver & Fence Diff) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`MainWindow`** | Find & Replace Token Swap (`⇄`) & Case-Preserving Replace (`ReplacePreservingCase`) | Lint Flyout One-Click Safe Auto-Fix (`FixSafeLintIssues`) | Custom Cleanup Rules Quick Preset Library Flyout (`GetBuiltInCleanupRulePresets`) | Portal Controls Quick Preset Pill & Reset Dials (`FormatPortalPresetSummary`) | Status Bar Section Scope Selector & Section Word Share Badge (`ExtractCurrentSectionScope`) |
+| **`MindMapGalaxyWindow`** | Orphaned Nodes Cluster Aggregator & Magnetic Hub Attachment (`AttachOrphansToRoot`) | Missing File Link Batch Auditor & Folder Relinker (`AuditAndRelinkMissingFiles`) | Parent Node Subtree Progress Roll-Up Calculator (`RollupSubtreeProgress`) | Tag Filter Pill Batch Selection & Tag Palette Recolor (`SelectAndRecolorByTag`) | Minimap Quadrant Jump & Viewport Coverage Readout (`FormatMinimapCoverageSummary`) |
+| **`ShapeDesignStudioWindow`** | Shape Coordinate & Dimension Sub-Pixel Precision Normalizer (`NormalizeShapePrecision`) | Multi-Selection Match Width / Height / Both Dimensions (`MatchSelectedShapeDimensions`) | Horizontal & Vertical Layout Mirror / Flip Transform (`FlipSelectedShapes`) | Select Same Shape Kind / Fill Color Batch Selector (`SelectShapesByProperty`) | Shape Overlap Collision Resolver & Auto-Spacer (`ResolveShapeOverlaps`) |
+| **`SmartArtDesignStudioWindow`** | Outline Sibling Deduplicator & Redundant Bullet Merger (`DeduplicateOutlineNodes`) | Long Bullet Auto-Splitter (Title + Sub-Bullet) (`SplitLongOutlineItems`) | Hierarchical Outline Auto-Numbering & Prefix Stripper (`ToggleOutlineNumbering`) | Smart Layout Category Recommendation Engine (`RecommendLayoutsForOutline`) | Flat Outline Delimiter (`:` / `—`) Hierarchy Structurer (`StructureFlatOutlineByDelimiter`) |
+| **`HistoryWindow`** | Compare Selected Version Against Latest / Live Head (`DiffAgainstLatestSummary`) | Selective Diff Hunk Cherry-Pick Copy & Restore (`ExtractDiffHunkContent`) | Markdown Structural Heading Outline Diff Auditor (`AuditStructuralHeadingChanges`) | Redundant Zero-Delta / Micro Auto-Save Pruner (`IdentifyRedundantAutoSaves`) | Code Fence & Diagram Block (`mermaid` / `smartart`) Diff Inspector (`AuditFencedBlockChanges`) |
+| **`SuiteHubView` & `SettingsView`** | Audit & Prune Missing/Moved Recent File Paths (`AuditMissingRecentFiles`) | Recent Files Sort Mode Switcher & Pin Grouping (`SortAndGroupRecentFiles`) | Workspace / Project Root Folder Cluster Detector (`DetectProjectWorkspaces`) | Duplicate & Copy-Suffix (`(1)`, `-copy`) Document Detector (`DetectDuplicateRecentFiles`) | Complete Workspace & Settings Portability Audit Report (`FormatWorkspaceConfigurationAudit`) |
+
+---
+
+### Run #143 Blueprint — Find Swap & Case-Preserve, Orphan Clustering, Precision Snap, Outline Dedupe, Head Diff & Stale Path Pruner (Status: Pending)
+1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **What is missing**: The Find & Replace bar (`FindBar`, lines 1397–1482) has no way to swap the Find and Replace inputs (`⇄`) when reversing a refactor, and replacing a word overrides its capitalization instead of preserving `TitleCase`, `UPPERCASE`, or `camelCase`.
+   - **Deliverable**: Add `TextSearch.ReplacePreservingCase(input, pattern, replacement, matchCase, wholeWord, useRegex)` and `TextSearch.FormatCasePreservingPreview(...)`, plus a Swap Find/Replace (`SwapFindReplaceButton` / context menu item `swapFindReplaceItem` & `casePreserveReplaceItem` on `FindCountText` / `ReplaceBar`) in `MainWindow`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **What is missing**: Disconnected/orphaned nodes with no edges drift far from the central map and have no one-click way to cluster or magnetically attach to the root hub.
+   - **Deliverable**: Add `MindMapStudioViewModel.AttachOrphansToRoot(radiusOffset)` and `FormatOrphanClusterSummary()`, wired to `AttachOrphansItem` (`\uE8B3`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **What is missing**: Freehand dragging and scaling leaves fractional sub-pixel coordinates (`X=142.3333, Width=89.6667`) that cause blurry rendering or uneven alignment.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.NormalizeShapePrecision(stepSize)` and `FormatPrecisionNormalizationSummary()`, wired to `SelectionNormalizePrecisionItem` (`\uE8EF`) in `SelectionBoundsFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **What is missing**: Pasted outlines often contain duplicate sibling bullets at the same hierarchy level with no automated deduplicator.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.DeduplicateOutlineNodes(text, caseSensitive)` and `FormatOutlineDeduplicationSummary(text)`, wired to `DeduplicateOutlineItem` (`\uE8C8`) in `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
+   - **What is missing**: Selecting an older snapshot $k$ only shows the delta against $k-1$, with no quick comparison against the latest (`HEAD`) version in the timeline.
+   - **Deliverable**: Add `LineDiff.ComputeDiffAgainstLatestSummary(selectedContent, latestContent, selectedLabel, latestLabel)` and wire `copyDiffAgainstLatest` ("Copy diff summary against latest version", `\uE895`) in `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
+   - **What is missing**: `RecentDocsFlyout` retains stale entries for files that were renamed, moved, or deleted on disk without a diagnostic audit or prune report.
+   - **Deliverable**: Add `RecentFilesService.FormatMissingRecentFilesAudit(files, fileExistsPredicate)` and wire `CopyRecentMissingAuditItem` (`\uE7BA`) in `RecentDocsFlyout`.
+
+---
+
+### Run #144 Blueprint — One-Click Safe Lint Auto-Fix, Missing Link Auditor, Match Shape Dimensions, Long Bullet Splitter, Hunk Cherry-Pick & Recent Sorter (Status: Pending)
+1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `MarkdownLintService.cs` / `TextSearch.cs`)**:
+   - **What is missing**: `LintFlyout` (`MainWindow.xaml` lines 1086–1131) lists lint issues and copies them, but lacks a one-click safe auto-fix action for deterministic markdown lint issues (trailing whitespace, hard tabs, missing space after `#` headings, triple+ blank lines).
+   - **Deliverable**: Add `TextSearch.FixSafeMarkdownLintIssues(markdown, out int fixedCount)` and `FormatSafeLintFixSummary(markdown)`, wired to `LintAutoFixSafeButton` / context action in `LintFlyout`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **What is missing**: The inspector warns when a single selected node has a missing `LinkedFilePath`, but there is no galaxy-wide audit of linked files vs missing files across all nodes.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditLinkedFilesStatus(fileExistsPredicate)` and `FormatLinkedFilesAuditSummary()`, wired to `AuditLinkedFilesItem` (`\uE8A7`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **What is missing**: Multi-selected shapes can be aligned or distributed, but cannot be resized to match the primary selection's width, height, or both (`Match Size`).
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.MatchSelectedShapeDimensions(matchWidth, matchHeight)` and `FormatDimensionMatchSummary()`, wired to `SelectionMatchSizeItem` (`\uE740`) in `SelectionBoundsFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **What is missing**: Long outline bullets overflow SmartArt boxes; `AuditOutlineLineLengths` detects them, but there is no automated splitter to break `Title: detailed description` or long clauses into a concise parent node + indented child detail node.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.SplitLongOutlineItems(text, maxChars)` and `FormatLongItemSplitSummary(text, maxChars)`, wired to `SplitLongOutlineItem` (`\uE8C6`) in `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
+   - **What is missing**: Users can only restore an entire historical snapshot (`RestoreButton`) or copy all added/removed lines, with no formatted hunk-by-hunk cherry-pick extractor for selective recovery.
+   - **Deliverable**: Add `LineDiff.FormatCherryPickHunksPayload(lines)` extracting numbered, self-contained added/deleted hunk blocks for easy selective paste, wired to `copyCherryPickHunks` (`\uE8C8`) in `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
+   - **What is missing**: Recent documents have no multi-criteria sort and recency-tier grouping summary (Today, This Week, Older, Alphabetical, By Folder).
+   - **Deliverable**: Add `RecentFilesService.FormatRecentFilesSortedCatalog(files)` and wire `CopyRecentSortedCatalogItem` (`\uE8CB`) in `RecentDocsFlyout`.
+
+---
+
+### Run #145 Blueprint — Cleanup Rule Presets, Subtree Progress Rollup, Shape Mirror Flip, Outline Auto-Numbering, Structural Heading Diff & Workspace Detector (Status: Pending)
+1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **What is missing**: `Custom cleanup rules` in `StyleContentExpander` (`MainWindow.xaml` lines 2013–2095) requires manual typing of find/replace rules and lacks built-in cleanup preset diagnostics/snippets (e.g., AI filler phrase stripping, smart-quote normalization, double-space cleanup).
+   - **Deliverable**: Add `TextSearch.AuditCommonProseCleanupOpportunities(text)` and `FormatProseCleanupAuditSummary(text)`, wired to `FindCountText` / `StyleContentExpander` context action.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **What is missing**: `NodeProgressSlider` sets completion percentage on individual nodes, but parent hub nodes do not automatically roll up the average completion of their descendant subtrees.
+   - **Deliverable**: Add `MindMapStudioViewModel.RollupSubtreeProgress()` and `FormatSubtreeProgressRollupSummary()`, wired to `RollupSubtreeProgressItem` (`\uE9D2`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **What is missing**: Selected shapes cannot be mirrored horizontally or vertically across their collective bounding-box center (`Flip Horizontal` / `Flip Vertical`).
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.FlipSelectedShapes(horizontal, vertical)` and `FormatFlipTransformSummary()`, wired to `SelectionFlipHorizontalItem` (`\uE8AB`) in `SelectionBoundsFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **What is missing**: Process and timeline SmartArt outlines lack a one-click hierarchical auto-numbering toggle (`1.`, `1.1.`, `2.` vs stripping existing numeric prefixes).
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.ApplyHierarchicalNumbering(text, stripExistingOnly)` and `FormatOutlineNumberingSummary(text)`, wired to `AutoNumberOutlineItem` (`\uE8FD`) in `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
+   - **What is missing**: Diffing large documents makes it hard to see high-level structural changes (which `#` headings were added, deleted, renamed, or promoted/demoted).
+   - **Deliverable**: Add `LineDiff.AuditStructuralHeadingChanges(oldText, newText)` and `FormatStructuralHeadingDiffSummary(oldText, newText)`, wired to `copyHeadingDiff` (`\uE8FD`) in `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
+   - **What is missing**: Recent files from the same project/workspace directory are listed flatly without clustering by common workspace root folder.
+   - **Deliverable**: Add `RecentFilesService.FormatProjectWorkspaceClusters(files)` and wire `CopyRecentWorkspaceClustersItem` (`\uE8B7`) in `RecentDocsFlyout`.
+
+---
+
+### Run #146 Blueprint — Portal Dials Reset & Presets, Tag Batch Actions, Select Same Shape Property, Smart Layout Recommender, Micro-Save Pruner & Duplicate File Detector (Status: Pending)
+1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **What is missing**: `PortalControlsRow` (`MainWindow.xaml` lines 1256–1303) has sliders for Portal size, Glass blur, and Surround blur, but lacks a quick reset-to-defaults action and focus reading window density audit.
+   - **Deliverable**: Add `TextSearch.FormatFocusWindowReadingProfile(text, portalRadiusPx, glassBlur, surroundBlur)` and wire double-click/context reset + profile copy on `PortalControlsRow` / `FindCountText`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **What is missing**: Nodes with tags (`Node.Tags`) cannot be batch-colorized by tag category or summarized by tag co-occurrence matrix.
+   - **Deliverable**: Add `MindMapStudioViewModel.AutoColorizeByPrimaryTag()` and `FormatTagCoOccurrenceSummary()`, wired to `AutoColorizeByTagItem` (`\uE8EC`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **What is missing**: Complex shape canvases lack "Select Same Shape Kind / Fill Color" (`SelectSimilarShapes`) to quickly select all matching primitives (e.g., all Diamonds or all blue boxes) from the current selection.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.SelectSimilarShapes(matchKind, matchFill)` and `FormatSimilarShapesSummary()`, wired to `SelectionSelectSimilarItem` (`\uE762`) in `SelectionBoundsFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **What is missing**: With 100+ SmartArt layouts, users have no automated recommendation engine scoring which layout family (`Process`, `Cycle`, `Hierarchy`, `Matrix`, `Pyramid`, `Comparison`) best fits their outline's shape (root count, max depth, leaf symmetry).
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.RecommendLayoutFamiliesForOutline(text)` and `FormatLayoutRecommendationSummary(text)`, wired to `RecommendLayoutsOutlineItem` (`\uE946`) in `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
+   - **What is missing**: Auto-save timelines accumulate micro-saves (1–3 character typo fixes or whitespace-only snapshots) with no audit identifying redundant low-entropy snapshots.
+   - **Deliverable**: Add `LineDiff.AuditLowEntropySnapshots(versionContents)` and `FormatLowEntropySnapshotAudit(versionContents)`, wired to `copyMicroSaveAudit` (`\uE74D`) in `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
+   - **What is missing**: Users often have duplicate filenames across different directories or copy-suffixed files (`report (1).md`, `report-copy.md`, `report_v2.md`) in recent history without detection.
+   - **Deliverable**: Add `RecentFilesService.FormatDuplicateAndVersionedFilesAudit(files)` and wire `CopyRecentDuplicatesAuditItem` (`\uE8C8`) in `RecentDocsFlyout`.
+
+---
+
+### Run #147 Blueprint — Section Scope Extractor, Minimap Quadrant Coverage, Shape Collision Resolver, Flat-to-Hierarchy Structurer, Fenced Block Diff & Workspace Portability Report (Status: Pending)
+1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **What is missing**: `StatusSectionBreadcrumbButton` (`MainWindow.xaml` lines 2433–2442) displays the current heading name, but lacks a section scope extractor that computes each `#` section's word share, character budget, and reading time across the document.
+   - **Deliverable**: Add `TextSearch.ExtractMarkdownSectionBudgets(markdown)` and `FormatMarkdownSectionBudgetsSummary(markdown)`, wired to `StatusSectionBreadcrumbButton` right-tap / `FindCountText` context flyout.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **What is missing**: `MinimapOverlay` (`MindMapGalaxyWindow.xaml` lines 562–576) shows node dots, but there is no spatial quadrant distribution audit (NW/NE/SW/SE node balance and center-of-mass drift) or one-click re-center on center-of-mass.
+   - **Deliverable**: Add `MindMapStudioViewModel.CenterGalaxyOnCenterOfMass()` and `FormatSpatialQuadrantBalanceSummary()`, wired to `CenterOnMassItem` (`\uE809`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **What is missing**: Duplicated or dragged shapes frequently overlap each other unintentionally, and there is no automatic collision resolver (`ResolveShapeOverlaps`) to nudge overlapping shapes apart cleanly.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.ResolveShapeOverlaps(minGap)` and `FormatOverlapResolutionSummary(minGap)`, wired to `SelectionResolveOverlapsItem` (`\uE8B3`) in `SelectionBoundsFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **What is missing**: Flat bullet lists containing `Category: Item` or `Phase — Task` delimiters require manual indentation to become hierarchical SmartArt trees.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.StructureFlatOutlineByDelimiter(text)` and `FormatDelimiterStructuringSummary(text)`, wired to `StructureByDelimiterOutlineItem` (`\uE8E4`) in `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
+   - **What is missing**: `DiffPane` treats fenced code blocks and diagrams (`mermaid`, `:::smartart`, `:::chart`) as plain lines, lacking a dedicated fenced-block/diagram diff auditor showing which code/diagram blocks were modified, added, or removed.
+   - **Deliverable**: Add `LineDiff.AuditFencedBlockChanges(oldText, newText)` and `FormatFencedBlockDiffSummary(oldText, newText)`, wired to `copyFencedBlockDiff` (`\uE943`) in `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
+   - **What is missing**: `SuiteHubView` lacks a comprehensive Recent Library Health & Portability Readiness Scorecard combining path validity, extension mix, naming consistency, and folder depth into a single executive readiness report.
+   - **Deliverable**: Add `RecentFilesService.FormatLibraryHealthScorecard(files, fileExistsPredicate)` and wire `CopyRecentHealthScorecardItem` (`\uE9D9`) in `RecentDocsFlyout`.
+
