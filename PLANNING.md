@@ -9847,5 +9847,82 @@ Reviewed: the 2026-10-17 run #129 entry above. Followed the AI-Executable 3-Bloc
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **passed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 29016, responsive startup, clean exit.
 
+### 2026-10-17 (scheduled routine run #131 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #130 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #130:
+    * Target A: `MainWindow` find bar regex search support (`.*`, Alt+R), error syntax badge, and match length tracking.
+    * Target B: `MindMapGalaxyWindow` connection stroke weight presets (Thin 1.2px, Normal 1.8px, Thick 2.8px) and hierarchy edge curvature routing tension.
+  - Generated:
+    1. `MainWindow`: Regular Expression Match Toggle in Find & Replace (`UseRegexCheck` toggle button with `.*` Cascadia Mono glyph, `Alt+R` keyboard shortcut, right-click context menu entry, dynamic regex validation in `TextSearch.TryValidateRegex`, variable-length match selection via `_findMatchLengths`, and red error badge in `FindCountText` on invalid regex syntax).
+    2. `MindMapGalaxyWindow`: Connection Edge Stroke Weight Presets & Routing Tension (`ConnWeightThinItem`, `ConnWeightNormalItem`, `ConnWeightThickItem` flyout items in `ConnectionStyleDropDownButton.Flyout`, dynamic `_connectionStrokeWeight` runtime state, and tension factor parameter in `MindMapStudioViewModel.ComputeHierarchyEdgeRouting`).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.cs` with `TextMatch` record storing `Index` and `Length`, `TryValidateRegex` returning validity and error messages, and `FindMatches`/`ReplaceAll` supporting `bool useRegex = false`. Updated `MainWindow.xaml.cs` to track match lengths in `_findMatchLengths`, adjust `PasteTextBox.Select(offset, len)`, display live regex syntax errors in `FindCountText`, and enable Alt+R toggle in `OnFindBarKeyDown`.
+    * For Idea 2: Formulated `ConnectionStrokeWeight` enum (Thin, Normal, Thick) in `MindMapStudioViewModel.cs`, implemented static `GetStrokeThickness(ConnectionStrokeWeight)` and `GetStrokeThickness(string)` mapping to 1.2, 1.8, and 2.8 px, integrated `tension` parameter in `ComputeHierarchyEdgeRouting` for curved Bezier control points across all 4 directions (LTR, RTL, TopDown, BottomUp), and wired `SetConnectionStrokeWeight` in `MindMapGalaxyWindow.xaml.cs`.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Selection Z-Order Layer Reordering (`Bring forward Ctrl+]`, `Send backward Ctrl+[`, `Bring to front Ctrl+Shift+]`, `Send to back Ctrl+Shift+[` menu items with Segoe Fluent icons in `SelectionBoundsFlyout`, and direct layer position swapping in canvas shape collection).
+    4. `SmartArtDesignStudioWindow`: Outline Reverse & Alphabetical Sorting Quick Actions (`Reverse outline items`, `Sort outline items (A to Z)`, `Sort outline items (Z to A)` menu items with Segoe Fluent icons in `OutlineStatsFlyout`, and static `ReverseOutline` / `SortOutlineAlphabetically` utilities in `SmartArtDesignStudioViewModel.cs`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionBringForwardItem`, `SelectionSendBackwardItem`, `SelectionBringToFrontItem`, and `SelectionSendToBackItem` in `SelectionBoundsFlyout` in `ShapeDesignStudioWindow.xaml`, implemented `OnSelectionBringForwardClick`, `OnSelectionSendBackwardClick`, `OnSelectionBringToFrontClick`, and `OnSelectionSendToBackClick` in `ShapeDesignStudioWindow.xaml.cs`, ensuring clean single- and multi-item layer shifting with undo tracking.
+    * For Idea 4: Mounted `OutlineReverseItem`, `OutlineSortAscItem`, and `OutlineSortDescItem` in `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`, implemented `ReverseOutline` (handling CRLF/LF line endings) and `SortOutlineAlphabetically` (ascending/descending with bullet prefix stripping) in `SmartArtDesignStudioViewModel.cs`, and wired click handlers in `SmartArtDesignStudioWindow.xaml.cs`.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `TextSearch.TryValidateRegex`, regex matching tokens with varying lengths, and `ReplaceAll` regex pattern substitution.
+    * Verified `MindMapStudioViewModel.GetStrokeThickness` presets (Thin=1.2, Normal=1.8, Thick=2.8) and `ComputeHierarchyEdgeRouting` tension behavior.
+  - Generated:
+    5. `HistoryWindow`: Copy Added / Removed Lines Diff Quick Filter (`Copy added lines (+)` and `Copy removed lines (-)` items in `CopyToolbarButton.ContextFlyout`, and `LineDiff.ExtractModifiedLines` helper extracting non-gap lines of specific `Kind`).
+    6. `SuiteHubView`: Recent Documents Count Pill & Quick Summary Badge (`RecentDocsCountPill` displaying live document count e.g. "3 docs" or "2/5 docs" when filtered, tap to copy recent document paths to clipboard, double-tap to reset filter, right-tap to open action flyout, and `RecentFilesService.FormatRecentFilesCount` utility).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Added `CopyAddedLinesContextItem` and `CopyRemovedLinesContextItem` to `CopyToolbarButton.ContextFlyout` in `HistoryWindow.xaml`, implemented `LineDiff.ExtractModifiedLines(IEnumerable<UnifiedRow>, Kind)` in `LineDiff.cs`, and wired `OnCopyAddedLinesContextClick` and `OnCopyRemovedLinesContextClick` with `CopyFeedback.ApplyButtonTick` and clipboard copying in `HistoryWindow.xaml.cs`.
+    * For Idea 6: Added `RecentDocsCountPill` with `RecentDocsCountText` in `RecentDocsStrip` in `SuiteHubView.xaml`, added `FormatRecentFilesCount(int displayedCount, int totalCount, string? filter)` in `RecentFilesService.cs`, updated `LoadRecentFiles` to format and refresh the pill, and wired `OnRecentDocsCountPillTapped/DoubleTapped/RightTapped` in `SuiteHubView.xaml.cs`.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `TryValidateRegex_IdentifiesValidAndInvalidPatterns`, `FindMatches_WithRegex_FindsTokensWithAccurateLengths`, `ReplaceAll_WithRegex_PerformsSubstitutions`.
+    * `MindMapGalaxyPolishTests.cs`: `Run131_GetStrokeThickness_ReturnsExpectedValues`, `Run131_ComputeHierarchyEdgeRouting_RespectsTensionParameter`.
+    * `SmartArtStudioPolishTests.cs`: `Run131_ReverseOutline_ReversesLinesPreservingLineEndings`, `Run131_SortOutlineAlphabetically_SortsAscendingAndDescending`.
+    * `HistoryPolishTests.cs`: `Run131_ExtractModifiedLines_ExtractsOnlySpecifiedKindExcludingGaps`.
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FormatRecentFilesCount_FormatsExpectedSummary`, `Run131_Polish_Elements_Wired_Across_Surfaces`.
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,860 passed, 0 failed, 1 skipped (100% pass rate)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **passed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 10160, responsive startup, clean exit.
+  - Carried forward ideas / next targets into Run #132:
+    * Target A: `MainWindow` find bar search history dropdown / MRU query recall flyout.
+    * Target B: `MindMapGalaxyWindow` edge label display & inline edge title editing.
+    * Target C: `ShapeDesignStudioWindow` alignment HUD shortcuts (Distribute horizontally / vertically).
+
+**Shipped:**
+1. **`MainWindow` Regular Expression Match in Find & Replace (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - Toggle button `UseRegexCheck` (`.*`, Alt+R), live regex syntax validation, error tooltip/badge in `FindCountText`.
+   - Variable-length match selection via `_findMatchLengths` and regex pattern replacement.
+2. **`MindMapGalaxyWindow` Edge Stroke Weight Presets & Routing Tension (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - Stroke weight presets: Thin (1.2px), Normal (1.8px), Thick (2.8px) with icons and menu flyout.
+   - Dynamic stroke thickness rendering on all connection edges and adjustable Bezier tension in hierarchy edge routing.
+3. **`ShapeDesignStudioWindow` Selection Layer Reordering (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`):**
+   - Z-order layer management items: Bring forward (Ctrl+]), Send backward (Ctrl+[), Bring to front (Ctrl+Shift+]), Send to back (Ctrl+Shift+[) in `SelectionBoundsFlyout`.
+   - Full keyboard shortcuts and dynamic shape layer manipulation.
+4. **`SmartArtDesignStudioWindow` Outline Reversal & Sorting Actions (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `Reverse outline items`, `Sort outline items (A to Z)`, and `Sort outline items (Z to A)` in `OutlineStatsFlyout`.
+   - Static `ReverseOutline` and `SortOutlineAlphabetically` utilities with CRLF/LF and bullet prefix handling.
+5. **`HistoryWindow` Copy Added/Removed Lines Filter (`HistoryWindow.xaml`, `HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - Quick copy context menu actions on `CopyToolbarButton`: `Copy added lines (+)` and `Copy removed lines (-)`.
+   - `LineDiff.ExtractModifiedLines` helper ignoring fold gaps and extracting targeted diff rows.
+6. **`SuiteHubView` Recent Documents Count Badge & Status Pill (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentDocsCountPill` displaying live count ("N docs" or "M/N docs" when filtered).
+   - Tap to copy recent document paths, double-tap to reset search filter, right-tap to open action menu.
+   - `RecentFilesService.FormatRecentFilesCount` reusable formatter.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,860 passed, 0 failed, 1 skipped (100% pass rate)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **passed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 10160, responsive startup, clean exit.
+
 
 

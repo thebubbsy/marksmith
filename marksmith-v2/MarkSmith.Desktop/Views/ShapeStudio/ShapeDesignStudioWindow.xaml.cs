@@ -5782,5 +5782,49 @@ namespace MarkSmith.Views.ShapeStudio
             _ = Services.ClipboardWriter.TrySetTextAsync(geom);
             ViewModel.StatusMessage = $"Copied geometry: {geom}";
         }
+
+        private void OnSelectionBringForwardClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.BringForwardCommand.CanExecute(null))
+            {
+                ViewModel.BringForwardCommand.Execute(null);
+                UpdateAdorner();
+                UpdateSelectionBoundsPill();
+                ViewModel.StatusMessage = "Brought selection forward one layer (Ctrl+]).";
+            }
+        }
+
+        private void OnSelectionSendBackwardClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SendBackwardCommand.CanExecute(null))
+            {
+                ViewModel.SendBackwardCommand.Execute(null);
+                UpdateAdorner();
+                UpdateSelectionBoundsPill();
+                ViewModel.StatusMessage = "Sent selection backward one layer (Ctrl+[).";
+            }
+        }
+
+        private void OnSelectionBringToFrontClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.BringToFrontCommand.CanExecute(null))
+            {
+                ViewModel.BringToFrontCommand.Execute(null);
+                UpdateAdorner();
+                UpdateSelectionBoundsPill();
+                ViewModel.StatusMessage = "Brought selection to top of layer stack (Ctrl+Shift+]).";
+            }
+        }
+
+        private void OnSelectionSendToBackClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.SendToBackCommand.CanExecute(null))
+            {
+                ViewModel.SendToBackCommand.Execute(null);
+                UpdateAdorner();
+                UpdateSelectionBoundsPill();
+                ViewModel.StatusMessage = "Sent selection to bottom of layer stack (Ctrl+Shift+[).";
+            }
+        }
     }
 }

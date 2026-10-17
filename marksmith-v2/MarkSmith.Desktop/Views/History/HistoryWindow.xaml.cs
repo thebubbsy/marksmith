@@ -973,6 +973,38 @@ public sealed partial class HistoryWindow : Window
             await CopyVersionMarkdownAsync(_vm.Selected, CopyToolbarButton, CopyToolbarIcon);
     }
 
+    private void OnCopyAddedLinesContextClick(object sender, RoutedEventArgs e)
+    {
+        var added = MarkSmith.Services.LineDiff.ExtractModifiedLines(_vm.UnifiedDiffRows, MarkSmith.Services.LineDiff.Kind.Added);
+        if (added.Count == 0)
+        {
+            _vm.ShowNotice("No added lines in this diff.");
+            return;
+        }
+        var text = string.Join(Environment.NewLine, added);
+        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        dp.SetText(text);
+        ClipboardWriter.Set(dp);
+        _vm.ShowNotice($"Copied {added.Count} added line(s) to clipboard.");
+        if (CopyToolbarButton != null) CopyFeedback.ApplyButtonTick(CopyToolbarButton, null, $"\u2713 {added.Count} added");
+    }
+
+    private void OnCopyRemovedLinesContextClick(object sender, RoutedEventArgs e)
+    {
+        var removed = MarkSmith.Services.LineDiff.ExtractModifiedLines(_vm.UnifiedDiffRows, MarkSmith.Services.LineDiff.Kind.Removed);
+        if (removed.Count == 0)
+        {
+            _vm.ShowNotice("No removed lines in this diff.");
+            return;
+        }
+        var text = string.Join(Environment.NewLine, removed);
+        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        dp.SetText(text);
+        ClipboardWriter.Set(dp);
+        _vm.ShowNotice($"Copied {removed.Count} removed line(s) to clipboard.");
+        if (CopyToolbarButton != null) CopyFeedback.ApplyButtonTick(CopyToolbarButton, null, $"\u2713 {removed.Count} removed");
+    }
+
     private bool _diffWrapEnabled = false;
 
     private void OnDiffWrapButtonClick(object sender, RoutedEventArgs e)

@@ -22,17 +22,71 @@ public static class TextSearch
 
     private static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c == '_';
 
-    /// <summary>Start offsets of every non-overlapping match, in document order.</summary>
-    public static List<int> FindAll(string text, string query, StringComparison comparison, bool matchWholeWord = false)
+    /// <summary>Represents a text search match with starting offset and character length.</summary>
+    public readonly record struct TextMatch(int Index, int Length);
+
+    /// <summary>Validates whether a regular expression pattern is syntactically sound.</summary>
+    public static bool TryValidateRegex(string pattern, out string? errorMessage)
     {
-        var matches = new List<int>();
+        errorMessage = null;
+        if (string.IsNullOrEmpty(pattern)) return true;
+        try
+        {
+            _ = new System.Text.RegularExpressions.Regex(pattern, System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromMilliseconds(200));
+            return true;
+        }
+        catch (ArgumentException ex)
+        {
+            errorMessage = ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>Start offsets and lengths of every non-overlapping match, in document order.</summary>
+    public static List<TextMatch> FindMatches(string text, string query, StringComparison comparison, bool matchWholeWord = false, bool useRegex = false)
+    {
+        var matches = new List<TextMatch>();
         if (string.IsNullOrEmpty(query) || string.IsNullOrEmpty(text)) return matches;
+
+        if (useRegex)
+        {
+            try
+            {
+                var options = comparison == StringComparison.OrdinalIgnoreCase
+                    ? System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                    : System.Text.RegularExpressions.RegexOptions.None;
+                var pattern = query;
+                if (matchWholeWord)
+                {
+                    pattern = $@"\b(?:{query})\b";
+                }
+                var rx = new System.Text.RegularExpressions.Regex(pattern, options, TimeSpan.FromMilliseconds(500));
+                var rxMatches = rx.Matches(text);
+                foreach (System.Text.RegularExpressions.Match m in rxMatches)
+                {
+                    if (m.Success && m.Length > 0)
+                    {
+                        matches.Add(new TextMatch(m.Index, m.Length));
+                    }
+                }
+            }
+            catch (ArgumentException)
+            {
+                // Invalid regex query returns 0 matches
+            }
+            catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
+            {
+                // Timeout returns whatever was accumulated
+            }
+            return matches;
+        }
+
         var idx = text.IndexOf(query, comparison);
         while (idx >= 0)
         {
             if (!matchWholeWord || IsWholeWordBoundary(text, idx, query.Length))
             {
-                matches.Add(idx);
+                matches.Add(new TextMatch(idx, query.Length));
                 if (idx + query.Length >= text.Length) break;
                 idx = text.IndexOf(query, idx + query.Length, comparison);
             }
@@ -43,6 +97,15 @@ public static class TextSearch
             }
         }
         return matches;
+    }
+
+    /// <summary>Start offsets of every non-overlapping match, in document order.</summary>
+    public static List<int> FindAll(string text, string query, StringComparison comparison, bool matchWholeWord = false, bool useRegex = false)
+    {
+        var matches = FindMatches(text, query, comparison, matchWholeWord, useRegex);
+        var indices = new List<int>(matches.Count);
+        foreach (var m in matches) indices.Add(m.Index);
+        return indices;
     }
 
     /// <summary>
@@ -81,22 +144,23 @@ public static class TextSearch
     /// match's replacement.
     /// </summary>
     public static (string Text, int Count, int Caret) ReplaceAll(
-        string text, string query, string replacement, StringComparison comparison, int caret, bool matchWholeWord = false)
+        string text, string query, string replacement, StringComparison comparison, int caret, bool matchWholeWord = false, bool useRegex = false)
     {
         caret = Math.Clamp(caret, 0, text.Length);
-        var matches = FindAll(text, query, comparison, matchWholeWord);
+        var matches = FindMatches(text, query, comparison, matchWholeWord, useRegex);
         if (matches.Count == 0) return (text, 0, caret);
 
-        var sb = new StringBuilder(text.Length + matches.Count * Math.Max(0, replacement.Length - query.Length));
+        var firstLen = matches[0].Length;
+        var sb = new StringBuilder(text.Length + matches.Count * Math.Max(0, replacement.Length - firstLen));
         var idx = 0;
         var newCaret = -1;
         foreach (var found in matches)
         {
-            if (newCaret < 0 && caret < found) newCaret = sb.Length + (caret - idx);
-            sb.Append(text, idx, found - idx);
-            if (newCaret < 0 && caret < found + query.Length) newCaret = sb.Length;
+            if (newCaret < 0 && caret < found.Index) newCaret = sb.Length + (caret - idx);
+            sb.Append(text, idx, found.Index - idx);
+            if (newCaret < 0 && caret < found.Index + found.Length) newCaret = sb.Length;
             sb.Append(replacement);
-            idx = found + query.Length;
+            idx = found.Index + found.Length;
         }
         if (newCaret < 0) newCaret = sb.Length + (caret - idx);
         sb.Append(text, idx, text.Length - idx);

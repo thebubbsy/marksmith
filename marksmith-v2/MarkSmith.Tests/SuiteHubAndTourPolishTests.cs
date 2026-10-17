@@ -516,5 +516,77 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnRecentSearchBoxTextChanged", suiteCs);
         Assert.Contains("OnFilterMarkdownRecentClick", suiteCs);
     }
+
+    [Theory]
+    [InlineData(0, 0, null, "0 docs")]
+    [InlineData(0, 0, "filter", "0 docs")]
+    [InlineData(1, 1, null, "1 doc")]
+    [InlineData(5, 5, null, "5 docs")]
+    [InlineData(2, 5, "md", "2/5 docs")]
+    [InlineData(5, 5, "md", "5 docs")]
+    public void RecentFilesService_FormatRecentFilesCount_FormatsExpectedSummary(
+        int displayed, int total, string? filter, string expected)
+    {
+        Assert.Equal(expected, RecentFilesService.FormatRecentFilesCount(displayed, total, filter));
+    }
+
+    [Fact]
+    public void Run131_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: Regex search toggle & length tracking
+        var mainXaml = File.ReadAllText(DesktopPath("MainWindow.xaml"));
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"UseRegexCheck\"", mainXaml);
+        Assert.Contains("OnUseRegexChanged", mainCs);
+        Assert.Contains("_findMatchLengths", mainCs);
+
+        // 2. MindMapGalaxy: Edge stroke weight presets & dynamic thickness
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"ConnWeightThinItem\"", galaxyXaml);
+        Assert.Contains("x:Name=\"ConnWeightNormalItem\"", galaxyXaml);
+        Assert.Contains("x:Name=\"ConnWeightThickItem\"", galaxyXaml);
+        Assert.Contains("SetConnectionStrokeWeight", galaxyCs);
+        Assert.Contains("_connectionStrokeWeight", galaxyCs);
+
+        // 3. ShapeStudio: Selection layer reordering
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OnSelectionBringForwardClick", shapeXaml);
+        Assert.Contains("OnSelectionSendBackwardClick", shapeXaml);
+        Assert.Contains("OnSelectionBringToFrontClick", shapeXaml);
+        Assert.Contains("OnSelectionSendToBackClick", shapeXaml);
+        Assert.Contains("OnSelectionBringForwardClick", shapeCs);
+        Assert.Contains("OnSelectionSendBackwardClick", shapeCs);
+        Assert.Contains("OnSelectionBringToFrontClick", shapeCs);
+        Assert.Contains("OnSelectionSendToBackClick", shapeCs);
+
+        // 4. SmartArtStudio: Outline reverse and sort
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OnReverseOutlineClick", smartArtXaml);
+        Assert.Contains("OnSortOutlineAscendingClick", smartArtXaml);
+        Assert.Contains("OnSortOutlineDescendingClick", smartArtXaml);
+        Assert.Contains("OnReverseOutlineClick", smartArtCs);
+        Assert.Contains("OnSortOutlineAscendingClick", smartArtCs);
+        Assert.Contains("OnSortOutlineDescendingClick", smartArtCs);
+
+        // 5. HistoryWindow: Copy added/removed lines
+        var historyXaml = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml"));
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("OnCopyAddedLinesContextClick", historyXaml);
+        Assert.Contains("OnCopyRemovedLinesContextClick", historyXaml);
+        Assert.Contains("OnCopyAddedLinesContextClick", historyCs);
+        Assert.Contains("OnCopyRemovedLinesContextClick", historyCs);
+
+        // 6. SuiteHub: Recent docs count badge
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("x:Name=\"RecentDocsCountPill\"", suiteXaml);
+        Assert.Contains("x:Name=\"RecentDocsCountText\"", suiteXaml);
+        Assert.Contains("OnRecentDocsCountPillTapped", suiteXaml);
+        Assert.Contains("OnRecentDocsCountPillTapped", suiteCs);
+        Assert.Contains("FormatRecentFilesCount", suiteCs);
+    }
 }
 

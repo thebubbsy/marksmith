@@ -167,6 +167,19 @@
                     <TextBlock x:Name="NoRecentDocsText" Grid.Column="2" Text="No recent documents yet — start writing in MarkSmith"
                                FontSize="11.5" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontStyle="Italic"
                                VerticalAlignment="Center" Visibility="Collapsed" />
+                    <Border x:Name="RecentDocsCountPill" Grid.Column="2" HorizontalAlignment="Right"
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                            CornerRadius="6" Padding="6,2" VerticalAlignment="Center" Margin="0,0,6,0"
+                            Tapped="OnRecentDocsCountPillTapped"
+                            DoubleTapped="OnRecentDocsCountPillDoubleTapped"
+                            RightTapped="OnRecentDocsCountPillRightTapped"
+                            ToolTipService.ToolTip="Recent documents count · Tap to copy summary, double-click to clear filter, right-click for options">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE81C;" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock x:Name="RecentDocsCountText" Text="0 docs" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
                     <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4">
                         <Button x:Name="RecentDocsActionBtn" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                 Click="OnRecentDocsActionBtnClick"

@@ -126,6 +126,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Find bar (Ctrl+F): the current query's match offsets into the editor text, and which match is
     // highlighted. Recomputed on every keystroke of the query so the "n/m" count stays live.
     private readonly List<int> _findMatches = new();
+    private readonly List<int> _findMatchLengths = new();
+    private string? _regexErrorMessage;
     private int _findMatchIndex = -1;
 
     // Preview zoom: WinUI 3's WebView2 exposes no ZoomFactor, so the page's own script scales the
@@ -8542,6 +8544,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(matchWholeWordItem);
 
+        var useRegexItem = new ToggleMenuFlyoutItem
+        {
+            Text = "Use regular expression (Alt+R)",
+            IsChecked = UseRegexCheck?.IsChecked == true
+        };
+        useRegexItem.Click += (_, _) =>
+        {
+            if (UseRegexCheck != null)
+            {
+                UseRegexCheck.IsChecked = !(UseRegexCheck.IsChecked == true);
+                RecomputeFindMatches();
+            }
+        };
+        menu.Items.Add(useRegexItem);
+
         menu.Items.Add(new MenuFlyoutSeparator());
 
         var toggleReplaceItem = new MenuFlyoutItem
@@ -8728,21 +8745,44 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var query = FindTextBox?.Text ?? string.Empty;
         var cmp = FindComparison;
         var wholeWord = MatchWholeWordCheck?.IsChecked == true;
+        var useRegex = UseRegexCheck?.IsChecked == true;
         _findMatches.Clear();
+        _findMatchLengths.Clear();
         _findMatchIndex = -1;
-        _findMatches.AddRange(MarkSmith.Services.TextSearch.FindAll(text, query, cmp, wholeWord));
+        _regexErrorMessage = null;
+
+        if (useRegex && !string.IsNullOrEmpty(query))
+        {
+            if (!MarkSmith.Services.TextSearch.TryValidateRegex(query, out _regexErrorMessage))
+            {
+                UpdateFindCount();
+                return;
+            }
+        }
+
+        var matches = MarkSmith.Services.TextSearch.FindMatches(text, query, cmp, wholeWord, useRegex);
+        foreach (var m in matches)
+        {
+            _findMatches.Add(m.Index);
+            _findMatchLengths.Add(m.Length);
+        }
+
         if (previous >= 0 && query.Length > 0
             && previous + query.Length <= text.Length
             && string.Compare(text, previous, query, 0, query.Length, cmp) == 0
             && (!wholeWord || MarkSmith.Services.TextSearch.IsWholeWordBoundary(text, previous, query.Length))
             && !_findMatches.Contains(previous))
         {
-            // `previous` is a valid match shadowed in FindAll by an earlier overlapping match
-            // (e.g. after replacing the first "aa" in "aaaaaa" with "a", `previous` is 1).
+            // `previous` is a valid match shadowed in FindMatches by an earlier overlapping match
             _findMatches.RemoveAll(m => m > previous - query.Length);
+            if (_findMatchLengths.Count > _findMatches.Count)
+                _findMatchLengths.RemoveRange(_findMatches.Count, _findMatchLengths.Count - _findMatches.Count);
             _findMatchIndex = _findMatches.Count;
-            foreach (var m in MarkSmith.Services.TextSearch.FindAll(text.Substring(previous), query, cmp, wholeWord))
-                _findMatches.Add(previous + m);
+            foreach (var m in MarkSmith.Services.TextSearch.FindMatches(text.Substring(previous), query, cmp, wholeWord, useRegex))
+            {
+                _findMatches.Add(previous + m.Index);
+                _findMatchLengths.Add(m.Length);
+            }
         }
         else if (previous >= 0 && _findMatches.Count > 0)
         {
@@ -8756,17 +8796,30 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnMatchWholeWordChanged(object sender, RoutedEventArgs e) => RecomputeFindMatches();
 
+    private void OnUseRegexChanged(object sender, RoutedEventArgs e) => RecomputeFindMatches();
+
     private void UpdateFindCount()
     {
         if (FindCountText is null) return;
         var hasQuery = !string.IsNullOrEmpty(FindTextBox?.Text);
         var count = _findMatches.Count;
-        FindCountText.Text = !hasQuery ? string.Empty
-            : count == 0 ? "No results"
-            : _findMatchIndex >= 0 ? $"{_findMatchIndex + 1} of {count}"
-            : count == 1 ? "1 match" : $"{count} matches";
-        MarkSmith.Services.ThemeBrush.Set(FindCountText, TextBlock.ForegroundProperty,
-            hasQuery && count == 0 ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush");
+
+        if (!string.IsNullOrEmpty(_regexErrorMessage))
+        {
+            FindCountText.Text = "Regex error";
+            ToolTipService.SetToolTip(FindCountText, $"Regex syntax error: {_regexErrorMessage}");
+            MarkSmith.Services.ThemeBrush.Set(FindCountText, TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
+        }
+        else
+        {
+            FindCountText.Text = !hasQuery ? string.Empty
+                : count == 0 ? "No results"
+                : _findMatchIndex >= 0 ? $"{_findMatchIndex + 1} of {count}"
+                : count == 1 ? "1 match" : $"{count} matches";
+            ToolTipService.SetToolTip(FindCountText, "Search match count · Click or right-click to copy");
+            MarkSmith.Services.ThemeBrush.Set(FindCountText, TextBlock.ForegroundProperty,
+                hasQuery && count == 0 ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush");
+        }
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(FindCountText, FindCountText.Text);
 
         // If a button that is about to be disabled owns focus, move focus to FindTextBox first so
@@ -8797,7 +8850,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // If the user has moved the caret since the last match, carry on from the caret (past any
         // selection), not from the old match.
         var current = _findMatchIndex;
-        var queryLen = (FindTextBox?.Text ?? string.Empty).Length;
+        var queryLen = current >= 0 && current < _findMatchLengths.Count ? _findMatchLengths[current] : (FindTextBox?.Text ?? string.Empty).Length;
         if (current >= 0 && current < _findMatches.Count
             && (PasteTextBox.SelectionStart != _findMatches[current] || PasteTextBox.SelectionLength != queryLen))
             current = -1;
@@ -8854,6 +8907,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 e.Handled = true;
             }
         }
+        else if (e.Key == Windows.System.VirtualKey.R && AltDown() && !CtrlDown())
+        {
+            if (UseRegexCheck != null)
+            {
+                UseRegexCheck.IsChecked = !(UseRegexCheck.IsChecked == true);
+                e.Handled = true;
+            }
+        }
     }
 
     private static bool ShiftDown() =>
@@ -8876,7 +8937,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (_findMatchIndex < 0 || _findMatchIndex >= _findMatches.Count) return;
         var start = _findMatches[_findMatchIndex];
-        var len = (FindTextBox?.Text ?? string.Empty).Length;
+        var len = _findMatchIndex < _findMatchLengths.Count ? _findMatchLengths[_findMatchIndex] : (FindTextBox?.Text ?? string.Empty).Length;
         var returnTo = keepFindFocus
             ? (ReplaceTextBox.FocusState != FocusState.Unfocused ? (Control)ReplaceTextBox : FindTextBox)
             : null;
@@ -8973,8 +9034,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (query.Length == 0) return;
         var replacement = ReplaceTextBox?.Text ?? string.Empty;
         var wholeWord = MatchWholeWordCheck?.IsChecked == true;
+        var useRegex = UseRegexCheck?.IsChecked == true;
         var (newText, count, caret) = MarkSmith.Services.TextSearch.ReplaceAll(
-            PasteTextBox.Text ?? string.Empty, query, replacement, FindComparison, PasteTextBox.SelectionStart, wholeWord);
+            PasteTextBox.Text ?? string.Empty, query, replacement, FindComparison, PasteTextBox.SelectionStart, wholeWord, useRegex);
 
         if (count > 0)
         {

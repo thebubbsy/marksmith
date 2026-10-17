@@ -1111,4 +1111,41 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         var (words, chars) = ComputeOutlineMetrics(list.Select(n => n.Text ?? ""));
         return (words, chars, list.Count);
     }
+
+    /// <summary>
+    /// Reverses the line order of an outline markdown string, preserving trailing CRLF if present.
+    /// </summary>
+    public static string ReverseOutline(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return markdown ?? "";
+        bool hasCr = markdown.Contains("\r");
+        var normalized = markdown.Replace("\r", "");
+        var lines = normalized.Split('\n');
+        var list = new List<string>(lines);
+        list.Reverse();
+        var result = string.Join("\n", list);
+        return hasCr ? result.Replace("\n", "\r\n") : result;
+    }
+
+    /// <summary>
+    /// Sorts the lines of an outline markdown string alphabetically (A-Z or Z-A).
+    /// </summary>
+    public static string SortOutlineAlphabetically(string markdown, bool ascending = true)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return markdown ?? "";
+        bool hasCr = markdown.Contains("\r");
+        var normalized = markdown.Replace("\r", "");
+        var lines = normalized.Split('\n');
+        var list = new List<string>(lines);
+        if (ascending)
+        {
+            list.Sort((a, b) => string.Compare(a.TrimStart('-', '*', ' '), b.TrimStart('-', '*', ' '), StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            list.Sort((a, b) => string.Compare(b.TrimStart('-', '*', ' '), a.TrimStart('-', '*', ' '), StringComparison.OrdinalIgnoreCase));
+        }
+        var result = string.Join("\n", list);
+        return hasCr ? result.Replace("\n", "\r\n") : result;
+    }
 }

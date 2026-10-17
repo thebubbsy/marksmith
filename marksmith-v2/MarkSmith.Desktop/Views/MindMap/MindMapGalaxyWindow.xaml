@@ -283,6 +283,16 @@
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE947;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem x:Name="ConnWeightThinItem" Text="Thin stroke weight (1.2px)" Click="OnConnectionWeightThinClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D3;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="ConnWeightNormalItem" Text="Normal stroke weight (1.8px)" Click="OnConnectionWeightNormalClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D4;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="ConnWeightThickItem" Text="Thick stroke weight (2.8px)" Click="OnConnectionWeightThickClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D5;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
                                     <MenuFlyoutItem x:Name="ToggleArrowsItem" Text="Toggle arrowheads" Click="OnToggleArrowsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

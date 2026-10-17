@@ -70,6 +70,7 @@ namespace MarkSmith.Views.MindMap
 
         private ConnectionRoutingStyle _connectionRoutingStyle = ConnectionRoutingStyle.Curved;
         private ConnectionDashStyle _connectionDashStyle = ConnectionDashStyle.Solid;
+        private MindMapStudioViewModel.ConnectionStrokeWeight _connectionStrokeWeight = MindMapStudioViewModel.ConnectionStrokeWeight.Normal;
         private bool _showConnectionArrows = true;
 
         public event EventHandler<string>? OpenDocumentRequested;
@@ -1917,8 +1918,9 @@ namespace MarkSmith.Views.MindMap
 
                 if (e.Link == null)
                 {
+                    double baseThickness = MindMapStudioViewModel.GetStrokeThickness(_connectionStrokeWeight);
                     e.Stroke.Color = e.IsHovered ? _palette.SelectionInk : ColorFromHex(_palette.HierarchyLine);
-                    e.Line.StrokeThickness = e.IsHovered ? 2.8 : 1.8;
+                    e.Line.StrokeThickness = e.IsHovered ? baseThickness + 1.0 : baseThickness;
                     e.Line.Opacity = faded ? (e.IsHovered ? 0.6 : 0.18) : (e.IsHovered ? 1.0 : 0.75);
                     e.Line.StrokeDashArray = _connectionDashStyle switch
                     {
@@ -4005,6 +4007,26 @@ namespace MarkSmith.Views.MindMap
         private void OnConnectionDashSolidClick(object sender, RoutedEventArgs e) => SetConnectionDashStyle(ConnectionDashStyle.Solid);
         private void OnConnectionDashDashedClick(object sender, RoutedEventArgs e) => SetConnectionDashStyle(ConnectionDashStyle.Dashed);
         private void OnConnectionDashDottedClick(object sender, RoutedEventArgs e) => SetConnectionDashStyle(ConnectionDashStyle.Dotted);
+
+        private void OnConnectionWeightThinClick(object sender, RoutedEventArgs e) => SetConnectionStrokeWeight(MindMapStudioViewModel.ConnectionStrokeWeight.Thin);
+        private void OnConnectionWeightNormalClick(object sender, RoutedEventArgs e) => SetConnectionStrokeWeight(MindMapStudioViewModel.ConnectionStrokeWeight.Normal);
+        private void OnConnectionWeightThickClick(object sender, RoutedEventArgs e) => SetConnectionStrokeWeight(MindMapStudioViewModel.ConnectionStrokeWeight.Thick);
+
+        private void SetConnectionStrokeWeight(MindMapStudioViewModel.ConnectionStrokeWeight weight)
+        {
+            _connectionStrokeWeight = weight;
+            if (ConnectionStyleDropDownButton != null)
+            {
+                var label = weight switch
+                {
+                    MindMapStudioViewModel.ConnectionStrokeWeight.Thin => "Weight: Thin (1.2px)",
+                    MindMapStudioViewModel.ConnectionStrokeWeight.Thick => "Weight: Thick (2.8px)",
+                    _ => "Weight: Normal (1.8px)"
+                };
+                CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");
+            }
+            RequestRedraw(RedrawScope.Appearance);
+        }
 
         private void OnConnectionStyleDropDownRightTapped(object sender, RightTappedRoutedEventArgs e)
         {

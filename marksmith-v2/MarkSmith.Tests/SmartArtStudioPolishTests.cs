@@ -360,4 +360,34 @@ public class SmartArtStudioPolishTests
         Assert.Equal(7, words); // Executive (1) + Leader (1) + Senior (1) + Engineering (1) + Director (1) + Global (1) + Operations (1) = 7
         Assert.Equal("Executive Leader".Length + "Senior Engineering Director".Length + "Global Operations".Length, chars);
     }
+
+    [Fact]
+    public void Run131_ReverseOutline_ReversesLinesPreservingLineEndings()
+    {
+        var inputLf = "- Alpha\n- Beta\n- Gamma";
+        var reversedLf = SmartArtDesignStudioViewModel.ReverseOutline(inputLf);
+        Assert.Equal("- Gamma\n- Beta\n- Alpha", reversedLf);
+
+        var inputCrlf = "- Alpha\r\n- Beta\r\n- Gamma";
+        var reversedCrlf = SmartArtDesignStudioViewModel.ReverseOutline(inputCrlf);
+        Assert.Equal("- Gamma\r\n- Beta\r\n- Alpha", reversedCrlf);
+
+        Assert.Equal("", SmartArtDesignStudioViewModel.ReverseOutline(""));
+    }
+
+    [Fact]
+    public void Run131_SortOutlineAlphabetically_SortsAscendingAndDescending()
+    {
+        var input = "- Zebra\n- Apple\n- Mango";
+        var asc = SmartArtDesignStudioViewModel.SortOutlineAlphabetically(input, ascending: true);
+        Assert.Equal("- Apple\n- Mango\n- Zebra", asc);
+
+        var desc = SmartArtDesignStudioViewModel.SortOutlineAlphabetically(input, ascending: false);
+        Assert.Equal("- Zebra\n- Mango\n- Apple", desc);
+
+        // Leading bullets/spaces stripped during comparison
+        var mixed = "* Zebra\n- Apple\n  Banana";
+        var mixedAsc = SmartArtDesignStudioViewModel.SortOutlineAlphabetically(mixed, ascending: true);
+        Assert.Equal("- Apple\n  Banana\n* Zebra", mixedAsc);
+    }
 }

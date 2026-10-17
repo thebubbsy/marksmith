@@ -68,4 +68,17 @@ public sealed class RecentFilesService
             (Path.GetFileName(f)?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
             f.Contains(term, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// Formats the recent documents count indicator (e.g. "3 docs", "2/5 docs" when filtered, or "0 docs").
+    /// </summary>
+    public static string FormatRecentFilesCount(int displayedCount, int totalCount, string? filter = null)
+    {
+        if (totalCount <= 0) return "0 docs";
+        if (!string.IsNullOrWhiteSpace(filter) && displayedCount != totalCount)
+        {
+            return $"{displayedCount}/{totalCount} docs";
+        }
+        return $"{totalCount} {(totalCount == 1 ? "doc" : "docs")}";
+    }
 }

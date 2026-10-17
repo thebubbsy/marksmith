@@ -688,6 +688,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBox x:Name="FindTextBox" Grid.Column="0" PlaceholderText="Find in document…"
                                                      AutomationProperties.Name="Find in document"
@@ -710,17 +711,23 @@
                                                           Checked="OnMatchWholeWordChanged" Unchecked="OnMatchWholeWordChanged">
                                                 <TextBlock Text="[W]" FontSize="11" FontWeight="SemiBold" />
                                             </ToggleButton>
-                                            <Button x:Name="FindPrevButton" Grid.Column="4" Width="32" Height="30" Padding="0" Click="OnFindPrevClick"
+                                            <ToggleButton x:Name="UseRegexCheck" Grid.Column="4" Width="32" Height="30" Padding="0"
+                                                          AutomationProperties.Name="Use regular expression (Alt+R)"
+                                                          ToolTipService.ToolTip="Use regular expression (Alt+R)"
+                                                          Checked="OnUseRegexChanged" Unchecked="OnUseRegexChanged">
+                                                <TextBlock Text=".*" FontSize="12" FontWeight="SemiBold" FontFamily="Cascadia Mono, Consolas, monospace" />
+                                            </ToggleButton>
+                                            <Button x:Name="FindPrevButton" Grid.Column="5" Width="32" Height="30" Padding="0" Click="OnFindPrevClick"
                                                     AutomationProperties.Name="Previous match"
                                                     ToolTipService.ToolTip="Previous match (Shift+Enter or Shift+F3)">
                                                 <FontIcon Glyph="&#xE70E;" FontSize="12" />
                                             </Button>
-                                            <Button x:Name="FindNextButton" Grid.Column="5" Width="32" Height="30" Padding="0" Click="OnFindNextClick"
+                                            <Button x:Name="FindNextButton" Grid.Column="6" Width="32" Height="30" Padding="0" Click="OnFindNextClick"
                                                     AutomationProperties.Name="Next match"
                                                     ToolTipService.ToolTip="Next match (Enter or F3)">
                                                 <FontIcon Glyph="&#xE70D;" FontSize="12" />
                                             </Button>
-                                            <Button Grid.Column="6" Width="32" Height="30" Padding="0" Click="OnFindCloseClick"
+                                            <Button Grid.Column="7" Width="32" Height="30" Padding="0" Click="OnFindCloseClick"
                                                     AutomationProperties.Name="Close find"
                                                     ToolTipService.ToolTip="Close (Esc)">
                                                 <FontIcon Glyph="&#xE711;" FontSize="12" />

@@ -4408,6 +4408,33 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = "Flattened all outline items to root level.";
         }
 
+        private void OnReverseOutlineClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            if (string.IsNullOrWhiteSpace(markdown)) return;
+            ViewModel.MarkdownText = SmartArtDesignStudioViewModel.ReverseOutline(markdown);
+            UpdateOutlineStats();
+            ViewModel.StatusMessage = "Reversed outline items order.";
+        }
+
+        private void OnSortOutlineAscendingClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            if (string.IsNullOrWhiteSpace(markdown)) return;
+            ViewModel.MarkdownText = SmartArtDesignStudioViewModel.SortOutlineAlphabetically(markdown, ascending: true);
+            UpdateOutlineStats();
+            ViewModel.StatusMessage = "Sorted outline items alphabetically (A to Z).";
+        }
+
+        private void OnSortOutlineDescendingClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            if (string.IsNullOrWhiteSpace(markdown)) return;
+            ViewModel.MarkdownText = SmartArtDesignStudioViewModel.SortOutlineAlphabetically(markdown, ascending: false);
+            UpdateOutlineStats();
+            ViewModel.StatusMessage = "Sorted outline items reverse alphabetically (Z to A).";
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

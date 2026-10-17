@@ -213,4 +213,37 @@ public class TextSearchTests
     {
         Assert.Equal(expected, TextSearch.IsWholeWordBoundary(text, index, length));
     }
+
+    [Fact]
+    public void TryValidateRegex_IdentifiesValidAndInvalidPatterns()
+    {
+        Assert.True(TextSearch.TryValidateRegex(@"\b\w+\d+", out var err1));
+        Assert.Null(err1);
+
+        Assert.False(TextSearch.TryValidateRegex(@"[unclosed_class", out var err2));
+        Assert.NotNull(err2);
+
+        Assert.True(TextSearch.TryValidateRegex("", out var err3));
+        Assert.Null(err3);
+    }
+
+    [Fact]
+    public void FindMatches_WithRegex_FindsTokensWithAccurateLengths()
+    {
+        var text = "Items: doc1, doc23, doc456, doc.";
+        var matches = TextSearch.FindMatches(text, @"doc\d+", Any, useRegex: true);
+        Assert.Equal(3, matches.Count);
+        Assert.Equal(new TextSearch.TextMatch(7, 4), matches[0]);   // "doc1"
+        Assert.Equal(new TextSearch.TextMatch(13, 5), matches[1]);  // "doc23"
+        Assert.Equal(new TextSearch.TextMatch(20, 6), matches[2]);  // "doc456"
+    }
+
+    [Fact]
+    public void ReplaceAll_WithRegex_PerformsSubstitutions()
+    {
+        var text = "user_123 and user_456";
+        var (result, count, _) = TextSearch.ReplaceAll(text, @"user_\d+", "ID", Any, 0, useRegex: true);
+        Assert.Equal("ID and ID", result);
+        Assert.Equal(2, count);
+    }
 }

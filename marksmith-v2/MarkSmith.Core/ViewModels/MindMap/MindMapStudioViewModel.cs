@@ -1939,7 +1939,8 @@ namespace MarkSmith.ViewModels.MindMap
         public static (double startX, double startY, double c1X, double c1Y, double c2X, double c2Y, double endX, double endY)
             ComputeHierarchyEdgeRouting(double srcX, double srcY, double srcW, double srcH,
                                         double tgtX, double tgtY, double tgtW, double tgtH,
-                                        string routingStyle = "curved")
+                                        string routingStyle = "curved",
+                                        double tension = 0.5)
         {
             double srcCenterX = srcX + (srcW / 2.0);
             double srcCenterY = srcY + (srcH / 2.0);
@@ -1977,7 +1978,7 @@ namespace MarkSmith.ViewModels.MindMap
                     }
                     else
                     {
-                        double ctrl = Math.Max(Math.Abs(endX - startX) * 0.5, 30);
+                        double ctrl = Math.Max(Math.Abs(endX - startX) * tension, 30);
                         c1X = startX + ctrl; c1Y = startY;
                         c2X = endX - ctrl; c2Y = endY;
                     }
@@ -2004,7 +2005,7 @@ namespace MarkSmith.ViewModels.MindMap
                     }
                     else
                     {
-                        double ctrl = Math.Max(Math.Abs(endX - startX) * 0.5, 30);
+                        double ctrl = Math.Max(Math.Abs(endX - startX) * tension, 30);
                         c1X = startX - ctrl; c1Y = startY;
                         c2X = endX + ctrl; c2Y = endY;
                     }
@@ -2034,7 +2035,7 @@ namespace MarkSmith.ViewModels.MindMap
                     }
                     else
                     {
-                        double ctrl = Math.Max(Math.Abs(endY - startY) * 0.5, 30);
+                        double ctrl = Math.Max(Math.Abs(endY - startY) * tension, 30);
                         c1X = startX; c1Y = startY + ctrl;
                         c2X = endX; c2Y = endY - ctrl;
                     }
@@ -2061,7 +2062,7 @@ namespace MarkSmith.ViewModels.MindMap
                     }
                     else
                     {
-                        double ctrl = Math.Max(Math.Abs(endY - startY) * 0.5, 30);
+                        double ctrl = Math.Max(Math.Abs(endY - startY) * tension, 30);
                         c1X = startX; c1Y = startY - ctrl;
                         c2X = endX; c2Y = endY + ctrl;
                     }
@@ -2070,6 +2071,38 @@ namespace MarkSmith.ViewModels.MindMap
 
             return (startX, startY, c1X, c1Y, c2X, c2Y, endX, endY);
         }
+
+        /// <summary>
+        /// Stroke weight options for mind map connection edges.
+        /// </summary>
+        public enum ConnectionStrokeWeight
+        {
+            Thin,
+            Normal,
+            Thick
+        }
+
+        /// <summary>
+        /// Returns the stroke thickness for a connection edge weight preset.
+        /// </summary>
+        public static double GetStrokeThickness(ConnectionStrokeWeight weight) =>
+            weight switch
+            {
+                ConnectionStrokeWeight.Thin => 1.2,
+                ConnectionStrokeWeight.Thick => 2.8,
+                _ => 1.8
+            };
+
+        /// <summary>
+        /// Returns the stroke thickness for a connection edge weight preset string.
+        /// </summary>
+        public static double GetStrokeThickness(string weightName) =>
+            weightName?.ToLowerInvariant() switch
+            {
+                "thin" => 1.2,
+                "thick" => 2.8,
+                _ => 1.8
+            };
 
         /// <summary>
         /// Returns the stroke dash array intervals for a connection line style (solid = empty, dashed = 4, 3, dotted = 1.5, 2).

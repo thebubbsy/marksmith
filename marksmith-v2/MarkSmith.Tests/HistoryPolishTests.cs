@@ -597,5 +597,35 @@ public class HistoryPolishTests : IDisposable
         Assert.DoesNotContain(diffIgnore, d => d.Kind == LineDiff.Kind.Added);
         Assert.All(diffIgnore, d => Assert.Equal(LineDiff.Kind.Same, d.Kind));
     }
+
+    [Fact]
+    public void Run131_ExtractModifiedLines_ExtractsOnlySpecifiedKindExcludingGaps()
+    {
+        var rows = new List<LineDiff.UnifiedRow>
+        {
+            new(LineDiff.Kind.Same, 1, 1, "unchanged line", "  "),
+            new(LineDiff.Kind.Removed, 2, null, "old deleted line", "- "),
+            new(LineDiff.Kind.Added, null, 2, "new inserted line 1", "+ "),
+            new(LineDiff.Kind.Added, null, 3, "new inserted line 2", "+ "),
+            new(LineDiff.Kind.Same, null, null, "fold gap text", "", IsGap: true),
+            new(LineDiff.Kind.Added, null, null, "another fold gap", "", IsGap: true)
+        };
+
+        var added = LineDiff.ExtractModifiedLines(rows, LineDiff.Kind.Added);
+        Assert.Equal(2, added.Count);
+        Assert.Equal("new inserted line 1", added[0]);
+        Assert.Equal("new inserted line 2", added[1]);
+
+        var removed = LineDiff.ExtractModifiedLines(rows, LineDiff.Kind.Removed);
+        Assert.Single(removed);
+        Assert.Equal("old deleted line", removed[0]);
+
+        var same = LineDiff.ExtractModifiedLines(rows, LineDiff.Kind.Same);
+        Assert.Single(same);
+        Assert.Equal("unchanged line", same[0]);
+
+        Assert.Empty(LineDiff.ExtractModifiedLines(null!, LineDiff.Kind.Added));
+    }
 }
+
 

@@ -1103,5 +1103,39 @@ namespace MarkSmith.Tests
             var pattern = MindMapStudioViewModel.GetDashArrayPattern(style);
             Assert.Equal(expected, pattern);
         }
+
+        [Theory]
+        [InlineData(MindMapStudioViewModel.ConnectionStrokeWeight.Thin, 1.2)]
+        [InlineData(MindMapStudioViewModel.ConnectionStrokeWeight.Normal, 1.8)]
+        [InlineData(MindMapStudioViewModel.ConnectionStrokeWeight.Thick, 2.8)]
+        public void Run131_GetStrokeThickness_ReturnsExpectedValues(MindMapStudioViewModel.ConnectionStrokeWeight weight, double expected)
+        {
+            Assert.Equal(expected, MindMapStudioViewModel.GetStrokeThickness(weight));
+            Assert.Equal(expected, MindMapStudioViewModel.GetStrokeThickness(weight.ToString().ToLowerInvariant()));
+        }
+
+        [Fact]
+        public void Run131_ComputeHierarchyEdgeRouting_RespectsTensionParameter()
+        {
+            // Horizontal LTR with different tensions
+            var lowTension = MindMapStudioViewModel.ComputeHierarchyEdgeRouting(
+                srcX: 100, srcY: 100, srcW: 100, srcH: 50,
+                tgtX: 300, tgtY: 100, tgtW: 100, tgtH: 50,
+                routingStyle: "curved", tension: 0.2);
+
+            var highTension = MindMapStudioViewModel.ComputeHierarchyEdgeRouting(
+                srcX: 100, srcY: 100, srcW: 100, srcH: 50,
+                tgtX: 300, tgtY: 100, tgtW: 100, tgtH: 50,
+                routingStyle: "curved", tension: 0.8);
+
+            Assert.Equal(200, lowTension.startX);
+            Assert.Equal(300, lowTension.endX);
+            Assert.Equal(200, highTension.startX);
+            Assert.Equal(300, highTension.endX);
+
+            // With higher tension, control points push out further horizontally
+            Assert.True(highTension.c1X > lowTension.c1X, $"high c1X {highTension.c1X} should be > low c1X {lowTension.c1X}");
+            Assert.True(highTension.c2X < lowTension.c2X, $"high c2X {highTension.c2X} should be < low c2X {lowTension.c2X}");
+        }
     }
 }

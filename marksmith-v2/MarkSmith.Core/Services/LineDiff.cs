@@ -160,6 +160,13 @@ public static class LineDiff
         public bool IsSame => Kind == Kind.Same;
     }
 
+    /// <summary>Extracts lines of a specific kind (Added/Removed/Same) from unified diff rows, excluding fold gaps.</summary>
+    public static List<string> ExtractModifiedLines(IEnumerable<UnifiedRow> rows, Kind kind)
+    {
+        if (rows is null) return new List<string>();
+        return rows.Where(r => r.Kind == kind && !r.IsGap).Select(r => r.Text).ToList();
+    }
+
     /// <summary>Builds unified inline diff rows (GitHub/VS Code inline style) with old/new line numbers.</summary>
     public static List<UnifiedRow> BuildUnified(IReadOnlyList<Line> lines)
     {

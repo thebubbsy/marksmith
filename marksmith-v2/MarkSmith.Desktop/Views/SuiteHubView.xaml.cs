@@ -952,8 +952,14 @@ public sealed partial class SuiteHubView : UserControl
         {
             RecentFilesPanel.Children.Clear();
             var files = App.RecentFiles?.Load() ?? new List<string>();
-            var existingFiles = files.Where(File.Exists);
-            var filtered = RecentFilesService.FilterRecentFiles(existingFiles, _recentDocsFilter);
+            var existingFiles = files.Where(File.Exists).ToList();
+            var filtered = RecentFilesService.FilterRecentFiles(existingFiles, _recentDocsFilter).ToList();
+
+            if (RecentDocsCountText != null)
+            {
+                RecentDocsCountText.Text = RecentFilesService.FormatRecentFilesCount(filtered.Count, existingFiles.Count, _recentDocsFilter);
+            }
+
             var items = filtered.Take(4).ToList();
             if (items.Count > 0)
             {
@@ -1008,6 +1014,36 @@ public sealed partial class SuiteHubView : UserControl
             RecentFilesPanel.Children.Clear();
             RecentFilesPanel.Visibility = Visibility.Collapsed;
             NoRecentDocsText.Visibility = Visibility.Visible;
+            if (RecentDocsCountText != null) RecentDocsCountText.Text = "0 docs";
+        }
+    }
+
+    private void OnRecentDocsCountPillTapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        var files = App.RecentFiles?.Load() ?? new List<string>();
+        var existing = files.Where(File.Exists).ToList();
+        if (existing.Count == 0) return;
+        var summary = string.Join(Environment.NewLine, existing);
+        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        dp.SetText(summary);
+        ClipboardWriter.Set(dp);
+        if (RecentDocsCountText != null) RecentDocsCountText.Text = $"\u2713 {existing.Count} paths";
+        SetNotification($"Copied {existing.Count} recent document paths to clipboard.", success: true);
+    }
+
+    private void OnRecentDocsCountPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        OnClearRecentFilterClick(sender, new RoutedEventArgs());
+    }
+
+    private void OnRecentDocsCountPillRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (RecentDocsFlyout != null && RecentDocsCountPill != null)
+        {
+            RecentDocsFlyout.ShowAt(RecentDocsCountPill, e.GetPosition(RecentDocsCountPill));
         }
     }
 

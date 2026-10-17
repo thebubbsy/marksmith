@@ -222,6 +222,16 @@
                                         <MenuFlyoutItem Text="Flatten all items to root level" Click="OnFlattenAllClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8DE;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Reverse outline items" Click="OnReverseOutlineClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE747;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Sort outline items (A to Z)" Click="OnSortOutlineAscendingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Sort outline items (Z to A)" Click="OnSortOutlineDescendingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CC;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>
