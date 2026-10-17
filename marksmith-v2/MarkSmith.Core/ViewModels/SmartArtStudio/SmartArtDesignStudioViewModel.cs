@@ -1294,4 +1294,50 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         var summary = $"Hierarchy: {total} nodes · {rootLabel} · {leafLabel} · max depth {maxDepth}";
         return (total, roots, leaves, maxDepth, summary);
     }
+
+    /// <summary>
+    /// Filters a markdown bullet outline to only include items up to the specified maximum depth (1 = top-level roots only).
+    /// Preserves original line endings (CRLF or LF).
+    /// </summary>
+    public static string FormatOutlineAtMaxDepth(string markdown, int maxDepth = 1)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return string.Empty;
+        if (maxDepth < 1) maxDepth = 1;
+
+        bool hasCr = markdown.Contains('\r');
+        var normalized = markdown.Replace("\r", "");
+        var rawLines = normalized.Split('\n');
+        var resultLines = new List<string>();
+
+        foreach (var rawLine in rawLines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+
+            int leadWs = 0;
+            int spaceCount = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t'))
+            {
+                if (rawLine[leadWs] == '\t') spaceCount += 2;
+                else spaceCount += 1;
+                leadWs++;
+            }
+
+            if (leadWs < rawLine.Length)
+            {
+                var rest = rawLine.Substring(leadWs);
+                if (rest.StartsWith("- ") || rest.StartsWith("* ") || rest.StartsWith("+ ") ||
+                    (rest.Length > 2 && char.IsDigit(rest[0]) && rest[1] == '.' && rest[2] == ' '))
+                {
+                    int depth = (spaceCount / 2) + 1;
+                    if (depth <= maxDepth)
+                    {
+                        resultLines.Add(rawLine);
+                    }
+                }
+            }
+        }
+
+        var result = string.Join("\n", resultLines);
+        return hasCr ? result.Replace("\n", "\r\n") : result;
+    }
 }

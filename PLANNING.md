@@ -10237,3 +10237,82 @@ Reviewed: the 2026-10-17 run #134 entry above. Followed the AI-Executable 3-Bloc
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 19532, responsive startup (`Responding: True`), clean exit.
 
+### 2026-10-17 (scheduled routine run #136 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #135 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #135:
+    * Target A: `MainWindow` find bar regex match context snippet extractor.
+    * Target B: `MindMapGalaxyWindow` custom connection anchor padding & clearance offset adjuster.
+  - Generated:
+    1. `MainWindow`: Find Bar Match Context Snippet Extractor (`TextSearch.FormatMatchContextSnippet(text, matchIndex, matchLength, contextRadius)` producing clean single-line context previews `"...prefix [MATCH] suffix..."`, "Copy match snippet with context" `\uE8A5` context menu item in `FindCountText` flyout, rich preview and clipboard export).
+    2. `MindMapGalaxyWindow`: Connection Anchor Clearance Padding Helper (`MindMapStudioViewModel.CalculateNodeAnchorPointWithPadding(...)` adjusting attachment points outward along cardinal edges, `MindMapStudioViewModel.CycleAnchorPadding(current)` cycling `0px -> 4px -> 8px -> 12px -> 0px`, "Cycle connection anchor padding (0px / 4px / 8px / 12px)" `\uE790` item in `ConnectionStyleDropDownButton.Flyout` with tick feedback).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Enhanced `TextSearch.cs` with boundary clamping, newline squashing (`\r`/`\n` -> space), bracket wrapping `[MATCH]`, and adaptive truncation ellipsis. Added `snippetItem` in `FindCountText` context menu in `MainWindow.xaml.cs` with clipboard export and status announcement.
+    * For Idea 2: Implemented `CalculateNodeAnchorPointWithPadding` and `CycleAnchorPadding` in `MindMapStudioViewModel.cs`. Mounted `CycleAnchorPaddingItem` with icon `\uE790` in `ConnectionStyleDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and wired `OnCycleAnchorPaddingClick` with tick feedback and visual redraw.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Selection Cardinal Rotation Cycle & Corner Style Toggler (`ShapeDesignStudioViewModel.CycleCardinalRotation(currentRotation)` cycling `0° -> 90° -> 180° -> -90°/270° -> 0°` with inspector-safe `(-180, 180]` normalization, `ShapeDesignStudioViewModel.ToggleCornerStyle(currentPrst)` toggling `rect` vs `roundrect`, "Cycle rotation (0° / 90° / 180° / 270°)" `\uE7AD` item and "Toggle corner style (Sharp / Rounded)" `\uE790` item in `SelectionBoundsFlyout`).
+    4. `SmartArtDesignStudioWindow`: Outline Hierarchy Depth Pruner & Root Filter (`SmartArtDesignStudioViewModel.FormatOutlineAtMaxDepth(markdown, maxDepth)` filtering items to specified tree depth while strictly preserving CRLF/LF line endings, "Copy top-level outline roots only" `\uE8B7` item in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionCycleRotationItem` (`\uE7AD`) and `SelectionToggleCornerStyleItem` (`\uE790`) in `SelectionBoundsFlyout` in `ShapeDesignStudioWindow.xaml`. Implemented `OnSelectionCycleRotationClick` and `OnSelectionToggleCornerStyleClick` in `ShapeDesignStudioWindow.xaml.cs`, supporting multi-shape selection, recording undo snapshots, and updating adorners.
+    * For Idea 4: Mounted `OutlineRootsOnlyItem` with icon `\uE8B7` in `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`. Implemented `FormatOutlineAtMaxDepth` in `SmartArtDesignStudioViewModel.cs` and wired `OnCopyOutlineRootsOnlyClick` in `SmartArtDesignStudioWindow.xaml.cs` with clipboard export.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `FormatMatchContextSnippet` handles edge-of-string matches, empty text, negative offsets, and multi-line spans without breaking layout.
+    * Verified `CalculateNodeAnchorPointWithPadding` correctly offsets cardinal positions (Left -X, Right +X, Top -Y, Bottom +Y) while preserving center anchoring.
+  - Generated:
+    5. `HistoryWindow`: Complete Version Summary Card Formatter & Clipboard Record (`LineDiff.FormatVersionStatsCard(versionName, timestamp, linesAdded, linesRemoved)`, "Copy version summary card" `\uE8A5` item in `TimelineHeaderBorder` context flyout in `HistoryWindow.xaml.cs`).
+    6. `SuiteHubView`: Recent Documents File Extension Breakdown Formatter & Summary (`RecentFilesService.FormatRecentExtensionBreakdown(files)` aggregating document counts grouped by extension, e.g. "4 documents: 2 .md, 1 .txt, 1 .csv", and "Copy file type breakdown (.md, .txt...)" `\uE8B7` item in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Implemented `LineDiff.FormatVersionStatsCard` in `LineDiff.cs` handling null/custom names and zero delta cases. Mounted copy version summary card item with icon `\uE8A5` in `OnTimelineHeaderRightTapped` in `HistoryWindow.xaml.cs` using `sel.Entry.CreatedAt` and notice notification.
+    * For Idea 6: Added `CopyRecentExtensionBreakdownItem` to `RecentDocsFlyout` in `SuiteHubView.xaml` with icon `\uE8B7`, implemented `RecentFilesService.FormatRecentExtensionBreakdown` in `RecentFilesService.cs`, and wired `OnCopyRecentExtensionBreakdownClick` in `SuiteHubView.xaml.cs` with clipboard exception protection and tick feedback on `RecentDocsActionBtn`.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `Run136_FormatMatchContextSnippet_ExtractsCleanSnippet` (Passed).
+    * `MindMapGalaxyPolishTests.cs`: `Run136_CalculateNodeAnchorPointWithPadding_ComputesClearance`, `Run136_CycleAnchorPadding_CyclesCorrectly` (Passed).
+    * `ShapeStudioPolishTests.cs`: `Run136_CycleCardinalRotation_CyclesThroughCardinalAngles`, `Run136_ToggleCornerStyle_TogglesSharpAndRounded` (Passed).
+    * `SmartArtStudioPolishTests.cs`: `Run136_FormatOutlineAtMaxDepth_FiltersDepthLevelsAccurately` (Passed).
+    * `HistoryPolishTests.cs`: `Run136_FormatVersionStatsCard_FormatsAccurately` (Passed).
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FormatRecentExtensionBreakdown_ComputesSummary`, `Run136_Polish_Elements_Wired_Across_Surfaces` (Passed).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,937 passed, 0 failed, 1 skipped (100% pass rate)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 15072, responsive startup (`Alive=True`), clean exit.
+  - Carried forward ideas / next targets into Run #137:
+    * Target A: `MainWindow` find bar multi-line match unwrapper.
+    * Target B: `MindMapGalaxyWindow` custom connection anchor indicator badge.
+    * Target C: `ShapeDesignStudioWindow` quick shape shadow blur radius cycle helper.
+
+**Shipped:**
+1. **`MainWindow` Find Bar Match Context Snippet Extractor (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - `TextSearch.FormatMatchContextSnippet` generating clean single-line context preview strings with brackets `[MATCH]` and adaptive ellipsis.
+   - `snippetItem` ("Copy match snippet with context", `\uE8A5`) in `FindCountText` context menu with status notice and clipboard export.
+2. **`MindMapGalaxyWindow` Connection Anchor Clearance Padding Helper (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `CalculateNodeAnchorPointWithPadding` computing offset points for cardinal edges (Left, Right, Top, Bottom) with user-selected clearance.
+   - `CycleAnchorPadding` cycling `0px -> 4px -> 8px -> 12px -> 0px`.
+   - `CycleAnchorPaddingItem` (`\uE790`) in `ConnectionStyleDropDownButton.Flyout` with tick feedback.
+3. **`ShapeDesignStudioWindow` Selection Cardinal Rotation Cycle & Corner Style Toggler (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ShapeDesignStudioViewModel.CycleCardinalRotation` cycling `0° -> 90° -> 180° -> -90°/270° -> 0°` with inspector-compatible `(-180, 180]` normalization.
+   - `ShapeDesignStudioViewModel.ToggleCornerStyle` toggling between sharp `rect` and rounded `roundrect`.
+   - `SelectionCycleRotationItem` (`\uE7AD`) and `SelectionToggleCornerStyleItem` (`\uE790`) in `SelectionBoundsFlyout` with undo recording and adorner refresh.
+4. **`SmartArtDesignStudioWindow` Outline Hierarchy Depth Pruner & Root Filter (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `SmartArtDesignStudioViewModel.FormatOutlineAtMaxDepth` filtering markdown outlines to top-level depth while strictly preserving CRLF/LF line endings.
+   - `OutlineRootsOnlyItem` (`\uE8B7`) in `OutlineStatsFlyout` with clipboard export.
+5. **`HistoryWindow` Version Summary Card Formatter & Context Copy (`HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.FormatVersionStatsCard` formatting comprehensive one-line executive version summaries combining label, timestamp, and lines delta.
+   - `copyCard` item (`\uE8A5`) in `TimelineHeaderBorder` context menu.
+6. **`SuiteHubView` Recent Documents File Type Breakdown Formatter & Clipboard Export (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.FormatRecentExtensionBreakdown` aggregating document counts grouped by extension (e.g. "4 documents: 2 .md, 1 .txt, 1 .csv").
+   - `CopyRecentExtensionBreakdownItem` (`\uE8B7`) in `RecentDocsFlyout` with button tick feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,937 passed, 0 failed, 1 skipped (100% pass rate)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 15072, responsive startup (`Alive=True`), clean exit.
+

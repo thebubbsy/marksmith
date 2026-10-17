@@ -278,4 +278,33 @@ public static class TextSearch
             : "Match";
         return $"{baseInfo} · Line {line}, Col {col} (Len: {len})";
     }
+
+    /// <summary>
+    /// Formats a contextual snippet around a match index (e.g. "...prefix [MATCH] suffix...").
+    /// Replaces newline sequences with single spaces to produce a clean single-line preview.
+    /// </summary>
+    public static string FormatMatchContextSnippet(string text, int matchIndex, int matchLength, int contextRadius = 15)
+    {
+        if (string.IsNullOrEmpty(text) || matchIndex < 0 || matchIndex >= text.Length || matchLength <= 0)
+            return "No match context available";
+
+        int clampedLen = Math.Min(matchLength, text.Length - matchIndex);
+        var matchWord = text.Substring(matchIndex, clampedLen).Replace("\r", " ").Replace("\n", " ").Trim();
+
+        int prefixStart = Math.Max(0, matchIndex - contextRadius);
+        int prefixLength = matchIndex - prefixStart;
+        var prefix = text.Substring(prefixStart, prefixLength).Replace("\r", " ").Replace("\n", " ").TrimStart();
+        if (prefixStart > 0) prefix = "..." + prefix;
+
+        int suffixStart = matchIndex + clampedLen;
+        int suffixLength = Math.Min(contextRadius, text.Length - suffixStart);
+        var suffix = suffixLength > 0
+            ? text.Substring(suffixStart, suffixLength).Replace("\r", " ").Replace("\n", " ").TrimEnd()
+            : string.Empty;
+        if (suffixStart + suffixLength < text.Length) suffix = suffix + "...";
+
+        var prefixPart = string.IsNullOrEmpty(prefix) ? "" : prefix + " ";
+        var suffixPart = string.IsNullOrEmpty(suffix) ? "" : " " + suffix;
+        return $"{prefixPart}[{matchWord}]{suffixPart}".Trim();
+    }
 }

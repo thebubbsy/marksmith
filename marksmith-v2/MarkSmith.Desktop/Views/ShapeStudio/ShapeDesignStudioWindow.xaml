@@ -598,6 +598,12 @@
                                         <MenuFlyoutItem x:Name="SelectionStandardizeRatioItem" Text="Standardize aspect ratio (16:9 widescreen)" Click="OnSelectionStandardizeRatioClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionCycleRotationItem" Text="Cycle rotation (0° / 90° / 180° / 270°)" Click="OnSelectionCycleRotationClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7AD;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionToggleCornerStyleItem" Text="Toggle corner style (Sharp / Rounded)" Click="OnSelectionToggleCornerStyleClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

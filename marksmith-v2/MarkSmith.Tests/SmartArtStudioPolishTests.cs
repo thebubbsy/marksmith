@@ -454,4 +454,23 @@ public class SmartArtStudioPolishTests
         var empty = SmartArtDesignStudioViewModel.AnalyzeHierarchyMetrics("");
         Assert.Equal((0, 0, 0, 0, "No nodes in outline"), empty);
     }
+
+    [Fact]
+    public void Run136_FormatOutlineAtMaxDepth_FiltersDepthLevelsAccurately()
+    {
+        var markdown = "- Root 1\n  - Child 1\n    - Grandchild 1\n- Root 2\n  - Child 2";
+        var rootsOnly = SmartArtDesignStudioViewModel.FormatOutlineAtMaxDepth(markdown, 1);
+        Assert.Equal("- Root 1\n- Root 2", rootsOnly);
+
+        var depth2 = SmartArtDesignStudioViewModel.FormatOutlineAtMaxDepth(markdown, 2);
+        Assert.Equal("- Root 1\n  - Child 1\n- Root 2\n  - Child 2", depth2);
+
+        // CRLF preserved
+        var crlf = "- Root 1\r\n  - Child 1\r\n- Root 2";
+        var crlfRoots = SmartArtDesignStudioViewModel.FormatOutlineAtMaxDepth(crlf, 1);
+        Assert.Equal("- Root 1\r\n- Root 2", crlfRoots);
+
+        // Empty input
+        Assert.Equal("", SmartArtDesignStudioViewModel.FormatOutlineAtMaxDepth(""));
+    }
 }

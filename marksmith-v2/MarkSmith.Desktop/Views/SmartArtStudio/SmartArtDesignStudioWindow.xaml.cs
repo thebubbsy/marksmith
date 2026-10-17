@@ -4501,6 +4501,28 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnCopyOutlineRootsOnlyClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            var rootsOnly = SmartArtDesignStudioViewModel.FormatOutlineAtMaxDepth(markdown, 1);
+            if (!string.IsNullOrWhiteSpace(rootsOnly))
+            {
+                try
+                {
+                    Services.ClipboardWriter.TrySetTextAsync(rootsOnly);
+                    ViewModel.StatusMessage = "✓ Copied top-level outline roots to clipboard.";
+                }
+                catch
+                {
+                    ViewModel.StatusMessage = rootsOnly;
+                }
+            }
+            else
+            {
+                ViewModel.StatusMessage = "No outline roots found to copy.";
+            }
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

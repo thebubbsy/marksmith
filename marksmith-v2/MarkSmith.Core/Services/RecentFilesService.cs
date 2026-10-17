@@ -160,4 +160,33 @@ public sealed class RecentFilesService
         var docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
         return $"{docLabel} across {dirLabel}{extLabel}";
     }
+
+    /// <summary>
+    /// Formats a summary of document counts grouped by file extension (e.g. "4 documents: 3 .md, 1 .txt").
+    /// </summary>
+    public static string FormatRecentExtensionBreakdown(IEnumerable<string>? files)
+    {
+        if (files is null) return "0 documents in recent history";
+        var list = files.Where(f => !string.IsNullOrWhiteSpace(f)).ToList();
+        if (list.Count == 0) return "0 documents in recent history";
+
+        var groups = list
+            .Select(f =>
+            {
+                try
+                {
+                    var ext = Path.GetExtension(f);
+                    return string.IsNullOrEmpty(ext) ? "(no extension)" : ext.ToLowerInvariant();
+                }
+                catch { return "(no extension)"; }
+            })
+            .GroupBy(e => e)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key)
+            .Select(g => $"{g.Count()} {g.Key}")
+            .ToList();
+
+        var docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
+        return $"{docLabel}: {string.Join(", ", groups)}";
+    }
 }

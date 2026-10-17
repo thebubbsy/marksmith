@@ -336,4 +336,24 @@ public static class LineDiff
             return $"{name} · +{linesAdded} line{(linesAdded == 1 ? "" : "s")} added";
         return $"{name} · -{linesRemoved} line{(linesRemoved == 1 ? "" : "s")} removed";
     }
+
+    /// <summary>
+    /// Formats a complete one-line version stats card (name, timestamp, lines added and removed).
+    /// </summary>
+    public static string FormatVersionStatsCard(string? versionName, DateTimeOffset? timestamp, int linesAdded, int linesRemoved)
+    {
+        var name = string.IsNullOrWhiteSpace(versionName) ? "Version" : versionName.Trim();
+        var timePart = timestamp.HasValue
+            ? $" · {timestamp.Value.LocalDateTime:dddd, d MMMM yyyy} · {timestamp.Value.LocalDateTime:HH:mm}"
+            : "";
+        var deltaPart = linesAdded == 0 && linesRemoved == 0
+            ? "No line changes recorded"
+            : linesAdded > 0 && linesRemoved > 0
+                ? $"+{linesAdded} added, -{linesRemoved} removed"
+                : linesAdded > 0
+                    ? $"+{linesAdded} line{(linesAdded == 1 ? "" : "s")} added"
+                    : $"-{linesRemoved} line{(linesRemoved == 1 ? "" : "s")} removed";
+
+        return $"{name}{timePart} · {deltaPart}";
+    }
 }

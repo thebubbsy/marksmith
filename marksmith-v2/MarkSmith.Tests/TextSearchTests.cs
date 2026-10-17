@@ -333,4 +333,33 @@ public class TextSearchTests
         var emptySummary = TextSearch.FormatMatchInspectorSummary("", -1, 0, 0, 0);
         Assert.Equal("No match selected", emptySummary);
     }
+
+    [Fact]
+    public void Run136_FormatMatchContextSnippet_ExtractsCleanSnippet()
+    {
+        var text = "The quick brown fox jumps over the lazy dog in the meadow.";
+        var jumpsOffset = text.IndexOf("jumps", StringComparison.Ordinal);
+        var snippet = TextSearch.FormatMatchContextSnippet(text, jumpsOffset, 5, 10);
+        Assert.Contains("[jumps]", snippet);
+        Assert.StartsWith("...", snippet);
+        Assert.EndsWith("...", snippet);
+
+        // Near beginning of text (no leading ellipsis)
+        var theOffset = 0;
+        var startSnippet = TextSearch.FormatMatchContextSnippet(text, theOffset, 3, 10);
+        Assert.StartsWith("[The]", startSnippet);
+        Assert.False(startSnippet.StartsWith("..."));
+
+        // Invalid / empty
+        var emptySnippet = TextSearch.FormatMatchContextSnippet("", -1, 0, 10);
+        Assert.Equal("No match context available", emptySnippet);
+
+        // Multi-line replacement
+        var multiLine = "Line one\r\nLine two [TARGET]\r\nLine three";
+        var targetOffset = multiLine.IndexOf("[TARGET]", StringComparison.Ordinal);
+        var multiSnippet = TextSearch.FormatMatchContextSnippet(multiLine, targetOffset, 8, 12);
+        Assert.DoesNotContain("\r", multiSnippet);
+        Assert.DoesNotContain("\n", multiSnippet);
+        Assert.Contains("[[TARGET]]", multiSnippet);
+    }
 }

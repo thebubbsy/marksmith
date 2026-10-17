@@ -5940,5 +5940,56 @@ namespace MarkSmith.Views.ShapeStudio
                 ? $"✓ Standardized {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to 16:9 widescreen aspect ratio."
                 : "Selected shapes already conform to 16:9 aspect ratio.";
         }
+
+        private void OnSelectionCycleRotationClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0)
+            {
+                ViewModel.StatusMessage = "No shapes to rotate.";
+                return;
+            }
+
+            ViewModel.RecordUndo();
+            int baseRot = sel.Count > 0 ? sel[0].Rotation : 0;
+            var (nextRot, label) = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.CycleCardinalRotation(baseRot);
+            foreach (var s in sel)
+            {
+                s.Rotation = nextRot;
+            }
+
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+            ViewModel.StatusMessage = $"✓ Rotated {sel.Count} shape{(sel.Count == 1 ? "" : "s")} to {nextRot}° ({label}).";
+        }
+
+        private void OnSelectionToggleCornerStyleClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0)
+            {
+                ViewModel.StatusMessage = "No shapes to change corner style.";
+                return;
+            }
+
+            ViewModel.RecordUndo();
+            var first = sel[0];
+            var (nextPrst, label) = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.ToggleCornerStyle(first.Prst);
+            int updatedCount = 0;
+            foreach (var s in sel)
+            {
+                if (!s.IsLine)
+                {
+                    s.Prst = nextPrst;
+                    updatedCount++;
+                }
+            }
+
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+            ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
+        }
     }
 }

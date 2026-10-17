@@ -2207,5 +2207,37 @@ namespace MarkSmith.ViewModels.MindMap
                 _ => (NodeAnchorPosition.Auto, "Anchor: Auto (closest edge)")
             };
         }
+
+        /// <summary>
+        /// Computes the connection attachment point coordinate for a node bounding box and anchor position with optional clearance padding.
+        /// </summary>
+        public static (double X, double Y) CalculateNodeAnchorPointWithPadding(double nodeX, double nodeY, double nodeWidth, double nodeHeight, NodeAnchorPosition anchor, double padding = 0.0)
+        {
+            var (bx, by) = CalculateNodeAnchorPoint(nodeX, nodeY, nodeWidth, nodeHeight, anchor);
+            if (padding <= 0) return (bx, by);
+
+            return anchor switch
+            {
+                NodeAnchorPosition.Left => (bx - padding, by),
+                NodeAnchorPosition.Right => (bx + padding, by),
+                NodeAnchorPosition.Top => (bx, by - padding),
+                NodeAnchorPosition.Bottom => (bx, by + padding),
+                _ => (bx, by)
+            };
+        }
+
+        /// <summary>
+        /// Cycles connection anchor clearance padding (0px -> 4px -> 8px -> 12px -> 0px) and returns the next value and display label.
+        /// </summary>
+        public static (double NextPadding, string Label) CycleAnchorPadding(double currentPadding)
+        {
+            return currentPadding switch
+            {
+                < 2.0 => (4.0, "Anchor padding: 4px"),
+                < 6.0 => (8.0, "Anchor padding: 8px"),
+                < 10.0 => (12.0, "Anchor padding: 12px"),
+                _ => (0.0, "Anchor padding: 0px (Flush)")
+            };
+        }
     }
 }

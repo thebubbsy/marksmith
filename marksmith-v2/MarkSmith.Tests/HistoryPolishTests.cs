@@ -687,6 +687,23 @@ public class HistoryPolishTests : IDisposable
         var emptyName = LineDiff.FormatVersionDeltaSummary("", 3, 1);
         Assert.Equal("Version · +3 added, -1 removed", emptyName);
     }
+
+    [Fact]
+    public void Run136_FormatVersionStatsCard_FormatsAccurately()
+    {
+        var timestamp = new DateTimeOffset(2026, 10, 17, 14, 30, 0, TimeSpan.FromHours(11));
+        var card = LineDiff.FormatVersionStatsCard("Version 2.0", timestamp, 5, 2);
+        Assert.Contains("Version 2.0", card);
+        Assert.Contains("Saturday", card);
+        Assert.Contains("17 October 2026", card);
+        Assert.Contains("+5 added, -2 removed", card);
+
+        var noTime = LineDiff.FormatVersionStatsCard("Draft", null, 1, 0);
+        Assert.Equal("Draft · +1 line added", noTime);
+
+        var noChange = LineDiff.FormatVersionStatsCard("", null, 0, 0);
+        Assert.Equal("Version · No line changes recorded", noChange);
+    }
 }
 
 

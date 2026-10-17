@@ -1230,5 +1230,43 @@ namespace MarkSmith.Tests
             Assert.Equal(MindMapStudioViewModel.NodeAnchorPosition.Auto, a6);
             Assert.Contains("Auto", l6);
         }
+
+        [Fact]
+        public void Run136_CalculateNodeAnchorPointWithPadding_ComputesClearance()
+        {
+            double x = 100, y = 200, w = 80, h = 40, pad = 8.0;
+            var left = MindMapStudioViewModel.CalculateNodeAnchorPointWithPadding(x, y, w, h, MindMapStudioViewModel.NodeAnchorPosition.Left, pad);
+            Assert.Equal((92.0, 220.0), left); // 100 - 8 = 92
+
+            var right = MindMapStudioViewModel.CalculateNodeAnchorPointWithPadding(x, y, w, h, MindMapStudioViewModel.NodeAnchorPosition.Right, pad);
+            Assert.Equal((188.0, 220.0), right); // 180 + 8 = 188
+
+            var top = MindMapStudioViewModel.CalculateNodeAnchorPointWithPadding(x, y, w, h, MindMapStudioViewModel.NodeAnchorPosition.Top, pad);
+            Assert.Equal((140.0, 192.0), top); // 200 - 8 = 192
+
+            var bottom = MindMapStudioViewModel.CalculateNodeAnchorPointWithPadding(x, y, w, h, MindMapStudioViewModel.NodeAnchorPosition.Bottom, pad);
+            Assert.Equal((140.0, 248.0), bottom); // 240 + 8 = 248
+
+            var center = MindMapStudioViewModel.CalculateNodeAnchorPointWithPadding(x, y, w, h, MindMapStudioViewModel.NodeAnchorPosition.Center, pad);
+            Assert.Equal((140.0, 220.0), center); // Center stays unaffected by cardinal padding
+        }
+
+        [Fact]
+        public void Run136_CycleAnchorPadding_CyclesCorrectly()
+        {
+            var (p1, l1) = MindMapStudioViewModel.CycleAnchorPadding(0.0);
+            Assert.Equal(4.0, p1);
+            Assert.Contains("4px", l1);
+
+            var (p2, _) = MindMapStudioViewModel.CycleAnchorPadding(p1);
+            Assert.Equal(8.0, p2);
+
+            var (p3, _) = MindMapStudioViewModel.CycleAnchorPadding(p2);
+            Assert.Equal(12.0, p3);
+
+            var (p4, l4) = MindMapStudioViewModel.CycleAnchorPadding(p3);
+            Assert.Equal(0.0, p4);
+            Assert.Contains("0px", l4);
+        }
     }
 }

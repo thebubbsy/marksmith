@@ -245,6 +245,9 @@
                                         <MenuFlyoutItem x:Name="OutlineHierarchyMetricsItem" Text="Copy hierarchy depth &amp; leaf stats" Click="OnCopyHierarchyMetricsClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E5;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineRootsOnlyItem" Text="Copy top-level outline roots only" Click="OnCopyOutlineRootsOnlyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

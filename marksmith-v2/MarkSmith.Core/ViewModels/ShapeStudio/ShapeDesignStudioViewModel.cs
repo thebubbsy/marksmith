@@ -3322,4 +3322,31 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         var newHeight = Math.Max(10, Math.Round(currentWidth / targetRatio, MidpointRounding.AwayFromZero));
         return (currentWidth, newHeight);
     }
+
+    /// <summary>
+    /// Cycles through standard cardinal rotation increments (0° -> 90° -> 180° -> -90°/270° -> 0°) and returns the next angle and label.
+    /// </summary>
+    public static (int NextRotation, string Label) CycleCardinalRotation(int currentRotation)
+    {
+        int norm = ((currentRotation % 360) + 360) % 360;
+        int next = norm switch
+        {
+            < 90 => 90,
+            < 180 => 180,
+            < 270 => 270,
+            _ => 0
+        };
+        int wrapped = WrapRotationAngle(next);
+        return (wrapped, $"Rotation: {wrapped}°");
+    }
+
+    /// <summary>
+    /// Toggles shape preset between sharp rectangle ("rect") and rounded rectangle ("roundrect").
+    /// </summary>
+    public static (string NextPrst, string Label) ToggleCornerStyle(string? currentPrst)
+    {
+        if (string.Equals(currentPrst, "roundrect", StringComparison.OrdinalIgnoreCase))
+            return ("rect", "Sharp corners (rect)");
+        return ("roundrect", "Rounded corners (roundrect)");
+    }
 }

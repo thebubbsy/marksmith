@@ -2992,6 +2992,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied version delta: {deltaSummary}");
                 };
                 menu.Items.Add(copyDelta);
+
+                var cardSummary = MarkSmith.Services.LineDiff.FormatVersionStatsCard(sel.Label, sel.Entry.CreatedAt, sel.LinesAdded, sel.LinesRemoved);
+                var copyCard = new MenuFlyoutItem
+                {
+                    Text = "Copy version summary card",
+                    Icon = new FontIcon { Glyph = "\uE8A5" }
+                };
+                copyCard.Click += (_, _) =>
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(cardSummary);
+                    _vm.ShowNotice($"Copied version card: {cardSummary}");
+                };
+                menu.Items.Add(copyCard);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

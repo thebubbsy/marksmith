@@ -302,6 +302,9 @@
                                     <MenuFlyoutItem x:Name="CycleAnchorPositionItem" Text="Cycle connection anchor mode (Auto / Edge / Center)" Click="OnCycleAnchorPositionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE896;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CycleAnchorPaddingItem" Text="Cycle connection anchor padding (0px / 4px / 8px / 12px)" Click="OnCycleAnchorPaddingClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="ToggleArrowsItem" Text="Toggle arrowheads" Click="OnToggleArrowsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

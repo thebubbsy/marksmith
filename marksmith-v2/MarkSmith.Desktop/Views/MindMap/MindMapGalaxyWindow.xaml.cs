@@ -72,6 +72,7 @@ namespace MarkSmith.Views.MindMap
         private ConnectionDashStyle _connectionDashStyle = ConnectionDashStyle.Solid;
         private MindMapStudioViewModel.ConnectionStrokeWeight _connectionStrokeWeight = MindMapStudioViewModel.ConnectionStrokeWeight.Normal;
         private MindMapStudioViewModel.NodeAnchorPosition _connectionAnchorPosition = MindMapStudioViewModel.NodeAnchorPosition.Auto;
+        private double _connectionAnchorPadding = 0.0;
         private bool _showConnectionArrows = true;
 
         public event EventHandler<string>? OpenDocumentRequested;
@@ -4082,6 +4083,18 @@ namespace MarkSmith.Views.MindMap
             var (next, label) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.CycleAnchorPosition(_connectionAnchorPosition);
             _connectionAnchorPosition = next;
             ViewModel.StatusMessage = $"Connection anchor mode: {label}";
+            if (ConnectionStyleDropDownButton != null)
+            {
+                CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");
+            }
+            RequestRedraw(RedrawScope.Geometry | RedrawScope.Appearance);
+        }
+
+        private void OnCycleAnchorPaddingClick(object sender, RoutedEventArgs e)
+        {
+            var (next, label) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.CycleAnchorPadding(_connectionAnchorPadding);
+            _connectionAnchorPadding = next;
+            ViewModel.StatusMessage = $"Connection anchor padding: {label}";
             if (ConnectionStyleDropDownButton != null)
             {
                 CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");

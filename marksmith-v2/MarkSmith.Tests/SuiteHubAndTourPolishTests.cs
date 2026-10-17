@@ -849,5 +849,75 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentLibrarySummaryClick", suiteCs);
         Assert.Contains("FormatRecentLibrarySummary", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_FormatRecentExtensionBreakdown_ComputesSummary()
+    {
+        var sample = new[]
+        {
+            @"C:\Users\Docs\Report.md",
+            @"C:\Users\Docs\Summary.md",
+            @"D:\Projects\MarkSmith\Notes.txt",
+            @"D:\Projects\MarkSmith\Data.csv"
+        };
+        var summary = RecentFilesService.FormatRecentExtensionBreakdown(sample);
+        Assert.Contains("4 documents", summary);
+        Assert.Contains("2 .md", summary);
+        Assert.Contains("1 .txt", summary);
+        Assert.Contains("1 .csv", summary);
+
+        Assert.Equal("0 documents in recent history", RecentFilesService.FormatRecentExtensionBreakdown(null));
+        Assert.Equal("0 documents in recent history", RecentFilesService.FormatRecentExtensionBreakdown(Array.Empty<string>()));
+    }
+
+    [Fact]
+    public void Run136_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: snippetItem & FormatMatchContextSnippet
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy match snippet with context", mainCs);
+        Assert.Contains("FormatMatchContextSnippet", mainCs);
+
+        // 2. MindMapGalaxy: CycleAnchorPaddingItem & OnCycleAnchorPaddingClick
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("CycleAnchorPaddingItem", galaxyXaml);
+        Assert.Contains("OnCycleAnchorPaddingClick", galaxyXaml);
+        Assert.Contains("OnCycleAnchorPaddingClick", galaxyCs);
+        Assert.Contains("CycleAnchorPadding", galaxyCs);
+
+        // 3. ShapeStudio: SelectionCycleRotationItem, SelectionToggleCornerStyleItem & handlers
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionCycleRotationItem", shapeXaml);
+        Assert.Contains("SelectionToggleCornerStyleItem", shapeXaml);
+        Assert.Contains("OnSelectionCycleRotationClick", shapeXaml);
+        Assert.Contains("OnSelectionToggleCornerStyleClick", shapeXaml);
+        Assert.Contains("OnSelectionCycleRotationClick", shapeCs);
+        Assert.Contains("OnSelectionToggleCornerStyleClick", shapeCs);
+        Assert.Contains("CycleCardinalRotation", shapeCs);
+        Assert.Contains("ToggleCornerStyle", shapeCs);
+
+        // 4. SmartArtStudio: OutlineRootsOnlyItem & OnCopyOutlineRootsOnlyClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineRootsOnlyItem", smartArtXaml);
+        Assert.Contains("OnCopyOutlineRootsOnlyClick", smartArtXaml);
+        Assert.Contains("OnCopyOutlineRootsOnlyClick", smartArtCs);
+        Assert.Contains("FormatOutlineAtMaxDepth", smartArtCs);
+
+        // 5. HistoryWindow: Copy version summary card item
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy version summary card", historyCs);
+        Assert.Contains("FormatVersionStatsCard", historyCs);
+
+        // 6. SuiteHub: CopyRecentExtensionBreakdownItem & OnCopyRecentExtensionBreakdownClick
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentExtensionBreakdownItem", suiteXaml);
+        Assert.Contains("OnCopyRecentExtensionBreakdownClick", suiteXaml);
+        Assert.Contains("OnCopyRecentExtensionBreakdownClick", suiteCs);
+        Assert.Contains("FormatRecentExtensionBreakdown", suiteCs);
+    }
 }
 

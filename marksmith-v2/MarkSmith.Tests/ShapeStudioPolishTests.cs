@@ -498,4 +498,43 @@ public class ShapeStudioPolishTests
         Assert.Equal(160.0, newW);
         Assert.Equal(90.0, newH); // 160 / (16/9) = 90
     }
+
+    [Fact]
+    public void Run136_CycleCardinalRotation_CyclesThroughCardinalAngles()
+    {
+        var (r1, l1) = ShapeDesignStudioViewModel.CycleCardinalRotation(0);
+        Assert.Equal(90, r1);
+        Assert.Contains("90°", l1);
+
+        var (r2, l2) = ShapeDesignStudioViewModel.CycleCardinalRotation(r1);
+        Assert.Equal(180, r2);
+        Assert.Contains("180°", l2);
+
+        var (r3, l3) = ShapeDesignStudioViewModel.CycleCardinalRotation(r2);
+        Assert.Equal(-90, r3);
+        Assert.Contains("-90°", l3);
+
+        var (r4, l4) = ShapeDesignStudioViewModel.CycleCardinalRotation(r3);
+        Assert.Equal(0, r4);
+        Assert.Contains("0°", l4);
+
+        // Intermediate angle (e.g. 45° -> 90°)
+        var (rMid, _) = ShapeDesignStudioViewModel.CycleCardinalRotation(45);
+        Assert.Equal(90, rMid);
+    }
+
+    [Fact]
+    public void Run136_ToggleCornerStyle_TogglesSharpAndRounded()
+    {
+        var (p1, l1) = ShapeDesignStudioViewModel.ToggleCornerStyle("roundrect");
+        Assert.Equal("rect", p1);
+        Assert.Contains("Sharp", l1);
+
+        var (p2, l2) = ShapeDesignStudioViewModel.ToggleCornerStyle(p1);
+        Assert.Equal("roundrect", p2);
+        Assert.Contains("Rounded", l2);
+
+        var (p3, _) = ShapeDesignStudioViewModel.ToggleCornerStyle(null);
+        Assert.Equal("roundrect", p3);
+    }
 }
