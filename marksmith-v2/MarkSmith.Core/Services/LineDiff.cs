@@ -641,5 +641,42 @@ public static class LineDiff
 
         return $"Edit distribution: {hunkLabel} (+{totalAdded}/-{totalRemoved} lines · {dispersion}) · Largest hunk: ~{maxHunk} lines · Avg: {avgHunkSize:0.#} lines{docImpact}";
     }
+
+    /// <summary>
+    /// Compares a historical snapshot (<paramref name="selectedContent"/>) directly against the latest version
+    /// (<paramref name="latestContent"/>) and formats a human-readable delta, hunk count, net growth, and line similarity summary.
+    /// </summary>
+    public static string ComputeDiffAgainstLatestSummary(
+        string? selectedContent,
+        string? latestContent,
+        string? selectedLabel = null,
+        string? latestLabel = null)
+    {
+        string selText = selectedContent ?? string.Empty;
+        string headText = latestContent ?? string.Empty;
+        string selName = string.IsNullOrWhiteSpace(selectedLabel) ? "Selected" : selectedLabel.Trim();
+        string headName = string.IsNullOrWhiteSpace(latestLabel) ? "HEAD" : latestLabel.Trim();
+
+        var diff = Diff(selText, headText);
+        int added = diff.Count(l => l.Kind == Kind.Added);
+        int removed = diff.Count(l => l.Kind == Kind.Removed);
+        int same = diff.Count(l => l.Kind == Kind.Same);
+
+        if (added == 0 && removed == 0)
+        {
+            return $"Diff vs Latest ('{selName}' → '{headName}'): Identical to latest version (0 changes · 100% similarity)";
+        }
+
+        var hunks = AuditDiffHunks(selText, headText);
+        string hunkStr = hunks.Count == 1 ? "1 hunk" : $"{hunks.Count} hunks";
+        int net = added - removed;
+        string netStr = net > 0 ? $"+{net}" : net.ToString();
+
+        double denom = (2.0 * same) + added + removed;
+        double similarityPct = denom > 0 ? (2.0 * same / denom) * 100.0 : 0.0;
+
+        return $"Diff vs Latest ('{selName}' → '{headName}'): +{added}/-{removed} lines across {hunkStr} (Net {netStr} lines · {similarityPct:0.#}% similarity)";
+    }
 }
+
 

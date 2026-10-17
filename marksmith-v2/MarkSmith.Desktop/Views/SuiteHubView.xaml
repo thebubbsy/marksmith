@@ -234,6 +234,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentNamingPatternsItem" Text="Copy file naming patterns &amp; casing audit" Click="OnCopyRecentNamingPatternsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentMissingAuditItem" Text="Copy missing &amp; moved file paths audit" Click="OnCopyRecentMissingAuditClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7BA;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

@@ -825,7 +825,22 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("Avg: 6.7 lines", preAgg);
         Assert.Contains("20% doc impact", preAgg);
     }
+
+    [Fact]
+    public void Run143_ComputeDiffAgainstLatestSummary_ComputesDeltaAndSimilarity()
+    {
+        var identical = LineDiff.ComputeDiffAgainstLatestSummary("alpha\nbeta", "alpha\nbeta", "10:00", "12:00");
+        Assert.Equal("Diff vs Latest ('10:00' → '12:00'): Identical to latest version (0 changes · 100% similarity)", identical);
+
+        var oldVer = "line 1\nline 2\nline 3\nline 4";
+        var latestVer = "line 1\nline 2 modified\nline 3\nline 4\nline 5 added";
+        var diffSummary = LineDiff.ComputeDiffAgainstLatestSummary(oldVer, latestVer, "v1", "HEAD");
+        Assert.Contains("Diff vs Latest ('v1' → 'HEAD'): +2/-1 lines across", diffSummary);
+        Assert.Contains("Net +1 lines", diffSummary);
+        Assert.Contains("% similarity)", diffSummary);
+    }
 }
+
 
 
 

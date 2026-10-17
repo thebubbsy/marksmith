@@ -1776,5 +1776,101 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string lineLabel = totalLineCount == 1 ? "1 line" : $"{totalLineCount} lines";
         return $"Reversed {blockLabel} ({lineLabel} · Child subtrees preserved)";
     }
+
+    /// <summary>
+    /// Removes duplicate sibling bullets within the same hierarchical parent scope of an outline markdown string,
+    /// preserving the first occurrence of each unique sibling.
+    /// </summary>
+    public static (string DeduplicatedMarkdown, int RemovedDuplicates, int SurvivingNodes) DeduplicateOutlineNodes(string? markdown, bool ignoreCase = true)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return (markdown ?? "", 0, 0);
+
+        bool hasCr = markdown.Contains("\r");
+        var normalized = markdown.Replace("\r", "");
+        var rawLines = normalized.Split('\n');
+        var comparer = ignoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+        // Map each depth level to the set of sibling labels seen under the current parent at (depth - 1)
+        var seenByLevel = new Dictionary<int, HashSet<string>>();
+        var outputLines = new List<string>();
+        int removedCount = 0;
+        int survivingCount = 0;
+        int skipSubtreeAboveIndent = int.MaxValue;
+
+        foreach (var rawLine in rawLines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine))
+            {
+                if (skipSubtreeAboveIndent == int.MaxValue)
+                {
+                    outputLines.Add(rawLine);
+                }
+                continue;
+            }
+
+            int indent = 0;
+            while (indent < rawLine.Length && (rawLine[indent] == ' ' || rawLine[indent] == '\t'))
+            {
+                indent += rawLine[indent] == '\t' ? 2 : 1;
+            }
+
+            if (indent > skipSubtreeAboveIndent)
+            {
+                removedCount++;
+                continue;
+            }
+            skipSubtreeAboveIndent = int.MaxValue;
+
+            // Clear deeper sibling scopes whenever we step back to an outer or equal indentation level
+            var deeperLevels = seenByLevel.Keys.Where(k => k > indent).ToList();
+            foreach (var dl in deeperLevels)
+            {
+                seenByLevel.Remove(dl);
+            }
+
+            string trimmed = rawLine.Trim();
+            string cleanLabel = trimmed;
+            if (cleanLabel.StartsWith("- ") || cleanLabel.StartsWith("* ") || cleanLabel.StartsWith("+ "))
+            {
+                cleanLabel = cleanLabel[2..].Trim();
+            }
+
+            if (!seenByLevel.TryGetValue(indent, out var siblingsAtIndent))
+            {
+                siblingsAtIndent = new HashSet<string>(comparer);
+                seenByLevel[indent] = siblingsAtIndent;
+            }
+
+            if (!siblingsAtIndent.Add(cleanLabel))
+            {
+                removedCount++;
+                skipSubtreeAboveIndent = indent;
+                continue;
+            }
+
+            outputLines.Add(rawLine);
+            survivingCount++;
+        }
+
+        var result = string.Join("\n", outputLines);
+        return (hasCr ? result.Replace("\n", "\r\n") : result, removedCount, survivingCount);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of outline sibling deduplication.
+    /// </summary>
+    public static string FormatOutlineDeduplicationSummary(int removedDuplicates, int survivingNodes)
+    {
+        if (removedDuplicates == 0 && survivingNodes == 0)
+            return "Outline deduplication: Empty outline (0 nodes)";
+
+        string survivingStr = survivingNodes == 1 ? "1 unique node" : $"{survivingNodes} unique nodes";
+        if (removedDuplicates <= 0)
+            return $"Outline deduplication: 0 duplicates found ({survivingStr} verified)";
+
+        string dupStr = removedDuplicates == 1 ? "1 duplicate sibling node" : $"{removedDuplicates} duplicate sibling nodes";
+        return $"Deduplicated outline: Removed {dupStr} ({survivingStr} retained)";
+    }
 }
+
 

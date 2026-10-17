@@ -1342,6 +1342,75 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentNamingPatternsClick", suiteCs);
         Assert.Contains("FormatRecentFileNamingPatterns", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_FormatMissingRecentFilesAudit_ComputesAccurately()
+    {
+        Assert.Equal("Recent path health: 0 documents (No recent files)", RecentFilesService.FormatMissingRecentFilesAudit(null));
+        Assert.Equal("Recent path health: 0 documents (No recent files)", RecentFilesService.FormatMissingRecentFilesAudit(Array.Empty<string>()));
+
+        var paths = new[]
+        {
+            @"C:\docs\existing-1.md",
+            @"C:\docs\existing-2.md",
+            @"C:\docs\missing-draft.md",
+            @"C:\docs\moved-spec.md"
+        };
+
+        var summaryMixed = RecentFilesService.FormatMissingRecentFilesAudit(paths, p => p.Contains("existing"));
+        Assert.Equal("Recent path health (4 documents): 2 valid (50%), 2 missing/moved ('missing-draft.md', 'moved-spec.md')", summaryMixed);
+
+        var summaryAllValid = RecentFilesService.FormatMissingRecentFilesAudit(paths.Take(2), _ => true);
+        Assert.Equal("Recent path health (2 documents): 100% valid on disk (2 verified · 0 missing paths)", summaryAllValid);
+    }
+
+    [Fact]
+    public void Run143_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: swapFindReplaceItem & casePreserveReplaceItem
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Swap Find and Replace queries", mainCs);
+        Assert.Contains("Replace all preserving match casing", mainCs);
+        Assert.Contains("ReplacePreservingCase", mainCs);
+
+        // 2. MindMapGalaxy: AttachOrphansItem & OnAttachOrphansClick
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AttachOrphansItem", galaxyXaml);
+        Assert.Contains("OnAttachOrphansClick", galaxyXaml);
+        Assert.Contains("OnAttachOrphansClick", galaxyCs);
+        Assert.Contains("AttachOrphansToRoot", galaxyCs);
+
+        // 3. ShapeStudio: SelectionNormalizePrecisionItem & OnSelectionNormalizePrecisionClick
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionNormalizePrecisionItem", shapeXaml);
+        Assert.Contains("OnSelectionNormalizePrecisionClick", shapeXaml);
+        Assert.Contains("OnSelectionNormalizePrecisionClick", shapeCs);
+        Assert.Contains("NormalizeShapePrecision", shapeCs);
+
+        // 4. SmartArtStudio: DeduplicateOutlineItem & OnDeduplicateOutlineClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("DeduplicateOutlineItem", smartArtXaml);
+        Assert.Contains("OnDeduplicateOutlineClick", smartArtXaml);
+        Assert.Contains("OnDeduplicateOutlineClick", smartArtCs);
+        Assert.Contains("DeduplicateOutlineNodes", smartArtCs);
+
+        // 5. HistoryWindow: copyDiffAgainstLatest & ComputeDiffAgainstLatestSummary
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy diff summary against latest version (HEAD)", historyCs);
+        Assert.Contains("ComputeDiffAgainstLatestSummary", historyCs);
+
+        // 6. SuiteHub: CopyRecentMissingAuditItem & OnCopyRecentMissingAuditClick
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentMissingAuditItem", suiteXaml);
+        Assert.Contains("OnCopyRecentMissingAuditClick", suiteXaml);
+        Assert.Contains("OnCopyRecentMissingAuditClick", suiteCs);
+        Assert.Contains("FormatMissingRecentFilesAudit", suiteCs);
+    }
 }
+
 
 

@@ -266,6 +266,9 @@
                                         <MenuFlyoutItem x:Name="ReverseHierarchyOutlineItem" Text="Reverse top-level outline blocks (Preserve subtrees)" Click="OnReverseHierarchyOutlineClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="DeduplicateOutlineItem" Text="Remove duplicate sibling bullets" Click="OnDeduplicateOutlineClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

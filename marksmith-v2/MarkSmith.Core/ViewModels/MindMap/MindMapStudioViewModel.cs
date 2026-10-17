@@ -2486,5 +2486,108 @@ namespace MarkSmith.ViewModels.MindMap
             string colorLabel = distinctColors == 1 ? "1 color" : $"{distinctColors} distinct colors";
             return $"Auto-colorized {nodeLabel} across {levelLabel} ({colorLabel} applied)";
         }
+
+        /// <summary>
+        /// Identifies disconnected/orphaned nodes (nodes with 0 incoming and 0 outgoing links) and
+        /// magnetically attaches them in a radial arc around the primary root hub node.
+        /// </summary>
+        public (int AttachedCount, string RootLabel, int TotalNodes) AttachOrphansToRoot(double orbitRadius = 260.0)
+        {
+            if (Nodes.Count == 0)
+            {
+                StatusMessage = FormatOrphanAttachmentSummary(0, "", 0);
+                return (0, "", 0);
+            }
+
+            if (Nodes.Count == 1)
+            {
+                string singleLabel = string.IsNullOrWhiteSpace(Nodes[0].Title) ? "Root" : Nodes[0].Title;
+                StatusMessage = FormatOrphanAttachmentSummary(0, singleLabel, 1);
+                return (0, singleLabel, 1);
+            }
+
+            var degree = new Dictionary<string, int>(StringComparer.Ordinal);
+            var inDegree = new Dictionary<string, int>(StringComparer.Ordinal);
+            var outDegree = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var n in Nodes)
+            {
+                degree[n.Id] = 0;
+                inDegree[n.Id] = 0;
+                outDegree[n.Id] = 0;
+            }
+
+            foreach (var l in Links)
+            {
+                if (degree.ContainsKey(l.SourceNodeId))
+                {
+                    degree[l.SourceNodeId]++;
+                    outDegree[l.SourceNodeId]++;
+                }
+                if (degree.ContainsKey(l.TargetNodeId))
+                {
+                    degree[l.TargetNodeId]++;
+                    inDegree[l.TargetNodeId]++;
+                }
+            }
+
+            // Pick primary root hub: prefer connected node with inDegree == 0 and highest outDegree, else SelectedNode, else first node
+            var rootNode = Nodes
+                .Where(n => degree[n.Id] > 0 && inDegree[n.Id] == 0)
+                .OrderByDescending(n => outDegree[n.Id])
+                .FirstOrDefault()
+                ?? Nodes.Where(n => degree[n.Id] > 0).OrderByDescending(n => degree[n.Id]).FirstOrDefault()
+                ?? SelectedNode
+                ?? Nodes[0];
+
+            string rootLabel = string.IsNullOrWhiteSpace(rootNode.Title) ? "Root" : rootNode.Title;
+            var orphans = Nodes.Where(n => n.Id != rootNode.Id && degree[n.Id] == 0).ToList();
+
+            if (orphans.Count == 0)
+            {
+                StatusMessage = FormatOrphanAttachmentSummary(0, rootLabel, Nodes.Count);
+                return (0, rootLabel, Nodes.Count);
+            }
+
+            PushUndo("Attach orphaned nodes to root");
+            double radius = Math.Max(120.0, orbitRadius);
+            for (int i = 0; i < orphans.Count; i++)
+            {
+                var orphan = orphans[i];
+                double angle = (2.0 * Math.PI * i) / orphans.Count - (Math.PI / 2.0);
+                orphan.X = Math.Round(rootNode.X + radius * Math.Cos(angle), 1);
+                orphan.Y = Math.Round(rootNode.Y + radius * Math.Sin(angle), 1);
+
+                var link = new MindMapLink
+                {
+                    SourceNodeId = rootNode.Id,
+                    TargetNodeId = orphan.Id,
+                    Direction = MindMapLinkDirection.SourceToTarget
+                };
+                Links.Add( new MindMapLinkViewModel(link));
+            }
+
+            IsDirty = true;
+            CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+            StatusMessage = FormatOrphanAttachmentSummary(orphans.Count, rootLabel, Nodes.Count);
+            return (orphans.Count, rootLabel, Nodes.Count);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of orphaned node clustering and root attachment.
+        /// </summary>
+        public static string FormatOrphanAttachmentSummary(int attachedCount, string? rootLabel, int totalNodes)
+        {
+            if (totalNodes <= 0) return "Orphan attachment: 0 nodes (Empty map)";
+            string rLabel = string.IsNullOrWhiteSpace(rootLabel) ? "Root" : rootLabel;
+            string totalStr = totalNodes == 1 ? "1 total node" : $"{totalNodes} total nodes";
+            if (attachedCount <= 0)
+            {
+                return $"Orphan check: 0 orphaned nodes found ({totalStr} connected to '{rLabel}')";
+            }
+
+            string orphanStr = attachedCount == 1 ? "1 orphaned node" : $"{attachedCount} orphaned nodes";
+            return $"Attached {orphanStr} to root '{rLabel}' ({totalStr} · 0 orphans remaining)";
+        }
     }
 }
+

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace MarkSmith.Services;
@@ -613,6 +614,154 @@ public static class TextSearch
 
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Transforms <paramref name="replacement"/> to mirror the capitalization pattern of <paramref name="sourceSample"/>
+    /// (ALL CAPS, TitleCase/PascalCase, or lowercase).
+    /// </summary>
+    public static string ApplyCasePattern(string sourceSample, string replacement)
+    {
+        if (string.IsNullOrEmpty(sourceSample) || string.IsNullOrEmpty(replacement))
+            return replacement ?? string.Empty;
+
+        bool hasLetters = false;
+        bool allUpper = true;
+        bool allLower = true;
+        int letterCount = 0;
+
+        foreach (char c in sourceSample)
+        {
+            if (char.IsLetter(c))
+            {
+                hasLetters = true;
+                letterCount++;
+                if (!char.IsUpper(c)) allUpper = false;
+                if (!char.IsLower(c)) allLower = false;
+            }
+        }
+
+        if (!hasLetters) return replacement;
+
+        if (allUpper && letterCount > 1)
+        {
+            return replacement.ToUpperInvariant();
+        }
+
+        if (allLower)
+        {
+            return replacement.ToLowerInvariant();
+        }
+
+        if (char.IsUpper(sourceSample[0]))
+        {
+            bool restLower = true;
+            for (int i = 1; i < sourceSample.Length; i++)
+            {
+                if (char.IsLetter(sourceSample[i]) && !char.IsLower(sourceSample[i]))
+                {
+                    restLower = false;
+                    break;
+                }
+            }
+
+            if (restLower)
+            {
+                // Pure TitleCase: capitalize first char, lowercase remainder unless replacement itself has mixed case
+                bool replacementHasInternalUpper = replacement.Skip(1).Any(char.IsUpper) && replacement.Any(char.IsLower);
+                if (replacementHasInternalUpper)
+                {
+                    return char.ToUpperInvariant(replacement[0]) + replacement[1..];
+                }
+                return char.ToUpperInvariant(replacement[0]) + (replacement.Length > 1 ? replacement[1..].ToLowerInvariant() : "");
+            }
+
+            // PascalCase / Mixed starting with upper
+            return char.ToUpperInvariant(replacement[0]) + replacement[1..];
+        }
+
+        if (char.IsLower(sourceSample[0]))
+        {
+            return char.ToLowerInvariant(replacement[0]) + replacement[1..];
+        }
+
+        return replacement;
+    }
+
+    /// <summary>
+    /// Replaces occurrences of <paramref name="query"/> in <paramref name="text"/> while preserving the capitalization
+    /// pattern (UPPERCASE, TitleCase, lowercase) of each matched token.
+    /// </summary>
+    public static (string ReplacedText, int ReplacedCount, int UpperCount, int TitleCount, int LowerCount) ReplacePreservingCase(
+        string text,
+        string query,
+        string replacement,
+        bool wholeWord = false,
+        bool useRegex = false)
+    {
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(query))
+            return (text ?? string.Empty, 0, 0, 0, 0);
+
+        replacement ??= string.Empty;
+        var matches = FindMatches(text, query, StringComparison.OrdinalIgnoreCase, wholeWord, useRegex);
+        if (matches.Count == 0)
+            return (text, 0, 0, 0, 0);
+
+        var sb = new StringBuilder(text.Length);
+        int lastIdx = 0;
+        int upperCount = 0;
+        int titleCount = 0;
+        int lowerCount = 0;
+
+        foreach (var m in matches)
+        {
+            int offset = m.Index;
+            int length = m.Length;
+            if (offset < lastIdx || length <= 0) continue;
+            sb.Append(text, lastIdx, offset - lastIdx);
+
+            string sample = text.Substring(offset, length);
+            string transformed = ApplyCasePattern(sample, replacement);
+            sb.Append(transformed);
+
+            int letters = sample.Count(char.IsLetter);
+            if (letters > 1 && sample.Where(char.IsLetter).All(char.IsUpper))
+                upperCount++;
+            else if (letters > 0 && char.IsUpper(sample[0]))
+                titleCount++;
+            else
+                lowerCount++;
+
+            lastIdx = offset + length;
+        }
+
+        if (lastIdx < text.Length)
+        {
+            sb.Append(text, lastIdx, text.Length - lastIdx);
+        }
+
+        return (sb.ToString(), matches.Count, upperCount, titleCount, lowerCount);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of a case-preserving replacement operation.
+    /// </summary>
+    public static string FormatCasePreservingReplaceSummary(
+        string? query,
+        string? replacement,
+        int replacedCount,
+        int upperCount,
+        int titleCount,
+        int lowerCount)
+    {
+        string q = string.IsNullOrEmpty(query) ? "(empty)" : query;
+        string r = replacement ?? string.Empty;
+        if (replacedCount <= 0)
+            return $"Case-preserving replace ('{q}' → '{r}'): 0 matches replaced";
+
+        string matchLabel = replacedCount == 1 ? "1 match replaced" : $"{replacedCount} matches replaced";
+        return $"Case-preserving replace ('{q}' → '{r}'): {matchLabel} ({upperCount} UPPER, {titleCount} Title, {lowerCount} lower)";
+    }
 }
+
 
 

@@ -622,6 +622,9 @@
                                         <MenuFlyoutItem x:Name="SelectionReverseZOrderItem" Text="Reverse layer stacking order (Flip Z-order)" Click="OnSelectionReverseZOrderClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionNormalizePrecisionItem" Text="Snap coordinates &amp; sizes to whole pixels (1px precision)" Click="OnSelectionNormalizePrecisionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EF;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

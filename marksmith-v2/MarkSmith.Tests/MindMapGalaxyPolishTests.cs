@@ -1401,6 +1401,43 @@ namespace MarkSmith.Tests
             Assert.Equal("Auto-colorize: 0 nodes (Empty map)", MindMapStudioViewModel.FormatHierarchyColorSummary(0, 0, 0));
             Assert.Equal("Auto-colorized 1 node across 1 level (Flat) (1 color applied)", MindMapStudioViewModel.FormatHierarchyColorSummary(1, 0, 1));
         }
+
+        [Fact]
+        public void Run143_AttachOrphansToRoot_And_FormatOrphanAttachmentSummary()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+
+            Assert.Equal("Orphan attachment: 0 nodes (Empty map)", MindMapStudioViewModel.FormatOrphanAttachmentSummary(0, "", 0));
+
+            var root = new MindMapNodeViewModel(new MindMapNode { Id = "root", Title = "Central Hub", X = 100, Y = 100 });
+            var connectedChild = new MindMapNodeViewModel(new MindMapNode { Id = "c1", Title = "Connected Child", X = 250, Y = 100 });
+            var orphan1 = new MindMapNodeViewModel(new MindMapNode { Id = "o1", Title = "Orphan Alpha", X = 800, Y = 800 });
+            var orphan2 = new MindMapNodeViewModel(new MindMapNode { Id = "o2", Title = "Orphan Beta", X = 900, Y = 900 });
+
+            vm.Nodes.Add(root);
+            vm.Nodes.Add(connectedChild);
+            vm.Nodes.Add(orphan1);
+            vm.Nodes.Add(orphan2);
+            vm.Links.Add(new MindMapLinkViewModel(new MindMapLink { SourceNodeId = "root", TargetNodeId = "c1" }));
+
+            var (attached, rootLabel, totalNodes) = vm.AttachOrphansToRoot(200.0);
+            Assert.Equal(2, attached);
+            Assert.Equal("Central Hub", rootLabel);
+            Assert.Equal(4, totalNodes);
+            Assert.Equal(3, vm.Links.Count);
+
+            var summary = MindMapStudioViewModel.FormatOrphanAttachmentSummary(attached, rootLabel, totalNodes);
+            Assert.Equal("Attached 2 orphaned nodes to root 'Central Hub' (4 total nodes · 0 orphans remaining)", summary);
+
+            // Second call finds 0 remaining orphans
+            var (attachedAgain, _, _) = vm.AttachOrphansToRoot(200.0);
+            Assert.Equal(0, attachedAgain);
+            var cleanSummary = MindMapStudioViewModel.FormatOrphanAttachmentSummary(0, rootLabel, totalNodes);
+            Assert.Equal("Orphan check: 0 orphaned nodes found (4 total nodes connected to 'Central Hub')", cleanSummary);
+        }
     }
 }
+
 

@@ -506,5 +506,30 @@ public class TextSearchTests
         Assert.Contains("[role]=\"user\"", sum2);
         Assert.Contains("[id]=\"101\"", sum2);
     }
+
+    [Fact]
+    public void Run143_ReplacePreservingCase_And_FormatCasePreservingReplaceSummary()
+    {
+        Assert.Equal("DOCFORGE", TextSearch.ApplyCasePattern("MARKSMITH", "docforge"));
+        Assert.Equal("docforge", TextSearch.ApplyCasePattern("marksmith", "DocForge"));
+        Assert.Equal("Docforge", TextSearch.ApplyCasePattern("Marksmith", "docforge"));
+        Assert.Equal("DocForge", TextSearch.ApplyCasePattern("Marksmith", "docForge"));
+
+        var input = "Welcome to MARKSMITH! Marksmith is fast, and marksmith is native.";
+        var (replaced, count, upper, title, lower) = TextSearch.ReplacePreservingCase(input, "marksmith", "docforge");
+
+        Assert.Equal("Welcome to DOCFORGE! Docforge is fast, and docforge is native.", replaced);
+        Assert.Equal(3, count);
+        Assert.Equal(1, upper);
+        Assert.Equal(1, title);
+        Assert.Equal(1, lower);
+
+        var summary = TextSearch.FormatCasePreservingReplaceSummary("marksmith", "docforge", count, upper, title, lower);
+        Assert.Equal("Case-preserving replace ('marksmith' → 'docforge'): 3 matches replaced (1 UPPER, 1 Title, 1 lower)", summary);
+
+        var zeroSummary = TextSearch.FormatCasePreservingReplaceSummary("missing", "target", 0, 0, 0, 0);
+        Assert.Equal("Case-preserving replace ('missing' → 'target'): 0 matches replaced", zeroSummary);
+    }
 }
+
 

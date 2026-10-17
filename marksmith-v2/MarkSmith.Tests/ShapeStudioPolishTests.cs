@@ -699,5 +699,44 @@ public class ShapeStudioPolishTests
         Assert.Equal("Shape B", vm.Shapes[1].Text);
         Assert.Equal("Shape C", vm.Shapes[2].Text);
     }
+
+    [Fact]
+    public async Task Run143_NormalizeShapePrecision_And_FormatPrecisionNormalizationSummary()
+    {
+        Assert.Equal("Precision snap (1px grid): 0 shapes (Empty canvas)", ShapeDesignStudioViewModel.FormatPrecisionNormalizationSummary(0, 0, 1.0, 0));
+
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+        vm.AddShapeAt("rect", 10.37, 20.62, 100.44, 50.12, "FF0000", "Subpixel A");
+        vm.AddShapeAt("ellipse", 40.0, 80.0, 120.0, 60.0, "00FF00", "Aligned B");
+        vm.Shapes[0].IsSelected = true;
+        vm.Shapes[1].IsSelected = true;
+
+        var (adjusted, total, maxDelta) = vm.NormalizeShapePrecision(1.0);
+        Assert.Equal(1, adjusted);
+        Assert.Equal(2, total);
+        Assert.True(maxDelta >= 0.43);
+
+        Assert.Equal(10.0, vm.Shapes[0].X);
+        Assert.Equal(21.0, vm.Shapes[0].Y);
+        Assert.Equal(100.0, vm.Shapes[0].Width);
+        Assert.Equal(50.0, vm.Shapes[0].Height);
+
+        var summary = ShapeDesignStudioViewModel.FormatPrecisionNormalizationSummary(adjusted, total, 1.0, maxDelta);
+        Assert.Contains("Normalized 1 of 2 shapes", summary);
+        Assert.Contains("Max sub-pixel drift: 0.44px", summary);
+
+        // Second pass finds 0 shapes needing adjustment
+        var (adjusted2, total2, _) = vm.NormalizeShapePrecision(1.0);
+        Assert.Equal(0, adjusted2);
+        Assert.Equal("Precision snap (1px grid): All 2 shapes already pixel-aligned (0px drift)",
+            ShapeDesignStudioViewModel.FormatPrecisionNormalizationSummary(adjusted2, total2, 1.0, 0));
+
+        // Undo restores sub-pixel coordinates
+        Assert.True(vm.CanUndo);
+        await vm.UndoAsync();
+        Assert.Equal(10.37, vm.Shapes[0].X, 2);
+    }
 }
+
 

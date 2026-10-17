@@ -240,6 +240,9 @@
                                     <MenuFlyoutItem x:Name="AutoColorizeHierarchyItem" Text="Auto-colorize nodes by hierarchy depth" Click="OnAutoColorizeHierarchyClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AttachOrphansItem" Text="Cluster &amp; attach orphaned nodes to root" Click="OnAttachOrphansClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B3;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>

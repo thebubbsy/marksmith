@@ -584,4 +584,68 @@ public sealed class RecentFilesService
         string docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
         return $"Naming patterns ({docLabel} · Dominant: {topPattern.Name} {topPct:0.#}%): {patternSummary} · Extensions: {extSummary}";
     }
+
+    /// <summary>
+    /// Partitions recent document paths into existing on-disk paths and missing/moved paths.
+    /// </summary>
+    public static (List<string> ExistingPaths, List<string> MissingPaths) AuditMissingRecentFiles(
+        IEnumerable<string>? filePaths,
+        Func<string, bool>? fileExistsPredicate = null)
+    {
+        var existing = new List<string>();
+        var missing = new List<string>();
+        if (filePaths == null) return (existing, missing);
+
+        var checkExists = fileExistsPredicate ?? File.Exists;
+        foreach (var p in filePaths)
+        {
+            if (string.IsNullOrWhiteSpace(p)) continue;
+            bool exists;
+            try
+            {
+                exists = checkExists(p);
+            }
+            catch
+            {
+                exists = false;
+            }
+
+            if (exists) existing.Add(p);
+            else missing.Add(p);
+        }
+
+        return (existing, missing);
+    }
+
+    /// <summary>
+    /// Formats a human-readable diagnostic audit of valid vs missing/moved recent document paths.
+    /// </summary>
+    public static string FormatMissingRecentFilesAudit(
+        IEnumerable<string>? filePaths,
+        Func<string, bool>? fileExistsPredicate = null)
+    {
+        var (existing, missing) = AuditMissingRecentFiles(filePaths, fileExistsPredicate);
+        int total = existing.Count + missing.Count;
+        if (total == 0) return "Recent path health: 0 documents (No recent files)";
+
+        string docLabel = total == 1 ? "1 document" : $"{total} documents";
+        if (missing.Count == 0)
+        {
+            return $"Recent path health ({docLabel}): 100% valid on disk ({existing.Count} verified · 0 missing paths)";
+        }
+
+        double validPct = (double)existing.Count / total * 100.0;
+        var sampleMissing = missing
+            .Take(3)
+            .Select(p =>
+            {
+                try { return $"'{Path.GetFileName(p)}'"; }
+                catch { return $"'{p}'"; }
+            });
+        string sampleStr = string.Join(", ", sampleMissing);
+        if (missing.Count > 3) sampleStr += $", +{missing.Count - 3} more";
+
+        return $"Recent path health ({docLabel}): {existing.Count} valid ({validPct:0.#}%), {missing.Count} missing/moved ({sampleStr})";
+    }
 }
+

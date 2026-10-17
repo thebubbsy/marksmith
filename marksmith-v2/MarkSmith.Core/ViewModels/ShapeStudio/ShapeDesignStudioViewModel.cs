@@ -3532,4 +3532,89 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         return $"Layer stack: {countLabel} (Bottom: '{bottomName}', Top: '{topName}' · {selSummary})";
     }
+
+    /// <summary>
+    /// Normalizes X, Y, Width, Height, and Rotation of selected shapes (or all canvas shapes if none selected)
+    /// to the nearest multiple of <paramref name="step"/> (default 1.0px), removing sub-pixel floating-point drift.
+    /// </summary>
+    public (int AdjustedShapes, int TotalInspected, double MaxDeltaPx) NormalizeShapePrecision(double step = 1.0)
+    {
+        if (Shapes.Count == 0)
+        {
+            StatusMessage = FormatPrecisionNormalizationSummary(0, 0, step, 0);
+            return (0, 0, 0);
+        }
+
+        double gridStep = step <= 0 ? 1.0 : step;
+        var targets = SelectedItems.ToList();
+        if (targets.Count == 0)
+        {
+            targets = Shapes.ToList();
+        }
+
+        double Snap(double val) => Math.Round(val / gridStep, MidpointRounding.AwayFromZero) * gridStep;
+
+        int adjusted = 0;
+        double maxDelta = 0.0;
+        bool undoRecorded = false;
+
+        foreach (var s in targets)
+        {
+            double nx = Snap(s.X);
+            double ny = Snap(s.Y);
+            double nw = Math.Max(gridStep, Snap(s.Width));
+            double nh = Math.Max(gridStep, Snap(s.Height));
+            double nr = Snap(s.Rotation);
+
+            double dx = Math.Abs(nx - s.X);
+            double dy = Math.Abs(ny - s.Y);
+            double dw = Math.Abs(nw - s.Width);
+            double dh = Math.Abs(nh - s.Height);
+            double dr = Math.Abs(nr - s.Rotation);
+
+            double localMax = Math.Max(Math.Max(dx, dy), Math.Max(Math.Max(dw, dh), dr));
+            if (localMax > 1e-6)
+            {
+                if (!undoRecorded)
+                {
+                    RecordUndo();
+                    undoRecorded = true;
+                }
+
+                s.X = nx;
+                s.Y = ny;
+                s.Width = nw;
+                s.Height = nh;
+                s.Rotation = WrapRotationAngle((int)Math.Round(nr));
+                adjusted++;
+                if (localMax > maxDelta) maxDelta = localMax;
+            }
+        }
+
+        string summary = FormatPrecisionNormalizationSummary(adjusted, targets.Count, gridStep, maxDelta);
+        StatusMessage = $"✓ {summary}";
+        if (adjusted > 0)
+        {
+            CanvasChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        return (adjusted, targets.Count, maxDelta);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of shape coordinate and dimension sub-pixel precision normalization.
+    /// </summary>
+    public static string FormatPrecisionNormalizationSummary(int adjustedShapes, int totalInspected, double step = 1.0, double maxDeltaPx = 0.0)
+    {
+        double gridStep = step <= 0 ? 1.0 : step;
+        if (totalInspected <= 0)
+            return $"Precision snap ({gridStep:0.##}px grid): 0 shapes (Empty canvas)";
+
+        string totalStr = totalInspected == 1 ? "1 shape" : $"{totalInspected} shapes";
+        if (adjustedShapes <= 0)
+            return $"Precision snap ({gridStep:0.##}px grid): All {totalStr} already pixel-aligned (0px drift)";
+
+        return $"Precision snap ({gridStep:0.##}px grid): Normalized {adjustedShapes} of {totalStr} (Max sub-pixel drift: {maxDeltaPx:0.##}px)";
+    }
 }
+

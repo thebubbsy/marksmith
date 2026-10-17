@@ -8958,6 +8958,64 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(copyCaptureGroupsItem);
 
+        var swapFindReplaceItem = new MenuFlyoutItem
+        {
+            Text = "Swap Find and Replace queries (⇄)",
+            Icon = new FontIcon { Glyph = "\uE8AB" },
+            IsEnabled = !string.IsNullOrEmpty(FindTextBox?.Text) || !string.IsNullOrEmpty(ReplaceTextBox?.Text)
+        };
+        swapFindReplaceItem.Click += (_, _) =>
+        {
+            if (FindTextBox is null || ReplaceTextBox is null) return;
+            var oldFind = FindTextBox.Text ?? string.Empty;
+            var oldReplace = ReplaceTextBox.Text ?? string.Empty;
+            if (ReplaceRow is not null && ReplaceRow.Visibility != Visibility.Visible)
+            {
+                ReplaceRow.Visibility = Visibility.Visible;
+            }
+            _suppressFindJump = true;
+            try
+            {
+                FindTextBox.Text = oldReplace;
+                ReplaceTextBox.Text = oldFind;
+            }
+            finally
+            {
+                _suppressFindJump = false;
+            }
+            RecomputeFindMatches();
+            AnnounceStatus($"Swapped Find ('{FindTextBox.Text}') and Replace ('{ReplaceTextBox.Text}').");
+        };
+        menu.Items.Add(swapFindReplaceItem);
+
+        var casePreserveReplaceItem = new MenuFlyoutItem
+        {
+            Text = "Replace all preserving match casing (Aa → Bb)",
+            Icon = new FontIcon { Glyph = "\uE8D2" },
+            IsEnabled = !string.IsNullOrEmpty(FindTextBox?.Text) && _findMatches.Count > 0
+        };
+        casePreserveReplaceItem.Click += (_, _) =>
+        {
+            if (PasteTextBox is null || FindTextBox is null) return;
+            EnsureUnfoldedForFind();
+            var text = PasteTextBox.Text ?? string.Empty;
+            var query = FindTextBox.Text ?? string.Empty;
+            var replacement = ReplaceTextBox?.Text ?? string.Empty;
+            var wholeWord = MatchWholeWordCheck?.IsChecked == true;
+            var useRegex = UseRegexCheck?.IsChecked == true;
+            var (replacedText, replacedCount, upperCount, titleCount, lowerCount) =
+                MarkSmith.Services.TextSearch.ReplacePreservingCase(text, query, replacement, wholeWord, useRegex);
+            if (replacedCount > 0)
+            {
+                PasteTextBox.Text = replacedText;
+                RecomputeFindMatches();
+            }
+            var summary = MarkSmith.Services.TextSearch.FormatCasePreservingReplaceSummary(query, replacement, replacedCount, upperCount, titleCount, lowerCount);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(casePreserveReplaceItem);
+
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
         e.Handled = true;
     }

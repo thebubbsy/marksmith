@@ -10809,7 +10809,7 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #143 Blueprint — Find Swap & Case-Preserve, Orphan Clustering, Precision Snap, Outline Dedupe, Head Diff & Stale Path Pruner (Status: Pending)
+### Run #143 Blueprint — Find Swap & Case-Preserve, Orphan Clustering, Precision Snap, Outline Dedupe, Head Diff & Stale Path Pruner (Status: Completed — Shipped)
 1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
    - **What is missing**: The Find & Replace bar (`FindBar`, lines 1397–1482) has no way to swap the Find and Replace inputs (`⇄`) when reversing a refactor, and replacing a word overrides its capitalization instead of preserving `TitleCase`, `UPPERCASE`, or `camelCase`.
    - **Deliverable**: Add `TextSearch.ReplacePreservingCase(input, pattern, replacement, matchCase, wholeWord, useRegex)` and `TextSearch.FormatCasePreservingPreview(...)`, plus a Swap Find/Replace (`SwapFindReplaceButton` / context menu item `swapFindReplaceItem` & `casePreserveReplaceItem` on `FindCountText` / `ReplaceBar`) in `MainWindow`.
@@ -10916,4 +10916,44 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
    - **What is missing**: `SuiteHubView` lacks a comprehensive Recent Library Health & Portability Readiness Scorecard combining path validity, extension mix, naming consistency, and folder depth into a single executive readiness report.
    - **Deliverable**: Add `RecentFilesService.FormatLibraryHealthScorecard(files, fileExistsPredicate)` and wire `CopyRecentHealthScorecardItem` (`\uE9D9`) in `RecentDocsFlyout`.
+
+---
+
+### Run #143 (2026-10-17 22:00) — 3-Block Cycle + Execution Phase: Find Swap & Case-Preserving Replace, Orphan Node Clustering, Sub-Pixel Precision Snap, Outline Sibling Deduplicator, HEAD Version Diff Summary & Missing Recent Paths Auditor
+
+**3-Block Cycle Trace:**
+- **Block 1 (0–15 min)**:
+  - Generated 2 new ideas:
+    1. `MainWindow`: Find & Replace Token Swap (`⇄`) & Case-Preserving Replace (`TextSearch.ApplyCasePattern`, `TextSearch.ReplacePreservingCase`, and `TextSearch.FormatCasePreservingReplaceSummary`, wired to `swapFindReplaceItem` `\uE8AB` and `casePreserveReplaceItem` `\uE8D2` in `FindCountText` context flyout).
+    2. `MindMapGalaxyWindow`: Orphaned Nodes Cluster Aggregator & Magnetic Root Attachment (`MindMapStudioViewModel.AttachOrphansToRoot` and `FormatOrphanAttachmentSummary`, wired to `AttachOrphansItem` `\uE8B3` in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * Preserved internal Pascal/camelCase capitalization when `replacement` contains mixed case and `sourceSample` is TitleCase.
+    * Ensured `AttachOrphansToRoot` resolves the primary root hub via connected zero-in-degree out-degree rank before falling back to `SelectedNode` or `Nodes[0]`.
+  - Generated 2 new ideas:
+    3. `ShapeDesignStudioWindow`: Shape Coordinate & Dimension Sub-Pixel Precision Normalizer (`ShapeDesignStudioViewModel.NormalizeShapePrecision` and `FormatPrecisionNormalizationSummary`, wired to `SelectionNormalizePrecisionItem` `\uE8EF` in `SelectionBoundsFlyout`).
+    4. `SmartArtDesignStudioWindow`: Outline Sibling Deduplicator & Redundant Subtree Cleaner (`SmartArtDesignStudioViewModel.DeduplicateOutlineNodes` and `FormatOutlineDeduplicationSummary`, wired to `DeduplicateOutlineItem` `\uE8C8` in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1) & Block 1 (Pass 2):
+    * Ensured `NormalizeShapePrecision` records undo only when sub-pixel drift (`> 1e-6`) is actually present and tracks maximum pixel adjustment delta (`maxDeltaPx`).
+    * Scoped `DeduplicateOutlineNodes` per indentation hierarchy level so identical child labels under different parent nodes are preserved while duplicate siblings under the same parent (and their redundant subtrees) are removed.
+  - Generated 2 new ideas:
+    5. `HistoryWindow`: Compare Selected Version Against Latest (`HEAD`) (`LineDiff.ComputeDiffAgainstLatestSummary` computing added/removed lines, hunk count, net change, and line similarity percentage against the newest timeline snapshot, wired to `copyDiffAgainstLatest` `\uE895` in `OnTimelineHeaderRightTapped`).
+    6. `SuiteHubView`: Missing & Moved Recent File Paths Auditor (`RecentFilesService.AuditMissingRecentFiles` and `FormatMissingRecentFilesAudit`, wired to `CopyRecentMissingAuditItem` `\uE7BA` in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1) and executed all 6 refined ideas into 100% production code across `MarkSmith.Core` and `MarkSmith.Desktop`.
+  - Added unit tests across all 6 test suites:
+    * `TextSearchTests.cs`: `Run143_ReplacePreservingCase_And_FormatCasePreservingReplaceSummary` (Passed).
+    * `MindMapGalaxyPolishTests.cs`: `Run143_AttachOrphansToRoot_And_FormatOrphanAttachmentSummary` (Passed).
+    * `ShapeStudioPolishTests.cs`: `Run143_NormalizeShapePrecision_And_FormatPrecisionNormalizationSummary` (Passed).
+    * `SmartArtStudioPolishTests.cs`: `Run143_DeduplicateOutlineNodes_And_FormatOutlineDeduplicationSummary` (Passed).
+    * `HistoryPolishTests.cs`: `Run143_ComputeDiffAgainstLatestSummary_ComputesDeltaAndSimilarity` (Passed).
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FormatMissingRecentFilesAudit_ComputesAccurately`, `Run143_Polish_Elements_Wired_Across_Surfaces` (Passed).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run143|RecentFilesService_FormatMissingRecentFilesAudit|CommandIconsTests"`: **55 passed, 0 failed (100% pass rate)**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --no-build --filter "TextSearchTests|MindMapGalaxyPolishTests|ShapeStudioPolishTests|SmartArtStudioPolishTests|HistoryPolishTests|SuiteHubAndTourPolishTests|CommandIconsTests"`: **575 passed, 0 failed (100% pass rate)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 30096, responsive startup (`Responding=True, WorkingSet=206.95MB`), clean exit.
+  - Next scheduled run: **Run #144** (`Status: Pending`).
+
 

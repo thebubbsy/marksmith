@@ -6159,6 +6159,16 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
+
+        private void OnSelectionNormalizePrecisionClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (adjusted, total, maxDelta) = ViewModel.NormalizeShapePrecision(1.0);
+            var summary = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.FormatPrecisionNormalizationSummary(adjusted, total, 1.0, maxDelta);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
     }
 }
 

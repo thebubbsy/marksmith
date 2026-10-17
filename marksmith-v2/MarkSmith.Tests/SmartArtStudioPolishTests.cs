@@ -630,5 +630,26 @@ public class SmartArtStudioPolishTests
         var summary = SmartArtDesignStudioViewModel.FormatHierarchyReverseSummary(blockCount, lineCount);
         Assert.Equal("Reversed 2 top-level blocks (6 lines · Child subtrees preserved)", summary);
     }
+
+    [Fact]
+    public void Run143_DeduplicateOutlineNodes_And_FormatOutlineDeduplicationSummary()
+    {
+        Assert.Equal("Outline deduplication: Empty outline (0 nodes)", SmartArtDesignStudioViewModel.FormatOutlineDeduplicationSummary(0, 0));
+
+        var outline = "- Phase 1\n  - Design\n  - design\n  - Review\n- Phase 2\n  - Design\n- phase 1\n  - Redundant child";
+        var (deduped, removedCount, survivingCount) = SmartArtDesignStudioViewModel.DeduplicateOutlineNodes(outline, ignoreCase: true);
+
+        // 'design' under Phase 1 (1), 'phase 1' at top-level + 'Redundant child' under it (2) = 3 removed
+        Assert.Equal(3, removedCount);
+        Assert.Equal(5, survivingCount);
+        Assert.Equal("- Phase 1\n  - Design\n  - Review\n- Phase 2\n  - Design", deduped);
+
+        var summary = SmartArtDesignStudioViewModel.FormatOutlineDeduplicationSummary(removedCount, survivingCount);
+        Assert.Equal("Deduplicated outline: Removed 3 duplicate sibling nodes (5 unique nodes retained)", summary);
+
+        var cleanSummary = SmartArtDesignStudioViewModel.FormatOutlineDeduplicationSummary(0, 5);
+        Assert.Equal("Outline deduplication: 0 duplicates found (5 unique nodes verified)", cleanSummary);
+    }
 }
+
 

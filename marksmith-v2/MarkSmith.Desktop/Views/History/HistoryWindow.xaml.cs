@@ -3084,6 +3084,26 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied edit distribution: {hunksSummary}");
                 };
                 menu.Items.Add(copyHunks);
+
+                var copyDiffAgainstLatest = new MenuFlyoutItem
+                {
+                    Text = "Copy diff summary against latest version (HEAD)",
+                    Icon = new FontIcon { Glyph = "\uE895" }
+                };
+                copyDiffAgainstLatest.Click += async (_, _) =>
+                {
+                    var selContent = await _vm.GetVersionContentAsync(sel) ?? string.Empty;
+                    var latestItem = _vm.VisibleVersions.FirstOrDefault() ?? sel;
+                    var latestContent = await _vm.GetVersionContentAsync(latestItem) ?? string.Empty;
+                    var headSummary = MarkSmith.Services.LineDiff.ComputeDiffAgainstLatestSummary(
+                        selContent,
+                        latestContent,
+                        sel.TimestampLabel,
+                        latestItem.TimestampLabel);
+                    await Services.ClipboardWriter.TrySetTextAsync(headSummary);
+                    _vm.ShowNotice($"Copied HEAD comparison: {headSummary}");
+                };
+                menu.Items.Add(copyDiffAgainstLatest);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

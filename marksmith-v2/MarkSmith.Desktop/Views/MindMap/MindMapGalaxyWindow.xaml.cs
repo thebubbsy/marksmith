@@ -3859,6 +3859,16 @@ namespace MarkSmith.Views.MindMap
             RequestRedraw();
         }
 
+        private void OnAttachOrphansClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (attachedCount, rootLabel, totalNodes) = ViewModel.AttachOrphansToRoot();
+            var summary = MindMapStudioViewModel.FormatOrphanAttachmentSummary(attachedCount, rootLabel, totalNodes);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = summary;
+            RequestRedraw();
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
         private void OnCenterOnRootDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -4617,6 +4627,14 @@ namespace MarkSmith.Views.MindMap
             };
             autoColorItem.Click += OnAutoColorizeHierarchyClick;
             menu.Items.Add(autoColorItem);
+
+            var attachOrphansItem = new MenuFlyoutItem
+            {
+                Text = "Cluster & attach orphaned nodes to root",
+                Icon = new FontIcon { Glyph = "\uE8B3" }
+            };
+            attachOrphansItem.Click += OnAttachOrphansClick;
+            menu.Items.Add(attachOrphansItem);
 
             var fitItem = new MenuFlyoutItem
             {
