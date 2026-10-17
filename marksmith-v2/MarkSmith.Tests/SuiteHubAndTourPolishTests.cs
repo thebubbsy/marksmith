@@ -588,5 +588,69 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnRecentDocsCountPillTapped", suiteCs);
         Assert.Contains("FormatRecentFilesCount", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_ExtractFileNames_ExtractsFileNamesWithoutDirectory()
+    {
+        var samplePaths = new[]
+        {
+            @"C:\Users\Docs\Report.md",
+            @"D:\Projects\MarkSmith\Notes.txt",
+            @"/unix/path/readme.markdown"
+        };
+
+        var names = RecentFilesService.ExtractFileNames(samplePaths);
+        Assert.Equal(3, names.Count);
+        Assert.Equal("Report.md", names[0]);
+        Assert.Equal("Notes.txt", names[1]);
+        Assert.Equal("readme.markdown", names[2]);
+
+        Assert.Empty(RecentFilesService.ExtractFileNames(null));
+        Assert.Empty(RecentFilesService.ExtractFileNames(Array.Empty<string>()));
+    }
+
+    [Fact]
+    public void Run132_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: Search history navigation & Recent searches menu
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("_findHistory", mainCs);
+        Assert.Contains("RecordFindHistory", mainCs);
+        Assert.Contains("Recent searches", mainCs);
+
+        // 2. MindMapGalaxy: Connection style summary formatting & copy item
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("Copy connection style summary", galaxyCs);
+        Assert.Contains("FormatConnectionStyleSummary", galaxyCs);
+
+        // 3. ShapeStudio: SelectionBoundsFlyout distribution items & click handlers
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OnSelectionDistributeHorizontallyClick", shapeXaml);
+        Assert.Contains("OnSelectionDistributeVerticallyClick", shapeXaml);
+        Assert.Contains("OnSelectionDistributeHorizontallyClick", shapeCs);
+        Assert.Contains("OnSelectionDistributeVerticallyClick", shapeCs);
+
+        // 4. SmartArtStudio: Trim trailing whitespace menu item & click handler
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("Trim trailing whitespace", smartArtXaml);
+        Assert.Contains("OnTrimTrailingWhitespaceClick", smartArtCs);
+        Assert.Contains("TrimTrailingWhitespace", smartArtCs);
+
+        // 5. HistoryWindow: Copy unchanged context lines item & click handler
+        var historyXaml = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml"));
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("OnCopyUnchangedLinesContextClick", historyXaml);
+        Assert.Contains("Copy unchanged context lines (=)", historyXaml);
+        Assert.Contains("OnCopyUnchangedLinesContextClick", historyCs);
+
+        // 6. SuiteHub: Copy recent file names only menu item & click handler
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("Copy recent file names only", suiteXaml);
+        Assert.Contains("OnCopyRecentFileNamesOnlyClick", suiteXaml);
+        Assert.Contains("OnCopyRecentFileNamesOnlyClick", suiteCs);
+    }
 }
 

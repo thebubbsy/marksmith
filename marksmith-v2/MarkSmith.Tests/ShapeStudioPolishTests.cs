@@ -405,4 +405,25 @@ public class ShapeStudioPolishTests
         Assert.Equal(350, w); // 400 - 50
         Assert.Equal(200, h); // 300 - 100
     }
+
+    [Fact]
+    public void ComputeEqualSpacing_ComputesAccurateDistributedPositions()
+    {
+        // 3 items of width 100 spanning from 0 to 500 (total span 500, sum sizes 300, free space 200, gap 100)
+        var sizes = new[] { 100.0, 100.0, 100.0 };
+        var positions = ShapeDesignStudioViewModel.ComputeEqualSpacing(startPos: 0, totalSpan: 500, itemSizes: sizes);
+
+        Assert.Equal(3, positions.Count);
+        Assert.Equal(0.0, positions[0]);
+        Assert.Equal(200.0, positions[1]); // 0 + 100 + 100
+        Assert.Equal(400.0, positions[2]); // 200 + 100 + 100 (ends at 500)
+
+        // Single item
+        var single = ShapeDesignStudioViewModel.ComputeEqualSpacing(startPos: 50, totalSpan: 100, itemSizes: new[] { 50.0 });
+        Assert.Equal(new[] { 50.0 }, single);
+
+        // Empty items
+        var empty = ShapeDesignStudioViewModel.ComputeEqualSpacing(startPos: 0, totalSpan: 100, itemSizes: Array.Empty<double>());
+        Assert.Empty(empty);
+    }
 }

@@ -232,6 +232,10 @@
                                         <MenuFlyoutItem Text="Sort outline items (Z to A)" Click="OnSortOutlineDescendingClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CC;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Trim trailing whitespace" Click="OnTrimTrailingWhitespaceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE75C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

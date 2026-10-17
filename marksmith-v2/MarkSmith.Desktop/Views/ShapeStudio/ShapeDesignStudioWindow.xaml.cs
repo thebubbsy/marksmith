@@ -5826,5 +5826,21 @@ namespace MarkSmith.Views.ShapeStudio
                 ViewModel.StatusMessage = "Sent selection to bottom of layer stack (Ctrl+Shift+[).";
             }
         }
+
+        private void OnSelectionDistributeHorizontallyClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.DistributeHorizontal();
+            UpdateMultiSelectionAdorner();
+            UpdateSelectionBoundsPill();
+            ViewModel.StatusMessage = "Distributed selected shapes horizontally with equal spacing.";
+        }
+
+        private void OnSelectionDistributeVerticallyClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.DistributeVertical();
+            UpdateMultiSelectionAdorner();
+            UpdateSelectionBoundsPill();
+            ViewModel.StatusMessage = "Distributed selected shapes vertically with equal spacing.";
+        }
     }
 }

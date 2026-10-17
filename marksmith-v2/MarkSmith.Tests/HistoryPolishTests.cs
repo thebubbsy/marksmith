@@ -626,6 +626,17 @@ public class HistoryPolishTests : IDisposable
 
         Assert.Empty(LineDiff.ExtractModifiedLines(null!, LineDiff.Kind.Added));
     }
+
+    [Theory]
+    [InlineData(5, 3, 24, "25.0% churn (+5 / -3 / =24 lines)")]
+    [InlineData(10, 0, 10, "50.0% churn (+10 / -0 / =10 lines)")]
+    [InlineData(0, 0, 100, "0.0% churn (+0 / -0 / =100 lines)")]
+    [InlineData(0, 0, 0, "0% modified (0 lines)")]
+    public void Run132_FormatDiffRatio_FormatsAccuratePercentagesAndSummaries(int added, int removed, int unchanged, string expected)
+    {
+        var summary = LineDiff.FormatDiffRatio(added, removed, unchanged);
+        Assert.Equal(expected, summary);
+    }
 }
 
 

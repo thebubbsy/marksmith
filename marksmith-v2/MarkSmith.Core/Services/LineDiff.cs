@@ -167,6 +167,18 @@ public static class LineDiff
         return rows.Where(r => r.Kind == kind && !r.IsGap).Select(r => r.Text).ToList();
     }
 
+    /// <summary>
+    /// Formats a human-readable churn ratio and summary (e.g. "25.0% churn (+5 / -3 / =24 lines)").
+    /// </summary>
+    public static string FormatDiffRatio(int added, int removed, int unchanged)
+    {
+        int modified = added + removed;
+        int total = modified + unchanged;
+        if (total <= 0) return "0% modified (0 lines)";
+        double pct = (double)modified / total * 100.0;
+        return $"{pct:F1}% churn (+{added} / -{removed} / ={unchanged} lines)";
+    }
+
     /// <summary>Builds unified inline diff rows (GitHub/VS Code inline style) with old/new line numbers.</summary>
     public static List<UnifiedRow> BuildUnified(IReadOnlyList<Line> lines)
     {

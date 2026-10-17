@@ -1148,4 +1148,22 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         var result = string.Join("\n", list);
         return hasCr ? result.Replace("\n", "\r\n") : result;
     }
+
+    /// <summary>
+    /// Trims trailing whitespace from every line of an outline markdown string,
+    /// preserving indentation levels and original line break format (CRLF vs LF).
+    /// </summary>
+    public static string TrimTrailingWhitespace(string markdown)
+    {
+        if (string.IsNullOrEmpty(markdown)) return markdown ?? "";
+        bool hasCr = markdown.Contains("\r");
+        var normalized = markdown.Replace("\r", "");
+        var lines = normalized.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            lines[i] = lines[i].TrimEnd();
+        }
+        var result = string.Join("\n", lines);
+        return hasCr ? result.Replace("\n", "\r\n") : result;
+    }
 }

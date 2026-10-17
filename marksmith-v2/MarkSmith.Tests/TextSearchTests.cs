@@ -246,4 +246,24 @@ public class TextSearchTests
         Assert.Equal("ID and ID", result);
         Assert.Equal(2, count);
     }
+
+    [Fact]
+    public void AddToSearchHistory_maintains_mru_order_and_bounds_capacity()
+    {
+        var history = new List<string> { "second", "third" };
+        var updated = TextSearch.AddToSearchHistory(history, "first", maxCapacity: 3);
+        Assert.Equal(new[] { "first", "second", "third" }, updated);
+
+        // Deduplication moves existing item to the front without duplicates
+        var deduped = TextSearch.AddToSearchHistory(updated, "second", maxCapacity: 3);
+        Assert.Equal(new[] { "second", "first", "third" }, deduped);
+
+        // Exceeding capacity drops oldest item
+        var capped = TextSearch.AddToSearchHistory(deduped, "fourth", maxCapacity: 3);
+        Assert.Equal(new[] { "fourth", "second", "first" }, capped);
+
+        // Empty query keeps history unchanged
+        var empty = TextSearch.AddToSearchHistory(capped, "", maxCapacity: 3);
+        Assert.Equal(capped, empty);
+    }
 }

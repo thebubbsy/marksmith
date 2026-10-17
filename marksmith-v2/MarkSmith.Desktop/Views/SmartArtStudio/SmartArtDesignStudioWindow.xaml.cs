@@ -4435,6 +4435,23 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = "Sorted outline items reverse alphabetically (Z to A).";
         }
 
+        private void OnTrimTrailingWhitespaceClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            if (string.IsNullOrEmpty(markdown)) return;
+            var trimmed = SmartArtDesignStudioViewModel.TrimTrailingWhitespace(markdown);
+            if (trimmed != markdown)
+            {
+                ViewModel.MarkdownText = trimmed;
+                UpdateOutlineStats();
+                ViewModel.StatusMessage = "Trimmed trailing whitespace from outline lines.";
+            }
+            else
+            {
+                ViewModel.StatusMessage = "No trailing whitespace found in outline.";
+            }
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

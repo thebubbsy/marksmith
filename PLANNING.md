@@ -9924,5 +9924,81 @@ Reviewed: the 2026-10-17 run #130 entry above. Followed the AI-Executable 3-Bloc
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **passed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 10160, responsive startup, clean exit.
 
+### 2026-10-17 (scheduled routine run #132 — 3-Block Cycle + Execution Phase)
 
+Reviewed: the 2026-10-17 run #131 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
 
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #131:
+    * Target A: `MainWindow` find bar search history dropdown / MRU query recall flyout.
+    * Target B: `MindMapGalaxyWindow` edge label display & inline edge title editing (refined into connection style summary readout and clipboard copy).
+  - Generated:
+    1. `MainWindow`: Editor Find Bar MRU Search History Navigation (`AddToSearchHistory` in `TextSearch.cs`, bounded capacity, `_findHistory` list, `_findHistoryIndex`, `_findDraft`, Up/Down arrow navigation, Enter/Next/Prev auto-recording, and Recent searches context menu submenu).
+    2. `MindMapGalaxyWindow`: Connection Style Summary Readout & Clipboard Export (`FormatConnectionStyleSummary` in `MindMapStudioViewModel.cs`, formatting human-readable style descriptions e.g. "Dashed (2.8px) with arrows", wired "Copy connection style summary" with `\uE8C8` copy glyph in `OnConnectionLegendRightTapped`).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.cs` with `AddToSearchHistory(IEnumerable<string>? currentHistory, string? query, int maxCapacity = 10)` ensuring null/whitespace trimming, case-sensitive deduplication, MRU reordering to head of list, and capacity capping. In `MainWindow.xaml.cs`, bound arrow key up/down to traverse backwards/forwards in search history while saving uncommitted input in `_findDraft`, restoring it at index -1. Built dynamic `Recent searches` submenu in `OnFindTextBoxRightTapped` with glyphs and click handlers.
+    * For Idea 2: Implemented `FormatConnectionStyleSummary` handling null/empty fallback to "Solid (1.8px)", appending arrow annotations, and connected right-tap on `ConnectionLegend` with Segoe Fluent icon `\uE8C8` and `CopyFeedback.ApplyButtonTick`.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Equal Spacing Selection Distribution (`ComputeEqualSpacing` in `ShapeDesignStudioViewModel.cs`, "Distribute horizontally (equal spacing)" `\uE8D3` and "Distribute vertically (equal spacing)" `\uE8D4` items in `SelectionBoundsFlyout`, distributing shapes evenly across bounding span).
+    4. `SmartArtDesignStudioWindow`: Trailing Whitespace Cleanup (`TrimTrailingWhitespace` in `SmartArtDesignStudioViewModel.cs`, "Trim trailing whitespace" `\uE75C` item in `OutlineStatsFlyout`, cleaning line endings while preserving tree indentation and CRLF/LF).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionDistributeHorizontallyItem` and `SelectionDistributeVerticallyItem` with icons `\uE8D3` and `\uE8D4` in `SelectionBoundsFlyout` in `ShapeDesignStudioWindow.xaml`. Implemented `OnSelectionDistributeHorizontallyClick` and `OnSelectionDistributeVerticallyClick` in `ShapeDesignStudioWindow.xaml.cs`, calculating total span, ordering shapes by coordinate, computing equal spacing, adjusting positions, and recording undo snapshots.
+    * For Idea 4: Mounted `OutlineTrimTrailingWsItem` with icon `\uE75C` in `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`. Implemented `TrimTrailingWhitespace` in `SmartArtDesignStudioViewModel.cs`, trimming trailing spaces while preserving indentation hierarchy and original newline format. Wired `OnTrimTrailingWhitespaceClick` in `SmartArtDesignStudioWindow.xaml.cs` with editor text update and toast notification.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `AddToSearchHistory` preserves MRU sequence without duplicate pollution and bounds history count.
+    * Verified `FormatConnectionStyleSummary` outputs clean formatting across all style/weight/arrow permutations.
+  - Generated:
+    5. `HistoryWindow`: Diff Churn Ratio & Statistics Formatter (`LineDiff.FormatDiffRatio(int added, int removed, int unchanged)` reporting churn percentages e.g. "+10 -5 =85 (15% churn)", and "Copy unchanged context lines (=)" item `\uE8BD` in `CopyToolbarButton.ContextFlyout`).
+    6. `SuiteHubView`: Recent Documents File Names Extractor & Clean Copy (`RecentFilesService.ExtractFileNames(IEnumerable<string>? files)`, and "Copy recent file names only" item `\uE8A5` in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Added `CopyUnchangedLinesContextItem` to `CopyToolbarButton.ContextFlyout` in `HistoryWindow.xaml` with icon `\uE8BD`, implemented `LineDiff.FormatDiffRatio` in `LineDiff.cs`, and wired `OnCopyUnchangedLinesContextClick` in `HistoryWindow.xaml.cs` extracting unchanged context lines to clipboard with visual feedback.
+    * For Idea 6: Added `CopyRecentFileNamesOnlyItem` to `RecentDocsFlyout` in `SuiteHubView.xaml` with icon `\uE8A5`, implemented `RecentFilesService.ExtractFileNames` in `RecentFilesService.cs` extracting pure file names without folder paths, and wired `OnCopyRecentFileNamesOnlyClick` in `SuiteHubView.xaml.cs`.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `AddToSearchHistory_maintains_mru_order_and_bounds_capacity` (Passed).
+    * `MindMapGalaxyPolishTests.cs`: `Run132_FormatConnectionStyleSummary_FormatsExpectedSummary` (Passed).
+    * `ShapeStudioPolishTests.cs`: `ComputeEqualSpacing_ComputesAccurateDistributedPositions` (Passed).
+    * `SmartArtStudioPolishTests.cs`: `Run132_TrimTrailingWhitespace_TrimsTrailingSpacesPreservingIndentationAndLineEndings` (Passed).
+    * `HistoryPolishTests.cs`: `Run132_FormatDiffRatio_FormatsAccuratePercentagesAndSummaries` (Passed).
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_ExtractFileNames_ExtractsFileNamesWithoutDirectory`, `Run132_Polish_Elements_Wired_Across_Surfaces` (Passed).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,874 passed, 0 failed, 1 skipped (100% pass rate)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 31800, responsive startup (`Responding: True`), clean exit.
+  - Carried forward ideas / next targets into Run #133:
+    * Target A: `MainWindow` find bar match navigation keyboard accelerators in tooltip.
+    * Target B: `MindMapGalaxyWindow` node link description tooltip expander.
+    * Target C: `ShapeDesignStudioWindow` quick canvas padding adjusters.
+
+**Shipped:**
+1. **`MainWindow` Editor Find Bar MRU Search History Navigation (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - Bounded MRU search history tracking (`AddToSearchHistory` with maxCapacity 10, case-preserving deduplication).
+   - Up/Down arrow key history traversal in `FindTextBox` with draft preservation on return to uncommitted input.
+   - Dynamic `Recent searches` context flyout submenu with glyphs (`\uE81C` / `\uE721`) and one-click query selection.
+2. **`MindMapGalaxyWindow` Connection Style Summary Readout & Export (`MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `FormatConnectionStyleSummary` formatting composite dash, weight, and arrow configuration into human-readable summary.
+   - Right-click context action on `ConnectionLegend` to copy connection style summary to clipboard with tick feedback.
+3. **`ShapeDesignStudioWindow` Equal Spacing Selection Distribution (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ComputeEqualSpacing` mathematical layout algorithm calculating equal inter-element gaps across coordinate spans.
+   - `SelectionDistributeHorizontallyItem` (`\uE8D3`) and `SelectionDistributeVerticallyItem` (`\uE8D4`) in `SelectionBoundsFlyout`.
+   - Dynamic canvas shape alignment with undo support.
+4. **`SmartArtDesignStudioWindow` Trailing Whitespace Cleanup (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `TrimTrailingWhitespace` algorithm cleaning trailing space noise while preserving document indentation tree structure and CRLF/LF line endings.
+   - `OutlineTrimTrailingWsItem` (`\uE75C`) in `OutlineStatsFlyout` with instant editor update and confirmation toast.
+5. **`HistoryWindow` Context Lines Copy & Diff Churn Ratio (`HistoryWindow.xaml`, `HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.FormatDiffRatio` reporting accurate churn percentages and change volumes.
+   - `CopyUnchangedLinesContextItem` (`\uE8BD`) in `CopyToolbarButton.ContextFlyout` copying only unchanged context lines (`=`).
+6. **`SuiteHubView` File Names Extractor & Clean Copy (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.ExtractFileNames` stripping directories to extract pure file name lists.
+   - `CopyRecentFileNamesOnlyItem` (`\uE8A5`) in `RecentDocsFlyout` copying clean file name lists to clipboard.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj -c Debug`: **4,874 passed, 0 failed, 1 skipped (100% pass rate)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 31800, responsive startup (`Responding: True`), clean exit.

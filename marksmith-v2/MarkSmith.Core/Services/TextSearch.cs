@@ -166,4 +166,31 @@ public static class TextSearch
         sb.Append(text, idx, text.Length - idx);
         return (sb.ToString(), matches.Count, newCaret);
     }
+
+    /// <summary>
+    /// Maintains an MRU search history list with bounded capacity and deduplication.
+    /// </summary>
+    public static List<string> AddToSearchHistory(IEnumerable<string>? currentHistory, string? query, int maxCapacity = 10)
+    {
+        var list = new List<string>();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            if (currentHistory != null) list.AddRange(currentHistory);
+            return list;
+        }
+
+        var trimmed = query.Trim();
+        list.Add(trimmed);
+        if (currentHistory != null)
+        {
+            foreach (var item in currentHistory)
+            {
+                if (!string.Equals(item, trimmed, StringComparison.Ordinal) && list.Count < maxCapacity)
+                {
+                    list.Add(item);
+                }
+            }
+        }
+        return list;
+    }
 }

@@ -3573,6 +3573,29 @@ namespace MarkSmith.Views.MindMap
 
             flyout.Items.Add(new MenuFlyoutSeparator());
 
+            var summaryItem = MenuItem("Copy connection style summary", "\uE8C8");
+            summaryItem.Click += (s, args) =>
+            {
+                var routingStr = _connectionRoutingStyle switch
+                {
+                    ConnectionRoutingStyle.Straight => "Straight",
+                    ConnectionRoutingStyle.Orthogonal => "Stepped",
+                    _ => "Curved"
+                };
+                var weightStr = _connectionStrokeWeight switch
+                {
+                    MindMapStudioViewModel.ConnectionStrokeWeight.Thin => "Thin (1.2px)",
+                    MindMapStudioViewModel.ConnectionStrokeWeight.Thick => "Thick (2.8px)",
+                    _ => "Normal (1.8px)"
+                };
+                var summary = MindMapStudioViewModel.FormatConnectionStyleSummary(routingStr, weightStr, _showConnectionArrows);
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText(summary);
+                ClipboardWriter.Set(dp);
+                ViewModel.StatusMessage = $"Copied connection style: {summary}";
+            };
+            flyout.Items.Add(summaryItem);
+
             var toggleLegendItem = MenuItem(ConnectionLegend.Visibility == Visibility.Visible ? "Hide legend" : "Show legend", "\uE890");
             toggleLegendItem.Click += (s, args) =>
             {

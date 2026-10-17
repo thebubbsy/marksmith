@@ -581,6 +581,13 @@
                                         <MenuFlyoutItem Text="Send to back (Ctrl+Shift+[)" Click="OnSelectionSendToBackClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE896;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Distribute horizontally (equal spacing)" Click="OnSelectionDistributeHorizontallyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D3;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Distribute vertically (equal spacing)" Click="OnSelectionDistributeVerticallyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D4;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

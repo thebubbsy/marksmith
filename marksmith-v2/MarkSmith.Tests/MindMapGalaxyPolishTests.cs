@@ -1137,5 +1137,16 @@ namespace MarkSmith.Tests
             Assert.True(highTension.c1X > lowTension.c1X, $"high c1X {highTension.c1X} should be > low c1X {lowTension.c1X}");
             Assert.True(highTension.c2X < lowTension.c2X, $"high c2X {highTension.c2X} should be < low c2X {lowTension.c2X}");
         }
+
+        [Theory]
+        [InlineData("Curved", "Normal", true, "Curved · Normal · Arrows On")]
+        [InlineData("Straight", "Thin", false, "Straight · Thin · Arrows Off")]
+        [InlineData("Stepped", "Thick", true, "Stepped · Thick · Arrows On")]
+        [InlineData("", null, false, "Curved · Normal · Arrows Off")]
+        public void Run132_FormatConnectionStyleSummary_FormatsExpectedSummary(string style, string? weight, bool arrows, string expected)
+        {
+            var summary = MindMapStudioViewModel.FormatConnectionStyleSummary(style, weight, arrows);
+            Assert.Equal(expected, summary);
+        }
     }
 }

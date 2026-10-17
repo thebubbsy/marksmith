@@ -127,6 +127,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // highlighted. Recomputed on every keystroke of the query so the "n/m" count stays live.
     private readonly List<int> _findMatches = new();
     private readonly List<int> _findMatchLengths = new();
+    private readonly List<string> _findHistory = new();
+    private int _findHistoryIndex = -1;
+    private string _findDraft = "";
     private string? _regexErrorMessage;
     private int _findMatchIndex = -1;
 
@@ -8454,12 +8457,57 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         PasteTextBox.Focus(FocusState.Programmatic);
     }
 
+    private void RecordFindHistory(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return;
+        var updated = MarkSmith.Services.TextSearch.AddToSearchHistory(_findHistory, query, 12);
+        _findHistory.Clear();
+        _findHistory.AddRange(updated);
+        _findHistoryIndex = -1;
+        _findDraft = "";
+    }
+
     private void OnFindTextBoxKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
+            RecordFindHistory(FindTextBox.Text);
             if (ShiftDown()) FindPrev(); else FindNext();
             e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Up && !AltDown() && !CtrlDown() && !ShiftDown())
+        {
+            if (_findHistory.Count > 0)
+            {
+                if (_findHistoryIndex == -1)
+                {
+                    _findDraft = FindTextBox.Text;
+                }
+                if (_findHistoryIndex + 1 < _findHistory.Count)
+                {
+                    _findHistoryIndex++;
+                    FindTextBox.Text = _findHistory[_findHistoryIndex];
+                    FindTextBox.SelectionStart = FindTextBox.Text.Length;
+                }
+                e.Handled = true;
+            }
+        }
+        else if (e.Key == Windows.System.VirtualKey.Down && !AltDown() && !CtrlDown() && !ShiftDown())
+        {
+            if (_findHistory.Count > 0 && _findHistoryIndex >= 0)
+            {
+                _findHistoryIndex--;
+                if (_findHistoryIndex >= 0)
+                {
+                    FindTextBox.Text = _findHistory[_findHistoryIndex];
+                }
+                else
+                {
+                    FindTextBox.Text = _findDraft;
+                }
+                FindTextBox.SelectionStart = FindTextBox.Text.Length;
+                e.Handled = true;
+            }
         }
         else if (e.Key == Windows.System.VirtualKey.C && AltDown() && !CtrlDown())
         {
@@ -8558,6 +8606,34 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
         };
         menu.Items.Add(useRegexItem);
+
+        if (_findHistory.Count > 0)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var historySub = new MenuFlyoutSubItem
+            {
+                Text = "Recent searches",
+                Icon = new FontIcon { Glyph = "\uE81C" }
+            };
+            foreach (var term in _findHistory)
+            {
+                var captured = term;
+                var termItem = new MenuFlyoutItem
+                {
+                    Text = captured,
+                    Icon = new FontIcon { Glyph = "\uE721" }
+                };
+                termItem.Click += (_, _) =>
+                {
+                    FindTextBox.Text = captured;
+                    FindTextBox.Focus(FocusState.Keyboard);
+                    FindTextBox.SelectAll();
+                    RecomputeFindMatches();
+                };
+                historySub.Items.Add(termItem);
+            }
+            menu.Items.Add(historySub);
+        }
 
         menu.Items.Add(new MenuFlyoutSeparator());
 
@@ -8845,6 +8921,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // end of the document says so on the status line, like Notepad, instead of silently jumping.
     private void StepFind(bool forward)
     {
+        RecordFindHistory(FindTextBox?.Text);
         EnsureUnfoldedForFind();
         if (_findMatches.Count == 0) { UpdateFindCount(); return; }
         // If the user has moved the caret since the last match, carry on from the caret (past any

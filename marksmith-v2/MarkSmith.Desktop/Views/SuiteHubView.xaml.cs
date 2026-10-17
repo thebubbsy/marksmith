@@ -1175,6 +1175,31 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyRecentFileNamesOnlyClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var existingFiles = files.Where(File.Exists);
+            var list = RecentFilesService.FilterRecentFiles(existingFiles, _recentDocsFilter).ToList();
+            var names = RecentFilesService.ExtractFileNames(list);
+            if (names.Count > 0)
+            {
+                var text = string.Join(Environment.NewLine, names);
+                await Services.ClipboardWriter.TrySetTextAsync(text);
+                SetNotification($"Copied {names.Count} recent file name(s) to clipboard.", success: true);
+            }
+            else
+            {
+                SetNotification("No recent file names to copy.", success: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't copy file names: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

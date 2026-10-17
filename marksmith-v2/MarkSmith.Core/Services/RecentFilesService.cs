@@ -81,4 +81,13 @@ public sealed class RecentFilesService
         }
         return $"{totalCount} {(totalCount == 1 ? "doc" : "docs")}";
     }
+
+    /// <summary>
+    /// Extracts file names only (without directory path) from a sequence of full file paths.
+    /// </summary>
+    public static List<string> ExtractFileNames(IEnumerable<string>? files)
+    {
+        if (files is null) return new List<string>();
+        return files.Select(f => Path.GetFileName(f)).Where(name => !string.IsNullOrEmpty(name)).ToList();
+    }
 }

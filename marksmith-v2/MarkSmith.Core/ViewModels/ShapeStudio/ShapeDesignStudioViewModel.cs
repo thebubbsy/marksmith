@@ -3213,4 +3213,26 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         if (shapes is null) return (0, 0, 0, 0, 0, 0);
         return ComputeSelectionBounds(shapes.Select(s => (s.X, s.Y, s.Width, s.Height)));
     }
+
+    /// <summary>
+    /// Computes equal spacing positions for a sequence of 1D items given their lengths and total span.
+    /// </summary>
+    public static List<double> ComputeEqualSpacing(double startPos, double totalSpan, IReadOnlyList<double> itemSizes)
+    {
+        if (itemSizes == null || itemSizes.Count == 0) return new List<double>();
+        if (itemSizes.Count == 1) return new List<double> { startPos };
+
+        double sumSizes = itemSizes.Sum();
+        double availableSpace = totalSpan - sumSizes;
+        double gap = itemSizes.Count > 1 ? availableSpace / (itemSizes.Count - 1) : 0;
+
+        var positions = new List<double>(itemSizes.Count);
+        double cur = startPos;
+        for (int i = 0; i < itemSizes.Count; i++)
+        {
+            positions.Add(cur);
+            cur += itemSizes[i] + gap;
+        }
+        return positions;
+    }
 }

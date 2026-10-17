@@ -2114,5 +2114,16 @@ namespace MarkSmith.ViewModels.MindMap
                 "dotted" => new double[] { 1.5, 2.0 },
                 _ => Array.Empty<double>()
             };
+
+        /// <summary>
+        /// Formats a human-readable summary of connection edge styling and arrowheads.
+        /// </summary>
+        public static string FormatConnectionStyleSummary(string? styleName, string? weightName, bool showArrows)
+        {
+            var style = string.IsNullOrWhiteSpace(styleName) ? "Curved" : styleName.Trim();
+            var weight = string.IsNullOrWhiteSpace(weightName) ? "Normal" : weightName.Trim();
+            var arrows = showArrows ? "Arrows On" : "Arrows Off";
+            return $"{style} · {weight} · {arrows}";
+        }
     }
 }

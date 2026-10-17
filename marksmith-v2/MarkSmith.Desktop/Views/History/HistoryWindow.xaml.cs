@@ -1005,6 +1005,22 @@ public sealed partial class HistoryWindow : Window
         if (CopyToolbarButton != null) CopyFeedback.ApplyButtonTick(CopyToolbarButton, null, $"\u2713 {removed.Count} removed");
     }
 
+    private void OnCopyUnchangedLinesContextClick(object sender, RoutedEventArgs e)
+    {
+        var unchanged = MarkSmith.Services.LineDiff.ExtractModifiedLines(_vm.UnifiedDiffRows, MarkSmith.Services.LineDiff.Kind.Same);
+        if (unchanged.Count == 0)
+        {
+            _vm.ShowNotice("No unchanged context lines in this diff.");
+            return;
+        }
+        var text = string.Join(Environment.NewLine, unchanged);
+        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        dp.SetText(text);
+        ClipboardWriter.Set(dp);
+        _vm.ShowNotice($"Copied {unchanged.Count} unchanged context line(s) to clipboard.");
+        if (CopyToolbarButton != null) CopyFeedback.ApplyButtonTick(CopyToolbarButton, null, $"\u2713 {unchanged.Count} context");
+    }
+
     private bool _diffWrapEnabled = false;
 
     private void OnDiffWrapButtonClick(object sender, RoutedEventArgs e)

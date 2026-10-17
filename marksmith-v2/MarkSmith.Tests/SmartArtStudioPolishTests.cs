@@ -390,4 +390,20 @@ public class SmartArtStudioPolishTests
         var mixedAsc = SmartArtDesignStudioViewModel.SortOutlineAlphabetically(mixed, ascending: true);
         Assert.Equal("- Apple\n  Banana\n* Zebra", mixedAsc);
     }
+
+    [Fact]
+    public void Run132_TrimTrailingWhitespace_TrimsTrailingSpacesPreservingIndentationAndLineEndings()
+    {
+        var inputLf = "  - Leading indent   \n- Normal line\t  \n    - Deep indent  ";
+        var expectedLf = "  - Leading indent\n- Normal line\n    - Deep indent";
+        var trimmedLf = SmartArtDesignStudioViewModel.TrimTrailingWhitespace(inputLf);
+        Assert.Equal(expectedLf, trimmedLf);
+
+        var inputCrlf = "  - Leading indent   \r\n- Normal line\t  \r\n    - Deep indent  ";
+        var expectedCrlf = "  - Leading indent\r\n- Normal line\r\n    - Deep indent";
+        var trimmedCrlf = SmartArtDesignStudioViewModel.TrimTrailingWhitespace(inputCrlf);
+        Assert.Equal(expectedCrlf, trimmedCrlf);
+
+        Assert.Equal("", SmartArtDesignStudioViewModel.TrimTrailingWhitespace(""));
+    }
 }
