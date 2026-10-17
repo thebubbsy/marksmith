@@ -923,6 +923,63 @@ public class HistoryPolishTests : IDisposable
         var deltaSummary = LineDiff.FormatLowEntropySnapshotAudit(deltas);
         Assert.Contains("Micro-save audit (4 snapshots · 66.7% redundant): 2 micro-saves identified", deltaSummary);
     }
+
+    [Fact]
+    public void Run147_AuditFencedBlockChanges_And_FormatFencedBlockDiffSummary()
+    {
+        Assert.Equal("Fenced block diff audit: 0 code or diagram blocks detected in either version",
+            LineDiff.FormatFencedBlockDiffSummary("", ""));
+
+        var before = """
+            # Architecture Guide
+
+            ```csharp
+            var app = new MarkSmithApp();
+            app.Run();
+            ```
+
+            :::smartart
+            - Core
+              - Pipeline
+            :::
+
+            ```mermaid
+            graph TD; A-->B;
+            ```
+            """;
+
+        var after = """
+            # Architecture Guide
+
+            ```csharp
+            var app = new MarkSmithApp();
+            app.ConfigureServices();
+            app.Run();
+            ```
+
+            :::chart
+            Type: Bar
+            Data: [10, 20, 30]
+            :::
+
+            ```mermaid
+            graph TD; A-->B;
+            ```
+            """;
+
+        var (added, removed, modified, unchanged, details) = LineDiff.AuditFencedBlockChanges(before, after);
+
+        Assert.Equal(1, added);     // :::chart added
+        Assert.Equal(1, removed);   // :::smartart removed
+        Assert.Equal(1, modified);  // csharp modified (1 extra line)
+        Assert.Equal(1, unchanged); // mermaid unchanged
+
+        var summary = LineDiff.FormatFencedBlockDiffSummary(before, after);
+        Assert.Contains("Fenced block diff audit (+1/-1/~1 across 4 blocks):", summary);
+        Assert.Contains("~ Modified 'csharp'", summary);
+        Assert.Contains("- Removed ':::smartart'", summary);
+        Assert.Contains("+ Added ':::chart'", summary);
+    }
 }
 
 

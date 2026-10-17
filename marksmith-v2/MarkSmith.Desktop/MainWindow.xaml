@@ -2235,6 +2235,18 @@
                         </StackPanel>
                     </HyperlinkButton>
                     <Border x:Name="StatusSplitSyncDivider" Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" Visibility="Collapsed" />
+                    <HyperlinkButton x:Name="StatusSectionBreadcrumbButton"
+                                     Click="OnStatusSectionBreadcrumbButtonClick"
+                                     RightTapped="OnStatusSectionBreadcrumbButtonRightTapped"
+                                     Padding="4,1" FontSize="11.5" Opacity="0.85" Visibility="Collapsed"
+                                     ToolTipService.ToolTip="Active section · Click to jump to section heading, right-click for section budget and distribution summary"
+                                     AutomationProperties.Name="Active section breadcrumb">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE8FD;" FontSize="11" />
+                            <TextBlock x:Name="StatusSectionBreadcrumbText" Text="§ Intro" MaxWidth="160" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </HyperlinkButton>
+                    <Border x:Name="StatusSectionBreadcrumbDivider" Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" Visibility="Collapsed" />
                     <TextBlock x:Name="WordCountText" Text="{Binding WordCountText}" VerticalAlignment="Center" FontSize="11.5" Opacity="0.7"
                                Tapped="OnWordCountTextTapped" RightTapped="OnWordCountTextRightTapped" DoubleTapped="OnWordCountTextDoubleTapped"
                                ToolTipService.ToolTip="{Binding DocumentStatsDetail}" />

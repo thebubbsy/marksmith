@@ -2251,6 +2251,114 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"SmartArt layout recommendation: #1 {top.Family} ({top.MatchScorePercent}% match · {top.Rationale}) → Suggested: {suggestedList}{alternatives}";
     }
+
+    /// <summary>
+    /// Structures a flat bullet list into a 2-level hierarchy by splitting bullet items on delimiters
+    /// (': ', ' — ', or ' - ') and grouping items sharing identical category prefixes under parent nodes.
+    /// </summary>
+    public static (string StructuredMarkdown, int ParentsCreated, int ItemsStructured, string Summary)
+        StructureFlatOutlineByDelimiter(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            return (markdown ?? "", 0, 0, FormatDelimiterStructuringSummary(0, 0, 0));
+        }
+
+        bool hasCr = markdown.Contains("\r");
+        var normalized = markdown.Replace("\r", "");
+        var lines = normalized.Split('\n');
+
+        var delimiters = new[] { ": ", " — ", " - " };
+        var outputLines = new List<string>();
+        string? currentParentPrefix = null;
+        int parentsCreated = 0;
+        int itemsStructured = 0;
+        int totalNodes = 0;
+
+        foreach (var rawLine in lines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine))
+            {
+                outputLines.Add(rawLine);
+                continue;
+            }
+
+            int leadWs = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t')) leadWs++;
+
+            var trimmed = rawLine.Substring(leadWs);
+            bool isBullet = trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ");
+
+            if (!isBullet || leadWs > 0)
+            {
+                // Already indented or not a bullet
+                outputLines.Add(rawLine);
+                currentParentPrefix = null;
+                continue;
+            }
+
+            totalNodes++;
+            string bulletMarker = trimmed.Substring(0, 2); // e.g. "- "
+            string content = trimmed.Substring(2).Trim();
+
+            // Check for delimiter
+            string? matchedDelim = null;
+            int delimIndex = -1;
+            foreach (var d in delimiters)
+            {
+                int idx = content.IndexOf(d, StringComparison.Ordinal);
+                if (idx > 0 && (delimIndex < 0 || idx < delimIndex))
+                {
+                    delimIndex = idx;
+                    matchedDelim = d;
+                }
+            }
+
+            if (matchedDelim != null && delimIndex > 0)
+            {
+                string prefix = content.Substring(0, delimIndex).Trim();
+                string suffix = content.Substring(delimIndex + matchedDelim.Length).Trim();
+
+                if (!string.IsNullOrEmpty(prefix) && !string.IsNullOrEmpty(suffix))
+                {
+                    itemsStructured++;
+                    if (!string.Equals(currentParentPrefix, prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        currentParentPrefix = prefix;
+                        parentsCreated++;
+                        outputLines.Add($"{bulletMarker}{prefix}");
+                    }
+                    outputLines.Add($"  {bulletMarker}{suffix}");
+                    continue;
+                }
+            }
+
+            // No delimiter found
+            outputLines.Add(rawLine);
+            currentParentPrefix = null;
+        }
+
+        var result = string.Join("\n", outputLines);
+        var finalMarkdown = hasCr ? result.Replace("\n", "\r\n") : result;
+        var summary = FormatDelimiterStructuringSummary(parentsCreated, itemsStructured, totalNodes);
+        return (finalMarkdown, parentsCreated, itemsStructured, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of flat-to-hierarchy outline structuring by delimiter.
+    /// </summary>
+    public static string FormatDelimiterStructuringSummary(int parentsCreated, int itemsStructured, int totalNodes)
+    {
+        if (totalNodes <= 0)
+            return "Structure by delimiter: 0 nodes (Empty outline)";
+
+        if (itemsStructured <= 0)
+            return $"Structure by delimiter: 0 delimited items found across {totalNodes} nodes (No ': ', ' — ', or ' - ' delimiters)";
+
+        string parentLabel = parentsCreated == 1 ? "1 parent group" : $"{parentsCreated} parent groups";
+        string itemLabel = itemsStructured == 1 ? "1 item" : $"{itemsStructured} items";
+        return $"Structure by delimiter ({parentLabel} created): Converted {itemLabel} across {totalNodes} nodes into hierarchical subtrees";
+    }
 }
 
 

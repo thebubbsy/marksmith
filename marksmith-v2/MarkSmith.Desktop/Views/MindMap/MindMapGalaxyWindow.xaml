@@ -255,6 +255,12 @@
                                     <MenuFlyoutItem x:Name="CopyTagCoOccurrenceItem" Text="Copy tag co-occurrence matrix" Click="OnCopyTagCoOccurrenceClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CenterOnMassItem" Text="Re-center viewport on galaxy center-of-mass" Click="OnCenterOnMassClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyQuadrantBalanceItem" Text="Copy spatial quadrant balance summary" Click="OnCopyQuadrantBalanceClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

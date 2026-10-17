@@ -3145,6 +3145,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied micro-save audit: {microSummary}");
                 };
                 menu.Items.Add(copyMicroSaveAudit);
+
+                var copyFencedBlockDiff = new MenuFlyoutItem
+                {
+                    Text = "Copy fenced code & diagram blocks diff audit",
+                    Icon = new FontIcon { Glyph = "\uE943" }
+                };
+                copyFencedBlockDiff.Click += (_, _) =>
+                {
+                    var fencedDiff = MarkSmith.Services.LineDiff.FormatFencedBlockDiffSummary(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(fencedDiff);
+                    _vm.ShowNotice($"Copied fenced blocks diff: {fencedDiff}");
+                };
+                menu.Items.Add(copyFencedBlockDiff);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

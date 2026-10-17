@@ -3906,6 +3906,21 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = summary;
         }
 
+        private void OnCenterOnMassClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (cx, cy) = ViewModel.CenterGalaxyOnCenterOfMass();
+            RequestRedraw();
+        }
+
+        private void OnCopyQuadrantBalanceClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var summary = ViewModel.FormatSpatialQuadrantBalanceSummary();
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = summary;
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4705,6 +4720,22 @@ namespace MarkSmith.Views.MindMap
             };
             copyTagCoOccurrenceItem.Click += OnCopyTagCoOccurrenceClick;
             menu.Items.Add(copyTagCoOccurrenceItem);
+
+            var centerOnMassItem = new MenuFlyoutItem
+            {
+                Text = "Re-center viewport on galaxy center-of-mass",
+                Icon = new FontIcon { Glyph = "\uE809" }
+            };
+            centerOnMassItem.Click += OnCenterOnMassClick;
+            menu.Items.Add(centerOnMassItem);
+
+            var copyQuadrantBalanceItem = new MenuFlyoutItem
+            {
+                Text = "Copy spatial quadrant balance summary",
+                Icon = new FontIcon { Glyph = "\uE809" }
+            };
+            copyQuadrantBalanceItem.Click += OnCopyQuadrantBalanceClick;
+            menu.Items.Add(copyQuadrantBalanceItem);
 
             var fitItem = new MenuFlyoutItem
 

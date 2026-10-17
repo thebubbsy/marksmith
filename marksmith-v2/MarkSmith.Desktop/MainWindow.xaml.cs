@@ -7630,6 +7630,91 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         CursorPosText.Text = DocumentStatsService.FormatCursorAndSelection(line, col, text.AsSpan(start, sel));
         UpdateStatusEncoding(text);
         UpdateStatusIndentation(text);
+        UpdateStatusSectionBreadcrumb(text, line);
+    }
+
+    private int _currentHeadingLine = 0;
+    private string _currentHeadingTitle = string.Empty;
+
+    private void UpdateStatusSectionBreadcrumb(string text, int currentDocLine)
+    {
+        if (StatusSectionBreadcrumbButton is null || StatusSectionBreadcrumbText is null || StatusSectionBreadcrumbDivider is null) return;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            StatusSectionBreadcrumbButton.Visibility = Visibility.Collapsed;
+            StatusSectionBreadcrumbDivider.Visibility = Visibility.Collapsed;
+            _currentHeadingLine = 0;
+            _currentHeadingTitle = string.Empty;
+            return;
+        }
+
+        var budgets = MarkSmith.Services.TextSearch.ExtractMarkdownSectionBudgets(text);
+        if (budgets.Count == 0)
+        {
+            StatusSectionBreadcrumbButton.Visibility = Visibility.Collapsed;
+            StatusSectionBreadcrumbDivider.Visibility = Visibility.Collapsed;
+            _currentHeadingLine = 0;
+            _currentHeadingTitle = string.Empty;
+            return;
+        }
+
+        var activeSection = budgets.LastOrDefault(b => b.LineNumber <= currentDocLine) ?? budgets[0];
+        _currentHeadingLine = activeSection.LineNumber;
+        _currentHeadingTitle = activeSection.Title;
+
+        string display = activeSection.Level > 0 ? $"§ {activeSection.Title}" : "§ Intro";
+        StatusSectionBreadcrumbText.Text = display;
+        ToolTipService.SetToolTip(StatusSectionBreadcrumbButton, $"Section '{activeSection.Title}' · {activeSection.WordCount} words ({activeSection.WordPercentage:0.#}%) · ~{activeSection.ReadingTimeMinutes:0.#}m read · Click to jump to line {activeSection.LineNumber}, right-click for options");
+        StatusSectionBreadcrumbButton.Visibility = Visibility.Visible;
+        StatusSectionBreadcrumbDivider.Visibility = Visibility.Visible;
+    }
+
+    private void OnStatusSectionBreadcrumbButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (_currentHeadingLine > 0)
+        {
+            GoToDocumentPosition(_currentHeadingLine, 1);
+            AnnounceStatus($"Jumped to section '{_currentHeadingTitle}' (Line {_currentHeadingLine})");
+        }
+    }
+
+    private void OnStatusSectionBreadcrumbButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (StatusSectionBreadcrumbButton is null) return;
+        e.Handled = true;
+
+        var menu = new MenuFlyout();
+
+        if (_currentHeadingLine > 0)
+        {
+            var jumpItem = new MenuFlyoutItem
+            {
+                Text = $"Jump to section '{_currentHeadingTitle}' (Line {_currentHeadingLine})",
+                Icon = new FontIcon { Glyph = "\uE892" }
+            };
+            jumpItem.Click += (_, _) =>
+            {
+                GoToDocumentPosition(_currentHeadingLine, 1);
+                AnnounceStatus($"Jumped to section '{_currentHeadingTitle}' (Line {_currentHeadingLine})");
+            };
+            menu.Items.Add(jumpItem);
+        }
+
+        var copySummaryItem = new MenuFlyoutItem
+        {
+            Text = "Copy all section budgets & reading distribution",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        copySummaryItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatMarkdownSectionBudgetsSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus("Copied Markdown section budgets to clipboard.");
+        };
+        menu.Items.Add(copySummaryItem);
+
+        menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
     private string _currentEncodingSummary = "UTF-8 · CRLF";
@@ -8807,6 +8892,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(portalFocusProfileItem);
+
+        var sectionBudgetItem = new MenuFlyoutItem
+        {
+            Text = "Copy Markdown section budgets & reading distribution",
+            Icon = new FontIcon { Glyph = "\uE8FD" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        sectionBudgetItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatMarkdownSectionBudgetsSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(sectionBudgetItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

@@ -637,6 +637,9 @@
                                         <MenuFlyoutItem x:Name="SelectionSelectSimilarFillItem" Text="Select same fill colour" Click="OnSelectionSelectSimilarFillClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionResolveOverlapsItem" Text="Resolve shape overlaps (Nudge overlapping shapes apart)" Click="OnSelectionResolveOverlapsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B3;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

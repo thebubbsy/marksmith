@@ -864,6 +864,46 @@ public class ShapeStudioPolishTests
         Assert.False(vm.Shapes[3].IsSelected);
         Assert.Contains("Select similar (kind 'rect' & fill #0078D4): 2 shapes matched across 5 canvas shapes", bothSummary);
     }
+
+    [Fact]
+    public void Run147_ResolveShapeOverlaps_NudgesApartAndEnforcesMinGap()
+    {
+        Assert.Equal("Resolve overlaps: 0-1 shapes (No overlap resolution needed)",
+            ShapeDesignStudioViewModel.FormatOverlapResolutionSummary(0, 1));
+
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // Add 3 heavily overlapping shapes at (10, 10), (20, 15), (25, 20)
+        vm.AddShapeAt("rect", 10, 10, 100, 60, "0078D4", "Box 1");
+        vm.AddShapeAt("rect", 20, 15, 100, 60, "0078D4", "Box 2");
+        vm.AddShapeAt("rect", 25, 20, 100, 60, "0078D4", "Box 3");
+
+        var (nudged, overlaps, summary) = vm.ResolveShapeOverlaps(minGap: 16.0);
+        Assert.True(nudged >= 2);
+        Assert.True(overlaps >= 2);
+        Assert.Contains("Resolve overlaps:", summary);
+        Assert.Contains("shapes nudged apart (Enforced 16px minimum clearance across 3 shapes)", summary);
+
+        // Verify none of the shapes overlap now with 16px clearance
+        for (int i = 0; i < vm.Shapes.Count; i++)
+        {
+            var s1 = vm.Shapes[i];
+            for (int j = i + 1; j < vm.Shapes.Count; j++)
+            {
+                var s2 = vm.Shapes[j];
+                bool overlapsX = (s1.X < s2.X + s2.Width + 16) && (s1.X + s1.Width + 16 > s2.X);
+                bool overlapsY = (s1.Y < s2.Y + s2.Height + 16) && (s1.Y + s1.Height + 16 > s2.Y);
+                Assert.False(overlapsX && overlapsY, $"Shapes {i} and {j} still overlap!");
+            }
+        }
+
+        // Running it again on the already cleared layout detects 0 overlaps
+        var (nudgedAgain, overlapsAgain, summaryAgain) = vm.ResolveShapeOverlaps(minGap: 16.0);
+        Assert.Equal(0, nudgedAgain);
+        Assert.Equal(0, overlapsAgain);
+        Assert.Contains("0 overlaps detected", summaryAgain);
+    }
 }
 
 

@@ -278,6 +278,9 @@
                                         <MenuFlyoutItem x:Name="RecommendLayoutsOutlineItem" Text="Recommend best-fitting SmartArt layouts for outline" Click="OnRecommendLayoutsOutlineClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE946;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="StructureByDelimiterOutlineItem" Text="Structure flat outline by delimiter (Category: Item → Subtree)" Click="OnStructureByDelimiterOutlineClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E4;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

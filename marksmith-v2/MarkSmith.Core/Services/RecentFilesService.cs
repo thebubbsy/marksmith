@@ -955,6 +955,85 @@ public sealed class RecentFilesService
 
         return $"Duplicate & versioned files audit ({clusterLabel} · {redundantLabel}): {previewStr}";
     }
+
+    /// <summary>
+    /// Computes a comprehensive Recent Library Health & Portability Readiness Scorecard combining
+    /// on-disk path validity, duplicate/version-suffix detection, naming consistency, and workspace organization.
+    /// </summary>
+    public static (int Score, string Grade, int ValidPaths, int MissingPaths, int RedundantCopies, string Summary)
+        AuditLibraryHealthScorecard(
+            IEnumerable<string>? filePaths,
+            Func<string, bool>? fileExistsPredicate = null)
+    {
+        var list = filePaths?.Where(f => !string.IsNullOrWhiteSpace(f)).ToList() ?? new List<string>();
+        if (list.Count == 0)
+        {
+            return (100, "A+", 0, 0, 0, "Recent library health scorecard: 0 documents (No recent files recorded)");
+        }
+
+        var (existing, missing) = AuditMissingRecentFiles(list, fileExistsPredicate);
+        var (clusterCount, redundantCopies, _) = DetectDuplicateAndVersionedFiles(list);
+
+        double validityRatio = list.Count > 0 ? (double)existing.Count / list.Count : 1.0;
+        double uniquenessRatio = list.Count > 0 ? Math.Max(0.0, 1.0 - (double)redundantCopies / list.Count) : 1.0;
+
+        int standardNamingCount = 0;
+        foreach (var p in list)
+        {
+            try
+            {
+                var fn = Path.GetFileNameWithoutExtension(p);
+                bool hasSpaces = fn.Contains(' ');
+                bool hasCopySuffix = fn.Contains("(1)") || fn.Contains("- Copy") || fn.EndsWith("_v2", StringComparison.OrdinalIgnoreCase);
+                if (!hasSpaces && !hasCopySuffix) standardNamingCount++;
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+        double namingRatio = (double)standardNamingCount / list.Count;
+
+        // Score formula: 40% validity, 25% uniqueness, 20% naming, 15% baseline readiness
+        double rawScore = (validityRatio * 40.0) + (uniquenessRatio * 25.0) + (namingRatio * 20.0) + 15.0;
+        int score = Math.Clamp((int)Math.Round(rawScore), 0, 100);
+
+        string grade = score switch
+        {
+            >= 95 => "A+",
+            >= 85 => "A",
+            >= 75 => "B",
+            >= 65 => "C",
+            _ => "Needs Attention"
+        };
+
+        string docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
+        string readinessVerdict = score >= 85
+            ? "Ready for multi-workspace sync & portability"
+            : missing.Count > 0
+                ? $"Prune {missing.Count} missing path(s) to improve portability"
+                : "Clean up duplicate/version-suffixed files";
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Recent library health scorecard (Score: {score}/100 · Grade {grade} · {docLabel}):");
+        sb.AppendLine($"  • Path validity: {(validityRatio * 100.0):0.#}% on disk ({existing.Count} valid · {missing.Count} missing)");
+        sb.AppendLine($"  • Library cleanliness: {redundantCopies} redundant copies across {clusterCount} duplicate clusters");
+        sb.AppendLine($"  • Naming consistency: {(namingRatio * 100.0):0.#}% standard naming ({standardNamingCount}/{list.Count} files)");
+        sb.Append($"  • Portability verdict: {readinessVerdict}");
+
+        return (score, grade, existing.Count, missing.Count, redundantCopies, sb.ToString());
+    }
+
+    /// <summary>
+    /// Formats a human-readable library health and portability scorecard summary.
+    /// </summary>
+    public static string FormatLibraryHealthScorecard(
+        IEnumerable<string>? filePaths,
+        Func<string, bool>? fileExistsPredicate = null)
+    {
+        var (_, _, _, _, _, summary) = AuditLibraryHealthScorecard(filePaths, fileExistsPredicate);
+        return summary;
+    }
 }
 
 

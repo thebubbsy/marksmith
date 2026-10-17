@@ -2984,6 +2984,88 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Tag co-occurrence audit ({nodeLabel} · {pairs.Count} unique pairs): Top co-occurrences: {topSummary}";
         }
+
+        /// <summary>
+        /// Centers the galaxy viewport camera on the collective center-of-mass of all nodes in the galaxy.
+        /// Returns the computed center coordinates (CenterX, CenterY).
+        /// </summary>
+        public (double CenterX, double CenterY) CenterGalaxyOnCenterOfMass()
+        {
+            if (Nodes.Count == 0) return (0, 0);
+
+            double cx = Nodes.Average(n => n.X + n.Width / 2.0);
+            double cy = Nodes.Average(n => n.Y + n.Height / 2.0);
+
+            ViewportOffsetX = -cx;
+            ViewportOffsetY = -cy;
+            CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+
+            string nodeLabel = Nodes.Count == 1 ? "1 node" : $"{Nodes.Count} nodes";
+            StatusMessage = $"✓ Centered galaxy viewport on center of mass ({cx:0.#}, {cy:0.#}) across {nodeLabel}.";
+            return (cx, cy);
+        }
+
+        /// <summary>
+        /// Audits spatial distribution of nodes across the four quadrants (NW, NE, SW, SE) relative to the
+        /// collective center-of-mass, and measures drift from the root hub node.
+        /// </summary>
+        public (int NW, int NE, int SW, int SE, double CenterX, double CenterY, double DriftX, double DriftY)
+            AuditSpatialQuadrantBalance()
+        {
+            if (Nodes.Count == 0) return (0, 0, 0, 0, 0, 0, 0, 0);
+
+            double cx = Nodes.Average(n => n.X + n.Width / 2.0);
+            double cy = Nodes.Average(n => n.Y + n.Height / 2.0);
+
+            int nw = 0, ne = 0, sw = 0, se = 0;
+            foreach (var node in Nodes)
+            {
+                double nx = node.X + node.Width / 2.0;
+                double ny = node.Y + node.Height / 2.0;
+
+                if (nx < cx && ny < cy) nw++;
+                else if (nx >= cx && ny < cy) ne++;
+                else if (nx < cx && ny >= cy) sw++;
+                else se++;
+            }
+
+            var root = Nodes.FirstOrDefault(n => n.Id == Document.RootNodeId) ?? Nodes.FirstOrDefault();
+            double driftX = root != null ? Math.Round((root.X + root.Width / 2.0) - cx, 1) : 0.0;
+            double driftY = root != null ? Math.Round((root.Y + root.Height / 2.0) - cy, 1) : 0.0;
+
+            return (nw, ne, sw, se, cx, cy, driftX, driftY);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of the galaxy's spatial quadrant balance and center-of-mass metrics.
+        /// </summary>
+        public string FormatSpatialQuadrantBalanceSummary()
+        {
+            var (nw, ne, sw, se, cx, cy, dx, dy) = AuditSpatialQuadrantBalance();
+            return FormatSpatialQuadrantBalanceSummary(nw, ne, sw, se, cx, cy, dx, dy, Nodes.Count);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of quadrant distribution counts and drift.
+        /// </summary>
+        public static string FormatSpatialQuadrantBalanceSummary(
+            int nw, int ne, int sw, int se, double cx, double cy, double driftX = 0, double driftY = 0, int totalNodes = 0)
+        {
+            if (totalNodes <= 0)
+                return "Spatial quadrant balance: 0 nodes (Empty map)";
+
+            double nwPct = (double)nw / totalNodes * 100.0;
+            double nePct = (double)ne / totalNodes * 100.0;
+            double swPct = (double)sw / totalNodes * 100.0;
+            double sePct = (double)se / totalNodes * 100.0;
+
+            string nodeLabel = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string driftStr = (driftX != 0 || driftY != 0)
+                ? $" · Root drift: (ΔX: {driftX:+0.#;-0.#;0}, ΔY: {driftY:+0.#;-0.#;0})"
+                : "";
+
+            return $"Spatial quadrant balance ({nodeLabel} · Center of Mass ({cx:0.#}, {cy:0.#})): NW: {nw} ({nwPct:0.#}%), NE: {ne} ({nePct:0.#}%), SW: {sw} ({swPct:0.#}%), SE: {se} ({sePct:0.#}%){driftStr}";
+        }
     }
 }
 

@@ -1085,6 +1085,206 @@ public static class LineDiff
         string saveLabel = lowEntropyCount == 1 ? "1 micro-save" : $"{lowEntropyCount} micro-saves";
         return $"Micro-save audit ({totalSnapshots} snapshots · {redundancyPct:0.#}% redundant): {saveLabel} identified ({samples})";
     }
+
+    /// <summary>
+    /// Represents an extracted fenced code block, diagram, or extension container in a document.
+    /// </summary>
+    public record FencedBlockRecord(
+        string BlockType,
+        int StartLine,
+        int LineCount,
+        string Content);
+
+    /// <summary>
+    /// Extracts all fenced code, diagram, and container blocks from a document text.
+    /// </summary>
+    public static List<FencedBlockRecord> ExtractFencedBlocks(string? text)
+    {
+        var blocks = new List<FencedBlockRecord>();
+        if (string.IsNullOrWhiteSpace(text)) return blocks;
+
+        var lines = text.Split('\n');
+        bool inFence = false;
+        string fenceType = string.Empty;
+        string fenceMarker = string.Empty;
+        int startLine = 1;
+        var blockLines = new List<string>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+
+            if (!inFence)
+            {
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inFence = true;
+                    fenceMarker = trimmed.Substring(0, 3);
+                    var info = trimmed.Substring(3).Trim();
+                    fenceType = string.IsNullOrEmpty(info) ? "code" : info;
+                    startLine = i + 1;
+                    blockLines.Clear();
+                    continue;
+                }
+                if (trimmed.StartsWith(":::") && trimmed.Length > 3)
+                {
+                    inFence = true;
+                    fenceMarker = ":::";
+                    fenceType = trimmed.Trim();
+                    startLine = i + 1;
+                    blockLines.Clear();
+                    continue;
+                }
+            }
+            else
+            {
+                bool isClosing = (fenceMarker != ":::" && trimmed.StartsWith(fenceMarker)) ||
+                                 (fenceMarker == ":::" && (trimmed == ":::" || trimmed.StartsWith(":::")));
+                if (isClosing)
+                {
+                    inFence = false;
+                    blocks.Add(new FencedBlockRecord(fenceType, startLine, blockLines.Count, string.Join("\n", blockLines)));
+                    blockLines.Clear();
+                    continue;
+                }
+                blockLines.Add(line);
+            }
+        }
+
+        if (inFence && blockLines.Count > 0)
+        {
+            blocks.Add(new FencedBlockRecord(fenceType, startLine, blockLines.Count, string.Join("\n", blockLines)));
+        }
+
+        return blocks;
+    }
+
+    /// <summary>
+    /// Audits fenced code and diagram block changes between <paramref name="oldText"/> and <paramref name="newText"/>.
+    /// Returns counts of added, removed, modified, and unchanged blocks, along with detailed change descriptions.
+    /// </summary>
+    public static (int Added, int Removed, int Modified, int Unchanged, List<string> Details)
+        AuditFencedBlockChanges(string? oldText, string? newText)
+    {
+        var oldBlocks = ExtractFencedBlocks(oldText);
+        var newBlocks = ExtractFencedBlocks(newText);
+        var details = new List<string>();
+
+        int added = 0;
+        int removed = 0;
+        int modified = 0;
+        int unchanged = 0;
+
+        var matchedOld = new HashSet<int>();
+        var matchedNew = new HashSet<int>();
+
+        // Pass 1: exact matches (same type and exact content)
+        for (int i = 0; i < oldBlocks.Count; i++)
+        {
+            for (int j = 0; j < newBlocks.Count; j++)
+            {
+                if (matchedNew.Contains(j)) continue;
+                if (string.Equals(oldBlocks[i].BlockType, newBlocks[j].BlockType, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(oldBlocks[i].Content, newBlocks[j].Content, StringComparison.Ordinal))
+                {
+                    matchedOld.Add(i);
+                    matchedNew.Add(j);
+                    unchanged++;
+                    break;
+                }
+            }
+        }
+
+        // Pass 2: modified matches (same type, but content changed)
+        for (int i = 0; i < oldBlocks.Count; i++)
+        {
+            if (matchedOld.Contains(i)) continue;
+            for (int j = 0; j < newBlocks.Count; j++)
+            {
+                if (matchedNew.Contains(j)) continue;
+                if (string.Equals(oldBlocks[i].BlockType, newBlocks[j].BlockType, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchedOld.Add(i);
+                    matchedNew.Add(j);
+                    modified++;
+                    int lineDelta = newBlocks[j].LineCount - oldBlocks[i].LineCount;
+                    string deltaStr = lineDelta >= 0 ? $"+{lineDelta}" : lineDelta.ToString();
+                    details.Add($"~ Modified '{newBlocks[j].BlockType}' (Line {newBlocks[j].StartLine} · {deltaStr} lines)");
+                    break;
+                }
+            }
+        }
+
+        // Pass 3: remaining old blocks are removed
+        for (int i = 0; i < oldBlocks.Count; i++)
+        {
+            if (!matchedOld.Contains(i))
+            {
+                removed++;
+                details.Add($"- Removed '{oldBlocks[i].BlockType}' ({oldBlocks[i].LineCount} lines · Line {oldBlocks[i].StartLine})");
+            }
+        }
+
+        // Pass 4: remaining new blocks are added
+        for (int j = 0; j < newBlocks.Count; j++)
+        {
+            if (!matchedNew.Contains(j))
+            {
+                added++;
+                details.Add($"+ Added '{newBlocks[j].BlockType}' ({newBlocks[j].LineCount} lines · Line {newBlocks[j].StartLine})");
+            }
+        }
+
+        return (added, removed, modified, unchanged, details);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of fenced code and diagram block changes.
+    /// </summary>
+    public static string FormatFencedBlockDiffSummary(string? oldText, string? newText)
+    {
+        var (added, removed, modified, unchanged, details) = AuditFencedBlockChanges(oldText, newText);
+        int total = added + removed + modified + unchanged;
+
+        if (total == 0)
+            return "Fenced block diff audit: 0 code or diagram blocks detected in either version";
+
+        if (added == 0 && removed == 0 && modified == 0)
+        {
+            string blockLabel = unchanged == 1 ? "1 block" : $"{unchanged} blocks";
+            return $"Fenced block diff audit ({blockLabel}): All code & diagram blocks identical (0 modifications)";
+        }
+
+        var sampleStr = details.Take(3).ToList();
+        string sampleSummary = string.Join("; ", sampleStr);
+        if (details.Count > 3) sampleSummary += $"; +{details.Count - 3} more";
+
+        return $"Fenced block diff audit (+{added}/-{removed}/~{modified} across {total} blocks): {sampleSummary}";
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of fenced code and diagram block changes from unified diff rows.
+    /// </summary>
+    public static string FormatFencedBlockDiffSummary(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows is null || unifiedRows.Count == 0)
+            return "Fenced block diff audit: 0 code or diagram blocks detected in either version";
+
+        var oldSb = new System.Text.StringBuilder();
+        var newSb = new System.Text.StringBuilder();
+
+        foreach (var r in unifiedRows)
+        {
+            if (r.IsGap) continue;
+            if (r.Kind is Kind.Same or Kind.Removed)
+                oldSb.AppendLine(r.Text ?? string.Empty);
+            if (r.Kind is Kind.Same or Kind.Added)
+                newSb.AppendLine(r.Text ?? string.Empty);
+        }
+
+        return FormatFencedBlockDiffSummary(oldSb.ToString(), newSb.ToString());
+    }
 }
 
 

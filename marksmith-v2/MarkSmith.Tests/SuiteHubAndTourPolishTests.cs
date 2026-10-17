@@ -1610,6 +1610,75 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("Duplicate & versioned files audit (1 duplicate cluster · 4 redundant copies)", audit);
         Assert.Contains("'Doc.md'", audit);
     }
+
+    [Fact]
+    public void Run147_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: StatusSectionBreadcrumbButton & Section Budget Analysis
+        var mainXaml = File.ReadAllText(DesktopPath("MainWindow.xaml"));
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"StatusSectionBreadcrumbButton\"", mainXaml);
+        Assert.Contains("OnStatusSectionBreadcrumbButtonClick", mainCs);
+        Assert.Contains("ExtractMarkdownSectionBudgets", mainCs);
+        Assert.Contains("FormatMarkdownSectionBudgetsSummary", mainCs);
+
+        // 2. MindMapGalaxy: CenterOnMassItem & CopyQuadrantBalanceItem
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("x:Name=\"CenterOnMassItem\"", galaxyXaml);
+        Assert.Contains("x:Name=\"CopyQuadrantBalanceItem\"", galaxyXaml);
+        Assert.Contains("OnCenterOnMassClick", galaxyCs);
+        Assert.Contains("OnCopyQuadrantBalanceClick", galaxyCs);
+        Assert.Contains("CenterGalaxyOnCenterOfMass", galaxyCs);
+        Assert.Contains("FormatSpatialQuadrantBalanceSummary", galaxyCs);
+
+        // 3. ShapeStudio: SelectionResolveOverlapsItem & ResolveShapeOverlaps
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionResolveOverlapsItem", shapeXaml);
+        Assert.Contains("OnSelectionResolveOverlapsClick", shapeCs);
+        Assert.Contains("ResolveShapeOverlaps", shapeCs);
+
+        // 4. SmartArtStudio: StructureByDelimiterOutlineItem & OnStructureByDelimiterOutlineClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("StructureByDelimiterOutlineItem", smartArtXaml);
+        Assert.Contains("OnStructureByDelimiterOutlineClick", smartArtCs);
+        Assert.Contains("StructureFlatOutlineByDelimiter", smartArtCs);
+
+        // 5. HistoryWindow: copyFencedBlockDiff & FormatFencedBlockDiffSummary
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy fenced code & diagram blocks diff audit", historyCs);
+        Assert.Contains("FormatFencedBlockDiffSummary", historyCs);
+
+        // 6. SuiteHub: CopyRecentHealthScorecardItem & FormatLibraryHealthScorecard
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentHealthScorecardItem", suiteXaml);
+        Assert.Contains("OnCopyRecentHealthScorecardClick", suiteCs);
+        Assert.Contains("FormatLibraryHealthScorecard", suiteCs);
+
+        // RecentFilesService library health scorecard logic test
+        var files = new[]
+        {
+            @"C:\Projects\spec.md",
+            @"C:\Projects\readme.md",
+            @"C:\Projects\architecture.md",
+            @"D:\Missing\deleted.md"
+        };
+        bool MockExists(string p) => !p.Contains("Missing");
+
+        var (score, grade, valid, missing, redundant, scorecard) =
+            RecentFilesService.AuditLibraryHealthScorecard(files, MockExists);
+
+        Assert.Equal(3, valid);
+        Assert.Equal(1, missing);
+        Assert.Equal(0, redundant);
+        Assert.True(score >= 70);
+        Assert.Contains("Recent library health scorecard", scorecard);
+        Assert.Contains("Path validity: 75% on disk", scorecard);
+        Assert.Contains("3 valid · 1 missing", scorecard);
+    }
 }
 
 

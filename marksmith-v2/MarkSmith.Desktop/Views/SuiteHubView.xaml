@@ -246,6 +246,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentDuplicatesAuditItem" Text="Copy duplicate &amp; versioned files audit" Click="OnCopyRecentDuplicatesAuditClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentHealthScorecardItem" Text="Copy library health &amp; portability scorecard" Click="OnCopyRecentHealthScorecardClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9D9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

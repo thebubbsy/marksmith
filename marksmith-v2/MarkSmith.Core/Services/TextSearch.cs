@@ -1123,5 +1123,138 @@ public static class TextSearch
         string lineLabel = totalLines == 1 ? "1 line" : $"{totalLines:N0} lines";
         return $"Focus reading profile ({state}): ~{apertureWords} words in aperture (~{apertureReadSec:0.#}s read) · Document: {docLabel} across {lineLabel} (~{totalReadMin:0.#}m total)";
     }
+
+    /// <summary>
+    /// Represents word share, character budget, and reading time metrics for a Markdown document heading section.
+    /// </summary>
+    public record MarkdownSectionBudget(
+        int Level,
+        string Title,
+        int LineNumber,
+        int WordCount,
+        int CharCount,
+        double WordPercentage,
+        double ReadingTimeMinutes);
+
+    /// <summary>
+    /// Extracts Markdown section budgets across all heading sections in <paramref name="text"/>.
+    /// Ignores heading markers inside code fences (``` or ~~~ or :::).
+    /// </summary>
+    public static List<MarkdownSectionBudget> ExtractMarkdownSectionBudgets(string? text)
+    {
+        var budgets = new List<MarkdownSectionBudget>();
+        if (string.IsNullOrWhiteSpace(text)) return budgets;
+
+        var lines = text.Split('\n');
+        bool inFence = false;
+        string fenceMarker = string.Empty;
+
+        var rawSections = new List<(int Level, string Title, int LineNumber, List<string> Lines)>();
+        var currentSectionLines = new List<string>();
+        int currentLevel = 0;
+        string currentTitle = "Intro / Overview";
+        int currentLineNumber = 1;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+
+            // Check code fences
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                string tag = trimmed.Length >= 3 ? trimmed.Substring(0, 3) : trimmed;
+                if (!inFence)
+                {
+                    inFence = true;
+                    fenceMarker = tag;
+                }
+                else if (tag == fenceMarker || trimmed == ":::")
+                {
+                    inFence = false;
+                    fenceMarker = string.Empty;
+                }
+                currentSectionLines.Add(line);
+                continue;
+            }
+
+            if (!inFence && trimmed.StartsWith("#"))
+            {
+                int hashCount = 0;
+                while (hashCount < trimmed.Length && trimmed[hashCount] == '#') hashCount++;
+
+                if (hashCount >= 1 && hashCount <= 6 && hashCount < trimmed.Length && char.IsWhiteSpace(trimmed[hashCount]))
+                {
+                    // Found a heading
+                    if (rawSections.Count > 0 || currentSectionLines.Any(l => !string.IsNullOrWhiteSpace(l)))
+                    {
+                        rawSections.Add((currentLevel, currentTitle, currentLineNumber, new List<string>(currentSectionLines)));
+                        currentSectionLines.Clear();
+                    }
+
+                    currentLevel = hashCount;
+                    currentTitle = trimmed.Substring(hashCount).Trim();
+                    currentLineNumber = i + 1;
+                    continue;
+                }
+            }
+
+            currentSectionLines.Add(line);
+        }
+
+        if (currentSectionLines.Count > 0 || rawSections.Count > 0)
+        {
+            rawSections.Add((currentLevel, currentTitle, currentLineNumber, currentSectionLines));
+        }
+
+        // Total words in document
+        var allWords = text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        int totalDocWords = Math.Max(1, allWords.Length);
+
+        foreach (var sec in rawSections)
+        {
+            int sectionWords = 0;
+            int sectionChars = 0;
+            foreach (var l in sec.Lines)
+            {
+                var w = l.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                sectionWords += w.Length;
+                sectionChars += l.Length;
+            }
+            double wordPct = Math.Round((double)sectionWords / totalDocWords * 100.0, 1);
+            double readMin = Math.Round((double)sectionWords / 200.0, 1);
+            budgets.Add(new MarkdownSectionBudget(sec.Level, sec.Title, sec.LineNumber, sectionWords, sectionChars, wordPct, readMin));
+        }
+
+        return budgets;
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of Markdown section budgets and reading density distribution.
+    /// </summary>
+    public static string FormatMarkdownSectionBudgetsSummary(string? text)
+    {
+        var budgets = ExtractMarkdownSectionBudgets(text);
+        if (budgets.Count == 0)
+            return "Markdown section budgets: 0 sections detected (Empty document)";
+
+        int totalWords = budgets.Sum(b => b.WordCount);
+        double totalReadMin = Math.Round((double)totalWords / 200.0, 1);
+        string secLabel = budgets.Count == 1 ? "1 section" : $"{budgets.Count} sections";
+        string wordLabel = totalWords == 1 ? "1 word" : $"{totalWords:N0} words";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Markdown section budgets ({secLabel} · Total {wordLabel} · ~{totalReadMin:0.#}m read):");
+        for (int i = 0; i < budgets.Count; i++)
+        {
+            var b = budgets[i];
+            string levelTag = b.Level > 0 ? $"[H{b.Level}]" : "[Intro]";
+            sb.Append($"  §{i + 1}. {levelTag} {b.Title} · {b.WordCount} words ({b.WordPercentage:0.#}%) · ~{b.ReadingTimeMinutes:0.#}m read (Line {b.LineNumber})");
+            if (i < budgets.Count - 1) sb.AppendLine();
+        }
+
+        return sb.ToString();
+    }
 }
+
 

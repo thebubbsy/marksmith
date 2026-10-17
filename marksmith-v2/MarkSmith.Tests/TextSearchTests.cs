@@ -620,6 +620,54 @@ public class TextSearchTests
         var blurProfile = TextSearch.FormatFocusWindowReadingProfile(sample, 60, glassBlur: true, surroundBlur: true);
         Assert.Contains("Scope 60% · Glass & Surround Blur Active", blurProfile);
     }
+
+    [Fact]
+    public void Run147_ExtractMarkdownSectionBudgets_And_FormatSummary()
+    {
+        Assert.Equal("Markdown section budgets: 0 sections detected (Empty document)",
+            TextSearch.FormatMarkdownSectionBudgetsSummary(""));
+
+        var markdown = """
+            Welcome to the documentation suite. This intro sets the foundation.
+
+            # Overview
+            Here is the core overview of the architecture and goals.
+
+            ```python
+            # This is a comment in python, NOT a markdown heading
+            def test():
+                pass
+            ```
+
+            ## Architecture
+            Deep dive into the pipeline stages and data transformations.
+            """;
+
+        var budgets = TextSearch.ExtractMarkdownSectionBudgets(markdown);
+        Assert.Equal(3, budgets.Count);
+
+        // Section 1: Intro
+        Assert.Equal(0, budgets[0].Level);
+        Assert.Equal("Intro / Overview", budgets[0].Title);
+        Assert.Equal(1, budgets[0].LineNumber);
+        Assert.True(budgets[0].WordCount >= 8);
+
+        // Section 2: Overview
+        Assert.Equal(1, budgets[1].Level);
+        Assert.Equal("Overview", budgets[1].Title);
+        Assert.True(budgets[1].WordCount >= 15);
+
+        // Section 3: Architecture
+        Assert.Equal(2, budgets[2].Level);
+        Assert.Equal("Architecture", budgets[2].Title);
+        Assert.True(budgets[2].WordCount >= 8);
+
+        var formatted = TextSearch.FormatMarkdownSectionBudgetsSummary(markdown);
+        Assert.Contains("Markdown section budgets (3 sections", formatted);
+        Assert.Contains("§1. [Intro] Intro / Overview", formatted);
+        Assert.Contains("§2. [H1] Overview", formatted);
+        Assert.Contains("§3. [H2] Architecture", formatted);
+    }
 }
 
 

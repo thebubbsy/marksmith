@@ -3885,5 +3885,105 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string shapeLabel = matchedShapes == 1 ? "1 shape matched" : $"{matchedShapes} shapes matched";
         return $"Select similar ({criteriaLabel}): {shapeLabel} across {totalCanvasShapes} canvas shapes";
     }
+
+    /// <summary>
+    /// Detects and nudges overlapping shapes apart by enforcing a minimum gap (<paramref name="minGap"/>)
+    /// across selected shapes (or all canvas shapes if &lt; 2 shapes are selected).
+    /// Records a single undo snapshot and returns the number of shapes nudged and overlaps resolved.
+    /// </summary>
+    public (int NudgedCount, int OverlapsResolved, string Summary) ResolveShapeOverlaps(double minGap = 16.0)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = selected.Count > 1 ? selected : Shapes.ToList();
+        if (targets.Count <= 1)
+        {
+            string emptySummary = FormatOverlapResolutionSummary(0, targets.Count, minGap);
+            StatusMessage = emptySummary;
+            return (0, 0, emptySummary);
+        }
+
+        RecordUndo();
+
+        var nudged = new HashSet<ShapeCanvasItemViewModel>();
+        int totalOverlaps = 0;
+        int maxPasses = 8;
+
+        for (int pass = 0; pass < maxPasses; pass++)
+        {
+            bool hadOverlapThisPass = false;
+
+            // Sort targets primarily top-to-bottom, left-to-right to ensure deterministic cascading nudges
+            var ordered = targets.OrderBy(s => s.Y).ThenBy(s => s.X).ToList();
+
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                var s1 = ordered[i];
+                double r1 = s1.X + s1.Width;
+                double b1 = s1.Y + s1.Height;
+
+                for (int j = i + 1; j < ordered.Count; j++)
+                {
+                    var s2 = ordered[j];
+                    double r2 = s2.X + s2.Width;
+                    double b2 = s2.Y + s2.Height;
+
+                    // Check bounding overlap with minGap clearance
+                    bool overlapsX = (s1.X < r2 + minGap) && (r1 + minGap > s2.X);
+                    bool overlapsY = (s1.Y < b2 + minGap) && (b1 + minGap > s2.Y);
+
+                    if (overlapsX && overlapsY)
+                    {
+                        hadOverlapThisPass = true;
+                        totalOverlaps++;
+
+                        double overlapX = (r1 + minGap) - s2.X;
+                        double overlapY = (b1 + minGap) - s2.Y;
+
+                        // Nudge on whichever axis requires less movement, or downwards if vertical hierarchy
+                        if (overlapX < overlapY)
+                        {
+                            s2.X += Math.Round(overlapX, 0);
+                        }
+                        else
+                        {
+                            s2.Y += Math.Round(overlapY, 0);
+                        }
+
+                        nudged.Add(s2);
+                    }
+                }
+            }
+
+            if (!hadOverlapThisPass) break;
+        }
+
+        string summary = FormatOverlapResolutionSummary(nudged.Count, targets.Count, minGap);
+        if (nudged.Count > 0)
+        {
+            StatusMessage = $"✓ {summary} · Ctrl+Z to undo";
+            CanvasChanged?.Invoke(this, EventArgs.Empty);
+        }
+        else
+        {
+            StatusMessage = summary;
+        }
+
+        return (nudged.Count, totalOverlaps, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of a shape overlap resolution operation.
+    /// </summary>
+    public static string FormatOverlapResolutionSummary(int nudgedCount, int totalExamined, double minGap = 16.0)
+    {
+        if (totalExamined <= 1)
+            return "Resolve overlaps: 0-1 shapes (No overlap resolution needed)";
+
+        if (nudgedCount <= 0)
+            return $"Resolve overlaps: 0 overlaps detected across {totalExamined} shapes (Clean layout with >={minGap:0}px gap)";
+
+        string shapeLabel = nudgedCount == 1 ? "1 shape nudged" : $"{nudgedCount} shapes nudged";
+        return $"Resolve overlaps: {shapeLabel} apart (Enforced {minGap:0}px minimum clearance across {totalExamined} shapes)";
+    }
 }
 

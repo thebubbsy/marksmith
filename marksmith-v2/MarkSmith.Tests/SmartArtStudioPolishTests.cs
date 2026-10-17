@@ -735,6 +735,34 @@ public class SmartArtStudioPolishTests
         Assert.NotNull(pyramidTop);
         Assert.True(pyramidTop!.MatchScorePercent >= 80);
     }
+
+    [Fact]
+    public void Run147_StructureFlatOutlineByDelimiter_And_FormatDelimiterStructuringSummary()
+    {
+        Assert.Equal("Structure by delimiter: 0 nodes (Empty outline)",
+            SmartArtDesignStudioViewModel.FormatDelimiterStructuringSummary(0, 0, 0));
+
+        var flatOutline = """
+            - Backend: REST API Services
+            - Backend: Database Layer
+            - Frontend — WinUI 3 Desktop
+            - Frontend — React Dashboard
+            - Deployment - Docker Compose
+            """;
+
+        var (structured, parents, items, summary) =
+            SmartArtDesignStudioViewModel.StructureFlatOutlineByDelimiter(flatOutline);
+
+        Assert.Equal(3, parents); // Backend, Frontend, Deployment
+        Assert.Equal(5, items);
+        Assert.Contains("Structure by delimiter (3 parent groups created): Converted 5 items across 5 nodes into hierarchical subtrees", summary);
+
+        // Verify output hierarchy (normalized CRLF)
+        var normalized = structured.Replace("\r", "");
+        Assert.Contains("- Backend\n  - REST API Services\n  - Database Layer", normalized);
+        Assert.Contains("- Frontend\n  - WinUI 3 Desktop\n  - React Dashboard", normalized);
+        Assert.Contains("- Deployment\n  - Docker Compose", normalized);
+    }
 }
 
 

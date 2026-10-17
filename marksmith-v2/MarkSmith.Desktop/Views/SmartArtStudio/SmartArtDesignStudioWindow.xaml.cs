@@ -4671,6 +4671,18 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = $"✓ {summary}";
         }
 
+        private void OnStructureByDelimiterOutlineClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            var (structured, parents, items, summary) = SmartArtDesignStudioViewModel.StructureFlatOutlineByDelimiter(markdown);
+            if (items > 0)
+            {
+                ViewModel.MarkdownText = structured;
+            }
+            Services.ClipboardWriter.TrySetTextAsync(summary);
+            ViewModel.StatusMessage = $"✓ {summary}";
+        }
+
         #endregion
 
 

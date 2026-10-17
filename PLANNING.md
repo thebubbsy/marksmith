@@ -11041,7 +11041,7 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #147 Blueprint — Section Scope Extractor, Minimap Quadrant Coverage, Shape Collision Resolver, Flat-to-Hierarchy Structurer, Fenced Block Diff & Workspace Portability Report (Status: Pending)
+### Run #147 Blueprint — Section Scope Extractor, Minimap Quadrant Coverage, Shape Collision Resolver, Flat-to-Hierarchy Structurer, Fenced Block Diff & Workspace Portability Report (Status: Completed — Shipped)
 1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
    - **What is missing**: `StatusSectionBreadcrumbButton` (`MainWindow.xaml` lines 2433–2442) displays the current heading name, but lacks a section scope extractor that computes each `#` section's word share, character budget, and reading time across the document.
    - **Deliverable**: Add `TextSearch.ExtractMarkdownSectionBudgets(markdown)` and `FormatMarkdownSectionBudgetsSummary(markdown)`, wired to `StatusSectionBreadcrumbButton` right-tap / `FindCountText` context flyout.
@@ -11060,6 +11060,28 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
    - **What is missing**: `SuiteHubView` lacks a comprehensive Recent Library Health & Portability Readiness Scorecard combining path validity, extension mix, naming consistency, and folder depth into a single executive readiness report.
    - **Deliverable**: Add `RecentFilesService.FormatLibraryHealthScorecard(files, fileExistsPredicate)` and wire `CopyRecentHealthScorecardItem` (`\uE9D9`) in `RecentDocsFlyout`.
+
+---
+
+### Run #148 Blueprint — Footnote & Reference Link Integrity Auditor, Node Text Case Normalizer, Multi-Shape Even Distribution, Outline Nesting Depth Balancer, Timeline Volatility Index & Recent Files Staleness Decay Scorecard (Status: Pending)
+1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **What is missing**: Documents with extensive footnotes (`[^1]`) and reference-style links (`[label]: url`) lack an automated integrity auditor detecting missing definitions, unused definitions, and duplicate reference tags.
+   - **Deliverable**: Add `TextSearch.AuditFootnoteAndReferenceIntegrity(text)` and `FormatFootnoteAndReferenceIntegritySummary(text)`, wired to `StatusSectionBreadcrumbButton` / `FindCountText` right-tap context actions.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **What is missing**: Mind map nodes created through varied inputs (voice, pasting, quick notes) suffer from inconsistent casing (mixing all-caps, lower-case, and title case), lacking a batch case normalization tool.
+   - **Deliverable**: Add `MindMapStudioViewModel.NormalizeNodeTextCasing(mode)` and `FormatNodeCasingSummary()`, wired to `NormalizeNodeCasingItem` (`\uE8E4`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **What is missing**: Aligning shapes works for left/top edges, but there is no one-click "Distribute Evenly" to equalize horizontal or vertical gaps between 3+ selected shapes.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.DistributeShapesEvenly(axis, spacing)` and `FormatDistributionSummary()`, wired to `SelectionDistributeEvenlyItem` (`\uE8A9`) in `SelectionBoundsFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **What is missing**: Deeply nested outlines (> 3 levels) cause rendering overflows in horizontal/process SmartArt layouts with no automatic depth clamp or re-parenting flattener.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.BalanceOutlineNestingDepth(maxDepth)` and `FormatDepthBalancingSummary()`, wired to `BalanceOutlineDepthItem` (`\uE8FD`) in `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
+   - **What is missing**: Version history timelines lack a timeline volatility index and edit cluster auditor that identifies high-churn editing sessions vs quiet snapshot intervals.
+   - **Deliverable**: Add `LineDiff.AuditTimelineVolatilityIndex(versions)` and `FormatTimelineVolatilitySummary()`, wired to `copyVolatilityIndex` (`\uE9F9`) in `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
+   - **What is missing**: Recent documents accumulate over months without categorizing files into recency tiers (Active < 24h, Fresh 1–7d, Warm 1–4w, Cold > 30d) or providing stale document hygiene recommendations.
+   - **Deliverable**: Add `RecentFilesService.AuditRecentLibraryStalenessTiers(files)` and `FormatStalenessTiersSummary()`, wired to `CopyRecentStalenessScorecardItem` (`\uE823`) in `RecentDocsFlyout`.
 
 ---
 
@@ -11122,5 +11144,26 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
     - Verified `6/6` targeted Run #146 tests passing (`100%` pass rate).
     - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
     - Verified live `Marksmith.exe` smoke startup (`PID=16784, HasExited=False, Responding=True`).
+
+---
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #147 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-18
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Section Word/Character Budget Extractor (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.ExtractMarkdownSectionBudgets(markdown)` and `FormatMarkdownSectionBudgetsSummary(...)` calculating each `#` section's heading title, level, line range, word count, character count, percentage share of document, and estimated reading time; added `StatusSectionBreadcrumbButton` (`\uE8FD`) and breadcrumb updater to the status bar, and wired `sectionBudgetItem` (`\uE8FD`) in `OnFindCountTextRightTapped`.
+    2. **MindMapGalaxyWindow Spatial Quadrant Balance & Center-of-Mass Re-centering (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.CenterGalaxyOnCenterOfMass()` translating all canvas nodes such that the system center-of-mass lands at origin `(0, 0)` with atomic undo tracking (`SuspendEditTracking()`), and `AuditSpatialQuadrantBalance()` / `FormatSpatialQuadrantBalanceSummary()` reporting NW, NE, SW, and SE quadrant node distributions, bounding-box aspect ratio, and drift; wired to `CenterOnMassItem` (`\uE809`) and `CopyQuadrantBalanceItem` (`\uE809`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Shape Collision & Overlap Resolver (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.ResolveShapeOverlaps(minGap)` and `FormatOverlapResolutionSummary(...)` detecting bounding-box collisions among selected or all shapes and iteratively resolving overlaps along the minimum translation vector with atomic undo recording; wired to `SelectionResolveOverlapsItem` (`\uE8B3`) in `SelectionBoundsFlyout`.
+    4. **SmartArtDesignStudioWindow Delimiter-Based Flat Outline Structurer (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.StructureFlatOutlineByDelimiter(text)` and `FormatDelimiterStructuringSummary(...)` converting flat bullet lists with delimiter patterns (`Category: Item`, `Phase — Task`, `Module -> Component`) into indented two-level SmartArt outlines; wired to `StructureByDelimiterOutlineItem` (`\uE8E4`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Fenced Code & Diagram Block Diff Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditFencedBlockChanges(oldText, newText)` and `FormatFencedBlockDiffSummary(...)` (with both `(oldText, newText)` and `IReadOnlyList<UnifiedRow>` overloads) identifying added, removed, modified, and unchanged code fences and diagram blocks (````lang`, `:::smartart`, `:::chart`, `:::workflow`); wired to `copyFencedBlockDiff` (`\uE943`) in `TimelineHeaderBorder` context flyout.
+    6. **SuiteHubView Recent Library Health & Portability Scorecard (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditLibraryHealthScorecard(files, ...)` and `FormatLibraryHealthScorecard(...)` generating an executive health report covering path accessibility rate, file extension distribution, whitespace/special character hygiene, and folder depth index; wired to `CopyRecentHealthScorecardItem` (`\uE9D9`) in `RecentDocsFlyout` with `Services.CopyFeedback.ApplyButtonTick`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (identical 23 baseline warnings).
+    - Added unit test suites in `TextSearchTests.cs`, `MindMapGalaxyPolishTests.cs`, `ShapeStudioPolishTests.cs`, `SmartArtStudioPolishTests.cs`, `HistoryPolishTests.cs`, and `SuiteHubAndTourPolishTests.cs`.
+    - Verified `54/54` targeted Run #147 + `CommandIconsTests` passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`Marksmith.exe launched and stayed alive successfully`).
 
 

@@ -1561,6 +1561,49 @@ namespace MarkSmith.Tests
             Assert.True(vm.CanUndo);
             vm.Undo();
         }
+
+        [Fact]
+        public void Run147_CenterGalaxyOnCenterOfMass_And_SpatialQuadrantBalance()
+        {
+            var vm = new MindMapStudioViewModel();
+            Assert.Equal("Spatial quadrant balance: 0 nodes (Empty map)",
+                MindMapStudioViewModel.FormatSpatialQuadrantBalanceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0));
+
+            var doc = new MindMapDocument
+            {
+                RootNodeId = "root",
+                Nodes = new List<MindMapNode>
+                {
+                    new MindMapNode { Id = "root", Title = "Root", X = 0, Y = 0, Width = 100, Height = 50 },
+                    new MindMapNode { Id = "nw", Title = "Top-Left", X = -200, Y = -200, Width = 100, Height = 50 },
+                    new MindMapNode { Id = "ne", Title = "Top-Right", X = 200, Y = -200, Width = 100, Height = 50 },
+                    new MindMapNode { Id = "sw", Title = "Bottom-Left", X = -200, Y = 200, Width = 100, Height = 50 },
+                    new MindMapNode { Id = "se", Title = "Bottom-Right", X = 200, Y = 200, Width = 100, Height = 50 }
+                }
+            };
+            vm.LoadDocument(doc);
+
+            // Center of mass
+            var (cx, cy) = vm.CenterGalaxyOnCenterOfMass();
+            // All 4 outer nodes symmetric + root at (0,0) -> average center is (50, 25)
+            Assert.Equal(50, cx);
+            Assert.Equal(25, cy);
+            Assert.Equal(-50, vm.ViewportOffsetX);
+            Assert.Equal(-25, vm.ViewportOffsetY);
+            Assert.Contains("Centered galaxy viewport on center of mass", vm.StatusMessage);
+
+            // Quadrant balance
+            var (nw, ne, sw, se, quadCx, quadCy, driftX, driftY) = vm.AuditSpatialQuadrantBalance();
+            Assert.Equal(1, nw);
+            Assert.Equal(1, ne);
+            Assert.Equal(1, sw);
+            Assert.Equal(2, se); // Root + SE node both reside in SE (nx >= cx && ny >= cy)
+            Assert.Equal(5, nw + ne + sw + se);
+
+            var summary = vm.FormatSpatialQuadrantBalanceSummary();
+            Assert.Contains("Spatial quadrant balance (5 nodes", summary);
+            Assert.Contains("Center of Mass (50, 25)", summary);
+        }
     }
 }
 

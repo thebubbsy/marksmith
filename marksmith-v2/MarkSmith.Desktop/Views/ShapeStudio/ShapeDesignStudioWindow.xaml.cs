@@ -6207,6 +6207,15 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
+
+        private void OnSelectionResolveOverlapsClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (nudged, total, summary) = ViewModel.ResolveShapeOverlaps(16.0);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
     }
 }
 

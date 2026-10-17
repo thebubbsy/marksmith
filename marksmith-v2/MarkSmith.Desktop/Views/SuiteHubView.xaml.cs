@@ -1477,6 +1477,24 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyRecentHealthScorecardClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var summary = RecentFilesService.FormatLibraryHealthScorecard(files);
+            await Services.ClipboardWriter.TrySetTextAsync(summary);
+            SetNotification($"Copied: {summary}", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't copy library health scorecard: {ex.Message}", success: false);
+        }
+    }
 
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
