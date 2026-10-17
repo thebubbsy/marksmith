@@ -4568,6 +4568,21 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        private void OnAuditOutlineTreeBalanceClick(object sender, RoutedEventArgs e)
+        {
+            string markdown = ViewModel.MarkdownText ?? "";
+            var summary = SmartArtDesignStudioViewModel.FormatOutlineBalanceSummary(markdown);
+            try
+            {
+                Services.ClipboardWriter.TrySetTextAsync(summary);
+                ViewModel.StatusMessage = $"✓ Copied balance audit: {summary}";
+            }
+            catch
+            {
+                ViewModel.StatusMessage = summary;
+            }
+        }
+
         #endregion
 
         #region Outline Real-Time Search & Match Navigation

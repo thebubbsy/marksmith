@@ -421,4 +421,20 @@ public class TextSearchTests
         var summaryMultiple = TextSearch.FormatSearchHistorySummary(new[] { "alpha", "beta", "gamma", "delta" });
         Assert.Equal("Search history (4 queries): [\"alpha\", \"beta\", \"gamma\", …]", summaryMultiple);
     }
+
+    [Fact]
+    public void Run140_FormatSearchMatchRate_FormatsDensityAndFrequency()
+    {
+        var zero = TextSearch.FormatSearchMatchRate(0, 1000, 5000);
+        Assert.Equal("0 matches across 1,000 words (0.00% density)", zero);
+
+        var single = TextSearch.FormatSearchMatchRate(1, 500, 2500);
+        Assert.Equal("1 match across 500 words (0.20% density · 1 every 500 words)", single);
+
+        var multiple = TextSearch.FormatSearchMatchRate(10, 1000, 6000);
+        Assert.Equal("10 matches across 1,000 words (1.00% density · 1 every 100 words)", multiple);
+
+        var noWords = TextSearch.FormatSearchMatchRate(3, 0, 0);
+        Assert.Equal("3 matches (Word count unavailable)", noWords);
+    }
 }

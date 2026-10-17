@@ -607,4 +607,29 @@ public class ShapeStudioPolishTests
         Assert.Equal("Shadow blur: 16px (Deep)", ShapeDesignStudioViewModel.FormatShadowBlurSummary(16.0));
         Assert.Equal("Shadow blur: 0px (Crisp / Off)", ShapeDesignStudioViewModel.FormatShadowBlurSummary(-2.0));
     }
+
+    [Fact]
+    public void Run140_CycleCornerRadius_And_FormatCornerRadiusSummary()
+    {
+        var (r1, l1) = ShapeDesignStudioViewModel.CycleCornerRadius(0.0);
+        Assert.Equal(4.0, r1);
+        Assert.Contains("4px", l1);
+
+        var (r2, l2) = ShapeDesignStudioViewModel.CycleCornerRadius(r1);
+        Assert.Equal(8.0, r2);
+        Assert.Contains("8px", l2);
+
+        var (r3, l3) = ShapeDesignStudioViewModel.CycleCornerRadius(r2);
+        Assert.Equal(16.0, r3);
+        Assert.Contains("16px", l3);
+
+        var (r4, l4) = ShapeDesignStudioViewModel.CycleCornerRadius(r3);
+        Assert.Equal(0.0, r4);
+        Assert.Contains("0px", l4);
+
+        Assert.Equal("Corner radius: 0px (Square / Sharp)", ShapeDesignStudioViewModel.FormatCornerRadiusSummary(0.0));
+        Assert.Equal("Corner radius: 4px (Subtle rounded)", ShapeDesignStudioViewModel.FormatCornerRadiusSummary(4.0));
+        Assert.Equal("Corner radius: 8px (Medium rounded)", ShapeDesignStudioViewModel.FormatCornerRadiusSummary(8.0));
+        Assert.Equal("Corner radius: 16px (Pill / Deeply rounded)", ShapeDesignStudioViewModel.FormatCornerRadiusSummary(16.0));
+    }
 }

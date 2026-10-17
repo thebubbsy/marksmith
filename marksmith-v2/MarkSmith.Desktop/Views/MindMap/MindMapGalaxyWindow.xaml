@@ -320,6 +320,9 @@
                                     <MenuFlyoutItem x:Name="CycleAnchorSnapAngleItem" Text="Cycle connection snap angle (0° / 45° / 90°)" Click="OnCycleAnchorSnapAngleClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7AD;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="StepStrokeThicknessItem" Text="Cycle stroke thickness (1.0px / 1.8px / 2.8px / 4.0px)" Click="OnStepStrokeThicknessClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B2;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>

@@ -1137,5 +1137,75 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("OnCopyRecentPathLengthClick", suiteCs);
         Assert.Contains("FormatRecentPathLengthDistribution", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_FormatRecentSizeDistribution_ComputesAccurately()
+    {
+        var samplePaths = new[]
+        {
+            @"C:\Docs\Doc1.md",
+            @"C:\Docs\Doc2.md",
+            @"C:\Docs\Doc3.md"
+        };
+
+        var sizeMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\Docs\Doc1.md"] = 1024,      // 1.0 KB
+            [@"C:\Docs\Doc2.md"] = 2048,      // 2.0 KB
+            [@"C:\Docs\Doc3.md"] = 5120       // 5.0 KB
+        };
+
+        var summary = RecentFilesService.FormatRecentSizeDistribution(samplePaths, path => sizeMap.TryGetValue(path, out var s) ? s : null);
+        Assert.Equal("Disk footprint (3 documents): Total 8 KB · Min 1 KB, Max 5 KB, Avg 2.7 KB", summary);
+
+        Assert.Equal("0 documents in recent history", RecentFilesService.FormatRecentSizeDistribution(null));
+        Assert.Equal("0 documents in recent history", RecentFilesService.FormatRecentSizeDistribution(Array.Empty<string>()));
+    }
+
+    [Fact]
+    public void Run140_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. MainWindow: matchRateItem & FormatSearchMatchRate
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy search match density & frequency", mainCs);
+        Assert.Contains("FormatSearchMatchRate", mainCs);
+
+        // 2. MindMapGalaxy: StepStrokeThicknessItem & OnStepStrokeThicknessClick
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("StepStrokeThicknessItem", galaxyXaml);
+        Assert.Contains("OnStepStrokeThicknessClick", galaxyXaml);
+        Assert.Contains("OnStepStrokeThicknessClick", galaxyCs);
+        Assert.Contains("StepStrokeThickness", galaxyCs);
+
+        // 3. ShapeStudio: SelectionCycleCornerRadiusItem & OnSelectionCycleCornerRadiusClick
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionCycleCornerRadiusItem", shapeXaml);
+        Assert.Contains("OnSelectionCycleCornerRadiusClick", shapeXaml);
+        Assert.Contains("OnSelectionCycleCornerRadiusClick", shapeCs);
+        Assert.Contains("CycleCornerRadius", shapeCs);
+
+        // 4. SmartArtStudio: OutlineTreeBalanceItem & OnAuditOutlineTreeBalanceClick
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineTreeBalanceItem", smartArtXaml);
+        Assert.Contains("OnAuditOutlineTreeBalanceClick", smartArtXaml);
+        Assert.Contains("OnAuditOutlineTreeBalanceClick", smartArtCs);
+        Assert.Contains("FormatOutlineBalanceSummary", smartArtCs);
+
+        // 5. HistoryWindow: copyRetention item & FormatVersionRetentionRate
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("Copy line retention & survival rate", historyCs);
+        Assert.Contains("FormatVersionRetentionRate", historyCs);
+
+        // 6. SuiteHub: CopyRecentSizeDistributionItem & OnCopyRecentSizeDistributionClick
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentSizeDistributionItem", suiteXaml);
+        Assert.Contains("OnCopyRecentSizeDistributionClick", suiteXaml);
+        Assert.Contains("OnCopyRecentSizeDistributionClick", suiteCs);
+        Assert.Contains("FormatRecentSizeDistribution", suiteCs);
+    }
 }
 

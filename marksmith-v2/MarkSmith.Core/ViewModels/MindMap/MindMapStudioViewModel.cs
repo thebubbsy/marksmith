@@ -2322,5 +2322,28 @@ namespace MarkSmith.ViewModels.MindMap
             var linkText = totalLinksCount == 1 ? "1 connection" : $"{totalLinksCount} connections";
             return $"Connection labels: {state} ({linkText})";
         }
+
+        /// <summary>
+        /// Steps connection stroke thickness across discrete ergonomic presets (1.0px -> 1.8px -> 2.8px -> 4.0px -> 1.0px)
+        /// and returns the next thickness and display label.
+        /// </summary>
+        public static (double NextThickness, string Label) StepStrokeThickness(double currentThickness)
+        {
+            if (currentThickness < 1.4) return (1.8, "Stroke thickness: 1.8px (Standard)");
+            if (currentThickness < 2.3) return (2.8, "Stroke thickness: 2.8px (Bold)");
+            if (currentThickness < 3.4) return (4.0, "Stroke thickness: 4.0px (Heavy)");
+            return (1.0, "Stroke thickness: 1.0px (Hairline)");
+        }
+
+        /// <summary>
+        /// Formats a connection stroke thickness summary for inspector and status readout.
+        /// </summary>
+        public static string FormatStrokeThicknessSummary(double thickness)
+        {
+            if (thickness <= 1.2) return $"Stroke thickness: {thickness:0.#}px (Hairline)";
+            if (thickness <= 2.0) return $"Stroke thickness: {thickness:0.#}px (Standard)";
+            if (thickness <= 3.0) return $"Stroke thickness: {thickness:0.#}px (Bold)";
+            return $"Stroke thickness: {thickness:0.#}px (Heavy)";
+        }
     }
 }

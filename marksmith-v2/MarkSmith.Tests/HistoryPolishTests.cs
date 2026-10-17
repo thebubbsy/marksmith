@@ -763,6 +763,19 @@ public class HistoryPolishTests : IDisposable
         var mixed = LineDiff.FormatVersionGrowthAndChurn(15, 5);
         Assert.Equal("Net: +10 lines · Total churn: 20 lines (25% deletion churn)", mixed);
     }
+
+    [Fact]
+    public void Run140_FormatVersionRetentionRate_CalculatesRetention()
+    {
+        var empty = LineDiff.FormatVersionRetentionRate(0, 0);
+        Assert.Equal("Retention: 100.0% (Empty baseline, 0 lines)", empty);
+
+        var perfect = LineDiff.FormatVersionRetentionRate(100, 100);
+        Assert.Equal("Retention: 100.0% (All 100 original lines preserved · 0.0% loss)", perfect);
+
+        var partial = LineDiff.FormatVersionRetentionRate(200, 160);
+        Assert.Equal("Retention: 80.0% (160/200 lines preserved · 20.0% loss)", partial);
+    }
 }
 
 

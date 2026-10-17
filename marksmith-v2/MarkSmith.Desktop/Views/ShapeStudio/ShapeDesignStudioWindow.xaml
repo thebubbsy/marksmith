@@ -613,6 +613,9 @@
                                         <MenuFlyoutItem x:Name="SelectionCycleShadowBlurItem" Text="Cycle shadow blur (0px / 4px / 8px / 16px)" Click="OnSelectionCycleShadowBlurClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionCycleCornerRadiusItem" Text="Cycle corner radius (0px / 4px / 8px / 16px)" Click="OnSelectionCycleCornerRadiusClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                             </Border>

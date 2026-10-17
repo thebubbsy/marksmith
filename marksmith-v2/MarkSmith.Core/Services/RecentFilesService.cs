@@ -332,4 +332,82 @@ public sealed class RecentFilesService
 
         return $"Path lengths ({docLabel}): Min {minLen} chars, Max {maxLen} chars, Avg {avgLen:0.#} chars{warningStr}";
     }
+
+    /// <summary>
+    /// Audits the file sizes and total disk footprint of recent documents.
+    /// Formats an audit summary detailing total footprint, min, max, and average file size.
+    /// Supports an optional custom fileSizeProvider for deterministic testing.
+    /// </summary>
+    public static string FormatRecentSizeDistribution(
+        IEnumerable<string>? files,
+        Func<string, long?>? fileSizeProvider = null)
+    {
+        if (files is null) return "0 documents in recent history";
+        var list = files.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).ToList();
+        if (list.Count == 0) return "0 documents in recent history";
+
+        var sizes = new List<long>();
+        int unverifiedCount = 0;
+
+        foreach (var file in list)
+        {
+            long? size = null;
+            if (fileSizeProvider != null)
+            {
+                size = fileSizeProvider(file);
+            }
+            else
+            {
+                try
+                {
+                    var fi = new FileInfo(file);
+                    if (fi.Exists)
+                    {
+                        size = fi.Length;
+                    }
+                }
+                catch
+                {
+                    // Inaccessible or invalid path
+                }
+            }
+
+            if (size.HasValue)
+            {
+                sizes.Add(size.Value);
+            }
+            else
+            {
+                unverifiedCount++;
+            }
+        }
+
+        var docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
+        if (sizes.Count == 0)
+        {
+            return $"Disk footprint ({docLabel}): 0 bytes verified ({unverifiedCount} unverified)";
+        }
+
+        long totalBytes = sizes.Sum();
+        long minBytes = sizes.Min();
+        long maxBytes = sizes.Max();
+        double avgBytes = sizes.Average();
+
+        string totalStr = FormatBytes(totalBytes);
+        string minStr = FormatBytes(minBytes);
+        string maxStr = FormatBytes(maxBytes);
+        string avgStr = FormatBytes((long)Math.Round(avgBytes));
+
+        string unverifiedStr = unverifiedCount > 0 ? $" · {unverifiedCount} unverified" : "";
+
+        return $"Disk footprint ({docLabel}): Total {totalStr} · Min {minStr}, Max {maxStr}, Avg {avgStr}{unverifiedStr}";
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{(bytes / 1024.0):0.#} KB";
+        if (bytes < 1024L * 1024 * 1024) return $"{(bytes / (1024.0 * 1024)):0.#} MB";
+        return $"{(bytes / (1024.0 * 1024 * 1024)):0.#} GB";
+    }
 }

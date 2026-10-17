@@ -4135,6 +4135,25 @@ namespace MarkSmith.Views.MindMap
             SetConnectionStrokeWeight(nextWeight);
         }
 
+        private void OnStepStrokeThicknessClick(object sender, RoutedEventArgs e)
+        {
+            double curThickness = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.GetStrokeThickness(_connectionStrokeWeight);
+            var (nextThickness, label) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.StepStrokeThickness(curThickness);
+            var nextWeight = nextThickness switch
+            {
+                <= 1.2 => MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.ConnectionStrokeWeight.Thin,
+                <= 2.0 => MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.ConnectionStrokeWeight.Normal,
+                _ => MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.ConnectionStrokeWeight.Thick
+            };
+            _connectionStrokeWeight = nextWeight;
+            ViewModel.StatusMessage = label;
+            if (ConnectionStyleDropDownButton != null)
+            {
+                CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, $"\u2713 {label}");
+            }
+            RequestRedraw(RedrawScope.Appearance);
+        }
+
         private void OnCycleAnchorPositionClick(object sender, RoutedEventArgs e)
         {
             var (next, label) = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.CycleAnchorPosition(_connectionAnchorPosition);

@@ -550,4 +550,31 @@ public class SmartArtStudioPolishTests
         var flatSummary = SmartArtDesignStudioViewModel.FormatOutlineBranchingSummary(flatOutline);
         Assert.Equal("Outline branching: 3 nodes (All 3 are flat root items, 0 branches)", flatSummary);
     }
+
+    [Fact]
+    public void Run140_AuditOutlineBalance_ComputesSubtreeBalanceAndStdDev()
+    {
+        var outline = @"- Root 1
+  - Child 1.1
+  - Child 1.2
+- Root 2
+  - Child 2.1
+  - Child 2.2";
+
+        var (roots, sizes, stdDev, isBalanced) = SmartArtDesignStudioViewModel.AuditOutlineBalance(outline);
+        Assert.Equal(2, roots);
+        Assert.Equal(new[] { 3, 3 }, sizes);
+        Assert.Equal(0.0, stdDev);
+        Assert.True(isBalanced);
+
+        var summary = SmartArtDesignStudioViewModel.FormatOutlineBalanceSummary(outline);
+        Assert.Equal("Outline balance: 2 root trees (Balanced: subtree sizes [3, 3] · σ=0)", summary);
+
+        var emptySummary = SmartArtDesignStudioViewModel.FormatOutlineBalanceSummary(null);
+        Assert.Equal("Outline balance: Empty outline (0 nodes)", emptySummary);
+
+        var singleRoot = "- Only Root\n  - Item 1\n  - Item 2";
+        var singleSummary = SmartArtDesignStudioViewModel.FormatOutlineBalanceSummary(singleRoot);
+        Assert.Equal("Outline balance: 1 root tree (3 total nodes)", singleSummary);
+    }
 }

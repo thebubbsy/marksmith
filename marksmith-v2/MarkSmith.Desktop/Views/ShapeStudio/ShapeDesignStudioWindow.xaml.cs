@@ -6088,5 +6088,35 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateMultiSelectionAdorner();
             ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
         }
+
+        private double _currentCornerRadius = 0.0;
+
+        private void OnSelectionCycleCornerRadiusClick(object sender, RoutedEventArgs e)
+        {
+            var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
+            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0)
+            {
+                ViewModel.StatusMessage = "No shapes to change corner radius.";
+                return;
+            }
+
+            ViewModel.RecordUndo();
+            var (nextRadius, label) = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.CycleCornerRadius(_currentCornerRadius);
+            _currentCornerRadius = nextRadius;
+
+            int updatedCount = 0;
+            foreach (var s in sel)
+            {
+                if (_shapePaths.TryGetValue(s, out var path))
+                {
+                    updatedCount++;
+                }
+            }
+
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+            ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
+        }
     }
 }

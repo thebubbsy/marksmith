@@ -461,4 +461,27 @@ public static class LineDiff
         double churnPct = (double)linesRemoved / totalChanged * 100.0;
         return $"Net: {netStr} lines · Total churn: {totalChanged} lines ({churnPct:0.#}% deletion churn)";
     }
+
+    /// <summary>
+    /// Formats a line retention and survival rate summary comparing surviving original lines to initial line count.
+    /// </summary>
+    public static string FormatVersionRetentionRate(int totalOriginalLines, int survivingLines)
+    {
+        if (totalOriginalLines <= 0)
+        {
+            return "Retention: 100.0% (Empty baseline, 0 lines)";
+        }
+
+        survivingLines = Math.Clamp(survivingLines, 0, totalOriginalLines);
+        int deletedCount = totalOriginalLines - survivingLines;
+        double retentionPct = (double)survivingLines / totalOriginalLines * 100.0;
+        double churnPct = 100.0 - retentionPct;
+
+        if (deletedCount == 0)
+        {
+            return $"Retention: 100.0% (All {totalOriginalLines:N0} original lines preserved · 0.0% loss)";
+        }
+
+        return $"Retention: {retentionPct:0.0}% ({survivingLines:N0}/{totalOriginalLines:N0} lines preserved · {churnPct:0.0}% loss)";
+    }
 }

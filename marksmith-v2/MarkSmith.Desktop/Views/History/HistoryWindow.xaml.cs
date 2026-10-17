@@ -3044,6 +3044,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied growth & churn: {growthSummary}");
                 };
                 menu.Items.Add(copyGrowth);
+
+                var retentionSummary = MarkSmith.Services.LineDiff.FormatVersionRetentionRate(sel.LinesAdded + sel.LinesRemoved, sel.LinesAdded);
+                var copyRetention = new MenuFlyoutItem
+                {
+                    Text = "Copy line retention & survival rate",
+                    Icon = new FontIcon { Glyph = "\uE8EB" }
+                };
+                copyRetention.Click += (_, _) =>
+                {
+                    _ = Services.ClipboardWriter.TrySetTextAsync(retentionSummary);
+                    _vm.ShowNotice($"Copied retention rate: {retentionSummary}");
+                };
+                menu.Items.Add(copyRetention);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

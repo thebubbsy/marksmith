@@ -8910,6 +8910,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(clearHistoryItem);
 
+        var matchRateItem = new MenuFlyoutItem
+        {
+            Text = "Copy search match density & frequency",
+            Icon = new FontIcon { Glyph = "\uE946" },
+            IsEnabled = !string.IsNullOrEmpty(FindTextBox?.Text)
+        };
+        matchRateItem.Click += (_, _) =>
+        {
+            var totalWords = ViewModel?.DocumentStats.Words ?? 0;
+            var totalChars = ViewModel?.DocumentStats.Characters ?? 0;
+            var rateStr = MarkSmith.Services.TextSearch.FormatSearchMatchRate(_findMatches.Count, totalWords, totalChars);
+            _ = Services.ClipboardWriter.TrySetTextAsync(rateStr);
+            AnnounceStatus($"Search density: {rateStr}");
+        };
+        menu.Items.Add(matchRateItem);
+
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
         e.Handled = true;
     }

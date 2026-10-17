@@ -1328,5 +1328,30 @@ namespace MarkSmith.Tests
             var summary2 = MindMapStudioViewModel.FormatConnectionLabelsSummary(false, 1);
             Assert.Equal("Connection labels: Hidden (1 connection)", summary2);
         }
+
+        [Fact]
+        public void Run140_StepStrokeThickness_And_FormatStrokeThicknessSummary()
+        {
+            var (t1, l1) = MindMapStudioViewModel.StepStrokeThickness(1.0);
+            Assert.Equal(1.8, t1);
+            Assert.Contains("1.8px", l1);
+
+            var (t2, l2) = MindMapStudioViewModel.StepStrokeThickness(1.8);
+            Assert.Equal(2.8, t2);
+            Assert.Contains("2.8px", l2);
+
+            var (t3, l3) = MindMapStudioViewModel.StepStrokeThickness(2.8);
+            Assert.Equal(4.0, t3);
+            Assert.Contains("4.0px", l3);
+
+            var (t4, l4) = MindMapStudioViewModel.StepStrokeThickness(4.0);
+            Assert.Equal(1.0, t4);
+            Assert.Contains("1.0px", l4);
+
+            Assert.Equal("Stroke thickness: 1px (Hairline)", MindMapStudioViewModel.FormatStrokeThicknessSummary(1.0));
+            Assert.Equal("Stroke thickness: 1.8px (Standard)", MindMapStudioViewModel.FormatStrokeThicknessSummary(1.8));
+            Assert.Equal("Stroke thickness: 2.8px (Bold)", MindMapStudioViewModel.FormatStrokeThicknessSummary(2.8));
+            Assert.Equal("Stroke thickness: 4px (Heavy)", MindMapStudioViewModel.FormatStrokeThicknessSummary(4.0));
+        }
     }
 }

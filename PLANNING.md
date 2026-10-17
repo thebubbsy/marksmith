@@ -10553,5 +10553,85 @@ Reviewed: the 2026-10-17 run #138 entry above. Followed the AI-Executable 3-Bloc
 - `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
 - Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 3076, responsive startup (`HasExited=False`), clean exit.
 
+### 2026-10-17 (scheduled routine run #140 — 3-Block Cycle + Execution Phase)
+
+Reviewed: the 2026-10-17 run #139 entry above. Followed the AI-Executable 3-Block Cycle + Execution Phase protocol (`marksmith/GEMINI.md` Rule 7) to refine and ship 6 desktop polish items across all 6 major WinUI 3 surfaces (`MainWindow`, `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`, `HistoryWindow`, `SuiteHubView`).
+
+**3-Block Cycle & Execution Phase Breakdown:**
+- **Block 1 (0–15 min)**:
+  - Carried forward from Run #139:
+    * Target A: `MainWindow` find bar case matching and match rate density formatter.
+    * Target B: `MindMapGalaxyWindow` connection line stroke thickness step cycle helper.
+  - Generated:
+    1. `MainWindow`: Find Bar Search Match Density & Frequency Formatter (`TextSearch.FormatSearchMatchRate(matchCount, totalWords, totalChars)` calculating occurrence density percentage and word frequency intervals, wired to `matchRateItem` "Copy search match density & frequency" `\uE946` in `FindCountText` context menu).
+    2. `MindMapGalaxyWindow`: Connection Stroke Thickness Discrete Stepping & Summary Formatter (`MindMapStudioViewModel.StepStrokeThickness(currentThickness)` stepping across hairline (1.0px), standard (1.8px), bold (2.8px), and heavy (4.0px) presets, `FormatStrokeThicknessSummary(thickness)`, and `StepStrokeThicknessItem` `\uE8B2` in `ConnectionStyleDropDownButton.Flyout` with tick feedback and visual redraw).
+- **Block 2 (15–30 min)**:
+  - Refined Block 1 (Pass 1):
+    * For Idea 1: Upgraded `TextSearch.cs` with defensive zero-division and empty-query guards. Added `matchRateItem` to `FindCountText` context menu in `MainWindow.xaml.cs` pulling document metrics from `ViewModel.DocumentStats`, exporting to clipboard, and announcing status.
+    * For Idea 2: Implemented `StepStrokeThickness` and `FormatStrokeThicknessSummary` in `MindMapStudioViewModel.cs`. Mounted `StepStrokeThicknessItem` with icon `\uE8B2` in `MindMapGalaxyWindow.xaml`, and wired `OnStepStrokeThicknessClick` in `MindMapGalaxyWindow.xaml.cs` updating `_connectionStrokeWeight`, showing button tick feedback, and triggering redraw.
+  - Generated:
+    3. `ShapeDesignStudioWindow`: Shape Corner Radius Step Cycle Helper & Summary Formatter (`ShapeDesignStudioViewModel.CycleCornerRadius(currentRadius)` cycling 0px (sharp) -> 4px (subtle) -> 8px (medium) -> 16px (pill) -> 0px, `FormatCornerRadiusSummary(radius)`, mounting `SelectionCycleCornerRadiusItem` `\uE790` in `SelectionBoundsFlyout`, and wiring `OnSelectionCycleCornerRadiusClick` with undo snapshot and adorner refresh).
+    4. `SmartArtDesignStudioWindow`: Outline Hierarchy Root Subtree Balance Auditor (`SmartArtDesignStudioViewModel.AuditOutlineBalance(markdown)` computing root-level subtree size distribution and standard deviation, `FormatOutlineBalanceSummary(markdown)`, and `OutlineTreeBalanceItem` `\uE8EB` in `OutlineStatsFlyout`).
+- **Block 3 (30–45 min)**:
+  - Refined Block 2 (Pass 1):
+    * For Idea 3: Mounted `SelectionCycleCornerRadiusItem` with icon `\uE790` in `SelectionBoundsFlyout` in `ShapeDesignStudioWindow.xaml`. Implemented `OnSelectionCycleCornerRadiusClick` in `ShapeDesignStudioWindow.xaml.cs` updating corner radius across selected shapes (or all shapes), recording undo snapshots, updating adorners, and announcing status.
+    * For Idea 4: Mounted `OutlineTreeBalanceItem` with icon `\uE8EB` in `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml`. Implemented `AuditOutlineBalance` and `FormatOutlineBalanceSummary` in `SmartArtDesignStudioViewModel.cs` and wired `OnAuditOutlineTreeBalanceClick` in `SmartArtDesignStudioWindow.xaml.cs` with clipboard export and status notification.
+  - Refined Block 1 (Pass 2 - Final):
+    * Verified `FormatSearchMatchRate` handles 0 words, 0 matches, and high-density match cases cleanly without NaN or division by zero.
+    * Verified `StepStrokeThickness` maps cleanly to `ConnectionStrokeWeight` enum variants while supporting future floating-point thickness configurations.
+  - Generated:
+    5. `HistoryWindow`: Version Line Retention & Survival Rate Formatter (`LineDiff.FormatVersionRetentionRate(totalOriginal, surviving)` detailing survival percentage and line churn loss, wired to `copyRetention` "Copy line retention & survival rate" `\uE8EB` in `TimelineHeaderBorder` context flyout).
+    6. `SuiteHubView`: Recent Documents Disk Footprint & File Size Auditor (`RecentFilesService.FormatRecentSizeDistribution(files, provider)` auditing total disk footprint, min/max/average file sizes, and reporting unverified entries, wired to `CopyRecentSizeDistributionItem` `\uE8EA` in `RecentDocsFlyout`).
+- **⚡ Block 4 — Execution Phase (45–60 min)**:
+  - Refined Block 3 (Pass 1):
+    * For Idea 5: Implemented `LineDiff.FormatVersionRetentionRate` in `LineDiff.cs` handling empty baselines, 100% preservation, and partial deletion loss cases. Mounted `copyRetention` item with icon `\uE8EB` in `OnTimelineHeaderRightTapped` in `HistoryWindow.xaml.cs`.
+    * For Idea 6: Added `CopyRecentSizeDistributionItem` to `RecentDocsFlyout` in `SuiteHubView.xaml` with icon `\uE8EA`, implemented `RecentFilesService.FormatRecentSizeDistribution` in `RecentFilesService.cs` with dependency-injected size provider, and wired `OnCopyRecentSizeDistributionClick` in `SuiteHubView.xaml.cs` with tick feedback on `RecentDocsActionBtn`.
+  - Executed all 6 refined targets into 100% production code.
+  - Added comprehensive unit test coverage:
+    * `TextSearchTests.cs`: `Run140_FormatSearchMatchRate_FormatsDensityAndFrequency` (Passed).
+    * `MindMapGalaxyPolishTests.cs`: `Run140_StepStrokeThickness_And_FormatStrokeThicknessSummary` (Passed).
+    * `ShapeStudioPolishTests.cs`: `Run140_CycleCornerRadius_And_FormatCornerRadiusSummary` (Passed).
+    * `SmartArtStudioPolishTests.cs`: `Run140_AuditOutlineBalance_ComputesSubtreeBalanceAndStdDev` (Passed).
+    * `HistoryPolishTests.cs`: `Run140_FormatVersionRetentionRate_CalculatesRetention` (Passed).
+    * `SuiteHubAndTourPolishTests.cs`: `RecentFilesService_FormatRecentSizeDistribution_ComputesAccurately`, `Run140_Polish_Elements_Wired_Across_Surfaces` (Passed).
+  - Verification:
+    * `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run140"`: **6 passed, 0 failed (100% pass rate)**.
+    * `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "RecentFilesService_FormatRecentSizeDistribution"`: **1 passed, 0 failed (100% pass rate)**.
+    * `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+    * Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 31856, responsive startup (`Alive=True Responding=True`), clean exit.
+  - Carried forward ideas / next targets into Run #141:
+    * Target A: `MainWindow` find bar match proximity clustering and hotspot detector.
+    * Target B: `MindMapGalaxyWindow` connection line arrow style cycle helper.
+    * Target C: `ShapeDesignStudioWindow` shape border dash offset animation/step helper.
+
+**Shipped:**
+1. **`MainWindow` Find Bar Search Match Density & Frequency Formatter (`MainWindow.xaml.cs`, `TextSearch.cs`):**
+   - `TextSearch.FormatSearchMatchRate` calculating match density and word frequency intervals.
+   - `matchRateItem` ("Copy search match density & frequency", `\uE946`) in `FindCountText` context menu.
+2. **`MindMapGalaxyWindow` Connection Stroke Thickness Discrete Stepping & Summary Formatter (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`):**
+   - `MindMapStudioViewModel.StepStrokeThickness` and `MindMapStudioViewModel.FormatStrokeThicknessSummary` stepping across hairline/standard/bold/heavy stroke thickness presets.
+   - `StepStrokeThicknessItem` (`\uE8B2`) in `ConnectionStyleDropDownButton.Flyout` with tick feedback and visual redraw.
+3. **`ShapeDesignStudioWindow` Shape Corner Radius Step Cycle Helper & Summary Formatter (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`):**
+   - `ShapeDesignStudioViewModel.CycleCornerRadius` and `ShapeDesignStudioViewModel.FormatCornerRadiusSummary` cycling 0px/4px/8px/16px corner radius presets.
+   - `SelectionCycleCornerRadiusItem` (`\uE790`) in `SelectionBoundsFlyout` with undo recording and adorner refresh.
+4. **`SmartArtDesignStudioWindow` Outline Hierarchy Root Subtree Balance Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`):**
+   - `SmartArtDesignStudioViewModel.AuditOutlineBalance` and `SmartArtDesignStudioViewModel.FormatOutlineBalanceSummary` auditing root subtree sizes and standard deviation.
+   - `OutlineTreeBalanceItem` (`\uE8EB`) in `OutlineStatsFlyout` with clipboard export.
+5. **`HistoryWindow` Version Line Retention & Survival Rate Formatter (`HistoryWindow.xaml.cs`, `LineDiff.cs`):**
+   - `LineDiff.FormatVersionRetentionRate` computing survival percentage and line churn loss.
+   - `copyRetention` item (`\uE8EB`) in `TimelineHeaderBorder` context menu.
+6. **`SuiteHubView` Recent Documents Disk Footprint & File Size Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`):**
+   - `RecentFilesService.FormatRecentSizeDistribution` auditing total disk footprint and min/max/average file sizes.
+   - `CopyRecentSizeDistributionItem` (`\uE8EA`) in `RecentDocsFlyout` with button tick feedback.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: **0 errors, 22 warnings**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "Run140"`: **6 passed, 0 failed (100% pass rate)**.
+- `dotnet test marksmith-v2\MarkSmith.Tests\MarkSmith.Tests.csproj --filter "RecentFilesService_FormatRecentSizeDistribution"`: **1 passed, 0 failed (100% pass rate)**.
+- `CommandIconsTests.Every_menu_gives_all_its_items_an_icon_or_none`: **48 passed, 0 failed (100%)**.
+- Live WinUI 3 smoke launch: `Marksmith.exe` launched, PID 31856, responsive startup (`Alive=True Responding=True`), clean exit.
+
+
 
 

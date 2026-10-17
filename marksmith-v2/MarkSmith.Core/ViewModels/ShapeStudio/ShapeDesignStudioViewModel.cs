@@ -3396,4 +3396,26 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         if (blurRadius <= 8.0) return $"Shadow blur: {blurRadius:0.#}px (Medium)";
         return $"Shadow blur: {blurRadius:0.#}px (Deep)";
     }
+
+    /// <summary>
+    /// Cycles shape corner radius (0px -> 4px -> 8px -> 16px -> 0px) and returns the next corner radius and display label.
+    /// </summary>
+    public static (double NextRadius, string Label) CycleCornerRadius(double currentRadius)
+    {
+        if (currentRadius < 2.0) return (4.0, "Corner radius: 4px (Subtle rounded)");
+        if (currentRadius < 6.0) return (8.0, "Corner radius: 8px (Medium rounded)");
+        if (currentRadius < 12.0) return (16.0, "Corner radius: 16px (Pill / Deeply rounded)");
+        return (0.0, "Corner radius: 0px (Square / Sharp)");
+    }
+
+    /// <summary>
+    /// Formats a human-readable corner radius summary for inspector and status readout.
+    /// </summary>
+    public static string FormatCornerRadiusSummary(double cornerRadius)
+    {
+        if (cornerRadius <= 0.0) return "Corner radius: 0px (Square / Sharp)";
+        if (cornerRadius <= 4.0) return $"Corner radius: {cornerRadius:0.#}px (Subtle rounded)";
+        if (cornerRadius <= 8.0) return $"Corner radius: {cornerRadius:0.#}px (Medium rounded)";
+        return $"Corner radius: {cornerRadius:0.#}px (Pill / Deeply rounded)";
+    }
 }

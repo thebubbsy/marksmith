@@ -225,6 +225,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentPathLengthItem" Text="Copy path length &amp; MAX_PATH safety audit" Click="OnCopyRecentPathLengthClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentSizeDistributionItem" Text="Copy disk footprint &amp; file size audit" Click="OnCopyRecentSizeDistributionClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EA;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

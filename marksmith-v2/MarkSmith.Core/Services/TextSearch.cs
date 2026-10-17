@@ -427,5 +427,31 @@ public static class TextSearch
 
         return $"Query: \"{query}\" · {matchLabel}{optionsStr} · {modeAndValidation}";
     }
+
+    /// <summary>
+    /// Formats a search match density and frequency summary relative to total word and character count.
+    /// </summary>
+    public static string FormatSearchMatchRate(int matchCount, int totalWordCount, int totalCharCount)
+    {
+        if (matchCount <= 0)
+        {
+            return totalWordCount > 0
+                ? $"0 matches across {totalWordCount:N0} words (0.00% density)"
+                : "0 matches (0.00% density)";
+        }
+
+        string matchLabel = matchCount == 1 ? "1 match" : $"{matchCount:N0} matches";
+
+        if (totalWordCount <= 0)
+        {
+            return $"{matchLabel} (Word count unavailable)";
+        }
+
+        double densityPct = (double)matchCount / totalWordCount * 100.0;
+        int wordFrequency = (int)Math.Round((double)totalWordCount / matchCount);
+        string freqStr = wordFrequency <= 1 ? "every word" : $"1 every {wordFrequency:N0} words";
+
+        return $"{matchLabel} across {totalWordCount:N0} words ({densityPct:0.00}% density · {freqStr})";
+    }
 }
 

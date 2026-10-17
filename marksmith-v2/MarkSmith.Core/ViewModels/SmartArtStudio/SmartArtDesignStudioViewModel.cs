@@ -1536,4 +1536,93 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Outline branching: {total} nodes ({branches} branch{(branches == 1 ? "" : "es")}, {leaves} leaf/leaves) · Avg: {avgBranch:0.#} children/branch (Max: {maxBranch})";
     }
+
+    /// <summary>
+    /// Audits the outline hierarchy subtree balance across root-level nodes.
+    /// Returns total roots, sizes of each root subtree (root + its descendants), standard deviation of subtree sizes, and balance state.
+    /// </summary>
+    public static (int RootCount, List<int> SubtreeSizes, double StdDev, bool IsBalanced) AuditOutlineBalance(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return (0, new List<int>(), 0.0, true);
+
+        var lines = markdown.Replace("\r", "").Split('\n');
+        var depths = new List<int>();
+
+        foreach (var rawLine in lines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+
+            int leadWs = 0;
+            int spaceCount = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t'))
+            {
+                if (rawLine[leadWs] == '\t') spaceCount += 2;
+                else spaceCount += 1;
+                leadWs++;
+            }
+
+            if (leadWs < rawLine.Length)
+            {
+                var rest = rawLine.Substring(leadWs);
+                if (rest.StartsWith("- ") || rest.StartsWith("* ") || rest.StartsWith("+ ") ||
+                    (rest.Length > 2 && char.IsDigit(rest[0]) && rest[1] == '.' && rest[2] == ' '))
+                {
+                    int depth = (spaceCount / 2) + 1;
+                    depths.Add(depth);
+                }
+            }
+        }
+
+        if (depths.Count == 0) return (0, new List<int>(), 0.0, true);
+
+        var rootIndices = new List<int>();
+        for (int i = 0; i < depths.Count; i++)
+        {
+            if (depths[i] == 1) rootIndices.Add(i);
+        }
+
+        if (rootIndices.Count == 0)
+        {
+            rootIndices.Add(0);
+        }
+
+        var subtreeSizes = new List<int>();
+        for (int r = 0; r < rootIndices.Count; r++)
+        {
+            int start = rootIndices[r];
+            int nextStart = (r + 1 < rootIndices.Count) ? rootIndices[r + 1] : depths.Count;
+            int size = nextStart - start;
+            subtreeSizes.Add(size);
+        }
+
+        if (subtreeSizes.Count <= 1)
+        {
+            return (subtreeSizes.Count, subtreeSizes, 0.0, true);
+        }
+
+        double mean = (double)subtreeSizes.Sum() / subtreeSizes.Count;
+        double sumSquares = subtreeSizes.Sum(s => Math.Pow(s - mean, 2));
+        double stdDev = Math.Sqrt(sumSquares / subtreeSizes.Count);
+        bool isBalanced = stdDev <= 1.5;
+
+        return (subtreeSizes.Count, subtreeSizes, stdDev, isBalanced);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of outline root subtree balance.
+    /// </summary>
+    public static string FormatOutlineBalanceSummary(string? markdown)
+    {
+        var (roots, sizes, stdDev, isBalanced) = AuditOutlineBalance(markdown);
+        if (roots == 0) return "Outline balance: Empty outline (0 nodes)";
+
+        if (roots == 1)
+        {
+            return $"Outline balance: 1 root tree ({sizes[0]} total nodes)";
+        }
+
+        string sizeList = string.Join(", ", sizes);
+        string status = isBalanced ? "Balanced" : "Skewed";
+        return $"Outline balance: {roots} root trees ({status}: subtree sizes [{sizeList}] · σ={stdDev:0.#})";
+    }
 }
