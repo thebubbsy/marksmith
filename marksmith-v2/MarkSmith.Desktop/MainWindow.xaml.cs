@@ -7628,226 +7628,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         line = _folds.DocumentLine(text, line); // past a fold, the document's line number
         var sel = Math.Clamp(tb.SelectionLength, 0, text.Length - start);
         CursorPosText.Text = DocumentStatsService.FormatCursorAndSelection(line, col, text.AsSpan(start, sel));
-        UpdateStatusSectionBreadcrumb(text, start);
-        UpdateStatusReadingTime(text);
         UpdateStatusEncoding(text);
         UpdateStatusIndentation(text);
     }
 
-    private void UpdateStatusSectionBreadcrumb(string text, int caretPos)
-    {
-        if (StatusSectionBreadcrumbText is null || StatusSectionBreadcrumbButton is null) return;
-        if (string.IsNullOrEmpty(text) || caretPos < 0)
-        {
-            StatusSectionBreadcrumbText.Text = "§ Document start";
-            ToolTipService.SetToolTip(StatusSectionBreadcrumbButton, "Document section hierarchy · At start of document");
-            return;
-        }
-
-        var headings = new List<(int Level, string Title, int Offset)>();
-        int pos = Math.Min(caretPos, text.Length);
-        int linesScanned = 0;
-        int currentLevel = int.MaxValue;
-
-        while (pos > 0 && linesScanned < 300)
-        {
-            int lineEnd = pos;
-            int prevNewline = text.LastIndexOf('\n', Math.Max(0, pos - 1));
-            int lineStart = prevNewline >= 0 ? prevNewline + 1 : 0;
-            linesScanned++;
-
-            ReadOnlySpan<char> span = text.AsSpan(lineStart, lineEnd - lineStart).Trim();
-            if (span.StartsWith("#"))
-            {
-                int hashes = 0;
-                while (hashes < span.Length && span[hashes] == '#') hashes++;
-                if (hashes > 0 && hashes <= 6 && hashes < span.Length && span[hashes] == ' ')
-                {
-                    if (hashes < currentLevel)
-                    {
-                        string title = span.Slice(hashes + 1).Trim().ToString();
-                        headings.Add((hashes, title, lineStart));
-                        currentLevel = hashes;
-                        if (currentLevel == 1) break;
-                    }
-                }
-            }
-
-            pos = prevNewline >= 0 ? prevNewline : 0;
-        }
-
-        if (headings.Count == 0)
-        {
-            StatusSectionBreadcrumbText.Text = "§ Document start";
-            ToolTipService.SetToolTip(StatusSectionBreadcrumbButton, "Document section hierarchy · No preceding headings found");
-        }
-        else
-        {
-            headings.Reverse();
-            StatusSectionBreadcrumbText.Text = $"§ {headings[^1].Title}";
-            var pathStr = string.Join(" \u2192 ", headings.Select(h => $"H{h.Level} {h.Title}"));
-            ToolTipService.SetToolTip(StatusSectionBreadcrumbButton,
-                $"Section hierarchy:\n{pathStr}\nClick to jump to section headings, right-click for outline options");
-        }
-    }
-
-    private void OnStatusSectionBreadcrumbClick(object sender, RoutedEventArgs e)
-    {
-        var text = PasteTextBox?.Text ?? string.Empty;
-        var menu = new MenuFlyout();
-
-        var header = new MenuFlyoutItem
-        {
-            Text = "Document headings & sections",
-            Icon = new FontIcon { Glyph = "\uE8D2" },
-            IsEnabled = false
-        };
-        menu.Items.Add(header);
-        menu.Items.Add(new MenuFlyoutSeparator());
-
-        var allHeadings = CollectDocumentHeadings(text);
-        if (allHeadings.Count == 0)
-        {
-            menu.Items.Add(new MenuFlyoutItem { Text = "No headings in document", IsEnabled = false });
-        }
-        else
-        {
-            int caret = Math.Min(PasteTextBox?.SelectionStart ?? 0, text.Length);
-            foreach (var h in allHeadings.Take(25))
-            {
-                string indent = new string(' ', (h.Level - 1) * 2);
-                bool isActive = caret >= h.Offset && caret < h.EndOffset;
-                var item = new MenuFlyoutItem
-                {
-                    Text = $"{indent}H{h.Level}: {h.Title}{(isActive ? " ✓" : "")}",
-                    Icon = new FontIcon { Glyph = isActive ? "\uE73E" : "\uE8FD" }
-                };
-                int targetOffset = h.Offset;
-                item.Click += (_, _) =>
-                {
-                    if (PasteTextBox is not null)
-                    {
-                        UnfoldAll();
-                        PasteTextBox.Select(targetOffset, 0);
-                        PasteTextBox.Focus(FocusState.Programmatic);
-                        UpdateCursorPosition();
-                        AnnounceStatus($"Jumped to H{h.Level}: {h.Title}");
-                    }
-                };
-                menu.Items.Add(item);
-            }
-        }
-
-        menu.ShowAt(StatusSectionBreadcrumbButton, new Windows.Foundation.Point(0, 0));
-    }
-
-    private void OnStatusSectionBreadcrumbRightTapped(object sender, RightTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        var menu = new MenuFlyout();
-
-        var copyTitle = new MenuFlyoutItem
-        {
-            Text = "Copy current section title",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
-        };
-        copyTitle.Click += (_, _) =>
-        {
-            var title = StatusSectionBreadcrumbText?.Text?.TrimStart('§', ' ') ?? "";
-            _ = Services.ClipboardWriter.TrySetTextAsync(title);
-            AnnounceStatus($"Copied section title: {title}");
-        };
-        menu.Items.Add(copyTitle);
-
-        var copyAll = new MenuFlyoutItem
-        {
-            Text = "Copy all document headings",
-            Icon = new FontIcon { Glyph = "\uE8FD" }
-        };
-        copyAll.Click += (_, _) =>
-        {
-            var text = PasteTextBox?.Text ?? string.Empty;
-            var headings = CollectDocumentHeadings(text);
-            var toc = string.Join("\n", headings.Select(h => $"{new string('#', h.Level)} {h.Title}"));
-            _ = Services.ClipboardWriter.TrySetTextAsync(toc);
-            AnnounceStatus($"Copied table of contents ({headings.Count} headings)");
-        };
-        menu.Items.Add(copyAll);
-
-        menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
-    }
-
-    private void UpdateStatusReadingTime(string? text)
-    {
-        if (StatusReadingTimeText is null || StatusReadingTimeButton is null) return;
-        var stats = ViewModel.DocumentStats;
-        string readTime = string.IsNullOrWhiteSpace(stats.ReadingTimeText) ? "~1 min read" : $"~{stats.ReadingTimeText} read";
-        StatusReadingTimeText.Text = readTime;
-        ToolTipService.SetToolTip(StatusReadingTimeButton,
-            $"Reading time: {readTime}\nWords: {stats.Words:N0} · Characters: {stats.Characters:N0} · Paragraphs: {stats.Paragraphs:N0}\nClick to view full metrics, double-click to copy stats, right-click for options");
-    }
-
-    private void OnStatusReadingTimeButtonClick(object sender, RoutedEventArgs e)
-    {
-        ShowWordCountFlyout(sender as FrameworkElement ?? StatusReadingTimeButton);
-    }
-
-    private void OnStatusReadingTimeButtonDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        var stats = ViewModel.DocumentStats;
-        string readTime = string.IsNullOrWhiteSpace(stats.ReadingTimeText) ? "1 min" : stats.ReadingTimeText;
-        string summary = $"Reading time: ~{readTime} read ({stats.Words:N0} words, {stats.Characters:N0} characters)";
-        _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-        AnnounceStatus($"Copied reading metrics: {summary}");
-    }
-
-    private void OnStatusReadingTimeButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        var stats = ViewModel.DocumentStats;
-        var menu = new MenuFlyout();
-
-        var viewMetrics = new MenuFlyoutItem
-        {
-            Text = "View detailed document metrics",
-            Icon = new FontIcon { Glyph = "\uE916" }
-        };
-        viewMetrics.Click += (_, _) => ShowWordCountFlyout(StatusReadingTimeButton);
-        menu.Items.Add(viewMetrics);
-
-        var copyReadingTime = new MenuFlyoutItem
-        {
-            Text = $"Copy reading time (~{stats.ReadingTimeText} read)",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
-        };
-        copyReadingTime.Click += (_, _) =>
-        {
-            _ = Services.ClipboardWriter.TrySetTextAsync($"~{stats.ReadingTimeText} read");
-            AnnounceStatus($"Copied reading time: ~{stats.ReadingTimeText} read");
-        };
-        menu.Items.Add(copyReadingTime);
-
-        var copyStatsItem = new MenuFlyoutItem
-        {
-            Text = "Copy full metrics summary",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
-        };
-        copyStatsItem.Click += (_, _) =>
-        {
-            var summary = ViewModel.DocumentStatsDetail;
-            if (string.IsNullOrWhiteSpace(summary)) summary = ViewModel.WordCountText;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus($"Copied document statistics: {summary}");
-        };
-        menu.Items.Add(copyStatsItem);
-
-        menu.ShowAt(StatusReadingTimeButton, e.GetPosition(StatusReadingTimeButton));
-    }
+    private string _currentEncodingSummary = "UTF-8 · CRLF";
 
     private void UpdateStatusEncoding(string? text)
     {
-        if (StatusEncodingText is null || StatusEncodingButton is null) return;
         string lineEndings = "CRLF";
         string encodingName = "UTF-8";
         int crlfCount = 0;
@@ -7877,28 +7665,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
         }
         bool isMixed = crlfCount > 0 && lfCount > 0;
-        string encodingText = isMixed ? $"{encodingName} · Mixed" : $"{encodingName} · {lineEndings}";
-        StatusEncodingText.Text = encodingText;
-        ToolTipService.SetToolTip(StatusEncodingButton, isMixed
-            ? $"Document Format: {encodingText}\nInconsistent line endings: {crlfCount} CRLF (Windows) and {lfCount} LF (Unix/macOS)\nClick or double-click to normalize line endings, right-click for options"
-            : $"Document Format: {encodingText}\nEncoding: {encodingName} (No BOM)\nLine endings: {lineEndings} ({(lineEndings == "CRLF" ? "Windows \\r\\n" : "Unix/macOS \\n")})\nClick to change format, double-click to toggle CRLF/LF, right-click for options");
-    }
-
-    private void OnStatusEncodingButtonClick(object sender, RoutedEventArgs e)
-    {
-        ShowEncodingFlyout(sender as FrameworkElement ?? StatusEncodingButton);
-    }
-
-    private void OnStatusEncodingButtonDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        ToggleLineEndings();
-    }
-
-    private void OnStatusEncodingButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        ShowEncodingFlyout(StatusEncodingButton);
+        _currentEncodingSummary = isMixed ? $"{encodingName} · Mixed" : $"{encodingName} · {lineEndings}";
     }
 
     private void ToggleLineEndings()
@@ -8075,7 +7842,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         copyFormatItem.Click += (_, _) =>
         {
-            string summary = StatusEncodingText?.Text ?? "UTF-8 · CRLF";
+            string summary = _currentEncodingSummary;
             string detail = isMixed
                 ? $"{summary} ({crlfCount} CRLF, {lfCount} LF) · {crlfCount + lfCount} lines total"
                 : $"{summary} · No BOM";
@@ -8089,10 +7856,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private int _currentIndentSize = 4;
     private bool _currentIndentUseTabs = false;
+    private string _currentIndentSummary = "Spaces: 4";
 
     private void UpdateStatusIndentation(string? text)
     {
-        if (StatusIndentText is null || StatusIndentButton is null) return;
         int spaces2Count = 0;
         int spaces4Count = 0;
         int tabsCount = 0;
@@ -8124,40 +7891,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             _currentIndentUseTabs = true;
             _currentIndentSize = 4;
-            StatusIndentText.Text = "Tabs";
-            ToolTipService.SetToolTip(StatusIndentButton, "Indentation style: Tabs · Click to change format, double-click to toggle spaces/tabs, right-click for options");
+            _currentIndentSummary = "Tabs";
         }
         else if (spaces2Count > spaces4Count)
         {
             _currentIndentUseTabs = false;
             _currentIndentSize = 2;
-            StatusIndentText.Text = "Spaces: 2";
-            ToolTipService.SetToolTip(StatusIndentButton, "Indentation style: 2 Spaces · Click to change format, double-click to toggle spaces/tabs, right-click for options");
+            _currentIndentSummary = "Spaces: 2";
         }
         else
         {
             _currentIndentUseTabs = false;
             _currentIndentSize = 4;
-            StatusIndentText.Text = "Spaces: 4";
-            ToolTipService.SetToolTip(StatusIndentButton, "Indentation style: 4 Spaces · Click to change format, double-click to toggle spaces/tabs, right-click for options");
+            _currentIndentSummary = "Spaces: 4";
         }
-    }
-
-    private void OnStatusIndentButtonClick(object sender, RoutedEventArgs e)
-    {
-        ShowIndentFlyout(sender as FrameworkElement ?? StatusIndentButton);
-    }
-
-    private void OnStatusIndentButtonDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        ToggleIndentation();
-    }
-
-    private void OnStatusIndentButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        ShowIndentFlyout(StatusIndentButton);
     }
 
     private void ToggleIndentation()
@@ -8318,7 +8065,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         copyIndentItem.Click += (_, _) =>
         {
-            string summary = StatusIndentText?.Text ?? "Spaces: 4";
+            string summary = _currentIndentSummary;
             _ = Services.ClipboardWriter.TrySetTextAsync(summary);
             AnnounceStatus($"Copied indentation format: {summary}");
         };
@@ -10582,414 +10329,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    private void OnCalloutAlertButtonClick(object sender, RoutedEventArgs e)
-    {
-        CalloutAlertFlyout?.ShowAt(sender as FrameworkElement ?? CalloutAlertButton);
-    }
-
-    private void OnCalloutAlertButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        InsertCalloutAlert("NOTE");
-    }
-
-    private void OnCalloutAlertButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        CalloutAlertFlyout?.ShowAt(sender as FrameworkElement ?? CalloutAlertButton);
-    }
-
-    private void OnInsertCalloutNoteClick(object sender, RoutedEventArgs e) => InsertCalloutAlert("NOTE");
-    private void OnInsertCalloutTipClick(object sender, RoutedEventArgs e) => InsertCalloutAlert("TIP");
-    private void OnInsertCalloutImportantClick(object sender, RoutedEventArgs e) => InsertCalloutAlert("IMPORTANT");
-    private void OnInsertCalloutWarningClick(object sender, RoutedEventArgs e) => InsertCalloutAlert("WARNING");
-    private void OnInsertCalloutCautionClick(object sender, RoutedEventArgs e) => InsertCalloutAlert("CAUTION");
-    private void OnInsertStandardQuoteClick(object sender, RoutedEventArgs e) => InsertCalloutAlert(null);
-
-    private void InsertCalloutAlert(string? kind)
-    {
-        var tb = PasteTextBox;
-        if (tb is null) return;
-        string text = tb.Text ?? "";
-        int selStart = tb.SelectionStart;
-        int selLength = tb.SelectionLength;
-
-        string header = kind != null ? $"> [!{kind}]" : ">";
-        if (selLength > 0 && selStart + selLength <= text.Length)
-        {
-            string selected = text.Substring(selStart, selLength);
-            var lines = selected.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine(header);
-            foreach (var line in lines)
-            {
-                sb.AppendLine("> " + line);
-            }
-            string replacement = sb.ToString().TrimEnd('\r', '\n');
-            string newText = text.Substring(0, selStart) + replacement + text.Substring(selStart + selLength);
-            tb.Text = newText;
-            tb.SelectionStart = selStart + replacement.Length;
-            tb.SelectionLength = 0;
-        }
-        else
-        {
-            string snippet = kind != null
-                ? $"> [!{kind}]{Environment.NewLine}> Alert description and details here.{Environment.NewLine}"
-                : $"> Blockquote text here.{Environment.NewLine}";
-            string newText = text.Insert(selStart, snippet);
-            tb.Text = newText;
-            tb.SelectionStart = selStart + snippet.Length;
-            tb.SelectionLength = 0;
-        }
-        if (CalloutAlertButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(CalloutAlertButton, null);
-    }
-
-    private void OnCodeFenceButtonClick(object sender, RoutedEventArgs e)
-    {
-        CodeFenceFlyout?.ShowAt(sender as FrameworkElement ?? CodeFenceButton);
-    }
-
-    private void OnCodeFenceButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        InsertCodeFence("mermaid");
-    }
-
-    private void OnCodeFenceButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        CodeFenceFlyout?.ShowAt(sender as FrameworkElement ?? CodeFenceButton);
-    }
-
-    private void OnInsertCodeFenceCsharpClick(object sender, RoutedEventArgs e) => InsertCodeFence("csharp");
-    private void OnInsertCodeFenceMermaidClick(object sender, RoutedEventArgs e) => InsertCodeFence("mermaid");
-    private void OnInsertCodeFenceJsonClick(object sender, RoutedEventArgs e) => InsertCodeFence("json");
-    private void OnInsertCodeFenceBashClick(object sender, RoutedEventArgs e) => InsertCodeFence("bash");
-    private void OnInsertCodeFencePythonClick(object sender, RoutedEventArgs e) => InsertCodeFence("python");
-    private void OnInsertCodeFenceMarkdownClick(object sender, RoutedEventArgs e) => InsertCodeFence("markdown");
-    private void OnInsertCodeFenceXmlClick(object sender, RoutedEventArgs e) => InsertCodeFence("xml");
-    private void OnInsertCodeFencePlainClick(object sender, RoutedEventArgs e) => InsertCodeFence("");
-
-    private void InsertCodeFence(string language)
-    {
-        var tb = PasteTextBox;
-        if (tb is null) return;
-        string text = tb.Text ?? "";
-        int selStart = tb.SelectionStart;
-        int selLength = tb.SelectionLength;
-
-        string langTag = string.IsNullOrWhiteSpace(language) ? "" : language.Trim();
-        if (selLength > 0 && selStart + selLength <= text.Length)
-        {
-            string selected = text.Substring(selStart, selLength);
-            string snippet = $"```{langTag}{Environment.NewLine}{selected}{Environment.NewLine}```{Environment.NewLine}";
-            string newText = text.Substring(0, selStart) + snippet + text.Substring(selStart + selLength);
-            tb.Text = newText;
-            tb.SelectionStart = selStart + snippet.Length;
-            tb.SelectionLength = 0;
-        }
-        else
-        {
-            string sample = langTag switch
-            {
-                "mermaid" => $"graph TD;{Environment.NewLine}    A[Start] --> B[Process];{Environment.NewLine}    B --> C[Finish];",
-                "json" => $"{{\n  \"key\": \"value\"\n}}",
-                "csharp" => "// C# code\npublic class Example\n{\n}",
-                "python" => "# Python code\ndef main():\n    pass",
-                "bash" => "#!/usr/bin/env bash\necho \"Running script...\"",
-                "xml" => "<element attribute=\"value\"></element>",
-                _ => "// Code snippet here"
-            };
-            string snippet = $"```{langTag}{Environment.NewLine}{sample}{Environment.NewLine}```{Environment.NewLine}";
-            string newText = text.Insert(selStart, snippet);
-            tb.Text = newText;
-            tb.SelectionStart = selStart + snippet.Length;
-            tb.SelectionLength = 0;
-        }
-        if (CodeFenceButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(CodeFenceButton, null);
-    }
-
-    private void OnTaskListButtonClick(object sender, RoutedEventArgs e) => ToggleOrConvertTaskList("toggle");
-
-    private void OnTaskListButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        InsertTaskListTemplate();
-    }
-
-    private void OnTaskListButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        TaskListFlyout?.ShowAt(sender as FrameworkElement ?? TaskListButton);
-    }
-
-    private void OnToggleTaskCheckboxClick(object sender, RoutedEventArgs e) => ToggleOrConvertTaskList("toggle");
-    private void OnConvertSelectionToTasksClick(object sender, RoutedEventArgs e) => ToggleOrConvertTaskList("convert");
-    private void OnInsertTaskListTemplateClick(object sender, RoutedEventArgs e) => InsertTaskListTemplate();
-    private void OnCheckAllTasksClick(object sender, RoutedEventArgs e) => ToggleOrConvertTaskList("check");
-    private void OnUncheckAllTasksClick(object sender, RoutedEventArgs e) => ToggleOrConvertTaskList("uncheck");
-
-    private void InsertTaskListTemplate()
-    {
-        var tb = PasteTextBox;
-        if (tb is null) return;
-        string text = tb.Text ?? "";
-        int selStart = tb.SelectionStart;
-        string template = $"- [ ] First task item{Environment.NewLine}- [ ] Second task item{Environment.NewLine}- [ ] Third task item{Environment.NewLine}";
-        string newText = text.Insert(selStart, template);
-        tb.Text = newText;
-        tb.SelectionStart = selStart + template.Length;
-        tb.SelectionLength = 0;
-        if (TaskListButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(TaskListButton, null);
-    }
-
-    private void ToggleOrConvertTaskList(string mode)
-    {
-        var tb = PasteTextBox;
-        if (tb is null) return;
-        string text = tb.Text ?? "";
-        int selStart = tb.SelectionStart;
-        int selLength = tb.SelectionLength;
-
-        if (selLength == 0)
-        {
-            int lineStart = selStart > 0 ? text.LastIndexOf('\n', Math.Max(0, selStart - 1)) + 1 : 0;
-            int lineEnd = text.IndexOf('\n', selStart);
-            if (lineEnd == -1) lineEnd = text.Length;
-
-            string line = text.Substring(lineStart, lineEnd - lineStart);
-            string trimmed = line.TrimStart();
-            string indent = line.Substring(0, line.Length - trimmed.Length);
-            string newLine;
-
-            if (trimmed.StartsWith("- [ ] "))
-            {
-                newLine = indent + "- [x] " + trimmed.Substring(6);
-            }
-            else if (trimmed.StartsWith("- [x] ", StringComparison.OrdinalIgnoreCase))
-            {
-                newLine = indent + "- [ ] " + trimmed.Substring(6);
-            }
-            else if (trimmed.StartsWith("- "))
-            {
-                newLine = indent + "- [ ] " + trimmed.Substring(2);
-            }
-            else
-            {
-                newLine = indent + "- [ ] " + trimmed;
-            }
-
-            string newFullText = text.Substring(0, lineStart) + newLine + text.Substring(lineEnd);
-            tb.Text = newFullText;
-            tb.SelectionStart = lineStart + newLine.Length;
-            tb.SelectionLength = 0;
-        }
-        else
-        {
-            string selected = text.Substring(selStart, selLength);
-            var lines = selected.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
-            var sb = new System.Text.StringBuilder();
-
-            for (int i = 0; i < lines.Length; i++)
-            {
-                string line = lines[i];
-                string trimmed = line.TrimStart();
-                string indent = line.Substring(0, line.Length - trimmed.Length);
-
-                if (string.IsNullOrWhiteSpace(line))
-                {
-                    sb.AppendLine(line);
-                    continue;
-                }
-
-                string processedLine = mode switch
-                {
-                    "check" => trimmed.StartsWith("- [ ] ")
-                        ? indent + "- [x] " + trimmed.Substring(6)
-                        : (trimmed.StartsWith("- [x] ", StringComparison.OrdinalIgnoreCase)
-                            ? line
-                            : indent + "- [x] " + (trimmed.StartsWith("- ") ? trimmed.Substring(2) : trimmed)),
-                    "uncheck" => trimmed.StartsWith("- [x] ", StringComparison.OrdinalIgnoreCase)
-                        ? indent + "- [ ] " + trimmed.Substring(6)
-                        : (trimmed.StartsWith("- [ ] ")
-                            ? line
-                            : indent + "- [ ] " + (trimmed.StartsWith("- ") ? trimmed.Substring(2) : trimmed)),
-                    "convert" => (trimmed.StartsWith("- [ ] ") || trimmed.StartsWith("- [x] ", StringComparison.OrdinalIgnoreCase))
-                        ? line
-                        : indent + "- [ ] " + (trimmed.StartsWith("- ") ? trimmed.Substring(2) : trimmed),
-                    _ => trimmed.StartsWith("- [ ] ")
-                        ? indent + "- [x] " + trimmed.Substring(6)
-                        : (trimmed.StartsWith("- [x] ", StringComparison.OrdinalIgnoreCase)
-                            ? indent + "- [ ] " + trimmed.Substring(6)
-                            : indent + "- [ ] " + (trimmed.StartsWith("- ") ? trimmed.Substring(2) : trimmed))
-                };
-
-                if (i < lines.Length - 1 || selected.EndsWith("\n") || selected.EndsWith("\r"))
-                {
-                    sb.AppendLine(processedLine);
-                }
-                else
-                {
-                    sb.Append(processedLine);
-                }
-            }
-
-            string replacement = sb.ToString();
-            string newFullText = text.Substring(0, selStart) + replacement + text.Substring(selStart + selLength);
-            tb.Text = newFullText;
-            tb.SelectionStart = selStart;
-            tb.SelectionLength = replacement.Length;
-        }
-
-        if (TaskListButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(TaskListButton, null);
-    }
-
-    private void OnMathFormulaButtonClick(object sender, RoutedEventArgs e)
-    {
-        MathFormulaFlyout?.ShowAt(sender as FrameworkElement ?? MathFormulaButton);
-    }
-
-    private void OnMathFormulaButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        InsertMathSnippet("inline");
-    }
-
-    private void OnMathFormulaButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        MathFormulaFlyout?.ShowAt(sender as FrameworkElement ?? MathFormulaButton);
-    }
-
-    private void OnInsertInlineMathClick(object sender, RoutedEventArgs e) => InsertMathSnippet("inline");
-    private void OnInsertBlockMathClick(object sender, RoutedEventArgs e) => InsertMathSnippet("block");
-    private void OnInsertFractionMathClick(object sender, RoutedEventArgs e) => InsertMathSnippet("fraction");
-    private void OnInsertSummationMathClick(object sender, RoutedEventArgs e) => InsertMathSnippet("summation");
-    private void OnInsertMatrixMathClick(object sender, RoutedEventArgs e) => InsertMathSnippet("matrix");
-    private void OnInsertMhchemMathClick(object sender, RoutedEventArgs e) => InsertMathSnippet("mhchem");
-
-    private void InsertMathSnippet(string formulaType)
-    {
-        var tb = PasteTextBox;
-        if (tb is null) return;
-        string text = tb.Text ?? "";
-        int selStart = tb.SelectionStart;
-        int selLength = tb.SelectionLength;
-
-        string selected = (selLength > 0 && selStart + selLength <= text.Length)
-            ? text.Substring(selStart, selLength)
-            : "";
-
-        string snippet;
-        int caretOffset;
-
-        switch (formulaType?.ToLowerInvariant())
-        {
-            case "inline":
-                if (!string.IsNullOrEmpty(selected))
-                {
-                    snippet = $"${selected}$";
-                    caretOffset = snippet.Length;
-                }
-                else
-                {
-                    snippet = "$x = y$";
-                    caretOffset = snippet.Length;
-                }
-                break;
-
-            case "block":
-                if (!string.IsNullOrEmpty(selected))
-                {
-                    snippet = $"$${Environment.NewLine}{selected}{Environment.NewLine}$${Environment.NewLine}";
-                    caretOffset = snippet.Length;
-                }
-                else
-                {
-                    snippet = $"$${Environment.NewLine}\\frac{{-b \\pm \\sqrt{{b^2 - 4ac}}}}{{2a}}{Environment.NewLine}$${Environment.NewLine}";
-                    caretOffset = snippet.Length;
-                }
-                break;
-
-            case "fraction":
-                if (!string.IsNullOrEmpty(selected))
-                {
-                    snippet = $"$\\frac{{{selected}}}{{b}}$";
-                    caretOffset = snippet.Length;
-                }
-                else
-                {
-                    snippet = "$\\frac{a}{b}$";
-                    caretOffset = snippet.Length;
-                }
-                break;
-
-            case "summation":
-                snippet = $"$\\sum_{{i=1}}^{{n}} x_i$";
-                caretOffset = snippet.Length;
-                break;
-
-            case "matrix":
-                snippet = $"$${Environment.NewLine}\\begin{{pmatrix}}{Environment.NewLine}  a & b \\\\{Environment.NewLine}  c & d{Environment.NewLine}\\end{{pmatrix}}{Environment.NewLine}$${Environment.NewLine}";
-                caretOffset = snippet.Length;
-                break;
-
-            case "mhchem":
-                snippet = "$\\ce{2H2 + O2 -> 2H2O}$";
-                caretOffset = snippet.Length;
-                break;
-
-            default:
-                snippet = "$formula$";
-                caretOffset = snippet.Length;
-                break;
-        }
-
-        if (selLength > 0 && selStart + selLength <= text.Length)
-        {
-            string newText = text.Substring(0, selStart) + snippet + text.Substring(selStart + selLength);
-            tb.Text = newText;
-            tb.SelectionStart = selStart + snippet.Length;
-            tb.SelectionLength = 0;
-        }
-        else
-        {
-            string newText = text.Insert(selStart, snippet);
-            tb.Text = newText;
-            tb.SelectionStart = selStart + caretOffset;
-            tb.SelectionLength = 0;
-        }
-
-        if (MathFormulaButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(MathFormulaButton, null);
-    }
-
-    private void OnFootnoteButtonClick(object sender, RoutedEventArgs e)
-    {
-        FootnoteFlyout?.ShowAt(sender as FrameworkElement ?? FootnoteButton);
-    }
-
-    private void OnFootnoteButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        InsertSequentialFootnote();
-    }
-
-    private void OnFootnoteButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        FootnoteFlyout?.ShowAt(sender as FrameworkElement ?? FootnoteButton);
-    }
-
-    private void OnInsertFootnoteClick(object sender, RoutedEventArgs e) => InsertSequentialFootnote();
-
-    private void OnInsertNamedFootnoteClick(object sender, RoutedEventArgs e) => InsertNamedFootnote();
-
-    private void OnInsertHyperlinkClick(object sender, RoutedEventArgs e) => InsertHyperlink();
-
-    private void OnInsertReferenceLinkClick(object sender, RoutedEventArgs e) => InsertReferenceLink();
-
-    private void OnJumpToFootnoteClick(object sender, RoutedEventArgs e) => JumpToFootnoteCounterpart();
-
     private void InsertSequentialFootnote()
     {
         var tb = PasteTextBox;
@@ -11029,160 +10368,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
 
         AnnounceStatus($"Inserted footnote [^{nextIndex}] with definition at end of document");
-        if (FootnoteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(FootnoteButton, null);
     }
-
-    private void InsertNamedFootnote()
-    {
-        var tb = PasteTextBox;
-        if (tb is null) return;
-        string text = tb.Text ?? "";
-        int selStart = tb.SelectionStart;
-        int selLength = tb.SelectionLength;
-
-        string name = (selLength > 0 && selStart + selLength <= text.Length)
-            ? System.Text.RegularExpressions.Regex.Replace(text.Substring(selStart, selLength).ToLowerInvariant(), @"[^a-z0-9_-]", "")
-            : "note";
-        if (string.IsNullOrWhiteSpace(name)) name = "note";
-
-        string anchor = $"[^{name}]";
-        string definition = $"{Environment.NewLine}{Environment.NewLine}[^{name}]: Note description.";
-
-        if (selLength > 0 && selStart + selLength <= text.Length)
-        {
-            string intermediate = text.Substring(0, selStart) + text.Substring(selStart, selLength) + anchor + text.Substring(selStart + selLength);
-            tb.Text = intermediate + definition;
-            tb.SelectionStart = intermediate.Length + definition.Length - "Note description.".Length;
-            tb.SelectionLength = "Note description.".Length;
-        }
-        else
-        {
-            string intermediate = text.Insert(selStart, anchor);
-            tb.Text = intermediate + definition;
-            tb.SelectionStart = intermediate.Length + definition.Length - "Note description.".Length;
-            tb.SelectionLength = "Note description.".Length;
-        }
-
-        AnnounceStatus($"Inserted named footnote [^{name}]");
-        if (FootnoteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(FootnoteButton, null);
-    }
-
-    private void InsertHyperlink()
-    {
-        var tb = PasteTextBox;
-        if (tb is null) return;
-        string text = tb.Text ?? "";
-        int selStart = tb.SelectionStart;
-        int selLength = tb.SelectionLength;
-
-        if (selLength > 0 && selStart + selLength <= text.Length)
-        {
-            string selected = text.Substring(selStart, selLength);
-            string snippet = $"[{selected}](https://)";
-            tb.Text = text.Substring(0, selStart) + snippet + text.Substring(selStart + selLength);
-            tb.SelectionStart = selStart + snippet.Length - 1;
-            tb.SelectionLength = 0;
-        }
-        else
-        {
-            string snippet = "[link text](https://example.com)";
-            tb.Text = text.Insert(selStart, snippet);
-            tb.SelectionStart = selStart + 1;
-            tb.SelectionLength = "link text".Length;
-        }
-
-        AnnounceStatus("Inserted Markdown hyperlink template");
-        if (FootnoteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(FootnoteButton, null);
-    }
-
-    private void InsertReferenceLink()
-    {
-        var tb = PasteTextBox;
-        if (tb is null) return;
-        string text = tb.Text ?? "";
-        int selStart = tb.SelectionStart;
-        int selLength = tb.SelectionLength;
-
-        string label = (selLength > 0 && selStart + selLength <= text.Length)
-            ? text.Substring(selStart, selLength)
-            : "link text";
-        string anchor = $"[{label}][ref]";
-        string definition = $"{Environment.NewLine}{Environment.NewLine}[ref]: https://example.com";
-
-        if (selLength > 0 && selStart + selLength <= text.Length)
-        {
-            string intermediate = text.Substring(0, selStart) + anchor + text.Substring(selStart + selLength);
-            tb.Text = intermediate + definition;
-            tb.SelectionStart = intermediate.Length + definition.Length - "https://example.com".Length;
-            tb.SelectionLength = "https://example.com".Length;
-        }
-        else
-        {
-            string intermediate = text.Insert(selStart, anchor);
-            tb.Text = intermediate + definition;
-            tb.SelectionStart = intermediate.Length + definition.Length - "https://example.com".Length;
-            tb.SelectionLength = "https://example.com".Length;
-        }
-
-        AnnounceStatus("Inserted reference-style hyperlink");
-        if (FootnoteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(FootnoteButton, null);
-    }
-
-    private void JumpToFootnoteCounterpart()
-    {
-        var tb = PasteTextBox;
-        if (tb is null) return;
-        string text = tb.Text ?? "";
-        int caret = tb.SelectionStart;
-
-        var matches = System.Text.RegularExpressions.Regex.Matches(text, @"\[\^([^\]]+)\](:)?");
-        System.Text.RegularExpressions.Match? bestMatch = null;
-        int bestDist = int.MaxValue;
-        foreach (System.Text.RegularExpressions.Match m in matches)
-        {
-            int dist = Math.Min(Math.Abs(m.Index - caret), Math.Abs(m.Index + m.Length - caret));
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                bestMatch = m;
-            }
-        }
-
-        if (bestMatch is not null && bestDist < 100)
-        {
-            string key = bestMatch.Groups[1].Value;
-            bool isDef = bestMatch.Groups[2].Success;
-            string targetPattern = isDef ? $@"\[\^{System.Text.RegularExpressions.Regex.Escape(key)}\](?!:)" : $@"\[\^{System.Text.RegularExpressions.Regex.Escape(key)}\]:";
-            var targetMatch = System.Text.RegularExpressions.Regex.Match(text, targetPattern);
-            if (targetMatch.Success)
-            {
-                tb.Select(targetMatch.Index, targetMatch.Length);
-                UpdateCursorPosition();
-                AnnounceStatus($"Jumped to {(isDef ? "anchor" : "definition")} for [^{key}]");
-                return;
-            }
-        }
-
-        AnnounceStatus("No footnote anchor or definition found near cursor to jump to");
-    }
-
-    private void OnFormatTableButtonClick(object sender, RoutedEventArgs e) => FormatTableAtCursor();
-
-    private void OnFormatTableButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        FormatAllTablesInDocument();
-    }
-
-    private void OnFormatTableButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        FormatTableFlyout?.ShowAt(sender as FrameworkElement ?? FormatTableButton);
-    }
-
-    private void OnFormatCurrentTableClick(object sender, RoutedEventArgs e) => FormatTableAtCursor();
-    private void OnFormatAllTablesClick(object sender, RoutedEventArgs e) => FormatAllTablesInDocument();
-    private void OnInsertTableTemplateClick(object sender, RoutedEventArgs e) => InsertMarkdownTableTemplate();
 
     private void FormatTableAtCursor()
     {
@@ -13019,14 +12205,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void UpdatePreviewZoomReadout(double scale)
     {
         var percent = (int)Math.Round(scale * 100.0);
-        if (StatusZoomText != null)
-        {
-            StatusZoomText.Text = $"{percent}%";
-            var statusTip = _previewFit
-                ? $"Preview zoom: {percent}% (fit-width) · Click to change, Double-click to reset (100%), Right-click for presets"
-                : $"Preview zoom: {percent}% · Click to change, Double-click to reset (100%), Right-click for presets";
-            ToolTipService.SetToolTip(StatusZoomButton, statusTip);
-        }
         if (PreviewZoomText is null) return;
         PreviewZoomText.Text = $"{percent}%";
         var tip = _previewFit
@@ -13038,23 +12216,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // doing nothing.
         PreviewZoomInButton.IsEnabled = Services.ZoomSteps.CanZoomIn(scale);
         PreviewZoomOutButton.IsEnabled = Services.ZoomSteps.CanZoomOut(scale);
-    }
-
-    private void OnStatusZoomButtonClick(object sender, RoutedEventArgs e)
-    {
-        ShowPreviewZoomContextMenu(StatusZoomButton, null);
-    }
-
-    private void OnStatusZoomButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        OnPreviewZoomResetClick(sender, e);
-    }
-
-    private void OnStatusZoomButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        ShowPreviewZoomContextMenu(StatusZoomButton, e.GetPosition(StatusZoomButton));
     }
 
 

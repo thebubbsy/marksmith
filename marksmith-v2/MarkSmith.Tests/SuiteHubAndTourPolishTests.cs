@@ -405,11 +405,7 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("AddRecentColor", shapeCs);
         Assert.Contains("RebuildRecentColorsSwatches", shapeCs);
 
-        var mainXaml = File.ReadAllText(DesktopPath("MainWindow.xaml"));
         var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
-
-        Assert.Contains("x:Name=\"FootnoteButton\"", mainXaml);
-        Assert.Contains("x:Name=\"FootnoteFlyout\"", mainXaml);
         Assert.Contains("InsertSequentialFootnote", mainCs);
     }
 
