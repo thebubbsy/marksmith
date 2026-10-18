@@ -252,6 +252,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentStalenessScorecardItem" Text="Copy library staleness &amp; recency tiers" Click="OnCopyRecentStalenessScorecardClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentVolumeDistributionItem" Text="Copy storage volume &amp; drive partition distribution" Click="OnCopyRecentVolumeDistributionClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

@@ -950,6 +950,43 @@ public class ShapeStudioPolishTests
         Assert.Equal(200, vm.Shapes[2].Y);
         Assert.Contains("Distribute evenly (Vertical): Balanced 1 shape across 3 shapes (Gap: 50px)", sumV);
     }
+
+    [Fact]
+    public void Run149_ScaleSelectedShapesProportionally()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // 2 shapes: Shape 1 at (0, 0, 100, 100); Shape 2 at (200, 0, 100, 100)
+        // Bounding box: X: 0..300, Y: 0..100. Center = (150, 50).
+        vm.AddShapeAt("rect", 0, 0, 100, 100, "0078D4", "Box 1");
+        vm.AddShapeAt("rect", 200, 0, 100, 100, "0078D4", "Box 2");
+        vm.SelectAll();
+
+        // Scale by 2.0x
+        var (scaledCount, totalCount, factor, summary) = vm.ScaleSelectedShapesProportionally(2.0);
+        Assert.Equal(2, scaledCount);
+        Assert.Equal(2, totalCount);
+        Assert.Equal(2.0, factor);
+
+        // Dimensions should be 200x200
+        Assert.Equal(200.0, vm.Shapes[0].Width);
+        Assert.Equal(200.0, vm.Shapes[0].Height);
+        Assert.Equal(200.0, vm.Shapes[1].Width);
+        Assert.Equal(200.0, vm.Shapes[1].Height);
+
+        // Center of Shape 1 was 50. Relative to 150 = -100. Scaled = -200. New center = 150 - 200 = -50.
+        // Clamped to 0: X = 0.
+        Assert.Equal(0.0, vm.Shapes[0].X);
+
+        Assert.Contains("Scale proportionally (2x): Resized 2 shapes around selection center", summary);
+
+        // Test Undo restores original dimensions
+        Assert.True(vm.CanUndo);
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(100.0, vm.Shapes[0].Width);
+        Assert.Equal(100.0, vm.Shapes[0].Height);
+    }
 }
 
 

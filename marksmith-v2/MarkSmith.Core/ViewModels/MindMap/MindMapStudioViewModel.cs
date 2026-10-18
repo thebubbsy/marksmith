@@ -3188,6 +3188,141 @@ namespace MarkSmith.ViewModels.MindMap
             string sampleStr = !string.IsNullOrEmpty(sampleTitle) ? $" (e.g. '{sampleTitle}')" : "";
             return $"Normalize node text casing ({mode}): {nodeLabel} updated across {totalExamined} nodes{sampleStr}";
         }
+
+        /// <summary>
+        /// Audits mind map nodes to identify inactive/dormant nodes and subtrees
+        /// (nodes with Progress == 100, tagged 'archived'/'done'/'dormant'/'deprecated', or with last modified date older than <paramref name="inactiveDaysThreshold"/>).
+        /// </summary>
+        public (int InactiveCount, int TotalNodes, int InactiveSubtreeRoots, double InactivePercentage, string Summary)
+            AuditInactiveSubtrees(int inactiveDaysThreshold = 60, DateTime? referenceDate = null)
+        {
+            var nodes = Nodes.Select(n => n.Model).ToList();
+            var links = Links.Select(l => l.Model).ToList();
+            var result = AuditInactiveSubtrees(nodes, links, inactiveDaysThreshold, referenceDate);
+            StatusMessage = result.Summary;
+            return result;
+        }
+
+        /// <summary>
+        /// Static pure-data auditor for inactive subtrees and dormant nodes.
+        /// </summary>
+        public static (int InactiveCount, int TotalNodes, int InactiveSubtreeRoots, double InactivePercentage, string Summary)
+            AuditInactiveSubtrees(
+                IReadOnlyList<MindMapNode>? nodes,
+                IReadOnlyList<MindMapLink>? links = null,
+                int inactiveDaysThreshold = 60,
+                DateTime? referenceDate = null)
+        {
+            if (nodes == null || nodes.Count == 0)
+            {
+                return (0, 0, 0, 0.0, "Inactive subtree audit: 0 nodes (Empty map)");
+            }
+
+            var refTime = referenceDate ?? DateTime.Now;
+            var inactiveNodes = new HashSet<string>();
+            var inactiveTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "archived", "done", "dormant", "deprecated", "completed" };
+
+            foreach (var node in nodes)
+            {
+                bool isInactive = false;
+
+                // 1. Tag match
+                if (node.Tags != null && node.Tags.Any(t => inactiveTags.Contains(t.TrimStart('#').Trim())))
+                {
+                    isInactive = true;
+                }
+
+                // 2. 100% progress
+                if (node.Progress >= 100)
+                {
+                    isInactive = true;
+                }
+
+                // 3. Stale date
+                if (!isInactive && inactiveDaysThreshold > 0)
+                {
+                    string? dateStr = node.ModifiedDate ?? node.CreatedDate;
+                    if (!string.IsNullOrWhiteSpace(dateStr) && DateTime.TryParse(dateStr, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var dt))
+                    {
+                        if ((refTime - dt).TotalDays >= inactiveDaysThreshold)
+                        {
+                            isInactive = true;
+                        }
+                    }
+                }
+
+                if (isInactive)
+                {
+                    inactiveNodes.Add(node.Id);
+                }
+            }
+
+            // Identify inactive subtree roots:
+            // A node is an inactive subtree root if:
+            // - It is inactive
+            // - Parent is either absent or NOT inactive
+            var childrenMap = new Dictionary<string, List<string>>();
+            var parentMap = new Dictionary<string, string>();
+            foreach (var node in nodes)
+            {
+                if (!string.IsNullOrEmpty(node.ParentId))
+                {
+                    parentMap[node.Id] = node.ParentId;
+                    if (!childrenMap.ContainsKey(node.ParentId))
+                        childrenMap[node.ParentId] = new List<string>();
+                    childrenMap[node.ParentId].Add(node.Id);
+                }
+            }
+
+            var inactiveRoots = new List<string>();
+            foreach (var node in nodes)
+            {
+                if (inactiveNodes.Contains(node.Id))
+                {
+                    bool parentIsInactive = parentMap.TryGetValue(node.Id, out var pid) && inactiveNodes.Contains(pid);
+                    if (!parentIsInactive)
+                    {
+                        inactiveRoots.Add(node.Title);
+                    }
+                }
+            }
+
+            int inactiveCount = inactiveNodes.Count;
+            int total = nodes.Count;
+            double pct = total > 0 ? Math.Round((double)inactiveCount / total * 100.0, 1) : 0.0;
+
+            string summary = FormatInactiveSubtreesSummary(inactiveCount, total, inactiveRoots.Count, pct, inactiveDaysThreshold, inactiveRoots);
+            return (inactiveCount, total, inactiveRoots.Count, pct, summary);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of inactive subtrees and dormant nodes.
+        /// </summary>
+        public static string FormatInactiveSubtreesSummary(
+            int inactiveCount,
+            int totalNodes,
+            int inactiveSubtreeRoots,
+            double inactivePercentage,
+            int thresholdDays,
+            IReadOnlyList<string>? sampleRoots = null)
+        {
+            if (totalNodes <= 0)
+                return "Inactive subtree audit: 0 nodes (Empty map)";
+
+            if (inactiveCount <= 0)
+                return $"Inactive subtree audit: All {totalNodes} nodes are active and recently updated (0 inactive subtrees detected)";
+
+            string nodeLabel = inactiveCount == 1 ? "1 dormant node" : $"{inactiveCount} dormant nodes";
+            string rootLabel = inactiveSubtreeRoots == 1 ? "1 subtree root" : $"{inactiveSubtreeRoots} subtree roots";
+            string samples = "";
+            if (sampleRoots != null && sampleRoots.Count > 0)
+            {
+                var take = sampleRoots.Take(3).Select(s => $"'{s}'").ToList();
+                samples = $" (e.g. {string.Join(", ", take)})";
+            }
+
+            return $"Inactive subtree audit ({inactivePercentage:0.#}% dormant · >{thresholdDays}d threshold): {nodeLabel} across {rootLabel}{samples} eligible for vault archiving";
+        }
     }
 
     /// <summary>

@@ -4062,6 +4062,86 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string shapeLabel = distributedCount == 1 ? "1 shape" : $"{distributedCount} shapes";
         return $"Distribute evenly ({axis}): Balanced {shapeLabel} across {totalCount} shapes (Gap: {gap:0.#}px)";
     }
+
+    /// <summary>
+    /// Scales selected shapes (or all canvas shapes if none selected) proportionally by <paramref name="scaleFactor"/>
+    /// around the selection's geometric center, scaling both shape dimensions and relative spatial offsets.
+    /// Records a single undo snapshot and triggers canvas redraw.
+    /// </summary>
+    public (int ScaledCount, int TotalExamined, double Factor, string Summary) ScaleSelectedShapesProportionally(double scaleFactor)
+    {
+        if (double.IsNaN(scaleFactor) || double.IsInfinity(scaleFactor) || scaleFactor <= 0.05)
+        {
+            scaleFactor = 1.0;
+        }
+
+        var selected = SelectedItems.ToList();
+        var targets = selected.Count > 0 ? selected : Shapes.ToList();
+
+        if (targets.Count == 0)
+        {
+            string emptySummary = FormatProportionalScaleSummary(0, 0, scaleFactor);
+            StatusMessage = emptySummary;
+            return (0, 0, scaleFactor, emptySummary);
+        }
+
+        RecordUndo();
+
+        // Calculate bounding box of targets
+        double minX = targets.Min(s => s.X);
+        double minY = targets.Min(s => s.Y);
+        double maxX = targets.Max(s => s.X + s.Width);
+        double maxY = targets.Max(s => s.Y + s.Height);
+        double centerX = (minX + maxX) / 2.0;
+        double centerY = (minY + maxY) / 2.0;
+
+        int scaledCount = 0;
+        foreach (var shape in targets)
+        {
+            double origW = shape.Width;
+            double origH = shape.Height;
+            double newW = Math.Max(10.0, Math.Round(origW * scaleFactor, 1));
+            double newH = Math.Max(10.0, Math.Round(origH * scaleFactor, 1));
+
+            // Shape center relative to selection center
+            double origCenterX = shape.X + (origW / 2.0);
+            double origCenterY = shape.Y + (origH / 2.0);
+
+            double newCenterX = centerX + ((origCenterX - centerX) * scaleFactor);
+            double newCenterY = centerY + ((origCenterY - centerY) * scaleFactor);
+
+            double newX = Math.Max(0.0, Math.Round(newCenterX - (newW / 2.0), 1));
+            double newY = Math.Max(0.0, Math.Round(newCenterY - (newH / 2.0), 1));
+
+            shape.Width = newW;
+            shape.Height = newH;
+            shape.X = newX;
+            shape.Y = newY;
+            scaledCount++;
+        }
+
+        double newSpanW = Math.Round((maxX - minX) * scaleFactor, 1);
+        double newSpanH = Math.Round((maxY - minY) * scaleFactor, 1);
+
+        string summary = FormatProportionalScaleSummary(scaledCount, targets.Count, scaleFactor, newSpanW, newSpanH);
+        StatusMessage = $"✓ {summary} · Ctrl+Z to undo";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        return (scaledCount, targets.Count, scaleFactor, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of a proportional multi-shape scaling operation.
+    /// </summary>
+    public static string FormatProportionalScaleSummary(
+        int scaledCount, int totalCount, double factor, double newSpanWidth = 0, double newSpanHeight = 0)
+    {
+        if (totalCount <= 0)
+            return $"Scale proportionally ({factor:0.##}x): 0 shapes (Empty selection/canvas)";
+
+        string shapeLabel = scaledCount == 1 ? "1 shape" : $"{scaledCount} shapes";
+        string dimStr = newSpanWidth > 0 && newSpanHeight > 0 ? $" · Bounding box: {newSpanWidth:0.#}×{newSpanHeight:0.#}px" : "";
+        return $"Scale proportionally ({factor:0.##}x): Resized {shapeLabel} around selection center{dimStr}";
+    }
 }
 
 /// <summary>

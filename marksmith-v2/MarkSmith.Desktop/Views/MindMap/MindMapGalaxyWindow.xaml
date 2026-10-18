@@ -264,6 +264,9 @@
                                     <MenuFlyoutItem x:Name="NormalizeNodeCasingItem" Text="Normalize node text casing (Title Case)" Click="OnNormalizeNodeCasingClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E4;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditInactiveNodesItem" Text="Audit inactive subtrees &amp; dormant vault nodes" Click="OnAuditInactiveNodesClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

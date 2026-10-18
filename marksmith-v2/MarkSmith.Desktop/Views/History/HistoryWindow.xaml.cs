@@ -3171,6 +3171,20 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied timeline volatility: {volatility}");
                 };
                 menu.Items.Add(copyVolatilityIndex);
+
+                var assessConflictRisk = new MenuFlyoutItem
+                {
+                    Text = "Assess cherry-pick conflict risk vs current document",
+                    Icon = new FontIcon { Glyph = "\uE7BA" }
+                };
+                assessConflictRisk.Click += (_, _) =>
+                {
+                    string currentDoc = _main?.PastedMarkdown ?? string.Empty;
+                    var (_, _, _, _, _, riskSummary) = MarkSmith.Services.LineDiff.AssessCherryPickConflictRisk(_vm.UnifiedDiffRows, currentDoc);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(riskSummary);
+                    _vm.ShowNotice($"Copied conflict risk: {riskSummary}");
+                };
+                menu.Items.Add(assessConflictRisk);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

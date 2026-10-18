@@ -2466,6 +2466,121 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string bulletLabel = adjustedCount == 1 ? "1 bullet" : $"{adjustedCount} bullets";
         return $"Balance outline depth (Max depth {maxDepth}): {bulletLabel} {modeStr} across {totalBullets} bullets to prevent layout overflow";
     }
+
+    /// <summary>
+    /// Audits the active SmartArt outline for token density, average word count per node,
+    /// variance, and identifies verbose or terse nodes that risk visual imbalance or layout overflow.
+    /// </summary>
+    public (int TotalBullets, int TotalWords, double MeanWords, int MinWords, int MaxWords, int VerboseCount, string Rating, string Summary)
+        AuditOutlineTokenDensity()
+    {
+        var result = AuditOutlineTokenDensity(MarkdownText);
+        StatusMessage = result.Summary;
+        return result;
+    }
+
+    /// <summary>
+    /// Audits markdown outline text for token density, word count distribution, and layout readability balance.
+    /// </summary>
+    public static (int TotalBullets, int TotalWords, double MeanWords, int MinWords, int MaxWords, int VerboseCount, string Rating, string Summary)
+        AuditOutlineTokenDensity(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            return (0, 0, 0.0, 0, 0, 0, "Empty", "Outline token density: 0 bullets (Empty outline)");
+        }
+
+        var lines = markdown.Replace("\r", "").Split('\n');
+        var bulletWordCounts = new List<int>();
+        bool inFence = false;
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence || string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            // Check if bullet or numbered item
+            int leadWs = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t')) leadWs++;
+            var stripped = rawLine.Substring(leadWs);
+
+            bool isBullet = stripped.StartsWith("- ") || stripped.StartsWith("* ") || stripped.StartsWith("+ ") ||
+                            System.Text.RegularExpressions.Regex.IsMatch(stripped, @"^\d+[\.\)]\s+");
+
+            if (!isBullet) continue;
+
+            // Extract content without bullet marker
+            string content;
+            if (stripped.StartsWith("- ") || stripped.StartsWith("* ") || stripped.StartsWith("+ "))
+            {
+                content = stripped.Substring(2).Trim();
+            }
+            else
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(stripped, @"^\d+[\.\)]\s+");
+                content = stripped.Substring(match.Length).Trim();
+            }
+
+            var words = content.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            bulletWordCounts.Add(words.Length);
+        }
+
+        if (bulletWordCounts.Count == 0)
+        {
+            return (0, 0, 0.0, 0, 0, 0, "Empty", "Outline token density: 0 bullets (No outline bullet items detected)");
+        }
+
+        int totalBullets = bulletWordCounts.Count;
+        int totalWords = bulletWordCounts.Sum();
+        double meanWords = Math.Round((double)totalWords / totalBullets, 1);
+        int minWords = bulletWordCounts.Min();
+        int maxWords = bulletWordCounts.Max();
+        int verboseCount = bulletWordCounts.Count(w => w > 12);
+        int terseCount = bulletWordCounts.Count(w => w <= 1);
+
+        string rating;
+        if (maxWords <= 10 && meanWords >= 2.0 && meanWords <= 7.0 && verboseCount == 0)
+            rating = "Optimal";
+        else if (maxWords <= 16 && verboseCount <= 1)
+            rating = "Balanced";
+        else if (maxWords <= 25)
+            rating = "Moderate Variance";
+        else
+            rating = "Overflow Risk";
+
+        string summary = FormatTokenDensitySummary(totalBullets, totalWords, meanWords, minWords, maxWords, verboseCount, terseCount, rating);
+        return (totalBullets, totalWords, meanWords, minWords, maxWords, verboseCount, rating, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of outline token density and readability balance.
+    /// </summary>
+    public static string FormatTokenDensitySummary(
+        int totalBullets, int totalWords, double meanWords, int minWords, int maxWords, int verboseCount, int terseCount, string rating)
+    {
+        if (totalBullets <= 0)
+            return "Outline token density: 0 bullets (Empty outline)";
+
+        string bulletLabel = totalBullets == 1 ? "1 bullet" : $"{totalBullets} bullets";
+        string wordLabel = totalWords == 1 ? "1 word" : $"{totalWords} words";
+
+        string advice = "";
+        if (verboseCount > 0)
+        {
+            advice = $" · Flagged: {verboseCount} verbose node{(verboseCount == 1 ? "" : "s")} (>12w, risk overflow)";
+        }
+        else if (rating == "Optimal")
+        {
+            advice = " · Ideal concise diagram phrasing";
+        }
+
+        return $"Outline token density (Rating: {rating} · {bulletLabel} · Total {wordLabel}): Mean {meanWords:0.#}w/node (Range: {minWords}-{maxWords}w){advice}";
+    }
 }
 
 

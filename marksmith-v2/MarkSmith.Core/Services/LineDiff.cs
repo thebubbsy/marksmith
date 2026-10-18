@@ -1379,6 +1379,215 @@ public static class LineDiff
 
         return $"Timeline volatility audit (Rating: {rating} · Active delta: +{added}/-{removed} · Churn: {churn} lines): Focused revision churn index";
     }
+
+    /// <summary>
+    /// Represents an assessment of merge/cherry-pick collision risk for a diff hunk against the current document.
+    /// </summary>
+    public enum CherryPickHunkRisk
+    {
+        Clean,
+        Shifted,
+        Modified,
+        Conflict
+    }
+
+    /// <summary>
+    /// Assesses conflict risk across cherry-pick hunks when applied to the active current document.
+    /// Returns total hunks, clean hunks, shifted hunks, conflicted hunks, overall risk rating, and summary.
+    /// </summary>
+    public static (int TotalHunks, int CleanHunks, int ShiftedHunks, int ConflictedHunks, string OverallRisk, string Summary)
+        AssessCherryPickConflictRisk(string? before, string? after, string? currentDoc)
+    {
+        var diffLines = Diff(before ?? string.Empty, after ?? string.Empty);
+        var unified = BuildUnified(diffLines);
+        return AssessCherryPickConflictRisk(unified, currentDoc);
+    }
+
+    /// <summary>
+    /// Assesses conflict risk across cherry-pick hunks extracted from unified diff rows against the active current document.
+    /// </summary>
+    public static (int TotalHunks, int CleanHunks, int ShiftedHunks, int ConflictedHunks, string OverallRisk, string Summary)
+        AssessCherryPickConflictRisk(IReadOnlyList<UnifiedRow>? unifiedRows, string? currentDoc)
+    {
+        if (unifiedRows is null || unifiedRows.Count == 0)
+        {
+            return (0, 0, 0, 0, "None", "Cherry-pick conflict risk: 0 hunks (No diff changes to cherry-pick)");
+        }
+
+        var hunks = ExtractHunksFromUnified(unifiedRows);
+        if (hunks.Count == 0)
+        {
+            return (0, 0, 0, 0, "None", "Cherry-pick conflict risk: 0 hunks (Identical versions)");
+        }
+
+        var currentLines = SplitLines(currentDoc ?? string.Empty);
+
+        int clean = 0;
+        int shifted = 0;
+        int conflicted = 0;
+
+        for (int i = 0; i < hunks.Count; i++)
+        {
+            var (startLine, addedLines, removedLines) = hunks[i];
+            var risk = EvaluateHunkRisk(startLine, addedLines, removedLines, currentLines);
+
+            switch (risk)
+            {
+                case CherryPickHunkRisk.Clean:
+                    clean++;
+                    break;
+                case CherryPickHunkRisk.Shifted:
+                    shifted++;
+                    break;
+                case CherryPickHunkRisk.Modified:
+                case CherryPickHunkRisk.Conflict:
+                    conflicted++;
+                    break;
+            }
+        }
+
+        string overallRisk = conflicted switch
+        {
+            0 when shifted == 0 => "Clean",
+            0 => "Low (Shifted)",
+            1 when hunks.Count > 1 => "Moderate",
+            _ => "High"
+        };
+
+        string summary = FormatConflictRiskSummary(hunks.Count, clean, shifted, conflicted, overallRisk);
+        return (hunks.Count, clean, shifted, conflicted, overallRisk, summary);
+    }
+
+    private static CherryPickHunkRisk EvaluateHunkRisk(
+        int expectedStartLine,
+        IReadOnlyList<string> addedLines,
+        IReadOnlyList<string> removedLines,
+        IReadOnlyList<string> currentLines)
+    {
+        if (currentLines.Count == 0)
+        {
+            return removedLines.Count == 0 ? CherryPickHunkRisk.Clean : CherryPickHunkRisk.Conflict;
+        }
+
+        if (removedLines.Count > 0)
+        {
+            // Look for removedLines in currentLines
+            int exactIndex = FindSubsequenceIndex(currentLines, removedLines);
+            if (exactIndex >= 0)
+            {
+                int actualLine = exactIndex + 1;
+                return Math.Abs(actualLine - expectedStartLine) <= 1
+                    ? CherryPickHunkRisk.Clean
+                    : CherryPickHunkRisk.Shifted;
+            }
+
+            // Check if any line from removedLines is found
+            bool anyMatch = removedLines.Any(r => currentLines.Any(c => string.Equals(c.Trim(), r.Trim(), StringComparison.Ordinal)));
+            return anyMatch ? CherryPickHunkRisk.Modified : CherryPickHunkRisk.Conflict;
+        }
+
+        // Pure additions
+        if (expectedStartLine <= currentLines.Count + 1)
+        {
+            return CherryPickHunkRisk.Clean;
+        }
+
+        return CherryPickHunkRisk.Shifted;
+    }
+
+    private static int FindSubsequenceIndex(IReadOnlyList<string> source, IReadOnlyList<string> target)
+    {
+        if (target.Count == 0) return 0;
+        if (source.Count < target.Count) return -1;
+
+        for (int i = 0; i <= source.Count - target.Count; i++)
+        {
+            bool match = true;
+            for (int j = 0; j < target.Count; j++)
+            {
+                if (!string.Equals(source[i + j].Trim(), target[j].Trim(), StringComparison.Ordinal))
+                {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) return i;
+        }
+        return -1;
+    }
+
+    private static List<(int StartLine, List<string> AddedLines, List<string> RemovedLines)>
+        ExtractHunksFromUnified(IReadOnlyList<UnifiedRow> unifiedRows)
+    {
+        var hunks = new List<(int StartLine, List<string> AddedLines, List<string> RemovedLines)>();
+        List<string>? curAdded = null;
+        List<string>? curRemoved = null;
+        int curStartLine = 1;
+        bool hasNewStart = false;
+
+        foreach (var row in unifiedRows)
+        {
+            if (row.Kind == Kind.Same)
+            {
+                if (curAdded is not null && curRemoved is not null && (curAdded.Count > 0 || curRemoved.Count > 0))
+                {
+                    hunks.Add((curStartLine, curAdded, curRemoved));
+                    curAdded = null;
+                    curRemoved = null;
+                    hasNewStart = false;
+                }
+                continue;
+            }
+
+            if (curAdded is null || curRemoved is null)
+            {
+                curAdded = new List<string>();
+                curRemoved = new List<string>();
+                curStartLine = row.NewNumber ?? row.OldNumber ?? 1;
+                hasNewStart = row.NewNumber.HasValue;
+            }
+            else if (!hasNewStart && row.NewNumber.HasValue)
+            {
+                curStartLine = row.NewNumber.Value;
+                hasNewStart = true;
+            }
+
+            if (row.Kind == Kind.Added)
+                curAdded.Add(row.Text ?? string.Empty);
+            else if (row.Kind == Kind.Removed)
+                curRemoved.Add(row.Text ?? string.Empty);
+        }
+
+        if (curAdded is not null && curRemoved is not null && (curAdded.Count > 0 || curRemoved.Count > 0))
+        {
+            hunks.Add((curStartLine, curAdded, curRemoved));
+        }
+
+        return hunks;
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of cherry-pick conflict risk metrics.
+    /// </summary>
+    public static string FormatConflictRiskSummary(
+        int totalHunks, int cleanHunks, int shiftedHunks, int conflictedHunks, string overallRisk)
+    {
+        if (totalHunks <= 0)
+            return "Cherry-pick conflict risk: 0 hunks (No diff changes to cherry-pick)";
+
+        string hunkLabel = totalHunks == 1 ? "1 hunk" : $"{totalHunks} hunks";
+        string breakdown = $"{cleanHunks} clean, {shiftedHunks} shifted, {conflictedHunks} conflicted";
+
+        string advice = conflictedHunks switch
+        {
+            0 when shiftedHunks == 0 => "All hunks apply cleanly without collision",
+            0 => "Hunks apply with line shifts (low collision risk)",
+            1 => "Review 1 conflicted hunk before merging",
+            _ => $"Manual resolution recommended for {conflictedHunks} conflicting hunks"
+        };
+
+        return $"Cherry-pick conflict risk ({hunkLabel} · Overall Risk: {overallRisk}): {breakdown} · {advice}";
+    }
 }
 
 

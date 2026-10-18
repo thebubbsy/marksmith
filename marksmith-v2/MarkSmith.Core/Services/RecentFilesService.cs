@@ -1117,6 +1117,131 @@ public sealed class RecentFilesService
         var (_, _, _, _, _, _, summary) = AuditRecentLibraryStalenessTiers(filePaths, lastWriteTimeProvider, referenceTime);
         return summary;
     }
+
+    /// <summary>
+    /// Audits recent document library files across storage volumes and drive partitions (e.g. C:\, D:\, network shares, cloud storage),
+    /// identifying accessible vs offline volumes and computing volume distribution percentages.
+    /// Supports a custom accessibility predicate for deterministic testing.
+    /// </summary>
+    public static (int TotalFiles, int TotalVolumes, int AccessibleVolumes, int OfflineVolumes, string DominantVolume, string Summary)
+        AuditVolumeDistribution(
+            IEnumerable<string>? filePaths,
+            Func<string, bool>? volumeAccessibilityPredicate = null)
+    {
+        var list = filePaths?.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).ToList() ?? new List<string>();
+        if (list.Count == 0)
+        {
+            return (0, 0, 0, 0, "None", "Recent library volume distribution: 0 documents (No recent files recorded)");
+        }
+
+        var volumeGroups = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in list)
+        {
+            string root = "";
+            try
+            {
+                root = Path.GetPathRoot(path) ?? "";
+            }
+            catch
+            {
+                // In case of invalid path characters
+            }
+
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                root = "Relative / Workspace";
+            }
+            else
+            {
+                root = root.Trim();
+                if (root.Length >= 2 && root[1] == ':')
+                {
+                    root = char.ToUpperInvariant(root[0]) + root.Substring(1);
+                }
+            }
+
+            if (volumeGroups.ContainsKey(root))
+                volumeGroups[root]++;
+            else
+                volumeGroups[root] = 1;
+        }
+
+        int totalVolumes = volumeGroups.Count;
+        int accessible = 0;
+        int offline = 0;
+
+        foreach (var vol in volumeGroups.Keys)
+        {
+            bool isAcc = true;
+            if (volumeAccessibilityPredicate != null)
+            {
+                isAcc = volumeAccessibilityPredicate(vol);
+            }
+            else if (!vol.StartsWith("Relative", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    isAcc = Directory.Exists(vol);
+                }
+                catch
+                {
+                    isAcc = false;
+                }
+            }
+
+            if (isAcc) accessible++;
+            else offline++;
+        }
+
+        var sortedVolumes = volumeGroups.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).ToList();
+        var dominant = sortedVolumes[0].Key;
+
+        var volumeSummaries = sortedVolumes.Select(kv =>
+        {
+            double pct = Math.Round((double)kv.Value / list.Count * 100.0, 1);
+            return $"{kv.Key} ({kv.Value} doc{(kv.Value == 1 ? "" : "s")}, {pct:0.#}%)";
+        }).ToList();
+
+        string summary = FormatVolumeDistributionSummary(list.Count, totalVolumes, accessible, offline, dominant, volumeSummaries);
+        return (list.Count, totalVolumes, accessible, offline, dominant, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of storage volume and drive partition distribution.
+    /// </summary>
+    public static string FormatVolumeDistributionSummary(
+        int totalFiles,
+        int totalVolumes,
+        int accessibleVolumes,
+        int offlineVolumes,
+        string dominantVolume,
+        IReadOnlyList<string>? volumeBreakdown = null)
+    {
+        if (totalFiles <= 0)
+            return "Recent library volume distribution: 0 documents (No recent files recorded)";
+
+        string docLabel = totalFiles == 1 ? "1 document" : $"{totalFiles} documents";
+        string volLabel = totalVolumes == 1 ? "1 storage volume" : $"{totalVolumes} storage volumes";
+
+        string offlineStr = offlineVolumes > 0 ? $" · Warning: {offlineVolumes} volume{(offlineVolumes == 1 ? "" : "s")} offline/unreachable" : "";
+        string breakdownStr = volumeBreakdown != null && volumeBreakdown.Count > 0
+            ? $" [{string.Join(" · ", volumeBreakdown.Take(4))}]"
+            : "";
+
+        return $"Recent library volume distribution ({docLabel} across {volLabel}): Dominant: {dominantVolume}{offlineStr}{breakdownStr}";
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of volume distribution from a collection of file paths.
+    /// </summary>
+    public static string FormatVolumeDistributionSummary(
+        IEnumerable<string>? filePaths,
+        Func<string, bool>? volumeAccessibilityPredicate = null)
+    {
+        var (_, _, _, _, _, summary) = AuditVolumeDistribution(filePaths, volumeAccessibilityPredicate);
+        return summary;
+    }
 }
 
 

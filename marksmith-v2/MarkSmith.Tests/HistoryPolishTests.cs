@@ -1016,6 +1016,46 @@ public class HistoryPolishTests : IDisposable
         var rowSummary = LineDiff.FormatTimelineVolatilitySummary(rows);
         Assert.Contains("Timeline volatility audit (Rating: Low · Active delta: +2/-1 · Churn: 3 lines)", rowSummary);
     }
+
+    [Fact]
+    public void Run149_AssessCherryPickConflictRisk()
+    {
+        // 1. Identical versions = 0 hunks
+        var (t0, _, _, _, r0, s0) = LineDiff.AssessCherryPickConflictRisk("Line 1", "Line 1", "Line 1");
+        Assert.Equal(0, t0);
+        Assert.Equal("None", r0);
+        Assert.Contains("0 hunks", s0);
+
+        // 2. Clean application (target lines match at expected line)
+        var before = "Line 1\nTarget Old\nLine 3";
+        var after = "Line 1\nReplacement New\nLine 3";
+        var currentClean = "Line 1\nTarget Old\nLine 3";
+
+        var (t1, clean1, shifted1, conf1, r1, s1) = LineDiff.AssessCherryPickConflictRisk(before, after, currentClean);
+        Assert.Equal(1, t1);
+        Assert.Equal(1, clean1);
+        Assert.Equal(0, shifted1);
+        Assert.Equal(0, conf1);
+        Assert.Equal("Clean", r1);
+        Assert.Contains("All hunks apply cleanly without collision", s1);
+
+        // 3. Shifted application (target lines match at offset +10 lines)
+        var currentShifted = "Intro 1\nIntro 2\nIntro 3\nIntro 4\nIntro 5\nLine 1\nTarget Old\nLine 3";
+        var (t2, clean2, shifted2, conf2, r2, s2) = LineDiff.AssessCherryPickConflictRisk(before, after, currentShifted);
+        Assert.Equal(1, t2);
+        Assert.Equal(0, clean2);
+        Assert.Equal(1, shifted2);
+        Assert.Equal(0, conf2);
+        Assert.Contains("Low (Shifted)", r2);
+
+        // 4. Conflicted application (target line has already been edited)
+        var currentConflicted = "Line 1\nTarget Was Completely Rewritten\nLine 3";
+        var (t3, clean3, shifted3, conf3, r3, s3) = LineDiff.AssessCherryPickConflictRisk(before, after, currentConflicted);
+        Assert.Equal(1, t3);
+        Assert.Equal(1, conf3);
+        Assert.Equal("High", r3);
+        Assert.Contains("conflicted", s3);
+    }
 }
 
 

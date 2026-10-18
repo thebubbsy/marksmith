@@ -646,6 +646,9 @@
                                         <MenuFlyoutItem x:Name="SelectionDistributeEvenlyVertItem" Text="Distribute shapes evenly (Vertical)" Click="OnSelectionDistributeEvenlyVertClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AA;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionScaleProportionalItem" Text="Scale selection proportionally (1.25x)" Click="OnSelectionScaleProportionalClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE740;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

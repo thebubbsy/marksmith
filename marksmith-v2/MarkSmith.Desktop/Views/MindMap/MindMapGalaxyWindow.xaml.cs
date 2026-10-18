@@ -3928,6 +3928,14 @@ namespace MarkSmith.Views.MindMap
             _ = Services.ClipboardWriter.TrySetTextAsync(summary);
         }
 
+        private void OnAuditInactiveNodesClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditInactiveSubtrees(inactiveDaysThreshold: 60);
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4751,6 +4759,14 @@ namespace MarkSmith.Views.MindMap
             };
             normalizeNodeCasingItem.Click += OnNormalizeNodeCasingClick;
             menu.Items.Add(normalizeNodeCasingItem);
+
+            var auditInactiveNodesItem = new MenuFlyoutItem
+            {
+                Text = "Audit inactive subtrees & dormant vault nodes",
+                Icon = new FontIcon { Glyph = "\uE74D" }
+            };
+            auditInactiveNodesItem.Click += OnAuditInactiveNodesClick;
+            menu.Items.Add(auditInactiveNodesItem);
 
             var fitItem = new MenuFlyoutItem
 

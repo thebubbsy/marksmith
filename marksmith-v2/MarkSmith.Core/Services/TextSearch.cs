@@ -1497,6 +1497,157 @@ public static class TextSearch
 
         return sb.ToString().TrimEnd();
     }
+
+    /// <summary>
+    /// Represents the result of a writing session velocity and draft completion forecast calculation.
+    /// </summary>
+    public record SessionVelocityForecast(
+        int CurrentWords,
+        int StartWords,
+        int NetWordDelta,
+        double ElapsedMinutes,
+        double WordsPerMinute,
+        double WordsPerHour,
+        string PaceCategory,
+        int TargetWords,
+        int WordsRemaining,
+        double EstimatedMinutesRemaining,
+        string Summary);
+
+    /// <summary>
+    /// Calculates word generation velocity (WPM, WPH), pacing classification, and projected time to target draft completion.
+    /// </summary>
+    public static SessionVelocityForecast CalculateSessionVelocityForecast(
+        int currentWords,
+        int startWords,
+        double elapsedMinutes,
+        int targetWords = 0)
+    {
+        int netDelta = currentWords - startWords;
+        double clampedMinutes = Math.Max(0.0, elapsedMinutes);
+        double wpm = 0.0;
+        if (clampedMinutes > 0.05) // at least 3 seconds
+        {
+            wpm = Math.Round((double)netDelta / clampedMinutes, 1);
+        }
+
+        double wph = Math.Round(wpm * 60.0, 0);
+
+        string paceCategory;
+        if (netDelta < 0)
+            paceCategory = "Pruning / Condensing";
+        else if (Math.Abs(wpm) < 0.1)
+            paceCategory = "Dormant / Idle";
+        else if (wpm < 15.0)
+            paceCategory = "Deliberate / Contemplative";
+        else if (wpm <= 40.0)
+            paceCategory = "Steady Flow";
+        else if (wpm <= 80.0)
+            paceCategory = "High Velocity Sprint";
+        else
+            paceCategory = "Hyper-Velocity Sprint";
+
+        int wordsRemaining = 0;
+        double estMinutesRemaining = 0.0;
+
+        if (targetWords > 0)
+        {
+            if (currentWords >= targetWords)
+            {
+                wordsRemaining = 0;
+                estMinutesRemaining = 0.0;
+            }
+            else
+            {
+                wordsRemaining = targetWords - currentWords;
+                if (wpm > 0.1)
+                {
+                    estMinutesRemaining = Math.Ceiling(wordsRemaining / wpm);
+                }
+            }
+        }
+
+        string summary = FormatSessionVelocitySummary(
+            currentWords, startWords, netDelta, clampedMinutes, wpm, wph, paceCategory, targetWords, wordsRemaining, estMinutesRemaining);
+
+        return new SessionVelocityForecast(
+            currentWords,
+            startWords,
+            netDelta,
+            clampedMinutes,
+            wpm,
+            wph,
+            paceCategory,
+            targetWords,
+            wordsRemaining,
+            estMinutesRemaining,
+            summary);
+    }
+
+    /// <summary>
+    /// Calculates word generation velocity from markdown document text.
+    /// </summary>
+    public static SessionVelocityForecast CalculateSessionVelocityForecast(
+        string? markdownText,
+        int startWords,
+        double elapsedMinutes,
+        int targetWords = 0)
+    {
+        int currentWords = 0;
+        if (!string.IsNullOrWhiteSpace(markdownText))
+        {
+            var words = markdownText.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            currentWords = words.Length;
+        }
+
+        return CalculateSessionVelocityForecast(currentWords, startWords, elapsedMinutes, targetWords);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of session velocity and draft completion forecast.
+    /// </summary>
+    public static string FormatSessionVelocitySummary(
+        int currentWords,
+        int startWords,
+        int netDelta,
+        double elapsedMinutes,
+        double wpm,
+        double wph,
+        string paceCategory,
+        int targetWords = 0,
+        int wordsRemaining = 0,
+        double estMinutesRemaining = 0)
+    {
+        if (currentWords == 0 && startWords == 0)
+            return "Session velocity: 0 words · Session initialized";
+
+        string deltaStr = netDelta >= 0 ? $"+{netDelta}" : netDelta.ToString();
+        string timeStr = elapsedMinutes < 1.0 ? $"{Math.Round(elapsedMinutes * 60, 0)}s" : $"{elapsedMinutes:0.#}m";
+
+        string targetStr = "";
+        if (targetWords > 0)
+        {
+            if (currentWords >= targetWords)
+            {
+                int over = currentWords - targetWords;
+                targetStr = $" · Target ({targetWords:N0}w) reached! (+{over}w over)";
+            }
+            else if (wpm > 0.1)
+            {
+                string remTime = estMinutesRemaining < 60
+                    ? $"~{estMinutesRemaining:0}m remaining"
+                    : $"~{Math.Floor(estMinutesRemaining / 60)}h {estMinutesRemaining % 60:0}m remaining";
+                targetStr = $" · Target: {targetWords:N0}w ({wordsRemaining:N0}w left · {remTime})";
+            }
+            else
+            {
+                targetStr = $" · Target: {targetWords:N0}w ({wordsRemaining:N0}w left · Pace stalled)";
+            }
+        }
+
+        return $"Session velocity ({paceCategory} · {deltaStr} words in {timeStr}): {wpm:0.#} WPM ({wph:0} WPH) · Current: {currentWords:N0} words{targetStr}";
+    }
 }
+
 
 

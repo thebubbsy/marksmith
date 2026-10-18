@@ -6234,6 +6234,15 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
+
+        private void OnSelectionScaleProportionalClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (scaledCount, total, factor, summary) = ViewModel.ScaleSelectedShapesProportionally(1.25);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
     }
 }
 

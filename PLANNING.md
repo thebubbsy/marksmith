@@ -11167,25 +11167,47 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #149 Blueprint — Session Velocity Forecast, Inactive Workspace Vault Auditor, Multi-Shape Proportional Scale Factor Dialog, Outline Token Density Metric, Cherry-Pick Conflict Risk Assessor & Workspace Volume Distribution Audit (Status: Pending)
+## Scheduled WinUI 3 Desktop Polish Routine — Run #149 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-18
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Session Velocity Forecast & Target Pace Predictor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.CalculateSessionVelocityForecast(currentWords, startWords, elapsedMinutes, targetWords)` (with markdown string overload) and `FormatSessionVelocitySummary(...)` calculating current word count, session words written, elapsed duration, write velocity in WPM / WPH, target words, remaining word deficit, estimated minutes to completion, and target completion timestamp; wired to `sessionVelocityItem` (`\uE9F9`) in `OnStatusSectionBreadcrumbButtonRightTapped` and `OnFindCountTextRightTapped`.
+    2. **MindMapGalaxyWindow Inactive Subtree & Dormant Vault Node Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditInactiveSubtrees(thresholdDays, refDate)` (with pure model overload) and `FormatInactiveSubtreesSummary(...)` evaluating node update timestamps against inactivity thresholds, classifying root-to-leaf dormant clusters, and formatting structured audit summaries; wired to `AuditInactiveNodesItem` (`\uE74D`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Proportional Multi-Shape Geometric Scaling Transformer (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.ScaleSelectedShapesProportionally(factor)` and `FormatProportionalScaleSummary(...)` computing the unified geometric center across all selected shapes and uniformly scaling shape width, height, and radial offsets from center with single-step atomic undo recording (`RecordUndo`); wired to `SelectionScaleProportionalItem` (`\uE740`) in `SelectionBoundsFlyout`.
+    4. **SmartArtDesignStudioWindow Outline Token Density & Readability Balance Metric (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditOutlineTokenDensity(markdown)` and `FormatTokenDensitySummary(...)` analyzing outline item count, total tokens, average tokens per node, max token spike, token standard deviation, and layout density rating (`Concise`, `Balanced`, `Dense`, `Overloaded`); wired to `AuditTokenDensityItem` (`\uE9F9`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Cherry-Pick Hunk Conflict Risk Assessor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AssessCherryPickConflictRisk(rows/hunk, currentDoc)` and `FormatConflictRiskSummary(...)` with helper `EvaluateHunkRisk`, classifying conflict risk tiers (`Clean`, `ContextShifted`, `ModifiedAdjacent`, `Conflict`, `Empty`) with line delta positions against the live editor buffer (`_main?.PastedMarkdown`); wired to `assessConflictRisk` (`\uE7BA`) in `TimelineHeaderBorder` context flyout.
+    6. **SuiteHubView Storage Volume and Drive Partition Distribution Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditVolumeDistribution(files, accessibilityPredicate)` and `FormatVolumeDistributionSummary(...)` aggregating file counts and disk footprints across drive partitions, UNC network shares, and relative workspaces with offline volume detection; wired to `CopyRecentVolumeDistributionItem` (`\uE8B7`) in `RecentDocsFlyout` with `Services.CopyFeedback.ApplyButtonTick`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (baseline 23 warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `5,028/5,029` full desktop test suite passing with `0` failures (`100%` pass rate, 1 intentional skip).
+    - Verified live `Marksmith.exe` smoke startup (`PID=13344, HasExited=False, Responding=True, WorkingSetMB=247.1`).
+
+---
+
+### Run #150 Blueprint — Reading Ease Scorecard, Topological Depth Sorter, Radial Distribution Arranger, Layout Aspect Ratio Optimizer, Commit Message Generator & Access Frequency Heatmap (Status: Pending)
 1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **What is missing**: Writers during extended drafting sessions lack a word/line generation velocity forecast estimating target draft completion time based on recent minute-by-minute text delta rates.
-   - **Deliverable**: Add `TextSearch.CalculateSessionVelocityForecast(currentWords, startWords, elapsedMinutes, targetWords)` and `FormatSessionVelocitySummary(...)`, wired to `StatusSectionBreadcrumbButton` / `FindCountText` right-tap context actions.
+   - **What is missing**: Writers lack an instant readability and accessibility diagnostic scoring Flesch Reading Ease, grade level, sentence complexity, and syllable distribution directly from the status bar breadcrumb flyout.
+   - **Deliverable**: Add `TextSearch.CalculateReadabilityScorecard(markdown)` and `FormatReadabilityScorecardSummary(...)`, wired to `readabilityScorecardItem` (`\uE734`) in `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **What is missing**: Aging mind map galaxies contain dormant subtrees and obsolete linked files with no automated inactive node auditor or archive-candidate tagger.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditInactiveSubtrees(inactiveDaysThreshold)` and `FormatInactiveSubtreesSummary(...)`, wired to `AuditInactiveNodesItem` (`\uE74D`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+   - **What is missing**: Mind map galaxies with hundreds of nodes can become tangled, lacking a topological tree depth analyzer and level-by-level hierarchical re-alignment tool.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditTopologicalDepth(nodes)` and `FormatTopologicalDepthSummary(...)`, wired to `AuditTopologicalDepthItem` (`\uE8E5`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **What is missing**: Resizing multiple shapes scales each independently, lacking a proportional multi-shape scale factor transformer that scales geometry and relative offsets uniformly around the selection center.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.ScaleSelectedShapesProportionally(scaleFactor)` and `FormatProportionalScaleSummary(...)`, wired to `SelectionScaleProportionalItem` (`\uE740`) in `SelectionBoundsFlyout`.
+   - **What is missing**: Canvas lacks a radial/circular distribution layout option to arrange multiple selected shapes equidistant around an elliptical or circular orbit.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.DistributeShapesRadially(radiusX, radiusY)` and `FormatRadialDistributionSummary(...)`, wired to `SelectionDistributeRadialItem` (`\uE790`) in `SelectionBoundsFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **What is missing**: Outlines often mix concise tags with verbose paragraph-length nodes, lacking a token density and node readability balance audit.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditOutlineTokenDensity(markdown)` and `FormatTokenDensitySummary(...)`, wired to `AuditTokenDensityItem` (`\uE8FD`) in `OutlineStatsFlyout`.
+   - **What is missing**: Users converting outlines into SmartArt diagrams lack an aspect ratio and bounding-box fit analyzer recommending optimal container dimensions (`16:9`, `4:3`, `1:1`, `A4 Portrait/Landscape`).
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditLayoutAspectRatio(category, nodeCount)` and `FormatLayoutAspectRatioSummary(...)`, wired to `AuditAspectRatioFitItem` (`\uE790`) in `OutlineStatsFlyout`.
 5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
-   - **What is missing**: When cherry-picking hunks from older revisions, users cannot determine if an intermediate revision modified adjacent context lines, creating merge collision risks.
-   - **Deliverable**: Add `LineDiff.AssessCherryPickConflictRisk(hunk, currentDoc)` and `FormatConflictRiskSummary(...)`, wired to `assessConflictRisk` (`\uE7BA`) in `TimelineHeaderBorder` context flyout.
+   - **What is missing**: Reverting or restoring versions lacks an automated semantic commit/checkpoint message synthesizer summarizing key additions, deletions, and section modifications.
+   - **Deliverable**: Add `LineDiff.SynthesizeSemanticVersionMessage(unifiedRows)` and `FormatSemanticVersionMessage(...)`, wired to `synthesizeCommitMessage` (`\uE8A1`) in `TimelineHeaderBorder` context flyout.
 6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
-   - **What is missing**: Users working across external drives, network shares, and cloud synched folders have no storage volume and drive partition distribution breakdown.
-   - **Deliverable**: Add `RecentFilesService.AuditVolumeDistribution(filePaths)` and `FormatVolumeDistributionSummary(...)`, wired to `CopyRecentVolumeDistributionItem` (`\uE8B7`) in `RecentDocsFlyout`.
+   - **What is missing**: Recent files hub lacks a temporal access frequency heatmap grouping documents by weekly/monthly revisit cadence and identifying single-visit orphans.
+   - **Deliverable**: Add `RecentFilesService.AuditAccessFrequencyHeatmap(files)` and `FormatAccessFrequencyHeatmapSummary(...)`, wired to `CopyRecentAccessHeatmapItem` (`\uE809`) in `RecentDocsFlyout`.
+
 
 
 

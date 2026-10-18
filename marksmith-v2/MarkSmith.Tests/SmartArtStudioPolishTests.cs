@@ -803,6 +803,41 @@ public class SmartArtStudioPolishTests
         var mergedNorm = merged.Replace("\r", "");
         Assert.Contains("- Root Level\n  - Child Level — Subchild Level 3 — Deep Child Level 4", mergedNorm);
     }
+
+    [Fact]
+    public void Run149_AuditOutlineTokenDensity_EvaluatesReadabilityAndDensity()
+    {
+        // 1. Empty outline
+        var empty = SmartArtDesignStudioViewModel.AuditOutlineTokenDensity("");
+        Assert.Equal("Empty", empty.Rating);
+        Assert.Contains("0 bullets", empty.Summary);
+
+        // 2. Optimal concise outline
+        var optimalMd = """
+            - Plan sprint tasks
+            - Build core models
+            - Run unit verification
+            - Deploy package release
+            """;
+        var optimal = SmartArtDesignStudioViewModel.AuditOutlineTokenDensity(optimalMd);
+        Assert.Equal(4, optimal.TotalBullets);
+        Assert.Equal(12, optimal.TotalWords);
+        Assert.Equal(3.0, optimal.MeanWords);
+        Assert.Equal(0, optimal.VerboseCount);
+        Assert.Equal("Optimal", optimal.Rating);
+        Assert.Contains("Ideal concise diagram phrasing", optimal.Summary);
+
+        // 3. Verbose overflow risk outline
+        var verboseMd = """
+            - Short
+            - This is an excessively long and verbose multi-sentence outline item describing numerous complex business rules that will almost certainly overflow standard layout containers and chevron boxes
+            """;
+        var verbose = SmartArtDesignStudioViewModel.AuditOutlineTokenDensity(verboseMd);
+        Assert.Equal(2, verbose.TotalBullets);
+        Assert.Equal(1, verbose.VerboseCount);
+        Assert.Equal("Overflow Risk", verbose.Rating);
+        Assert.Contains("Flagged: 1 verbose node", verbose.Summary);
+    }
 }
 
 

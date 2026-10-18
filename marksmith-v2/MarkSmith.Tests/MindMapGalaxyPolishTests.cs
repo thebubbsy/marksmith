@@ -1655,6 +1655,40 @@ namespace MarkSmith.Tests
             Assert.Equal(3, modSentence); // All 3 lowercased nodes capitalized to sentence case
             Assert.Equal("Core architecture", vm.Nodes.First(n => n.Id == "root").Title);
         }
+
+        [Fact]
+        public void Run149_AuditInactiveSubtrees_DetectsDormantNodesAndSubtrees()
+        {
+            var refDate = new DateTime(2026, 10, 18);
+            var nodes = new List<MindMapNode>
+            {
+                new MindMapNode { Id = "root", Title = "Active Root", ModifiedDate = "2026-10-15 10:00" },
+                new MindMapNode { Id = "active_child", ParentId = "root", Title = "Recent Task", Progress = 50, ModifiedDate = "2026-10-17 12:00" },
+                new MindMapNode { Id = "done_child", ParentId = "root", Title = "Completed Feature", Progress = 100 },
+                new MindMapNode { Id = "dormant_branch", ParentId = "root", Title = "Old Module", ModifiedDate = "2026-05-01 09:00" },
+                new MindMapNode { Id = "dormant_leaf", ParentId = "dormant_branch", Title = "Old Spec", ModifiedDate = "2026-04-10 09:00", Tags = new List<string> { "archived" } }
+            };
+
+            var (inactive, total, roots, pct, summary) = MindMapStudioViewModel.AuditInactiveSubtrees(
+                nodes, null, inactiveDaysThreshold: 60, referenceDate: refDate);
+
+            Assert.Equal(5, total);
+            Assert.Equal(3, inactive); // done_child, dormant_branch, dormant_leaf
+            Assert.Equal(2, roots);    // done_child, dormant_branch
+            Assert.Equal(60.0, pct);
+            Assert.Contains("3 dormant nodes across 2 subtree roots", summary);
+            Assert.Contains("60% dormant", summary);
+
+            // Clean active map
+            var activeNodes = new List<MindMapNode>
+            {
+                new MindMapNode { Id = "n1", Title = "Active 1", ModifiedDate = "2026-10-17 10:00" },
+                new MindMapNode { Id = "n2", Title = "Active 2", ModifiedDate = "2026-10-18 09:00" }
+            };
+            var cleanResult = MindMapStudioViewModel.AuditInactiveSubtrees(activeNodes, null, 60, refDate);
+            Assert.Equal(0, cleanResult.InactiveCount);
+            Assert.Contains("All 2 nodes are active and recently updated", cleanResult.Summary);
+        }
     }
 }
 

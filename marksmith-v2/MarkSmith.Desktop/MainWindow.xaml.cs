@@ -7728,9 +7728,26 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditFootnotesItem);
 
+        var sessionVelocityItem = new MenuFlyoutItem
+        {
+            Text = "Copy session velocity forecast & pacing",
+            Icon = new FontIcon { Glyph = "\uE9F9" }
+        };
+        sessionVelocityItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var elapsed = Math.Max(0.1, (DateTime.UtcNow - _sessionStartTime).TotalMinutes);
+            var forecast = MarkSmith.Services.TextSearch.CalculateSessionVelocityForecast(text, _sessionStartWordCount, elapsed);
+            _ = Services.ClipboardWriter.TrySetTextAsync(forecast.Summary);
+            AnnounceStatus("Copied session velocity forecast to clipboard.");
+        };
+        menu.Items.Add(sessionVelocityItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
+    private readonly DateTime _sessionStartTime = DateTime.UtcNow;
+    private int _sessionStartWordCount = 0;
     private string _currentEncodingSummary = "UTF-8 · CRLF";
 
     private void UpdateStatusEncoding(string? text)
@@ -8936,6 +8953,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditFootnotesItem);
+
+        var sessionVelocityItem = new MenuFlyoutItem
+        {
+            Text = "Copy session velocity forecast & pacing",
+            Icon = new FontIcon { Glyph = "\uE9F9" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        sessionVelocityItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var elapsed = Math.Max(0.1, (DateTime.UtcNow - _sessionStartTime).TotalMinutes);
+            var forecast = MarkSmith.Services.TextSearch.CalculateSessionVelocityForecast(text, _sessionStartWordCount, elapsed);
+            _ = Services.ClipboardWriter.TrySetTextAsync(forecast.Summary);
+            AnnounceStatus(forecast.Summary);
+        };
+        menu.Items.Add(sessionVelocityItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

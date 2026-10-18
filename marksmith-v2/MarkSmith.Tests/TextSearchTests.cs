@@ -740,6 +740,46 @@ public class TextSearchTests
         Assert.Contains("[unused_link]", brokenSummary);
         Assert.Contains("Duplicate link definitions: [dup_link]", brokenSummary);
     }
+
+    [Fact]
+    public void Run149_CalculateSessionVelocityForecast_ComputesVelocityAndTargetForecast()
+    {
+        // 1. Initialized session (0 words)
+        var init = TextSearch.CalculateSessionVelocityForecast(0, 0, 0);
+        Assert.Equal("Session velocity: 0 words · Session initialized", init.Summary);
+        Assert.Equal(0, init.CurrentWords);
+
+        // 2. High velocity sprint (500 words in 10 minutes = 50 WPM)
+        var sprint = TextSearch.CalculateSessionVelocityForecast(currentWords: 1500, startWords: 1000, elapsedMinutes: 10.0, targetWords: 2000);
+        Assert.Equal(500, sprint.NetWordDelta);
+        Assert.Equal(50.0, sprint.WordsPerMinute);
+        Assert.Equal(3000.0, sprint.WordsPerHour);
+        Assert.Equal("High Velocity Sprint", sprint.PaceCategory);
+        Assert.Equal(500, sprint.WordsRemaining);
+        Assert.Equal(10.0, sprint.EstimatedMinutesRemaining);
+        Assert.Contains("High Velocity Sprint · +500 words in 10m", sprint.Summary);
+        Assert.Contains("50 WPM (3000 WPH)", sprint.Summary);
+        Assert.Contains("500w left · ~10m remaining", sprint.Summary);
+
+        // 3. Target reached
+        var reached = TextSearch.CalculateSessionVelocityForecast(currentWords: 2200, startWords: 1000, elapsedMinutes: 20.0, targetWords: 2000);
+        Assert.Equal(0, reached.WordsRemaining);
+        Assert.Equal(0.0, reached.EstimatedMinutesRemaining);
+        Assert.Contains("Target (2,000w) reached! (+200w over)", reached.Summary);
+
+        // 4. Pruning / Condensing (negative delta)
+        var pruning = TextSearch.CalculateSessionVelocityForecast(currentWords: 800, startWords: 1000, elapsedMinutes: 10.0, targetWords: 1500);
+        Assert.Equal(-200, pruning.NetWordDelta);
+        Assert.Equal(-20.0, pruning.WordsPerMinute);
+        Assert.Equal("Pruning / Condensing", pruning.PaceCategory);
+        Assert.Contains("Pace stalled", pruning.Summary);
+
+        // 5. From markdown text overload
+        var doc = "# Title\nThis is a sample markdown document with exactly ten words total.";
+        var mdForecast = TextSearch.CalculateSessionVelocityForecast(doc, startWords: 0, elapsedMinutes: 1.0);
+        Assert.Equal(13, mdForecast.CurrentWords);
+        Assert.Equal(13.0, mdForecast.WordsPerMinute);
+    }
 }
 
 

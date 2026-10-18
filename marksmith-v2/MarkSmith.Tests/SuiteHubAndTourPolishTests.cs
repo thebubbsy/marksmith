@@ -1757,6 +1757,64 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("Recent library staleness tiers (6 documents): 1 active (<24h), 1 fresh (1-7d), 1 warm (7-30d), 1 cold (30-90d), 2 stale (>90d)", summary);
         Assert.Contains("Prune or archive 2 stale documents >90d old", summary);
     }
+
+    [Fact]
+    public void Run149_VolumeDistribution_And_SurfaceWiring()
+    {
+        // 1. Surface wiring checks
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy session velocity forecast & pacing", mainCs);
+        Assert.Contains("CalculateSessionVelocityForecast", mainCs);
+
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditInactiveNodesItem", galaxyXaml);
+        Assert.Contains("OnAuditInactiveNodesClick", galaxyCs);
+
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionScaleProportionalItem", shapeXaml);
+        Assert.Contains("OnSelectionScaleProportionalClick", shapeCs);
+
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditTokenDensityItem", smartArtXaml);
+        Assert.Contains("OnAuditTokenDensityClick", smartArtCs);
+
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("AssessCherryPickConflictRisk", historyCs);
+
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentVolumeDistributionItem", suiteXaml);
+        Assert.Contains("OnCopyRecentVolumeDistributionClick", suiteCs);
+        Assert.Contains("FormatVolumeDistributionSummary", suiteCs);
+
+        // 2. Volume Distribution Logic
+        var files = new[]
+        {
+            @"C:\Users\Docs\Report.md",
+            @"C:\Users\Docs\Plan.md",
+            @"C:\Users\Docs\Notes.md",
+            @"D:\Projects\Repo\Readme.md",
+            @"\\nas\share\Team\Doc.md",
+            @"relative/path/draft.md"
+        };
+
+        bool MockAccessibility(string vol) => !vol.Contains("nas", StringComparison.OrdinalIgnoreCase);
+
+        var (totalFiles, totalVols, accessible, offline, dominant, summary) =
+            RecentFilesService.AuditVolumeDistribution(files, MockAccessibility);
+
+        Assert.Equal(6, totalFiles);
+        Assert.Equal(4, totalVols); // C:\, D:\, \\nas\share\, Relative / Workspace
+        Assert.Equal(3, accessible);
+        Assert.Equal(1, offline);
+        Assert.Equal(@"C:\", dominant);
+        Assert.Contains(@"Recent library volume distribution (6 documents across 4 storage volumes): Dominant: C:\", summary);
+        Assert.Contains("Warning: 1 volume offline/unreachable", summary);
+        Assert.Contains(@"C:\ (3 docs, 50%)", summary);
+    }
 }
 
 

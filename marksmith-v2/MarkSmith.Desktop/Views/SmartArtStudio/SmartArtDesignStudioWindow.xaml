@@ -284,6 +284,9 @@
                                         <MenuFlyoutItem x:Name="BalanceOutlineDepthItem" Text="Balance outline nesting depth (Clamp to max depth 2)" Click="OnBalanceOutlineDepthClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditTokenDensityItem" Text="Audit outline token density &amp; layout balance" Click="OnAuditTokenDensityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>
