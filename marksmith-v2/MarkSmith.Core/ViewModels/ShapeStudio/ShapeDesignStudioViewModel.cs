@@ -4205,7 +4205,121 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string shapeType = Math.Abs(rx - ry) < 1.0 ? $"circular orbit (R={rx:0.#}px)" : $"elliptical orbit ({rx:0.#}×{ry:0.#}px)";
         return $"Radial distribution: Arranged {shapeLabel} in {shapeType} around ({cx:0.#}, {cy:0.#})";
     }
+
+    /// <summary>
+    /// Audits the z-order layering stack indices for selected shapes or the entire canvas drawing order.
+    /// </summary>
+    public LayerStackAudit AuditLayerStackIndices()
+    {
+        var targets = SelectionCount > 0 ? Selection.ToList() : Shapes.ToList();
+        var selectedIndices = targets.Select(s => Shapes.IndexOf(s)).Where(idx => idx >= 0).OrderBy(idx => idx).ToList();
+
+        if (Shapes.Count == 0 || selectedIndices.Count == 0)
+        {
+            return new LayerStackAudit(
+                Shapes.Count, 0, -1, -1, true, Array.Empty<int>(),
+                "Z-order layer stack audit: 0 shapes (Empty canvas)");
+        }
+
+        int min = selectedIndices.Min();
+        int max = selectedIndices.Max();
+        bool isContiguous = true;
+        for (int i = 0; i < selectedIndices.Count; i++)
+        {
+            if (selectedIndices[i] != min + i)
+            {
+                isContiguous = false;
+                break;
+            }
+        }
+
+        string summary = FormatLayerStackSummary(Shapes.Count, selectedIndices.Count, min, max, isContiguous, selectedIndices);
+        return new LayerStackAudit(Shapes.Count, selectedIndices.Count, min, max, isContiguous, selectedIndices, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of z-order layering stack indices.
+    /// </summary>
+    public static string FormatLayerStackSummary(
+        int totalShapes, int selectedCount, int minIndex, int maxIndex, bool isContiguous, IReadOnlyList<int>? indices = null)
+    {
+        if (totalShapes <= 0 || selectedCount <= 0)
+            return "Z-order layer stack audit: 0 shapes (Empty canvas)";
+
+        string shapeLabel = selectedCount == 1 ? "1 shape" : $"{selectedCount} shapes";
+        string contigStr = isContiguous ? "contiguous" : "non-contiguous / fragmented";
+        string indexPreview = indices != null && indices.Count > 0
+            ? $" [{string.Join(", ", indices.Take(5))}{(indices.Count > 5 ? ", …" : "")}]"
+            : "";
+
+        return $"Z-order layer stack audit ({shapeLabel} of {totalShapes} total): Layer {minIndex}..{maxIndex} ({contigStr}){indexPreview}";
+    }
+
+    /// <summary>
+    /// Normalizes the drawing order stack of selected shapes to make them contiguous, or verifies sequential order.
+    /// </summary>
+    public (int NormalizedCount, bool WasModified, string Summary) NormalizeZOrderStack()
+    {
+        if (Shapes.Count <= 1)
+        {
+            string emptySummary = "Normalize z-order: canvas contains ≤1 shape";
+            StatusMessage = emptySummary;
+            return (Shapes.Count, false, emptySummary);
+        }
+
+        var targets = SelectionCount > 0 ? Selection.ToList() : Shapes.ToList();
+        var currentIndices = targets.Select(s => Shapes.IndexOf(s)).Where(i => i >= 0).OrderBy(i => i).ToList();
+        if (currentIndices.Count <= 1)
+        {
+            string singleSummary = $"Normalize z-order: {currentIndices.Count} shape selected (Already normalized)";
+            StatusMessage = singleSummary;
+            return (currentIndices.Count, false, singleSummary);
+        }
+
+        int min = currentIndices.Min();
+        bool isAlreadyContiguous = true;
+        for (int i = 0; i < currentIndices.Count; i++)
+        {
+            if (currentIndices[i] != min + i) { isAlreadyContiguous = false; break; }
+        }
+
+        if (isAlreadyContiguous)
+        {
+            string cleanSummary = $"Normalize z-order: {targets.Count} shapes already contiguous (Indices {min}..{currentIndices.Max()})";
+            StatusMessage = cleanSummary;
+            return (targets.Count, false, cleanSummary);
+        }
+
+        RecordUndo();
+        var orderedTargets = targets.OrderBy(s => Shapes.IndexOf(s)).ToList();
+        for (int i = 0; i < orderedTargets.Count; i++)
+        {
+            int desiredIndex = min + i;
+            int actualIndex = Shapes.IndexOf(orderedTargets[i]);
+            if (actualIndex >= 0 && actualIndex != desiredIndex)
+            {
+                Shapes.Move(actualIndex, desiredIndex);
+            }
+        }
+
+        string summary = $"✓ Normalized z-order: compacted {orderedTargets.Count} shapes into contiguous layers {min}..{min + orderedTargets.Count - 1} · Ctrl+Z to undo";
+        StatusMessage = summary;
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        return (orderedTargets.Count, true, summary);
+    }
 }
+
+/// <summary>
+/// Represents the result of a z-order layering stack and drawing index audit.
+/// </summary>
+public sealed record LayerStackAudit(
+    int TotalShapes,
+    int SelectedCount,
+    int MinIndex,
+    int MaxIndex,
+    bool IsContiguous,
+    IReadOnlyList<int> SelectedIndices,
+    string Summary);
 
 /// <summary>
 /// Axis for even geometric distribution of shapes.

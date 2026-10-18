@@ -1362,6 +1362,146 @@ public sealed class RecentFilesService
     {
         return AuditAccessFrequencyHeatmap(filePaths, lastAccessTimeProvider, referenceTime).Summary;
     }
+
+    /// <summary>
+    /// Represents an individual dormant file alert and revival recommendation.
+    /// </summary>
+    public sealed record DormantFileAlert(
+        string FilePath,
+        string FileName,
+        int DaysIdle,
+        bool ExistsOnDisk,
+        string RecommendedAction);
+
+    /// <summary>
+    /// Represents the result of a library dormancy risk and stale project revival audit.
+    /// </summary>
+    public sealed record DormancyAlertsAudit(
+        int TotalFiles,
+        int DormantCount,
+        int ActiveCount,
+        int MissingCount,
+        string RiskLevel,
+        IReadOnlyList<DormantFileAlert> Alerts,
+        string Summary);
+
+    /// <summary>
+    /// Audits recent document library files for dormancy risk (>60 days inactive or missing on disk)
+    /// and generates project revival suggestions. Supports deterministic testing via custom access time provider.
+    /// </summary>
+    public static DormancyAlertsAudit AuditDormancyAlerts(
+        IEnumerable<string>? filePaths,
+        Func<string, DateTime?>? lastAccessTimeProvider = null,
+        DateTime? referenceTime = null,
+        int dormancyDaysThreshold = 60)
+    {
+        var list = filePaths?.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).ToList() ?? new List<string>();
+        if (list.Count == 0)
+        {
+            return new DormancyAlertsAudit(
+                0, 0, 0, 0, "None", Array.Empty<DormantFileAlert>(),
+                "Library dormancy risk audit: 0 documents (No recent files recorded)");
+        }
+
+        DateTime now = referenceTime ?? DateTime.UtcNow;
+        var alerts = new List<DormantFileAlert>();
+        int activeCount = 0;
+        int missingCount = 0;
+
+        foreach (var p in list)
+        {
+            string fileName = "";
+            try { fileName = Path.GetFileName(p); } catch { fileName = p; }
+
+            bool exists = false;
+            try { exists = File.Exists(p); } catch { }
+
+            DateTime? accessTime = null;
+            if (lastAccessTimeProvider != null)
+            {
+                accessTime = lastAccessTimeProvider(p);
+            }
+            else if (exists)
+            {
+                try
+                {
+                    var t = File.GetLastAccessTimeUtc(p);
+                    if (t != DateTime.MinValue) accessTime = t;
+                    else accessTime = File.GetLastWriteTimeUtc(p);
+                }
+                catch { }
+            }
+
+            if (!exists && lastAccessTimeProvider == null)
+            {
+                missingCount++;
+                alerts.Add(new DormantFileAlert(
+                    p, fileName, 999, false, "Prune dead link or relocate file"));
+                continue;
+            }
+
+            int daysIdle;
+            if (accessTime.HasValue)
+            {
+                var span = now - accessTime.Value;
+                daysIdle = Math.Max(0, (int)span.TotalDays);
+            }
+            else
+            {
+                daysIdle = 999;
+            }
+
+            if (daysIdle >= dormancyDaysThreshold)
+            {
+                string action = daysIdle > 180 ? "Archive or prune stale project" : "Review or resume work";
+                alerts.Add(new DormantFileAlert(p, fileName, daysIdle, exists || lastAccessTimeProvider != null, action));
+            }
+            else
+            {
+                activeCount++;
+            }
+        }
+
+        int dormantCount = alerts.Count;
+        string riskLevel;
+        if (dormantCount == 0)
+            riskLevel = "None (All documents active)";
+        else if (dormantCount <= 2)
+            riskLevel = "Low (1–2 stale documents)";
+        else if (dormantCount <= 5)
+            riskLevel = "Moderate (Stale documents accumulating)";
+        else
+            riskLevel = "High (Significant dormancy backlog)";
+
+        string summary = FormatDormancyAlertsSummary(list.Count, dormantCount, activeCount, missingCount, riskLevel, alerts);
+        return new DormancyAlertsAudit(list.Count, dormantCount, activeCount, missingCount, riskLevel, alerts, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of library dormancy risk and revival alerts.
+    /// </summary>
+    public static string FormatDormancyAlertsSummary(
+        int totalFiles, int dormantCount, int activeCount, int missingCount, string riskLevel, IReadOnlyList<DormantFileAlert>? alerts = null)
+    {
+        if (totalFiles <= 0) return "Library dormancy risk audit: 0 documents (No recent files recorded)";
+        string docLabel = totalFiles == 1 ? "1 document" : $"{totalFiles} documents";
+
+        if (dormantCount == 0)
+        {
+            return $"Library dormancy risk audit ({docLabel}): 0 dormant projects · Risk: {riskLevel}";
+        }
+
+        string dormantLabel = dormantCount == 1 ? "1 dormant project" : $"{dormantCount} dormant projects";
+        string missingStr = missingCount > 0 ? $" ({missingCount} unreachable/missing)" : "";
+        string preview = "";
+        if (alerts != null && alerts.Count > 0)
+        {
+            var sample = string.Join(", ", alerts.Take(3).Select(a => $"'{a.FileName}' ({a.DaysIdle}d idle)"));
+            preview = $" [{sample}{(alerts.Count > 3 ? ", …" : "")}]";
+        }
+
+        return $"Library dormancy risk audit ({docLabel}): {dormantLabel}{missingStr} · Risk: {riskLevel} · Active: {activeCount}{preview}";
+    }
 }
 
 

@@ -652,6 +652,9 @@
                                         <MenuFlyoutItem x:Name="SelectionDistributeRadialItem" Text="Distribute shapes radially (Circular / Elliptical orbit)" Click="OnSelectionDistributeRadialClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditLayerStackItem" Text="Audit z-order layering stack indices" Click="OnSelectionAuditLayerStackClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E5;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

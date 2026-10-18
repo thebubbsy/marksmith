@@ -4707,6 +4707,14 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditCharBudgetsClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = SmartArtDesignStudioViewModel.AuditNodeCharacterBudgets(ViewModel.SelectedCategory?.Name, ViewModel.MarkdownSource);
+            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         #endregion
 
 

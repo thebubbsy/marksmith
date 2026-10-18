@@ -3198,6 +3198,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied commit message: {message.Split('\n')[0]}");
                 };
                 menu.Items.Add(synthesizeCommitMessage);
+
+                var synthesizeCommitScope = new MenuFlyoutItem
+                {
+                    Text = "Synthesize scoped commit & breaking change message",
+                    Icon = new FontIcon { Glyph = "\uE82D" }
+                };
+                synthesizeCommitScope.Click += (_, _) =>
+                {
+                    var message = MarkSmith.Services.LineDiff.SynthesizeConventionalCommitWithScope(_vm.UnifiedDiffRows, _main?.PastedMarkdown);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(message);
+                    _vm.ShowNotice($"Copied scoped commit: {message.Split('\n')[0]}");
+                };
+                menu.Items.Add(synthesizeCommitScope);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

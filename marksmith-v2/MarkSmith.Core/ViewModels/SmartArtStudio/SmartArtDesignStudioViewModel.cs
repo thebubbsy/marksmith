@@ -2708,7 +2708,165 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         return AuditLayoutAspectRatio(category, nodeCount, markdownText).Summary;
     }
+
+    /// <summary>
+    /// Audits outline item label lengths against category-specific character budgets to detect text truncation risks.
+    /// </summary>
+    public static NodeCharacterBudgetAudit AuditNodeCharacterBudgets(string? category, string? markdownText)
+    {
+        string cat = string.IsNullOrWhiteSpace(category) ? "Process" : category.Trim();
+        if (cat.Equals("All", StringComparison.OrdinalIgnoreCase)) cat = "Process";
+
+        int l1Budget;
+        int l2Budget;
+
+        switch (cat.ToLowerInvariant())
+        {
+            case "process":
+            case "timeline":
+                l1Budget = 25;
+                l2Budget = 18;
+                break;
+            case "cycle":
+            case "radial":
+                l1Budget = 20;
+                l2Budget = 15;
+                break;
+            case "matrix":
+                l1Budget = 28;
+                l2Budget = 20;
+                break;
+            case "pyramid":
+                l1Budget = 24;
+                l2Budget = 16;
+                break;
+            case "hierarchy":
+            case "tree":
+                l1Budget = 30;
+                l2Budget = 22;
+                break;
+            case "list":
+            case "picture list":
+                l1Budget = 45;
+                l2Budget = 35;
+                break;
+            default:
+                l1Budget = 30;
+                l2Budget = 20;
+                break;
+        }
+
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new NodeCharacterBudgetAudit(
+                cat, 0, 0, 0, l1Budget, l2Budget, "None", Array.Empty<string>(),
+                $"Node character budget audit ({cat}): 0 nodes (Empty outline)");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        var nodes = new List<(string Text, int Depth)>();
+
+        foreach (var rawLine in lines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+            int leadWs = 0;
+            int spaceCount = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t'))
+            {
+                if (rawLine[leadWs] == '\t') spaceCount += 2;
+                else spaceCount += 1;
+                leadWs++;
+            }
+
+            if (leadWs < rawLine.Length)
+            {
+                var rest = rawLine.Substring(leadWs);
+                if (rest.StartsWith("- ") || rest.StartsWith("* ") || rest.StartsWith("+ ") ||
+                    (rest.Length > 2 && char.IsDigit(rest[0]) && rest[1] == '.' && rest[2] == ' '))
+                {
+                    string content = rest.Substring(2).Trim();
+                    int depth = (spaceCount / 2) + 1;
+                    nodes.Add((content, depth));
+                }
+            }
+        }
+
+        if (nodes.Count == 0)
+        {
+            return new NodeCharacterBudgetAudit(
+                cat, 0, 0, 0, l1Budget, l2Budget, "None", Array.Empty<string>(),
+                $"Node character budget audit ({cat}): 0 nodes (Empty outline)");
+        }
+
+        var offending = new List<string>();
+        int maxChar = 0;
+
+        foreach (var (text, depth) in nodes)
+        {
+            int len = text.Length;
+            if (len > maxChar) maxChar = len;
+            int budget = depth == 1 ? l1Budget : l2Budget;
+
+            if (len > budget)
+            {
+                offending.Add($"L{depth} '{text}' ({len}/{budget}c)");
+            }
+        }
+
+        int overCount = offending.Count;
+        string risk;
+        if (overCount == 0)
+            risk = "Minimal (Labels fit within bounds)";
+        else if (overCount <= 2 && maxChar <= (l1Budget + 8))
+            risk = "Low (Minor font squeeze)";
+        else if (overCount <= 4)
+            risk = "Moderate (Text wrapping likely)";
+        else
+            risk = "Severe (Text truncation / illegible micro-font risk)";
+
+        string summary = FormatCharacterBudgetSummary(cat, nodes.Count, overCount, maxChar, l1Budget, l2Budget, risk, offending);
+        return new NodeCharacterBudgetAudit(cat, nodes.Count, overCount, maxChar, l1Budget, l2Budget, risk, offending, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of node character count budgets and truncation risk.
+    /// </summary>
+    public static string FormatCharacterBudgetSummary(
+        string category, int totalNodes, int overBudgetCount, int maxChars, int l1Budget, int l2Budget, string risk, IReadOnlyList<string>? offending = null)
+    {
+        if (totalNodes <= 0) return $"Node character budget audit ({category}): 0 nodes (Empty outline)";
+        string nodeLabel = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+        string budgetLabel = $"Budget: L1≤{l1Budget}c, L2≤{l2Budget}c";
+
+        if (overBudgetCount == 0)
+        {
+            return $"Node character budget audit ({category} · {nodeLabel}): 0 over budget ({budgetLabel}) · Risk: {risk} · Max: {maxChars}c";
+        }
+
+        string overLabel = overBudgetCount == 1 ? "1 node over budget" : $"{overBudgetCount} nodes over budget";
+        string preview = "";
+        if (offending != null && offending.Count > 0)
+        {
+            preview = $" [{string.Join(", ", offending.Take(3))}{(offending.Count > 3 ? ", …" : "")}]";
+        }
+
+        return $"Node character budget audit ({category} · {nodeLabel}): {overLabel} ({budgetLabel}) · Risk: {risk} · Max: {maxChars}c{preview}";
+    }
 }
+
+/// <summary>
+/// Represents the result of an outline node character count budget and truncation risk audit.
+/// </summary>
+public sealed record NodeCharacterBudgetAudit(
+    string Category,
+    int TotalNodes,
+    int OverBudgetCount,
+    int MaxCharacterCount,
+    int Level1Budget,
+    int Level2Budget,
+    string TruncationRiskLevel,
+    IReadOnlyList<string> OffendingNodes,
+    string Summary);
 
 /// <summary>
 /// Represents the result of a SmartArt layout aspect ratio and container fit analysis.

@@ -835,6 +835,59 @@ public class TextSearchTests
         Assert.True(mixed.WordCount < 20);
         Assert.Equal(2, mixed.SentenceCount);
     }
+
+    [Fact]
+    public void Run151_AuditSentenceFlowCadence_AnalyzesParagraphsAndSentences()
+    {
+        // 1. Empty or whitespace
+        var empty = TextSearch.AuditSentenceFlowCadence("");
+        Assert.Equal(0, empty.ParagraphCount);
+        Assert.Equal(0, empty.SentenceCount);
+        Assert.Contains("Document is empty", empty.Summary);
+
+        // 2. Balanced prose paragraphs
+        var doc = """
+            # Project Overview
+
+            MarkSmith is a specialized document generation studio for Windows. It provides fast editing and rich export capabilities.
+
+            The application leverages native OpenXML and direct PDF printing. Users can customize themes and shapes effortlessly.
+            """;
+        var audit = TextSearch.AuditSentenceFlowCadence(doc);
+        Assert.Equal(3, audit.ParagraphCount);
+        Assert.Equal(4, audit.SentenceCount);
+        Assert.True(audit.WordCount > 25);
+        Assert.True(audit.AvgWordsPerSentence > 5.0 && audit.AvgWordsPerSentence < 25.0);
+        Assert.Equal(0, audit.RunOnCount);
+        Assert.Contains("Sentence flow cadence", audit.Summary);
+        Assert.Contains("wps", audit.Summary);
+
+        // 3. Run-on sentence detection (>35 words)
+        var runOnText = """
+            This is an exceptionally long and sprawling sentence that deliberately goes on and on with multiple clauses and detailed descriptions without pausing for any terminal punctuation because it wants to test the sentence cadence analyzer which flags sentences exceeding thirty-five words as run-ons to help authors improve clarity.
+
+            Short note.
+            """;
+        var runOnAudit = TextSearch.AuditSentenceFlowCadence(runOnText);
+        Assert.True(runOnAudit.RunOnCount >= 1);
+        Assert.True(runOnAudit.MicroSentenceCount >= 1);
+        Assert.True(runOnAudit.MaxSentenceWords > 35);
+
+        // 4. Code block stripping
+        var codeDoc = """
+            Here is a paragraph before code.
+
+            ```python
+            def long_function():
+                print("this code should not be treated as a sentence or paragraph in cadence analysis")
+            ```
+
+            Here is a paragraph after code.
+            """;
+        var codeAudit = TextSearch.AuditSentenceFlowCadence(codeDoc);
+        Assert.Equal(2, codeAudit.ParagraphCount);
+        Assert.Equal(2, codeAudit.SentenceCount);
+    }
 }
 
 

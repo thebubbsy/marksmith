@@ -1755,6 +1755,57 @@ namespace MarkSmith.Tests
             Assert.Equal(2, cyclicAudit.TotalNodes);
             Assert.True(cyclicAudit.MaxDepth <= 1);
         }
+
+        [Fact]
+        public void Run151_AuditOrphanedNodes_And_ConnectToClosestCluster()
+        {
+            // 1. Empty map
+            var emptyAudit = MindMapStudioViewModel.AuditOrphanedNodes(new List<MindMapNodeViewModel>());
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Contains("0 nodes (Empty map)", emptyAudit.Summary);
+
+            // 2. Map with connected cluster and 2 orphans
+            var doc = new MindMapDocument
+            {
+                Nodes = new List<MindMapNode>
+                {
+                    new MindMapNode { Id = "hub", Title = "Main Hub", X = 100, Y = 100 },
+                    new MindMapNode { Id = "c1", Title = "Child 1", X = 200, Y = 100 },
+                    new MindMapNode { Id = "o1", Title = "Orphan Alpha", X = 250, Y = 100 },
+                    new MindMapNode { Id = "o2", Title = "Orphan Beta", X = 100, Y = 220 }
+                },
+                Links = new List<MindMapLink>
+                {
+                    new MindMapLink { SourceNodeId = "hub", TargetNodeId = "c1" }
+                }
+            };
+
+            var vm = new MindMapStudioViewModel();
+            vm.LoadDocument(doc);
+
+            var audit = vm.AuditOrphanedNodes();
+            Assert.Equal(4, audit.TotalNodes);
+            Assert.Equal(2, audit.OrphanCount);
+            Assert.Equal(2, audit.ConnectedCount);
+            Assert.True(audit.AvgDistanceToNearestCluster > 0);
+            Assert.Contains("2 orphans disconnected", audit.Summary);
+            Assert.Contains("Orphan Alpha", audit.Summary);
+
+            // 3. Connect orphans to closest cluster
+            var (connected, avgDist, summary) = vm.ConnectOrphanedNodesToClosestCluster();
+            Assert.Equal(2, connected);
+            Assert.Equal(3, vm.Links.Count);
+            Assert.True(avgDist > 0);
+            Assert.Contains("Connected 2 orphaned nodes", summary);
+
+            // Verify Alpha is connected to c1 (distance 50px < 150px to hub)
+            Assert.Contains(vm.Links, l => (l.SourceNodeId == "c1" && l.TargetNodeId == "o1") || (l.SourceNodeId == "o1" && l.TargetNodeId == "c1"));
+
+            // 4. Subsequent audit reports 0 orphans
+            var cleanAudit = vm.AuditOrphanedNodes();
+            Assert.Equal(0, cleanAudit.OrphanCount);
+            Assert.Contains("0 orphans", cleanAudit.Summary);
+        }
     }
 }
 

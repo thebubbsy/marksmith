@@ -1096,6 +1096,34 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("refactor(docs): condense document prose (-2 lines)", proseRemove);
         Assert.Contains("- Prune 2 redundant content lines", proseRemove);
     }
+
+    [Fact]
+    public void Run151_SynthesizeConventionalCommitWithScope_ExtractsHeadingScopeAndDetectsBreakingChanges()
+    {
+        // 1. Scoped addition from heading
+        var oldDoc = "# Introduction\nIntro details";
+        var newDoc = "# Introduction\nIntro details\n# Quantum Telemetry\nTelemetry metrics";
+        var scopedAdd = LineDiff.SynthesizeConventionalCommitWithScope(oldDoc, newDoc);
+
+        Assert.Contains("feat(quantum-telemetry): add section 'Quantum Telemetry'", scopedAdd);
+        Assert.Contains("- Add section: #Quantum Telemetry", scopedAdd);
+
+        // 2. Breaking change detection on removed heading
+        var breakingDocOld = "# Core Architecture\nImportant design rules\n# Legacy Storage\nOld system";
+        var breakingDocNew = "# Core Architecture\nImportant design rules";
+        var breakingCommit = LineDiff.SynthesizeConventionalCommitWithScope(breakingDocOld, breakingDocNew);
+
+        Assert.Contains("refactor(legacy-storage): remove section 'Legacy Storage'", breakingCommit);
+        Assert.Contains("BREAKING CHANGE: Removed section 'Legacy Storage'", breakingCommit);
+
+        // 3. Breaking change detection on deleted table
+        var tableDocOld = "Overview\n| Key | Value |\n| --- | --- |\n| Port | 8080 |";
+        var tableDocNew = "Overview";
+        var tableDelete = LineDiff.SynthesizeConventionalCommitWithScope(tableDocOld, tableDocNew);
+
+        Assert.Contains("refactor(tables):", tableDelete);
+        Assert.Contains("BREAKING CHANGE: Removed structured data table", tableDelete);
+    }
 }
 
 

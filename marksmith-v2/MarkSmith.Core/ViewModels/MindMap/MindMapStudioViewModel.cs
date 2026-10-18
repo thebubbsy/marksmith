@@ -3466,7 +3466,172 @@ namespace MarkSmith.ViewModels.MindMap
         {
             return AuditTopologicalDepth(nodes, links).Summary;
         }
+
+        /// <summary>
+        /// Audits orphaned (disconnected) nodes and calculates Euclidean proximity to nearest connected clusters.
+        /// </summary>
+        public OrphanedNodeAudit AuditOrphanedNodes() => AuditOrphanedNodes(Nodes.ToList(), Links.ToList());
+
+        /// <summary>
+        /// Audits orphaned (disconnected) nodes from a collection of nodes and links.
+        /// </summary>
+        public static OrphanedNodeAudit AuditOrphanedNodes(
+            IReadOnlyList<MindMapNodeViewModel> nodes,
+            IReadOnlyList<MindMapLinkViewModel>? links = null)
+        {
+            if (nodes == null || nodes.Count == 0)
+            {
+                return new OrphanedNodeAudit(
+                    0, 0, 0, Array.Empty<string>(), 0.0,
+                    "Orphaned nodes audit: 0 nodes (Empty map)");
+            }
+
+            var lList = links ?? Array.Empty<MindMapLinkViewModel>();
+            var connectedIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var l in lList)
+            {
+                if (!string.IsNullOrEmpty(l.SourceNodeId)) connectedIds.Add(l.SourceNodeId);
+                if (!string.IsNullOrEmpty(l.TargetNodeId)) connectedIds.Add(l.TargetNodeId);
+            }
+
+            var orphans = nodes.Where(n => !connectedIds.Contains(n.Id)).ToList();
+            var connected = nodes.Where(n => connectedIds.Contains(n.Id)).ToList();
+
+            if (orphans.Count == 0)
+            {
+                string allStr = nodes.Count == 1 ? "1 node" : $"{nodes.Count} nodes";
+                return new OrphanedNodeAudit(
+                    nodes.Count, 0, nodes.Count, Array.Empty<string>(), 0.0,
+                    $"Orphaned nodes audit ({allStr}): 0 orphans · Fully connected cluster network");
+            }
+
+            double totalDist = 0.0;
+            int distCount = 0;
+            foreach (var orphan in orphans)
+            {
+                var targets = connected.Count > 0 ? connected : nodes.Where(n => n.Id != orphan.Id).ToList();
+                if (targets.Count > 0)
+                {
+                    double minDist = targets.Min(t => Math.Sqrt(Math.Pow(orphan.X - t.X, 2) + Math.Pow(orphan.Y - t.Y, 2)));
+                    totalDist += minDist;
+                    distCount++;
+                }
+            }
+
+            double avgDist = distCount > 0 ? Math.Round(totalDist / distCount, 1) : 0.0;
+            var orphanTitles = orphans.Select(o => string.IsNullOrWhiteSpace(o.Title) ? "Untitled" : o.Title).ToList();
+
+            string summary = FormatOrphanedNodeAuditSummary(nodes.Count, orphans.Count, connected.Count, avgDist, orphanTitles);
+            return new OrphanedNodeAudit(nodes.Count, orphans.Count, connected.Count, orphanTitles, avgDist, summary);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of orphaned node and cluster proximity metrics.
+        /// </summary>
+        public static string FormatOrphanedNodeAuditSummary(
+            int totalNodes, int orphanCount, int connectedCount, double avgDist, IReadOnlyList<string>? orphanTitles = null)
+        {
+            if (totalNodes <= 0) return "Orphaned nodes audit: 0 nodes (Empty map)";
+            string totalStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            if (orphanCount <= 0) return $"Orphaned nodes audit ({totalStr}): 0 orphans · Fully connected cluster network";
+
+            string orphanLabel = orphanCount == 1 ? "1 orphan" : $"{orphanCount} orphans";
+            string preview = "";
+            if (orphanTitles != null && orphanTitles.Count > 0)
+            {
+                var sample = string.Join(", ", orphanTitles.Take(3).Select(t => $"'{t}'"));
+                preview = $" [{sample}{(orphanTitles.Count > 3 ? ", …" : "")}]";
+            }
+
+            return $"Orphaned nodes audit ({totalStr}): {orphanLabel} disconnected ({connectedCount} connected · Avg distance to nearest cluster: {avgDist:0.#}px){preview}";
+        }
+
+        /// <summary>
+        /// Connects each orphaned node to its closest cluster member or connected neighbor by Euclidean distance.
+        /// </summary>
+        public (int ConnectedCount, double AvgDistance, string Summary) ConnectOrphanedNodesToClosestCluster()
+        {
+            if (Nodes.Count <= 1)
+            {
+                string emptySummary = "Connect orphans: requires at least 2 nodes";
+                StatusMessage = emptySummary;
+                return (0, 0.0, emptySummary);
+            }
+
+            var connectedIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var l in Links)
+            {
+                if (!string.IsNullOrEmpty(l.SourceNodeId)) connectedIds.Add(l.SourceNodeId);
+                if (!string.IsNullOrEmpty(l.TargetNodeId)) connectedIds.Add(l.TargetNodeId);
+            }
+
+            var orphans = Nodes.Where(n => !connectedIds.Contains(n.Id)).ToList();
+            if (orphans.Count == 0)
+            {
+                string allStr = Nodes.Count == 1 ? "1 node" : $"{Nodes.Count} nodes";
+                string noOrphanSummary = $"Connect orphans: 0 orphaned nodes found ({allStr} already connected)";
+                StatusMessage = noOrphanSummary;
+                return (0, 0.0, noOrphanSummary);
+            }
+
+            PushUndo("Connect orphaned nodes to closest cluster");
+            var connected = Nodes.Where(n => connectedIds.Contains(n.Id)).ToList();
+            double totalDist = 0.0;
+            int connectedCount = 0;
+
+            using (SuspendEditTracking())
+            {
+                foreach (var orphan in orphans)
+                {
+                    var candidates = connected.Count > 0 ? connected : Nodes.Where(n => n.Id != orphan.Id).ToList();
+                    if (candidates.Count == 0) continue;
+
+                    var closest = candidates
+                        .OrderBy(c => Math.Pow(orphan.X - c.X, 2) + Math.Pow(orphan.Y - c.Y, 2))
+                        .First();
+
+                    double dist = Math.Sqrt(Math.Pow(orphan.X - closest.X, 2) + Math.Pow(orphan.Y - closest.Y, 2));
+                    totalDist += dist;
+
+                    var linkModel = new MindMapLink
+                    {
+                        SourceNodeId = closest.Id,
+                        TargetNodeId = orphan.Id,
+                        Direction = MindMapLinkDirection.SourceToTarget,
+                        Kind = MindMapLinkKind.Manual
+                    };
+
+                    Document.Links.Add(linkModel);
+                    var linkVm = new MindMapLinkViewModel(linkModel);
+                    Links.Add(linkVm);
+
+                    connected.Add(orphan);
+                    connectedIds.Add(orphan.Id);
+                    connectedCount++;
+                }
+            }
+
+            double avgDist = connectedCount > 0 ? Math.Round(totalDist / connectedCount, 1) : 0.0;
+            RefreshConnectionCounts();
+            MarkDirty($"Connected {connectedCount} orphaned nodes to nearest clusters (avg distance: {avgDist:0.#}px).");
+            CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+
+            string summary = $"✓ Connected {connectedCount} orphaned nodes to nearest clusters (avg distance: {avgDist:0.#}px) · Ctrl+Z to undo";
+            StatusMessage = summary;
+            return (connectedCount, avgDist, summary);
+        }
     }
+
+    /// <summary>
+    /// Represents the result of an orphaned node and cluster proximity audit in the mind map.
+    /// </summary>
+    public sealed record OrphanedNodeAudit(
+        int TotalNodes,
+        int OrphanCount,
+        int ConnectedCount,
+        IReadOnlyList<string> OrphanTitles,
+        double AvgDistanceToNearestCluster,
+        string Summary);
 
     /// <summary>
     /// Represents the result of a topological depth and level hierarchy analysis of the mind map.

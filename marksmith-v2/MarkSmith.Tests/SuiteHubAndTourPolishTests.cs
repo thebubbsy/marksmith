@@ -1894,6 +1894,79 @@ public class SuiteHubAndTourPolishTests
         Assert.Equal(0.0, emptyHeatmap.RevisitVelocityScore);
         Assert.Contains("0 documents (No recent files recorded)", emptyHeatmap.Summary);
     }
+
+    [Fact]
+    public void Run151_AuditDormancyAlerts_And_DesktopWiring()
+    {
+        // 1. Verify desktop wiring across surfaces
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("sentenceCadenceItem", mainCs);
+        Assert.Contains("FormatSentenceFlowSummary", mainCs);
+
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditOrphansItem", galaxyXaml);
+        Assert.Contains("OnAuditOrphansClick", galaxyXaml);
+        Assert.Contains("OnAuditOrphansClick", galaxyCs);
+
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditLayerStackItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditLayerStackClick", shapeXaml);
+        Assert.Contains("OnSelectionAuditLayerStackClick", shapeCs);
+
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditCharBudgetsItem", smartArtXaml);
+        Assert.Contains("OnAuditCharBudgetsClick", smartArtXaml);
+        Assert.Contains("OnAuditCharBudgetsClick", smartArtCs);
+
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("synthesizeCommitScope", historyCs);
+        Assert.Contains("SynthesizeConventionalCommitWithScope", historyCs);
+
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentDormancyAlertsItem", suiteXaml);
+        Assert.Contains("OnCopyRecentDormancyAlertsClick", suiteXaml);
+        Assert.Contains("OnCopyRecentDormancyAlertsClick", suiteCs);
+
+        // 2. Dormancy alerts audit logic
+        var refTime = new DateTime(2026, 10, 18, 12, 0, 0);
+        var files = new[]
+        {
+            @"C:\active_doc.md",
+            @"C:\dormant_project1.md",
+            @"C:\dormant_project2.md",
+            @"C:\ancient_project.md"
+        };
+
+        DateTime? MockAccessTime(string path) => path switch
+        {
+            @"C:\active_doc.md" => refTime.AddDays(-5),          // active (<60d)
+            @"C:\dormant_project1.md" => refTime.AddDays(-65),   // dormant (65d)
+            @"C:\dormant_project2.md" => refTime.AddDays(-90),   // dormant (90d)
+            @"C:\ancient_project.md" => refTime.AddDays(-200),   // archive (>180d)
+            _ => null
+        };
+
+        var audit = RecentFilesService.AuditDormancyAlerts(files, MockAccessTime, refTime, dormancyDaysThreshold: 60);
+        Assert.Equal(4, audit.TotalFiles);
+        Assert.Equal(3, audit.DormantCount);
+        Assert.Equal(1, audit.ActiveCount);
+        Assert.Equal("Moderate (Stale documents accumulating)", audit.RiskLevel);
+        Assert.Contains("3 dormant projects", audit.Summary);
+        Assert.Contains("dormant_project1.md", audit.Summary);
+
+        // Ancient project recommended action is archive
+        var ancient = audit.Alerts.First(a => a.FileName == "ancient_project.md");
+        Assert.Equal("Archive or prune stale project", ancient.RecommendedAction);
+
+        // Empty file collection
+        var emptyAudit = RecentFilesService.AuditDormancyAlerts(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFiles);
+        Assert.Contains("0 documents (No recent files recorded)", emptyAudit.Summary);
+    }
 }
 
 

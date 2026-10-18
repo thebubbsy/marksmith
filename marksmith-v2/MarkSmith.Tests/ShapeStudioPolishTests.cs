@@ -1043,6 +1043,54 @@ public class ShapeStudioPolishTests
         Assert.Equal(80, ryEll);
         Assert.Contains("elliptical orbit (150×80px) around (125, 125)", sumEll);
     }
+
+    [Fact]
+    public void Run151_AuditLayerStackIndices_And_NormalizeZOrderStack()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // 1. Empty canvas
+        var empty = vm.AuditLayerStackIndices();
+        Assert.Equal(0, empty.TotalShapes);
+        Assert.Contains("0 shapes (Empty canvas)", empty.Summary);
+
+        // 2. Add 4 shapes
+        vm.AddShapeAt("rect", 0, 0, 50, 50, "0078D4", "Shape 0");
+        vm.AddShapeAt("circle", 100, 0, 50, 50, "107C41", "Shape 1");
+        vm.AddShapeAt("diamond", 200, 0, 50, 50, "D83B01", "Shape 2");
+        vm.AddShapeAt("star", 300, 0, 50, 50, "FFB900", "Shape 3");
+
+        // 3. Select non-contiguous shapes (Shape 0 and Shape 2)
+        vm.Shapes[0].IsSelected = true;
+        vm.Shapes[1].IsSelected = false;
+        vm.Shapes[2].IsSelected = true;
+        vm.Shapes[3].IsSelected = false;
+
+        var audit = vm.AuditLayerStackIndices();
+        Assert.Equal(4, audit.TotalShapes);
+        Assert.Equal(2, audit.SelectedCount);
+        Assert.Equal(0, audit.MinIndex);
+        Assert.Equal(2, audit.MaxIndex);
+        Assert.False(audit.IsContiguous);
+        Assert.Contains("non-contiguous", audit.Summary);
+        Assert.Contains("[0, 2]", audit.Summary);
+
+        // 4. Normalize z-order stack to compact them
+        var (normCount, modified, summary) = vm.NormalizeZOrderStack();
+        Assert.Equal(2, normCount);
+        Assert.True(modified);
+        Assert.Contains("compacted 2 shapes into contiguous layers 0..1", summary);
+
+        // 5. Audit again -> now contiguous
+        var postAudit = vm.AuditLayerStackIndices();
+        Assert.True(postAudit.IsContiguous);
+        Assert.Contains("contiguous", postAudit.Summary);
+
+        // 6. Test undo
+        Assert.True(vm.CanUndo);
+        vm.UndoCommand.Execute(null);
+    }
 }
 
 

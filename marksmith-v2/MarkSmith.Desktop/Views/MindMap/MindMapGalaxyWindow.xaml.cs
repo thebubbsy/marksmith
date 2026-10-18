@@ -3944,6 +3944,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditOrphansClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditOrphanedNodes();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4783,6 +4791,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditTopologicalDepthItem.Click += OnAuditTopologicalDepthClick;
             menu.Items.Add(auditTopologicalDepthItem);
+
+            var auditOrphansItem = new MenuFlyoutItem
+            {
+                Text = "Audit orphaned nodes & cluster affinity",
+                Icon = new FontIcon { Glyph = "\uE8B7" }
+            };
+            auditOrphansItem.Click += OnAuditOrphansClick;
+            menu.Items.Add(auditOrphansItem);
 
             var fitItem = new MenuFlyoutItem
 

@@ -270,6 +270,9 @@
                                     <MenuFlyoutItem x:Name="AuditTopologicalDepthItem" Text="Audit topological depth &amp; level hierarchy" Click="OnAuditTopologicalDepthClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E5;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditOrphansItem" Text="Audit orphaned nodes &amp; cluster affinity" Click="OnAuditOrphansClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

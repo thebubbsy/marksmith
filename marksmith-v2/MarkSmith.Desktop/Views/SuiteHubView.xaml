@@ -258,6 +258,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentAccessHeatmapItem" Text="Copy access frequency heatmap &amp; revisit cadence" Click="OnCopyRecentAccessHeatmapClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentDormancyAlertsItem" Text="Copy library dormancy risk &amp; revival alerts" Click="OnCopyRecentDormancyAlertsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7BA;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

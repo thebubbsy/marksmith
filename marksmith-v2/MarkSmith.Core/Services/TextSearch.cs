@@ -1794,6 +1794,130 @@ public static class TextSearch
     {
         return CalculateReadabilityScorecard(markdownText).Summary;
     }
+
+    /// <summary>
+    /// Represents the result of a sentence flow, paragraph cadence, and prose rhythm analysis.
+    /// </summary>
+    public sealed record SentenceFlowCadence(
+        int ParagraphCount,
+        int SentenceCount,
+        int WordCount,
+        double AvgWordsPerSentence,
+        int MaxSentenceWords,
+        int RunOnCount,
+        int MicroSentenceCount,
+        string CadenceRating,
+        string Summary);
+
+    /// <summary>
+    /// Audits markdown prose for paragraph length, sentence flow cadence, run-on sentences (>35 words),
+    /// and micro-sentences (≤3 words), automatically stripping code blocks, HTML, and tables.
+    /// </summary>
+    public static SentenceFlowCadence AuditSentenceFlowCadence(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new SentenceFlowCadence(
+                0, 0, 0, 0.0, 0, 0, 0, "None",
+                "Sentence flow cadence: 0 words · Document is empty");
+        }
+
+        // Strip code fences (```...``` or ~~~...~~~ or :::...:::)
+        var clean = System.Text.RegularExpressions.Regex.Replace(
+            markdownText, @"(?s)(```.*?```|~~~.*?~~~|:::.*?:::)", " ", System.Text.RegularExpressions.RegexOptions.None);
+
+        // Strip inline code `...`
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"`[^`]*`", " ");
+
+        // Strip HTML tags <...>
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"<[^>]+>", " ");
+
+        // Strip image embeds ![alt](url)
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"!\[.*?\]\(.*?\)", " ");
+
+        // Strip Markdown headings at start of lines
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"(?m)^\s*#{1,6}\s+", " ");
+
+        // Split into paragraphs by blank lines
+        var rawParagraphs = System.Text.RegularExpressions.Regex.Split(clean, @"\r?\n\s*\r?\n");
+        var paragraphs = rawParagraphs.Where(p => !string.IsNullOrWhiteSpace(p) && p.Any(char.IsLetter)).ToList();
+
+        if (paragraphs.Count == 0)
+        {
+            return new SentenceFlowCadence(
+                0, 0, 0, 0.0, 0, 0, 0, "None",
+                "Sentence flow cadence: 0 words · Document contains no readable prose paragraphs");
+        }
+
+        int totalSentences = 0;
+        int totalWords = 0;
+        int maxSentenceWords = 0;
+        int runOnCount = 0;
+        int microCount = 0;
+
+        foreach (var p in paragraphs)
+        {
+            var rawSentences = System.Text.RegularExpressions.Regex.Split(p.Trim(), @"(?<=[.!?])\s+");
+            var sentences = rawSentences.Where(s => !string.IsNullOrWhiteSpace(s) && s.Any(char.IsLetter)).ToList();
+            if (sentences.Count == 0) continue;
+
+            foreach (var s in sentences)
+            {
+                var wordMatches = System.Text.RegularExpressions.Regex.Matches(s, @"\b[a-zA-Z]+(?:'[a-zA-Z]+)?\b");
+                int wordsInSentence = wordMatches.Count;
+                if (wordsInSentence == 0) continue;
+
+                totalSentences++;
+                totalWords += wordsInSentence;
+                if (wordsInSentence > maxSentenceWords) maxSentenceWords = wordsInSentence;
+
+                if (wordsInSentence > 35) runOnCount++;
+                else if (wordsInSentence <= 3) microCount++;
+            }
+        }
+
+        if (totalSentences == 0 || totalWords == 0)
+        {
+            return new SentenceFlowCadence(
+                paragraphs.Count, 0, 0, 0.0, 0, 0, 0, "None",
+                "Sentence flow cadence: 0 words · Document contains no complete sentences");
+        }
+
+        double avgWords = Math.Round((double)totalWords / totalSentences, 1);
+
+        string rating;
+        if (runOnCount > 2 || (runOnCount > 0 && runOnCount >= totalSentences * 0.25))
+            rating = "Run-On Heavy (Needs Pacing Breaks)";
+        else if (avgWords < 8.0)
+            rating = "Staccato (Short Punchy Sentences)";
+        else if (avgWords > 28.0)
+            rating = "Dense / Academic (High Cognitive Load)";
+        else if (maxSentenceWords - avgWords > 15.0)
+            rating = "Dynamic Flow (High Rhythm Variation)";
+        else
+            rating = "Balanced Flow";
+
+        string summary = $"Sentence flow cadence ({rating} · {avgWords:0.#} wps): {paragraphs.Count:N0} paragraphs, {totalSentences:N0} sentences ({totalWords:N0} words) · {runOnCount} run-on (>35w), {microCount} micro (≤3w) · Max: {maxSentenceWords}w";
+
+        return new SentenceFlowCadence(
+            paragraphs.Count,
+            totalSentences,
+            totalWords,
+            avgWords,
+            maxSentenceWords,
+            runOnCount,
+            microCount,
+            rating,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of sentence flow cadence and paragraph rhythm.
+    /// </summary>
+    public static string FormatSentenceFlowSummary(string? markdownText)
+    {
+        return AuditSentenceFlowCadence(markdownText).Summary;
+    }
 }
 
 

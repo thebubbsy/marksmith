@@ -7757,6 +7757,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(readabilityScorecardItem);
 
+        var sentenceCadenceItem = new MenuFlyoutItem
+        {
+            Text = "Copy sentence flow & paragraph cadence audit",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        sentenceCadenceItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatSentenceFlowSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus("Copied sentence flow cadence audit to clipboard.");
+        };
+        menu.Items.Add(sentenceCadenceItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -8998,6 +9012,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(readabilityScorecardItem);
+
+        var sentenceCadenceItem = new MenuFlyoutItem
+        {
+            Text = "Copy sentence flow & paragraph cadence audit",
+            Icon = new FontIcon { Glyph = "\uE8A5" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        sentenceCadenceItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatSentenceFlowSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(sentenceCadenceItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

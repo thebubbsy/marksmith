@@ -478,6 +478,17 @@ public sealed class VersionHistoryService
         // same .tmp file; the final move is an atomic replace on NTFS.
         var tmp = _indexPath + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
         await File.WriteAllTextAsync(tmp, JsonSerializer.Serialize(index, JsonOpts));
-        File.Move(tmp, _indexPath, overwrite: true);
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                File.Move(tmp, _indexPath, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when (attempt < 4 && (ex is IOException || ex is UnauthorizedAccessException))
+            {
+                await Task.Delay(25 * (attempt + 1));
+            }
+        }
     }
 }

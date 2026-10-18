@@ -890,6 +890,54 @@ public class SmartArtStudioPolishTests
         var mdFallback = SmartArtDesignStudioViewModel.AuditLayoutAspectRatio("Process", 0, "- Step 1\n- Step 2\n- Step 3");
         Assert.Equal(3, mdFallback.NodeCount);
     }
+
+    [Fact]
+    public void Run151_AuditNodeCharacterBudgets_CalculatesBudgetsAndTruncationRisk()
+    {
+        // 1. Empty outline
+        var empty = SmartArtDesignStudioViewModel.AuditNodeCharacterBudgets("Process", "");
+        Assert.Equal(0, empty.TotalNodes);
+        Assert.Contains("0 nodes (Empty outline)", empty.Summary);
+
+        // 2. Concise Process outline (within 25 char budget)
+        var concise = """
+            - Ingest Data
+              - Validate Schema
+            - Transform
+            - Export
+            """;
+        var auditConcise = SmartArtDesignStudioViewModel.AuditNodeCharacterBudgets("Process", concise);
+        Assert.Equal(4, auditConcise.TotalNodes);
+        Assert.Equal(0, auditConcise.OverBudgetCount);
+        Assert.Equal("Minimal (Labels fit within bounds)", auditConcise.TruncationRiskLevel);
+        Assert.Contains("0 over budget", auditConcise.Summary);
+
+        // 3. Sprawling Process outline with truncated labels (>25 chars L1, >18 chars L2)
+        var sprawling = """
+            - Initialize Autonomous Cloud Infrastructure Telemetry Engine
+              - Perform Extremely Thorough Recursive Database Schema Integrity Verification
+            - Optimize Pipelines
+            """;
+        var auditSprawling = SmartArtDesignStudioViewModel.AuditNodeCharacterBudgets("Process", sprawling);
+        Assert.Equal(3, auditSprawling.TotalNodes);
+        Assert.Equal(2, auditSprawling.OverBudgetCount);
+        Assert.True(auditSprawling.MaxCharacterCount > 50);
+        Assert.Contains("2 nodes over budget", auditSprawling.Summary);
+        Assert.Contains("Budget: L1≤25c, L2≤18c", auditSprawling.Summary);
+
+        // 4. Matrix category budgets (L1: 28c, L2: 20c)
+        var matrixOutline = """
+            - Strengths
+              - Rapid Iteration Loop
+            - Weaknesses
+            - Opportunities
+            - Threats
+            """;
+        var auditMatrix = SmartArtDesignStudioViewModel.AuditNodeCharacterBudgets("Matrix", matrixOutline);
+        Assert.Equal(5, auditMatrix.TotalNodes);
+        Assert.Equal(28, auditMatrix.Level1Budget);
+        Assert.Equal(20, auditMatrix.Level2Budget);
+    }
 }
 
 
