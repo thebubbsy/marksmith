@@ -83,6 +83,7 @@ public sealed class LicenseService
 
     public void Load()
     {
+        CanaryTokenService.NotifyUsage("Core.LicenseService.Load");
         lock (_gate)
         {
             _stored = ReadStored();

@@ -8,6 +8,11 @@ namespace MarkSmith;
 // Avalonia port happen without restructuring every service constructor.
 public static class AppServices
 {
+    static AppServices()
+    {
+        Services.CanaryTokenService.NotifyUsage("Core.AppServices.Init");
+    }
+
     // Eager only for the cheap services needed before the first window exists: settings drive the
     // splash-video decision, themes/license/recent-files are read by the first frame.
     public static Services.SettingsService Settings { get; } = new();

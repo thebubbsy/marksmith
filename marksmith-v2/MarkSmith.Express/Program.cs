@@ -1,9 +1,12 @@
 using MarkSmith.Express;
+using MarkSmith.Services;
 
 // Marksmith Express entry point: a zero-dependency, cross-platform loopback web UI + REST API
 // over the same MarkSmith.Core conversion pipeline the desktop app uses.
 //
 //   marksmith-express [--port <n>] [--no-browser]
+
+CanaryTokenService.NotifyUsage("Express.Main", args.Length == 0 ? "<default>" : string.Join(" ", args));
 
 int port = 5000;
 bool openBrowser = true;

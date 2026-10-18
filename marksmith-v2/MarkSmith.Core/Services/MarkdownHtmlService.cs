@@ -210,6 +210,7 @@ public sealed partial class MarkdownHtmlService
     public string Render(string markdown, AppSettings settings, ThemeDefinition theme,
         LlmClassification? classification = null, bool interactive = false)
     {
+        CanaryTokenService.NotifyUsage("Core.MarkdownHtmlRender", interactive ? "InteractivePreview" : "StaticRender");
         if (settings.ThemeLightInfluence)        {
             theme = theme.ApplyLightInfluence();
         }

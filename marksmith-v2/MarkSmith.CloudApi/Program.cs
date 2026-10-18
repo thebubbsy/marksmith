@@ -23,6 +23,8 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+CanaryTokenService.NotifyUsage("CloudApi.Startup", $"Port={port}");
+
 app.UseCors();
 
 // Rate limiting: simple in-memory tracker per client IP (30 requests per minute)
@@ -80,6 +82,8 @@ app.MapPost("/api/convert", async (HttpContext ctx, CompileRequest req) =>
 
 async Task<IResult> HandleCompileAsync(HttpContext ctx, CompileRequest req)
 {
+    CanaryTokenService.NotifyUsage("CloudApi.Compile", $"RemoteIp={ctx.Connection.RemoteIpAddress};File={req.Filename ?? "inline"}");
+
     if (IsRateLimited(ctx))
     {
         return Results.StatusCode(429); // Too Many Requests

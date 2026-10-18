@@ -29,6 +29,8 @@ namespace MarkSmith.Cli
 
         static async Task<int> Main(string[] args)
         {
+            CanaryTokenService.NotifyUsage("Cli.Main", args.Length == 0 ? "<no-args>" : string.Join(" ", args));
+
             // Without this the checkmark and the progress bar came out as "?" boxes on a default
             // Windows console, because stdout stayed on the OEM code page.
             try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { }

@@ -10,6 +10,8 @@ class Program
 {
     static async Task<int> Main(string[] args)
     {
+        MarkSmith.Services.CanaryTokenService.NotifyUsage("Mcp.Main", args.Length == 0 ? "stdio" : string.Join(" ", args));
+
         try
         {
             Console.OutputEncoding = Encoding.UTF8;

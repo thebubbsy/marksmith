@@ -60,6 +60,7 @@ public partial class App : Application
     {
         try
         {
+            CanaryTokenService.NotifyUsage("Desktop.OnLaunched", string.Join(" ", Environment.GetCommandLineArgs().Skip(1)));
             // Apply a previously staged delta update (only the changed files, downloaded by the
             // delta updater) before any UI appears. If the running exe itself was replaced, a
             // detached handoff was spawned — this instance must exit and let it finish + restart.

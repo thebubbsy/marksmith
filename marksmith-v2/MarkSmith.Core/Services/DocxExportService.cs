@@ -105,9 +105,12 @@ public sealed partial class DocxExportService
         IReadOnlyList<byte[]?>? mermaidImages = null, IReadOnlyList<string>? cleanupNotes = null,
         IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeometry = null,
         IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGenericGeometry = null,
-        int? oversizedDiagramModeOverride = null) =>
-        ExportAndChargeTrialAsync(markdown, docxPath, settings, mermaidImages, cleanupNotes,
+        int? oversizedDiagramModeOverride = null)
+    {
+        CanaryTokenService.NotifyUsage("Core.DocxExport", Path.GetFileName(docxPath));
+        return ExportAndChargeTrialAsync(markdown, docxPath, settings, mermaidImages, cleanupNotes,
             mermaidGeometry, mermaidGenericGeometry, oversizedDiagramModeOverride);
+    }
 
     public async Task ExportAsync(string markdown, Stream outputStream, AppSettings settings,
         IReadOnlyList<byte[]?>? mermaidImages = null, IReadOnlyList<string>? cleanupNotes = null,
