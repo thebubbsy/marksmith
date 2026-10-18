@@ -10969,6 +10969,55 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         e.Handled = true;
     }
 
+    private void OnStatusShortcutsButtonClick(object sender, RoutedEventArgs e)
+    {
+        _ = ShowShortcutsCheatsheetAsync();
+    }
+
+    private void OnStatusShortcutsButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+
+        var menu = new MenuFlyout();
+
+        var shortcutsItem = new MenuFlyoutItem
+        {
+            Text = "Keyboard Shortcuts Cheatsheet (F1)",
+            Icon = new FontIcon { Glyph = "\uE765" }
+        };
+        shortcutsItem.Click += (_, _) => _ = ShowShortcutsCheatsheetAsync();
+        menu.Items.Add(shortcutsItem);
+
+        var paletteItem = new MenuFlyoutItem
+        {
+            Text = "Command Palette (Ctrl+K)",
+            Icon = new FontIcon { Glyph = "\uE721" }
+        };
+        paletteItem.Click += (_, _) => _ = ShowCommandPaletteAsync();
+        menu.Items.Add(paletteItem);
+
+        var goToLineItem = new MenuFlyoutItem
+        {
+            Text = "Jump to Line… (Ctrl+G)",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        goToLineItem.Click += (_, _) => _ = ShowGoToLineDialogAsync();
+        menu.Items.Add(goToLineItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var focusItem = new MenuFlyoutItem
+        {
+            Text = FocusModeToggle.IsChecked == true ? "Exit Focus Mode (F11)" : "Enter Focus Mode (F11)",
+            Icon = new FontIcon { Glyph = "\uE740" }
+        };
+        focusItem.Click += (_, _) => FocusModeToggle.IsChecked = !(FocusModeToggle.IsChecked == true);
+        menu.Items.Add(focusItem);
+
+        menu.ShowAt(anchor);
+    }
+
     private void OnWordCountTextTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
         e.Handled = true;
