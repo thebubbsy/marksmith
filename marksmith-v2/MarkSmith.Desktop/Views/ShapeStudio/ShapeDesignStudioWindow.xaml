@@ -661,6 +661,12 @@
                                         <MenuFlyoutItem x:Name="SelectionQuantizeGridItem" Text="Snap shapes to 8px design grid" Click="OnSelectionQuantizeGridClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditAspectRatioItem" Text="Audit aspect ratio &amp; shape proportionality" Click="OnSelectionAuditAspectRatioClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionLockAspectRatioSquareItem" Text="Lock shape aspect ratio (1:1 Square)" Click="OnSelectionLockAspectRatioSquareClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE734;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

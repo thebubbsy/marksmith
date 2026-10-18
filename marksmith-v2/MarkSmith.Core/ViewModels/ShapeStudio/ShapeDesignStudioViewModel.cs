@@ -4420,7 +4420,145 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         CanvasChanged?.Invoke(this, EventArgs.Empty);
         return (targets.Count, modified, summary);
     }
+
+    /// <summary>
+    /// Audits aspect ratio proportions and deviation from standard aspect ratios (1:1 Square, 4:3 Standard, 16:9 Widescreen, 1.618 Golden Ratio) across canvas shapes.
+    /// </summary>
+    public AspectRatioProportionsAudit AuditAspectRatioProportions(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var targets = (targetShapes ?? (SelectedItems.Any() ? SelectedItems : Shapes)).ToList();
+        if (targets.Count == 0)
+        {
+            string emptySummary = "Aspect ratio audit: 0 shapes (Empty canvas)";
+            StatusMessage = emptySummary;
+            return new AspectRatioProportionsAudit(0, 0, 0, 0, 0, 0, 0.0, emptySummary);
+        }
+
+        int squareCount = 0;
+        int wide169Count = 0;
+        int standard43Count = 0;
+        int goldenCount = 0;
+        int otherCount = 0;
+        double sumRatios = 0.0;
+
+        foreach (var s in targets)
+        {
+            double w = Math.Max(1.0, s.Width);
+            double h = Math.Max(1.0, s.Height);
+            double ratio = w / h;
+            sumRatios += ratio;
+
+            if (Math.Abs(ratio - 1.0) <= 0.05) squareCount++;
+            else if (Math.Abs(ratio - (16.0 / 9.0)) <= 0.08) wide169Count++;
+            else if (Math.Abs(ratio - (4.0 / 3.0)) <= 0.06) standard43Count++;
+            else if (Math.Abs(ratio - 1.618) <= 0.08) goldenCount++;
+            else otherCount++;
+        }
+
+        double avgRatio = Math.Round(sumRatios / targets.Count, 2);
+        string summary = FormatAspectRatioAuditSummary(targets.Count, squareCount, wide169Count, standard43Count, goldenCount, otherCount, avgRatio);
+        StatusMessage = summary;
+
+        return new AspectRatioProportionsAudit(
+            targets.Count,
+            squareCount,
+            wide169Count,
+            standard43Count,
+            goldenCount,
+            otherCount,
+            avgRatio,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of aspect ratio proportionality across shapes.
+    /// </summary>
+    public static string FormatAspectRatioAuditSummary(int total, int square, int wide169, int standard43, int golden, int other, double avgRatio)
+    {
+        if (total == 0) return "Aspect ratio audit: 0 shapes";
+        return $"Aspect ratio audit ({total} shapes · Avg ratio: {avgRatio:0.##}): {square} square (1:1), {wide169} widescreen (16:9), {standard43} standard (4:3), {golden} golden (1.618), {other} custom";
+    }
+
+    /// <summary>
+    /// Snaps and locks shape aspect ratios to a specific target ratio (e.g. 1.0 for square, 1.778 for 16:9) centered at their current geometric center.
+    /// </summary>
+    public (int TotalShapes, int ModifiedCount, string Summary) EnforceAspectRatioLock(
+        double targetRatio = 1.0,
+        string? ratioName = null,
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var targets = (targetShapes ?? (SelectedItems.Any() ? SelectedItems : Shapes)).ToList();
+        if (targets.Count == 0)
+        {
+            string emptySummary = "Aspect ratio lock: No shapes to adjust";
+            StatusMessage = emptySummary;
+            return (0, 0, emptySummary);
+        }
+
+        double ratio = Math.Clamp(targetRatio, 0.1, 10.0);
+        string label = ratioName ?? $"{ratio:0.##}:1";
+
+        int modified = 0;
+        var adjustments = new List<(ShapeCanvasItemViewModel Shape, double OldX, double OldY, double OldW, double OldH, double NewX, double NewY, double NewW, double NewH)>();
+
+        foreach (var s in targets)
+        {
+            double cx = s.X + s.Width / 2.0;
+            double cy = s.Y + s.Height / 2.0;
+            double area = Math.Max(400.0, s.Width * s.Height);
+
+            // newW / newH = ratio, newW * newH = area => newH = sqrt(area / ratio), newW = newH * ratio
+            double newH = Math.Max(20.0, Math.Sqrt(area / ratio));
+            double newW = Math.Max(20.0, newH * ratio);
+
+            double newX = Math.Max(0.0, Math.Round(cx - newW / 2.0));
+            double newY = Math.Max(0.0, Math.Round(cy - newH / 2.0));
+            newW = Math.Round(newW);
+            newH = Math.Round(newH);
+
+            if (Math.Abs(s.Width - newW) > 0.5 || Math.Abs(s.Height - newH) > 0.5 ||
+                Math.Abs(s.X - newX) > 0.5 || Math.Abs(s.Y - newY) > 0.5)
+            {
+                adjustments.Add((s, s.X, s.Y, s.Width, s.Height, newX, newY, newW, newH));
+            }
+        }
+
+        if (adjustments.Count == 0)
+        {
+            string cleanSummary = $"✓ All {targets.Count} shapes already conform to {label} aspect ratio";
+            StatusMessage = cleanSummary;
+            return (targets.Count, 0, cleanSummary);
+        }
+
+        RecordUndo();
+        foreach (var adj in adjustments)
+        {
+            adj.Shape.X = adj.NewX;
+            adj.Shape.Y = adj.NewY;
+            adj.Shape.Width = adj.NewW;
+            adj.Shape.Height = adj.NewH;
+            modified++;
+        }
+
+        string summary = $"✓ Locked {modified} shapes to {label} aspect ratio · Ctrl+Z to undo";
+        StatusMessage = summary;
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        return (targets.Count, modified, summary);
+    }
 }
+
+/// <summary>
+/// Represents the result of an audit of shape aspect ratios and proportionality.
+/// </summary>
+public sealed record AspectRatioProportionsAudit(
+    int TotalShapes,
+    int SquareCount,
+    int Widescreen169Count,
+    int Standard43Count,
+    int GoldenRatioCount,
+    int CustomCount,
+    double AverageRatio,
+    string Summary);
 
 /// <summary>
 /// Represents the result of an audit of shape coordinates and dimensions against a design grid.
@@ -4455,4 +4593,5 @@ public enum DistributionAxis
     Horizontal,
     Vertical
 }
+
 

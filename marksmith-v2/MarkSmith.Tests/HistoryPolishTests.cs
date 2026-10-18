@@ -1163,6 +1163,37 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("### Refactoring", changelog);
         Assert.Contains("- **legacy-protocol**: remove section 'Legacy Protocol'", changelog);
     }
+
+    [Fact]
+    public void Run153_SynthesizeReleaseMilestoneHeader()
+    {
+        // 1. Direct synthesis with parameter overrides
+        var header1 = LineDiff.SynthesizeReleaseMilestoneHeader(
+            "1.4.0", "Quantum Architecture", "2026-10-18",
+            featureCount: 5, fixCount: 2, breakingCount: 1, totalRevisions: 12);
+
+        Assert.Contains("## [v1.4.0] - 2026-10-18 (Milestone: Quantum Architecture)", header1);
+        Assert.Contains("> **Release Overview**: 5 features, 2 fixes, 1 breaking change across 12 revisions.", header1);
+
+        // 2. Default fallback values
+        var header2 = LineDiff.SynthesizeReleaseMilestoneHeader();
+        Assert.Contains("## [v1.0.0]", header2);
+        Assert.Contains("(Milestone: General Availability)", header2);
+        Assert.Contains("0 features, 0 fixes, 0 breaking changes", header2);
+
+        // 3. Synthesis from diff rows
+        var oldDoc = "# Architecture\nOverview";
+        var newDoc = "# Architecture\nOverview\n# Telemetry\nReal-time monitoring\n```csharp\ncode\n```";
+        var diff = LineDiff.Diff(oldDoc, newDoc);
+        var unified = LineDiff.BuildUnified(diff);
+
+        var header3 = LineDiff.SynthesizeReleaseMilestoneHeader(unified, "v2.1.0", "Cloud Engine");
+        Assert.Contains("## [v2.1.0]", header3);
+        Assert.Contains("Milestone: Cloud Engine", header3);
+        Assert.Contains("1 feature", header3);
+        Assert.Contains("1 fix", header3);
+    }
 }
+
 
 

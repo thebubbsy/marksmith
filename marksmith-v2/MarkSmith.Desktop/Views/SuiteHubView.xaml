@@ -264,6 +264,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentClusterDormancyItem" Text="Copy workspace cluster dormancy &amp; stagnation audit" Click="OnCopyRecentClusterDormancyClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentClusterVelocityItem" Text="Copy workspace cluster activity velocity index" Click="OnCopyRecentClusterVelocityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8F4;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

@@ -3960,6 +3960,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditMstClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditMinimumSpanningTree();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4815,6 +4823,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditClusterHullsItem.Click += OnAuditClusterHullsClick;
             menu.Items.Add(auditClusterHullsItem);
+
+            var auditMstItem = new MenuFlyoutItem
+            {
+                Text = "Audit Minimum Spanning Tree (MST) wireframe",
+                Icon = new FontIcon { Glyph = "\uE968" }
+            };
+            auditMstItem.Click += OnAuditMstClick;
+            menu.Items.Add(auditMstItem);
 
             var fitItem = new MenuFlyoutItem
 

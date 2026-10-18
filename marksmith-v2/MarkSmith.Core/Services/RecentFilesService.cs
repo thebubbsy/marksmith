@@ -1674,6 +1674,124 @@ public sealed class RecentFilesService
 
         return $"Workspace cluster dormancy audit ({docLabel} across {wsLabel}): {stagLabel}{preview}";
     }
+
+    /// <summary>
+    /// Audits workspace activity velocity and active vs dormant ratio per folder cluster.
+    /// Files accessed within the last 14 days are classified as active.
+    /// </summary>
+    public static ClusterActivityVelocityAudit AuditClusterActivityVelocity(
+        IEnumerable<string>? recentFiles,
+        Func<string, DateTime>? lastAccessTimeProvider = null,
+        DateTime? referenceTime = null)
+    {
+        var list = (recentFiles ?? Array.Empty<string>())
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (list.Count == 0)
+        {
+            string emptySummary = "Workspace velocity audit: 0 workspaces, 0 documents (No recent files recorded)";
+            return new ClusterActivityVelocityAudit(
+                0, 0, 0.0, "None", Array.Empty<ClusterActivityVelocityInfo>(), emptySummary);
+        }
+
+        var now = referenceTime ?? DateTime.UtcNow;
+        var getTime = lastAccessTimeProvider ?? (p =>
+        {
+            try
+            {
+                return File.Exists(p) ? File.GetLastWriteTimeUtc(p) : DateTime.MinValue;
+            }
+            catch
+            {
+                return DateTime.MinValue;
+            }
+        });
+
+        // Group into clusters
+        var clusters = new Dictionary<string, List<(string Path, string FileName, DateTime LastAccess, bool IsActive)>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in list)
+        {
+            string dir = Path.GetDirectoryName(path) ?? string.Empty;
+            string clusterName = string.IsNullOrWhiteSpace(dir)
+                ? "Root"
+                : Path.GetFileName(dir);
+
+            if (string.IsNullOrWhiteSpace(clusterName))
+            {
+                clusterName = dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            }
+
+            var accessTime = getTime(path);
+            bool isActive = accessTime != DateTime.MinValue && (now - accessTime).TotalDays <= 14.0;
+
+            if (!clusters.TryGetValue(clusterName, out var fileList))
+            {
+                fileList = new List<(string, string, DateTime, bool)>();
+                clusters[clusterName] = fileList;
+            }
+
+            fileList.Add((path, Path.GetFileName(path), accessTime, isActive));
+        }
+
+        var clusterInfos = new List<ClusterActivityVelocityInfo>();
+        int totalActive = 0;
+
+        foreach (var (clusterName, fileList) in clusters)
+        {
+            int total = fileList.Count;
+            int active = fileList.Count(f => f.IsActive);
+            totalActive += active;
+            double pct = Math.Round((double)active / total * 100.0, 1);
+
+            string rating = pct switch
+            {
+                >= 75.0 => "High Velocity",
+                >= 50.0 => "Active Cadence",
+                >= 25.0 => "Low Velocity",
+                > 0.0 => "Stagnant",
+                _ => "Dormant"
+            };
+
+            var mostRecent = fileList.OrderByDescending(f => f.LastAccess).FirstOrDefault();
+            string topFile = mostRecent.FileName ?? "None";
+
+            clusterInfos.Add(new ClusterActivityVelocityInfo(
+                clusterName, total, active, pct, rating, topFile));
+        }
+
+        double overallVelocity = Math.Round((double)totalActive / list.Count * 100.0, 1);
+        var highest = clusterInfos.OrderByDescending(c => c.ActivityPercentage).FirstOrDefault();
+        string topCluster = highest?.ClusterName ?? "None";
+
+        string summary = FormatClusterActivityVelocitySummary(list.Count, clusterInfos.Count, overallVelocity, topCluster, clusterInfos);
+
+        return new ClusterActivityVelocityAudit(
+            list.Count, clusterInfos.Count, overallVelocity, topCluster, clusterInfos, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of workspace activity velocity.
+    /// </summary>
+    public static string FormatClusterActivityVelocitySummary(
+        int totalFiles, int totalClusters, double overallVelocity, string topCluster, IReadOnlyList<ClusterActivityVelocityInfo>? clusters = null)
+    {
+        if (totalFiles <= 0) return "Workspace velocity audit: 0 workspaces, 0 documents";
+        string docLabel = totalFiles == 1 ? "1 document" : $"{totalFiles} documents";
+        string wsLabel = totalClusters == 1 ? "1 workspace" : $"{totalClusters} workspaces";
+
+        string preview = "";
+        if (clusters != null && clusters.Count > 0)
+        {
+            var activeClusters = clusters.OrderByDescending(c => c.ActivityPercentage).Take(2)
+                .Select(c => $"'{c.ClusterName}' ({c.ActivityPercentage:0}% active, {c.ActiveFiles}/{c.TotalFiles})");
+            preview = $" [{string.Join(", ", activeClusters)}]";
+        }
+
+        return $"Workspace velocity audit ({overallVelocity:0.#}% active across {wsLabel}, {docLabel} · Top: '{topCluster}'): {overallVelocity:0.#}% library velocity{preview}";
+    }
 }
 
 /// <summary>
@@ -1696,5 +1814,28 @@ public sealed record WorkspaceClusterDormancyAudit(
     int StagnantClusters,
     IReadOnlyList<WorkspaceClusterDormancyInfo> Clusters,
     string Summary);
+
+/// <summary>
+/// Represents activity velocity and active document ratios for a workspace directory cluster.
+/// </summary>
+public sealed record ClusterActivityVelocityInfo(
+    string ClusterName,
+    int TotalFiles,
+    int ActiveFiles,
+    double ActivityPercentage,
+    string VelocityRating,
+    string MostRecentFile);
+
+/// <summary>
+/// Represents the result of a workspace folder cluster activity velocity audit.
+/// </summary>
+public sealed record ClusterActivityVelocityAudit(
+    int TotalFiles,
+    int TotalClusters,
+    double OverallVelocityPercentage,
+    string TopClusterName,
+    IReadOnlyList<ClusterActivityVelocityInfo> Clusters,
+    string Summary);
+
 
 

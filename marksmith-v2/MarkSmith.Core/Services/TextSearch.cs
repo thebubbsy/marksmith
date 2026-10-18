@@ -2026,6 +2026,141 @@ public static class TextSearch
     {
         return AuditConflictMarkersAndAmbiguities(markdownText).Summary;
     }
+
+    /// <summary>
+    /// Audits comprehensive multi-formula readability metrics across Markdown prose, including
+    /// Flesch Reading Ease, Flesch-Kincaid Grade Level, Gunning Fog Index, Coleman-Liau Index,
+    /// Automated Readability Index (ARI), and estimated reading/speaking times.
+    /// Code fences, display math blocks, HTML elements, and tables are stripped prior to calculation.
+    /// </summary>
+    public static ReadabilityMetricsAudit AuditReadabilityMetrics(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new ReadabilityMetricsAudit(
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                "None", "None", 0, 0, 0, 0, 0,
+                TimeSpan.Zero, TimeSpan.Zero,
+                "Readability metrics: 0 words · Document contains no readable prose");
+        }
+
+        // 1. Strip non-prose Markdown constructs
+        string prose = markdownText;
+        prose = System.Text.RegularExpressions.Regex.Replace(prose, @"```[\s\S]*?```", " ", System.Text.RegularExpressions.RegexOptions.Multiline);
+        prose = System.Text.RegularExpressions.Regex.Replace(prose, @":::[\s\S]*?:::", " ", System.Text.RegularExpressions.RegexOptions.Multiline);
+        prose = System.Text.RegularExpressions.Regex.Replace(prose, @"\$\$[\s\S]*?\$\$", " ", System.Text.RegularExpressions.RegexOptions.Multiline);
+        prose = System.Text.RegularExpressions.Regex.Replace(prose, @"`[^`]*`", " ");
+        prose = System.Text.RegularExpressions.Regex.Replace(prose, @"<[^>]+>", " ");
+        prose = System.Text.RegularExpressions.Regex.Replace(prose, @"!\[.*?\]\(.*?\)", " ");
+        prose = System.Text.RegularExpressions.Regex.Replace(prose, @"^\[.*?\]:\s*\S+.*$", " ", System.Text.RegularExpressions.RegexOptions.Multiline);
+        prose = System.Text.RegularExpressions.Regex.Replace(prose, @"^\s*\|.*?\|\s*$", " ", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        // 2. Count sentences
+        var sentenceDelimiters = new[] { '.', '!', '?' };
+        var rawSentences = prose.Split(sentenceDelimiters, StringSplitOptions.RemoveEmptyEntries)
+                                .Select(s => s.Trim())
+                                .Where(s => s.Length > 0 && s.Any(char.IsLetter))
+                                .ToList();
+        int sentenceCount = Math.Max(1, rawSentences.Count);
+
+        // 3. Extract words
+        var wordMatches = System.Text.RegularExpressions.Regex.Matches(prose, @"\b[A-Za-z]+(?:'[A-Za-z]+)?\b");
+        var words = wordMatches.Select(m => m.Value).Where(w => w.Length > 0).ToList();
+
+        if (words.Count == 0)
+        {
+            return new ReadabilityMetricsAudit(
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                "None", "None", 0, 0, 0, 0, 0,
+                TimeSpan.Zero, TimeSpan.Zero,
+                "Readability metrics: 0 words · Document contains no readable prose");
+        }
+
+        int totalWords = words.Count;
+        int totalSyllables = 0;
+        int complexWords = 0;
+        int totalLetters = 0;
+        int totalCharacters = 0;
+
+        foreach (var w in words)
+        {
+            int syl = CountWordSyllables(w);
+            totalSyllables += syl;
+            if (syl >= 3) complexWords++;
+            totalLetters += w.Count(char.IsLetter);
+            totalCharacters += w.Length;
+        }
+
+        double asl = (double)totalWords / sentenceCount;
+        double asw = (double)totalSyllables / totalWords;
+
+        // Flesch Reading Ease = 206.835 - (1.015 * ASL) - (84.6 * ASW)
+        double rawEase = 206.835 - (1.015 * asl) - (84.6 * asw);
+        double fleschEase = Math.Round(Math.Clamp(rawEase, 0.0, 100.0), 1);
+
+        // Flesch-Kincaid Grade Level = (0.39 * ASL) + (11.8 * ASW) - 15.59
+        double rawFkGrade = (0.39 * asl) + (11.8 * asw) - 15.59;
+        double fkGrade = Math.Round(Math.Clamp(rawFkGrade, 0.0, 18.0), 1);
+
+        // Gunning Fog Index = 0.4 * (ASL + 100 * (ComplexWords / Words))
+        double rawGunning = 0.4 * (asl + 100.0 * ((double)complexWords / totalWords));
+        double gunningFog = Math.Round(Math.Clamp(rawGunning, 0.0, 20.0), 1);
+
+        // Coleman-Liau Index = 0.0588 * L - 0.296 * S - 15.8 (L = letters/100w, S = sentences/100w)
+        double lVal = 100.0 * ((double)totalLetters / totalWords);
+        double sVal = 100.0 * ((double)sentenceCount / totalWords);
+        double rawCli = (0.0588 * lVal) - (0.296 * sVal) - 15.8;
+        double cli = Math.Round(Math.Clamp(rawCli, 0.0, 18.0), 1);
+
+        // Automated Readability Index (ARI) = 4.71 * (Characters / Words) + 0.5 * ASL - 21.43
+        double rawAri = 4.71 * ((double)totalCharacters / totalWords) + (0.5 * asl) - 21.43;
+        double ari = Math.Round(Math.Clamp(rawAri, 0.0, 18.0), 1);
+
+        // Consensus grade
+        double consensus = Math.Round(Math.Clamp((fkGrade + gunningFog + cli + ari) / 4.0, 1.0, 18.0), 1);
+
+        string easeCategory = fleschEase switch
+        {
+            >= 90.0 => "Very Easy",
+            >= 80.0 => "Easy",
+            >= 70.0 => "Fairly Easy",
+            >= 60.0 => "Standard",
+            >= 50.0 => "Fairly Difficult",
+            >= 30.0 => "Difficult",
+            _ => "Very Difficult"
+        };
+
+        string audienceCategory = consensus switch
+        {
+            <= 6.0 => "Elementary (Grades 1-5)",
+            <= 8.0 => "Middle School (Grades 6-8)",
+            <= 12.0 => "High School (Grades 9-12)",
+            <= 16.0 => "Undergraduate (College)",
+            _ => "Specialized / Post-Graduate"
+        };
+
+        var readTime = TimeSpan.FromMinutes((double)totalWords / 200.0);
+        var speakTime = TimeSpan.FromMinutes((double)totalWords / 130.0);
+
+        string readTimeStr = readTime.TotalMinutes < 1.0 ? $"{Math.Max(1, (int)readTime.TotalSeconds)}s" : $"{readTime.TotalMinutes:0.#}m";
+        string speakTimeStr = speakTime.TotalMinutes < 1.0 ? $"{Math.Max(1, (int)speakTime.TotalSeconds)}s" : $"{speakTime.TotalMinutes:0.#}m";
+
+        string summary = $"Readability audit: Grade {consensus:0.#} ({audienceCategory}) · Ease: {fleschEase:0.#}/100 ({easeCategory}) · Fog: {gunningFog:0.#} · CLI: {cli:0.#} · ARI: {ari:0.#} · {totalWords:N0}w ({readTimeStr} read, {speakTimeStr} speak)";
+
+        return new ReadabilityMetricsAudit(
+            fleschEase, fkGrade, gunningFog, cli, ari, consensus,
+            easeCategory, audienceCategory,
+            totalWords, sentenceCount, totalSyllables, complexWords, totalCharacters,
+            readTime, speakTime, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of comprehensive readability metrics.
+    /// </summary>
+    public static string FormatReadabilitySummary(string? markdownText)
+    {
+        return AuditReadabilityMetrics(markdownText).Summary;
+    }
 }
 
 /// <summary>
@@ -2038,6 +2173,29 @@ public sealed record ConflictMarkerAndAmbiguityAudit(
     IReadOnlyList<string> Ambiguities,
     bool IsClean,
     string Summary);
+
+/// <summary>
+/// Represents a comprehensive multi-formula readability audit covering Flesch, Flesch-Kincaid,
+/// Gunning Fog, Coleman-Liau, and ARI metrics.
+/// </summary>
+public sealed record ReadabilityMetricsAudit(
+    double FleschReadingEase,
+    double FleschKincaidGrade,
+    double GunningFogIndex,
+    double ColemanLiauIndex,
+    double AutomatedReadabilityIndex,
+    double ConsensusGrade,
+    string ReadingEaseCategory,
+    string AudienceCategory,
+    int WordCount,
+    int SentenceCount,
+    int SyllableCount,
+    int ComplexWordCount,
+    int CharacterCount,
+    TimeSpan EstimatedReadingTime,
+    TimeSpan EstimatedSpeakingTime,
+    string Summary);
+
 
 
 

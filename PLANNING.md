@@ -11251,25 +11251,47 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #153 Blueprint — Carried-Forward Refinements & Next Cycle Targets (Status: Pending)
+## Scheduled WinUI 3 Desktop Polish Routine — Run #153 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-18
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Multi-Formula Readability Metrics & Grade Level Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditReadabilityMetrics(markdown)` and `FormatReadabilitySummary(...)` calculating Flesch Reading Ease, Flesch-Kincaid Grade Level, Gunning Fog Index, Coleman-Liau Index, Automated Readability Index (ARI), consensus audience classification, and estimated reading/speaking times with robust stripping of code fences, math blocks, and tables; wired to `readabilityMetricsItem` (`\uE8A5`) in `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
+    2. **MindMapGalaxyWindow Minimum Spanning Tree (MST) Wireframe & Trunk Corridor Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditMinimumSpanningTree()` and `FormatMstSummary(...)` implementing Kruskal's algorithm with Union-Find Disjoint Set Union (DSU) to calculate minimal interconnect routing distance, average/max edge spans, and identify trunk corridor backbone nodes (degree ≥ 3); wired to `AuditMstItem` (`\uE968`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Aspect Ratio Constraint Lock & Proportionality Centroid Snapper (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditAspectRatioProportions()` and `EnforceAspectRatioLock(targetRatio, ratioName)` evaluating shape width/height ratios against design standards (`1:1`, `4:3`, `16:9`, `Golden Ratio 1.618`), snapping bounds centered at their geometric centroid with atomic undo tracking (`RecordUndo`); wired to `SelectionAuditAspectRatioItem` (`\uE790`) and `SelectionLockAspectRatioSquareItem` (`\uE734`) in `SelectionBoundsFlyout`.
+    4. **SmartArtDesignStudioWindow Outline Hierarchy Depth Distribution & Branching Factor Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditHierarchyBranchingFactor(markdown)` and `FormatHierarchyBranchingSummary(...)` analyzing tree depth, level distribution, max and average branching factors, detecting over-branching parent nodes (>6 children) and deeply nested branches (depth ≥ 4), evaluating balance status (`Well Balanced`, `Wide / Over-branching`, `Deep / Nested`), and recommending optimal SmartArt layout categories; wired to `AuditBranchingFactorItem` (`\uE809`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Git Release Tag & Milestone Scope Header Synthesizer (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.SynthesizeReleaseMilestoneHeader(version, milestoneName, releaseDate, feat, fix, breaking, totalRevisions)` overloads and unified diff row aggregation synthesizing formatted GitHub/GitLab release announcement headers with version tags, milestone scopes, and release summary badges; wired to `synthesizeMilestoneHeader` (`\uE8D2`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback tick.
+    6. **SuiteHubView Workspace Directory Cluster Activity Velocity & Hotspot Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditClusterActivityVelocity(files, lastAccessTimeProvider, referenceTime)` and `FormatClusterActivityVelocitySummary(...)` grouping recent documents into workspace directory clusters (e.g. `onyachamp`, `marksmith`, `documents`), calculating active (<14d) vs dormant (≥14d) document ratios, velocity percentages, and identifying the highest-velocity development hub; wired to `CopyRecentClusterVelocityItem` (`\uE8F4`) in `RecentDocsFlyout` with `Services.CopyFeedback.ApplyButtonTick`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `6/6` targeted Run #153 tests passing (`100%` pass rate).
+    - Verified all `589` tests across all 6 Polish test fixtures passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`PID=26204, Responding=True`).
+
+---
+
+### Run #154 Blueprint — Carried-Forward Refinements & Next Cycle Targets (Status: Pending)
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **What is missing**: Status bar breadcrumb lacks readability scoring and reading ease metrics (Flesch-Kincaid Grade Level, Flesch Reading Ease score) to guide document clarity before final export.
-   - **Deliverable**: Add `TextSearch.AuditReadabilityMetrics(markdown)` and `FormatReadabilitySummary(...)`, wired to `readabilityMetricsItem` (`\uE8A5`) in `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
+   - **What is missing**: Status bar breadcrumb lacks heading outline structural balance and depth distribution metrics (H1-H6 count, missing H1/H2 levels, skipped outline hierarchy warnings) to guide document structure.
+   - **Deliverable**: Add `TextSearch.AuditHeadingOutlineBalance(markdown)` and `FormatHeadingOutlineBalanceSummary(...)`, wired to `headingOutlineBalanceItem` in `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **What is missing**: Galaxy canvas lacks a minimum spanning tree (MST) wireframe calculator (Kruskal's / Prim's 2D spatial graph) to compute minimal interconnect routing distance and identify trunk corridors.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditMinimumSpanningTree()` and `FormatMstSummary(...)`, wired to `AuditMstItem` (`\uE968`) in `ArrangeDropDownButton.Flyout`.
+   - **What is missing**: Galaxy canvas lacks a graph degree centrality and node hub auditor (identifying major focal hubs, terminal leaf nodes, and average node connectivity).
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditDegreeCentrality()` and `FormatDegreeCentralitySummary(...)`, wired to `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **What is missing**: Canvas lacks an automated aspect ratio constraint lock and shape proportionality auditor (`1:1`, `4:3`, `16:9`, `Golden Ratio 1.618`) to snap shapes to balanced visual aspect ratios.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditAspectRatioProportions()` and `EnforceAspectRatioLock(targetRatio)`, wired to `AuditAspectRatioItem` (`\uE790`) in `SelectionBoundsFlyout`.
+   - **What is missing**: Canvas selection flyout lacks multi-shape uniform spacing and gap distribution arranger (equalizing horizontal or vertical gutters between selected shapes).
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditSpacingDistribution()` and `DistributeSpacingUniformly(Orientation)`, wired to `SelectionBoundsFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **What is missing**: Outline editor lacks a hierarchy depth distribution and branching factor auditor evaluating tree balance and identifying deeply nested (>3 levels) or over-branching (>7 children) nodes.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditHierarchyBranchingFactor(markdown)` and `FormatHierarchyBranchingSummary(...)`, wired to `AuditBranchingFactorItem` (`\uE809`) in `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #152 Idea 5]**:
-   - **Refinement Target**: Enhance `LineDiff.FormatConventionalChangelogSection` with semantic git release tag and milestone header generation (`## [v1.x.y] - YYYY-MM-DD (Milestone Scope)`).
-   - **Deliverable**: Add `LineDiff.SynthesizeReleaseMilestoneHeader(version, milestoneName)` and wired to `synthesizeMilestoneHeader` in `TimelineHeaderBorder` flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #152 Idea 6]**:
-   - **Refinement Target**: Enhance `RecentFilesService.AuditWorkspaceClusterDormancy` with an automated workspace activity velocity index (active vs dormant ratio per folder cluster).
-   - **Deliverable**: Add `RecentFilesService.AuditClusterActivityVelocity(files)` and `FormatClusterActivityVelocitySummary(...)`, wired to `RecentDocsFlyout`.
+   - **What is missing**: Outline editor lacks a node count vs. container slide width density and overflow warning auditor (evaluating if process step count exceeds horizontal slide boundaries).
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditContainerDensityFit(category, nodeCount, containerWidth)` and `FormatContainerDensitySummary(...)`, wired to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #153 Idea 5]**:
+   - **Refinement Target**: Enhance `LineDiff.SynthesizeReleaseMilestoneHeader` with an automated release badge snippet generator (Shields.io markdown badges for version, status, and milestone).
+   - **Deliverable**: Add `LineDiff.SynthesizeReleaseBadgesMarkdown(version, milestoneName, status)` and wired to `TimelineHeaderBorder` flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #153 Idea 6]**:
+   - **Refinement Target**: Enhance `RecentFilesService.AuditClusterActivityVelocity` with workspace directory search filter chips to instantly filter recent documents by top active cluster.
+   - **Deliverable**: Add `RecentFilesService.GetActiveClusterFilterChips(files)` and wired to `RecentDocsFlyout`.
 
 
 

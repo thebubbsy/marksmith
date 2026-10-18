@@ -2049,6 +2049,92 @@ public class SuiteHubAndTourPolishTests
         Assert.Equal(0, emptyAudit.TotalFiles);
         Assert.Contains("0 workspaces, 0 documents", emptyAudit.Summary);
     }
+
+    [Fact]
+    public void Run153_Polish_Elements_Wired_Across_Surfaces_And_ClusterVelocity()
+    {
+        // 1. Cross-surface XAML and code-behind wiring tests
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("readabilityMetricsItem", mainCs);
+        Assert.Contains("FormatReadabilitySummary", mainCs);
+
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditMstItem", galaxyXaml);
+        Assert.Contains("OnAuditMstClick", galaxyXaml);
+        Assert.Contains("OnAuditMstClick", galaxyCs);
+        Assert.Contains("AuditMinimumSpanningTree", galaxyCs);
+
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditAspectRatioItem", shapeXaml);
+        Assert.Contains("SelectionLockAspectRatioSquareItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditAspectRatioClick", shapeCs);
+        Assert.Contains("AuditAspectRatioProportions", shapeCs);
+
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditBranchingFactorItem", smartArtXaml);
+        Assert.Contains("OnAuditBranchingFactorClick", smartArtXaml);
+        Assert.Contains("OnAuditBranchingFactorClick", smartArtCs);
+        Assert.Contains("AuditHierarchyBranchingFactor", smartArtCs);
+
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("synthesizeMilestoneHeader", historyCs);
+        Assert.Contains("SynthesizeReleaseMilestoneHeader", historyCs);
+
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentClusterVelocityItem", suiteXaml);
+        Assert.Contains("OnCopyRecentClusterVelocityClick", suiteXaml);
+        Assert.Contains("OnCopyRecentClusterVelocityClick", suiteCs);
+        Assert.Contains("AuditClusterActivityVelocity", suiteCs);
+
+        // 2. Logic test for AuditClusterActivityVelocity
+        var refTime = new DateTime(2026, 10, 18, 12, 0, 0);
+        var files = new[]
+        {
+            @"C:\Projects\Alpha\docs\overview.md",
+            @"C:\Projects\Alpha\docs\specs.md",
+            @"C:\Projects\Beta\notes\todo.md",
+            @"C:\Projects\Beta\notes\ancient.md"
+        };
+
+        DateTime MockAccessTime(string path) => path switch
+        {
+            @"C:\Projects\Alpha\docs\overview.md" => refTime.AddDays(-2),   // active (<14d)
+            @"C:\Projects\Alpha\docs\specs.md" => refTime.AddDays(-5),     // active (<14d)
+            @"C:\Projects\Beta\notes\todo.md" => refTime.AddDays(-25),     // dormant (>=14d)
+            @"C:\Projects\Beta\notes\ancient.md" => refTime.AddDays(-100),  // dormant (>=14d)
+            _ => DateTime.MinValue
+        };
+
+        var velocityAudit = RecentFilesService.AuditClusterActivityVelocity(files, MockAccessTime, refTime);
+        Assert.Equal(4, velocityAudit.TotalFiles);
+        Assert.Equal(2, velocityAudit.TotalClusters);
+        Assert.Equal(50.0, velocityAudit.OverallVelocityPercentage); // 2/4 = 50%
+        Assert.Contains("docs", velocityAudit.TopClusterName);
+
+        var alphaCluster = velocityAudit.Clusters.First(c => c.ClusterName == "docs");
+        Assert.Equal(2, alphaCluster.TotalFiles);
+        Assert.Equal(2, alphaCluster.ActiveFiles);
+        Assert.Equal(100.0, alphaCluster.ActivityPercentage);
+        Assert.Equal("High Velocity", alphaCluster.VelocityRating);
+
+        var betaCluster = velocityAudit.Clusters.First(c => c.ClusterName == "notes");
+        Assert.Equal(2, betaCluster.TotalFiles);
+        Assert.Equal(0, betaCluster.ActiveFiles);
+        Assert.Equal(0.0, betaCluster.ActivityPercentage);
+        Assert.Equal("Dormant", betaCluster.VelocityRating);
+
+        Assert.Contains("50% active", velocityAudit.Summary);
+
+        // Empty file collection test
+        var emptyVelocity = RecentFilesService.AuditClusterActivityVelocity(Array.Empty<string>());
+        Assert.Equal(0, emptyVelocity.TotalFiles);
+        Assert.Contains("0 workspaces, 0 documents", emptyVelocity.Summary);
+    }
 }
+
 
 

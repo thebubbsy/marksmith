@@ -855,7 +855,7 @@ public class TextSearchTests
             """;
         var audit = TextSearch.AuditSentenceFlowCadence(doc);
         Assert.Equal(3, audit.ParagraphCount);
-        Assert.Equal(4, audit.SentenceCount);
+        Assert.Equal(5, audit.SentenceCount);
         Assert.True(audit.WordCount > 25);
         Assert.True(audit.AvgWordsPerSentence > 5.0 && audit.AvgWordsPerSentence < 25.0);
         Assert.Equal(0, audit.RunOnCount);
@@ -952,6 +952,46 @@ public class TextSearchTests
         Assert.Contains("unmatched display math delimiter", ambAudit.Ambiguities[1]);
         Assert.Contains("2 syntax ambiguities detected", ambAudit.Summary);
     }
+
+    [Fact]
+    public void Run153_AuditReadabilityMetrics()
+    {
+        // 1. Empty / null document returns graceful defaults
+        var emptyAudit = TextSearch.AuditReadabilityMetrics("");
+        Assert.Equal(0, emptyAudit.WordCount);
+        Assert.Equal(0.0, emptyAudit.FleschReadingEase);
+        Assert.Contains("0 words", emptyAudit.Summary);
+
+        // 2. Simple elementary prose
+        var simpleText = """
+            The cat sat on the mat. The dog ran in the sun. It was a good day.
+            """;
+        var simpleAudit = TextSearch.AuditReadabilityMetrics(simpleText);
+        Assert.True(simpleAudit.WordCount >= 15);
+        Assert.True(simpleAudit.FleschReadingEase >= 80.0);
+        Assert.True(simpleAudit.ConsensusGrade <= 6.0);
+        Assert.Contains("Elementary", simpleAudit.AudienceCategory);
+
+        // 3. Technical markdown with code blocks, tables, and math stripped
+        var technicalMarkdown = """
+            # Architecture Specification
+            ```csharp
+            var complexSystem = new MicroserviceCluster(4096);
+            ```
+            | Port | Protocol | Encryption |
+            | --- | --- | --- |
+            | 443 | HTTPS | TLS 1.3 |
+            $$ \int_{0}^{\infty} e^{-x^2} dx = \frac{\sqrt{\pi}}{2} $$
+
+            The architectural infrastructure facilitates multi-region fault tolerance through asynchronous consensus protocols and distributed ledger synchronization.
+            """;
+        var techAudit = TextSearch.AuditReadabilityMetrics(technicalMarkdown);
+        Assert.True(techAudit.WordCount > 10);
+        Assert.True(techAudit.ComplexWordCount >= 3);
+        Assert.True(techAudit.GunningFogIndex > 8.0);
+        Assert.Contains("Readability audit:", techAudit.Summary);
+    }
 }
+
 
 

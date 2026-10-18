@@ -1145,6 +1145,53 @@ public class ShapeStudioPolishTests
         Assert.Equal(13.0, vm.Shapes[1].X);
         Assert.Equal(25.0, vm.Shapes[1].Y);
     }
+
+    [Fact]
+    public void Run153_AuditAspectRatioProportions_And_EnforceLock()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Empty canvas
+        var empty = vm.AuditAspectRatioProportions();
+        Assert.Equal(0, empty.TotalShapes);
+        Assert.Contains("0 shapes", empty.Summary);
+
+        // 2. Add shapes: one square (100x100), one widescreen (160x90 = 1.78), one custom (200x50 = 4.0)
+        vm.AddShapeAt("rect", 0, 0, 100, 100, "0078D4", "Square Shape");
+        vm.AddShapeAt("rect", 200, 0, 160, 90, "107C41", "Widescreen Shape");
+        vm.AddShapeAt("rect", 400, 0, 200, 50, "D83B01", "Custom Shape");
+        vm.ClearSelection();
+
+        var audit = vm.AuditAspectRatioProportions();
+        Assert.Equal(3, audit.TotalShapes);
+        Assert.Equal(1, audit.SquareCount);
+        Assert.Equal(1, audit.Widescreen169Count);
+        Assert.Equal(1, audit.CustomCount);
+        Assert.Contains("1 square (1:1)", audit.Summary);
+        Assert.Contains("1 widescreen (16:9)", audit.Summary);
+
+        // 3. Lock custom shape to 1:1 square
+        vm.Shapes[2].IsSelected = true;
+        vm.Shapes[0].IsSelected = false;
+        vm.Shapes[1].IsSelected = false;
+
+        var (targets, modified, summary) = vm.EnforceAspectRatioLock(1.0, "1:1 Square");
+        Assert.Equal(1, targets);
+        Assert.Equal(1, modified);
+        Assert.Contains("Locked 1 shapes to 1:1 Square aspect ratio", summary);
+
+        // Check new dimensions: area = 200*50 = 10000 => sqrt(10000) = 100x100
+        Assert.Equal(100.0, vm.Shapes[2].Width);
+        Assert.Equal(100.0, vm.Shapes[2].Height);
+
+        // 4. Test undo restores original 200x50 dimensions
+        Assert.True(vm.CanUndo);
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(200.0, vm.Shapes[2].Width);
+        Assert.Equal(50.0, vm.Shapes[2].Height);
+    }
 }
+
 
 

@@ -296,6 +296,9 @@
                                         <MenuFlyoutItem x:Name="RecommendIconsOutlineItem" Text="Recommend icons for outline keywords" Click="OnRecommendIconsOutlineClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7B3;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditBranchingFactorItem" Text="Audit hierarchy branching factor &amp; depth balance" Click="OnAuditBranchingFactorClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

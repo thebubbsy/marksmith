@@ -1848,9 +1848,18 @@ public static class LineDiff
         }
         else if (tablesChanged)
         {
-            type = "feat";
-            subject = "update document data tables";
-            bullets.Add("Modify structured table layout and cell data");
+            if (tableRemoved && added == 0)
+            {
+                type = "refactor";
+                subject = "remove document data tables";
+                bullets.Add("Remove structured table layout");
+            }
+            else
+            {
+                type = "feat";
+                subject = "update document data tables";
+                bullets.Add("Modify structured table layout and cell data");
+            }
         }
         else if (added > 0 && removed == 0)
         {
@@ -2107,6 +2116,118 @@ public static class LineDiff
         }
 
         return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Synthesizes a standardized Markdown release announcement header with version tag, milestone scope,
+    /// release date, and summary blockquote badge metrics.
+    /// </summary>
+    public static string SynthesizeReleaseMilestoneHeader(
+        string? versionTag = null,
+        string? milestoneScope = null,
+        string? releaseDate = null,
+        int featureCount = 0,
+        int fixCount = 0,
+        int breakingCount = 0,
+        int totalRevisions = 0)
+    {
+        string tag = string.IsNullOrWhiteSpace(versionTag) ? "v1.0.0" : versionTag.Trim();
+        if (!tag.StartsWith("v", StringComparison.OrdinalIgnoreCase) && !tag.StartsWith("["))
+        {
+            tag = $"v{tag}";
+        }
+
+        string dateStr = string.IsNullOrWhiteSpace(releaseDate)
+            ? DateTime.UtcNow.ToString("yyyy-MM-dd")
+            : releaseDate.Trim();
+
+        string scope = string.IsNullOrWhiteSpace(milestoneScope)
+            ? "General Availability"
+            : milestoneScope.Trim();
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## [{tag}] - {dateStr} (Milestone: {scope})");
+        sb.AppendLine();
+
+        string featLabel = featureCount == 1 ? "1 feature" : $"{featureCount} features";
+        string fixLabel = fixCount == 1 ? "1 fix" : $"{fixCount} fixes";
+        string breakLabel = breakingCount == 1 ? "1 breaking change" : $"{breakingCount} breaking changes";
+        string revLabel = totalRevisions == 1 ? "1 revision" : $"{totalRevisions} revisions";
+
+        sb.Append($"> **Release Overview**: {featLabel}, {fixLabel}, {breakLabel} across {revLabel}.");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Synthesizes a release announcement header from unified diff rows between version checkpoints.
+    /// </summary>
+    public static string SynthesizeReleaseMilestoneHeader(
+        IReadOnlyList<UnifiedRow>? unifiedRows,
+        string? versionTag = null,
+        string? milestoneScope = null,
+        string? releaseDate = null)
+    {
+        int feat = 0;
+        int fix = 0;
+        int breaking = 0;
+
+        if (unifiedRows != null && unifiedRows.Count > 0)
+        {
+            var addedHeadings = new List<string>();
+            var removedHeadings = new List<string>();
+            bool addedTable = false;
+            bool removedTable = false;
+            bool modifiedDiagram = false;
+
+            foreach (var row in unifiedRows)
+            {
+                if (row.IsGap) continue;
+                var text = (row.Text ?? string.Empty).Trim();
+
+                if (row.Kind == Kind.Added)
+                {
+                    if (text.StartsWith('#'))
+                    {
+                        var cleanTitle = text.TrimStart('#').Trim();
+                        if (!string.IsNullOrEmpty(cleanTitle)) addedHeadings.Add(cleanTitle);
+                    }
+                    else if (text.StartsWith('|') && text.EndsWith('|'))
+                    {
+                        addedTable = true;
+                    }
+                    else if (text.StartsWith("```") || text.StartsWith(":::"))
+                    {
+                        modifiedDiagram = true;
+                    }
+                }
+                else if (row.Kind == Kind.Removed)
+                {
+                    if (text.StartsWith('#'))
+                    {
+                        var cleanTitle = text.TrimStart('#').Trim();
+                        if (!string.IsNullOrEmpty(cleanTitle)) removedHeadings.Add(cleanTitle);
+                    }
+                    else if (text.StartsWith('|') && text.EndsWith('|'))
+                    {
+                        removedTable = true;
+                    }
+                    else if (text.StartsWith("```") || text.StartsWith(":::"))
+                    {
+                        modifiedDiagram = true;
+                    }
+                }
+            }
+
+            feat = addedHeadings.Count + (addedTable && !removedTable ? 1 : 0);
+            if (feat == 0 && unifiedRows.Any(r => r.Kind == Kind.Added))
+            {
+                feat = 1;
+            }
+            fix = (modifiedDiagram ? 1 : 0) + (addedTable && removedTable ? 1 : 0);
+            breaking = removedHeadings.Count + (removedTable && !addedTable ? 1 : 0);
+        }
+
+        return SynthesizeReleaseMilestoneHeader(versionTag, milestoneScope, releaseDate, feat, fix, breaking, 1);
     }
 }
 

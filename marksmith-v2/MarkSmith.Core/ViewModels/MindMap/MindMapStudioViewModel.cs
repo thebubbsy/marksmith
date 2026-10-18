@@ -3794,7 +3794,176 @@ namespace MarkSmith.ViewModels.MindMap
             double denom = 6.0 * area;
             return (Math.Abs(denom) > 1e-6 ? cx / denom : 0.0, Math.Abs(denom) > 1e-6 ? cy / denom : 0.0);
         }
+
+        /// <summary>
+        /// Audits the 2D Minimum Spanning Tree (MST) spatial interconnect wireframe across canvas nodes
+        /// using Kruskal's algorithm, identifying minimum routing length, trunk corridors, and edge spans.
+        /// </summary>
+        public MinimumSpanningTreeAudit AuditMinimumSpanningTree(IEnumerable<MindMapNodeViewModel>? targetNodes = null)
+        {
+            bool isSelection = false;
+            List<MindMapNodeViewModel> nodeList;
+
+            if (targetNodes != null)
+            {
+                nodeList = targetNodes.ToList();
+            }
+            else
+            {
+                var selected = Nodes.Where(n => n.IsSelected).ToList();
+                if (selected.Count >= 2)
+                {
+                    nodeList = selected;
+                    isSelection = true;
+                }
+                else
+                {
+                    nodeList = Nodes.ToList();
+                }
+            }
+
+            int n = nodeList.Count;
+            string scopeStr = isSelection ? $"Selection: {n} nodes" : $"Canvas: {n} nodes";
+
+            if (n < 2)
+            {
+                string emptySummary = $"Minimum Spanning Tree (MST: 0 edges · 0px wire · {scopeStr}): Insufficient nodes for spatial wireframe";
+                StatusMessage = emptySummary;
+                return new MinimumSpanningTreeAudit(
+                    0, n, 0.0, 0.0, 0.0, 0,
+                    Array.Empty<MstEdgeInfo>(), Array.Empty<string>(), isSelection, emptySummary);
+            }
+
+            // Build all pairwise edges
+            var allEdges = new List<(int U, int V, double Dist)>();
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = i + 1; j < n; j++)
+                {
+                    double dx = nodeList[i].X - nodeList[j].X;
+                    double dy = nodeList[i].Y - nodeList[j].Y;
+                    double dist = Math.Sqrt(dx * dx + dy * dy);
+                    allEdges.Add((i, j, dist));
+                }
+            }
+
+            allEdges.Sort((a, b) => a.Dist.CompareTo(b.Dist));
+
+            // Disjoint Set Union (DSU) for Kruskal's
+            var parent = new int[n];
+            for (int i = 0; i < n; i++) parent[i] = i;
+
+            int Find(int x)
+            {
+                if (parent[x] == x) return x;
+                return parent[x] = Find(parent[x]);
+            }
+
+            bool Union(int x, int y)
+            {
+                int rx = Find(x);
+                int ry = Find(y);
+                if (rx == ry) return false;
+                parent[rx] = ry;
+                return true;
+            }
+
+            var mstEdges = new List<MstEdgeInfo>();
+            var degrees = new int[n];
+            double totalLength = 0.0;
+            double maxEdge = 0.0;
+
+            foreach (var edge in allEdges)
+            {
+                if (Union(edge.U, edge.V))
+                {
+                    degrees[edge.U]++;
+                    degrees[edge.V]++;
+                    totalLength += edge.Dist;
+                    if (edge.Dist > maxEdge) maxEdge = edge.Dist;
+
+                    var uNode = nodeList[edge.U];
+                    var vNode = nodeList[edge.V];
+                    mstEdges.Add(new MstEdgeInfo(
+                        uNode.Id,
+                        string.IsNullOrWhiteSpace(uNode.Title) ? $"Node-{edge.U + 1}" : uNode.Title,
+                        vNode.Id,
+                        string.IsNullOrWhiteSpace(vNode.Title) ? $"Node-{edge.V + 1}" : vNode.Title,
+                        Math.Round(edge.Dist, 1)));
+
+                    if (mstEdges.Count == n - 1) break;
+                }
+            }
+
+            double avgEdge = mstEdges.Count > 0 ? Math.Round(totalLength / mstEdges.Count, 1) : 0.0;
+            totalLength = Math.Round(totalLength, 1);
+            maxEdge = Math.Round(maxEdge, 1);
+
+            // Identify trunk corridors: nodes with degree >= 3 in the MST
+            var trunkNodes = new List<string>();
+            for (int i = 0; i < n; i++)
+            {
+                if (degrees[i] >= 3)
+                {
+                    string title = string.IsNullOrWhiteSpace(nodeList[i].Title) ? $"Node-{i + 1}" : nodeList[i].Title;
+                    trunkNodes.Add($"{title} (deg:{degrees[i]})");
+                }
+            }
+
+            string summary = FormatMstSummary(mstEdges.Count, totalLength, trunkNodes.Count, avgEdge, maxEdge, scopeStr);
+            StatusMessage = summary;
+
+            return new MinimumSpanningTreeAudit(
+                mstEdges.Count, n, totalLength, avgEdge, maxEdge, trunkNodes.Count,
+                mstEdges, trunkNodes, isSelection, summary);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of Minimum Spanning Tree (MST) spatial wireframe metrics.
+        /// </summary>
+        public static string FormatMstSummary(int edgeCount, double totalLength, int trunkCount, double avgLength, double maxLength, string scope = "Full Canvas")
+        {
+            if (edgeCount == 0) return $"Minimum Spanning Tree (MST: 0 edges · 0px wire · {scope}): Insufficient nodes";
+            string edgeLabel = edgeCount == 1 ? "1 edge" : $"{edgeCount} edges";
+            string trunkLabel = trunkCount == 1 ? "1 trunk corridor" : $"{trunkCount} trunk corridors";
+            return $"Minimum Spanning Tree (MST: {edgeLabel} · {totalLength:N0}px wire · {scope}): {trunkLabel}, avg {avgLength:0.#}px (Max: {maxLength:0.#}px)";
+        }
+
+        /// <summary>
+        /// Audits the 2D Minimum Spanning Tree (MST) spatial wireframe across pure model nodes.
+        /// </summary>
+        public static MinimumSpanningTreeAudit AuditMinimumSpanningTree(IEnumerable<MindMapNode>? nodes)
+        {
+            var vms = (nodes ?? Array.Empty<MindMapNode>()).Select(n => new MindMapNodeViewModel(n)).ToList();
+            var dummy = new MindMapStudioViewModel();
+            return dummy.AuditMinimumSpanningTree(vms);
+        }
     }
+
+    /// <summary>
+    /// Represents an edge in a 2D minimum spanning tree wireframe.
+    /// </summary>
+    public sealed record MstEdgeInfo(
+        string SourceId,
+        string SourceTitle,
+        string TargetId,
+        string TargetTitle,
+        double Distance);
+
+    /// <summary>
+    /// Represents the result of a 2D Minimum Spanning Tree (MST) spatial wireframe audit.
+    /// </summary>
+    public sealed record MinimumSpanningTreeAudit(
+        int TotalEdges,
+        int TotalNodes,
+        double TotalWireLength,
+        double AverageEdgeLength,
+        double MaxEdgeLength,
+        int TrunkCorridorCount,
+        IReadOnlyList<MstEdgeInfo> Edges,
+        IReadOnlyList<string> TrunkNodeTitles,
+        bool IsSelectionScope,
+        string Summary);
 
     /// <summary>
     /// Represents 2D spatial convex hull and bounding envelope metrics for a tag cluster.

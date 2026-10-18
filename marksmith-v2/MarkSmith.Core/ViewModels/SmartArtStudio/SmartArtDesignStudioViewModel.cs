@@ -3024,7 +3024,211 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         return RecommendIconsForOutline(markdownText).Summary;
     }
+
+    /// <summary>
+    /// Audits the active SmartArt outline for hierarchy branching factor, tree balance, and nesting depth distribution.
+    /// </summary>
+    public HierarchyBranchingAudit AuditHierarchyBranchingFactor()
+    {
+        var result = AuditHierarchyBranchingFactor(MarkdownText);
+        StatusMessage = result.Summary;
+        return result;
+    }
+
+    /// <summary>
+    /// Audits markdown outline text for hierarchy branching factor, max depth, child distribution, and layout fit.
+    /// </summary>
+    public static HierarchyBranchingAudit AuditHierarchyBranchingFactor(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = "Outline hierarchy branching audit: 0 items (Empty outline)";
+            return new HierarchyBranchingAudit(
+                0, 0, 0, 0.0,
+                new Dictionary<int, int>(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                "Flat Outline (0 Levels)",
+                "None",
+                emptySummary);
+        }
+
+        var lines = markdown.Replace("\r", "").Split('\n');
+        bool inFence = false;
+        var items = new List<(int Depth, string Text)>();
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence || string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            int leadWs = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t')) leadWs++;
+            var stripped = rawLine.Substring(leadWs);
+
+            bool isBullet = stripped.StartsWith("- ") || stripped.StartsWith("* ") || stripped.StartsWith("+ ") ||
+                            System.Text.RegularExpressions.Regex.IsMatch(stripped, @"^\d+[\.\)]\s+");
+
+            if (!isBullet) continue;
+
+            int depth = Math.Max(0, leadWs / 2); // 2 spaces per level
+            string content;
+            if (stripped.StartsWith("- ") || stripped.StartsWith("* ") || stripped.StartsWith("+ "))
+            {
+                content = stripped.Substring(2).Trim();
+            }
+            else
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(stripped, @"^\d+[\.\)]\s+(.*)$");
+                content = match.Success ? match.Groups[1].Value.Trim() : stripped;
+            }
+
+            items.Add((depth, content));
+        }
+
+        if (items.Count == 0)
+        {
+            string emptySummary = "Outline hierarchy branching audit: 0 items (No bullet nodes found)";
+            return new HierarchyBranchingAudit(
+                0, 0, 0, 0.0,
+                new Dictionary<int, int>(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                "Flat Outline (0 Levels)",
+                "None",
+                emptySummary);
+        }
+
+        int maxDepth = items.Max(i => i.Depth) + 1; // 1-based max depth level
+        var levelCounts = new Dictionary<int, int>();
+        for (int d = 1; d <= maxDepth; d++) levelCounts[d] = 0;
+
+        foreach (var it in items)
+        {
+            int lvl = it.Depth + 1;
+            levelCounts[lvl] = levelCounts.TryGetValue(lvl, out int c) ? c + 1 : 1;
+        }
+
+        // Compute parent-child branching
+        var stack = new List<(int Depth, string Text, int ChildCount)>();
+        var parentChildCounts = new List<int>();
+        var overBranchingNodes = new List<string>();
+        var deepBranches = new List<string>();
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            var cur = items[i];
+            if (cur.Depth >= 3)
+            {
+                deepBranches.Add($"Level {cur.Depth + 1}: {cur.Text}");
+            }
+
+            while (stack.Count > 0 && stack[^1].Depth >= cur.Depth)
+            {
+                var popped = stack[^1];
+                stack.RemoveAt(stack.Count - 1);
+                if (popped.ChildCount > 0)
+                {
+                    parentChildCounts.Add(popped.ChildCount);
+                    if (popped.ChildCount > 6)
+                    {
+                        overBranchingNodes.Add($"'{popped.Text}' ({popped.ChildCount} children)");
+                    }
+                }
+            }
+
+            if (stack.Count > 0)
+            {
+                var parent = stack[^1];
+                stack[^1] = (parent.Depth, parent.Text, parent.ChildCount + 1);
+            }
+
+            stack.Add((cur.Depth, cur.Text, 0));
+        }
+
+        while (stack.Count > 0)
+        {
+            var popped = stack[^1];
+            stack.RemoveAt(stack.Count - 1);
+            if (popped.ChildCount > 0)
+            {
+                parentChildCounts.Add(popped.ChildCount);
+                if (popped.ChildCount > 6)
+                {
+                    overBranchingNodes.Add($"'{popped.Text}' ({popped.ChildCount} children)");
+                }
+            }
+        }
+
+        int maxBranching = parentChildCounts.Count > 0 ? parentChildCounts.Max() : 0;
+        double avgBranching = parentChildCounts.Count > 0 ? Math.Round(parentChildCounts.Average(), 1) : 0.0;
+
+        string treeBalance = maxDepth switch
+        {
+            1 => "Flat Outline (1 Level)",
+            _ when overBranchingNodes.Count > 0 => "Wide / Over-branching",
+            _ when deepBranches.Count > 0 => "Deep / Nested",
+            _ when maxBranching <= 4 && maxDepth <= 3 => "Well Balanced",
+            _ => "Moderate Balance"
+        };
+
+        string recommendedCategory = maxDepth switch
+        {
+            1 when items.Count <= 5 => "Process / Sequential List",
+            1 => "Grid / Matrix List",
+            _ when maxDepth >= 2 && maxBranching <= 4 => "Hierarchy / Organization Chart",
+            _ => "Multi-Level List / Table"
+        };
+
+        string summary = FormatHierarchyBranchingSummary(
+            items.Count, maxDepth, maxBranching, avgBranching, treeBalance, recommendedCategory);
+
+        return new HierarchyBranchingAudit(
+            items.Count,
+            maxDepth,
+            maxBranching,
+            avgBranching,
+            levelCounts,
+            overBranchingNodes,
+            deepBranches,
+            treeBalance,
+            recommendedCategory,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of hierarchy branching and depth distribution.
+    /// </summary>
+    public static string FormatHierarchyBranchingSummary(
+        int totalItems, int maxDepth, int maxBranching, double avgBranching, string treeBalance, string recommendedCategory)
+    {
+        if (totalItems <= 0) return "Outline hierarchy branching audit: 0 items";
+        string itemLabel = totalItems == 1 ? "1 item" : $"{totalItems} items";
+        string branchStr = maxDepth > 1 ? $" · Max branch: {maxBranching} (avg {avgBranching:0.#})" : "";
+        return $"Hierarchy branching audit ({itemLabel} across {maxDepth} levels{branchStr} · {treeBalance}): Recommended: {recommendedCategory}";
+    }
 }
+
+/// <summary>
+/// Represents the result of an outline hierarchy branching and tree balance audit.
+/// </summary>
+public sealed record HierarchyBranchingAudit(
+    int TotalItems,
+    int MaxDepth,
+    int MaxBranchingFactor,
+    double AverageBranchingFactor,
+    IReadOnlyDictionary<int, int> LevelCounts,
+    IReadOnlyList<string> OverBranchingNodes,
+    IReadOnlyList<string> DeepBranches,
+    string TreeBalance,
+    string RecommendedCategory,
+    string Summary);
+
 
 /// <summary>
 /// Represents a recommended icon affinity for an outline node.

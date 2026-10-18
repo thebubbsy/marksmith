@@ -1856,6 +1856,42 @@ namespace MarkSmith.Tests
 
             Assert.Contains("Largest 'Architecture'", audit.Summary);
         }
+
+        [Fact]
+        public void Run153_AuditMinimumSpanningTree()
+        {
+            // 1. Empty / single node
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            var emptyAudit = vm.AuditMinimumSpanningTree();
+            Assert.Equal(0, emptyAudit.TotalEdges);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Contains("Insufficient nodes", emptyAudit.Summary);
+
+            // 2. 5 nodes forming a star around hub at (100, 100)
+            // Hub: (100, 100), N1: (100, 0), N2: (200, 100), N3: (100, 200), N4: (0, 100)
+            var hub = new MindMapNode { Id = "hub", Title = "Trunk Hub", X = 100, Y = 100 };
+            var n1 = new MindMapNode { Id = "n1", Title = "Leaf 1", X = 100, Y = 0 };
+            var n2 = new MindMapNode { Id = "n2", Title = "Leaf 2", X = 200, Y = 100 };
+            var n3 = new MindMapNode { Id = "n3", Title = "Leaf 3", X = 100, Y = 200 };
+            var n4 = new MindMapNode { Id = "n4", Title = "Leaf 4", X = 0, Y = 100 };
+
+            vm.Nodes.Add(new MindMapNodeViewModel(hub));
+            vm.Nodes.Add(new MindMapNodeViewModel(n1));
+            vm.Nodes.Add(new MindMapNodeViewModel(n2));
+            vm.Nodes.Add(new MindMapNodeViewModel(n3));
+            vm.Nodes.Add(new MindMapNodeViewModel(n4));
+
+            var audit = vm.AuditMinimumSpanningTree();
+            Assert.Equal(4, audit.TotalEdges);
+            Assert.Equal(5, audit.TotalNodes);
+            Assert.Equal(400.0, audit.TotalWireLength);
+            Assert.Equal(100.0, audit.AverageEdgeLength);
+            Assert.Equal(100.0, audit.MaxEdgeLength);
+            Assert.Equal(1, audit.TrunkCorridorCount);
+            Assert.Contains("Trunk Hub", audit.TrunkNodeTitles[0]);
+            Assert.Contains("4 edges · 400px wire", audit.Summary);
+        }
     }
 }
 

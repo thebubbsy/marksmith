@@ -276,6 +276,9 @@
                                     <MenuFlyoutItem x:Name="AuditClusterHullsItem" Text="Audit cluster convex hulls &amp; spatial extent" Click="OnAuditClusterHullsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditMstItem" Text="Audit Minimum Spanning Tree (MST) wireframe" Click="OnAuditMstClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE968;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

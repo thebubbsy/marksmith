@@ -6277,6 +6277,23 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
+
+        private void OnSelectionAuditAspectRatioClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditAspectRatioProportions();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
+        private void OnSelectionLockAspectRatioSquareClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (targets, modified, summary) = ViewModel.EnforceAspectRatioLock(1.0, "1:1 Square");
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
     }
 }
 

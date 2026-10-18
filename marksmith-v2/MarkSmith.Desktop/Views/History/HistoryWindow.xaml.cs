@@ -3224,6 +3224,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied changelog section: {section.Split('\n')[0]}");
                 };
                 menu.Items.Add(formatChangelogSection);
+
+                var synthesizeMilestoneHeader = new MenuFlyoutItem
+                {
+                    Text = "Synthesize release announcement milestone header",
+                    Icon = new FontIcon { Glyph = "\uE8D2" }
+                };
+                synthesizeMilestoneHeader.Click += (_, _) =>
+                {
+                    var header = MarkSmith.Services.LineDiff.SynthesizeReleaseMilestoneHeader(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(header);
+                    _vm.ShowNotice($"Copied release milestone: {header.Split('\n')[0]}");
+                };
+                menu.Items.Add(synthesizeMilestoneHeader);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

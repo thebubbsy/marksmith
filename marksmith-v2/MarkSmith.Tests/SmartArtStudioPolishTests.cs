@@ -988,6 +988,44 @@ public class SmartArtStudioPolishTests
         Assert.Equal(0.0, genericAudit.CoveragePercentage);
         Assert.Equal("Page", genericAudit.Recommendations[0].IconName);
     }
+
+    [Fact]
+    public void Run153_AuditHierarchyBranchingFactor()
+    {
+        // 1. Empty outline
+        var empty = SmartArtDesignStudioViewModel.AuditHierarchyBranchingFactor("");
+        Assert.Equal(0, empty.TotalItems);
+        Assert.Equal(0, empty.MaxDepth);
+        Assert.Contains("0 items (Empty outline)", empty.Summary);
+
+        // 2. Balanced 3-level hierarchy: Root -> 3 Children, each child has 2 sub-children
+        var balancedOutline = """
+            - System Kernel
+              - Storage Engine
+                - Block Cache
+                - WAL Log
+              - Compute Scheduler
+                - Thread Pool
+                - Work Stealing
+              - Network Gateway
+                - HTTP Parser
+                - TLS Handshake
+            """;
+        var audit = SmartArtDesignStudioViewModel.AuditHierarchyBranchingFactor(balancedOutline);
+        Assert.Equal(10, audit.TotalItems);
+        Assert.Equal(3, audit.MaxDepth);
+        Assert.Equal(3, audit.MaxBranchingFactor);
+        Assert.Equal(2.2, audit.AverageBranchingFactor);
+        Assert.Equal(1, audit.LevelCounts[1]); // 1 root
+        Assert.Equal(3, audit.LevelCounts[2]); // 3 L2
+        Assert.Equal(6, audit.LevelCounts[3]); // 6 L3
+        Assert.Empty(audit.OverBranchingNodes);
+        Assert.Empty(audit.DeepBranches);
+        Assert.Equal("Well Balanced", audit.TreeBalance);
+        Assert.Equal("Hierarchy / Organization Chart", audit.RecommendedCategory);
+        Assert.Contains("10 items across 3 levels", audit.Summary);
+    }
 }
+
 
 
