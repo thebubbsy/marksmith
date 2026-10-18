@@ -5629,6 +5629,161 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string conflictStr = depthConflicts > 0 ? $" · ⚠ {depthConflicts} depth conflicts" : "";
         return $"Isometric grid audit ({scope}{shapeLabel} · {category}): Fidelity: {fidelity:0.#}% · {alignedPairs}/{totalPairs} aligned pairs (error ±{meanAngleError:0.#}°){conflictStr}";
     }
+
+    /// <summary>
+    /// Audits diagram geometric symmetry, evaluating bilateral vertical reflection, horizontal reflection,
+    /// and 180° rotational symmetry across shape coordinates and bounding boxes.
+    /// </summary>
+    public DiagramSymmetryAudit AuditDiagramSymmetry(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = targetShapes != null || selected.Count >= 2;
+        string scopeStr = isSelection ? "Selected Shapes · " : "";
+
+        if (targets.Count < 2)
+        {
+            string emptySummary = $"Diagram symmetry ({scopeStr}{targets.Count} shapes): Insufficient shapes (<2) · At least 2 shapes required";
+            StatusMessage = emptySummary;
+            return new DiagramSymmetryAudit(
+                targets.Count, 0, 0, 0, 0.0, 0.0, 0.0, 0.0,
+                Array.Empty<ShapeSymmetryMatchInfo>(),
+                "Asymmetric / Freeform Composition", isSelection, emptySummary);
+        }
+
+        double minX = targets.Min(s => s.X);
+        double maxX = targets.Max(s => s.X + s.Width);
+        double minY = targets.Min(s => s.Y);
+        double maxY = targets.Max(s => s.Y + s.Height);
+
+        double midX = (minX + maxX) / 2.0;
+        double midY = (minY + maxY) / 2.0;
+        double boundsW = Math.Max(1.0, maxX - minX);
+        double boundsH = Math.Max(1.0, maxY - minY);
+
+        double tolX = Math.Max(8.0, boundsW * 0.04);
+        double tolY = Math.Max(8.0, boundsH * 0.04);
+        double tolDim = Math.Max(8.0, Math.Min(boundsW, boundsH) * 0.06);
+
+        int verticalMatches = 0;
+        var matches = new List<ShapeSymmetryMatchInfo>();
+
+        foreach (var sA in targets)
+        {
+            double cxA = sA.X + (sA.Width / 2.0);
+            double cyA = sA.Y + (sA.Height / 2.0);
+            double targetCx = (2.0 * midX) - cxA;
+
+            bool found = targets.Any(sB =>
+            {
+                double cxB = sB.X + (sB.Width / 2.0);
+                double cyB = sB.Y + (sB.Height / 2.0);
+                return Math.Abs(cxB - targetCx) <= tolX &&
+                       Math.Abs(cyB - cyA) <= tolY &&
+                       Math.Abs(sB.Width - sA.Width) <= tolDim &&
+                       Math.Abs(sB.Height - sA.Height) <= tolDim;
+            });
+
+            if (found) verticalMatches++;
+        }
+
+        int horizontalMatches = 0;
+        foreach (var sA in targets)
+        {
+            double cxA = sA.X + (sA.Width / 2.0);
+            double cyA = sA.Y + (sA.Height / 2.0);
+            double targetCy = (2.0 * midY) - cyA;
+
+            bool found = targets.Any(sB =>
+            {
+                double cxB = sB.X + (sB.Width / 2.0);
+                double cyB = sB.Y + (sB.Height / 2.0);
+                return Math.Abs(cxB - cxA) <= tolX &&
+                       Math.Abs(cyB - targetCy) <= tolY &&
+                       Math.Abs(sB.Width - sA.Width) <= tolDim &&
+                       Math.Abs(sB.Height - sA.Height) <= tolDim;
+            });
+
+            if (found) horizontalMatches++;
+        }
+
+        int rotationalMatches = 0;
+        foreach (var sA in targets)
+        {
+            double cxA = sA.X + (sA.Width / 2.0);
+            double cyA = sA.Y + (sA.Height / 2.0);
+            double targetCx = (2.0 * midX) - cxA;
+            double targetCy = (2.0 * midY) - cyA;
+
+            bool found = targets.Any(sB =>
+            {
+                double cxB = sB.X + (sB.Width / 2.0);
+                double cyB = sB.Y + (sB.Height / 2.0);
+                return Math.Abs(cxB - targetCx) <= tolX &&
+                       Math.Abs(cyB - targetCy) <= tolY &&
+                       Math.Abs(sB.Width - sA.Width) <= tolDim &&
+                       Math.Abs(sB.Height - sA.Height) <= tolDim;
+            });
+
+            if (found) rotationalMatches++;
+        }
+
+        double n = targets.Count;
+        double vertRatio = Math.Round((verticalMatches / n) * 100.0, 1);
+        double horizRatio = Math.Round((horizontalMatches / n) * 100.0, 1);
+        double rotRatio = Math.Round((rotationalMatches / n) * 100.0, 1);
+        double overallScore = Math.Max(vertRatio, Math.Max(horizRatio, rotRatio));
+
+        string category;
+        if (vertRatio >= 85.0 && horizRatio >= 85.0)
+        {
+            category = "Dual-Axis Bilateral Symmetry (D2)";
+        }
+        else if (vertRatio >= 85.0)
+        {
+            category = "Vertical Bilateral Reflection (C1v)";
+        }
+        else if (horizRatio >= 85.0)
+        {
+            category = "Horizontal Bilateral Reflection (C1h)";
+        }
+        else if (rotRatio >= 85.0)
+        {
+            category = "Centrosymmetric 180° Rotational (C2)";
+        }
+        else if (overallScore >= 50.0)
+        {
+            category = "Partial Geometric Symmetry";
+        }
+        else
+        {
+            category = "Asymmetric / Freeform Composition";
+        }
+
+        string summary = FormatDiagramSymmetrySummary(
+            targets.Count, verticalMatches, horizontalMatches, rotationalMatches,
+            vertRatio, horizRatio, rotRatio, overallScore, category, scopeStr);
+
+        StatusMessage = summary;
+        return new DiagramSymmetryAudit(
+            targets.Count, verticalMatches, horizontalMatches, rotationalMatches,
+            vertRatio, horizRatio, rotRatio, overallScore,
+            matches, category, isSelection, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of diagram symmetry metrics.
+    /// </summary>
+    public static string FormatDiagramSymmetrySummary(
+        int totalShapes, int vertMatches, int horizMatches, int rotMatches,
+        double vertRatio, double horizRatio, double rotRatio, double overallScore,
+        string category, string scope = "")
+    {
+        if (totalShapes < 2) return "Diagram symmetry: Insufficient shapes (<2) · At least 2 shapes required";
+
+        string shapeLabel = $"{totalShapes} shapes";
+        return $"Diagram symmetry audit ({scope}{shapeLabel} · {category}): Symmetry: {overallScore:0.#}% (V:{vertRatio:0.#}% [{vertMatches}/{totalShapes}], H:{horizRatio:0.#}%, Rot:{rotRatio:0.#}%)";
+    }
 }
 
 /// <summary>
@@ -5871,6 +6026,33 @@ public sealed record IsometricGridAlignmentAudit(
     string AlignmentCategory,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated symmetry pairing between shapes.
+/// </summary>
+public sealed record ShapeSymmetryMatchInfo(
+    string ShapeAId,
+    string ShapeBId,
+    string SymmetryType,
+    double DeviationPixels);
+
+/// <summary>
+/// Represents the result of an audit of diagram bilateral reflection and rotational symmetry.
+/// </summary>
+public sealed record DiagramSymmetryAudit(
+    int TotalShapes,
+    int VerticalMatches,
+    int HorizontalMatches,
+    int RotationalMatches,
+    double VerticalSymmetryPercent,
+    double HorizontalSymmetryPercent,
+    double RotationalSymmetryPercent,
+    double OverallSymmetryScore,
+    IReadOnlyList<ShapeSymmetryMatchInfo> Matches,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
 
 
 

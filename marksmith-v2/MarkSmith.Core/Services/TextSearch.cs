@@ -3537,6 +3537,261 @@ public static class TextSearch
 
         return $"TOC & anchor audit: {headingDesc}{depthSpan}{linkDesc} · {category} · {integrity:0.#}% integrity{issues}";
     }
+
+    /// <summary>
+    /// Audits CommonMark reference-style link definitions ([label]: url) and inline reference links
+    /// ([text][label], [label][], [label]), identifying missing target definitions, orphan definitions,
+    /// duplicate label definitions, and overall linkage integrity.
+    /// </summary>
+    public static ReferenceLinkIntegrityAudit AuditReferenceLinkIntegrity(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new ReferenceLinkIntegrityAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ReferenceDefinitionItem>(),
+                Array.Empty<ReferenceLinkItem>(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                "Empty Document",
+                "Reference link audit: 0 links · Document contains no reference link definitions or usages");
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        bool inCodeBlock = false;
+        bool inHtmlComment = false;
+
+        var definitions = new List<ReferenceDefinitionItem>();
+        var definedLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var labelCountMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var duplicateLabels = new List<string>();
+
+        // Regex for reference link definition: ^[ ]{0,3}\[([^\]\^]+)\]:\s*(\S+)(?:\s+(?:\"([^\"]*)\"|'([^']*)'|\(([^)]*)\)))?\s*$
+        var defRegex = new System.Text.RegularExpressions.Regex(
+            @"^[ ]{0,3}\[([^\]\^]+)\]:\s*(\S+)(?:\s+(?:\""([^\""]*)\""|'([^']*)'|\(([^)]*)\)))?\s*$",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        // Pass 1: Collect reference definitions
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeBlock = !inCodeBlock;
+                continue;
+            }
+            if (inCodeBlock) continue;
+
+            if (trimmed.StartsWith("<!--") && !trimmed.EndsWith("-->"))
+            {
+                inHtmlComment = true;
+                continue;
+            }
+            if (inHtmlComment)
+            {
+                if (trimmed.Contains("-->")) inHtmlComment = false;
+                continue;
+            }
+            if (trimmed.StartsWith("<!--") && trimmed.EndsWith("-->")) continue;
+
+            var match = defRegex.Match(line);
+            if (match.Success)
+            {
+                string rawLabel = match.Groups[1].Value;
+                string cleanLabel = rawLabel.Trim();
+                string destination = match.Groups[2].Value;
+                string title = match.Groups[3].Success ? match.Groups[3].Value
+                             : match.Groups[4].Success ? match.Groups[4].Value
+                             : match.Groups[5].Success ? match.Groups[5].Value : "";
+
+                if (!labelCountMap.TryGetValue(cleanLabel, out int c))
+                {
+                    labelCountMap[cleanLabel] = 1;
+                    definedLabels.Add(cleanLabel);
+                }
+                else
+                {
+                    labelCountMap[cleanLabel] = c + 1;
+                    if (c == 1) duplicateLabels.Add(cleanLabel);
+                }
+
+                definitions.Add(new ReferenceDefinitionItem(i + 1, cleanLabel, destination, title));
+            }
+        }
+
+        // Pass 2: Collect reference link usages
+        inCodeBlock = false;
+        inHtmlComment = false;
+        var links = new List<ReferenceLinkItem>();
+        var brokenLabels = new List<string>();
+        var referencedLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var explicitRefRegex = new System.Text.RegularExpressions.Regex(
+            @"\[([^\]\^]+)\]\[([^\]]*)\]",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        var shortcutRefRegex = new System.Text.RegularExpressions.Regex(
+            @"(?<!!\s*)\[([^\]\^]+)\](?![\[\(:])",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeBlock = !inCodeBlock;
+                continue;
+            }
+            if (inCodeBlock) continue;
+
+            if (trimmed.StartsWith("<!--") && !trimmed.EndsWith("-->"))
+            {
+                inHtmlComment = true;
+                continue;
+            }
+            if (inHtmlComment)
+            {
+                if (trimmed.Contains("-->")) inHtmlComment = false;
+                continue;
+            }
+            if (trimmed.StartsWith("<!--") && trimmed.EndsWith("-->")) continue;
+
+            if (defRegex.IsMatch(line)) continue;
+
+            string lineNoCode = System.Text.RegularExpressions.Regex.Replace(line, @"`[^`]+`", "");
+
+            var explicitMatches = explicitRefRegex.Matches(lineNoCode);
+            var matchedSpans = new List<(int Start, int Length)>();
+
+            foreach (System.Text.RegularExpressions.Match m in explicitMatches)
+            {
+                string text = m.Groups[1].Value.Trim();
+                string label = m.Groups[2].Value.Trim();
+                string effectiveLabel = string.IsNullOrEmpty(label) ? text : label;
+                string refType = string.IsNullOrEmpty(label) ? "Collapsed" : "Full";
+
+                bool isResolved = definedLabels.Contains(effectiveLabel);
+                if (isResolved)
+                {
+                    referencedLabels.Add(effectiveLabel);
+                }
+                else if (!brokenLabels.Contains(effectiveLabel, StringComparer.OrdinalIgnoreCase))
+                {
+                    brokenLabels.Add(effectiveLabel);
+                }
+
+                links.Add(new ReferenceLinkItem(i + 1, text, effectiveLabel, refType, isResolved));
+                matchedSpans.Add((m.Index, m.Length));
+            }
+
+            if (definedLabels.Count > 0)
+            {
+                var shortcutMatches = shortcutRefRegex.Matches(lineNoCode);
+                foreach (System.Text.RegularExpressions.Match m in shortcutMatches)
+                {
+                    bool overlaps = matchedSpans.Any(s => m.Index >= s.Start && m.Index < s.Start + s.Length);
+                    if (overlaps) continue;
+
+                    string candidate = m.Groups[1].Value.Trim();
+                    if (definedLabels.Contains(candidate))
+                    {
+                        referencedLabels.Add(candidate);
+                        links.Add(new ReferenceLinkItem(i + 1, candidate, candidate, "Shortcut", true));
+                    }
+                }
+            }
+        }
+
+        var orphanLabels = definedLabels.Where(l => !referencedLabels.Contains(l)).ToList();
+
+        int totalDefs = definitions.Count;
+        int uniqueDefs = definedLabels.Count;
+        int totalLinks = links.Count;
+        int resolvedLinks = links.Count(l => l.IsResolved);
+        int brokenLinks = links.Count(l => !l.IsResolved);
+        int orphanCount = orphanLabels.Count;
+        int duplicateDefCount = duplicateLabels.Count;
+
+        double integrityScore;
+        if (totalDefs == 0 && totalLinks == 0)
+        {
+            integrityScore = 100.0;
+        }
+        else
+        {
+            double linkScore = totalLinks > 0 ? ((double)resolvedLinks / totalLinks) * 70.0 : 70.0;
+            double defScore = totalDefs > 0 ? (1.0 - ((double)orphanCount / totalDefs)) * 20.0 : 20.0;
+            double dupPenalty = duplicateDefCount * 5.0;
+            integrityScore = Math.Round(Math.Clamp(linkScore + defScore + 10.0 - dupPenalty, 0.0, 100.0), 1);
+        }
+
+        string category;
+        if (totalDefs == 0 && totalLinks == 0)
+        {
+            category = "No Reference Links";
+        }
+        else if (brokenLinks > 0 && orphanCount > 0)
+        {
+            category = "Broken Links & Orphan Definitions";
+        }
+        else if (brokenLinks > 0)
+        {
+            category = "Broken Reference Links Detected";
+        }
+        else if (orphanCount > 0)
+        {
+            category = "Orphan Reference Definitions Present";
+        }
+        else if (duplicateDefCount > 0)
+        {
+            category = "Duplicate Reference Definitions";
+        }
+        else
+        {
+            category = "Optimal Reference Linkage (100%)";
+        }
+
+        string summary = FormatReferenceLinkIntegritySummary(
+            totalDefs, uniqueDefs, totalLinks, resolvedLinks, brokenLinks,
+            orphanCount, duplicateDefCount, integrityScore, category, brokenLabels, orphanLabels);
+
+        return new ReferenceLinkIntegrityAudit(
+            totalDefs, uniqueDefs, totalLinks, resolvedLinks, brokenLinks,
+            orphanCount, duplicateDefCount, integrityScore,
+            definitions, links, brokenLabels, orphanLabels, duplicateLabels,
+            category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of CommonMark reference-style link definitions and linkage integrity.
+    /// </summary>
+    public static string FormatReferenceLinkIntegritySummary(string? markdownText)
+        => AuditReferenceLinkIntegrity(markdownText).Summary;
+
+    public static string FormatReferenceLinkIntegritySummary(
+        int totalDefs, int uniqueDefs, int totalLinks, int resolvedLinks, int brokenLinks,
+        int orphanDefs, int duplicateDefs, double integrityScore, string category,
+        IReadOnlyList<string> brokenLabels, IReadOnlyList<string> orphanLabels)
+    {
+        if (totalDefs == 0 && totalLinks == 0)
+            return "Reference link audit: 0 links · Document contains no reference link definitions or usages";
+
+        string defDesc = totalDefs == 1 ? "1 definition" : $"{totalDefs} definitions";
+        string linkDesc = totalLinks == 1 ? "1 reference link" : $"{totalLinks} reference links";
+        string breakdown = $"{resolvedLinks} resolved, {brokenLinks} broken, {orphanDefs} orphans";
+
+        string issues = "";
+        if (brokenLinks > 0) issues += $" · ⚠ {brokenLinks} broken targets ({string.Join(", ", brokenLabels.Take(2))})";
+        if (orphanDefs > 0) issues += $" · ⚠ {orphanDefs} orphan defs ({string.Join(", ", orphanLabels.Take(2))})";
+        if (duplicateDefs > 0) issues += $" · {duplicateDefs} duplicate labels";
+
+        return $"Reference link audit: {defDesc}, {linkDesc} [{breakdown}] · {category} · {integrityScore:0.#}% integrity{issues}";
+    }
 }
 
 /// <summary>
@@ -3777,5 +4032,46 @@ public sealed record TocAnchorAudit(
     string HealthCategory,
     double IntegrityPercentage,
     string Summary);
+
+/// <summary>
+/// Represents an individual parsed CommonMark reference link definition ([label]: destination).
+/// </summary>
+public sealed record ReferenceDefinitionItem(
+    int LineNumber,
+    string Label,
+    string Destination,
+    string Title);
+
+/// <summary>
+/// Represents an individual reference link usage in markdown text.
+/// </summary>
+public sealed record ReferenceLinkItem(
+    int LineNumber,
+    string Text,
+    string TargetLabel,
+    string ReferenceType,
+    bool IsResolved);
+
+/// <summary>
+/// Represents the result of an audit of CommonMark reference-style link definitions,
+/// target resolution, orphan definitions, and duplicate definitions.
+/// </summary>
+public sealed record ReferenceLinkIntegrityAudit(
+    int TotalDefinitions,
+    int UniqueDefinitions,
+    int TotalReferences,
+    int ResolvedReferences,
+    int BrokenReferences,
+    int OrphanDefinitions,
+    int DuplicateDefinitions,
+    double IntegrityScore,
+    IReadOnlyList<ReferenceDefinitionItem> Definitions,
+    IReadOnlyList<ReferenceLinkItem> References,
+    IReadOnlyList<string> BrokenLabels,
+    IReadOnlyList<string> OrphanLabels,
+    IReadOnlyList<string> DuplicateLabels,
+    string Category,
+    string Summary);
+
 
 

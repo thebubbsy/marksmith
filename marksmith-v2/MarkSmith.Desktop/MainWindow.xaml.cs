@@ -7911,6 +7911,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(tocDepthAnchorItem);
 
+        var referenceLinkIntegrityItem = new MenuFlyoutItem
+        {
+            Text = "Copy reference link definitions & label integrity audit",
+            Icon = new FontIcon { Glyph = "\uE71B" }
+        };
+        referenceLinkIntegrityItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatReferenceLinkIntegritySummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(referenceLinkIntegrityItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9317,6 +9331,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(tocDepthAnchorItem);
+
+        var referenceLinkIntegrityItem = new MenuFlyoutItem
+        {
+            Text = "Copy reference link definitions & label integrity audit",
+            Icon = new FontIcon { Glyph = "\uE71B" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        referenceLinkIntegrityItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatReferenceLinkIntegritySummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(referenceLinkIntegrityItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

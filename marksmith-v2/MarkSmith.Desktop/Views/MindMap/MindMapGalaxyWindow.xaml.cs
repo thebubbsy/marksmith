@@ -4032,6 +4032,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditGraphCommunitiesClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphModularityAndCommunities();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4959,6 +4967,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditNetworkBackboneItem.Click += OnAuditNetworkSpanningBackboneClick;
             menu.Items.Add(auditNetworkBackboneItem);
+
+            var auditCommunitiesItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph modularity & community clusters",
+                Icon = new FontIcon { Glyph = "\uE81E" }
+            };
+            auditCommunitiesItem.Click += OnAuditGraphCommunitiesClick;
+            menu.Items.Add(auditCommunitiesItem);
 
             var fitItem = new MenuFlyoutItem
 

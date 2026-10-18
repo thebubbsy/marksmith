@@ -2704,6 +2704,185 @@ public sealed class RecentFilesService
 
         return $"Extension diversity audit ({fileLabel} · {category}): {uniqueExts} formats (H={entropy:0.00} bits) · Top: {topFormats}{nonStdAlert}";
     }
+
+    /// <summary>
+    /// Audits workspace documents for relative inter-document links and asset embeds, identifying broken
+    /// file targets and unreferenced orphan media assets. Pluggable file existence and content delegates allow unit testing.
+    /// </summary>
+    public static WorkspaceDeadLinkAudit AuditDeadLinksAndOrphanAssets(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var fileList = (files ?? Enumerable.Empty<string>()).ToList();
+        if (fileList.Count == 0)
+        {
+            return new WorkspaceDeadLinkAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<CrossReferenceLinkInfo>(),
+                Array.Empty<string>(),
+                "Empty Workspace",
+                "Dead link & orphan asset audit: 0 files · Workspace is empty");
+        }
+
+        var checkExists = fileExistsProvider ?? (path => File.Exists(path));
+        var readContent = contentReader ?? (path =>
+        {
+            try { return File.ReadAllText(path); }
+            catch { return ""; }
+        });
+
+        var knownFiles = new HashSet<string>(fileList.Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
+
+        var markdownExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".md", ".markdown", ".mdown", ".mkd", ".mdx" };
+        var mediaExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp", ".ico", ".pdf" };
+
+        var mediaFiles = fileList.Where(f => mediaExts.Contains(Path.GetExtension(f))).Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var markdownFiles = fileList.Where(f => markdownExts.Contains(Path.GetExtension(f))).ToList();
+
+        var linkRegex = new System.Text.RegularExpressions.Regex(
+            @"(?<isImage>!?)(?:\[([^\]]*)\])\(([^)\s]+)(?:\s+[""'][^""']*[""'])?\)",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        var brokenLinks = new List<CrossReferenceLinkInfo>();
+        var referencedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int totalRelativeLinks = 0;
+        int validLinks = 0;
+
+        foreach (var mdFile in markdownFiles)
+        {
+            string content = readContent(mdFile);
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            string dir = Path.GetDirectoryName(mdFile) ?? "";
+
+            var matches = linkRegex.Matches(content);
+            foreach (System.Text.RegularExpressions.Match match in matches)
+            {
+                bool isImage = match.Groups["isImage"].Value == "!";
+                string linkText = match.Groups[1].Value.Trim();
+                string targetRaw = match.Groups[2].Value.Trim();
+
+                if (targetRaw.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    targetRaw.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                    targetRaw.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ||
+                    targetRaw.StartsWith("#") ||
+                    targetRaw.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                int hashIdx = targetRaw.IndexOf('#');
+                string targetPathClean = hashIdx >= 0 ? targetRaw.Substring(0, hashIdx) : targetRaw;
+                if (string.IsNullOrWhiteSpace(targetPathClean)) continue;
+
+                totalRelativeLinks++;
+
+                string fullTargetPath;
+                try
+                {
+                    fullTargetPath = Path.GetFullPath(Path.Combine(dir, targetPathClean.Replace('/', Path.DirectorySeparatorChar)));
+                }
+                catch
+                {
+                    fullTargetPath = targetPathClean;
+                }
+
+                referencedTargets.Add(fullTargetPath);
+
+                bool exists = knownFiles.Contains(fullTargetPath) || checkExists(fullTargetPath);
+                if (exists)
+                {
+                    validLinks++;
+                }
+                else
+                {
+                    brokenLinks.Add(new CrossReferenceLinkInfo(
+                        mdFile, targetRaw, linkText, false, isImage));
+                }
+            }
+        }
+
+        var orphanAssets = mediaFiles
+            .Where(media => !referencedTargets.Contains(media))
+            .Select(Path.GetFileName)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Select(name => name!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        int brokenCount = brokenLinks.Count;
+        int orphanCount = orphanAssets.Count;
+
+        double integrityScore;
+        if (totalRelativeLinks == 0)
+        {
+            integrityScore = orphanCount > 0 ? 80.0 : 100.0;
+        }
+        else
+        {
+            double linkScore = ((double)validLinks / totalRelativeLinks) * 80.0;
+            double orphanPenalty = Math.Min(20.0, orphanCount * 5.0);
+            integrityScore = Math.Round(Math.Clamp(linkScore + 20.0 - orphanPenalty, 0.0, 100.0), 1);
+        }
+
+        string category;
+        if (brokenCount > 0 && orphanCount > 0)
+        {
+            category = "Broken Links & Orphan Assets Detected";
+        }
+        else if (brokenCount > 0)
+        {
+            category = "Broken Cross-References Detected";
+        }
+        else if (orphanCount > 0)
+        {
+            category = "Orphan Media Assets Present";
+        }
+        else if (totalRelativeLinks == 0)
+        {
+            category = "Zero Inter-Document Links";
+        }
+        else
+        {
+            category = "Optimal Inter-Document Linkage (100% Integrity)";
+        }
+
+        string summary = FormatDeadLinksSummary(
+            fileList.Count, totalRelativeLinks, validLinks, brokenCount, orphanCount, integrityScore, category, brokenLinks, orphanAssets);
+
+        return new WorkspaceDeadLinkAudit(
+            fileList.Count,
+            totalRelativeLinks,
+            validLinks,
+            brokenCount,
+            orphanCount,
+            integrityScore,
+            brokenLinks,
+            orphanAssets,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of dead link and orphan asset audit metrics.
+    /// </summary>
+    public static string FormatDeadLinksSummary(IEnumerable<string>? files)
+        => AuditDeadLinksAndOrphanAssets(files).Summary;
+
+    public static string FormatDeadLinksSummary(
+        int totalFiles, int totalLinks, int validLinks, int brokenCount, int orphanCount,
+        double score, string category, IReadOnlyList<CrossReferenceLinkInfo> brokenLinks, IReadOnlyList<string> orphanAssets)
+    {
+        if (totalFiles == 0) return "Dead link & orphan asset audit: 0 files · Workspace is empty";
+
+        string linkDesc = totalLinks == 1 ? "1 relative link" : $"{totalLinks} relative links";
+        string breakdown = totalLinks > 0 ? $" ({validLinks} valid, {brokenCount} broken)" : "";
+        string orphanDesc = orphanCount > 0 ? $" · ⚠ {orphanCount} unreferenced orphan assets ({string.Join(", ", orphanAssets.Take(2))})" : "";
+        string brokenDesc = brokenCount > 0 ? $" · ⚠ {brokenCount} broken targets ({string.Join(", ", brokenLinks.Take(2).Select(b => b.TargetPath))})" : "";
+
+        return $"Cross-reference audit ({totalFiles} files · {linkDesc}{breakdown} · {category}): {score:0.#}% integrity{brokenDesc}{orphanDesc}";
+    }
 }
 
 /// <summary>
@@ -2951,5 +3130,31 @@ public sealed record WorkspaceExtensionDiversityAudit(
     IReadOnlyList<ExtensionDistributionInfo> Distributions,
     string DiversityCategory,
     string Summary);
+
+/// <summary>
+/// Represents evaluated relative cross-reference or asset embed target status.
+/// </summary>
+public sealed record CrossReferenceLinkInfo(
+    string SourceFile,
+    string TargetPath,
+    string LinkText,
+    bool Exists,
+    bool IsImageEmbed);
+
+/// <summary>
+/// Represents the result of an audit of workspace inter-document cross-references, dead links, and orphan media assets.
+/// </summary>
+public sealed record WorkspaceDeadLinkAudit(
+    int TotalFiles,
+    int TotalRelativeLinks,
+    int ValidLinkCount,
+    int BrokenLinkCount,
+    int OrphanAssetCount,
+    double IntegrityScore,
+    IReadOnlyList<CrossReferenceLinkInfo> BrokenLinks,
+    IReadOnlyList<string> OrphanAssets,
+    string IntegrityCategory,
+    string Summary);
+
 
 

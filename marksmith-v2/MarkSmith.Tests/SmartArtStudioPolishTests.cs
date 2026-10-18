@@ -1369,6 +1369,62 @@ public class SmartArtStudioPolishTests
         Assert.Equal(100.0, threeAudit.CompletenessPercentage);
         Assert.Equal("Complete 3-Set Venn (7/7 Partitions)", threeAudit.CompletenessCategory);
     }
+
+    [Fact]
+    public void Run162_AuditTimelineMilestoneChronology_ValidatesMonotonicityAndDateFormats()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditTimelineMilestoneChronology("");
+        Assert.Equal(0, emptyAudit.TotalMilestones);
+        Assert.Equal("Empty Timeline Outline", emptyAudit.Category);
+        Assert.Equal(100.0, emptyAudit.MonotonicityScore);
+
+        // 2. Monotonic ascending chronology with uniform ISO dates
+        var validIsoMd = """
+            - 2026-01-15: Architecture Blueprint
+            - 2026-04-01: Beta Release
+            - 2026-09-30: General Availability
+            """;
+        var validAudit = SmartArtDesignStudioViewModel.AuditTimelineMilestoneChronology(validIsoMd);
+        Assert.Equal(3, validAudit.TotalMilestones);
+        Assert.Equal(3, validAudit.DatedMilestones);
+        Assert.Equal(0, validAudit.ChronologicalInversions);
+        Assert.Equal(100.0, validAudit.MonotonicityScore);
+        Assert.True(validAudit.IsUniformDateFormat);
+        Assert.Equal("ISO Date (YYYY-MM-DD)", validAudit.DominantDateFormat);
+        Assert.Equal("Strict Chronological Progression (100% Monotonic)", validAudit.Category);
+        Assert.Equal(validAudit.Summary, SmartArtDesignStudioViewModel.FormatTimelineChronologySummary(
+            validAudit.TotalMilestones, validAudit.DatedMilestones, validAudit.ChronologicalInversions,
+            validAudit.MonotonicityScore, validAudit.IsUniformDateFormat, validAudit.DominantDateFormat,
+            validAudit.Category, validAudit.Inversions));
+
+        // 3. Chronological inversion
+        var invertedMd = """
+            - 2026-01-15: Stage 1
+            - 2026-09-30: Stage 3 (Out of order)
+            - 2026-04-01: Stage 2
+            """;
+        var vm = new SmartArtDesignStudioViewModel();
+        vm.MarkdownText = invertedMd;
+        var invertedAudit = vm.AuditTimelineMilestoneChronology();
+        Assert.Equal(3, invertedAudit.TotalMilestones);
+        Assert.Equal(3, invertedAudit.DatedMilestones);
+        Assert.Equal(1, invertedAudit.ChronologicalInversions);
+        Assert.True(invertedAudit.MonotonicityScore < 100.0);
+        Assert.Contains("Chronological Inversion Detected", invertedAudit.Category);
+        Assert.NotEmpty(invertedAudit.Inversions);
+
+        // 4. Undated milestones
+        var undatedMd = """
+            - Concept Phase
+            - Planning Phase
+            - Execution Phase
+            """;
+        var undatedAudit = SmartArtDesignStudioViewModel.AuditTimelineMilestoneChronology(undatedMd);
+        Assert.Equal(3, undatedAudit.TotalMilestones);
+        Assert.Equal(0, undatedAudit.DatedMilestones);
+        Assert.Equal("Undated Sequential Steps", undatedAudit.Category);
+    }
 }
 
 

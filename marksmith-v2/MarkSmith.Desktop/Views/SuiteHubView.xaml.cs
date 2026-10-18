@@ -1777,6 +1777,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyDeadLinksAuditClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var audit = RecentFilesService.AuditDeadLinksAndOrphanAssets(files);
+            await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+            SetNotification($"Copied link & asset audit: {audit.IntegrityCategory} · {audit.ValidLinkCount}/{audit.TotalRelativeLinks} valid ({audit.IntegrityScore:0.#}%)", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit links & assets: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

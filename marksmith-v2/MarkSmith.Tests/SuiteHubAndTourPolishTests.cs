@@ -2690,6 +2690,50 @@ public class SuiteHubAndTourPolishTests
         Assert.True(polyAudit.ShannonEntropy >= 2.0);
         Assert.Contains("High Format Diversity", polyAudit.DiversityCategory);
     }
+
+    [Fact]
+    public void Run162_AuditDeadLinksAndOrphanAssets_IdentifiesBrokenLinksAndOrphans()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditDeadLinksAndOrphanAssets(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFiles);
+        Assert.Equal(0, emptyAudit.TotalRelativeLinks);
+        Assert.Equal("Empty Workspace", emptyAudit.IntegrityCategory);
+        Assert.Equal(100.0, emptyAudit.IntegrityScore);
+
+        // 2. Mock file system & content reader
+        var doc1 = @"C:\Workspace\doc1.md";
+        var doc2 = @"C:\Workspace\doc2.md";
+        var img1 = @"C:\Workspace\images\chart.png";
+        var imgOrphan = @"C:\Workspace\images\unused.png";
+
+        var files = new[] { doc1, doc2, img1, imgOrphan };
+        var fileSet = new HashSet<string>(files, StringComparer.OrdinalIgnoreCase);
+
+        var fileContents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [doc1] = "See [Architecture](./doc2.md) and ![Chart](images/chart.png). Also [Broken Link](non-existent.md).",
+            [doc2] = "# Doc 2 Content"
+        };
+
+        var audit = RecentFilesService.AuditDeadLinksAndOrphanAssets(
+            files,
+            fileExistsProvider: path => fileSet.Contains(path),
+            contentReader: path => fileContents.TryGetValue(path, out var c) ? c : null);
+
+        Assert.Equal(4, audit.TotalFiles);
+        Assert.Equal(3, audit.TotalRelativeLinks);
+        Assert.Equal(2, audit.ValidLinkCount);
+        Assert.Equal(1, audit.BrokenLinkCount);
+        Assert.Equal(1, audit.OrphanAssetCount);
+        Assert.Contains(audit.BrokenLinks, l => l.TargetPath == "non-existent.md");
+        Assert.Contains(audit.OrphanAssets, a => a.Contains("unused.png"));
+        Assert.Contains("Broken Links & Orphan Assets Detected", audit.IntegrityCategory);
+        Assert.True(audit.IntegrityScore < 100.0);
+        Assert.Equal(audit.Summary, RecentFilesService.FormatDeadLinksSummary(
+            audit.TotalFiles, audit.TotalRelativeLinks, audit.ValidLinkCount, audit.BrokenLinkCount,
+            audit.OrphanAssetCount, audit.IntegrityScore, audit.IntegrityCategory, audit.BrokenLinks, audit.OrphanAssets));
+    }
 }
 
 

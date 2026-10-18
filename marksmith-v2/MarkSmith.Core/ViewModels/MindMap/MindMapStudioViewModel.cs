@@ -5163,7 +5163,256 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Network backbone audit ({scopeStr}{nodeLabel}, {linkLabel}{compStr} · {category}): {backboneCount} backbone edges{chordStr}{wireStr}";
         }
+
+        /// <summary>
+        /// Audits mindmap graph modularity (Newman-Girvan Q) and detects community clusters using label propagation,
+        /// identifying densely interconnected concept groupings and inter-cluster bridging nodes.
+        /// </summary>
+        public GraphModularityAudit AuditGraphModularityAndCommunities(IEnumerable<MindMapNodeViewModel>? targetNodes = null)
+        {
+            bool isSelection = false;
+            var targetList = targetNodes?.ToList();
+            if (targetList == null)
+            {
+                var selectedNodes = Nodes.Where(n => n.IsSelected).ToList();
+                if (selectedNodes.Count > 1)
+                {
+                    targetList = selectedNodes;
+                    isSelection = true;
+                }
+                else
+                {
+                    targetList = Nodes.ToList();
+                }
+            }
+            string scopeStr = isSelection ? "Selected Nodes · " : "";
+
+            if (targetList.Count == 0)
+            {
+                string emptySummary = $"Graph modularity ({scopeStr}0 nodes): Empty mindmap";
+                StatusMessage = emptySummary;
+                return new GraphModularityAudit(
+                    0, 0, 0, 0.0, 0,
+                    Array.Empty<MindMapCommunityInfo>(),
+                    Array.Empty<string>(),
+                    "Empty Mindmap", isSelection, emptySummary);
+            }
+
+            var nodeSet = new HashSet<string>(targetList.Select(n => n.Id));
+
+            // Filter links where both endpoints are in targetList
+            var validLinks = Links.Where(l => nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId)).ToList();
+            int m = validLinks.Count;
+
+            // Build adjacency list
+            var adj = new Dictionary<string, List<string>>();
+            foreach (var n in targetList) adj[n.Id] = new List<string>();
+            foreach (var l in validLinks)
+            {
+                if (l.SourceNodeId != l.TargetNodeId)
+                {
+                    adj[l.SourceNodeId].Add(l.TargetNodeId);
+                    adj[l.TargetNodeId].Add(l.SourceNodeId);
+                }
+            }
+
+            // Community detection: Label propagation
+            var community = new Dictionary<string, string>();
+            foreach (var n in targetList) community[n.Id] = n.Id;
+
+            if (m > 0)
+            {
+                bool changed = true;
+                int maxIterations = 20;
+                int iter = 0;
+                var orderedNodeIds = targetList.Select(n => n.Id).ToList();
+
+                while (changed && iter < maxIterations)
+                {
+                    changed = false;
+                    iter++;
+
+                    foreach (var u in orderedNodeIds)
+                    {
+                        var neighbors = adj[u];
+                        if (neighbors.Count == 0) continue;
+
+                        var freq = new Dictionary<string, int>();
+                        foreach (var v in neighbors)
+                        {
+                            string c = community[v];
+                            freq[c] = freq.TryGetValue(c, out int cnt) ? cnt + 1 : 1;
+                        }
+
+                        int maxCount = freq.Values.Max();
+                        string bestLabel = freq.Where(kv => kv.Value == maxCount)
+                                               .Select(kv => kv.Key)
+                                               .OrderBy(s => s, StringComparer.Ordinal)
+                                               .First();
+
+                        if (community[u] != bestLabel)
+                        {
+                            community[u] = bestLabel;
+                            changed = true;
+                        }
+                    }
+                }
+            }
+
+            var groups = targetList.GroupBy(n => community[n.Id]).ToList();
+            var communityInfos = new List<MindMapCommunityInfo>();
+            int communityIdCounter = 1;
+
+            double modularityQ = 0.0;
+            double twoM = 2.0 * Math.Max(1, m);
+
+            var bridgingNodes = new HashSet<string>();
+
+            foreach (var grp in groups.OrderByDescending(g => g.Count()))
+            {
+                var cNodes = grp.ToList();
+                var cNodeIds = new HashSet<string>(cNodes.Select(n => n.Id));
+                string firstTitle = cNodes[0].Title;
+                string cLabel = cNodes.Count == 1 ? $"Cluster '{firstTitle}'" : $"Cluster '{firstTitle}' (+{cNodes.Count - 1})";
+
+                int internalEdges = 0;
+                int externalEdges = 0;
+                int degreeSum = 0;
+
+                foreach (var n in cNodes)
+                {
+                    var neighbors = adj[n.Id];
+                    degreeSum += neighbors.Count;
+                    int nExt = 0;
+
+                    foreach (var v in neighbors)
+                    {
+                        if (cNodeIds.Contains(v))
+                        {
+                            internalEdges++;
+                        }
+                        else
+                        {
+                            externalEdges++;
+                            nExt++;
+                        }
+                    }
+
+                    if (nExt > 0)
+                    {
+                        bridgingNodes.Add(n.Title);
+                    }
+                }
+
+                internalEdges /= 2;
+
+                if (m > 0)
+                {
+                    double e_c_frac = (double)internalEdges / m;
+                    double d_c_frac = (double)degreeSum / twoM;
+                    modularityQ += e_c_frac - (d_c_frac * d_c_frac);
+                }
+
+                double density = cNodes.Count > 1
+                    ? (2.0 * internalEdges) / (cNodes.Count * (cNodes.Count - 1))
+                    : 1.0;
+
+                communityInfos.Add(new MindMapCommunityInfo(
+                    communityIdCounter++,
+                    cLabel,
+                    cNodes.Count,
+                    cNodes.Select(n => n.Title).ToList(),
+                    internalEdges,
+                    externalEdges,
+                    Math.Round(density, 2)));
+            }
+
+            modularityQ = Math.Round(Math.Clamp(modularityQ, -0.5, 1.0), 3);
+
+            string category;
+            if (m == 0)
+            {
+                category = "Isolated Nodes / Disconnected";
+            }
+            else if (modularityQ >= 0.4)
+            {
+                category = "High Modularity (Strong Thematic Clusters)";
+            }
+            else if (modularityQ >= 0.2)
+            {
+                category = "Moderate Modularity (Balanced Clusters)";
+            }
+            else if (modularityQ > 0.0)
+            {
+                category = "Low Modularity (Tightly Interconnected Core)";
+            }
+            else
+            {
+                category = "Monolithic Network / Uniform Dispersion";
+            }
+
+            string summary = FormatCommunitySummary(
+                targetList.Count, m, communityInfos.Count, modularityQ, bridgingNodes.Count,
+                category, isSelection);
+
+            StatusMessage = summary;
+
+            return new GraphModularityAudit(
+                targetList.Count,
+                m,
+                communityInfos.Count,
+                modularityQ,
+                bridgingNodes.Count,
+                communityInfos,
+                bridgingNodes.OrderBy(s => s).ToList(),
+                category,
+                isSelection,
+                summary);
+        }
+
+        /// <summary>
+        /// Audits mindmap graph modularity across pure model nodes and links.
+        /// </summary>
+        public static GraphModularityAudit AuditGraphModularityAndCommunities(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditGraphModularityAndCommunities();
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of graph modularity and community detection.
+        /// </summary>
+        public static string FormatCommunitySummary(
+            int nodeCount, int linkCount, int clusterCount, double modularityQ, int bridgingNodeCount,
+            string category, bool isSelection)
+        {
+            string scopeStr = isSelection ? "Selected Nodes · " : "";
+            if (nodeCount == 0) return $"Graph modularity ({scopeStr}0 nodes): Empty mindmap";
+
+            string nodeLabel = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+            string linkLabel = linkCount == 1 ? "1 link" : $"{linkCount} links";
+            string clusterLabel = clusterCount == 1 ? "1 community" : $"{clusterCount} communities";
+            string bridgeStr = bridgingNodeCount > 0 ? $" · {bridgingNodeCount} bridging nodes" : "";
+
+            return $"Graph modularity audit ({scopeStr}{nodeLabel}, {linkLabel} · {clusterLabel} · Q={modularityQ:0.###} · {category}): {clusterCount} clusters{bridgeStr}";
+        }
+
+        public static string FormatGraphModularitySummary(
+            int nodeCount, int linkCount, int clusterCount, double modularityQ, int bridgingNodeCount,
+            string category, bool isSelection)
+            => FormatCommunitySummary(nodeCount, linkCount, clusterCount, modularityQ, bridgingNodeCount, category, isSelection);
     }
+
 
     /// <summary>
     /// Represents an edge in a 2D minimum spanning tree wireframe.
@@ -5417,5 +5666,33 @@ namespace MarkSmith.ViewModels.MindMap
         string TopologyCategory,
         bool IsSelectionScope,
         string Summary);
+
+    /// <summary>
+    /// Represents detected community cluster metrics in a graph modularity audit.
+    /// </summary>
+    public sealed record MindMapCommunityInfo(
+        int CommunityId,
+        string Label,
+        int NodeCount,
+        IReadOnlyList<string> NodeTitles,
+        int InternalLinks,
+        int ExternalLinks,
+        double InternalDensity);
+
+    /// <summary>
+    /// Represents the result of a mindmap graph modularity (Newman-Girvan Q) and community cluster audit.
+    /// </summary>
+    public sealed record GraphModularityAudit(
+        int TotalNodes,
+        int TotalLinks,
+        int CommunityCount,
+        double ModularityQ,
+        int BridgingNodeCount,
+        IReadOnlyList<MindMapCommunityInfo> Communities,
+        IReadOnlyList<string> BridgingNodeTitles,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
 }
+
 

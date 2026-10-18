@@ -1523,6 +1523,62 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("Migration Guide", breakNotes.ReleaseNotesMarkdown);
         Assert.Contains("Release notes", breakNotes.Summary);
     }
+
+    [Fact]
+    public void Run162_AuditCommitChurnHotspots_DetectsHotspotsAndCalculatesVolatility()
+    {
+        // 1. Unchanged diff (0 additions, 0 deletions)
+        var unchangedAudit = LineDiff.AuditCommitChurnHotspots("constant text", "constant text");
+        Assert.Equal(0, unchangedAudit.AddedRows);
+        Assert.Equal(0, unchangedAudit.RemovedRows);
+        Assert.Empty(unchangedAudit.Hotspots);
+        Assert.Equal(0.0, unchangedAudit.VolatilityIndex);
+        Assert.Equal("Stable Baseline (Zero Churn)", unchangedAudit.VolatilityCategory);
+        Assert.Equal("Commit churn audit: 0 modifications · Document is unchanged", LineDiff.FormatCommitChurnHotspotsSummary(
+            unchangedAudit.TotalRows, unchangedAudit.AddedRows, unchangedAudit.RemovedRows,
+            unchangedAudit.Hotspots.Count, unchangedAudit.VolatilityIndex, unchangedAudit.ChurnEntropy,
+            unchangedAudit.VolatilityCategory, unchangedAudit.Hotspots));
+        Assert.Contains("100% stable", unchangedAudit.Summary);
+
+        // 2. Localized hotspot cluster
+        var beforeDoc = """
+            # Title
+            Unchanged line 1
+            Unchanged line 2
+            Unchanged line 3
+            Old paragraph A
+            Old paragraph B
+            Unchanged footer 1
+            Unchanged footer 2
+            """;
+        var afterDoc = """
+            # Title
+            Unchanged line 1
+            Unchanged line 2
+            Unchanged line 3
+            New replacement line 1
+            New replacement line 2
+            New replacement line 3
+            New replacement line 4
+            Unchanged footer 1
+            Unchanged footer 2
+            """;
+        var hotspotAudit = LineDiff.AuditCommitChurnHotspots(beforeDoc, afterDoc);
+        Assert.True(hotspotAudit.AddedRows >= 4);
+        Assert.True(hotspotAudit.RemovedRows >= 2);
+        Assert.NotEmpty(hotspotAudit.Hotspots);
+        Assert.True(hotspotAudit.VolatilityIndex > 0.0);
+        Assert.True(hotspotAudit.PeakDensity > 0.0);
+        Assert.Contains("hotspot", hotspotAudit.Summary.ToLowerInvariant());
+
+        // 3. Unified row overload directly
+        var diff = LineDiff.Diff(beforeDoc, afterDoc);
+        var unified = LineDiff.BuildUnified(diff);
+        var unifiedAudit = LineDiff.AuditCommitChurnHotspots(unified);
+        Assert.Equal(hotspotAudit.AddedRows, unifiedAudit.AddedRows);
+        Assert.Equal(hotspotAudit.RemovedRows, unifiedAudit.RemovedRows);
+        Assert.Equal(hotspotAudit.VolatilityIndex, unifiedAudit.VolatilityIndex);
+    }
 }
 
 

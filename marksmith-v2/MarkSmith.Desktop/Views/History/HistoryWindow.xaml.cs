@@ -3341,6 +3341,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {notes.Summary}");
                 };
                 menu.Items.Add(synthesizeReleaseNotes);
+
+                var auditCommitChurn = new MenuFlyoutItem
+                {
+                    Text = "Audit commit churn hotspots & volatility index",
+                    Icon = new FontIcon { Glyph = "\uE9D9" }
+                };
+                auditCommitChurn.Click += (_, _) =>
+                {
+                    var churn = MarkSmith.Services.LineDiff.AuditCommitChurnHotspots(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(churn.Summary);
+                    _vm.ShowNotice($"✓ {churn.Summary}");
+                };
+                menu.Items.Add(auditCommitChurn);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

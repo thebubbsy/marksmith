@@ -303,6 +303,9 @@
                                     <MenuFlyoutItem x:Name="AuditNetworkSpanningBackboneItem" Text="Audit network spanning backbone &amp; redundant chords" Click="OnAuditNetworkSpanningBackboneClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9E9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphCommunitiesItem" Text="Audit graph modularity &amp; community clusters" Click="OnAuditGraphCommunitiesClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

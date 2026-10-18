@@ -3419,6 +3419,214 @@ public static class LineDiff
         string breakNote = breakCount > 0 ? $" · ⚠ {breakCount} breaking" : "";
         return $"Release notes (v{nextVer} · {riskTier}): {featCount} feat, {fixCount} fix{breakNote} · +{addedLines}/-{removedLines} lines";
     }
+
+    /// <summary>
+    /// Audits diff rows to detect localized modification churn hotspots, calculate the change volatility index,
+    /// and compute Shannon change concentration entropy across document blocks.
+    /// </summary>
+    public static CommitChurnHotspotsAudit AuditCommitChurnHotspots(IEnumerable<UnifiedRow>? unifiedRows)
+    {
+        var rows = (unifiedRows ?? Enumerable.Empty<UnifiedRow>()).ToList();
+        if (rows.Count == 0)
+        {
+            return new CommitChurnHotspotsAudit(
+                0, 0, 0, 0, 0.0, 0.0, 0.0,
+                Array.Empty<ChurnHotspotInfo>(),
+                "Stable Baseline (Zero Churn)",
+                "Commit churn hotspots: 0 diff rows · No changes detected");
+        }
+
+        int added = 0;
+        int removed = 0;
+        int unchanged = 0;
+        var modifiedIndices = new List<int>();
+
+        string currentHeading = "Preamble / Document Header";
+        var sectionChanges = new Dictionary<string, (int Added, int Removed, int StartLine, int EndLine)>();
+
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var r = rows[i];
+            string text = (r.Text ?? "").Trim();
+
+            if (text.StartsWith('#'))
+            {
+                currentHeading = text.TrimStart('#').Trim();
+            }
+
+            if (r.Kind == Kind.Added)
+            {
+                added++;
+                modifiedIndices.Add(i);
+                if (!sectionChanges.TryGetValue(currentHeading, out var cur))
+                    sectionChanges[currentHeading] = (1, 0, i + 1, i + 1);
+                else
+                    sectionChanges[currentHeading] = (cur.Added + 1, cur.Removed, cur.StartLine, i + 1);
+            }
+            else if (r.Kind == Kind.Removed)
+            {
+                removed++;
+                modifiedIndices.Add(i);
+                if (!sectionChanges.TryGetValue(currentHeading, out var cur))
+                    sectionChanges[currentHeading] = (0, 1, i + 1, i + 1);
+                else
+                    sectionChanges[currentHeading] = (cur.Added, cur.Removed + 1, cur.StartLine, i + 1);
+            }
+            else
+            {
+                unchanged++;
+            }
+        }
+
+        int totalModified = added + removed;
+        if (totalModified == 0)
+        {
+            return new CommitChurnHotspotsAudit(
+                rows.Count, 0, 0, rows.Count, 0.0, 0.0, 0.0,
+                Array.Empty<ChurnHotspotInfo>(),
+                "Stable Baseline (Zero Churn)",
+                $"Commit churn hotspots ({rows.Count} rows): 100% stable · Zero modified lines");
+        }
+
+        var hotspots = new List<ChurnHotspotInfo>();
+        if (modifiedIndices.Count > 0)
+        {
+            int clusterStart = modifiedIndices[0];
+            int clusterEnd = modifiedIndices[0];
+            int clusterAdded = rows[clusterStart].Kind == Kind.Added ? 1 : 0;
+            int clusterRemoved = rows[clusterStart].Kind == Kind.Removed ? 1 : 0;
+
+            for (int k = 1; k < modifiedIndices.Count; k++)
+            {
+                int idx = modifiedIndices[k];
+                if (idx <= clusterEnd + 2)
+                {
+                    clusterEnd = idx;
+                    if (rows[idx].Kind == Kind.Added) clusterAdded++;
+                    else if (rows[idx].Kind == Kind.Removed) clusterRemoved++;
+                }
+                else
+                {
+                    string heading = "Section";
+                    for (int h = clusterStart; h >= 0; h--)
+                    {
+                        string t = (rows[h].Text ?? "").Trim();
+                        if (t.StartsWith('#')) { heading = t.TrimStart('#').Trim(); break; }
+                    }
+
+                    int clTotal = clusterAdded + clusterRemoved;
+                    double density = Math.Round((double)clTotal / Math.Max(1, clusterEnd - clusterStart + 1), 2);
+                    hotspots.Add(new ChurnHotspotInfo(
+                        clusterStart + 1, clusterEnd + 1, heading, clusterAdded, clusterRemoved, clTotal, density));
+
+                    clusterStart = idx;
+                    clusterEnd = idx;
+                    clusterAdded = rows[idx].Kind == Kind.Added ? 1 : 0;
+                    clusterRemoved = rows[idx].Kind == Kind.Removed ? 1 : 0;
+                }
+            }
+
+            string lastHeading = "Section";
+            for (int h = clusterStart; h >= 0; h--)
+            {
+                string t = (rows[h].Text ?? "").Trim();
+                if (t.StartsWith('#')) { lastHeading = t.TrimStart('#').Trim(); break; }
+            }
+            int lastTotal = clusterAdded + clusterRemoved;
+            double lastDensity = Math.Round((double)lastTotal / Math.Max(1, clusterEnd - clusterStart + 1), 2);
+            hotspots.Add(new ChurnHotspotInfo(
+                clusterStart + 1, clusterEnd + 1, lastHeading, clusterAdded, clusterRemoved, lastTotal, lastDensity));
+        }
+
+        int blockSize = Math.Max(5, rows.Count / 10);
+        int blockCount = (int)Math.Ceiling((double)rows.Count / blockSize);
+        var blockEdits = new int[blockCount];
+        foreach (int idx in modifiedIndices)
+        {
+            int b = Math.Min(idx / blockSize, blockCount - 1);
+            blockEdits[b]++;
+        }
+
+        double entropy = 0.0;
+        foreach (int count in blockEdits)
+        {
+            if (count > 0)
+            {
+                double p = (double)count / totalModified;
+                entropy -= p * Math.Log2(p);
+            }
+        }
+        double maxEntropy = blockCount > 1 ? Math.Log2(blockCount) : 1.0;
+        double normalizedEntropy = maxEntropy > 0 ? Math.Round(Math.Clamp(entropy / maxEntropy, 0.0, 1.0), 2) : 0.0;
+
+        double modRatio = (double)totalModified / rows.Count;
+        double peakDensity = hotspots.Count > 0 ? hotspots.Max(h => h.Density) : 0.0;
+        double volatilityIndex = Math.Round(Math.Clamp((modRatio * 50.0) + (peakDensity * 30.0) + (Math.Min(1.0, totalModified / 50.0) * 20.0), 0.0, 100.0), 1);
+
+        string category;
+        if (volatilityIndex >= 65.0 || (hotspots.Any(h => h.TotalChanged >= 15 && h.Density >= 0.8)))
+        {
+            category = "Extreme Hotspot Volatility (High Risk)";
+        }
+        else if (volatilityIndex >= 35.0 || hotspots.Count >= 3)
+        {
+            category = "Moderate Concentrated Churn";
+        }
+        else if (normalizedEntropy >= 0.7 && totalModified > 5)
+        {
+            category = "Diffused Low-Impact Refactor";
+        }
+        else
+        {
+            category = "Surgical Precision Change";
+        }
+
+        string summary = FormatCommitChurnHotspotsSummary(
+            rows.Count, added, removed, hotspots.Count, volatilityIndex, normalizedEntropy, category, hotspots);
+
+        return new CommitChurnHotspotsAudit(
+            rows.Count,
+            added,
+            removed,
+            unchanged,
+            volatilityIndex,
+            normalizedEntropy,
+            peakDensity,
+            hotspots.OrderByDescending(h => h.TotalChanged).ToList(),
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Static overload auditing commit churn hotspots from raw text diff.
+    /// </summary>
+    public static CommitChurnHotspotsAudit AuditCommitChurnHotspots(string? before, string? after)
+    {
+        var diff = Diff(before ?? "", after ?? "");
+        var unified = BuildUnified(diff);
+        return AuditCommitChurnHotspots(unified);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of commit churn hotspots and volatility metrics.
+    /// </summary>
+    public static string FormatCommitChurnHotspotsSummary(
+        int totalRows, int added, int removed, int clusterCount, double volatilityIndex,
+        double entropy, string category, IReadOnlyList<ChurnHotspotInfo> hotspots)
+    {
+        if (totalRows == 0 || (added == 0 && removed == 0))
+            return "Commit churn audit: 0 modifications · Document is unchanged";
+
+        string clusterLabel = clusterCount == 1 ? "1 hotspot cluster" : $"{clusterCount} hotspot clusters";
+        string topHotspotStr = "";
+        if (hotspots.Count > 0)
+        {
+            var top = hotspots.OrderByDescending(h => h.TotalChanged).First();
+            topHotspotStr = $" · Top hotspot: Lines {top.StartLine}-{top.EndLine} in '{top.SectionHeading}' ({top.TotalChanged} lines)";
+        }
+
+        return $"Commit churn audit (+{added}/-{removed} in {totalRows} rows · {category}): Volatility: {volatilityIndex:0.#}/100 (Entropy {entropy:0.##}) · {clusterLabel}{topHotspotStr}";
+    }
 }
 
 /// <summary>
@@ -3509,6 +3717,34 @@ public sealed record ReleaseNotesAndMigrationAudit(
     IReadOnlyList<string> MigrationSteps,
     string ReleaseNotesMarkdown,
     string Summary);
+
+/// <summary>
+/// Represents contiguous modification churn cluster metrics.
+/// </summary>
+public sealed record ChurnHotspotInfo(
+    int StartLine,
+    int EndLine,
+    string SectionHeading,
+    int AddedLines,
+    int RemovedLines,
+    int TotalChanged,
+    double Density);
+
+/// <summary>
+/// Represents the result of an audit of commit churn hotspots, modification entropy, and volatility index.
+/// </summary>
+public sealed record CommitChurnHotspotsAudit(
+    int TotalRows,
+    int AddedRows,
+    int RemovedRows,
+    int UnchangedRows,
+    double VolatilityIndex,
+    double ChurnEntropy,
+    double PeakDensity,
+    IReadOnlyList<ChurnHotspotInfo> Hotspots,
+    string VolatilityCategory,
+    string Summary);
+
 
 
 

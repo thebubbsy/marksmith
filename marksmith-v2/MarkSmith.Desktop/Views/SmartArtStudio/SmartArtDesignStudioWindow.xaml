@@ -323,6 +323,9 @@
                                         <MenuFlyoutItem x:Name="AuditVennCompletenessItem" Text="Audit Venn diagram set overlap completeness &amp; intersections" Click="OnAuditVennCompletenessClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditTimelineChronologyItem" Text="Audit timeline milestone chronology &amp; date format consistency" Click="OnAuditTimelineChronologyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

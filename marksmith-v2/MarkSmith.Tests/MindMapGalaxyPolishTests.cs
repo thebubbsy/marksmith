@@ -2283,6 +2283,64 @@ namespace MarkSmith.Tests
             Assert.Contains(meshAudit.Links, l => l.LinkId == "l1" && l.IsBackbone);
             Assert.Contains("redundant chord", meshAudit.Summary);
         }
+
+        [Fact]
+        public void Run162_AuditGraphModularityAndCommunities_DetectsClustersAndCalculatesQ()
+        {
+            // 1. Empty mindmap
+            var emptyAudit = MindMapStudioViewModel.AuditGraphModularityAndCommunities(
+                Array.Empty<MindMapNode>(), Array.Empty<MindMapLink>());
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalLinks);
+            Assert.Equal(0, emptyAudit.CommunityCount);
+            Assert.Equal(0.0, emptyAudit.ModularityQ);
+            Assert.Equal("Empty Mindmap", emptyAudit.Category);
+
+            // 2. Disconnected components / distinct clusters
+            // Cluster A: a1, a2, a3 in triangle
+            var a1 = new MindMapNode { Id = "a1", Title = "Cluster A1" };
+            var a2 = new MindMapNode { Id = "a2", Title = "Cluster A2" };
+            var a3 = new MindMapNode { Id = "a3", Title = "Cluster A3" };
+            var la1 = new MindMapLink { Id = "la1", SourceNodeId = "a1", TargetNodeId = "a2" };
+            var la2 = new MindMapLink { Id = "la2", SourceNodeId = "a2", TargetNodeId = "a3" };
+            var la3 = new MindMapLink { Id = "la3", SourceNodeId = "a3", TargetNodeId = "a1" };
+
+            // Cluster B: b1, b2, b3 in triangle
+            var b1 = new MindMapNode { Id = "b1", Title = "Cluster B1" };
+            var b2 = new MindMapNode { Id = "b2", Title = "Cluster B2" };
+            var b3 = new MindMapNode { Id = "b3", Title = "Cluster B3" };
+            var lb1 = new MindMapLink { Id = "lb1", SourceNodeId = "b1", TargetNodeId = "b2" };
+            var lb2 = new MindMapLink { Id = "lb2", SourceNodeId = "b2", TargetNodeId = "b3" };
+            var lb3 = new MindMapLink { Id = "lb3", SourceNodeId = "b3", TargetNodeId = "b1" };
+
+            var nodes = new[] { a1, a2, a3, b1, b2, b3 };
+            var links = new[] { la1, la2, la3, lb1, lb2, lb3 };
+
+            // Static model overload
+            var staticAudit = MindMapStudioViewModel.AuditGraphModularityAndCommunities(nodes, links);
+            Assert.Equal(6, staticAudit.TotalNodes);
+            Assert.Equal(6, staticAudit.TotalLinks);
+            Assert.Equal(2, staticAudit.CommunityCount);
+            Assert.True(staticAudit.ModularityQ > 0.0);
+            Assert.Equal(0, staticAudit.BridgingNodeCount);
+            Assert.Contains("Q=", staticAudit.Summary);
+
+            // VM instance overload
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+
+            var vmAudit = vm.AuditGraphModularityAndCommunities();
+            Assert.Equal(6, vmAudit.TotalNodes);
+            Assert.Equal(6, vmAudit.TotalLinks);
+            Assert.Equal(2, vmAudit.CommunityCount);
+            Assert.Equal(staticAudit.ModularityQ, vmAudit.ModularityQ);
+            Assert.Equal(staticAudit.Summary, MindMapStudioViewModel.FormatCommunitySummary(
+                vmAudit.TotalNodes, vmAudit.TotalLinks, vmAudit.CommunityCount, vmAudit.ModularityQ,
+                vmAudit.BridgingNodeCount, vmAudit.Category, vmAudit.IsSelectionScope));
+        }
     }
 }
 

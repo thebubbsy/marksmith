@@ -1492,6 +1492,52 @@ public class ShapeStudioPolishTests
         var conflictAudit = vm.AuditIsometricGridAlignment();
         Assert.True(conflictAudit.DepthStackingConflictCount > 0);
     }
+
+    [Fact]
+    public void Run162_AuditDiagramSymmetry_IdentifiesBilateralAndRotationalSymmetry()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Empty canvas (<2 shapes)
+        var emptyAudit = vm.AuditDiagramSymmetry();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal("Asymmetric / Freeform Composition", emptyAudit.Category);
+        Assert.Equal(0.0, emptyAudit.OverallSymmetryScore);
+
+        // 2. Vertical bilateral symmetry (C1v)
+        // Two shapes of same size mirrored across vertical axis
+        // Shape 1: X=100, Y=100, W=40, H=40 => Centroid (120, 120)
+        // Shape 2: X=240, Y=100, W=40, H=40 => Centroid (260, 120)
+        // Center of bounding box = (190, 120). Mirrored X around 190: 190 - (120 - 190) = 260. Perfect vertical symmetry!
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Text = "Left Wing", X = 100, Y = 100, Width = 40, Height = 40, Prst = "rect" };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Text = "Right Wing", X = 240, Y = 100, Width = 40, Height = 40, Prst = "rect" };
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+
+        var vertAudit = vm.AuditDiagramSymmetry();
+        Assert.Equal(2, vertAudit.TotalShapes);
+        Assert.Equal(2, vertAudit.VerticalMatches);
+        Assert.Equal(100.0, vertAudit.VerticalSymmetryPercent);
+        Assert.Equal("Dual-Axis Bilateral Symmetry (D2)", vertAudit.Category);
+        Assert.True(vertAudit.OverallSymmetryScore >= 50.0);
+        Assert.Equal(vertAudit.Summary, ShapeDesignStudioViewModel.FormatDiagramSymmetrySummary(
+            vertAudit.TotalShapes, vertAudit.VerticalMatches, vertAudit.HorizontalMatches,
+            vertAudit.RotationalMatches, vertAudit.VerticalSymmetryPercent, vertAudit.HorizontalSymmetryPercent,
+            vertAudit.RotationalSymmetryPercent, vertAudit.OverallSymmetryScore, vertAudit.Category, vertAudit.IsSelectionScope ? "Selected Shapes · " : ""));
+
+        // 3. Selection target list overload
+        var targetAudit = vm.AuditDiagramSymmetry(new[] { s1, s2 });
+        Assert.Equal(2, targetAudit.TotalShapes);
+        Assert.Equal(2, targetAudit.VerticalMatches);
+
+        // 4. Asymmetric addition
+        var sAsym = new ShapeCanvasItemViewModel { Id = "s3", Text = "Outlier", X = 500, Y = 800, Width = 80, Height = 20, Prst = "ellipse" };
+        vm.Shapes.Add(sAsym);
+        var asymAudit = vm.AuditDiagramSymmetry();
+        Assert.Equal(3, asymAudit.TotalShapes);
+        Assert.True(asymAudit.OverallSymmetryScore < vertAudit.OverallSymmetryScore);
+    }
 }
 
 

@@ -4303,6 +4303,248 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string missingNote = missingCount > 0 ? $" · ⚠ {missingCount} missing regions" : " · Complete";
         return $"Venn completeness audit ({setsLabel} · {category}): {definedRegions}/{expectedRegions} regions ({completeness:0.#}% complete){missingNote}";
     }
+
+    /// <summary>
+    /// Audits timeline and roadmap milestone outlines for chronological date monotonicity,
+    /// ascending sequence consistency, date format uniformity, and backwards date inversions.
+    /// </summary>
+    public TimelineChronologyAudit AuditTimelineMilestoneChronology()
+    {
+        var result = AuditTimelineMilestoneChronology(MarkdownText);
+        StatusMessage = result.Summary;
+        return result;
+    }
+
+    /// <summary>
+    /// Static overload auditing timeline milestone chronology from markdown outline text.
+    /// </summary>
+    public static TimelineChronologyAudit AuditTimelineMilestoneChronology(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            return new TimelineChronologyAudit(
+                0, 0, 0, 100.0, true, "None",
+                Array.Empty<TimelineMilestoneInfo>(),
+                Array.Empty<string>(),
+                "Empty Timeline Outline",
+                "Timeline chronology audit: 0 milestones · Outline is empty");
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var milestones = new List<TimelineMilestoneInfo>();
+        var formatCounts = new Dictionary<string, int>();
+
+        var isoDateRegex = new System.Text.RegularExpressions.Regex(@"\b(20\d\d|19\d\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b");
+        var yearMonthRegex = new System.Text.RegularExpressions.Regex(@"\b(20\d\d|19\d\d)-(0[1-9]|1[0-2])\b");
+        var quarterRegex = new System.Text.RegularExpressions.Regex(@"\bQ([1-4])[\s\-_/]+(20\d\d|19\d\d)\b|\b(20\d\d|19\d\d)[\s\-_/]+Q([1-4])\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var monthYearRegex = new System.Text.RegularExpressions.Regex(@"\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[\s,]+(20\d\d|19\d\d)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var yearRegex = new System.Text.RegularExpressions.Regex(@"\b(20\d\d|19\d\d)\b");
+        var phaseRegex = new System.Text.RegularExpressions.Regex(@"\b(Sprint|Phase|Milestone|Stage|Step|Wave)\s+(\d+)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        int index = 1;
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            bool isItem = line.StartsWith("- ") || line.StartsWith("* ") || line.StartsWith("+ ") ||
+                          System.Text.RegularExpressions.Regex.IsMatch(line, @"^\d+[\.\)]\s+") ||
+                          line.StartsWith("#");
+            if (!isItem) continue;
+
+            string clean = System.Text.RegularExpressions.Regex.Replace(line, @"^([#\-\*\+\d\.\)]+)\s*", "");
+            clean = clean.Trim();
+            if (clean.Length == 0) continue;
+
+            string rawDateStr = "";
+            DateTime? parsedDate = null;
+            string formatCategory = "Undated";
+
+            var isoM = isoDateRegex.Match(clean);
+            if (isoM.Success)
+            {
+                rawDateStr = isoM.Value;
+                if (DateTime.TryParse(rawDateStr, out var dt))
+                {
+                    parsedDate = dt;
+                    formatCategory = "ISO Date (YYYY-MM-DD)";
+                }
+            }
+            else
+            {
+                var qM = quarterRegex.Match(clean);
+                if (qM.Success)
+                {
+                    rawDateStr = qM.Value;
+                    int qNum = qM.Groups[1].Success ? int.Parse(qM.Groups[1].Value) : int.Parse(qM.Groups[4].Value);
+                    int year = qM.Groups[2].Success ? int.Parse(qM.Groups[2].Value) : int.Parse(qM.Groups[3].Value);
+                    int month = (qNum - 1) * 3 + 1;
+                    parsedDate = new DateTime(year, month, 1);
+                    formatCategory = "Quarter (Q# YYYY)";
+                }
+                else
+                {
+                    var myM = monthYearRegex.Match(clean);
+                    if (myM.Success)
+                    {
+                        rawDateStr = myM.Value;
+                        if (DateTime.TryParse(rawDateStr, out var dt))
+                        {
+                            parsedDate = dt;
+                            formatCategory = "Month-Year (Mon YYYY)";
+                        }
+                    }
+                    else
+                    {
+                        var ymM = yearMonthRegex.Match(clean);
+                        if (ymM.Success)
+                        {
+                            rawDateStr = ymM.Value;
+                            if (DateTime.TryParse(rawDateStr + "-01", out var dt))
+                            {
+                                parsedDate = dt;
+                                formatCategory = "Year-Month (YYYY-MM)";
+                            }
+                        }
+                        else
+                        {
+                            var yM = yearRegex.Match(clean);
+                            if (yM.Success)
+                            {
+                                rawDateStr = yM.Value;
+                                int year = int.Parse(yM.Value);
+                                parsedDate = new DateTime(year, 1, 1);
+                                formatCategory = "Year Only (YYYY)";
+                            }
+                            else
+                            {
+                                var pM = phaseRegex.Match(clean);
+                                if (pM.Success)
+                                {
+                                    rawDateStr = pM.Value;
+                                    int phaseNum = int.Parse(pM.Groups[2].Value);
+                                    parsedDate = new DateTime(2000, 1, 1).AddMonths(phaseNum);
+                                    formatCategory = $"{pM.Groups[1].Value} Numbering";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (formatCategory != "Undated")
+            {
+                formatCounts[formatCategory] = formatCounts.TryGetValue(formatCategory, out int fc) ? fc + 1 : 1;
+            }
+
+            milestones.Add(new TimelineMilestoneInfo(
+                index++,
+                line,
+                clean,
+                rawDateStr,
+                parsedDate.HasValue,
+                parsedDate,
+                formatCategory,
+                true));
+        }
+
+        if (milestones.Count == 0)
+        {
+            return new TimelineChronologyAudit(
+                0, 0, 0, 100.0, true, "None",
+                Array.Empty<TimelineMilestoneInfo>(),
+                Array.Empty<string>(),
+                "No Milestones Found",
+                "Timeline chronology audit: 0 milestones · Outline contains no milestones");
+        }
+
+        int datedCount = milestones.Count(m => m.HasDate);
+        int inversions = 0;
+        var inversionNotes = new List<string>();
+        var updatedMilestones = new List<TimelineMilestoneInfo>();
+
+        DateTime? prevDate = null;
+        string prevTitle = "";
+
+        for (int i = 0; i < milestones.Count; i++)
+        {
+            var m = milestones[i];
+            bool ordered = true;
+
+            if (m.HasDate && m.ParsedDate.HasValue)
+            {
+                if (prevDate.HasValue && m.ParsedDate.Value < prevDate.Value)
+                {
+                    ordered = false;
+                    inversions++;
+                    inversionNotes.Add($"Step #{m.Index} '{m.CleanTitle}' ({m.DateString}) occurs before Step '{prevTitle}' ({prevDate.Value:yyyy-MM-dd})");
+                }
+                prevDate = m.ParsedDate.Value;
+                prevTitle = m.CleanTitle;
+            }
+
+            updatedMilestones.Add(m with { IsChronologicallyOrdered = ordered });
+        }
+
+        bool isUniformFormat = formatCounts.Count <= 1;
+        string dominantFormat = formatCounts.Count > 0
+            ? formatCounts.OrderByDescending(kv => kv.Value).First().Key
+            : "Undated";
+
+        double monotonicityScore = datedCount >= 2
+            ? Math.Round(Math.Clamp((1.0 - ((double)inversions / (datedCount - 1))) * 100.0, 0.0, 100.0), 1)
+            : 100.0;
+
+        string category;
+        if (datedCount == 0)
+        {
+            category = "Undated Sequential Steps";
+        }
+        else if (inversions > 0)
+        {
+            category = $"Chronological Inversion Detected ({inversions} Out-of-Order Steps)";
+        }
+        else if (!isUniformFormat)
+        {
+            category = "Chronologically Ordered with Mixed Date Formats";
+        }
+        else
+        {
+            category = "Strict Chronological Progression (100% Monotonic)";
+        }
+
+        string summary = FormatTimelineChronologySummary(
+            milestones.Count, datedCount, inversions, monotonicityScore, isUniformFormat, dominantFormat, category, inversionNotes);
+
+        return new TimelineChronologyAudit(
+            milestones.Count,
+            datedCount,
+            inversions,
+            monotonicityScore,
+            isUniformFormat,
+            dominantFormat,
+            updatedMilestones,
+            inversionNotes,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of timeline milestone chronology and date format metrics.
+    /// </summary>
+    public static string FormatTimelineChronologySummary(
+        int totalMilestones, int datedCount, int inversions, double monotonicityScore,
+        bool isUniformFormat, string dominantFormat, string category, IReadOnlyList<string> inversionsList)
+    {
+        if (totalMilestones == 0) return "Timeline chronology audit: 0 milestones · Outline is empty";
+
+        string milestoneLabel = totalMilestones == 1 ? "1 milestone" : $"{totalMilestones} milestones";
+        string datedLabel = datedCount > 0 ? $"{datedCount}/{totalMilestones} dated" : "0 dated";
+        string formatStr = datedCount > 0 ? $" · {dominantFormat}" : "";
+        string inversionStr = inversions > 0 ? $" · ⚠ {inversions} backwards date jumps" : "";
+
+        return $"Timeline chronology audit ({milestoneLabel} [{datedLabel}] · {category}): {monotonicityScore:0.#}% chronological score{formatStr}{inversionStr}";
+    }
 }
 
 /// <summary>
@@ -4509,5 +4751,34 @@ public sealed record VennDiagramCompletenessAudit(
     IReadOnlyList<VennPartitionInfo> Partitions,
     string CompletenessCategory,
     string Summary);
+
+/// <summary>
+/// Represents parsed date metrics and sequencing for an individual timeline milestone.
+/// </summary>
+public sealed record TimelineMilestoneInfo(
+    int Index,
+    string RawText,
+    string CleanTitle,
+    string DateString,
+    bool HasDate,
+    DateTime? ParsedDate,
+    string DateFormat,
+    bool IsChronologicallyOrdered);
+
+/// <summary>
+/// Represents the result of an audit of timeline milestone chronological monotonicity and date formats.
+/// </summary>
+public sealed record TimelineChronologyAudit(
+    int TotalMilestones,
+    int DatedMilestones,
+    int ChronologicalInversions,
+    double MonotonicityScore,
+    bool IsUniformDateFormat,
+    string DominantDateFormat,
+    IReadOnlyList<TimelineMilestoneInfo> Milestones,
+    IReadOnlyList<string> Inversions,
+    string Category,
+    string Summary);
+
 
 

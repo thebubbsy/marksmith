@@ -1471,7 +1471,82 @@ public class TextSearchTests
         Assert.Equal("section-2", dupAudit.Headings[2].Slug);
         Assert.Contains("section", dupAudit.DuplicateSlugs);
     }
+
+    [Fact]
+    public void Run162_AuditReferenceLinkIntegrity_ValidatesDefinitionsAndReferences()
+    {
+        // 1. Empty document
+        var emptyAudit = TextSearch.AuditReferenceLinkIntegrity("");
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(0, emptyAudit.TotalReferences);
+        Assert.Equal("Empty Document", emptyAudit.Category);
+        Assert.Equal(100.0, emptyAudit.IntegrityScore);
+        Assert.Equal(emptyAudit.Summary, TextSearch.FormatReferenceLinkIntegritySummary(""));
+
+        // 2. Optimal linkage (Full, Collapsed, Shortcut)
+        var validDoc = string.Join("\n",
+            "See [Documentation][docs] and [API Guide][] for details.",
+            "Also refer to [Architecture] overview.",
+            "",
+            "[docs]: https://example.com/docs \"Docs\"",
+            "[api guide]: https://example.com/api",
+            "[architecture]: https://example.com/arch");
+
+        var validAudit = TextSearch.AuditReferenceLinkIntegrity(validDoc);
+        Assert.Equal(3, validAudit.TotalDefinitions);
+        Assert.Equal(3, validAudit.UniqueDefinitions);
+        Assert.Equal(3, validAudit.TotalReferences);
+        Assert.Equal(3, validAudit.ResolvedReferences);
+        Assert.Equal(0, validAudit.BrokenReferences);
+        Assert.Equal(0, validAudit.OrphanDefinitions);
+        Assert.Equal(0, validAudit.DuplicateDefinitions);
+        Assert.Equal("Optimal Reference Linkage (100%)", validAudit.Category);
+        Assert.Equal(100.0, validAudit.IntegrityScore);
+        Assert.Equal(validAudit.Summary, TextSearch.FormatReferenceLinkIntegritySummary(validDoc));
+
+        // 3. Broken reference link (unresolved target)
+        var brokenDoc = string.Join("\n",
+            "Link to [Ghost Target][non-existent-ref].",
+            "",
+            "[existing]: https://example.com/existing");
+
+        var brokenAudit = TextSearch.AuditReferenceLinkIntegrity(brokenDoc);
+        Assert.Equal(1, brokenAudit.TotalDefinitions);
+        Assert.Equal(1, brokenAudit.TotalReferences);
+        Assert.Equal(0, brokenAudit.ResolvedReferences);
+        Assert.Equal(1, brokenAudit.BrokenReferences);
+        Assert.Contains("non-existent-ref", brokenAudit.BrokenLabels);
+        Assert.Equal("Broken Links & Orphan Definitions", brokenAudit.Category);
+
+        // 4. Orphan reference definition
+        var orphanDoc = string.Join("\n",
+            "Plain text without any links.",
+            "",
+            "[unused-ref]: https://example.com/unused");
+
+        var orphanAudit = TextSearch.AuditReferenceLinkIntegrity(orphanDoc);
+        Assert.Equal(1, orphanAudit.TotalDefinitions);
+        Assert.Equal(0, orphanAudit.TotalReferences);
+        Assert.Equal(1, orphanAudit.OrphanDefinitions);
+        Assert.Contains("unused-ref", orphanAudit.OrphanLabels);
+        Assert.Equal("Orphan Reference Definitions Present", orphanAudit.Category);
+
+        // 5. Duplicate definition labels
+        var dupDoc = string.Join("\n",
+            "See [docs][dup].",
+            "",
+            "[dup]: https://example.com/first",
+            "[dup]: https://example.com/second");
+
+        var dupAudit = TextSearch.AuditReferenceLinkIntegrity(dupDoc);
+        Assert.Equal(2, dupAudit.TotalDefinitions);
+        Assert.Equal(1, dupAudit.UniqueDefinitions);
+        Assert.Equal(1, dupAudit.DuplicateDefinitions);
+        Assert.Contains("dup", dupAudit.DuplicateLabels);
+        Assert.Equal("Duplicate Reference Definitions", dupAudit.Category);
+    }
 }
+
 
 
 
