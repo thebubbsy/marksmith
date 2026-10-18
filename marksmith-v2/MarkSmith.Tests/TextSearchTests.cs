@@ -1210,7 +1210,81 @@ public class TextSearchTests
         Assert.Equal("Ragged Rows Detected", ragAudit.AlignmentCategory);
         Assert.Contains("2 ragged rows", ragAudit.Summary);
     }
+
+    [Fact]
+    public void AuditTaskListProgress_AccuratelyEvaluatesProgress_FenceImmunityAndSections()
+    {
+        // 1. Empty or whitespace
+        var emptyAudit = TextSearch.AuditTaskListProgress("");
+        Assert.Equal(0, emptyAudit.TotalTasks);
+        Assert.Equal("No Tasks", emptyAudit.VelocityCategory);
+        Assert.Contains("0 items", emptyAudit.Summary);
+
+        // 2. Comprehensive task document with code fences, HTML comments, and multiple sections
+        var doc = """
+            # Project Roadmap
+
+            Introductory text.
+
+            ## Milestone 1: Core Engine
+            - [x] Initial kernel architecture
+            - [x] Unit test setup
+            - [ ] Performance profiling
+
+            ```markdown
+            Code fence containing fake tasks:
+            - [ ] Fake task in code block
+            - [x] Another fake task
+            ```
+
+            <!--
+            HTML comment:
+            - [ ] Ignored task
+            -->
+
+            ## Milestone 2: Desktop UI
+            * [X] WinUI 3 Window shell
+            + [ ] Status bar integration
+            - [ ] MenuFlyout polish
+            """;
+
+        var audit = TextSearch.AuditTaskListProgress(doc);
+        Assert.Equal(6, audit.TotalTasks);
+        Assert.Equal(3, audit.CompletedTasks);
+        Assert.Equal(3, audit.PendingTasks);
+        Assert.Equal(50.0, audit.CompletionPercentage);
+        Assert.Equal("Active In-Progress", audit.VelocityCategory);
+        Assert.Equal(2, audit.SectionProgress.Count);
+
+        var m1 = audit.SectionProgress.First(s => s.Section == "Milestone 1: Core Engine");
+        Assert.Equal(3, m1.TotalTasks);
+        Assert.Equal(2, m1.CompletedTasks);
+        Assert.Equal(1, m1.PendingTasks);
+
+        var m2 = audit.SectionProgress.First(s => s.Section == "Milestone 2: Desktop UI");
+        Assert.Equal(3, m2.TotalTasks);
+        Assert.Equal(1, m2.CompletedTasks);
+        Assert.Equal(2, m2.PendingTasks);
+
+        Assert.NotEmpty(audit.PendingTasksSample);
+        Assert.Equal("Performance profiling", audit.PendingTasksSample[0].TaskText);
+        Assert.Contains("6 tasks · 3 completed (50%), 3 pending · Active In-Progress", audit.Summary);
+        Assert.Equal(audit.Summary, TextSearch.FormatTaskListProgressSummary(doc));
+
+        // 3. All completed
+        var completeDoc = """
+            - [x] Task 1
+            - [X] Task 2
+            """;
+        var compAudit = TextSearch.AuditTaskListProgress(completeDoc);
+        Assert.Equal(2, compAudit.TotalTasks);
+        Assert.Equal(2, compAudit.CompletedTasks);
+        Assert.Equal(0, compAudit.PendingTasks);
+        Assert.Equal(100.0, compAudit.CompletionPercentage);
+        Assert.Equal("All Tasks Completed (100%)", compAudit.VelocityCategory);
+    }
 }
+
 
 
 

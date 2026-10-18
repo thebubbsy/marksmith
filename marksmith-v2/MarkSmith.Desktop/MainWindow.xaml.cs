@@ -7855,6 +7855,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(tableAlignmentItem);
 
+        var taskListProgressItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown task list completion velocity & progress audit",
+            Icon = new FontIcon { Glyph = "\uE73A" }
+        };
+        taskListProgressItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatTaskListProgressSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(taskListProgressItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9201,6 +9215,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(tableAlignmentItem);
+
+        var taskListProgressItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown task list completion velocity & progress audit",
+            Icon = new FontIcon { Glyph = "\uE73A" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        taskListProgressItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatTaskListProgressSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(taskListProgressItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

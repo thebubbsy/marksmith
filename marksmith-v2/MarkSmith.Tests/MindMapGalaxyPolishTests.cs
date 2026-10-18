@@ -2060,6 +2060,68 @@ namespace MarkSmith.Tests
             Assert.Equal(2, staticAudit.ClusterCount);
             Assert.Equal(audit.GlobalCohesionScore, staticAudit.GlobalCohesionScore);
         }
+
+        [Fact]
+        public void Run158_AuditBipartitePartitioning_BipartiteAndOddCycle()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+
+            // 1. Empty map
+            var emptyAudit = vm.AuditBipartitePartitioning();
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.True(emptyAudit.IsBipartite);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Clean bipartite graph: Producer -> Consumer (A1 -> B1, A1 -> B2, A2 -> B2)
+            var a1 = new MindMapNode { Id = "a1", Title = "Producer 1" };
+            var a2 = new MindMapNode { Id = "a2", Title = "Producer 2" };
+            var b1 = new MindMapNode { Id = "b1", Title = "Consumer 1" };
+            var b2 = new MindMapNode { Id = "b2", Title = "Consumer 2" };
+
+            vm.Nodes.Add(new MindMapNodeViewModel(a1));
+            vm.Nodes.Add(new MindMapNodeViewModel(a2));
+            vm.Nodes.Add(new MindMapNodeViewModel(b1));
+            vm.Nodes.Add(new MindMapNodeViewModel(b2));
+
+            var l1 = new MindMapLink { Id = "l1", SourceNodeId = "a1", TargetNodeId = "b1" };
+            var l2 = new MindMapLink { Id = "l2", SourceNodeId = "a1", TargetNodeId = "b2" };
+            var l3 = new MindMapLink { Id = "l3", SourceNodeId = "a2", TargetNodeId = "b2" };
+
+            vm.Links.Add(new MindMapLinkViewModel(l1));
+            vm.Links.Add(new MindMapLinkViewModel(l2));
+            vm.Links.Add(new MindMapLinkViewModel(l3));
+
+            var bipAudit = vm.AuditBipartitePartitioning();
+            Assert.True(bipAudit.IsBipartite);
+            Assert.Equal(4, bipAudit.TotalNodes);
+            Assert.Equal(3, bipAudit.TotalLinks);
+            Assert.Equal(2, bipAudit.SetACount);
+            Assert.Equal(2, bipAudit.SetBCount);
+            Assert.Equal(1.0, bipAudit.PartitionBalance);
+            Assert.Equal("Balanced Bipartite Partition", bipAudit.Category);
+            Assert.Contains("Set A = 2, Set B = 2", bipAudit.Summary);
+
+            // Static overload test
+            var staticBip = MindMapStudioViewModel.AuditBipartitePartitioning(
+                new[] { a1, a2, b1, b2 }, new[] { l1, l2, l3 });
+            Assert.True(staticBip.IsBipartite);
+            Assert.Equal(bipAudit.PartitionBalance, staticBip.PartitionBalance);
+
+            // 3. Odd cycle (Triangle: a1 - b1 - c1 - a1)
+            var c1 = new MindMapNode { Id = "c1", Title = "Node C" };
+            vm.Nodes.Add(new MindMapNodeViewModel(c1));
+            var l4 = new MindMapLink { Id = "l4", SourceNodeId = "b1", TargetNodeId = "c1" };
+            var l5 = new MindMapLink { Id = "l5", SourceNodeId = "c1", TargetNodeId = "a1" };
+            vm.Links.Add(new MindMapLinkViewModel(l4));
+            vm.Links.Add(new MindMapLinkViewModel(l5));
+
+            var oddAudit = vm.AuditBipartitePartitioning();
+            Assert.False(oddAudit.IsBipartite);
+            Assert.Equal("Non-Bipartite (Odd Cycle)", oddAudit.Category);
+            Assert.Contains("Odd cycle", oddAudit.OddCycleDescription);
+        }
     }
 }
 

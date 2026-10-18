@@ -4000,6 +4000,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditBipartitePartitionClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditBipartitePartitioning();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4895,6 +4903,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditClusterCohesionItem.Click += OnAuditClusterCohesionClick;
             menu.Items.Add(auditClusterCohesionItem);
+
+            var auditBipartitePartitionItem = new MenuFlyoutItem
+            {
+                Text = "Audit bipartite 2-coloring & odd cycle partition",
+                Icon = new FontIcon { Glyph = "\uE72A" }
+            };
+            auditBipartitePartitionItem.Click += OnAuditBipartitePartitionClick;
+            menu.Items.Add(auditBipartitePartitionItem);
 
             var fitItem = new MenuFlyoutItem
 

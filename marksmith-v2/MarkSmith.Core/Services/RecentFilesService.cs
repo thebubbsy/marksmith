@@ -403,7 +403,10 @@ public sealed class RecentFilesService
         return $"Disk footprint ({docLabel}): Total {totalStr} · Min {minStr}, Max {maxStr}, Avg {avgStr}{unverifiedStr}";
     }
 
-    private static string FormatBytes(long bytes)
+    /// <summary>
+    /// Formats bytes into a human-readable size string (B, KB, MB, GB).
+    /// </summary>
+    public static string FormatBytes(long bytes)
     {
         if (bytes < 1024) return $"{bytes} B";
         if (bytes < 1024 * 1024) return $"{(bytes / 1024.0):0.#} KB";
@@ -2184,6 +2187,114 @@ public sealed class RecentFilesService
 
         return $"Document velocity ({docLabel} [{breakdown}] · {category}): {freshnessIndex:0.#}% freshness index (avg age {avgAge:0.#}d)";
     }
+
+    /// <summary>
+    /// Audits total storage footprint, file sizes, average document weight,
+    /// and detects heavy outlier files (>500KB) across recent documents.
+    /// </summary>
+    public static WorkspaceStorageFootprintAudit AuditWorkspaceStorageFootprint(
+        IEnumerable<string>? files,
+        Func<string, long?>? fileSizeProvider = null)
+    {
+        var list = files?.Where(f => !string.IsNullOrWhiteSpace(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                   ?? new List<string>();
+
+        if (list.Count == 0)
+        {
+            string emptySummary = "Workspace storage footprint: 0 files (Empty library)";
+            return new WorkspaceStorageFootprintAudit(
+                0, 0, 0, "0 B", 0.0, "0 B", 0, "None", 0,
+                Array.Empty<DocumentStorageInfo>(), "Empty Library", emptySummary);
+        }
+
+        long defaultSizeProvider(string p)
+        {
+            try
+            {
+                if (File.Exists(p)) return new FileInfo(p).Length;
+            }
+            catch { }
+            return -1L;
+        }
+
+        var docInfos = new List<DocumentStorageInfo>();
+        long totalBytes = 0;
+        int existingCount = 0;
+        int heavyCount = 0;
+        long largestBytes = 0;
+        string largestName = "None";
+
+        foreach (var p in list)
+        {
+            long? sizeNullable = fileSizeProvider != null ? fileSizeProvider(p) : defaultSizeProvider(p);
+            long bytes = sizeNullable.HasValue && sizeNullable.Value >= 0 ? sizeNullable.Value : -1L;
+
+            string fileName = Path.GetFileName(p);
+            if (string.IsNullOrWhiteSpace(fileName)) fileName = p;
+
+            if (bytes >= 0)
+            {
+                existingCount++;
+                totalBytes += bytes;
+                bool isHeavy = bytes > 512_000; // > 500 KB
+                if (isHeavy) heavyCount++;
+                if (bytes > largestBytes)
+                {
+                    largestBytes = bytes;
+                    largestName = fileName;
+                }
+                docInfos.Add(new DocumentStorageInfo(p, fileName, bytes, FormatBytes(bytes), isHeavy));
+            }
+            else
+            {
+                docInfos.Add(new DocumentStorageInfo(p, fileName, 0, "Missing / Unknown", false));
+            }
+        }
+
+        double avgBytes = existingCount > 0 ? (double)totalBytes / existingCount : 0.0;
+        string formattedTotal = FormatBytes(totalBytes);
+        string formattedAvg = FormatBytes((long)avgBytes);
+
+        string category;
+        if (existingCount == 0)
+        {
+            category = "No Accessible Files on Disk";
+        }
+        else if (heavyCount > 2 || totalBytes > 50_000_000)
+        {
+            category = "Heavy Footprint (Outliers Detected)";
+        }
+        else if (totalBytes > 5_000_000)
+        {
+            category = "Moderate Volume";
+        }
+        else
+        {
+            category = "Lightweight Workspace";
+        }
+
+        string summary = FormatWorkspaceStorageFootprintSummary(
+            list.Count, existingCount, totalBytes, formattedTotal, formattedAvg, heavyCount, largestName, largestBytes, category);
+
+        return new WorkspaceStorageFootprintAudit(
+            list.Count, existingCount, totalBytes, formattedTotal, avgBytes, formattedAvg,
+            heavyCount, largestName, largestBytes, docInfos, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of workspace storage footprint metrics.
+    /// </summary>
+    public static string FormatWorkspaceStorageFootprintSummary(
+        int totalFiles, int existingFiles, long totalBytes, string formattedTotal,
+        string formattedAvg, int heavyCount, string largestName, long largestBytes, string category)
+    {
+        if (totalFiles == 0) return "Workspace storage footprint: 0 files (Empty library)";
+        string docLabel = totalFiles == 1 ? "1 document" : $"{totalFiles} documents";
+        string heavyStr = heavyCount > 0 ? $" · ⚠ {heavyCount} heavy (>500KB)" : "";
+        string largestStr = largestBytes > 0 && largestName != "None" ? $" · Largest: '{largestName}' ({FormatBytes(largestBytes)})" : "";
+
+        return $"Workspace storage footprint ({docLabel} [{formattedTotal} total, avg {formattedAvg}] · {category}){heavyStr}{largestStr}";
+    }
 }
 
 /// <summary>
@@ -2319,4 +2430,32 @@ public sealed record DocumentStalenessAudit(
     IReadOnlyList<DocumentAgingInfo> DocumentAges,
     string VelocityCategory,
     string Summary);
+
+/// <summary>
+/// Represents file size and storage footprint metrics for an individual document.
+/// </summary>
+public sealed record DocumentStorageInfo(
+    string FilePath,
+    string FileName,
+    long FileSizeBytes,
+    string FormattedSize,
+    bool IsHeavyOutlier);
+
+/// <summary>
+/// Represents the result of an audit of workspace document storage footprint and disk volume distribution.
+/// </summary>
+public sealed record WorkspaceStorageFootprintAudit(
+    int TotalFiles,
+    int ExistingFiles,
+    long TotalBytes,
+    string FormattedTotalSize,
+    double AverageBytesPerFile,
+    string FormattedAverageSize,
+    int HeavyOutliersCount,
+    string LargestFileName,
+    long LargestFileSizeBytes,
+    IReadOnlyList<DocumentStorageInfo> DocumentSizes,
+    string FootprintCategory,
+    string Summary);
+
 

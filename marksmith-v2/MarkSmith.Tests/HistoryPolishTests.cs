@@ -1334,7 +1334,60 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("Architecture", churnAudit.Summary);
         Assert.Contains("churn ratio", churnAudit.Summary);
     }
+
+    [Fact]
+    public void Run158_SynthesizePullRequestDescription()
+    {
+        // 1. Zero diff changes
+        var emptyPR = LineDiff.SynthesizePullRequestDescription(Array.Empty<LineDiff.UnifiedRow>());
+        Assert.Equal(0, emptyPR.LinesAdded);
+        Assert.Equal(0, emptyPR.LinesRemoved);
+        Assert.Equal("Low (No Changes)", emptyPR.RiskTier);
+        Assert.Contains("0 changes", emptyPR.Summary);
+
+        // 2. Meaningful feature PR
+        var beforeDoc = """
+            # Engine Overview
+            Baseline engine v1.
+            """;
+        var afterDoc = """
+            # Engine Overview
+            High performance SIMD engine v2.
+            Accelerated OpenXML processing.
+            Zero allocation pipeline.
+            # Metrics
+            Benchmark throughput: 120MB/s.
+            """;
+        var pr = LineDiff.SynthesizePullRequestDescription(beforeDoc, afterDoc, "feat(engine): SIMD acceleration overhaul");
+        Assert.True(pr.LinesAdded >= 4);
+        Assert.Equal(1, pr.LinesRemoved);
+        Assert.Equal("Low (Targeted Refinement)", pr.RiskTier);
+        Assert.Contains("Engine Overview", pr.AffectedAreas);
+        Assert.Contains("feat(engine): SIMD acceleration overhaul", pr.PullRequestMarkdown);
+        Assert.Contains("Verification Checklist", pr.PullRequestMarkdown);
+        Assert.Contains("PR synthesis", pr.Summary);
+
+        // Medium risk (>50 delta lines)
+        var bigAfter = string.Join("\n", Enumerable.Range(0, 55).Select(i => $"Line {i} content."));
+        var medPr = LineDiff.SynthesizePullRequestDescription("", bigAfter);
+        Assert.Equal("Medium (Component / Feature Polish)", medPr.RiskTier);
+
+        // 3. High risk breaking change (removed heading or table)
+        var breakBefore = """
+            # Public API Contract
+            | Method | Return |
+            | --- | --- |
+            | Execute() | bool |
+            """;
+        var breakAfter = """
+            # Internal Pipeline
+            No more tables.
+            """;
+        var breakPr = LineDiff.SynthesizePullRequestDescription(breakBefore, breakAfter);
+        Assert.Equal("High (Structural / Breaking Changes)", breakPr.RiskTier);
+    }
 }
+
 
 
 

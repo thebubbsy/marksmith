@@ -311,6 +311,9 @@
                                         <MenuFlyoutItem x:Name="AuditCyclicFlowContinuityItem" Text="Audit cyclic flow continuity &amp; loop closure" Click="OnAuditCyclicFlowContinuityClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72C;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditMatrixQuadrantBalanceItem" Text="Audit 2x2 matrix quadrant balance &amp; distribution" Click="OnAuditMatrixQuadrantBalanceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

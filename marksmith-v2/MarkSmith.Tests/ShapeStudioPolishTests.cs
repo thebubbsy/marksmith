@@ -1344,7 +1344,44 @@ public class ShapeStudioPolishTests
         Assert.Contains("1 failing", failAudit.Summary);
         Assert.Equal("Yellow Label", failAudit.WorstShapeName);
     }
+
+    [Fact]
+    public void Run158_AuditGoldenRatioProgression()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditGoldenRatioProgression();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal("Empty Canvas", emptyAudit.ProgressionCategory);
+        Assert.Contains("Canvas is empty", emptyAudit.Summary);
+
+        // 2. Golden ratio shapes (width / height ≈ 1.618: e.g. 162x100 and 262x162)
+        var s1 = vm.AddShapeAt("rect", 50, 50, 162, 100, "FFFFFF", "Golden Card 1");
+        var s2 = vm.AddShapeAt("rect", 300, 50, 262, 162, "EEEEEE", "Golden Card 2");
+
+        var goldenAudit = vm.AuditGoldenRatioProgression();
+        Assert.Equal(2, goldenAudit.TotalShapes);
+        Assert.Equal(2, goldenAudit.GoldenAspectCount);
+        Assert.Equal("Harmonic Golden Progression", goldenAudit.ProgressionCategory);
+        Assert.Contains("2/2 golden aspect", goldenAudit.Summary);
+
+        // Model list overload test
+        var staticAudit = vm.AuditGoldenRatioProgression(new[] { s1, s2 });
+        Assert.Equal(2, staticAudit.TotalShapes);
+        Assert.Equal(goldenAudit.ProgressionAdherenceScore, staticAudit.ProgressionAdherenceScore);
+
+        // 3. Arbitrary non-golden shape (Square 100x100: ratio 1.0, delta 0.618)
+        vm.ClearAll();
+        vm.AddShapeAt("rect", 50, 50, 100, 100, "FFFFFF", "Square");
+        vm.AddShapeAt("rect", 200, 50, 500, 50, "FFFFFF", "Skinny Strip"); // ratio 10.0
+        var arbAudit = vm.AuditGoldenRatioProgression();
+        Assert.Equal(0, arbAudit.GoldenAspectCount);
+        Assert.Equal("Arbitrary Scale & Aspect", arbAudit.ProgressionCategory);
+    }
 }
+
 
 
 

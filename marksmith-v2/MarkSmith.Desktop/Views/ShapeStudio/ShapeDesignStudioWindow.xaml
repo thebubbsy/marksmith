@@ -682,6 +682,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditTextContrastItem" Text="Audit shape label text contrast &amp; WCAG compliance" Click="OnSelectionAuditTextContrastClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7E6;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditGoldenRatioItem" Text="Audit Golden Ratio (φ = 1.618) &amp; harmonic scale progression" Click="OnSelectionAuditGoldenRatioClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

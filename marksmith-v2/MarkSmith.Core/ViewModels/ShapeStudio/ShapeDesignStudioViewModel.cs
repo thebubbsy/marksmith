@@ -5048,6 +5048,106 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         return $"Text contrast audit ({shapeLabel} · {category}): min {minRatio:0.0}:1, avg {avgRatio:0.0}:1{failNote}{worstStr}";
     }
+
+    /// <summary>
+    /// Audits shapes for Golden Ratio (phi = 1.618) aspect ratio adherence and harmonic
+    /// geometric area scaling progression across ordered shapes.
+    /// </summary>
+    public GoldenRatioProgressionAudit AuditGoldenRatioProgression(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = targetShapes != null || selected.Count >= 2;
+        string scopeStr = isSelection ? "Selected Shapes · " : "";
+
+        if (targets.Count == 0)
+        {
+            string emptySummary = "Golden ratio audit: 0 shapes · Canvas is empty";
+            StatusMessage = emptySummary;
+            return new GoldenRatioProgressionAudit(
+                0, 0, 0.0, 0, 1.0, 0.0, Array.Empty<ShapeGoldenRatioInfo>(),
+                "Empty Canvas", isSelection, emptySummary);
+        }
+
+        const double phi = 1.6180339887;
+        var shapeInfos = new List<ShapeGoldenRatioInfo>();
+        int goldenAspectCount = 0;
+        double sumAspectDelta = 0.0;
+
+        foreach (var s in targets)
+        {
+            double w = Math.Max(1.0, s.Width);
+            double h = Math.Max(1.0, s.Height);
+            double ratio = Math.Max(w / h, h / w); // Normalized >= 1.0
+            double delta = Math.Abs(ratio - phi);
+            bool isGolden = delta <= 0.08;
+            if (isGolden) goldenAspectCount++;
+            sumAspectDelta += delta;
+
+            string name = !string.IsNullOrWhiteSpace(s.Text) ? s.Text.Replace("\n", " ").Trim() : s.DisplayName;
+            if (name.Length > 24) name = name[..21] + "...";
+
+            shapeInfos.Add(new ShapeGoldenRatioInfo(
+                s.Id, name, Math.Round(w, 1), Math.Round(h, 1),
+                Math.Round(ratio, 3), Math.Round(delta, 3), isGolden));
+        }
+
+        double avgAspectDelta = Math.Round(sumAspectDelta / targets.Count, 3);
+
+        // Progression scaling between shapes sorted by area
+        var sortedByArea = targets.Select(s => Math.Max(1.0, s.Width * s.Height)).OrderBy(a => a).ToList();
+        int stepCount = 0;
+        double sumProgressionRatio = 0.0;
+        double progressionDeltaSum = 0.0;
+
+        for (int i = 0; i < sortedByArea.Count - 1; i++)
+        {
+            double r = sortedByArea[i + 1] / sortedByArea[i];
+            sumProgressionRatio += r;
+            progressionDeltaSum += Math.Abs(r - phi);
+            stepCount++;
+        }
+
+        double avgProgressionRatio = stepCount > 0 ? Math.Round(sumProgressionRatio / stepCount, 2) : 1.0;
+        double avgProgressionDelta = stepCount > 0 ? progressionDeltaSum / stepCount : 0.0;
+        double adherenceScore = stepCount > 0
+            ? Math.Round(Math.Clamp(100.0 - (avgProgressionDelta / phi * 100.0), 0.0, 100.0), 1)
+            : (goldenAspectCount > 0 ? 100.0 : 50.0);
+
+        string category;
+        if (goldenAspectCount == targets.Count || adherenceScore >= 85.0)
+        {
+            category = "Harmonic Golden Progression";
+        }
+        else if (adherenceScore >= 60.0 || goldenAspectCount >= targets.Count / 2)
+        {
+            category = "Near-Golden Scaling";
+        }
+        else
+        {
+            category = "Arbitrary Scale & Aspect";
+        }
+
+        string summary = FormatGoldenRatioProgressionSummary(
+            targets.Count, goldenAspectCount, avgAspectDelta, avgProgressionRatio, adherenceScore, category, scopeStr);
+
+        StatusMessage = summary;
+        return new GoldenRatioProgressionAudit(
+            targets.Count, goldenAspectCount, avgAspectDelta, stepCount,
+            avgProgressionRatio, adherenceScore, shapeInfos, category, isSelection, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of golden ratio progression metrics.
+    /// </summary>
+    public static string FormatGoldenRatioProgressionSummary(
+        int totalShapes, int goldenAspectCount, double avgAspectDelta,
+        double avgProgressionRatio, double adherenceScore, string category, string scope = "")
+    {
+        if (totalShapes == 0) return "Golden ratio audit: 0 shapes · Canvas is empty";
+        string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        return $"Golden ratio audit ({scope}{shapeLabel} · {category}): {goldenAspectCount}/{totalShapes} golden aspect, avg step {avgProgressionRatio:0.00}x (score {adherenceScore:0.#}%)";
+    }
 }
 
 /// <summary>
@@ -5181,6 +5281,34 @@ public sealed record ShapeTextContrastAudit(
     string ComplianceCategory,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents aspect ratio metrics and golden ratio delta for an individual shape.
+/// </summary>
+public sealed record ShapeGoldenRatioInfo(
+    string ShapeId,
+    string DisplayName,
+    double Width,
+    double Height,
+    double AspectRatio,
+    double AspectDeltaFromPhi,
+    bool IsGoldenAspect);
+
+/// <summary>
+/// Represents the result of an audit of Golden Ratio (phi = 1.618) adherence and harmonic scaling progression.
+/// </summary>
+public sealed record GoldenRatioProgressionAudit(
+    int TotalShapes,
+    int GoldenAspectCount,
+    double AverageAspectDelta,
+    int ProgressionStepCount,
+    double AverageProgressionRatio,
+    double ProgressionAdherenceScore,
+    IReadOnlyList<ShapeGoldenRatioInfo> Shapes,
+    string ProgressionCategory,
+    bool IsSelectionScope,
+    string Summary);
+
 
 
 

@@ -4517,6 +4517,148 @@ namespace MarkSmith.ViewModels.MindMap
             }
             return vm.AuditClusterCohesionAndDensity();
         }
+
+        /// <summary>
+        /// Audits the mind map graph (or selected subgraph) for 2-colorability (bipartite property),
+        /// detecting odd-length cycles that prevent two-tier partitioning (e.g. left/right or producer/consumer).
+        /// </summary>
+        public BipartitePartitionAudit AuditBipartitePartitioning()
+        {
+            var selectedNodes = Nodes.Where(n => n.IsSelected).ToList();
+            bool isSelection = selectedNodes.Count > 1;
+            var targetNodes = isSelection ? selectedNodes : Nodes.ToList();
+
+            if (targetNodes.Count == 0)
+            {
+                string emptySummary = "Bipartite partition audit: 0 nodes · Map is empty";
+                StatusMessage = emptySummary;
+                return new BipartitePartitionAudit(0, 0, true, 0, 0, 1.0, "None", "Empty Graph", isSelection, emptySummary);
+            }
+
+            var nodeSet = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.Ordinal);
+            var relevantLinks = Links.Where(l => nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId)).ToList();
+
+            // Build undirected adjacency list
+            var adj = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (var n in targetNodes) adj[n.Id] = new List<string>();
+
+            foreach (var l in relevantLinks)
+            {
+                if (l.SourceNodeId == l.TargetNodeId)
+                {
+                    // Self-loop immediately makes graph non-bipartite
+                    string selfLoopSummary = $"Bipartite partition audit ({targetNodes.Count} nodes · Non-Bipartite): Self-loop detected on '{targetNodes.FirstOrDefault(n => n.Id == l.SourceNodeId)?.Title ?? l.SourceNodeId}'";
+                    StatusMessage = selfLoopSummary;
+                    return new BipartitePartitionAudit(
+                        targetNodes.Count, relevantLinks.Count, false, 0, 0, 0.0,
+                        $"Self-loop on {l.SourceNodeId}", "Non-Bipartite (Self-Loop)", isSelection, selfLoopSummary);
+                }
+                if (!adj[l.SourceNodeId].Contains(l.TargetNodeId)) adj[l.SourceNodeId].Add(l.TargetNodeId);
+                if (!adj[l.TargetNodeId].Contains(l.SourceNodeId)) adj[l.TargetNodeId].Add(l.SourceNodeId);
+            }
+
+            var colors = new Dictionary<string, int>(StringComparer.Ordinal);
+            var parents = new Dictionary<string, string?>(StringComparer.Ordinal);
+            bool isBipartite = true;
+            string oddCycleDescription = "None";
+
+            foreach (var startNode in targetNodes)
+            {
+                if (colors.ContainsKey(startNode.Id)) continue;
+
+                // BFS
+                var queue = new Queue<string>();
+                queue.Enqueue(startNode.Id);
+                colors[startNode.Id] = 1;
+                parents[startNode.Id] = null;
+
+                while (queue.Count > 0 && isBipartite)
+                {
+                    var cur = queue.Dequeue();
+                    int curColor = colors[cur];
+                    int nextColor = curColor == 1 ? 2 : 1;
+
+                    foreach (var neighbor in adj[cur])
+                    {
+                        if (!colors.TryGetValue(neighbor, out int nColor))
+                        {
+                            colors[neighbor] = nextColor;
+                            parents[neighbor] = cur;
+                            queue.Enqueue(neighbor);
+                        }
+                        else if (nColor == curColor)
+                        {
+                            // Odd cycle detected!
+                            isBipartite = false;
+                            string curTitle = targetNodes.FirstOrDefault(n => n.Id == cur)?.Title ?? cur;
+                            string neighborTitle = targetNodes.FirstOrDefault(n => n.Id == neighbor)?.Title ?? neighbor;
+                            oddCycleDescription = $"Odd cycle between '{curTitle}' and '{neighborTitle}'";
+                            break;
+                        }
+                    }
+                }
+                if (!isBipartite) break;
+            }
+
+            int setACount = colors.Values.Count(c => c == 1);
+            int setBCount = colors.Values.Count(c => c == 2);
+            double balance = isBipartite && targetNodes.Count > 0
+                ? Math.Round((double)Math.Min(setACount, setBCount) / Math.Max(1, Math.Max(setACount, setBCount)), 2)
+                : 0.0;
+
+            string category;
+            if (!isBipartite)
+            {
+                category = "Non-Bipartite (Odd Cycle)";
+            }
+            else if (relevantLinks.Count == 0)
+            {
+                category = "Trivially Bipartite (No Edges)";
+            }
+            else if (balance >= 0.70)
+            {
+                category = "Balanced Bipartite Partition";
+            }
+            else
+            {
+                category = "Asymmetric Bipartite Partition";
+            }
+
+            string scopeTag = isSelection ? "Selection · " : "";
+            string summary;
+            if (isBipartite)
+            {
+                summary = $"Bipartite partition audit ({scopeTag}{targetNodes.Count} nodes, {relevantLinks.Count} links · {category}): Set A = {setACount}, Set B = {setBCount} (Balance {balance:0.00})";
+            }
+            else
+            {
+                summary = $"Bipartite partition audit ({scopeTag}{targetNodes.Count} nodes, {relevantLinks.Count} links · {category}): {oddCycleDescription}";
+            }
+
+            StatusMessage = summary;
+            return new BipartitePartitionAudit(
+                targetNodes.Count, relevantLinks.Count, isBipartite, setACount, setBCount, balance,
+                oddCycleDescription, category, isSelection, summary);
+        }
+
+        /// <summary>
+        /// Audits bipartite partitioning across pure model nodes and links.
+        /// </summary>
+        public static BipartitePartitionAudit AuditBipartitePartitioning(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditBipartitePartitioning();
+        }
     }
 
     /// <summary>
@@ -4693,6 +4835,21 @@ namespace MarkSmith.ViewModels.MindMap
         double GlobalCohesionScore,
         IReadOnlyList<ClusterMetricInfo> Clusters,
         string CohesionCategory,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents the result of a graph bipartite 2-coloring and odd cycle partition audit.
+    /// </summary>
+    public sealed record BipartitePartitionAudit(
+        int TotalNodes,
+        int TotalLinks,
+        bool IsBipartite,
+        int SetACount,
+        int SetBCount,
+        double PartitionBalance,
+        string OddCycleDescription,
+        string Category,
         bool IsSelectionScope,
         string Summary);
 }

@@ -2413,7 +2413,97 @@ public class SuiteHubAndTourPolishTests
             audit.TotalFiles, audit.ActiveFiles, audit.WarmFiles, audit.ColdFiles, audit.ArchivedFiles,
             audit.FreshnessIndex, audit.AverageAgeDays, audit.VelocityCategory));
     }
+
+    [Fact]
+    public void Run158_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // 1. MainWindow: task list progress audit wired to breadcrumb and find count
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy markdown task list completion velocity & progress audit", mainCs);
+        Assert.Contains("FormatTaskListProgressSummary", mainCs);
+
+        // 2. MindMapGalaxyWindow: bipartite partition audit in XAML and code-behind
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditBipartitePartitionItem", galaxyXaml);
+        Assert.Contains("OnAuditBipartitePartitionClick", galaxyXaml);
+        Assert.Contains("OnAuditBipartitePartitionClick", galaxyCs);
+        Assert.Contains("AuditBipartitePartitioning", galaxyCs);
+
+        // 3. ShapeDesignStudioWindow: golden ratio progression audit in XAML and code-behind
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditGoldenRatioItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditGoldenRatioClick", shapeXaml);
+        Assert.Contains("OnSelectionAuditGoldenRatioClick", shapeCs);
+        Assert.Contains("AuditGoldenRatioProgression", shapeCs);
+
+        // 4. SmartArtDesignStudioWindow: matrix quadrant balance audit in XAML and code-behind
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditMatrixQuadrantBalanceItem", smartArtXaml);
+        Assert.Contains("OnAuditMatrixQuadrantBalanceClick", smartArtXaml);
+        Assert.Contains("OnAuditMatrixQuadrantBalanceClick", smartArtCs);
+        Assert.Contains("AuditMatrixQuadrantBalance", smartArtCs);
+
+        // 5. HistoryWindow: pull request description synthesizer in code-behind
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("synthesizePullRequest", historyCs);
+        Assert.Contains("SynthesizePullRequestDescription", historyCs);
+
+        // 6. SuiteHubView: workspace storage footprint in XAML and code-behind
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceStorageFootprintItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceStorageFootprintClick", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceStorageFootprintClick", suiteCs);
+        Assert.Contains("AuditWorkspaceStorageFootprint", suiteCs);
+    }
+
+    [Fact]
+    public void Run158_AuditWorkspaceStorageFootprint()
+    {
+        // 1. Empty library
+        var emptyAudit = RecentFilesService.AuditWorkspaceStorageFootprint(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFiles);
+        Assert.Equal("Empty Library", emptyAudit.FootprintCategory);
+        Assert.Contains("0 files", emptyAudit.Summary);
+
+        // 2. FormatBytes helper
+        Assert.Equal("500 B", RecentFilesService.FormatBytes(500));
+        Assert.Equal("2 KB", RecentFilesService.FormatBytes(2048));
+        Assert.Equal("2.4 MB", RecentFilesService.FormatBytes(2_500_000));
+
+        // 3. Document library with sizes and a heavy outlier (>500KB)
+        var files = new[]
+        {
+            @"C:\Projects\doc1.md",
+            @"C:\Projects\doc2.docx",
+            @"C:\Projects\doc3.pdf"
+        };
+        var sizes = new Dictionary<string, long?>(StringComparer.OrdinalIgnoreCase)
+        {
+            { @"C:\Projects\doc1.md", 120_000L },
+            { @"C:\Projects\doc2.docx", 650_000L }, // >500 KB heavy outlier
+            { @"C:\Projects\doc3.pdf", 24_000L }
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceStorageFootprint(files, p => sizes.TryGetValue(p, out var sz) ? sz : null);
+        Assert.Equal(3, audit.TotalFiles);
+        Assert.Equal(3, audit.ExistingFiles);
+        Assert.Equal(794_000L, audit.TotalBytes);
+        Assert.Equal(1, audit.HeavyOutliersCount);
+        Assert.Equal("doc2.docx", audit.LargestFileName);
+        Assert.Equal(650_000L, audit.LargestFileSizeBytes);
+        Assert.Equal("Lightweight Workspace", audit.FootprintCategory);
+        Assert.Contains("doc2.docx", audit.Summary);
+        Assert.Contains("1 heavy (>500KB)", audit.Summary);
+        Assert.Equal(audit.Summary, RecentFilesService.FormatWorkspaceStorageFootprintSummary(
+            audit.TotalFiles, audit.ExistingFiles, audit.TotalBytes, audit.FormattedTotalSize,
+            audit.FormattedAverageSize, audit.HeavyOutliersCount, audit.LargestFileName, audit.LargestFileSizeBytes, audit.FootprintCategory));
+    }
 }
+
 
 
 

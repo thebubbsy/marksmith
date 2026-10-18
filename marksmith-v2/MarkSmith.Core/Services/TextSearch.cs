@@ -2860,6 +2860,156 @@ public static class TextSearch
 
         return $"Markdown tables ({tableLabel} [{rowLabel}, {colLabel}] · {category}){raggedNote}";
     }
+
+    /// <summary>
+    /// Audits markdown task lists, checkboxes (- [ ], - [x], etc.), completion velocity,
+    /// and section-level progress across the document.
+    /// </summary>
+    public static TaskListProgressAudit AuditTaskListProgress(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new TaskListProgressAudit(
+                0, 0, 0, 0.0, Array.Empty<TaskListSectionProgress>(), Array.Empty<TaskListItem>(),
+                "No Tasks", "Markdown tasks: 0 items · Document contains no checklist items");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        bool inCodeFence = false;
+        bool inHtmlComment = false;
+        string currentSection = "General";
+
+        var allTasks = new List<TaskListItem>();
+        var taskRegex = new Regex(@"^\s*(?:[-*+]|\d+\.)\s+\[([ xX])\]\s*(.*)$", RegexOptions.Compiled);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            if (trimmed.StartsWith("<!--") && !trimmed.EndsWith("-->"))
+            {
+                inHtmlComment = true;
+                continue;
+            }
+            if (inHtmlComment)
+            {
+                if (trimmed.Contains("-->")) inHtmlComment = false;
+                continue;
+            }
+            if (trimmed.StartsWith("<!--") && trimmed.EndsWith("-->")) continue;
+
+            if (trimmed.StartsWith("#"))
+            {
+                int hIndex = 0;
+                while (hIndex < trimmed.Length && trimmed[hIndex] == '#') hIndex++;
+                currentSection = trimmed[hIndex..].Trim();
+                if (string.IsNullOrWhiteSpace(currentSection)) currentSection = "General";
+                continue;
+            }
+
+            var match = taskRegex.Match(line);
+            if (match.Success)
+            {
+                char check = match.Groups[1].Value[0];
+                bool isCompleted = check == 'x' || check == 'X';
+                string text = match.Groups[2].Value.Trim();
+                allTasks.Add(new TaskListItem(i + 1, currentSection, text, isCompleted));
+            }
+        }
+
+        if (allTasks.Count == 0)
+        {
+            return new TaskListProgressAudit(
+                0, 0, 0, 0.0, Array.Empty<TaskListSectionProgress>(), Array.Empty<TaskListItem>(),
+                "No Tasks", "Markdown tasks: 0 items · Document contains no checklist items");
+        }
+
+        int totalTasks = allTasks.Count;
+        int completedTasks = allTasks.Count(t => t.IsCompleted);
+        int pendingTasks = totalTasks - completedTasks;
+        double completionPercentage = Math.Round((double)completedTasks / totalTasks * 100.0, 1);
+
+        var sectionGroups = allTasks.GroupBy(t => t.Section, StringComparer.OrdinalIgnoreCase);
+        var sectionProgressList = new List<TaskListSectionProgress>();
+        foreach (var group in sectionGroups)
+        {
+            int sTotal = group.Count();
+            int sCompleted = group.Count(t => t.IsCompleted);
+            int sPending = sTotal - sCompleted;
+            double sPct = Math.Round((double)sCompleted / sTotal * 100.0, 1);
+            sectionProgressList.Add(new TaskListSectionProgress(group.Key, sTotal, sCompleted, sPending, sPct));
+        }
+
+        var pendingSample = allTasks.Where(t => !t.IsCompleted).Take(3).ToList();
+
+        string category;
+        if (completedTasks == totalTasks)
+        {
+            category = "All Tasks Completed (100%)";
+        }
+        else if (completionPercentage >= 75.0)
+        {
+            category = "High Velocity (Near Complete)";
+        }
+        else if (completionPercentage >= 40.0)
+        {
+            category = "Active In-Progress";
+        }
+        else if (completionPercentage > 0.0)
+        {
+            category = "Early Execution Phase";
+        }
+        else
+        {
+            category = "All Pending (Not Started)";
+        }
+
+        string summary = FormatTaskListProgressSummary(
+            totalTasks, completedTasks, pendingTasks, completionPercentage, category, sectionProgressList, pendingSample);
+
+        return new TaskListProgressAudit(
+            totalTasks, completedTasks, pendingTasks, completionPercentage,
+            sectionProgressList, pendingSample, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown task list progress.
+    /// </summary>
+    public static string FormatTaskListProgressSummary(string? markdownText)
+        => AuditTaskListProgress(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of task list progress metrics.
+    /// </summary>
+    public static string FormatTaskListProgressSummary(
+        int totalTasks, int completedTasks, int pendingTasks, double completionPercentage,
+        string category, IReadOnlyList<TaskListSectionProgress>? sectionProgress = null,
+        IReadOnlyList<TaskListItem>? samplePending = null)
+    {
+        if (totalTasks == 0)
+            return "Markdown tasks: 0 items · Document contains no checklist items";
+
+        string itemLabel = totalTasks == 1 ? "1 task" : $"{totalTasks} tasks";
+        string completedLabel = completedTasks == 1 ? "1 completed" : $"{completedTasks} completed";
+
+        string nextUp = "";
+        if (samplePending != null && samplePending.Count > 0)
+        {
+            var first = samplePending[0];
+            string shortTask = first.TaskText.Length > 40 ? first.TaskText[..37] + "..." : first.TaskText;
+            nextUp = $" · Next: [L{first.LineNumber}] {shortTask}";
+        }
+
+        return $"Markdown tasks ({itemLabel} · {completedLabel} ({completionPercentage:0.#}%), {pendingTasks} pending · {category}){nextUp}";
+    }
 }
 
 /// <summary>
@@ -2968,5 +3118,38 @@ public sealed record TableColumnAlignmentAudit(
     IReadOnlyList<MarkdownTableInfo> Tables,
     string AlignmentCategory,
     string Summary);
+
+/// <summary>
+/// Represents an individual parsed markdown task list checkbox item.
+/// </summary>
+public sealed record TaskListItem(
+    int LineNumber,
+    string Section,
+    string TaskText,
+    bool IsCompleted);
+
+/// <summary>
+/// Represents task completion progress metrics for an individual markdown section heading.
+/// </summary>
+public sealed record TaskListSectionProgress(
+    string Section,
+    int TotalTasks,
+    int CompletedTasks,
+    int PendingTasks,
+    double CompletionPercentage);
+
+/// <summary>
+/// Represents the result of a comprehensive markdown task list and checkbox progress audit.
+/// </summary>
+public sealed record TaskListProgressAudit(
+    int TotalTasks,
+    int CompletedTasks,
+    int PendingTasks,
+    double CompletionPercentage,
+    IReadOnlyList<TaskListSectionProgress> SectionProgress,
+    IReadOnlyList<TaskListItem> PendingTasksSample,
+    string VelocityCategory,
+    string Summary);
+
 
 

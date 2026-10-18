@@ -3289,6 +3289,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditDiffChurnAcceleration);
+
+                var synthesizePullRequest = new MenuFlyoutItem
+                {
+                    Text = "Synthesize GitHub PR description & risk assessment",
+                    Icon = new FontIcon { Glyph = "\uE8D2" }
+                };
+                synthesizePullRequest.Click += (_, _) =>
+                {
+                    var pr = MarkSmith.Services.LineDiff.SynthesizePullRequestDescription(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(pr.PullRequestMarkdown);
+                    _vm.ShowNotice($"✓ {pr.Summary}");
+                };
+                menu.Items.Add(synthesizePullRequest);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

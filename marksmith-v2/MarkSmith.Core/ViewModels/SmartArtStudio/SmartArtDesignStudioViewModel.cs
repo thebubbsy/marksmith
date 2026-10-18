@@ -3688,6 +3688,142 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Cyclic flow audit ({stepLabel}{closureNote}{branchNote} · {category}): Score {score:0.00} · Recommended '{recommendedLayout}'";
     }
+
+    /// <summary>
+    /// Audits the outline for 2x2 matrix quadrant balance (SWOT, Eisenhower, BCG, Risk matrix),
+    /// evaluating item distribution uniformity and character weight symmetry across 4 quadrants.
+    /// </summary>
+    public MatrixQuadrantBalanceAudit AuditMatrixQuadrantBalance()
+    {
+        return AuditMatrixQuadrantBalance(MarkdownText);
+    }
+
+    /// <summary>
+    /// Audits markdown outline text for 2x2 matrix quadrant balance and distribution uniformity.
+    /// </summary>
+    public static MatrixQuadrantBalanceAudit AuditMatrixQuadrantBalance(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = "Matrix quadrant audit: 0 quadrants (Empty outline)";
+            return new MatrixQuadrantBalanceAudit(
+                0, 0, 0.0, 0.0, 0.0, Array.Empty<MatrixQuadrantInfo>(), "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Replace("\r", "").Split('\n');
+        var quadrants = new List<(string Title, int Items, int Chars)>();
+        string currentQuadTitle = "";
+        int currentQuadItems = 0;
+        int currentQuadChars = 0;
+        bool inFence = false;
+
+        void CommitCurrentQuadrant()
+        {
+            if (!string.IsNullOrEmpty(currentQuadTitle))
+            {
+                quadrants.Add((currentQuadTitle, Math.Max(1, currentQuadItems), currentQuadChars));
+            }
+        }
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence || string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            int leadWs = 0;
+            while (leadWs < rawLine.Length && char.IsWhiteSpace(rawLine[leadWs])) leadWs++;
+
+            bool isBullet = trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ") ||
+                            char.IsDigit(trimmed[0]) && trimmed.Length > 2 && trimmed[1] == '.' && trimmed[2] == ' ';
+
+            if (!isBullet) continue;
+
+            string content = trimmed.Length > 2 ? trimmed[2..].Trim() : trimmed;
+            int depth = 1 + (leadWs >= 2 ? (leadWs / 2) : 0);
+
+            if (depth == 1)
+            {
+                CommitCurrentQuadrant();
+                currentQuadTitle = content;
+                currentQuadItems = 0;
+                currentQuadChars = content.Length;
+            }
+            else
+            {
+                currentQuadItems++;
+                currentQuadChars += content.Length;
+            }
+        }
+        CommitCurrentQuadrant();
+
+        if (quadrants.Count == 0)
+        {
+            string noQuadSummary = "Matrix quadrant audit: 0 quadrants (No top-level bullets)";
+            return new MatrixQuadrantBalanceAudit(
+                0, 0, 0.0, 0.0, 0.0, Array.Empty<MatrixQuadrantInfo>(), "No Quadrants", noQuadSummary);
+        }
+
+        var quadInfos = new List<MatrixQuadrantInfo>();
+        for (int i = 0; i < quadrants.Count; i++)
+        {
+            var q = quadrants[i];
+            quadInfos.Add(new MatrixQuadrantInfo(i + 1, q.Title, q.Items, q.Chars));
+        }
+
+        int totalQuadrants = quadInfos.Count;
+        int totalItems = quadInfos.Sum(q => q.ItemCount);
+        double meanItems = (double)totalItems / totalQuadrants;
+
+        double sumSquares = quadInfos.Sum(q => Math.Pow(q.ItemCount - meanItems, 2));
+        double stdDev = Math.Sqrt(sumSquares / totalQuadrants);
+        double cv = meanItems > 0 ? stdDev / meanItems : 0.0;
+        double balanceScore = Math.Round(Math.Clamp((1.0 - cv) * 100.0, 0.0, 100.0), 1);
+
+        string category;
+        if (totalQuadrants == 4 && cv <= 0.15)
+        {
+            category = "Perfect 2x2 Quad Symmetry";
+        }
+        else if (totalQuadrants == 4 && cv <= 0.40)
+        {
+            category = "Balanced 2x2 Matrix";
+        }
+        else if (totalQuadrants == 4)
+        {
+            category = "Asymmetric 2x2 Matrix";
+        }
+        else if (totalQuadrants < 4)
+        {
+            category = $"Incomplete Matrix ({totalQuadrants}/4 Quadrants)";
+        }
+        else
+        {
+            category = $"Overcrowded Matrix ({totalQuadrants} Quadrants)";
+        }
+
+        string summary = FormatMatrixQuadrantSummary(
+            totalQuadrants, totalItems, meanItems, cv, balanceScore, category);
+
+        return new MatrixQuadrantBalanceAudit(
+            totalQuadrants, totalItems, Math.Round(meanItems, 1), Math.Round(cv, 2),
+            balanceScore, quadInfos, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of 2x2 matrix quadrant balance metrics.
+    /// </summary>
+    public static string FormatMatrixQuadrantSummary(
+        int totalQuadrants, int totalItems, double meanItems, double cv, double balanceScore, string category)
+    {
+        if (totalQuadrants == 0) return "Matrix quadrant audit: 0 quadrants (Empty outline)";
+        string quadLabel = totalQuadrants == 4 ? "4 quadrants (2x2)" : $"{totalQuadrants} quadrants";
+        return $"Matrix quadrant audit ({quadLabel}, {totalItems} items · {category}): Avg {meanItems:0.#} items/quad, balance score {balanceScore:0.#}%";
+    }
 }
 
 /// <summary>
@@ -3816,4 +3952,27 @@ public sealed record CyclicFlowContinuityAudit(
     string FlowContinuityCategory,
     string RecommendedLayoutCategory,
     string Summary);
+
+/// <summary>
+/// Represents item count and character metrics for an individual matrix quadrant.
+/// </summary>
+public sealed record MatrixQuadrantInfo(
+    int QuadrantIndex,
+    string QuadrantTitle,
+    int ItemCount,
+    int TotalCharCount);
+
+/// <summary>
+/// Represents the result of an audit of 2x2 matrix quadrant balance, uniformity, and distribution symmetry.
+/// </summary>
+public sealed record MatrixQuadrantBalanceAudit(
+    int TotalQuadrants,
+    int TotalItems,
+    double AverageItemsPerQuadrant,
+    double ItemsCoefficientOfVariation,
+    double BalanceScore,
+    IReadOnlyList<MatrixQuadrantInfo> Quadrants,
+    string BalanceCategory,
+    string Summary);
+
 

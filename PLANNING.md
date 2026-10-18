@@ -11366,8 +11366,46 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
   - `MarkSmith.Desktop.csproj` built with 0 errors.
   - `MarkSmith.Tests.csproj` verified: 663/663 tests passing (100% pass rate).
 
+---
 
+## Scheduled WinUI 3 Desktop Polish Routine — Run #158 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-18
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Task List Progress & Completion Velocity Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditTaskListProgress(markdownText)`, `FormatTaskListProgressSummary(...)`, `TaskListItem`, `TaskListSectionProgress`, and `TaskListProgressAudit`. Audits markdown task checkboxes (`- [ ]`, `- [x]`, `* [x]`, `+ [ ]`), code-fence immunity, section-level progress, and completion velocity categories (`Sprint Finished`, `Near Target`, `In Flight`, `Initiated`, `Pending Start`, `No Tracked Tasks`); wired to `taskListProgressItem` (`\uE73A`) in both `StatusSectionBreadcrumbButton_RightTapped` and `FindCountText_RightTapped` context flyouts with clipboard copy and status announcement.
+    2. **MindMapGalaxyWindow Bipartite 2-Coloring & Cycle Parity Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditBipartitePartitioning()`, static model overload, and `BipartitePartitionAudit`. Implements BFS 2-coloring to verify bipartite partitioning into Set A and Set B, detects odd-length cycle parity violations, and measures partition balance; wired to `AuditBipartitePartitionItem` (`\uE72A`) in `ArrangeDropDownButton.Flyout` and right-tapped context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Golden Ratio Harmonic Scaling Progression Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditGoldenRatioProgression(targetShapes)`, `FormatGoldenRatioProgressionSummary(...)`, `ShapeGoldenRatioInfo`, and `GoldenRatioProgressionAudit`. Evaluates shape aspect ratios against the Golden Ratio ($\phi \approx 1.618$) and measures harmonic geometric scaling progression across area-sorted shapes; wired to `SelectionAuditGoldenRatioItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow 4-Quadrant 2x2 Matrix Outline Balance Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditMatrixQuadrantBalance(markdown)`, `FormatMatrixQuadrantSummary(...)`, `MatrixQuadrantInfo`, and `MatrixQuadrantBalanceAudit`. Parses 4-quadrant 2x2 matrix outlines (SWOT, Eisenhower, BCG), measures item and character distribution variance, and computes quadrant symmetry score (0–100%); wired to `AuditMatrixQuadrantBalanceItem` (`\uE74C`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Pull Request Description & Risk Tier Synthesizer (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.SynthesizePullRequestDescription(...)`, text overloads, and record `PullRequestDescriptionAudit`. Synthesizes complete GitHub/GitLab markdown PR descriptions from unified diff rows with change metrics, risk tier assessment (`Low`, `Medium`, `High`), affected headings, and verification checklists; wired to `synthesizePullRequest` (`\uE8D2`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback tick.
+    6. **SuiteHubView Workspace Storage Footprint & Heavy Outlier File Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceStorageFootprint(files, fileSizeProvider)`, `FormatWorkspaceStorageFootprintSummary(...)`, promoted helper `RecentFilesService.FormatBytes(long bytes)`, `DocumentStorageInfo`, and `WorkspaceStorageFootprintAudit`. Computes total disk storage footprint, average document weight, and flags heavy outlier files (>500KB); wired to `CopyWorkspaceStorageFootprintItem` (`\uE7C8`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `6/6` targeted Run #158 tests passing (`100%` pass rate).
+    - Total verified targeted test suite: `789/789` tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`PID=21072, Responding=True, HasExited=False`).
 
+---
 
-
-
+### Run #159 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown footnote reference bidirectional linkage and missing target auditing.
+   - **Deliverable**: Add `TextSearch.AuditFootnoteLinkage(markdownText)` and `FormatFootnoteLinkageSummary(...)`, validating that every `[^id]` anchor has a matching definition and detecting orphan footnote definitions. Wire to `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Topological sort acyclic validation and dependency sequence depth auditing for DAG mindmaps.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditTopologicalOrderAndDepth()` and `FormatTopologicalSummary(...)`, wired to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`) [Carried Forward from Run #158 Idea 3]**:
+   - **Refinement Target**: Enhance Golden Ratio progression with multi-axis golden spiral placement validation and geometric bounding progression curves.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditGoldenSpiralProgression()` and wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`) [Carried Forward from Run #158 Idea 4]**:
+   - **Refinement Target**: Enhance Matrix 4-quadrant balancing with automated quadrant label normalization (SWOT: Strengths, Weaknesses, Opportunities, Threats; Eisenhower: Urgent/Important).
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.NormalizeMatrixQuadrantHeaders(markdown)` and wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
+   - **Feature**: Semantic commit message conventional prefix classifier and breaking change warning generator.
+   - **Deliverable**: Add `LineDiff.SynthesizeConventionalCommitMessage(unifiedRows)` and wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
+   - **Feature**: Workspace document naming convention audit (kebab-case, snake_case, PascalCase consistency and illegal character detection).
+   - **Deliverable**: Add `RecentFilesService.AuditDocumentNamingConventions(files)` and wire to `RecentDocsFlyout`.

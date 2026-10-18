@@ -1165,7 +1165,54 @@ public class SmartArtStudioPolishTests
         Assert.True(cycleAudit.ContinuityScore >= 0.70);
         Assert.Contains("Closed Loop (↺)", cycleAudit.Summary);
     }
+
+    [Fact]
+    public void Run158_AuditMatrixQuadrantBalance()
+    {
+        // 1. Empty outline
+        var empty = SmartArtDesignStudioViewModel.AuditMatrixQuadrantBalance("");
+        Assert.Equal(0, empty.TotalQuadrants);
+        Assert.Equal("Empty Outline", empty.BalanceCategory);
+        Assert.Contains("0 quadrants", empty.Summary);
+
+        // 2. Perfect 4-quadrant SWOT matrix (2 items per quadrant)
+        var swotOutline = """
+            - Strengths
+              - High performance architecture
+              - Native OpenXML pipeline
+            - Weaknesses
+              - WinUI 3 initial startup time
+              - Memory footprint on huge docs
+            - Opportunities
+              - Enterprise document automation
+              - AI-assisted layout styling
+            - Threats
+              - Legacy Word format regressions
+              - Cross-platform web competitors
+            """;
+
+        var swotAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantBalance(swotOutline);
+        Assert.Equal(4, swotAudit.TotalQuadrants);
+        Assert.Equal(8, swotAudit.TotalItems);
+        Assert.Equal(2.0, swotAudit.AverageItemsPerQuadrant);
+        Assert.Equal(0.0, swotAudit.ItemsCoefficientOfVariation);
+        Assert.Equal(100.0, swotAudit.BalanceScore);
+        Assert.Equal("Perfect 2x2 Quad Symmetry", swotAudit.BalanceCategory);
+        Assert.Contains("4 quadrants (2x2), 8 items · Perfect 2x2 Quad Symmetry", swotAudit.Summary);
+
+        // 3. Incomplete matrix (<4 quadrants)
+        var twoQuads = """
+            - Pros
+              - Fast
+            - Cons
+              - Expensive
+            """;
+        var twoAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantBalance(twoQuads);
+        Assert.Equal(2, twoAudit.TotalQuadrants);
+        Assert.Equal("Incomplete Matrix (2/4 Quadrants)", twoAudit.BalanceCategory);
+    }
 }
+
 
 
 

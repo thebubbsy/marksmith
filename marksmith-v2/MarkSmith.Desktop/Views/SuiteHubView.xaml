@@ -279,6 +279,9 @@
                                     <MenuFlyoutItem x:Name="CopyDocumentStalenessItem" Text="Copy document aging, staleness &amp; velocity audit" Click="OnCopyDocumentStalenessClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyWorkspaceStorageFootprintItem" Text="Copy workspace storage footprint &amp; size audit" Click="OnCopyWorkspaceStorageFootprintClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C8;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
