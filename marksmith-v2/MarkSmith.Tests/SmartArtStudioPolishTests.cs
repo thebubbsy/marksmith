@@ -1602,6 +1602,50 @@ public class SmartArtStudioPolishTests
         Assert.True(deficitAudit.ContrastDeficitCount >= 1);
         Assert.True(deficitAudit.ChromaticHarmonyScore < 100.0);
     }
+
+    [Fact]
+    public void Run167_AuditLinearFlowChevronRhythm_EvaluatesStepPacingAndOutliers()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditLinearFlowChevronRhythm("", isStatic: true);
+        Assert.Equal(0, emptyAudit.TotalSteps);
+        Assert.Equal(0, emptyAudit.TotalWords);
+        Assert.Equal(100.0, emptyAudit.ProgressionRhythmScore);
+        Assert.Equal("Empty Outline", emptyAudit.RhythmCategory);
+        Assert.Contains("0 steps", emptyAudit.Summary);
+
+        // 2. Harmonic balanced 4-step linear flow (each ~3 words)
+        var balancedMd = string.Join("\n",
+            "- Initiate project scope",
+            "- Develop core architecture",
+            "- Execute test validation",
+            "- Deploy release artifacts");
+
+        var balancedAudit = SmartArtDesignStudioViewModel.AuditLinearFlowChevronRhythm(balancedMd, isStatic: true);
+        Assert.Equal(4, balancedAudit.TotalSteps);
+        Assert.Equal(12, balancedAudit.TotalWords);
+        Assert.Equal(3.0, balancedAudit.MeanWordsPerStep);
+        Assert.Equal(0.0, balancedAudit.WordCountStdDev);
+        Assert.Equal(0.0, balancedAudit.PacingVariationCoefficient);
+        Assert.Equal(0, balancedAudit.PacingOutlierCount);
+        Assert.Equal(100.0, balancedAudit.ProgressionRhythmScore);
+        Assert.Equal("Harmonic Step Pacing & Balanced Rhythm", balancedAudit.RhythmCategory);
+        Assert.Equal(balancedAudit.Summary, SmartArtDesignStudioViewModel.FormatLinearFlowSummary(
+            4, 12, 3.0, 0.0, 0, 100.0, balancedAudit.RhythmCategory));
+
+        // 3. Outlier step with massive paragraph among concise steps
+        var outlierMd = string.Join("\n",
+            "- Step One",
+            "- Step Two with a drastically long and verbose explanatory description that contains way too many unnecessary words for a clean chevron arrow block and severely unbalances the visual layout rhythm",
+            "- Step Three");
+
+        var outlierAudit = SmartArtDesignStudioViewModel.AuditLinearFlowChevronRhythm(outlierMd, isStatic: true);
+        Assert.Equal(3, outlierAudit.TotalSteps);
+        Assert.True(outlierAudit.PacingOutlierCount >= 1);
+        Assert.True(outlierAudit.PacingVariationCoefficient > 0.5);
+        Assert.True(outlierAudit.ProgressionRhythmScore < 85.0);
+        Assert.Equal("Pacing Imbalance / Wordy Steps Detected", outlierAudit.RhythmCategory);
+    }
 }
 
 

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace MarkSmith.Services;
 
@@ -4379,6 +4380,172 @@ public static class LineDiff
 
         return (d[m, n], transCount);
     }
+
+    /// <summary>
+    /// Audits semantic diff token entropy (Shannon information bits), vocabulary expansion ratio,
+    /// and revision structural drift across unified diff rows.
+    /// </summary>
+    public static SemanticDiffTokenEntropyAudit AuditSemanticDiffTokenEntropy(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            string emptySummary = "Semantic diff token entropy audit: 0 rows · Document is unchanged (Zero diff deltas)";
+            return new SemanticDiffTokenEntropyAudit(
+                0, 0, 0, 0, 0.0, 0.0, 0.0, 1.0, 100.0,
+                Array.Empty<TokenFrequencyInfo>(),
+                "Zero Diff Deltas (Identical)",
+                emptySummary);
+        }
+
+        var beforeSb = new StringBuilder();
+        var afterSb = new StringBuilder();
+
+        foreach (var r in unifiedRows)
+        {
+            if (r.IsGap) continue;
+            string t = r.Text ?? "";
+            if (r.Kind == Kind.Same)
+            {
+                beforeSb.AppendLine(t);
+                afterSb.AppendLine(t);
+            }
+            else if (r.Kind == Kind.Removed)
+            {
+                beforeSb.AppendLine(t);
+            }
+            else if (r.Kind == Kind.Added)
+            {
+                afterSb.AppendLine(t);
+            }
+        }
+
+        return AuditSemanticDiffTokenEntropy(beforeSb.ToString(), afterSb.ToString());
+    }
+
+    public static SemanticDiffTokenEntropyAudit AuditSemanticDiffTokenEntropy(string? beforeText, string? afterText)
+    {
+        string before = beforeText ?? "";
+        string after = afterText ?? "";
+
+        var tokenRegex = new Regex(@"[a-zA-Z0-9_\-]+|[^\s\w]", RegexOptions.Compiled);
+
+        var beforeMatches = tokenRegex.Matches(before);
+        var afterMatches = tokenRegex.Matches(after);
+
+        var beforeCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        var afterCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (Match m in beforeMatches)
+        {
+            string tok = m.Value;
+            beforeCounts[tok] = beforeCounts.TryGetValue(tok, out int c) ? c + 1 : 1;
+        }
+
+        foreach (Match m in afterMatches)
+        {
+            string tok = m.Value;
+            afterCounts[tok] = afterCounts.TryGetValue(tok, out int c) ? c + 1 : 1;
+        }
+
+        int totalBefore = beforeMatches.Count;
+        int totalAfter = afterMatches.Count;
+
+        if (totalBefore == 0 && totalAfter == 0)
+        {
+            string emptySummary = "Semantic diff token entropy audit: 0 tokens · Document is unchanged (Zero diff deltas)";
+            return new SemanticDiffTokenEntropyAudit(
+                0, 0, 0, 0, 0.0, 0.0, 0.0, 1.0, 100.0,
+                Array.Empty<TokenFrequencyInfo>(),
+                "Zero Diff Deltas (Identical)",
+                emptySummary);
+        }
+
+        double hBefore = CalculateShannonEntropy(beforeCounts, totalBefore);
+        double hAfter = CalculateShannonEntropy(afterCounts, totalAfter);
+        double deltaH = Math.Round(hAfter - hBefore, 3);
+
+        int distinctBefore = beforeCounts.Count;
+        int distinctAfter = afterCounts.Count;
+        double vocabExpansion = Math.Round((double)distinctAfter / Math.Max(1, distinctBefore), 2);
+
+        var allTokens = new HashSet<string>(beforeCounts.Keys.Concat(afterCounts.Keys), StringComparer.Ordinal);
+        var topTokens = new List<TokenFrequencyInfo>();
+
+        foreach (var tok in allTokens.OrderByDescending(t => (afterCounts.TryGetValue(t, out int a) ? a : 0) + (beforeCounts.TryGetValue(t, out int b) ? b : 0)).Take(15))
+        {
+            int bCount = beforeCounts.TryGetValue(tok, out int bc) ? bc : 0;
+            int aCount = afterCounts.TryGetValue(tok, out int ac) ? ac : 0;
+            double pB = totalBefore > 0 ? (double)bCount / totalBefore : 0.0;
+            double pA = totalAfter > 0 ? (double)aCount / totalAfter : 0.0;
+            topTokens.Add(new TokenFrequencyInfo(tok, bCount, aCount, Math.Round(pB, 4), Math.Round(pA, 4)));
+        }
+
+        double driftScore = 100.0;
+        driftScore -= Math.Min(60.0, Math.Abs(deltaH) * 20.0);
+        driftScore -= Math.Min(30.0, Math.Abs(vocabExpansion - 1.0) * 15.0);
+        driftScore = Math.Round(Math.Clamp(driftScore, 0.0, 100.0), 1);
+
+        string category;
+        if (before == after)
+        {
+            category = "Zero Diff Deltas (Identical)";
+        }
+        else if (Math.Abs(deltaH) < 0.25 && Math.Abs(vocabExpansion - 1.0) < 0.15)
+        {
+            category = "Syntactic Equilibrium / Equivalent Information Density";
+        }
+        else if (deltaH >= 0.25)
+        {
+            category = "Information Expanding Refactor";
+        }
+        else
+        {
+            category = "Information Consolidating Simplification";
+        }
+
+        string summary = FormatSemanticDiffTokenEntropySummary(
+            totalBefore, totalAfter, distinctBefore, distinctAfter, hBefore, hAfter, deltaH, vocabExpansion, driftScore, category);
+
+        return new SemanticDiffTokenEntropyAudit(
+            totalBefore,
+            totalAfter,
+            distinctBefore,
+            distinctAfter,
+            Math.Round(hBefore, 2),
+            Math.Round(hAfter, 2),
+            deltaH,
+            vocabExpansion,
+            driftScore,
+            topTokens,
+            category,
+            summary);
+    }
+
+    private static double CalculateShannonEntropy(Dictionary<string, int> counts, int totalTokens)
+    {
+        if (totalTokens == 0) return 0.0;
+        double entropy = 0.0;
+        foreach (var kvp in counts)
+        {
+            double p = (double)kvp.Value / totalTokens;
+            if (p > 0.0)
+            {
+                entropy -= p * (Math.Log(p) / Math.Log(2.0));
+            }
+        }
+        return entropy;
+    }
+
+    public static string FormatSemanticDiffTokenEntropySummary(
+        int totalBefore, int totalAfter, int distinctBefore, int distinctAfter,
+        double hBefore, double hAfter, double deltaH, double vocabExpansion, double driftScore, string category)
+    {
+        if (totalBefore == 0 && totalAfter == 0)
+            return "Semantic diff token entropy audit: 0 tokens · Document is unchanged (Zero diff deltas)";
+
+        string deltaSign = deltaH >= 0 ? "+" : "";
+        return $"Semantic diff token entropy audit ({category} · {driftScore:0.#}% stability): H_before={hBefore:0.##}b, H_after={hAfter:0.##}b (ΔH={deltaSign}{deltaH:0.##} bits/token · Vocab ratio {vocabExpansion:0.##}x)";
+    }
 }
 
 /// <summary>
@@ -4613,6 +4780,35 @@ public sealed record LevenshteinDistanceAudit(
     IReadOnlyList<LevenshteinDiffPairInfo> Pairs,
     string GranularityCategory,
     string Summary);
+
+/// <summary>
+/// Represents token occurrence frequency and Shannon probability distribution across diff revisions.
+/// </summary>
+public sealed record TokenFrequencyInfo(
+    string Token,
+    int BeforeCount,
+    int AfterCount,
+    double BeforeProbability,
+    double AfterProbability);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff token entropy (Shannon information bits),
+/// vocabulary expansion ratio, and revision structural drift.
+/// </summary>
+public sealed record SemanticDiffTokenEntropyAudit(
+    int TotalBeforeTokens,
+    int TotalAfterTokens,
+    int DistinctBeforeTokens,
+    int DistinctAfterTokens,
+    double BeforeEntropyBits,
+    double AfterEntropyBits,
+    double EntropyDeltaBits,
+    double VocabularyExpansionRatio,
+    double RevisionDriftScore,
+    IReadOnlyList<TokenFrequencyInfo> TopTokens,
+    string DriftCategory,
+    string Summary);
+
 
 
 

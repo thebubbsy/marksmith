@@ -7981,6 +7981,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(definitionListConsistencyItem);
 
+        var footnoteReferenceConsistencyItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown footnote & reference anchor consistency audit",
+            Icon = new FontIcon { Glyph = "\uE71B" }
+        };
+        footnoteReferenceConsistencyItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatFootnoteReferenceSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(footnoteReferenceConsistencyItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9462,6 +9476,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(definitionListConsistencyItem);
+
+        var footnoteReferenceConsistencyItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown footnote & reference anchor consistency audit",
+            Icon = new FontIcon { Glyph = "\uE71B" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        footnoteReferenceConsistencyItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatFootnoteReferenceSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(footnoteReferenceConsistencyItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

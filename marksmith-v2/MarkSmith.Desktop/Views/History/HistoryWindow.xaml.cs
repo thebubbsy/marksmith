@@ -3406,6 +3406,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditLevenshtein);
+
+                var auditDiffTokenEntropy = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff token entropy, Shannon bits & revision drift",
+                    Icon = new FontIcon { Glyph = "\uE9D9" }
+                };
+                auditDiffTokenEntropy.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditSemanticDiffTokenEntropy(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditDiffTokenEntropy);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

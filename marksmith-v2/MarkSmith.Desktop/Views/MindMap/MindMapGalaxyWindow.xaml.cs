@@ -4072,6 +4072,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditRadialLayoutClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditRadialLayoutAngularSpacing();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5039,6 +5047,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditEigenvectorItem.Click += OnAuditEigenvectorCentralityClick;
             menu.Items.Add(auditEigenvectorItem);
+
+            var auditRadialLayoutItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph radial layout spacing & angular sector distribution",
+                Icon = new FontIcon { Glyph = "\uE809" }
+            };
+            auditRadialLayoutItem.Click += OnAuditRadialLayoutClick;
+            menu.Items.Add(auditRadialLayoutItem);
 
             var fitItem = new MenuFlyoutItem
 

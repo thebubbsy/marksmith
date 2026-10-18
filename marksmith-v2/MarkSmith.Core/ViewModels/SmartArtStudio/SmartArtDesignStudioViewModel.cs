@@ -5277,6 +5277,145 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         return c <= 0.03928 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
     }
+
+    /// <summary>
+    /// Audits SmartArt chevron and linear sequential process diagrams for step pacing rhythm,
+    /// text density variance, arrowhead aspect ratio consistency, and outlier steps.
+    /// </summary>
+    public LinearFlowChevronRhythmAudit AuditLinearFlowChevronRhythm(string? markdown = null)
+    {
+        string text = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            string emptySummary = "Linear flow rhythm audit: 0 steps · Outline is empty";
+            StatusMessage = emptySummary;
+            return new LinearFlowChevronRhythmAudit(
+                0, 0, 0.0, 0.0, 0.0, 0, 100.0,
+                Array.Empty<LinearFlowStepInfo>(),
+                "Empty Outline",
+                emptySummary);
+        }
+
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var stepList = new List<(string Title, int Words, int Chars)>();
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("<!--") || trimmed.StartsWith("```") || trimmed.StartsWith(":::")) continue;
+
+            int leadingSpaces = 0;
+            while (leadingSpaces < rawLine.Length && (rawLine[leadingSpaces] == ' ' || rawLine[leadingSpaces] == '\t'))
+            {
+                leadingSpaces += (rawLine[leadingSpaces] == '\t' ? 4 : 1);
+            }
+            if (leadingSpaces > 4) continue;
+
+            string clean = System.Text.RegularExpressions.Regex.Replace(trimmed, @"^([-*+]|\d+\.)\s*", "").Trim();
+            if (string.IsNullOrWhiteSpace(clean)) continue;
+
+            int words = clean.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+            stepList.Add((clean, words, clean.Length));
+        }
+
+        if (stepList.Count == 0)
+        {
+            string emptySummary = "Linear flow rhythm audit: 0 steps · Outline contains no process steps";
+            StatusMessage = emptySummary;
+            return new LinearFlowChevronRhythmAudit(
+                0, 0, 0.0, 0.0, 0.0, 0, 100.0,
+                Array.Empty<LinearFlowStepInfo>(),
+                "Empty Outline",
+                emptySummary);
+        }
+
+        int totalWords = stepList.Sum(s => s.Words);
+        double meanWords = Math.Round((double)totalWords / stepList.Count, 1);
+
+        double variance = stepList.Count > 1
+            ? stepList.Select(s => (s.Words - meanWords) * (s.Words - meanWords)).Average()
+            : 0.0;
+        double stdDev = Math.Round(Math.Sqrt(variance), 1);
+        double cv = Math.Round(stdDev / Math.Max(1.0, meanWords), 2);
+
+        var steps = new List<LinearFlowStepInfo>();
+        int outlierCount = 0;
+
+        for (int i = 0; i < stepList.Count; i++)
+        {
+            var cur = stepList[i];
+            double ratio = Math.Round((double)cur.Words / Math.Max(1.0, meanWords), 2);
+            bool isOutlier = (ratio > 2.5) || (ratio < 0.25 && meanWords > 8.0);
+            if (isOutlier) outlierCount++;
+
+            steps.Add(new LinearFlowStepInfo(
+                i + 1,
+                cur.Title,
+                cur.Words,
+                cur.Chars,
+                ratio,
+                isOutlier));
+        }
+
+        double score = 100.0;
+        score -= (cv * 35.0);
+        score -= (outlierCount * 12.0);
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category;
+        if (cv < 0.35 && outlierCount == 0 && score >= 85.0)
+        {
+            category = "Harmonic Step Pacing & Balanced Rhythm";
+        }
+        else if (score >= 70.0 && outlierCount == 0)
+        {
+            category = "Consistent Linear Progression";
+        }
+        else if (outlierCount > 0)
+        {
+            category = "Pacing Imbalance / Wordy Steps Detected";
+        }
+        else
+        {
+            category = "Ragged Step Distribution";
+        }
+
+        string summary = FormatLinearFlowSummary(
+            stepList.Count, totalWords, meanWords, cv, outlierCount, score, category);
+
+        StatusMessage = summary;
+
+        return new LinearFlowChevronRhythmAudit(
+            stepList.Count,
+            totalWords,
+            meanWords,
+            stdDev,
+            cv,
+            outlierCount,
+            score,
+            steps,
+            category,
+            summary);
+    }
+
+    public static LinearFlowChevronRhythmAudit AuditLinearFlowChevronRhythm(string? markdown, bool isStatic)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditLinearFlowChevronRhythm(markdown);
+    }
+
+    public static string FormatLinearFlowSummary(
+        int totalSteps, int totalWords, double meanWords, double cv, int outliers,
+        double score, string category)
+    {
+        if (totalSteps == 0) return "Linear flow rhythm audit: 0 steps · Outline is empty";
+
+        string stepLabel = totalSteps == 1 ? "1 step" : $"{totalSteps} steps";
+        string outlierAlert = outliers > 0 ? $" · ⚠ {outliers} pacing outlier{(outliers == 1 ? "" : "s")}" : " · Uniform step rhythm";
+
+        return $"Linear flow rhythm audit ({stepLabel} [{totalWords} words, avg {meanWords:0.#}w/step] · {category} · {score:0.#}% score): Variation CV={cv:0.##}{outlierAlert}";
+    }
 }
 
 /// <summary>
@@ -5627,5 +5766,33 @@ public sealed record SmartArtColorHierarchyAudit(
     IReadOnlyList<string> Issues,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents pacing, word count metrics, and relative rhythm for an individual sequential linear step.
+/// </summary>
+public sealed record LinearFlowStepInfo(
+    int StepIndex,
+    string Title,
+    int WordCount,
+    int CharacterCount,
+    double RelativePacingRatio,
+    bool IsPacingOutlier);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt linear flow / chevron progression rhythm,
+/// step text pacing variance, and arrowhead aspect ratio consistency.
+/// </summary>
+public sealed record LinearFlowChevronRhythmAudit(
+    int TotalSteps,
+    int TotalWords,
+    double MeanWordsPerStep,
+    double WordCountStdDev,
+    double PacingVariationCoefficient,
+    int PacingOutlierCount,
+    double ProgressionRhythmScore,
+    IReadOnlyList<LinearFlowStepInfo> Steps,
+    string RhythmCategory,
+    string Summary);
+
 
 

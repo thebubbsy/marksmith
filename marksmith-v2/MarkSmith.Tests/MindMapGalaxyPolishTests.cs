@@ -2531,6 +2531,57 @@ namespace MarkSmith.Tests
                 starAudit.NetworkStructureCategory, starAudit.IsSelectionScope);
             Assert.Equal(starAudit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run167_AuditRadialLayoutAngularSpacing_EvaluatesEquidistantSpacingAndRings()
+        {
+            // 1. Empty mindmap
+            var emptyAudit = MindMapStudioViewModel.AuditRadialLayoutAngularSpacing(
+                Array.Empty<MindMapNode>(), Array.Empty<MindMapLink>());
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.RingCount);
+            Assert.Equal(100.0, emptyAudit.OverallLayoutFidelityScore);
+            Assert.Equal("Empty Galaxy", emptyAudit.LayoutCategory);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Symmetric 4-leaf radial ring around root at (0,0)
+            var root = new MindMapNode { Id = "root", Title = "Root Node", X = 0, Y = 0 };
+            var n1 = new MindMapNode { Id = "n1", Title = "East Node", X = 100, Y = 0 };
+            var n2 = new MindMapNode { Id = "n2", Title = "North Node", X = 0, Y = 100 };
+            var n3 = new MindMapNode { Id = "n3", Title = "West Node", X = -100, Y = 0 };
+            var n4 = new MindMapNode { Id = "n4", Title = "South Node", X = 0, Y = -100 };
+
+            var l1 = new MindMapLink { Id = "l1", SourceNodeId = "root", TargetNodeId = "n1" };
+            var l2 = new MindMapLink { Id = "l2", SourceNodeId = "root", TargetNodeId = "n2" };
+            var l3 = new MindMapLink { Id = "l3", SourceNodeId = "root", TargetNodeId = "n3" };
+            var l4 = new MindMapLink { Id = "l4", SourceNodeId = "root", TargetNodeId = "n4" };
+
+            var radialAudit = MindMapStudioViewModel.AuditRadialLayoutAngularSpacing(
+                new[] { root, n1, n2, n3, n4 }, new[] { l1, l2, l3, l4 });
+
+            Assert.Equal(5, radialAudit.TotalNodes);
+            Assert.Equal(4, radialAudit.TotalLinks);
+            Assert.Equal(2, radialAudit.RingCount); // Depth 0 (root) and Depth 1
+            Assert.Equal(0.0, radialAudit.MeanRadiusJitter);
+            Assert.True(radialAudit.OverallAngularUniformityScore >= 95.0);
+            Assert.True(radialAudit.OverallLayoutFidelityScore >= 85.0);
+            Assert.Equal("Harmonic Equidistant Radial Layout", radialAudit.LayoutCategory);
+            Assert.Empty(radialAudit.CrowdedNodeTitles);
+
+            // Ring 1 check
+            var ring1 = radialAudit.Rings.First(r => r.DepthRing == 1);
+            Assert.Equal(4, ring1.NodeCount);
+            Assert.Equal(100.0, ring1.MeanRadius);
+            Assert.Equal(0.0, ring1.RadiusJitterStdDev);
+            Assert.Equal(90.0, ring1.MeanAngularSpacingDegrees);
+
+            // 3. Formatter test
+            string formatted = MindMapStudioViewModel.FormatRadialLayoutSummary(
+                radialAudit.TotalNodes, radialAudit.RingCount, radialAudit.OverallAngularUniformityScore,
+                radialAudit.MeanRadiusJitter, radialAudit.OverallLayoutFidelityScore,
+                radialAudit.LayoutCategory, radialAudit.CrowdedNodeTitles.Count, radialAudit.IsSelectionScope);
+            Assert.Equal(radialAudit.Summary, formatted);
+        }
     }
 }
 

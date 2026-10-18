@@ -4951,6 +4951,238 @@ public static class TextSearch
         string firstIssue = (issues != null && issues.Count > 0) ? $" · {issues[0]}" : "";
         return $"Markdown definition list audit ({listDesc} [{breakdown}, {typeDesc}] · {category} · {uniformityScore:0.#}% score){firstIssue}";
     }
+
+    /// <summary>
+    /// Audits markdown documents for footnote and reference anchor consistency, bi-directional linking,
+    /// duplicate definitions, unreferenced orphan footnotes, missing targets, and numerical monotonicity.
+    /// </summary>
+    public static FootnoteReferenceConsistencyAudit AuditFootnoteAndReferenceConsistency(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "Footnote reference consistency audit: 0 footnotes · Document contains no footnote references or definitions";
+            return new FootnoteReferenceConsistencyAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<FootnoteAnchorItem>(),
+                Array.Empty<FootnoteDefinitionDetail>(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                "Clean Baseline (Zero Footnotes)",
+                emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        bool inCodeFence = false;
+        bool inHtmlComment = false;
+
+        var anchors = new List<FootnoteAnchorItem>();
+        var definitions = new List<FootnoteDefinitionDetail>();
+        var definedIdCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var anchorIdCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var missingIds = new List<string>();
+        var orphanIds = new List<string>();
+        var duplicateIds = new List<string>();
+
+        var defRegex = new Regex(@"^\s*\[\^([a-zA-Z0-9_\-]+)\]:\s*(.*)$", RegexOptions.Compiled);
+        var anchorRegex = new Regex(@"\[\^([a-zA-Z0-9_\-]+)\](?!:)", RegexOptions.Compiled);
+
+        int lastNumericSeen = -1;
+        int nonMonotonicCount = 0;
+        int appearanceIndex = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string rawLine = lines[i];
+            string trimmed = rawLine.Trim();
+            int lineNumber = i + 1;
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            if (trimmed.StartsWith("<!--") && !trimmed.EndsWith("-->"))
+            {
+                inHtmlComment = true;
+                continue;
+            }
+            if (inHtmlComment)
+            {
+                if (trimmed.Contains("-->")) inHtmlComment = false;
+                continue;
+            }
+            if (trimmed.StartsWith("<!--") && trimmed.EndsWith("-->")) continue;
+
+            // Check if this line is a footnote definition: [^id]: ...
+            var defMatch = defRegex.Match(rawLine);
+            if (defMatch.Success)
+            {
+                string id = defMatch.Groups[1].Value.Trim();
+                string content = defMatch.Groups[2].Value.Trim();
+                string preview = content.Length > 60 ? content.Substring(0, 57) + "..." : content;
+
+                definedIdCounts[id] = definedIdCounts.TryGetValue(id, out int c) ? c + 1 : 1;
+                if (definedIdCounts[id] == 2 && !duplicateIds.Contains(id, StringComparer.OrdinalIgnoreCase))
+                {
+                    duplicateIds.Add(id);
+                }
+
+                definitions.Add(new FootnoteDefinitionDetail(
+                    lineNumber, id, preview, content.Length, 0, false));
+                continue;
+            }
+
+            // Outside code fences, strip inline backtick code spans before matching anchors
+            string strippedLine = Regex.Replace(rawLine, @"`[^`]*`", "");
+
+            var anchorMatches = anchorRegex.Matches(strippedLine);
+            foreach (Match m in anchorMatches)
+            {
+                string id = m.Groups[1].Value.Trim();
+                appearanceIndex++;
+
+                bool isMonotonic = true;
+                if (int.TryParse(id, out int num))
+                {
+                    if (lastNumericSeen >= 0 && num < lastNumericSeen)
+                    {
+                        isMonotonic = false;
+                        nonMonotonicCount++;
+                    }
+                    else if (num > lastNumericSeen)
+                    {
+                        lastNumericSeen = num;
+                    }
+                }
+
+                anchorIdCounts[id] = anchorIdCounts.TryGetValue(id, out int ac) ? ac + 1 : 1;
+                anchors.Add(new FootnoteAnchorItem(lineNumber, id, appearanceIndex, isMonotonic));
+            }
+        }
+
+        // Cross-reference anchors against definitions
+        var uniqueAnchorSet = new HashSet<string>(anchors.Select(a => a.Id), StringComparer.OrdinalIgnoreCase);
+        var uniqueDefSet = new HashSet<string>(definitions.Select(d => d.Id), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var aid in uniqueAnchorSet)
+        {
+            if (!uniqueDefSet.Contains(aid))
+            {
+                missingIds.Add(aid);
+            }
+        }
+
+        foreach (var did in uniqueDefSet)
+        {
+            if (!uniqueAnchorSet.Contains(did))
+            {
+                orphanIds.Add(did);
+            }
+        }
+
+        // Update definition details with reference count and orphan status
+        var detailedDefinitions = new List<FootnoteDefinitionDetail>();
+        foreach (var def in definitions)
+        {
+            int refCount = anchorIdCounts.TryGetValue(def.Id, out int rc) ? rc : 0;
+            bool isOrphan = refCount == 0;
+            detailedDefinitions.Add(def with { ReferenceCount = refCount, IsOrphan = isOrphan });
+        }
+
+        int totalAnchors = anchors.Count;
+        int totalDefs = definitions.Count;
+
+        if (totalAnchors == 0 && totalDefs == 0)
+        {
+            string emptySummary = "Footnote reference consistency audit: 0 footnotes · Document contains no footnote references or definitions";
+            return new FootnoteReferenceConsistencyAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                anchors, detailedDefinitions, missingIds, orphanIds, duplicateIds,
+                "Clean Baseline (Zero Footnotes)", emptySummary);
+        }
+
+        double score = 100.0;
+        score -= missingIds.Count * 25.0;
+        score -= duplicateIds.Count * 15.0;
+        score -= orphanIds.Count * 10.0;
+        score -= nonMonotonicCount * 5.0;
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category;
+        if (missingIds.Count == 0 && orphanIds.Count == 0 && duplicateIds.Count == 0 && nonMonotonicCount == 0)
+        {
+            category = "Perfect Bi-Directional Consistency";
+        }
+        else if (missingIds.Count == 0 && orphanIds.Count == 0 && duplicateIds.Count == 0 && nonMonotonicCount > 0)
+        {
+            category = "Minor Monotonicity Gaps";
+        }
+        else if (missingIds.Count > 0)
+        {
+            category = "Missing Footnote Targets";
+        }
+        else if (orphanIds.Count > 0)
+        {
+            category = "Orphan Footnotes Present";
+        }
+        else
+        {
+            category = "Mixed Footnote Inconsistencies";
+        }
+
+        string summary = FormatFootnoteReferenceSummary(
+            totalAnchors, totalDefs, orphanIds.Count, missingIds.Count, duplicateIds.Count, score, category);
+
+        return new FootnoteReferenceConsistencyAudit(
+            totalAnchors,
+            uniqueAnchorSet.Count,
+            totalDefs,
+            uniqueDefSet.Count,
+            orphanIds.Count,
+            missingIds.Count,
+            duplicateIds.Count,
+            nonMonotonicCount,
+            score,
+            anchors,
+            detailedDefinitions,
+            missingIds,
+            orphanIds,
+            duplicateIds,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of footnote and reference consistency metrics from markdown text.
+    /// </summary>
+    public static string FormatFootnoteReferenceSummary(string? markdownText)
+        => AuditFootnoteAndReferenceConsistency(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of footnote and reference consistency metrics.
+    /// </summary>
+    public static string FormatFootnoteReferenceSummary(
+        int totalAnchors, int totalDefinitions, int unreferenced, int missing, int duplicates,
+        double consistencyScore, string category)
+    {
+        if (totalAnchors == 0 && totalDefinitions == 0)
+            return "Footnote reference consistency audit: 0 footnotes · Document contains no footnote references or definitions";
+
+        string anchorLabel = totalAnchors == 1 ? "1 anchor" : $"{totalAnchors} anchors";
+        string defLabel = totalDefinitions == 1 ? "1 definition" : $"{totalDefinitions} definitions";
+
+        var alerts = new List<string>();
+        if (missing > 0) alerts.Add($"🚨 {missing} missing target{(missing == 1 ? "" : "s")}");
+        if (unreferenced > 0) alerts.Add($"⚠ {unreferenced} orphan{(unreferenced == 1 ? "" : "s")}");
+        if (duplicates > 0) alerts.Add($"⚠ {duplicates} duplicate{(duplicates == 1 ? "" : "s")}");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · Fully linked";
+
+        return $"Footnote reference consistency audit ({anchorLabel}, {defLabel} · {category} · {consistencyScore:0.#}% score){alertSuffix}";
+    }
 }
 
 /// <summary>
@@ -5360,5 +5592,48 @@ public sealed record DefinitionListAudit(
     IReadOnlyList<string> Issues,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents an evaluated inline footnote reference anchor in markdown text.
+/// </summary>
+public sealed record FootnoteAnchorItem(
+    int LineNumber,
+    string Id,
+    int AppearanceIndex,
+    bool IsMonotonicOrder);
+
+/// <summary>
+/// Represents evaluated definition metrics for an individual footnote.
+/// </summary>
+public sealed record FootnoteDefinitionDetail(
+    int LineNumber,
+    string Id,
+    string PreviewSnippet,
+    int CharacterLength,
+    int ReferenceCount,
+    bool IsOrphan);
+
+/// <summary>
+/// Represents the result of an audit of markdown footnote reference anchors, definitions,
+/// bi-directional linkage consistency, duplicate detection, and monotonic order.
+/// </summary>
+public sealed record FootnoteReferenceConsistencyAudit(
+    int TotalAnchors,
+    int UniqueAnchors,
+    int TotalDefinitions,
+    int UniqueDefinitions,
+    int UnreferencedDefinitions,
+    int MissingDefinitions,
+    int DuplicateDefinitions,
+    int NonMonotonicAnchorCount,
+    double FootnoteConsistencyScore,
+    IReadOnlyList<FootnoteAnchorItem> Anchors,
+    IReadOnlyList<FootnoteDefinitionDetail> Definitions,
+    IReadOnlyList<string> MissingDefinitionIds,
+    IReadOnlyList<string> OrphanDefinitionIds,
+    IReadOnlyList<string> DuplicateDefinitionIds,
+    string Category,
+    string Summary);
+
 
 

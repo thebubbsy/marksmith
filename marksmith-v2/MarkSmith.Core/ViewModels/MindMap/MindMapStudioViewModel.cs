@@ -6285,6 +6285,245 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Graph eigenvector centrality ({scopeStr}{nodeLabel}, {linkLabel} · {compLabel} · {category}): Eigenvalue λ={lambda:0.###} · Peak influence {maxInfluence:0.#}% · {topCount} authoritative hubs: {topDesc}";
         }
+
+        public RadialLayoutAudit AuditRadialLayoutAngularSpacing(bool selectionOnly = false)
+        {
+            var targetList = (selectionOnly && HasSelection)
+                ? Nodes.Where(n => n.IsSelected).ToList()
+                : Nodes.ToList();
+
+            if (targetList.Count == 0)
+            {
+                targetList = Nodes.ToList();
+            }
+
+            bool isSelection = selectionOnly && HasSelection && targetList.Count < Nodes.Count;
+
+            var targetIds = new HashSet<string>(targetList.Select(n => n.Id));
+            var linksInScope = Links.Where(l => targetIds.Contains(l.SourceNodeId) && targetIds.Contains(l.TargetNodeId)).ToList();
+
+            if (targetList.Count == 0)
+            {
+                string emptySummary = "Graph radial layout audit: 0 nodes · Galaxy is empty";
+                StatusMessage = emptySummary;
+                return new RadialLayoutAudit(
+                    0, 0, 0, 0.0, 100.0, 100.0,
+                    Array.Empty<RadialRingMetric>(),
+                    Array.Empty<NodeRadialMetric>(),
+                    Array.Empty<string>(),
+                    "Empty Galaxy",
+                    isSelection,
+                    emptySummary);
+            }
+
+            var inDegree = new Dictionary<string, int>();
+            var adj = new Dictionary<string, List<string>>();
+            foreach (var n in targetList)
+            {
+                inDegree[n.Id] = 0;
+                adj[n.Id] = new List<string>();
+            }
+
+            foreach (var l in linksInScope)
+            {
+                if (inDegree.ContainsKey(l.TargetNodeId)) inDegree[l.TargetNodeId]++;
+                if (adj.ContainsKey(l.SourceNodeId)) adj[l.SourceNodeId].Add(l.TargetNodeId);
+                if (adj.ContainsKey(l.TargetNodeId)) adj[l.TargetNodeId].Add(l.SourceNodeId);
+            }
+
+            var rootCandidates = targetList.Where(n => inDegree[n.Id] == 0).ToList();
+            var root = rootCandidates.Count > 0
+                ? rootCandidates.OrderByDescending(n => adj[n.Id].Count).First()
+                : targetList.OrderByDescending(n => adj[n.Id].Count).First();
+
+            var depths = new Dictionary<string, int>();
+            depths[root.Id] = 0;
+            var queue = new Queue<string>();
+            queue.Enqueue(root.Id);
+
+            while (queue.Count > 0)
+            {
+                var cur = queue.Dequeue();
+                int nextDepth = depths[cur] + 1;
+                foreach (var neighbor in adj[cur])
+                {
+                    if (!depths.ContainsKey(neighbor))
+                    {
+                        depths[neighbor] = nextDepth;
+                        queue.Enqueue(neighbor);
+                    }
+                }
+            }
+
+            foreach (var n in targetList)
+            {
+                if (!depths.ContainsKey(n.Id))
+                {
+                    depths[n.Id] = 1;
+                }
+            }
+
+            double rootX = root.X;
+            double rootY = root.Y;
+
+            var nodeRadialList = new List<NodeRadialMetric>();
+            var ringsMap = new Dictionary<int, List<(MindMapNodeViewModel Node, double Radius, double AngleDeg)>>();
+
+            foreach (var n in targetList)
+            {
+                int depth = depths[n.Id];
+                double dx = n.X - rootX;
+                double dy = n.Y - rootY;
+                double r = Math.Sqrt(dx * dx + dy * dy);
+                double angleRad = Math.Atan2(dy, dx);
+                double angleDeg = angleRad * (180.0 / Math.PI);
+                if (angleDeg < 0) angleDeg += 360.0;
+
+                if (!ringsMap.TryGetValue(depth, out var ringList))
+                {
+                    ringList = new List<(MindMapNodeViewModel, double, double)>();
+                    ringsMap[depth] = ringList;
+                }
+                ringList.Add((n, r, angleDeg));
+            }
+
+            var ringMetrics = new List<RadialRingMetric>();
+            var crowdedTitles = new List<string>();
+            double totalRadiusJitter = 0.0;
+            double totalUniformity = 0.0;
+            int evaluatedRingsCount = 0;
+
+            foreach (var kvp in ringsMap.OrderBy(k => k.Key))
+            {
+                int depth = kvp.Key;
+                var members = kvp.Value;
+                int count = members.Count;
+
+                if (depth == 0)
+                {
+                    nodeRadialList.Add(new NodeRadialMetric(root.Id, root.Title, 0, 0.0, 0.0, 360.0, false));
+                    ringMetrics.Add(new RadialRingMetric(0, 1, 0.0, 0.0, 360.0, 100.0));
+                    continue;
+                }
+
+                double meanR = members.Average(m => m.Radius);
+                double rVariance = members.Select(m => (m.Radius - meanR) * (m.Radius - meanR)).Average();
+                double rStdDev = Math.Sqrt(rVariance);
+                totalRadiusJitter += rStdDev;
+
+                var sorted = members.OrderBy(m => m.AngleDeg).ToList();
+                double idealGap = 360.0 / Math.Max(1, count);
+                var gaps = new List<double>();
+
+                for (int i = 0; i < sorted.Count; i++)
+                {
+                    double nextAngle = (i < sorted.Count - 1) ? sorted[i + 1].AngleDeg : (sorted[0].AngleDeg + 360.0);
+                    double gap = nextAngle - sorted[i].AngleDeg;
+                    gaps.Add(gap);
+
+                    bool isCrowded = gap < (idealGap * 0.4) || gap < 12.0;
+                    if (isCrowded && !crowdedTitles.Contains(sorted[i].Node.Title))
+                    {
+                        crowdedTitles.Add(sorted[i].Node.Title);
+                    }
+
+                    nodeRadialList.Add(new NodeRadialMetric(
+                        sorted[i].Node.Id,
+                        sorted[i].Node.Title,
+                        depth,
+                        Math.Round(sorted[i].Radius, 1),
+                        Math.Round(sorted[i].AngleDeg, 1),
+                        Math.Round(gap, 1),
+                        isCrowded));
+                }
+
+                double gapVariance = gaps.Select(g => (g - idealGap) * (g - idealGap)).Average();
+                double gapStdDev = Math.Sqrt(gapVariance);
+                double uniformity = Math.Clamp(100.0 - (gapStdDev * 1.5), 0.0, 100.0);
+                totalUniformity += uniformity;
+                evaluatedRingsCount++;
+
+                ringMetrics.Add(new RadialRingMetric(
+                    depth,
+                    count,
+                    Math.Round(meanR, 1),
+                    Math.Round(rStdDev, 1),
+                    Math.Round(idealGap, 1),
+                    Math.Round(uniformity, 1)));
+            }
+
+            double meanJitter = evaluatedRingsCount > 0 ? totalRadiusJitter / evaluatedRingsCount : 0.0;
+            double meanUniformity = evaluatedRingsCount > 0 ? totalUniformity / evaluatedRingsCount : 100.0;
+
+            double fidelityScore = Math.Round(Math.Clamp((meanUniformity * 0.6) + Math.Max(0, 40.0 - (meanJitter * 0.2)), 0.0, 100.0), 1);
+
+            string category;
+            if (fidelityScore >= 85.0 && crowdedTitles.Count == 0)
+            {
+                category = "Harmonic Equidistant Radial Layout";
+            }
+            else if (fidelityScore >= 70.0 && crowdedTitles.Count == 0)
+            {
+                category = "Balanced Concentric Distribution";
+            }
+            else if (crowdedTitles.Count > 0)
+            {
+                category = "Angular Sector Crowding Detected";
+            }
+            else
+            {
+                category = "Irregular Radial Jitter";
+            }
+
+            string summary = FormatRadialLayoutSummary(
+                targetList.Count, ringMetrics.Count, meanUniformity, meanJitter, fidelityScore, category, crowdedTitles.Count, isSelection);
+
+            StatusMessage = summary;
+
+            return new RadialLayoutAudit(
+                targetList.Count,
+                linksInScope.Count,
+                ringMetrics.Count,
+                Math.Round(meanJitter, 1),
+                Math.Round(meanUniformity, 1),
+                fidelityScore,
+                ringMetrics,
+                nodeRadialList,
+                crowdedTitles,
+                category,
+                isSelection,
+                summary);
+        }
+
+        public static RadialLayoutAudit AuditRadialLayoutAngularSpacing(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditRadialLayoutAngularSpacing();
+        }
+
+        public static string FormatRadialLayoutSummary(
+            int nodeCount, int ringCount, double angularScore, double radiusJitter,
+            double fidelityScore, string category, int crowdedCount, bool isSelection = false)
+        {
+            string scopeStr = isSelection ? "Selected Nodes · " : "";
+            if (nodeCount == 0) return $"Graph radial layout ({scopeStr}0 nodes): Empty mindmap";
+
+            string nodeLabel = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+            string ringLabel = ringCount == 1 ? "1 ring" : $"{ringCount} rings";
+            string crowdAlert = crowdedCount > 0 ? $" · ⚠ {crowdedCount} crowded sector{(crowdedCount == 1 ? "" : "s")}" : " · Equidistant";
+
+            return $"Graph radial layout ({scopeStr}{nodeLabel}, {ringLabel} · {category}): Fidelity {fidelityScore:0.#}% (Angular uniformity {angularScore:0.#}%, Jitter ±{radiusJitter:0.#}px){crowdAlert}";
+        }
     }
 
 
@@ -6681,6 +6920,47 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<NodeEigenvectorInfo> NodeMetrics,
         IReadOnlyList<string> TopInfluencerTitles,
         string NetworkStructureCategory,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated radial layout metrics, depth ring, and angular spacing for a mindmap node.
+    /// </summary>
+    public sealed record NodeRadialMetric(
+        string NodeId,
+        string Title,
+        int DepthRing,
+        double Radius,
+        double AngleDegrees,
+        double AngularGapDegrees,
+        bool HasAngularCrowding);
+
+    /// <summary>
+    /// Represents aggregate spacing and uniformity metrics for an individual concentric depth ring.
+    /// </summary>
+    public sealed record RadialRingMetric(
+        int DepthRing,
+        int NodeCount,
+        double MeanRadius,
+        double RadiusJitterStdDev,
+        double MeanAngularSpacingDegrees,
+        double AngularUniformityScore);
+
+    /// <summary>
+    /// Represents the result of an audit of graph radial layout equidistant spacing,
+    /// angular sector distribution, and concentric ring depth uniformity.
+    /// </summary>
+    public sealed record RadialLayoutAudit(
+        int TotalNodes,
+        int TotalLinks,
+        int RingCount,
+        double MeanRadiusJitter,
+        double OverallAngularUniformityScore,
+        double OverallLayoutFidelityScore,
+        IReadOnlyList<RadialRingMetric> Rings,
+        IReadOnlyList<NodeRadialMetric> NodeMetrics,
+        IReadOnlyList<string> CrowdedNodeTitles,
+        string LayoutCategory,
         bool IsSelectionScope,
         string Summary);
 }

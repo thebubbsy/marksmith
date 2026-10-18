@@ -306,6 +306,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceFileSizeDistributionAdvisorItem" Text="Copy workspace file size distribution &amp; storage bloat advisor" Click="OnCopyWorkspaceFileSizeDistributionAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE838;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyWorkspaceAssetDeduplicationAdvisorItem" Text="Copy workspace asset redundancy &amp; hash deduplication advisor" Click="OnCopyWorkspaceAssetDeduplicationAdvisorClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE777;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

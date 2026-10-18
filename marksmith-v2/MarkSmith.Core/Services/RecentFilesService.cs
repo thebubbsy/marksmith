@@ -3702,6 +3702,197 @@ public sealed class RecentFilesService
         if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):0.#} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):0.##} GB";
     }
+
+    /// <summary>
+    /// Audits workspace assets (media and attachments) for byte-identical duplicate files across folders
+    /// using SHA-256 cryptographic hashing, estimating reclaimed disk space and archive compactness.
+    /// </summary>
+    public static WorkspaceAssetDeduplicationAudit AuditWorkspaceAssetDeduplication(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, byte[]>? fileBytesProvider = null,
+        Func<string, string>? fileHashProvider = null)
+    {
+        var list = files?.Where(f => !string.IsNullOrWhiteSpace(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                   ?? new List<string>();
+
+        if (list.Count == 0)
+        {
+            string emptySummary = "Workspace asset deduplication advisor: 0 assets · Workspace is empty";
+            return new WorkspaceAssetDeduplicationAudit(
+                0, 0, 0, 0, 0, 0, "0 B", 100.0,
+                Array.Empty<DuplicateAssetGroup>(),
+                "Zero Redundancy (Fully Deduplicated)",
+                emptySummary);
+        }
+
+        fileExistsProvider ??= File.Exists;
+
+        var assetExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".avif", ".mp4", ".pdf", ".docx", ".zip", ".md", ".txt"
+        };
+
+        var hashToPaths = new Dictionary<string, List<(string Path, long Size)>>(StringComparer.OrdinalIgnoreCase);
+        long totalScannedBytes = 0;
+        int totalAssetsScanned = 0;
+
+        foreach (var path in list)
+        {
+            string ext = "";
+            try { ext = Path.GetExtension(path); } catch { }
+            if (!assetExtensions.Contains(ext)) continue;
+
+            if (!fileExistsProvider(path)) continue;
+
+            string hash = "";
+            long size = 0;
+
+            if (fileHashProvider != null)
+            {
+                hash = fileHashProvider(path);
+                if (fileBytesProvider != null)
+                {
+                    var bytes = fileBytesProvider(path);
+                    size = bytes?.Length ?? 0;
+                }
+                else
+                {
+                    try { size = new FileInfo(path).Length; } catch { size = 1024; }
+                }
+            }
+            else if (fileBytesProvider != null)
+            {
+                var bytes = fileBytesProvider(path) ?? Array.Empty<byte>();
+                size = bytes.Length;
+                using var sha256 = System.Security.Cryptography.SHA256.Create();
+                var hashBytes = sha256.ComputeHash(bytes);
+                hash = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+            }
+            else
+            {
+                try
+                {
+                    var fi = new FileInfo(path);
+                    size = fi.Length;
+                    using var sha256 = System.Security.Cryptography.SHA256.Create();
+                    using var stream = File.OpenRead(path);
+                    var hashBytes = sha256.ComputeHash(stream);
+                    hash = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+                }
+                catch
+                {
+                    continue;
+                }
+            }
+
+            if (string.IsNullOrEmpty(hash)) continue;
+
+            totalAssetsScanned++;
+            totalScannedBytes += size;
+
+            if (!hashToPaths.TryGetValue(hash, out var paths))
+            {
+                paths = new List<(string, long)>();
+                hashToPaths[hash] = paths;
+            }
+            paths.Add((path, size));
+        }
+
+        if (totalAssetsScanned == 0)
+        {
+            string emptySummary = "Workspace asset deduplication advisor: 0 assets · No eligible assets found";
+            return new WorkspaceAssetDeduplicationAudit(
+                0, 0, 0, 0, 0, 0, "0 B", 100.0,
+                Array.Empty<DuplicateAssetGroup>(),
+                "Zero Redundancy (Fully Deduplicated)",
+                emptySummary);
+        }
+
+        var duplicateGroups = new List<DuplicateAssetGroup>();
+        long totalWastedBytes = 0;
+        int totalRedundantCount = 0;
+
+        foreach (var kvp in hashToPaths)
+        {
+            var paths = kvp.Value;
+            if (paths.Count > 1)
+            {
+                long assetSize = paths[0].Size;
+                int copies = paths.Count - 1;
+                long wasted = assetSize * copies;
+                totalWastedBytes += wasted;
+                totalRedundantCount += copies;
+
+                duplicateGroups.Add(new DuplicateAssetGroup(
+                    kvp.Key,
+                    assetSize,
+                    FormatByteSize(assetSize),
+                    paths.Select(p => p.Path).ToList(),
+                    wasted,
+                    FormatByteSize(wasted)));
+            }
+        }
+
+        double efficiencyScore = 100.0;
+        if (totalScannedBytes > 0)
+        {
+            double ratio = (double)totalWastedBytes / totalScannedBytes;
+            efficiencyScore = Math.Round(Math.Clamp((1.0 - ratio) * 100.0, 0.0, 100.0), 1);
+        }
+
+        string category;
+        if (duplicateGroups.Count == 0)
+        {
+            category = "Zero Redundancy (Fully Deduplicated)";
+        }
+        else if (efficiencyScore >= 95.0)
+        {
+            category = "Minor Redundancy (<5% wasted)";
+        }
+        else if (efficiencyScore >= 75.0)
+        {
+            category = "Moderate Duplicate Asset Bloat";
+        }
+        else
+        {
+            category = "Severe Storage Duplication";
+        }
+
+        string summary = FormatWorkspaceAssetDeduplicationSummary(
+            totalAssetsScanned, hashToPaths.Count, duplicateGroups.Count, totalRedundantCount,
+            totalScannedBytes, totalWastedBytes, efficiencyScore, category);
+
+        return new WorkspaceAssetDeduplicationAudit(
+            totalAssetsScanned,
+            hashToPaths.Count,
+            duplicateGroups.Count,
+            totalRedundantCount,
+            totalScannedBytes,
+            totalWastedBytes,
+            FormatByteSize(totalWastedBytes),
+            efficiencyScore,
+            duplicateGroups,
+            category,
+            summary);
+    }
+
+    public static string FormatWorkspaceAssetDeduplicationSummary(
+        int totalAssets, int uniqueCount, int duplicateGroups, int redundantCopies,
+        long totalBytes, long wastedBytes, double efficiencyScore, string category)
+    {
+        if (totalAssets == 0) return "Workspace asset deduplication advisor: 0 assets · Workspace is empty";
+
+        string assetLabel = totalAssets == 1 ? "1 asset" : $"{totalAssets} assets";
+        string wastedStr = FormatByteSize(wastedBytes);
+
+        if (duplicateGroups == 0)
+        {
+            return $"Workspace asset deduplication advisor ({assetLabel} · {category} · 100% efficiency): All assets unique (0 B wasted)";
+        }
+
+        return $"Workspace asset deduplication advisor ({assetLabel} · {category} · {efficiencyScore:0.#}% efficiency): {duplicateGroups} duplicate group{(duplicateGroups == 1 ? "" : "s")} ({redundantCopies} copies) · {wastedStr} reclaimable";
+    }
 }
 
 /// <summary>
@@ -4100,5 +4291,34 @@ public sealed record WorkspaceFileSizeDistributionAudit(
     IReadOnlyDictionary<string, int> ExtensionCounts,
     IReadOnlyList<WorkspaceFileSizeItem> Files,
     string Summary);
+
+/// <summary>
+/// Represents an identified group of identical duplicate assets sharing a common SHA-256 hash.
+/// </summary>
+public sealed record DuplicateAssetGroup(
+    string ContentHashSha256,
+    long AssetSizeBytes,
+    string FormattedAssetSize,
+    IReadOnlyList<string> DuplicateFilePaths,
+    long WastedRedundantBytes,
+    string FormattedWastedBytes);
+
+/// <summary>
+/// Represents the result of an audit of workspace asset redundancy, SHA-256 content hash deduplication,
+/// and archive packaging savings potential.
+/// </summary>
+public sealed record WorkspaceAssetDeduplicationAudit(
+    int TotalAssetsScanned,
+    int UniqueAssetCount,
+    int DuplicateGroupCount,
+    int TotalRedundantAssetCount,
+    long TotalScannedSizeBytes,
+    long TotalRedundantWastedBytes,
+    string FormattedRedundantWastedBytes,
+    double DeduplicationEfficiencyScore,
+    IReadOnlyList<DuplicateAssetGroup> DuplicateGroups,
+    string DeduplicationCategory,
+    string Summary);
+
 
 

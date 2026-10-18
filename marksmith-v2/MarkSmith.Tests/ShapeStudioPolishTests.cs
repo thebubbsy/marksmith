@@ -1705,6 +1705,74 @@ public class ShapeStudioPolishTests
             unbalancedAudit.DirectionalBias, unbalancedAudit.Category);
         Assert.Equal(unbalancedAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run167_AuditConnectorCurvatureAndTangents_EvaluatesSmoothnessAndMicroKinks()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas (0 connectors)
+        var emptyAudit = vm.AuditConnectorCurvatureAndTangents();
+        Assert.Equal(0, emptyAudit.TotalConnectorsEvaluated);
+        Assert.Equal(0, emptyAudit.TotalKnotsEvaluated);
+        Assert.Equal(100.0, emptyAudit.CurvatureSmoothnessScore);
+        Assert.Equal("Zero Connectors", emptyAudit.SmoothnessCategory);
+
+        // 2. Straight collinear connector (0° turning angle -> G1 Smooth)
+        var smoothConnector = new ShapeCanvasItemViewModel
+        {
+            Id = "c1",
+            ShapeType = "connector",
+            Text = "Smooth Connector",
+            Points = new List<System.Numerics.Vector2>
+            {
+                new(0, 0),
+                new(100, 0),
+                new(200, 0)
+            }
+        };
+        vm.Shapes.Add(smoothConnector);
+
+        var smoothAudit = vm.AuditConnectorCurvatureAndTangents();
+        Assert.Equal(1, smoothAudit.TotalConnectorsEvaluated);
+        Assert.Equal(1, smoothAudit.TotalKnotsEvaluated);
+        Assert.Equal(1, smoothAudit.SmoothKnotCount);
+        Assert.Equal(0, smoothAudit.MicroKinkCount);
+        Assert.Equal(0.0, smoothAudit.MeanTurningAngleDegrees);
+        Assert.Equal(100.0, smoothAudit.CurvatureSmoothnessScore);
+        Assert.Equal("Seamless G1 Tangent Continuity", smoothAudit.SmoothnessCategory);
+
+        // 3. Connector with accidental 10° micro-kink
+        var kinkConnector = new ShapeCanvasItemViewModel
+        {
+            Id = "c2",
+            ShapeType = "connector",
+            Text = "Kinked Connector",
+            Points = new List<System.Numerics.Vector2>
+            {
+                new(0, 0),
+                new(100, 0),
+                new(198.48f, 17.36f) // ~10 degree turning angle
+            }
+        };
+        vm.Shapes.Clear();
+        vm.Shapes.Add(kinkConnector);
+
+        var kinkAudit = vm.AuditConnectorCurvatureAndTangents();
+        Assert.Equal(1, kinkAudit.TotalConnectorsEvaluated);
+        Assert.Equal(1, kinkAudit.TotalKnotsEvaluated);
+        Assert.Equal(1, kinkAudit.MicroKinkCount);
+        Assert.True(kinkAudit.MeanTurningAngleDegrees >= 8.0 && kinkAudit.MeanTurningAngleDegrees <= 12.0);
+        Assert.True(kinkAudit.CurvatureSmoothnessScore < 100.0);
+        Assert.Equal("Micro-Kinks Detected", kinkAudit.SmoothnessCategory);
+
+        // 4. Formatter test
+        string formatted = ShapeDesignStudioViewModel.FormatConnectorCurvatureSummary(
+            kinkAudit.TotalConnectorsEvaluated, kinkAudit.TotalKnotsEvaluated, kinkAudit.SmoothKnotCount,
+            kinkAudit.MicroKinkCount, kinkAudit.MeanTurningAngleDegrees, kinkAudit.CurvatureSmoothnessScore,
+            kinkAudit.SmoothnessCategory, kinkAudit.IsSelectionScope ? "Selection · " : "");
+        Assert.Equal(kinkAudit.Summary, formatted);
+    }
 }
 
 

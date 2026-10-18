@@ -318,6 +318,9 @@
                                     <MenuFlyoutItem x:Name="AuditEigenvectorCentralityItem" Text="Audit graph eigenvector centrality &amp; influence propagation" Click="OnAuditEigenvectorCentralityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditRadialLayoutItem" Text="Audit graph radial layout spacing &amp; angular sector distribution" Click="OnAuditRadialLayoutClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

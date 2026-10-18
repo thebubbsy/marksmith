@@ -709,6 +709,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditVisualWeightItem" Text="Audit diagram visual weight &amp; centroid optical balance" Click="OnSelectionAuditVisualWeightClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C5;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditConnectorCurvatureItem" Text="Audit connector path curvature &amp; Bezier tangent smoothness" Click="OnSelectionAuditConnectorCurvatureClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE746;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

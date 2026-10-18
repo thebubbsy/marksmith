@@ -1744,6 +1744,48 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal(1, rewriteAudit.MajorRewriteCount);
         Assert.Equal("Major Rewrites", rewriteAudit.DominantEditType);
     }
+
+    [Fact]
+    public void Run167_AuditSemanticDiffTokenEntropy_CalculatesShannonBitsAndDrift()
+    {
+        // 1. Unchanged document (0 diffs)
+        var emptyAudit = LineDiff.AuditSemanticDiffTokenEntropy("", "");
+        Assert.Equal(0, emptyAudit.TotalBeforeTokens);
+        Assert.Equal(0, emptyAudit.TotalAfterTokens);
+        Assert.Equal(0.0, emptyAudit.EntropyDeltaBits);
+        Assert.Equal(100.0, emptyAudit.RevisionDriftScore);
+        Assert.Equal("Zero Diff Deltas (Identical)", emptyAudit.DriftCategory);
+        Assert.Equal(emptyAudit.Summary, LineDiff.FormatSemanticDiffTokenEntropySummary(0, 0, 0, 0, 0.0, 0.0, 0.0, 1.0, 100.0, "Zero Diff Deltas (Identical)"));
+
+        // 2. Syntactic equilibrium refactor (equivalent information density)
+        var oldCode = "int totalUserCount = CalculateUsers(activeList);";
+        var newCode = "int totalUsersActive = ComputeActiveUsers(activeList);";
+        var eqAudit = LineDiff.AuditSemanticDiffTokenEntropy(oldCode, newCode);
+
+        Assert.True(eqAudit.TotalBeforeTokens > 0);
+        Assert.True(eqAudit.TotalAfterTokens > 0);
+        Assert.True(Math.Abs(eqAudit.EntropyDeltaBits) < 0.25);
+        Assert.Equal("Syntactic Equilibrium / Equivalent Information Density", eqAudit.DriftCategory);
+        Assert.True(eqAudit.RevisionDriftScore >= 80.0);
+        Assert.NotEmpty(eqAudit.TopTokens);
+
+        // 3. Information expanding refactor
+        var simpleCode = "int x = 1;";
+        var complexCode = "int complexTelemetryDataPointWithTimestamp = CalculateStandardDeviationOfAllRegisteredNodesInGraph(payloadMatrix);";
+        var expandAudit = LineDiff.AuditSemanticDiffTokenEntropy(simpleCode, complexCode);
+
+        Assert.True(expandAudit.EntropyDeltaBits > 0.5);
+        Assert.Equal("Information Expanding Refactor", expandAudit.DriftCategory);
+        Assert.True(expandAudit.VocabularyExpansionRatio > 1.5);
+
+        // 4. Formatter test
+        string formatted = LineDiff.FormatSemanticDiffTokenEntropySummary(
+            expandAudit.TotalBeforeTokens, expandAudit.TotalAfterTokens, expandAudit.DistinctBeforeTokens,
+            expandAudit.DistinctAfterTokens, expandAudit.BeforeEntropyBits, expandAudit.AfterEntropyBits,
+            expandAudit.EntropyDeltaBits, expandAudit.VocabularyExpansionRatio, expandAudit.RevisionDriftScore,
+            expandAudit.DriftCategory);
+        Assert.Equal(expandAudit.Summary, formatted);
+    }
 }
 
 

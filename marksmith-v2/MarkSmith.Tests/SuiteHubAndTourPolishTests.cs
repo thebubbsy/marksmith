@@ -3082,6 +3082,89 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("CopyWorkspaceFileSizeDistributionAdvisorItem", suiteXaml);
         Assert.Contains("OnCopyWorkspaceFileSizeDistributionAdvisorClick", suiteCs);
     }
+
+    [Fact]
+    public void Run167_AuditWorkspaceAssetDeduplication_IdentifiesHashDuplicatesAndWastedBytes()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditWorkspaceAssetDeduplication(null);
+        Assert.Equal(0, emptyAudit.TotalAssetsScanned);
+        Assert.Equal(0, emptyAudit.UniqueAssetCount);
+        Assert.Equal(0, emptyAudit.DuplicateGroupCount);
+        Assert.Equal(0, emptyAudit.TotalRedundantAssetCount);
+        Assert.Equal(100.0, emptyAudit.DeduplicationEfficiencyScore);
+        Assert.Equal("Zero Redundancy (Fully Deduplicated)", emptyAudit.DeduplicationCategory);
+        Assert.Equal("Workspace asset deduplication advisor: 0 assets · Workspace is empty", emptyAudit.Summary);
+
+        // 2. Mocked workspace with distinct and duplicate assets
+        var fakeFiles = new[]
+        {
+            @"C:\docs\images\diagram1.png",
+            @"C:\docs\assets\diagram1_copy.png",
+            @"C:\docs\images\photo.jpg",
+            @"C:\docs\images\icon.svg"
+        };
+
+        var byteDict = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\docs\images\diagram1.png"] = new byte[] { 1, 2, 3, 4 },
+            [@"C:\docs\assets\diagram1_copy.png"] = new byte[] { 1, 2, 3, 4 },
+            [@"C:\docs\images\photo.jpg"] = new byte[] { 5, 6, 7, 8, 9 },
+            [@"C:\docs\images\icon.svg"] = new byte[] { 10, 11 }
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceAssetDeduplication(
+            fakeFiles,
+            fileExistsProvider: _ => true,
+            fileBytesProvider: p => byteDict.TryGetValue(p, out var b) ? b : Array.Empty<byte>());
+
+        Assert.Equal(4, audit.TotalAssetsScanned);
+        Assert.Equal(3, audit.UniqueAssetCount);
+        Assert.Equal(1, audit.DuplicateGroupCount);
+        Assert.Equal(1, audit.TotalRedundantAssetCount);
+        Assert.Equal(4, audit.TotalRedundantWastedBytes);
+        Assert.True(audit.DeduplicationEfficiencyScore < 100.0);
+        Assert.Single(audit.DuplicateGroups);
+        Assert.Equal(2, audit.DuplicateGroups[0].DuplicateFilePaths.Count);
+        Assert.Equal(audit.Summary, RecentFilesService.FormatWorkspaceAssetDeduplicationSummary(
+            4, 3, 1, 1, audit.TotalScannedSizeBytes, audit.TotalRedundantWastedBytes,
+            audit.DeduplicationEfficiencyScore, audit.DeduplicationCategory));
+
+        // 3. Cross-surface XAML / C# wiring verification for Run #167 across all 6 surfaces:
+        // MainWindow: footnoteReferenceConsistencyItem
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("footnoteReferenceConsistencyItem", mainCs);
+        Assert.Contains("FormatFootnoteReferenceSummary", mainCs);
+
+        // MindMapGalaxy: AuditRadialLayoutItem
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditRadialLayoutItem", galaxyXaml);
+        Assert.Contains("OnAuditRadialLayoutClick", galaxyCs);
+
+        // ShapeStudio: SelectionAuditConnectorCurvatureItem
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditConnectorCurvatureItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditConnectorCurvatureClick", shapeCs);
+
+        // SmartArtStudio: AuditLinearFlowRhythmItem
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditLinearFlowRhythmItem", smartArtXaml);
+        Assert.Contains("OnAuditLinearFlowRhythmClick", smartArtCs);
+
+        // HistoryWindow: auditDiffTokenEntropy
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditDiffTokenEntropy", historyCs);
+        Assert.Contains("AuditSemanticDiffTokenEntropy", historyCs);
+
+        // SuiteHubView: CopyWorkspaceAssetDeduplicationAdvisorItem
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceAssetDeduplicationAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceAssetDeduplicationAdvisorClick", suiteCs);
+    }
 }
 
 

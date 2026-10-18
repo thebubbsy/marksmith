@@ -1734,6 +1734,55 @@ public class TextSearchTests
         Assert.Equal(2, irregularAudit.IrregularIndentCount);
         Assert.True(irregularAudit.UniformityScore < 100.0);
     }
+
+    [Fact]
+    public void Run167_AuditFootnoteAndReferenceConsistency_DetectsLinkageAndMonotonicity()
+    {
+        // 1. Empty document
+        var emptyAudit = TextSearch.AuditFootnoteAndReferenceConsistency("");
+        Assert.Equal(0, emptyAudit.TotalAnchors);
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(100.0, emptyAudit.FootnoteConsistencyScore);
+        Assert.Equal("Clean Baseline (Zero Footnotes)", emptyAudit.Category);
+        Assert.Equal(emptyAudit.Summary, TextSearch.FormatFootnoteReferenceSummary(""));
+
+        // 2. Clean monotonic bidirectional footnotes
+        var cleanDoc = string.Join("\n",
+            "This is the first claim[^1] and this is the second claim[^2].",
+            "",
+            "[^1]: Details for the first claim.",
+            "[^2]: Details for the second claim.");
+
+        var cleanAudit = TextSearch.AuditFootnoteAndReferenceConsistency(cleanDoc);
+        Assert.Equal(2, cleanAudit.TotalAnchors);
+        Assert.Equal(2, cleanAudit.TotalDefinitions);
+        Assert.Empty(cleanAudit.MissingDefinitionIds);
+        Assert.Empty(cleanAudit.OrphanDefinitionIds);
+        Assert.Empty(cleanAudit.DuplicateDefinitionIds);
+        Assert.Equal(0, cleanAudit.NonMonotonicAnchorCount);
+        Assert.Equal(100.0, cleanAudit.FootnoteConsistencyScore);
+        Assert.Equal("Perfect Bi-Directional Consistency", cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, TextSearch.FormatFootnoteReferenceSummary(cleanDoc));
+
+        // 3. Document with missing target, orphan definition, duplicate definition, and non-monotonic sequence
+        var mixedDoc = string.Join("\n",
+            "Non-monotonic anchor sequence: second first[^2] then earlier[^1] and missing[^missing].",
+            "",
+            "[^1]: First definition.",
+            "[^1]: Duplicate first definition.",
+            "[^2]: Second definition.",
+            "[^orphan]: This footnote is never referenced in body text.");
+
+        var mixedAudit = TextSearch.AuditFootnoteAndReferenceConsistency(mixedDoc);
+        Assert.Equal(3, mixedAudit.TotalAnchors);
+        Assert.Equal(4, mixedAudit.TotalDefinitions);
+        Assert.Contains("missing", mixedAudit.MissingDefinitionIds);
+        Assert.Contains("orphan", mixedAudit.OrphanDefinitionIds);
+        Assert.Contains("1", mixedAudit.DuplicateDefinitionIds);
+        Assert.True(mixedAudit.NonMonotonicAnchorCount >= 1);
+        Assert.True(mixedAudit.FootnoteConsistencyScore < 100.0);
+        Assert.Equal("Missing Footnote Targets", mixedAudit.Category);
+    }
 }
 
 

@@ -70,6 +70,16 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     /// <summary>Curved-stroke polyline (0..100 local space) for sketch/trace lines.</summary>
     public System.Collections.Generic.List<(double X, double Y)>? PathPoints { get; set; }
 
+    /// <summary>Alias for Prst for connector/drawing type compatibility.</summary>
+    public string ShapeType { get => Prst; set => Prst = value; }
+
+    /// <summary>Alternative points accessor for vector/connector operations.</summary>
+    public System.Collections.Generic.List<System.Numerics.Vector2>? Points
+    {
+        get => PathPoints?.Select(p => new System.Numerics.Vector2((float)p.X, (float)p.Y)).ToList();
+        set => PathPoints = value?.Select(p => ((double)p.X, (double)p.Y)).ToList();
+    }
+
     /// <summary>Stroke thickness in points (connectors, sketch/trace lines). Editable in the
     /// inspector as Weight; it used to be fixed at whatever the preset or tracer chose.</summary>
     public double StrokeWidthPt
@@ -6405,6 +6415,168 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string shapeDesc = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
         return $"Diagram visual weight audit ({scope}{shapeDesc} · {category} · {balanceScore:0.#}% balance): Offset ΔX={deltaX:+0.#;-0.#;0}px, ΔY={deltaY:+0.#;-0.#;0}px ({dirBias})";
     }
+
+    /// <summary>
+    /// Audits diagram connector path curvature continuity, Bezier tangent alignment, and knot smoothness.
+    /// </summary>
+    public ConnectorCurvatureAudit AuditConnectorCurvatureAndTangents(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var rawTargets = targetShapes?.ToList() ?? (selected.Count > 0 ? selected : Shapes.ToList());
+        if (rawTargets.Count == 0)
+        {
+            rawTargets = Shapes.ToList();
+        }
+
+        bool isSelection = (targetShapes != null) || (selected.Count > 0 && rawTargets.Count < Shapes.Count);
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        var connectors = rawTargets.Where(s =>
+            (s.ShapeType != null && (
+                s.ShapeType.Contains("connector", StringComparison.OrdinalIgnoreCase) ||
+                s.ShapeType.Contains("line", StringComparison.OrdinalIgnoreCase) ||
+                s.ShapeType.Contains("path", StringComparison.OrdinalIgnoreCase) ||
+                s.ShapeType.Contains("polyline", StringComparison.OrdinalIgnoreCase) ||
+                s.ShapeType.Contains("curve", StringComparison.OrdinalIgnoreCase))) ||
+            (s.Points != null && s.Points.Count >= 2) ||
+            (s.PathPoints != null && s.PathPoints.Count >= 2)).ToList();
+
+        if (connectors.Count == 0)
+        {
+            string emptySummary = $"Connector curvature audit ({scopeStr}0 connectors): No connectors in scope";
+            StatusMessage = emptySummary;
+            return new ConnectorCurvatureAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ConnectorKnotInfo>(),
+                "Zero Connectors",
+                isSelection,
+                emptySummary);
+        }
+
+        var knotList = new List<ConnectorKnotInfo>();
+        int smoothCount = 0;
+        int cornerCount = 0;
+        int microKinkCount = 0;
+        double totalAngle = 0.0;
+        int knotsEvaluated = 0;
+
+        foreach (var conn in connectors)
+        {
+            var pts = conn.Points;
+            if (pts == null || pts.Count < 3) continue;
+
+            for (int i = 1; i < pts.Count - 1; i++)
+            {
+                var pPrev = pts[i - 1];
+                var pCur = pts[i];
+                var pNext = pts[i + 1];
+
+                double vx1 = pCur.X - pPrev.X;
+                double vy1 = pCur.Y - pPrev.Y;
+                double len1 = Math.Sqrt(vx1 * vx1 + vy1 * vy1);
+
+                double vx2 = pNext.X - pCur.X;
+                double vy2 = pNext.Y - pCur.Y;
+                double len2 = Math.Sqrt(vx2 * vx2 + vy2 * vy2);
+
+                if (len1 < 0.001 || len2 < 0.001) continue;
+
+                double dot = (vx1 * vx2 + vy1 * vy2) / (len1 * len2);
+                dot = Math.Clamp(dot, -1.0, 1.0);
+                double angleDeg = Math.Round(Math.Acos(dot) * (180.0 / Math.PI), 1);
+
+                totalAngle += angleDeg;
+                knotsEvaluated++;
+
+                string grade;
+                bool isMicroKink = false;
+
+                if (angleDeg < 5.0)
+                {
+                    grade = "G1 Smooth Continuity";
+                    smoothCount++;
+                }
+                else if (angleDeg >= 5.0 && angleDeg < 45.0)
+                {
+                    grade = "Soft Curvature Bend";
+                    if (angleDeg >= 3.0 && angleDeg < 18.0)
+                    {
+                        isMicroKink = true;
+                        microKinkCount++;
+                    }
+                }
+                else
+                {
+                    grade = "Sharp Corner / Cusp";
+                    cornerCount++;
+                }
+
+                knotList.Add(new ConnectorKnotInfo(
+                    conn.Id,
+                    i,
+                    Math.Round(pCur.X, 1),
+                    Math.Round(pCur.Y, 1),
+                    angleDeg,
+                    grade,
+                    isMicroKink));
+            }
+        }
+
+        double meanAngle = knotsEvaluated > 0 ? Math.Round(totalAngle / knotsEvaluated, 1) : 0.0;
+        double smoothnessScore = 100.0;
+        smoothnessScore -= microKinkCount * 15.0;
+        smoothnessScore -= Math.Min(40.0, meanAngle * 0.5);
+        smoothnessScore = Math.Round(Math.Clamp(smoothnessScore, 0.0, 100.0), 1);
+
+        string category;
+        if (knotsEvaluated == 0 || (smoothnessScore >= 90.0 && microKinkCount == 0))
+        {
+            category = "Seamless G1 Tangent Continuity";
+        }
+        else if (smoothnessScore >= 70.0 && microKinkCount == 0)
+        {
+            category = "Balanced Curvature Flow";
+        }
+        else if (microKinkCount > 0)
+        {
+            category = "Micro-Kinks Detected";
+        }
+        else
+        {
+            category = "High Angle Discontinuities";
+        }
+
+        string summary = FormatConnectorCurvatureSummary(
+            connectors.Count, knotsEvaluated, smoothCount, microKinkCount, meanAngle, smoothnessScore, category, scopeStr);
+
+        StatusMessage = summary;
+
+        return new ConnectorCurvatureAudit(
+            connectors.Count,
+            knotsEvaluated,
+            smoothCount,
+            cornerCount,
+            microKinkCount,
+            meanAngle,
+            smoothnessScore,
+            knotList,
+            category,
+            isSelection,
+            summary);
+    }
+
+    public static string FormatConnectorCurvatureSummary(
+        int totalConnectors, int totalKnots, int smoothKnots, int microKinks,
+        double meanAngle, double score, string category, string scope = "")
+    {
+        if (totalConnectors == 0) return $"Connector curvature audit ({scope}0 connectors): No connectors in scope";
+
+        string connLabel = totalConnectors == 1 ? "1 connector" : $"{totalConnectors} connectors";
+        string knotLabel = totalKnots == 1 ? "1 knot" : $"{totalKnots} knots";
+        string kinkAlert = microKinks > 0 ? $" · ⚠ {microKinks} micro-kink{(microKinks == 1 ? "" : "s")}" : " · Smooth tangents";
+
+        return $"Connector curvature audit ({scope}{connLabel}, {knotLabel} · {category} · {score:0.#}% score): Mean turning angle {meanAngle:0.#}°{kinkAlert}";
+    }
 }
 
 /// <summary>
@@ -6804,6 +6976,36 @@ public sealed record DiagramVisualWeightAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated knot curvature continuity, turning angle, and micro-kink detection for a connector knot.
+/// </summary>
+public sealed record ConnectorKnotInfo(
+    string ConnectorId,
+    int KnotIndex,
+    double X,
+    double Y,
+    double TurningAngleDegrees,
+    string ContinuityGrade,
+    bool HasMicroKink);
+
+/// <summary>
+/// Represents the result of an audit of diagram connector curvature continuity,
+/// Bezier tangent alignment, and knot smoothness.
+/// </summary>
+public sealed record ConnectorCurvatureAudit(
+    int TotalConnectorsEvaluated,
+    int TotalKnotsEvaluated,
+    int SmoothKnotCount,
+    int CornerKnotCount,
+    int MicroKinkCount,
+    double MeanTurningAngleDegrees,
+    double CurvatureSmoothnessScore,
+    IReadOnlyList<ConnectorKnotInfo> Knots,
+    string SmoothnessCategory,
+    bool IsSelectionScope,
+    string Summary);
+
 
 
 
