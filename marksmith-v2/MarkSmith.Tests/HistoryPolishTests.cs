@@ -1056,6 +1056,46 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal("High", r3);
         Assert.Contains("conflicted", s3);
     }
+
+    [Fact]
+    public void Run150_SynthesizeSemanticVersionMessage_GeneratesConventionalCommit()
+    {
+        // 1. Identical content
+        var snapshot = LineDiff.SynthesizeSemanticVersionMessage("Line 1\nLine 2", "Line 1\nLine 2");
+        Assert.Contains("docs: checkpoint snapshot", snapshot);
+        Assert.Contains("- Unchanged document content", snapshot);
+
+        // 2. Added section heading (feat)
+        var featHeading = LineDiff.SynthesizeSemanticVersionMessage("Intro", "Intro\n# Architecture Roadmap\nRoadmap details");
+        Assert.Contains("feat(docs): add section 'Architecture Roadmap'", featHeading);
+        Assert.Contains("- Add section: #Architecture Roadmap", featHeading);
+        Assert.Contains("Net churn: +2/-0 lines", featHeading);
+
+        // 3. Removed section heading (refactor)
+        var refactorHeading = LineDiff.SynthesizeSemanticVersionMessage("# Legacy Architecture\nOld details", "Clean details");
+        Assert.Contains("refactor(docs): remove section 'Legacy Architecture'", refactorHeading);
+        Assert.Contains("- Remove section: #Legacy Architecture", refactorHeading);
+
+        // 4. Diagram & code block changes (fix(diagrams))
+        var diagramDiff = LineDiff.SynthesizeSemanticVersionMessage("Text intro", "Text intro\n```mermaid\nflowchart TD\n```");
+        Assert.Contains("fix(diagrams): update code fences and diagram blocks", diagramDiff);
+        Assert.Contains("- Modify diagram/code fence structures", diagramDiff);
+
+        // 5. Data table changes (feat(tables))
+        var tableDiff = LineDiff.SynthesizeSemanticVersionMessage("Text intro", "Text intro\n| Name | Value |\n| --- | --- |");
+        Assert.Contains("feat(tables): update document data tables", tableDiff);
+        Assert.Contains("- Modify structured table layout and cell data", tableDiff);
+
+        // 6. Prose expansion (docs)
+        var proseAdd = LineDiff.SynthesizeSemanticVersionMessage("Intro", "Intro\nLine 2\nLine 3");
+        Assert.Contains("docs(docs): expand document content (+2 lines)", proseAdd);
+        Assert.Contains("- Append 2 new content lines", proseAdd);
+
+        // 7. Prose pruning (refactor)
+        var proseRemove = LineDiff.SynthesizeSemanticVersionMessage("Intro\nLine 2\nLine 3", "Intro");
+        Assert.Contains("refactor(docs): condense document prose (-2 lines)", proseRemove);
+        Assert.Contains("- Prune 2 redundant content lines", proseRemove);
+    }
 }
 
 

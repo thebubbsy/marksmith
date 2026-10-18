@@ -1647,6 +1647,153 @@ public static class TextSearch
 
         return $"Session velocity ({paceCategory} · {deltaStr} words in {timeStr}): {wpm:0.#} WPM ({wph:0} WPH) · Current: {currentWords:N0} words{targetStr}";
     }
+
+    /// <summary>
+    /// Represents the result of a Flesch-Kincaid readability and prose accessibility assessment.
+    /// </summary>
+    public sealed record ReadabilityScorecard(
+        double FleschReadingEase,
+        double FleschKincaidGrade,
+        string EaseCategory,
+        string GradeCategory,
+        int WordCount,
+        int SentenceCount,
+        int SyllableCount,
+        int PolysyllabicWords,
+        double AvgWordsPerSentence,
+        double AvgSyllablesPerWord,
+        string Summary);
+
+    /// <summary>
+    /// Calculates Flesch Reading Ease, Flesch-Kincaid Grade Level, sentence complexity, and syllable density from markdown text,
+    /// automatically stripping code fences, inline code, and HTML tags to prevent code syntax from corrupting prose metrics.
+    /// </summary>
+    public static ReadabilityScorecard CalculateReadabilityScorecard(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new ReadabilityScorecard(
+                0.0, 0.0, "None", "None", 0, 0, 0, 0, 0.0, 0.0,
+                "Readability scorecard: 0 words · Document is empty");
+        }
+
+        // Strip code fences (```...``` or ~~~...~~~ or :::...:::)
+        var clean = System.Text.RegularExpressions.Regex.Replace(
+            markdownText, @"(?s)(```.*?```|~~~.*?~~~|:::.*?:::)", " ", System.Text.RegularExpressions.RegexOptions.None);
+
+        // Strip inline code `...`
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"`[^`]*`", " ");
+
+        // Strip HTML tags <...>
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"<[^>]+>", " ");
+
+        // Strip Markdown heading hashes at start of lines
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"(?m)^\s*#{1,6}\s+", " ");
+
+        // Extract sentences by punctuation (. ! ?) followed by whitespace or end of string
+        var sentenceMatches = System.Text.RegularExpressions.Regex.Split(clean, @"(?<=[.!?])\s+");
+        var sentences = sentenceMatches.Where(s => !string.IsNullOrWhiteSpace(s) && s.Any(char.IsLetter)).ToList();
+        int sentenceCount = Math.Max(1, sentences.Count);
+
+        // Extract words (letter sequences)
+        var wordMatches = System.Text.RegularExpressions.Regex.Matches(clean, @"\b[a-zA-Z]+(?:'[a-zA-Z]+)?\b");
+        var words = wordMatches.Select(m => m.Value).Where(w => w.Length > 0).ToList();
+
+        if (words.Count == 0)
+        {
+            return new ReadabilityScorecard(
+                0.0, 0.0, "None", "None", 0, 0, 0, 0, 0.0, 0.0,
+                "Readability scorecard: 0 words · Document contains no readable prose");
+        }
+
+        int totalWords = words.Count;
+        int totalSyllables = 0;
+        int polysyllabicWords = 0;
+
+        foreach (var w in words)
+        {
+            int syl = CountWordSyllables(w);
+            totalSyllables += syl;
+            if (syl >= 3) polysyllabicWords++;
+        }
+
+        double asl = (double)totalWords / sentenceCount;
+        double asw = (double)totalSyllables / totalWords;
+
+        // Flesch Reading Ease = 206.835 - (1.015 * ASL) - (84.6 * ASW)
+        double rawEase = 206.835 - (1.015 * asl) - (84.6 * asw);
+        double ease = Math.Round(Math.Clamp(rawEase, 0.0, 100.0), 1);
+
+        // Flesch-Kincaid Grade Level = (0.39 * ASL) + (11.8 * ASW) - 15.59
+        double rawGrade = (0.39 * asl) + (11.8 * asw) - 15.59;
+        double grade = Math.Round(Math.Clamp(rawGrade, 0.0, 18.0), 1);
+
+        string easeCategory = ease switch
+        {
+            >= 90.0 => "Very Easy (5th grade)",
+            >= 80.0 => "Easy (6th grade)",
+            >= 70.0 => "Fairly Easy (7th grade)",
+            >= 60.0 => "Standard (8th-9th grade)",
+            >= 50.0 => "Fairly Difficult (10th-12th grade)",
+            >= 30.0 => "Difficult (College)",
+            _ => "Very Difficult (Academic/Specialized)"
+        };
+
+        string gradeCategory = grade switch
+        {
+            <= 6.0 => "Elementary",
+            <= 8.0 => "Middle School",
+            <= 12.0 => "High School",
+            <= 16.0 => "Undergraduate",
+            _ => "Graduate / Specialized"
+        };
+
+        double avgWords = Math.Round(asl, 1);
+        double avgSyllables = Math.Round(asw, 2);
+
+        string summary = $"Readability scorecard (Score: {ease:0.#}/100 · {easeCategory}): Grade {grade:0.#} ({gradeCategory}) · {totalWords:N0}w, {sentenceCount:N0}s ({avgWords:0.#} wps, {avgSyllables:0.##} spw · {polysyllabicWords} polysyllabic)";
+
+        return new ReadabilityScorecard(
+            ease, grade, easeCategory, gradeCategory, totalWords, sentenceCount, totalSyllables, polysyllabicWords, avgWords, avgSyllables, summary);
+    }
+
+    /// <summary>
+    /// Counts phonetic syllables in an English word using vowel cluster heuristics.
+    /// </summary>
+    private static int CountWordSyllables(string word)
+    {
+        if (string.IsNullOrEmpty(word)) return 0;
+        string w = word.ToLowerInvariant();
+        if (w.Length <= 3) return 1;
+
+        int count = 0;
+        bool prevVowel = false;
+        for (int i = 0; i < w.Length; i++)
+        {
+            bool isVowel = "aeiouy".IndexOf(w[i]) >= 0;
+            if (isVowel && !prevVowel)
+            {
+                count++;
+            }
+            prevVowel = isVowel;
+        }
+
+        // Silent trailing 'e' (except when ending in 'le' preceded by consonant)
+        if (w.EndsWith("e") && !w.EndsWith("le") && count > 1)
+        {
+            count--;
+        }
+
+        return Math.Max(1, count);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of Flesch-Kincaid readability and prose accessibility metrics.
+    /// </summary>
+    public static string FormatReadabilityScorecardSummary(string? markdownText)
+    {
+        return CalculateReadabilityScorecard(markdownText).Summary;
+    }
 }
 
 

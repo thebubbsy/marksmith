@@ -3185,6 +3185,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied conflict risk: {riskSummary}");
                 };
                 menu.Items.Add(assessConflictRisk);
+
+                var synthesizeCommitMessage = new MenuFlyoutItem
+                {
+                    Text = "Synthesize semantic version commit message",
+                    Icon = new FontIcon { Glyph = "\uE8A1" }
+                };
+                synthesizeCommitMessage.Click += (_, _) =>
+                {
+                    var message = MarkSmith.Services.LineDiff.SynthesizeSemanticVersionMessage(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(message);
+                    _vm.ShowNotice($"Copied commit message: {message.Split('\n')[0]}");
+                };
+                menu.Items.Add(synthesizeCommitMessage);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

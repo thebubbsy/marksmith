@@ -3323,7 +3323,163 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Inactive subtree audit ({inactivePercentage:0.#}% dormant · >{thresholdDays}d threshold): {nodeLabel} across {rootLabel}{samples} eligible for vault archiving";
         }
+
+        /// <summary>
+        /// Audits the topological depth, level-by-level breadth, and tree hierarchy balance of the active mind map.
+        /// </summary>
+        public TopologicalDepthAudit AuditTopologicalDepth()
+        {
+            return AuditTopologicalDepth(Nodes, Links);
+        }
+
+        /// <summary>
+        /// Audits the topological depth, level hierarchy, and breadth distribution of nodes and links.
+        /// </summary>
+        public static TopologicalDepthAudit AuditTopologicalDepth(
+            IReadOnlyList<MindMapNodeViewModel> nodes,
+            IReadOnlyList<MindMapLinkViewModel>? links = null)
+        {
+            if (nodes == null || nodes.Count == 0)
+            {
+                return new TopologicalDepthAudit(
+                    0, 0, 0, 0.0, new Dictionary<int, int>(), 0, 0,
+                    "Topological depth audit: 0 nodes (Empty map)");
+            }
+
+            // Build parent-child relationships from ParentId
+            var childrenMap = new Dictionary<string, List<string>>();
+            var inDegreeMap = new Dictionary<string, int>();
+            foreach (var node in nodes)
+            {
+                childrenMap[node.Id] = new List<string>();
+                inDegreeMap[node.Id] = 0;
+            }
+
+            foreach (var node in nodes)
+            {
+                if (!string.IsNullOrEmpty(node.ParentId) && childrenMap.ContainsKey(node.ParentId))
+                {
+                    childrenMap[node.ParentId].Add(node.Id);
+                    inDegreeMap[node.Id]++;
+                }
+            }
+
+            // Identify root nodes (in-degree == 0, or ParentId empty)
+            var roots = nodes.Where(n => string.IsNullOrEmpty(n.ParentId) || inDegreeMap[n.Id] == 0).ToList();
+            if (roots.Count == 0)
+            {
+                // If all have in-degree > 0 (cyclic), pick first node as root
+                roots.Add(nodes[0]);
+            }
+
+            var nodeDepths = new Dictionary<string, int>();
+            var queue = new Queue<(string NodeId, int Depth)>();
+            var visited = new HashSet<string>();
+
+            foreach (var root in roots)
+            {
+                queue.Enqueue((root.Id, 0));
+                visited.Add(root.Id);
+                nodeDepths[root.Id] = 0;
+            }
+
+            while (queue.Count > 0)
+            {
+                var (currId, depth) = queue.Dequeue();
+                if (childrenMap.TryGetValue(currId, out var children))
+                {
+                    foreach (var childId in children)
+                    {
+                        if (visited.Add(childId))
+                        {
+                            nodeDepths[childId] = depth + 1;
+                            queue.Enqueue((childId, depth + 1));
+                        }
+                    }
+                }
+            }
+
+            // Any disconnected unvisited nodes are placed at depth 0
+            foreach (var node in nodes)
+            {
+                if (!nodeDepths.ContainsKey(node.Id))
+                {
+                    nodeDepths[node.Id] = 0;
+                }
+            }
+
+            var levelCounts = new SortedDictionary<int, int>();
+            foreach (var d in nodeDepths.Values)
+            {
+                levelCounts[d] = levelCounts.GetValueOrDefault(d, 0) + 1;
+            }
+
+            int maxDepth = levelCounts.Keys.Count > 0 ? levelCounts.Keys.Max() : 0;
+            double avgDepth = nodeDepths.Values.Count > 0 ? Math.Round(nodeDepths.Values.Average(), 2) : 0.0;
+
+            int widestLevel = 0;
+            int maxWidth = 0;
+            foreach (var (lvl, count) in levelCounts)
+            {
+                if (count > maxWidth)
+                {
+                    maxWidth = count;
+                    widestLevel = lvl;
+                }
+            }
+
+            string summary = FormatTopologicalDepthSummary(nodes.Count, roots.Count, maxDepth, avgDepth, widestLevel, maxWidth, levelCounts);
+            return new TopologicalDepthAudit(nodes.Count, roots.Count, maxDepth, avgDepth, levelCounts, widestLevel, maxWidth, summary);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of topological depth metrics.
+        /// </summary>
+        public static string FormatTopologicalDepthSummary(
+            int totalNodes, int rootCount, int maxDepth, double avgDepth, int widestLevel, int maxWidth,
+            IReadOnlyDictionary<int, int>? levelCounts = null)
+        {
+            if (totalNodes <= 0)
+                return "Topological depth audit: 0 nodes (Empty map)";
+
+            string nodeLabel = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string rootLabel = rootCount == 1 ? "1 root" : $"{rootCount} roots";
+            int totalLevels = maxDepth + 1;
+            string levelLabel = totalLevels == 1 ? "1 level" : $"{totalLevels} levels (Depth 0–{maxDepth})";
+
+            string breakdown = "";
+            if (levelCounts != null && levelCounts.Count > 0)
+            {
+                var parts = levelCounts.Take(4).Select(kv => $"L{kv.Key}:{kv.Value}");
+                breakdown = $" [{string.Join(" · ", parts)}{(levelCounts.Count > 4 ? " · …" : "")}]";
+            }
+
+            return $"Topological depth audit ({nodeLabel} across {levelLabel}): {rootLabel} · Avg depth: {avgDepth:0.##} · Widest: Level {widestLevel} ({maxWidth} nodes){breakdown}";
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of topological depth from a collection of nodes.
+        /// </summary>
+        public static string FormatTopologicalDepthSummary(
+            IReadOnlyList<MindMapNodeViewModel> nodes,
+            IReadOnlyList<MindMapLinkViewModel>? links = null)
+        {
+            return AuditTopologicalDepth(nodes, links).Summary;
+        }
     }
+
+    /// <summary>
+    /// Represents the result of a topological depth and level hierarchy analysis of the mind map.
+    /// </summary>
+    public sealed record TopologicalDepthAudit(
+        int TotalNodes,
+        int RootCount,
+        int MaxDepth,
+        double AverageDepth,
+        IReadOnlyDictionary<int, int> LevelCounts,
+        int WidestLevel,
+        int MaxWidth,
+        string Summary);
 
     /// <summary>
     /// Supported text casing normalization modes for mind map nodes.

@@ -4142,6 +4142,69 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string dimStr = newSpanWidth > 0 && newSpanHeight > 0 ? $" · Bounding box: {newSpanWidth:0.#}×{newSpanHeight:0.#}px" : "";
         return $"Scale proportionally ({factor:0.##}x): Resized {shapeLabel} around selection center{dimStr}";
     }
+
+    /// <summary>
+    /// Distributes selected shapes (or all canvas shapes if &lt;2 selected) equidistant around an elliptical or circular orbit.
+    /// </summary>
+    public (int ArrangedCount, double RadiusX, double RadiusY, string Summary) DistributeShapesRadially(double radiusX = 0, double radiusY = 0)
+    {
+        var targets = SelectionCount >= 2 ? Selection.ToList() : Shapes.ToList();
+        if (targets.Count < 2)
+        {
+            string emptySummary = "Radial distribution: requires at least 2 shapes";
+            StatusMessage = emptySummary;
+            return (0, 0, 0, emptySummary);
+        }
+
+        RecordUndo();
+
+        double minX = targets.Min(s => s.X);
+        double minY = targets.Min(s => s.Y);
+        double maxX = targets.Max(s => s.X + s.Width);
+        double maxY = targets.Max(s => s.Y + s.Height);
+        double centerX = (minX + maxX) / 2.0;
+        double centerY = (minY + maxY) / 2.0;
+
+        double rx = radiusX;
+        double ry = radiusY;
+
+        if (rx <= 0 || ry <= 0)
+        {
+            double spanW = maxX - minX;
+            double spanH = maxY - minY;
+            double autoRadius = Math.Max(120.0, Math.Max(spanW, spanH) / 2.0);
+            if (rx <= 0) rx = autoRadius;
+            if (ry <= 0) ry = autoRadius;
+        }
+
+        int count = targets.Count;
+        for (int i = 0; i < count; i++)
+        {
+            double angle = -Math.PI / 2.0 + (2.0 * Math.PI * i / count);
+            var shape = targets[i];
+            double shapeCenterX = centerX + (rx * Math.Cos(angle));
+            double shapeCenterY = centerY + (ry * Math.Sin(angle));
+
+            shape.X = Math.Max(0.0, Math.Round(shapeCenterX - (shape.Width / 2.0), 1));
+            shape.Y = Math.Max(0.0, Math.Round(shapeCenterY - (shape.Height / 2.0), 1));
+        }
+
+        string summary = FormatRadialDistributionSummary(count, rx, ry, centerX, centerY);
+        StatusMessage = $"✓ {summary} · Ctrl+Z to undo";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        return (count, rx, ry, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of a radial shape distribution operation.
+    /// </summary>
+    public static string FormatRadialDistributionSummary(int count, double rx, double ry, double cx, double cy)
+    {
+        if (count < 2) return "Radial distribution: requires at least 2 shapes";
+        string shapeLabel = count == 1 ? "1 shape" : $"{count} shapes";
+        string shapeType = Math.Abs(rx - ry) < 1.0 ? $"circular orbit (R={rx:0.#}px)" : $"elliptical orbit ({rx:0.#}×{ry:0.#}px)";
+        return $"Radial distribution: Arranged {shapeLabel} in {shapeType} around ({cx:0.#}, {cy:0.#})";
+    }
 }
 
 /// <summary>

@@ -1689,6 +1689,72 @@ namespace MarkSmith.Tests
             Assert.Equal(0, cleanResult.InactiveCount);
             Assert.Contains("All 2 nodes are active and recently updated", cleanResult.Summary);
         }
+
+        [Fact]
+        public void Run150_AuditTopologicalDepth_ComputesHierarchyLevelsAndBreadth()
+        {
+            // 1. Empty map
+            var emptyVm = new MindMapStudioViewModel();
+            emptyVm.LoadDocument(new MindMapDocument { Nodes = new List<MindMapNode>() });
+            var emptyAudit = emptyVm.AuditTopologicalDepth();
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.RootCount);
+            Assert.Equal(0, emptyAudit.MaxDepth);
+            Assert.Equal(0.0, emptyAudit.AverageDepth);
+            Assert.Contains("0 nodes (Empty map)", emptyAudit.Summary);
+
+            // 2. Multi-level hierarchy with 2 roots
+            // Root1 (L0) -> Child1 (L1), Child2 (L1) -> Grandchild1 (L2)
+            // Root2 (L0, isolated)
+            // Levels: L0: 2 (Root1, Root2), L1: 2 (Child1, Child2), L2: 1 (Grandchild1)
+            var doc = new MindMapDocument
+            {
+                RootNodeId = "root1",
+                Nodes = new List<MindMapNode>
+                {
+                    new MindMapNode { Id = "root1", Title = "Architecture Core" },
+                    new MindMapNode { Id = "child1", ParentId = "root1", Title = "Services Subsystem" },
+                    new MindMapNode { Id = "child2", ParentId = "root1", Title = "UI Layer" },
+                    new MindMapNode { Id = "grandchild1", ParentId = "child1", Title = "Data Pipeline" },
+                    new MindMapNode { Id = "root2", Title = "Standalone Utilities" }
+                }
+            };
+
+            var vm = new MindMapStudioViewModel();
+            vm.LoadDocument(doc);
+            var audit = vm.AuditTopologicalDepth();
+
+            Assert.Equal(5, audit.TotalNodes);
+            Assert.Equal(2, audit.RootCount);
+            Assert.Equal(2, audit.MaxDepth); // L0, L1, L2 -> Max depth index = 2
+            Assert.Equal(0.8, audit.AverageDepth); // (0 + 1 + 1 + 2 + 0) / 5 = 4 / 5 = 0.8
+            Assert.Equal(0, audit.WidestLevel); // Level 0 has 2 nodes (first max)
+            Assert.Equal(2, audit.MaxWidth);
+            Assert.Equal(3, audit.LevelCounts.Count);
+            Assert.Equal(2, audit.LevelCounts[0]);
+            Assert.Equal(2, audit.LevelCounts[1]);
+            Assert.Equal(1, audit.LevelCounts[2]);
+
+            Assert.Contains("Topological depth audit (5 nodes across 3 levels (Depth 0–2)): 2 roots", audit.Summary);
+            Assert.Contains("Avg depth: 0.8", audit.Summary);
+            Assert.Contains("Widest: Level 0 (2 nodes)", audit.Summary);
+            Assert.Contains("[L0:2 · L1:2 · L2:1]", audit.Summary);
+
+            // 3. Cycle protection fallback
+            var cyclicDoc = new MindMapDocument
+            {
+                Nodes = new List<MindMapNode>
+                {
+                    new MindMapNode { Id = "cycleA", ParentId = "cycleB", Title = "Cycle A" },
+                    new MindMapNode { Id = "cycleB", ParentId = "cycleA", Title = "Cycle B" }
+                }
+            };
+            var cyclicVm = new MindMapStudioViewModel();
+            cyclicVm.LoadDocument(cyclicDoc);
+            var cyclicAudit = cyclicVm.AuditTopologicalDepth();
+            Assert.Equal(2, cyclicAudit.TotalNodes);
+            Assert.True(cyclicAudit.MaxDepth <= 1);
+        }
     }
 }
 

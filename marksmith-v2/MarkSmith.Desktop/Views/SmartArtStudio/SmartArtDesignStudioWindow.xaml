@@ -287,6 +287,9 @@
                                         <MenuFlyoutItem x:Name="AuditTokenDensityItem" Text="Audit outline token density &amp; layout balance" Click="OnAuditTokenDensityClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditAspectRatioFitItem" Text="Audit layout aspect ratio &amp; container fit" Click="OnAuditAspectRatioFitClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

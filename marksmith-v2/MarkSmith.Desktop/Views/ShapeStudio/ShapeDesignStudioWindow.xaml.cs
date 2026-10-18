@@ -6243,6 +6243,15 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
+
+        private void OnSelectionDistributeRadialClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (arrangedCount, rx, ry, summary) = ViewModel.DistributeShapesRadially();
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
     }
 }
 

@@ -838,6 +838,58 @@ public class SmartArtStudioPolishTests
         Assert.Equal("Overflow Risk", verbose.Rating);
         Assert.Contains("Flagged: 1 verbose node", verbose.Summary);
     }
+
+    [Fact]
+    public void Run150_AuditLayoutAspectRatio_EvaluatesAspectRatiosAndFit()
+    {
+        // 1. Process category (Normal & Ultra-wide)
+        var procNorm = SmartArtDesignStudioViewModel.AuditLayoutAspectRatio("Process", 4);
+        Assert.Equal("Process", procNorm.Category);
+        Assert.Equal(4, procNorm.NodeCount);
+        Assert.Equal("16:9 Widescreen", procNorm.RecommendedRatioName);
+        Assert.Equal(960, procNorm.OptimalWidth);
+        Assert.Equal(540, procNorm.OptimalHeight);
+        Assert.Equal("Optimal Fit", procNorm.FitQuality);
+        Assert.Contains("Target 16:9 Widescreen (960×540px", procNorm.Summary);
+
+        var procWide = SmartArtDesignStudioViewModel.AuditLayoutAspectRatio("Process", 9);
+        Assert.Equal("2:1 Ultra-Wide", procWide.RecommendedRatioName);
+        Assert.Equal(1000, procWide.OptimalWidth);
+        Assert.Equal(500, procWide.OptimalHeight);
+        Assert.Equal("Crowded (Consider splitting or clamping depth)", procWide.FitQuality);
+
+        // 2. Cycle & Radial (1:1 Square)
+        var cycle = SmartArtDesignStudioViewModel.AuditLayoutAspectRatio("Cycle", 5);
+        Assert.Equal("1:1 Square", cycle.RecommendedRatioName);
+        Assert.Equal(1.0, cycle.EstimatedAspectRatio);
+        Assert.Equal(600, cycle.OptimalWidth);
+        Assert.Equal(600, cycle.OptimalHeight);
+        Assert.Equal("Optimal Fit", cycle.FitQuality);
+
+        // 3. Matrix (2x2 Quadrant check)
+        var matrix4 = SmartArtDesignStudioViewModel.AuditLayoutAspectRatio("Matrix", 4);
+        Assert.Equal("Perfect 2×2 Quadrant", matrix4.FitQuality);
+
+        var matrixOver = SmartArtDesignStudioViewModel.AuditLayoutAspectRatio("Matrix", 5);
+        Assert.Equal("Overloaded for 2×2 Matrix", matrixOver.FitQuality);
+
+        // 4. Pyramid (>6 tiers warning)
+        var pyramidCrowded = SmartArtDesignStudioViewModel.AuditLayoutAspectRatio("Pyramid", 7);
+        Assert.Equal("Crowded (>6 tiers)", pyramidCrowded.FitQuality);
+
+        // 5. Hierarchy (>12 nodes zoom warning)
+        var hierComplex = SmartArtDesignStudioViewModel.AuditLayoutAspectRatio("Hierarchy", 14);
+        Assert.Equal("Complex Hierarchy (Recommend zoom / pan)", hierComplex.FitQuality);
+
+        // 6. List (Portrait A4 & >10 items scroll warning)
+        var listScroll = SmartArtDesignStudioViewModel.AuditLayoutAspectRatio("List", 12);
+        Assert.Equal("A4 Portrait (1:√2)", listScroll.RecommendedRatioName);
+        Assert.Equal("Long Vertical List (Scroll required)", listScroll.FitQuality);
+
+        // 7. Outline markdown counting fallback
+        var mdFallback = SmartArtDesignStudioViewModel.AuditLayoutAspectRatio("Process", 0, "- Step 1\n- Step 2\n- Step 3");
+        Assert.Equal(3, mdFallback.NodeCount);
+    }
 }
 
 

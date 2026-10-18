@@ -7743,6 +7743,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(sessionVelocityItem);
 
+        var readabilityScorecardItem = new MenuFlyoutItem
+        {
+            Text = "Copy readability & accessibility scorecard",
+            Icon = new FontIcon { Glyph = "\uE734" }
+        };
+        readabilityScorecardItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatReadabilityScorecardSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus("Copied readability scorecard to clipboard.");
+        };
+        menu.Items.Add(readabilityScorecardItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -8969,6 +8983,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(forecast.Summary);
         };
         menu.Items.Add(sessionVelocityItem);
+
+        var readabilityScorecardItem = new MenuFlyoutItem
+        {
+            Text = "Copy readability & accessibility scorecard",
+            Icon = new FontIcon { Glyph = "\uE734" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        readabilityScorecardItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatReadabilityScorecardSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(readabilityScorecardItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

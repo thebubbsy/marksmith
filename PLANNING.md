@@ -11188,25 +11188,47 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #150 Blueprint — Reading Ease Scorecard, Topological Depth Sorter, Radial Distribution Arranger, Layout Aspect Ratio Optimizer, Commit Message Generator & Access Frequency Heatmap (Status: Pending)
-1. **`MainWindow` (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **What is missing**: Writers lack an instant readability and accessibility diagnostic scoring Flesch Reading Ease, grade level, sentence complexity, and syllable distribution directly from the status bar breadcrumb flyout.
-   - **Deliverable**: Add `TextSearch.CalculateReadabilityScorecard(markdown)` and `FormatReadabilityScorecardSummary(...)`, wired to `readabilityScorecardItem` (`\uE734`) in `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
+## Scheduled WinUI 3 Desktop Polish Routine — Run #150 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-18
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Flesch Reading Ease & Grade Level Readability Scorecard (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.CalculateReadabilityScorecard(markdown)` and `FormatReadabilityScorecardSummary(...)` calculating word/sentence/syllable counts, polysyllabic density, Flesch Reading Ease score (0–100), Flesch-Kincaid Grade Level, and reading difficulty rating with full stripping of code blocks and HTML; wired to `readabilityScorecardItem` (`\uE734`) in `FindCountText` right-tap flyout.
+    2. **MindMapGalaxyWindow Topological Tree Depth & Level Hierarchy Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditTopologicalDepth()` and `FormatTopologicalDepthSummary(...)` traversing node-edge adjacency structures to compute tree depth, max hierarchy level, branching factor, level-by-level breadth distribution, and root-to-leaf topology metrics; wired to `AuditTopologicalDepthItem` (`\uE8E5`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Radial & Elliptical Orbit Distribution Arranger (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.DistributeShapesRadially(radiusX, radiusY)` and `FormatRadialDistributionSummary(...)` computing centroid bounds of 3+ selected shapes and distributing them evenly around an elliptical orbit with single-step atomic undo recording (`RecordUndo`); wired to `SelectionDistributeRadialItem` (`\uE790`) in `SelectionBoundsFlyout`.
+    4. **SmartArtDesignStudioWindow Layout Aspect Ratio & Container Fit Optimizer (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditLayoutAspectRatio(category, nodeCount)` and `FormatLayoutAspectRatioSummary(...)` evaluating layout item counts against target aspect ratios (`16:9`, `4:3`, `1:1`, `21:9`) and recommending optimal orientation, slide fitting, and layout categories; wired to `AuditAspectRatioFitItem` (`\uE790`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Version & Checkpoint Commit Message Synthesizer (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.SynthesizeSemanticVersionMessage(unifiedRows)` and `FormatSemanticVersionMessage(...)` analyzing diff hunks to classify conventional commit prefixes (`feat`, `fix`, `docs`, `refactor`), section-level changes, and change volume stats; wired to `synthesizeCommitMessage` (`\uE8A1`) in `TimelineHeaderBorder` context flyout.
+    6. **SuiteHubView Temporal Access Frequency Heatmap & Revisit Cadence Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditAccessFrequencyHeatmap(files, lastAccessTimeProvider, referenceTime)` and `FormatAccessFrequencyHeatmapSummary(...)` categorizing recent documents into temporal access buckets (`Daily`, `Weekly`, `Bi-weekly`, `Monthly`, `Dormant`) and calculating library revisit velocity score (0–100); wired to `CopyRecentAccessHeatmapItem` (`\uE809`) in `RecentDocsFlyout` with `Services.CopyFeedback.ApplyButtonTick`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors.
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `6/6` targeted Run #150 tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`PID=15388, Responding=True`).
+
+---
+
+### Run #151 Blueprint — Carried-Forward Refinements & Next Cycle Targets (Status: Pending)
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **What is missing**: Status bar breadcrumb lacks an automated paragraph length and sentence flow cadence audit highlighting run-on sentences (>35 words) or micro-paragraphs.
+   - **Deliverable**: Add `TextSearch.AuditSentenceFlowCadence(markdown)` and `FormatSentenceFlowSummary(...)`, wired to `sentenceCadenceItem` (`\uE8A5`) in `FindCountText` and breadcrumb flyouts.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **What is missing**: Mind map galaxies with hundreds of nodes can become tangled, lacking a topological tree depth analyzer and level-by-level hierarchical re-alignment tool.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditTopologicalDepth(nodes)` and `FormatTopologicalDepthSummary(...)`, wired to `AuditTopologicalDepthItem` (`\uE8E5`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+   - **What is missing**: Canvas lacks an automated orphaned node connector identifying disconnected thought nodes and suggesting proximity-based root or cluster attachments.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditOrphanedNodes()` and `ConnectOrphanedNodesToClosestCluster()`, wired to `AuditOrphansItem` (`\uE8B7`) in `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **What is missing**: Canvas lacks a radial/circular distribution layout option to arrange multiple selected shapes equidistant around an elliptical or circular orbit.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.DistributeShapesRadially(radiusX, radiusY)` and `FormatRadialDistributionSummary(...)`, wired to `SelectionDistributeRadialItem` (`\uE790`) in `SelectionBoundsFlyout`.
+   - **What is missing**: Multi-shape selection lacks an automated z-order layering stack audit and visual step-layer reordering helper (send backwards, bring forward with depth indices).
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditLayerStackIndices()` and `NormalizeZOrderStack()`, wired to `AuditZOrderItem` (`\uE8E5`) in `SelectionBoundsFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **What is missing**: Users converting outlines into SmartArt diagrams lack an aspect ratio and bounding-box fit analyzer recommending optimal container dimensions (`16:9`, `4:3`, `1:1`, `A4 Portrait/Landscape`).
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditLayoutAspectRatio(category, nodeCount)` and `FormatLayoutAspectRatioSummary(...)`, wired to `AuditAspectRatioFitItem` (`\uE790`) in `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
-   - **What is missing**: Reverting or restoring versions lacks an automated semantic commit/checkpoint message synthesizer summarizing key additions, deletions, and section modifications.
-   - **Deliverable**: Add `LineDiff.SynthesizeSemanticVersionMessage(unifiedRows)` and `FormatSemanticVersionMessage(...)`, wired to `synthesizeCommitMessage` (`\uE8A1`) in `TimelineHeaderBorder` context flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
-   - **What is missing**: Recent files hub lacks a temporal access frequency heatmap grouping documents by weekly/monthly revisit cadence and identifying single-visit orphans.
-   - **Deliverable**: Add `RecentFilesService.AuditAccessFrequencyHeatmap(files)` and `FormatAccessFrequencyHeatmapSummary(...)`, wired to `CopyRecentAccessHeatmapItem` (`\uE809`) in `RecentDocsFlyout`.
+   - **What is missing**: Outline editor lacks an automated character count budget warning per node category preventing label truncation in narrow SmartArt shapes.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditNodeCharacterBudgets(category)` and `FormatCharacterBudgetSummary(...)`, wired to `AuditCharBudgetsItem` (`\uE9F9`) in `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #150 Idea 5]**:
+   - **Refinement Target**: Enhance `LineDiff.SynthesizeSemanticVersionMessage` with automated breaking change detector (`BREAKING CHANGE:` footer) and scope-detection heuristics (e.g. extracting markdown top-level heading as the commit scope `feat(heading): ...`).
+   - **Deliverable**: Add `LineDiff.SynthesizeConventionalCommitWithScope(unifiedRows, markdownDoc)` and format preview with copy button.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #150 Idea 6]**:
+   - **Refinement Target**: Enhance `RecentFilesService.AuditAccessFrequencyHeatmap` with library dormancy risk alerts, flagging documents that have dropped below monthly revisit thresholds and generating quick-review suggestions.
+   - **Deliverable**: Add `RecentFilesService.AuditDormancyAlerts(files)` and `FormatDormancyAlertsSummary(...)`, wired to `RecentDocsFlyout`.
+
 
 
 

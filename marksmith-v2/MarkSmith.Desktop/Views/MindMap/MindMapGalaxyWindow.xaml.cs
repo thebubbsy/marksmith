@@ -3936,6 +3936,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditTopologicalDepthClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditTopologicalDepth();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4767,6 +4775,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditInactiveNodesItem.Click += OnAuditInactiveNodesClick;
             menu.Items.Add(auditInactiveNodesItem);
+
+            var auditTopologicalDepthItem = new MenuFlyoutItem
+            {
+                Text = "Audit topological depth & level hierarchy",
+                Icon = new FontIcon { Glyph = "\uE8E5" }
+            };
+            auditTopologicalDepthItem.Click += OnAuditTopologicalDepthClick;
+            menu.Items.Add(auditTopologicalDepthItem);
 
             var fitItem = new MenuFlyoutItem
 

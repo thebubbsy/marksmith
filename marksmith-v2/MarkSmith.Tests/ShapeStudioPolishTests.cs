@@ -987,6 +987,62 @@ public class ShapeStudioPolishTests
         Assert.Equal(100.0, vm.Shapes[0].Width);
         Assert.Equal(100.0, vm.Shapes[0].Height);
     }
+
+    [Fact]
+    public void Run150_DistributeShapesRadially_ArrangesShapesOnOrbit()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // 1. Minimum shape requirement guard (<2 shapes)
+        vm.AddShapeAt("rect", 10, 10, 50, 50, "0078D4", "Solo");
+        var (c0, _, _, s0) = vm.DistributeShapesRadially(100, 100);
+        Assert.Equal(0, c0);
+        Assert.Contains("requires at least 2 shapes", s0);
+
+        // 2. Arrange 4 shapes in circular orbit
+        vm.ClearAll();
+        vm.AddShapeAt("rect", 0, 0, 50, 50, "0078D4", "Box 0");
+        vm.AddShapeAt("rect", 200, 0, 50, 50, "0078D4", "Box 1");
+        vm.AddShapeAt("rect", 200, 200, 50, 50, "0078D4", "Box 2");
+        vm.AddShapeAt("rect", 0, 200, 50, 50, "0078D4", "Box 3");
+
+        // Bounding centroid: (125, 125)
+        var (countCirc, rxCirc, ryCirc, sumCirc) = vm.DistributeShapesRadially(100, 100);
+        Assert.Equal(4, countCirc);
+        Assert.Equal(100, rxCirc);
+        Assert.Equal(100, ryCirc);
+        Assert.Contains("circular orbit (R=100px) around (125, 125)", sumCirc);
+
+        // Box 0 (angle = -90 deg): top (100, 0)
+        Assert.Equal(100.0, vm.Shapes[0].X);
+        Assert.Equal(0.0, vm.Shapes[0].Y);
+
+        // Box 1 (angle = 0 deg): right (200, 100)
+        Assert.Equal(200.0, vm.Shapes[1].X);
+        Assert.Equal(100.0, vm.Shapes[1].Y);
+
+        // Box 2 (angle = +90 deg): bottom (100, 200)
+        Assert.Equal(100.0, vm.Shapes[2].X);
+        Assert.Equal(200.0, vm.Shapes[2].Y);
+
+        // Box 3 (angle = 180 deg): left (0, 100)
+        Assert.Equal(0.0, vm.Shapes[3].X);
+        Assert.Equal(100.0, vm.Shapes[3].Y);
+
+        // 3. Test Undo restores original position of Box 0
+        Assert.True(vm.CanUndo);
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(0.0, vm.Shapes[0].X);
+        Assert.Equal(0.0, vm.Shapes[0].Y);
+
+        // 4. Elliptical orbit distribution
+        var (countEll, rxEll, ryEll, sumEll) = vm.DistributeShapesRadially(150, 80);
+        Assert.Equal(4, countEll);
+        Assert.Equal(150, rxEll);
+        Assert.Equal(80, ryEll);
+        Assert.Contains("elliptical orbit (150×80px) around (125, 125)", sumEll);
+    }
 }
 
 

@@ -1242,6 +1242,126 @@ public sealed class RecentFilesService
         var (_, _, _, _, _, summary) = AuditVolumeDistribution(filePaths, volumeAccessibilityPredicate);
         return summary;
     }
+
+    /// <summary>
+    /// Represents the result of a temporal access frequency heatmap and revisit cadence audit across recent documents.
+    /// </summary>
+    public sealed record AccessFrequencyHeatmap(
+        int TotalFiles,
+        int DailyCadence,
+        int WeeklyCadence,
+        int BiWeeklyCadence,
+        int MonthlyCadence,
+        int DormantOrphans,
+        double RevisitVelocityScore,
+        string DominantCadence,
+        string Summary);
+
+    /// <summary>
+    /// Audits recent document library files for temporal access frequency, revisit velocity, and cadence distribution.
+    /// Supports custom last-access time provider and reference time for deterministic testing.
+    /// </summary>
+    public static AccessFrequencyHeatmap AuditAccessFrequencyHeatmap(
+        IEnumerable<string>? filePaths,
+        Func<string, DateTime?>? lastAccessTimeProvider = null,
+        DateTime? referenceTime = null)
+    {
+        var list = filePaths?.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).ToList() ?? new List<string>();
+        if (list.Count == 0)
+        {
+            return new AccessFrequencyHeatmap(
+                0, 0, 0, 0, 0, 0, 0.0, "None",
+                "Recent access frequency heatmap: 0 documents (No recent files recorded)");
+        }
+
+        DateTime now = referenceTime ?? DateTime.UtcNow;
+        int daily = 0;     // < 24h
+        int weekly = 0;    // 1-7d
+        int biweekly = 0;  // 7-14d
+        int monthly = 0;   // 14-30d
+        int dormant = 0;   // > 30d
+
+        foreach (var p in list)
+        {
+            DateTime? accessTime = null;
+            if (lastAccessTimeProvider != null)
+            {
+                accessTime = lastAccessTimeProvider(p);
+            }
+            else
+            {
+                try
+                {
+                    if (File.Exists(p))
+                    {
+                        var t = File.GetLastAccessTimeUtc(p);
+                        if (t != DateTime.MinValue) accessTime = t;
+                        else accessTime = File.GetLastWriteTimeUtc(p);
+                    }
+                }
+                catch { }
+            }
+
+            if (!accessTime.HasValue)
+            {
+                dormant++;
+                continue;
+            }
+
+            var age = now - accessTime.Value;
+            if (age.TotalDays < 0) age = TimeSpan.Zero; // clock drift clamp
+
+            if (age.TotalHours < 24) daily++;
+            else if (age.TotalDays < 7) weekly++;
+            else if (age.TotalDays < 14) biweekly++;
+            else if (age.TotalDays < 30) monthly++;
+            else dormant++;
+        }
+
+        // Weighted velocity score (100 = all accessed today, lower = colder library)
+        double weightedPoints = (daily * 5) + (weekly * 4) + (biweekly * 3) + (monthly * 2) + (dormant * 1);
+        double maxPoints = list.Count * 5;
+        double velocityScore = Math.Round((weightedPoints / maxPoints) * 100.0, 1);
+
+        var cadenceCounts = new (string Name, int Count)[]
+        {
+            ("Daily (<24h)", daily),
+            ("Weekly (1–7d)", weekly),
+            ("Bi-weekly (7–14d)", biweekly),
+            ("Monthly (14–30d)", monthly),
+            ("Dormant (>30d)", dormant)
+        };
+        var dominant = cadenceCounts.OrderByDescending(c => c.Count).First().Name;
+
+        string summary = FormatAccessFrequencyHeatmapSummary(list.Count, daily, weekly, biweekly, monthly, dormant, velocityScore, dominant);
+        return new AccessFrequencyHeatmap(list.Count, daily, weekly, biweekly, monthly, dormant, velocityScore, dominant, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of access frequency heatmap metrics.
+    /// </summary>
+    public static string FormatAccessFrequencyHeatmapSummary(
+        int totalFiles, int daily, int weekly, int biweekly, int monthly, int dormant, double velocityScore, string dominantCadence)
+    {
+        if (totalFiles <= 0)
+            return "Recent access frequency heatmap: 0 documents (No recent files recorded)";
+
+        string docLabel = totalFiles == 1 ? "1 document" : $"{totalFiles} documents";
+        string breakdown = $"{daily} daily (<24h), {weekly} weekly (1–7d), {biweekly} bi-weekly (7–14d), {monthly} monthly (14–30d), {dormant} dormant (>30d)";
+
+        return $"Recent access frequency heatmap ({docLabel} · Velocity: {velocityScore:0.#}/100 · Dominant: {dominantCadence}): {breakdown}";
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of access frequency heatmap from a collection of file paths.
+    /// </summary>
+    public static string FormatAccessFrequencyHeatmapSummary(
+        IEnumerable<string>? filePaths,
+        Func<string, DateTime?>? lastAccessTimeProvider = null,
+        DateTime? referenceTime = null)
+    {
+        return AuditAccessFrequencyHeatmap(filePaths, lastAccessTimeProvider, referenceTime).Summary;
+    }
 }
 
 

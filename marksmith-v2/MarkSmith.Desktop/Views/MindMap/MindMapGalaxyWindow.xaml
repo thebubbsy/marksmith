@@ -267,6 +267,9 @@
                                     <MenuFlyoutItem x:Name="AuditInactiveNodesItem" Text="Audit inactive subtrees &amp; dormant vault nodes" Click="OnAuditInactiveNodesClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditTopologicalDepthItem" Text="Audit topological depth &amp; level hierarchy" Click="OnAuditTopologicalDepthClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E5;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

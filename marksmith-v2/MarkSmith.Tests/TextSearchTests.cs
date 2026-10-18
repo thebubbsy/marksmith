@@ -780,6 +780,61 @@ public class TextSearchTests
         Assert.Equal(13, mdForecast.CurrentWords);
         Assert.Equal(13.0, mdForecast.WordsPerMinute);
     }
+
+    [Fact]
+    public void Run150_CalculateReadabilityScorecard_ComputesScoresAndCategories()
+    {
+        // 1. Empty or whitespace
+        var empty = TextSearch.CalculateReadabilityScorecard("");
+        Assert.Equal(0, empty.WordCount);
+        Assert.Contains("Document is empty", empty.Summary);
+
+        // 2. Simple readable prose
+        var simpleText = """
+            # Welcome to MarkSmith
+            MarkSmith is a fast and simple markdown editor for Windows desktop.
+            It helps you write clean notes and export documents quickly.
+            You can format tables and draw diagrams with ease.
+            """;
+        var simple = TextSearch.CalculateReadabilityScorecard(simpleText);
+        Assert.True(simple.WordCount > 20);
+        Assert.True(simple.SentenceCount >= 3);
+        Assert.True(simple.FleschReadingEase >= 60.0); // Should be easily readable
+        Assert.True(simple.FleschKincaidGrade < 10.0);
+        Assert.Contains("Readability scorecard", simple.Summary);
+        Assert.Contains("wps", simple.Summary);
+        Assert.Contains("spw", simple.Summary);
+
+        // 3. Complex academic prose with polysyllabic words
+        var academicText = """
+            # Epistemological Investigation
+            The contemporaneous conceptualization of quantum electrodynamics necessitates sophisticated mathematical formulations.
+            Interdisciplinary methodologies elucidate fundamental phenomenological characteristics of subatomic particles.
+            Consequently, institutional infrastructure requires comprehensive multidimensional organizational governance.
+            """;
+        var academic = TextSearch.CalculateReadabilityScorecard(academicText);
+        Assert.True(academic.PolysyllabicWords >= 6);
+        Assert.True(academic.FleschReadingEase < 50.0); // Difficult or Academic
+        Assert.True(academic.FleschKincaidGrade >= 12.0);
+        Assert.Contains("polysyllabic", academic.Summary);
+
+        // 4. Code fences and HTML stripping: verify code syntax does not pollute prose
+        var mixedText = """
+            # Implementation
+            Here is a simple explanation of our core system.
+            ```csharp
+            public class InternalSystemBootstrapServiceFactoryConfigurationHandler
+            {
+                public void Initialize() { }
+            }
+            ```
+            It operates reliably across all devices.
+            """;
+        var mixed = TextSearch.CalculateReadabilityScorecard(mixedText);
+        // Code fence should be stripped, so InternalSystemBootstrap... isn't counted
+        Assert.True(mixed.WordCount < 20);
+        Assert.Equal(2, mixed.SentenceCount);
+    }
 }
 
 

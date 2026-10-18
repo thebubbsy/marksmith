@@ -1534,6 +1534,26 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyRecentAccessHeatmapClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var heatmap = RecentFilesService.AuditAccessFrequencyHeatmap(files);
+            var summary = RecentFilesService.FormatAccessFrequencyHeatmapSummary(files);
+            await Services.ClipboardWriter.TrySetTextAsync(summary);
+            SetNotification($"Copied: {summary}", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't copy access frequency heatmap: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

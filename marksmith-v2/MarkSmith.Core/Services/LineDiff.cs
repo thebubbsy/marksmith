@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace MarkSmith.Services;
 
 /// <summary>
@@ -1587,6 +1589,142 @@ public static class LineDiff
         };
 
         return $"Cherry-pick conflict risk ({hunkLabel} · Overall Risk: {overallRisk}): {breakdown} · {advice}";
+    }
+
+    /// <summary>
+    /// Synthesizes a conventional commit style message and summary bullets from unified diff rows between document versions.
+    /// </summary>
+    public static string SynthesizeSemanticVersionMessage(IReadOnlyList<UnifiedRow> unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return "docs: checkpoint snapshot\n\n- No diff rows recorded in snapshot";
+        }
+
+        int added = 0;
+        int removed = 0;
+        var addedHeadings = new List<string>();
+        var removedHeadings = new List<string>();
+        bool codeBlocksChanged = false;
+        bool tablesChanged = false;
+
+        foreach (var row in unifiedRows)
+        {
+            if (row.Kind == Kind.Added)
+            {
+                added++;
+                var text = (row.Text ?? string.Empty).Trim();
+                if (text.StartsWith('#'))
+                {
+                    addedHeadings.Add(text.TrimStart('#').Trim());
+                }
+                if (text.StartsWith("```") || text.StartsWith(":::")) codeBlocksChanged = true;
+                if (text.StartsWith('|')) tablesChanged = true;
+            }
+            else if (row.Kind == Kind.Removed)
+            {
+                removed++;
+                var text = (row.Text ?? string.Empty).Trim();
+                if (text.StartsWith('#'))
+                {
+                    removedHeadings.Add(text.TrimStart('#').Trim());
+                }
+                if (text.StartsWith("```") || text.StartsWith(":::")) codeBlocksChanged = true;
+                if (text.StartsWith('|')) tablesChanged = true;
+            }
+        }
+
+        if (added == 0 && removed == 0)
+        {
+            return "docs: checkpoint snapshot\n\n- Unchanged document content";
+        }
+
+        // Determine commit type & scope & subject
+        string type;
+        string scope = "docs";
+        string subject;
+        var bullets = new List<string>();
+
+        if (addedHeadings.Count > 0 && removedHeadings.Count == 0)
+        {
+            type = "feat";
+            subject = addedHeadings.Count == 1 ? $"add section '{addedHeadings[0]}'" : $"add {addedHeadings.Count} new document sections";
+            foreach (var h in addedHeadings.Take(3)) bullets.Add($"Add section: #{h}");
+        }
+        else if (removedHeadings.Count > 0 && addedHeadings.Count == 0)
+        {
+            type = "refactor";
+            subject = removedHeadings.Count == 1 ? $"remove section '{removedHeadings[0]}'" : $"prune {removedHeadings.Count} document sections";
+            foreach (var h in removedHeadings.Take(3)) bullets.Add($"Remove section: #{h}");
+        }
+        else if (codeBlocksChanged)
+        {
+            type = "fix";
+            scope = "diagrams";
+            subject = "update code fences and diagram blocks";
+            bullets.Add("Modify diagram/code fence structures");
+        }
+        else if (tablesChanged)
+        {
+            type = "feat";
+            scope = "tables";
+            subject = "update document data tables";
+            bullets.Add("Modify structured table layout and cell data");
+        }
+        else if (added > 0 && removed == 0)
+        {
+            type = "docs";
+            subject = $"expand document content (+{added} lines)";
+            bullets.Add($"Append {added} new content lines");
+        }
+        else if (added == 0 && removed > 0)
+        {
+            type = "refactor";
+            subject = $"condense document prose (-{removed} lines)";
+            bullets.Add($"Prune {removed} redundant content lines");
+        }
+        else
+        {
+            type = "docs";
+            subject = $"refine document sections (+{added}/-{removed} lines)";
+            bullets.Add($"Edit prose and section content (+{added}/-{removed} lines)");
+        }
+
+        bullets.Add($"Net churn: +{added}/-{removed} lines across document history");
+
+        return FormatSemanticVersionMessage(type, scope, subject, bullets);
+    }
+
+    /// <summary>
+    /// Synthesizes a conventional commit style message between old and new text versions.
+    /// </summary>
+    public static string SynthesizeSemanticVersionMessage(string oldText, string newText)
+    {
+        var diff = Diff(oldText, newText);
+        var unified = BuildUnified(diff);
+        return SynthesizeSemanticVersionMessage(unified);
+    }
+
+    /// <summary>
+    /// Formats a conventional commit message with summary header and bullet list body.
+    /// </summary>
+    public static string FormatSemanticVersionMessage(
+        string commitType, string scope, string subject, IReadOnlyList<string> bulletPoints)
+    {
+        var sb = new StringBuilder();
+        string header = string.IsNullOrWhiteSpace(scope)
+            ? $"{commitType}: {subject}"
+            : $"{commitType}({scope}): {subject}";
+        sb.AppendLine(header);
+        sb.AppendLine();
+        if (bulletPoints != null && bulletPoints.Count > 0)
+        {
+            foreach (var b in bulletPoints)
+            {
+                sb.AppendLine($"- {b}");
+            }
+        }
+        return sb.ToString().TrimEnd();
     }
 }
 

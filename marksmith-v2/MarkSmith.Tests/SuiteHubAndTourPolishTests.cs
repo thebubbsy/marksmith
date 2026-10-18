@@ -1815,6 +1815,85 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("Warning: 1 volume offline/unreachable", summary);
         Assert.Contains(@"C:\ (3 docs, 50%)", summary);
     }
+
+    [Fact]
+    public void Run150_AuditAccessFrequencyHeatmap_And_SurfaceWiring()
+    {
+        // 1. Surface wiring checks across all 6 WinUI 3 surfaces
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("FormatReadabilityScorecardSummary", mainCs);
+        Assert.Contains("readabilityScorecardItem", mainCs);
+
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditTopologicalDepthItem", galaxyXaml);
+        Assert.Contains("OnAuditTopologicalDepthClick", galaxyXaml);
+        Assert.Contains("OnAuditTopologicalDepthClick", galaxyCs);
+        Assert.Contains("AuditTopologicalDepth", galaxyCs);
+
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionDistributeRadialItem", shapeXaml);
+        Assert.Contains("OnSelectionDistributeRadialClick", shapeXaml);
+        Assert.Contains("OnSelectionDistributeRadialClick", shapeCs);
+        Assert.Contains("DistributeShapesRadially", shapeCs);
+
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditAspectRatioFitItem", smartArtXaml);
+        Assert.Contains("OnAuditAspectRatioFitClick", smartArtXaml);
+        Assert.Contains("OnAuditAspectRatioFitClick", smartArtCs);
+        Assert.Contains("AuditLayoutAspectRatio", smartArtCs);
+
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("SynthesizeSemanticVersionMessage", historyCs);
+        Assert.Contains("synthesizeCommitMessage", historyCs);
+
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentAccessHeatmapItem", suiteXaml);
+        Assert.Contains("OnCopyRecentAccessHeatmapClick", suiteXaml);
+        Assert.Contains("OnCopyRecentAccessHeatmapClick", suiteCs);
+        Assert.Contains("FormatAccessFrequencyHeatmapSummary", suiteCs);
+
+        // 2. Access frequency heatmap calculation & velocity score
+        var refTime = new DateTime(2026, 10, 18, 12, 0, 0);
+        var files = new[]
+        {
+            @"C:\doc_daily.md",
+            @"C:\doc_weekly.md",
+            @"C:\doc_biweekly.md",
+            @"C:\doc_monthly.md",
+            @"C:\doc_dormant.md"
+        };
+
+        DateTime? MockAccessTime(string path) => path switch
+        {
+            @"C:\doc_daily.md" => refTime.AddHours(-2),     // daily (<24h)
+            @"C:\doc_weekly.md" => refTime.AddDays(-3),     // weekly (1–7d)
+            @"C:\doc_biweekly.md" => refTime.AddDays(-10),  // bi-weekly (7–14d)
+            @"C:\doc_monthly.md" => refTime.AddDays(-20),   // monthly (14–30d)
+            @"C:\doc_dormant.md" => refTime.AddDays(-40),   // dormant (>30d)
+            _ => null
+        };
+
+        var heatmap = RecentFilesService.AuditAccessFrequencyHeatmap(files, MockAccessTime, refTime);
+        Assert.Equal(5, heatmap.TotalFiles);
+        Assert.Equal(1, heatmap.DailyCadence);
+        Assert.Equal(1, heatmap.WeeklyCadence);
+        Assert.Equal(1, heatmap.BiWeeklyCadence);
+        Assert.Equal(1, heatmap.MonthlyCadence);
+        Assert.Equal(1, heatmap.DormantOrphans);
+        Assert.Equal(60.0, heatmap.RevisitVelocityScore);
+        Assert.Equal("Daily (<24h)", heatmap.DominantCadence);
+        Assert.Contains("Recent access frequency heatmap (5 documents · Velocity: 60/100 · Dominant: Daily (<24h)): 1 daily (<24h), 1 weekly (1–7d), 1 bi-weekly (7–14d), 1 monthly (14–30d), 1 dormant (>30d)", heatmap.Summary);
+
+        // Empty file collection
+        var emptyHeatmap = RecentFilesService.AuditAccessFrequencyHeatmap(Array.Empty<string>());
+        Assert.Equal(0, emptyHeatmap.TotalFiles);
+        Assert.Equal(0.0, emptyHeatmap.RevisitVelocityScore);
+        Assert.Contains("0 documents (No recent files recorded)", emptyHeatmap.Summary);
+    }
 }
 
 

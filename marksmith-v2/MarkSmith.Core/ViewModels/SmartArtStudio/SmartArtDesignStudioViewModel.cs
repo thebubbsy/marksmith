@@ -2581,7 +2581,148 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Outline token density (Rating: {rating} · {bulletLabel} · Total {wordLabel}): Mean {meanWords:0.#}w/node (Range: {minWords}-{maxWords}w){advice}";
     }
+
+    /// <summary>
+    /// Audits the aspect ratio and container fit of the active outline against standard slide/viewport dimensions.
+    /// </summary>
+    public LayoutAspectRatioFit AuditLayoutAspectRatio()
+    {
+        int count = OutlineRows.Count > 0 ? OutlineRows.Count : 0;
+        return AuditLayoutAspectRatio(SelectedCategory, count, MarkdownText);
+    }
+
+    /// <summary>
+    /// Analyzes layout category and node count to calculate optimal aspect ratio, dimensions, and fit quality.
+    /// </summary>
+    public static LayoutAspectRatioFit AuditLayoutAspectRatio(
+        string? category,
+        int nodeCount,
+        string? markdownText = null)
+    {
+        string cat = string.IsNullOrWhiteSpace(category) ? "Process" : category.Trim();
+        if (cat.Equals("All", StringComparison.OrdinalIgnoreCase)) cat = "Process";
+
+        int count = nodeCount;
+        if (count <= 0 && !string.IsNullOrWhiteSpace(markdownText))
+        {
+            var lines = markdownText.Replace("\r", "").Split('\n');
+            count = lines.Count(l => l.TrimStart().StartsWith("- ") || l.TrimStart().StartsWith("* ") || l.TrimStart().StartsWith("+ "));
+        }
+        if (count <= 0) count = 1;
+
+        double estRatio;
+        string recRatioName;
+        double recRatioVal;
+        int optW;
+        int optH;
+        string fitQuality;
+
+        switch (cat.ToLowerInvariant())
+        {
+            case "process":
+            case "timeline":
+                estRatio = Math.Round(Math.Max(1.5, Math.Min(3.0, 1.2 + (count * 0.25))), 2);
+                recRatioName = count > 6 ? "2:1 Ultra-Wide" : "16:9 Widescreen";
+                recRatioVal = count > 6 ? 2.0 : (16.0 / 9.0);
+                optW = count > 6 ? 1000 : 960;
+                optH = count > 6 ? 500 : 540;
+                fitQuality = count > 8 ? "Crowded (Consider splitting or clamping depth)" : "Optimal Fit";
+                break;
+
+            case "cycle":
+            case "radial":
+                estRatio = 1.0;
+                recRatioName = "1:1 Square";
+                recRatioVal = 1.0;
+                optW = 600;
+                optH = 600;
+                fitQuality = count > 7 ? "Dense (Text overlap risk in radial cycle)" : count < 3 ? "Sparse (<3 nodes in cycle)" : "Optimal Fit";
+                break;
+
+            case "matrix":
+                estRatio = 1.0;
+                recRatioName = "1:1 Square";
+                recRatioVal = 1.0;
+                optW = 600;
+                optH = 600;
+                fitQuality = count == 4 ? "Perfect 2×2 Quadrant" : count > 4 ? "Overloaded for 2×2 Matrix" : "Underpopulated";
+                break;
+
+            case "pyramid":
+                estRatio = 1.25;
+                recRatioName = "4:3 Standard";
+                recRatioVal = 4.0 / 3.0;
+                optW = 800;
+                optH = 600;
+                fitQuality = count > 6 ? "Crowded (>6 tiers)" : "Optimal Fit";
+                break;
+
+            case "hierarchy":
+            case "tree":
+                estRatio = count > 6 ? 1.78 : 1.33;
+                recRatioName = count > 6 ? "16:9 Widescreen" : "4:3 Standard";
+                recRatioVal = count > 6 ? (16.0 / 9.0) : (4.0 / 3.0);
+                optW = count > 6 ? 960 : 800;
+                optH = count > 6 ? 540 : 600;
+                fitQuality = count > 12 ? "Complex Hierarchy (Recommend zoom / pan)" : "Optimal Fit";
+                break;
+
+            case "list":
+            case "picture list":
+                estRatio = 0.71;
+                recRatioName = "A4 Portrait (1:√2)";
+                recRatioVal = 1.0 / 1.414;
+                optW = 600;
+                optH = 848;
+                fitQuality = count > 10 ? "Long Vertical List (Scroll required)" : "Optimal Fit";
+                break;
+
+            default:
+                estRatio = 1.78;
+                recRatioName = "16:9 Widescreen";
+                recRatioVal = 16.0 / 9.0;
+                optW = 960;
+                optH = 540;
+                fitQuality = "Optimal Fit";
+                break;
+        }
+
+        string summary = FormatLayoutAspectRatioSummary(cat, count, estRatio, recRatioName, optW, optH, fitQuality);
+        return new LayoutAspectRatioFit(cat, count, estRatio, recRatioName, recRatioVal, optW, optH, fitQuality, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of layout aspect ratio fit metrics.
+    /// </summary>
+    public static string FormatLayoutAspectRatioSummary(
+        string category, int nodeCount, double estRatio, string recRatioName, int optW, int optH, string fitQuality)
+    {
+        string nodeLabel = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+        return $"Layout aspect ratio audit ({category} · {nodeLabel}): Target {recRatioName} ({optW}×{optH}px · Est. Ratio {estRatio:0.##}:1) · Quality: {fitQuality}";
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of layout aspect ratio fit from category and count.
+    /// </summary>
+    public static string FormatLayoutAspectRatioSummary(string? category, int nodeCount, string? markdownText = null)
+    {
+        return AuditLayoutAspectRatio(category, nodeCount, markdownText).Summary;
+    }
 }
+
+/// <summary>
+/// Represents the result of a SmartArt layout aspect ratio and container fit analysis.
+/// </summary>
+public sealed record LayoutAspectRatioFit(
+    string Category,
+    int NodeCount,
+    double EstimatedAspectRatio,
+    string RecommendedRatioName,
+    double RecommendedRatioValue,
+    int OptimalWidth,
+    int OptimalHeight,
+    string FitQuality,
+    string Summary);
 
 
 

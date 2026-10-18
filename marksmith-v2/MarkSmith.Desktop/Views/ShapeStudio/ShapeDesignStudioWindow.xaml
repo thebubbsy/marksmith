@@ -649,6 +649,9 @@
                                         <MenuFlyoutItem x:Name="SelectionScaleProportionalItem" Text="Scale selection proportionally (1.25x)" Click="OnSelectionScaleProportionalClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE740;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionDistributeRadialItem" Text="Distribute shapes radially (Circular / Elliptical orbit)" Click="OnSelectionDistributeRadialClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>
