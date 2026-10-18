@@ -1226,6 +1226,40 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("status-active-green.svg", badges3);
         Assert.Contains("changes-1%20feat%20%C2%B7%201%20fix-orange.svg", badges3);
     }
+
+    [Fact]
+    public void Run155_SynthesizeReleaseAnnouncementSnippet()
+    {
+        // 1. Direct synthesis with custom highlights
+        var highlights = new[]
+        {
+            "Added Code Fence Language Coverage & Untagged Block Auditor",
+            "Added Leaf Node Termination Depth & Periphery Eccentricity Metrics"
+        };
+        var snippet1 = LineDiff.SynthesizeReleaseAnnouncementSnippet(
+            "1.5.0", "Studio Polish", "Production",
+            highlights, featureCount: 2, fixCount: 0, docCount: 1,
+            new DateTime(2026, 10, 18, 0, 0, 0, DateTimeKind.Utc));
+
+        Assert.Contains("# 🚀 MarkSmith Release v1.5.0 — Studio Polish", snippet1);
+        Assert.Contains("> **Status:** `Production` · **Released:** `2026-10-18`", snippet1);
+        Assert.Contains("Added Code Fence Language Coverage", snippet1);
+        Assert.Contains("- **New Features & Enhancements:** 2", snippet1);
+        Assert.Contains("- **Documentation & Specs:** 1", snippet1);
+        Assert.Contains("*Crafted with MarkSmith Desktop Studio.*", snippet1);
+
+        // 2. Synthesis from diff rows
+        var oldDoc = "# Architecture\nOverview";
+        var newDoc = "# Architecture\nOverview\n# Telemetry Pipeline\nReal-time events\n| Col | Val |\n|---|---|\n| A | 1 |";
+        var diff = LineDiff.Diff(oldDoc, newDoc);
+        var unified = LineDiff.BuildUnified(diff);
+
+        var snippet2 = LineDiff.SynthesizeReleaseAnnouncementSnippet(unified, "v2.0.0", "Data Platform", "Stable", new DateTime(2026, 10, 18, 0, 0, 0, DateTimeKind.Utc));
+        Assert.Contains("# 🚀 MarkSmith Release v2.0.0 — Data Platform", snippet2);
+        Assert.Contains("Added new section: **Telemetry Pipeline**", snippet2);
+        Assert.Contains("Added structured data tables and grid representations.", snippet2);
+        Assert.Contains("- **New Features & Enhancements:** 2", snippet2);
+    }
 }
 
 

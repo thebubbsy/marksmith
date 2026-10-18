@@ -7813,6 +7813,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(headingOutlineBalanceItem);
 
+        var codeFenceCoverageItem = new MenuFlyoutItem
+        {
+            Text = "Copy code fence language coverage & untagged block audit",
+            Icon = new FontIcon { Glyph = "\uE943" }
+        };
+        codeFenceCoverageItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatCodeFenceLanguageCoverageSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(codeFenceCoverageItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9114,6 +9128,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(headingOutlineBalanceItem);
+
+        var codeFenceCoverageItem = new MenuFlyoutItem
+        {
+            Text = "Copy code fence language coverage & untagged block audit",
+            Icon = new FontIcon { Glyph = "\uE943" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        codeFenceCoverageItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatCodeFenceLanguageCoverageSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(codeFenceCoverageItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

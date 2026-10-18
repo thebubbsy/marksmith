@@ -270,6 +270,9 @@
                                     <MenuFlyoutItem x:Name="FilterByActiveClusterItem" Text="Filter recent documents by top active cluster" Click="OnFilterByActiveClusterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71C;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyFormatClusterMatrixItem" Text="Copy file format cluster matrix &amp; diversity index" Click="OnCopyFormatClusterMatrixClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

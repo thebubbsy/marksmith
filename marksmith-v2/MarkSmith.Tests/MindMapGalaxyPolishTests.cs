@@ -1935,6 +1935,45 @@ namespace MarkSmith.Tests
             Assert.Contains("Top hub 'Central API Gateway' (deg:4)", audit.Summary);
             Assert.Contains("4 leaves, 1 orphan", audit.Summary);
         }
+
+        [Fact]
+        public void Run155_AuditPeripheryEccentricity()
+        {
+            // 1. Empty / 0 nodes
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            var emptyAudit = vm.AuditPeripheryEccentricity();
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.LeafNodeCount);
+            Assert.Contains("Insufficient nodes", emptyAudit.Summary);
+
+            // 2. Linear Chain graph: Root -> Node1 -> Node2 -> Node3 (Leaf)
+            // Depth from Root: 0 -> 1 -> 2 -> 3
+            vm.Document.RootNodeId = "root";
+            var root = new MindMapNode { Id = "root", Title = "Root System" };
+            var n1 = new MindMapNode { Id = "n1", Title = "Subsystem A" };
+            var n2 = new MindMapNode { Id = "n2", Title = "Subsystem B" };
+            var leaf = new MindMapNode { Id = "leaf", Title = "Terminal Sensor" };
+
+            vm.Nodes.Add(new MindMapNodeViewModel(root));
+            vm.Nodes.Add(new MindMapNodeViewModel(n1));
+            vm.Nodes.Add(new MindMapNodeViewModel(n2));
+            vm.Nodes.Add(new MindMapNodeViewModel(leaf));
+
+            vm.Links.Add(new MindMapLinkViewModel(new MindMapLink { SourceNodeId = "root", TargetNodeId = "n1" }));
+            vm.Links.Add(new MindMapLinkViewModel(new MindMapLink { SourceNodeId = "n1", TargetNodeId = "n2" }));
+            vm.Links.Add(new MindMapLinkViewModel(new MindMapLink { SourceNodeId = "n2", TargetNodeId = "leaf" }));
+
+            var audit = vm.AuditPeripheryEccentricity();
+            Assert.Equal(4, audit.TotalNodes);
+            Assert.Equal(1, audit.LeafNodeCount);
+            Assert.Equal(3, audit.MaxEccentricity);
+            Assert.Equal(3.0, audit.AverageLeafDepth);
+            Assert.Contains("Terminal Sensor", audit.DeepestLeafTitles[0]);
+            Assert.Equal("Balanced Tree", audit.EccentricityCategory);
+            Assert.Contains("Max depth 3 (top: 'Terminal Sensor')", audit.Summary);
+        }
     }
 }
 

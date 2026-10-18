@@ -3250,6 +3250,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied release badges: {badges.Split(' ')[0]}");
                 };
                 menu.Items.Add(synthesizeReleaseBadges);
+
+                var synthesizeReleaseAnnouncement = new MenuFlyoutItem
+                {
+                    Text = "Synthesize release announcement social card & markdown",
+                    Icon = new FontIcon { Glyph = "\uE8A1" }
+                };
+                synthesizeReleaseAnnouncement.Click += (_, _) =>
+                {
+                    var snippet = MarkSmith.Services.LineDiff.SynthesizeReleaseAnnouncementSnippet(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(snippet);
+                    _vm.ShowNotice("Copied release announcement markdown snippet");
+                };
+                menu.Items.Add(synthesizeReleaseAnnouncement);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

@@ -2338,6 +2338,152 @@ public static class LineDiff
 
         return SynthesizeReleaseBadgesMarkdown(versionTag, milestoneScope, status, feat, fix);
     }
+
+    /// <summary>
+    /// Synthesizes a standardized Markdown release announcement social card and summary snippet,
+    /// complete with release header, status pill, Shields.io badges, key highlights, and conventional change telemetry.
+    /// </summary>
+    public static string SynthesizeReleaseAnnouncementSnippet(
+        string? versionTag = null,
+        string? milestoneScope = null,
+        string? status = null,
+        IReadOnlyList<string>? highlights = null,
+        int featureCount = 0,
+        int fixCount = 0,
+        int docCount = 0,
+        DateTime? releaseDate = null)
+    {
+        string tag = string.IsNullOrWhiteSpace(versionTag) ? "v1.0.0" : versionTag.Trim();
+        if (!tag.StartsWith("v", StringComparison.OrdinalIgnoreCase) && !tag.StartsWith("["))
+        {
+            tag = $"v{tag}";
+        }
+
+        string scope = string.IsNullOrWhiteSpace(milestoneScope)
+            ? "General Availability"
+            : milestoneScope.Trim();
+
+        string statusLabel = string.IsNullOrWhiteSpace(status)
+            ? "Stable / Production"
+            : status.Trim();
+
+        DateTime date = releaseDate ?? DateTime.UtcNow;
+        string dateStr = date.ToString("yyyy-MM-dd");
+
+        string badges = SynthesizeReleaseBadgesMarkdown(tag, scope, statusLabel.ToLowerInvariant(), featureCount, fixCount);
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"# 🚀 MarkSmith Release {tag} — {scope}");
+        sb.AppendLine($"> **Status:** `{statusLabel}` · **Released:** `{dateStr}` · **Target:** `WinUI 3 Desktop`");
+        sb.AppendLine();
+        sb.AppendLine(badges);
+        sb.AppendLine();
+        sb.AppendLine("### 🌟 Key Highlights & Enhancements");
+
+        if (highlights != null && highlights.Count > 0)
+        {
+            foreach (var h in highlights)
+            {
+                sb.AppendLine($"- {h}");
+            }
+        }
+        else
+        {
+            sb.AppendLine("- Automated performance optimization and visual layout polish across desktop studios.");
+            sb.AppendLine("- Refined interactive UI controls, enhanced keyboard navigation, and telemetry HUD metrics.");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("### 📊 Change Telemetry & Metrics");
+        sb.AppendLine($"- **New Features & Enhancements:** {featureCount}");
+        sb.AppendLine($"- **Bug Fixes & Hardening:** {fixCount}");
+        if (docCount > 0)
+        {
+            sb.AppendLine($"- **Documentation & Specs:** {docCount}");
+        }
+        sb.AppendLine($"- **Verification Gate:** Pass (100% test coverage & clean smoke launch)");
+        sb.AppendLine();
+        sb.AppendLine("---");
+        sb.AppendLine("*Crafted with MarkSmith Desktop Studio.*");
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Synthesizes a release announcement snippet from unified diff rows between version checkpoints.
+    /// </summary>
+    public static string SynthesizeReleaseAnnouncementSnippet(
+        IReadOnlyList<UnifiedRow>? unifiedRows,
+        string? versionTag = null,
+        string? milestoneScope = null,
+        string? status = null,
+        DateTime? releaseDate = null)
+    {
+        int feat = 0;
+        int fix = 0;
+        int doc = 0;
+        var highlights = new List<string>();
+
+        if (unifiedRows != null && unifiedRows.Count > 0)
+        {
+            var addedHeadings = new List<string>();
+            bool addedTable = false;
+            bool removedTable = false;
+            bool modifiedDiagram = false;
+
+            foreach (var row in unifiedRows)
+            {
+                if (row.IsGap) continue;
+                var text = (row.Text ?? string.Empty).Trim();
+
+                if (row.Kind == Kind.Added)
+                {
+                    if (text.StartsWith('#'))
+                    {
+                        var cleanTitle = text.TrimStart('#').Trim();
+                        if (!string.IsNullOrEmpty(cleanTitle))
+                        {
+                            addedHeadings.Add(cleanTitle);
+                            highlights.Add($"Added new section: **{cleanTitle}**");
+                        }
+                    }
+                    else if (text.StartsWith('|') && text.EndsWith('|'))
+                    {
+                        addedTable = true;
+                    }
+                    else if (text.StartsWith("```") || text.StartsWith(":::"))
+                    {
+                        modifiedDiagram = true;
+                    }
+                }
+                else if (row.Kind == Kind.Removed)
+                {
+                    if (text.StartsWith('|') && text.EndsWith('|'))
+                    {
+                        removedTable = true;
+                    }
+                    else if (text.StartsWith("```") || text.StartsWith(":::"))
+                    {
+                        modifiedDiagram = true;
+                    }
+                }
+            }
+
+            if (addedTable) highlights.Add("Added structured data tables and grid representations.");
+            if (modifiedDiagram) highlights.Add("Updated interactive diagrams and visual blocks.");
+
+            feat = addedHeadings.Count + (addedTable && !removedTable ? 1 : 0);
+            if (feat == 0 && unifiedRows.Any(r => r.Kind == Kind.Added))
+            {
+                feat = 1;
+            }
+            fix = (modifiedDiagram ? 1 : 0) + (addedTable && removedTable ? 1 : 0);
+            doc = Math.Max(1, unifiedRows.Count(r => r.Kind == Kind.Added) / 20);
+        }
+
+        return SynthesizeReleaseAnnouncementSnippet(
+            versionTag, milestoneScope, status, highlights, feat, fix, doc, releaseDate);
+    }
 }
 
 

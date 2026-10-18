@@ -1046,6 +1046,68 @@ public class TextSearchTests
         Assert.Contains("Skipped level (H3 -> H5)", fragAudit.SkippedWarnings[1]);
         Assert.Contains("2 skipped levels warning", fragAudit.Summary);
     }
+
+    [Fact]
+    public void Run155_AuditCodeFenceLanguageCoverage()
+    {
+        // 1. Empty / whitespace document returns graceful defaults
+        var emptyAudit = TextSearch.AuditCodeFenceLanguageCoverage("");
+        Assert.Equal(0, emptyAudit.TotalFencedBlocks);
+        Assert.Equal(0, emptyAudit.TaggedFencedBlocks);
+        Assert.Equal(0, emptyAudit.UntaggedFencedBlocks);
+        Assert.Equal(0, emptyAudit.InlineCodeSpans);
+        Assert.Equal(100.0, emptyAudit.TaggingCoveragePercentage);
+        Assert.Equal("No Code Blocks", emptyAudit.CoverageCategory);
+        Assert.Contains("0 code blocks", emptyAudit.Summary);
+
+        // 2. Document with tagged fences and inline code
+        var mixedDoc = """
+            # Architecture Overview
+            Use `Install-Package` or `dotnet add` to install dependencies.
+
+            ```csharp
+            public class Service { }
+            ```
+
+            And for configuration:
+            ```json
+            { "enabled": true }
+            ```
+
+            And untagged snippet:
+            ```
+            plain raw output
+            ```
+            """;
+        var mixedAudit = TextSearch.AuditCodeFenceLanguageCoverage(mixedDoc);
+        Assert.Equal(3, mixedAudit.TotalFencedBlocks);
+        Assert.Equal(2, mixedAudit.TaggedFencedBlocks);
+        Assert.Equal(1, mixedAudit.UntaggedFencedBlocks);
+        Assert.Equal(2, mixedAudit.InlineCodeSpans);
+        Assert.Equal(66.7, mixedAudit.TaggingCoveragePercentage);
+        Assert.Equal("Mixed Coverage (50–79%)", mixedAudit.CoverageCategory);
+        Assert.Equal(1, mixedAudit.LanguageCounts["csharp"]);
+        Assert.Equal(1, mixedAudit.LanguageCounts["json"]);
+        Assert.Contains("66.7% tagged", mixedAudit.Summary);
+        Assert.Contains("Top: csharp (1), json (1)", mixedAudit.Summary);
+        Assert.Equal(mixedAudit.Summary, TextSearch.FormatCodeFenceLanguageCoverageSummary(mixedDoc));
+
+        // 3. Document with 100% tagged fences
+        var fullyTaggedDoc = """
+            ```python
+            print("hello")
+            ```
+            ```python
+            print("world")
+            ```
+            """;
+        var fullAudit = TextSearch.AuditCodeFenceLanguageCoverage(fullyTaggedDoc);
+        Assert.Equal(2, fullAudit.TotalFencedBlocks);
+        Assert.Equal(2, fullAudit.TaggedFencedBlocks);
+        Assert.Equal(0, fullAudit.UntaggedFencedBlocks);
+        Assert.Equal(100.0, fullAudit.TaggingCoveragePercentage);
+        Assert.Equal("Fully Tagged (100%)", fullAudit.CoverageCategory);
+    }
 }
 
 

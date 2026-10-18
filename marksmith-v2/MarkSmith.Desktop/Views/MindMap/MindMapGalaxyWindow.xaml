@@ -282,6 +282,9 @@
                                     <MenuFlyoutItem x:Name="AuditDegreeCentralityItem" Text="Audit graph degree centrality &amp; node hubs" Click="OnAuditDegreeCentralityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C1;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditPeripheryEccentricityItem" Text="Audit leaf node depth &amp; periphery eccentricity" Click="OnAuditPeripheryEccentricityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

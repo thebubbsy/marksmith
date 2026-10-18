@@ -2315,6 +2315,172 @@ public static class TextSearch
         string skippedStr = skippedLevels > 0 ? $" · {skippedLevels} skipped levels warning" : " · No skipped levels";
         return $"Outline balance audit ({hLabel} across {range}{dist} · {balanceCategory}){skippedStr}";
     }
+
+    /// <summary>
+    /// Audits code fence language coverage, tagged vs untagged code blocks, and inline code spans across markdown text.
+    /// </summary>
+    public static CodeFenceLanguageCoverageAudit AuditCodeFenceLanguageCoverage(string? markdownText)
+    {
+        var languageCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new CodeFenceLanguageCoverageAudit(
+                0, 0, 0, 0, 0, 100.0,
+                languageCounts,
+                "No Code Blocks",
+                "Code fence language coverage: 0 code blocks · Document contains no code blocks");
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        bool inFence = false;
+        string fenceMarker = "";
+        int totalFenced = 0;
+        int taggedFenced = 0;
+        int untaggedFenced = 0;
+        int totalCodeLines = 0;
+        int inlineSpans = 0;
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.TrimStart();
+
+            if (!inFence)
+            {
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inFence = true;
+                    fenceMarker = trimmed.Substring(0, 3);
+                    totalFenced++;
+
+                    // Extract language tag
+                    string info = trimmed.Substring(3).Trim();
+                    string lang = "";
+                    if (!string.IsNullOrEmpty(info))
+                    {
+                        var parts = info.Split(new[] { ' ', '\t', '{' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length > 0)
+                        {
+                            lang = parts[0].Trim().TrimStart('.').ToLowerInvariant();
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(lang))
+                    {
+                        taggedFenced++;
+                        languageCounts[lang] = languageCounts.TryGetValue(lang, out int count) ? count + 1 : 1;
+                    }
+                    else
+                    {
+                        untaggedFenced++;
+                    }
+                }
+                else
+                {
+                    int idx = 0;
+                    while (idx < rawLine.Length)
+                    {
+                        int start = rawLine.IndexOf('`', idx);
+                        if (start < 0) break;
+                        if (start + 1 < rawLine.Length && rawLine[start + 1] == '`')
+                        {
+                            idx = start + 2;
+                            while (idx < rawLine.Length && rawLine[idx] == '`') idx++;
+                            continue;
+                        }
+                        int end = rawLine.IndexOf('`', start + 1);
+                        if (end < 0) break;
+                        if (end > start + 1)
+                        {
+                            inlineSpans++;
+                        }
+                        idx = end + 1;
+                    }
+                }
+            }
+            else
+            {
+                if (trimmed.StartsWith(fenceMarker))
+                {
+                    inFence = false;
+                }
+                else
+                {
+                    totalCodeLines++;
+                }
+            }
+        }
+
+        double coveragePercent = totalFenced > 0
+            ? Math.Round((double)taggedFenced * 100.0 / totalFenced, 1)
+            : 100.0;
+
+        string category;
+        if (totalFenced == 0 && inlineSpans == 0)
+        {
+            category = "No Code Blocks";
+        }
+        else if (totalFenced == 0 && inlineSpans > 0)
+        {
+            category = "Inline Code Only";
+        }
+        else if (untaggedFenced == 0)
+        {
+            category = "Fully Tagged (100%)";
+        }
+        else if (coveragePercent >= 80.0)
+        {
+            category = "High Coverage (≥80%)";
+        }
+        else if (coveragePercent >= 50.0)
+        {
+            category = "Mixed Coverage (50–79%)";
+        }
+        else
+        {
+            category = "Untagged Heavy (<50%)";
+        }
+
+        string summary = FormatCodeFenceLanguageCoverageSummary(
+            totalFenced, taggedFenced, untaggedFenced, inlineSpans, totalCodeLines, coveragePercent, category, languageCounts);
+
+        return new CodeFenceLanguageCoverageAudit(
+            totalFenced, taggedFenced, untaggedFenced, inlineSpans, totalCodeLines,
+            coveragePercent, languageCounts, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of code fence language coverage and untagged block detection from markdown.
+    /// </summary>
+    public static string FormatCodeFenceLanguageCoverageSummary(string? markdownText)
+        => AuditCodeFenceLanguageCoverage(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of code fence language coverage metrics.
+    /// </summary>
+    public static string FormatCodeFenceLanguageCoverageSummary(
+        int totalFenced, int taggedFenced, int untaggedFenced, int inlineSpans, int totalCodeLines,
+        double coveragePercent, string category, IReadOnlyDictionary<string, int>? languages = null)
+    {
+        if (totalFenced == 0 && inlineSpans == 0)
+            return "Code fence language coverage: 0 code blocks · Document contains no code blocks";
+
+        if (totalFenced == 0)
+            return $"Code fence language coverage (0 fenced, {inlineSpans} inline code spans · {category}): No fenced blocks to audit";
+
+        string fencedLabel = totalFenced == 1 ? "1 fenced block" : $"{totalFenced} fenced blocks";
+        string tagBreakdown = $"{taggedFenced} tagged, {untaggedFenced} untagged";
+        string inlineLabel = inlineSpans == 1 ? "1 inline span" : $"{inlineSpans} inline spans";
+
+        string langSummary = "";
+        if (languages != null && languages.Count > 0)
+        {
+            var topLangs = languages.OrderByDescending(kv => kv.Value).Take(3).Select(kv => $"{kv.Key} ({kv.Value})");
+            langSummary = $" · Top: {string.Join(", ", topLangs)}";
+        }
+
+        return $"Code fence language coverage ({fencedLabel} [{tagBreakdown}], {inlineLabel} · {category}): {coveragePercent:0.#}% tagged ({totalCodeLines} code lines){langSummary}";
+    }
 }
 
 /// <summary>
@@ -2370,5 +2536,19 @@ public sealed record HeadingOutlineBalanceAudit(
     IReadOnlyList<string> SkippedWarnings,
     IReadOnlyList<HeadingOutlineItem> Headings,
     string BalanceCategory,
+    string Summary);
+
+/// <summary>
+/// Represents the result of an audit of code fence language tagging coverage, untagged blocks, and inline code spans.
+/// </summary>
+public sealed record CodeFenceLanguageCoverageAudit(
+    int TotalFencedBlocks,
+    int TaggedFencedBlocks,
+    int UntaggedFencedBlocks,
+    int InlineCodeSpans,
+    int TotalCodeLines,
+    double TaggingCoveragePercentage,
+    IReadOnlyDictionary<string, int> LanguageCounts,
+    string CoverageCategory,
     string Summary);
 

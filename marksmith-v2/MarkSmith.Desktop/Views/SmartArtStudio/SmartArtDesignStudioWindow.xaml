@@ -302,6 +302,9 @@
                                         <MenuFlyoutItem x:Name="AuditContainerDensityItem" Text="Audit container slide width density &amp; overflow risk" Click="OnAuditContainerDensityClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditSiblingVarianceItem" Text="Audit sibling text length variance &amp; visual symmetry" Click="OnAuditSiblingVarianceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

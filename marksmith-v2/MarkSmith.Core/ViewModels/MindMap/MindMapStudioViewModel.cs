@@ -4080,6 +4080,171 @@ namespace MarkSmith.ViewModels.MindMap
             }
             return vm.AuditDegreeCentrality();
         }
+
+        /// <summary>
+        /// Audits leaf node termination depth, graph diameter/eccentricity from root, and peripheral leaf nodes across the mind map.
+        /// </summary>
+        public PeripheryEccentricityAudit AuditPeripheryEccentricity(IEnumerable<MindMapNodeViewModel>? targetNodes = null)
+        {
+            bool isSelection = false;
+            List<MindMapNodeViewModel> nodeList;
+
+            if (targetNodes != null)
+            {
+                nodeList = targetNodes.ToList();
+                isSelection = true;
+            }
+            else
+            {
+                var selected = Nodes.Where(n => n.IsSelected).ToList();
+                if (selected.Count >= 2)
+                {
+                    nodeList = selected;
+                    isSelection = true;
+                }
+                else
+                {
+                    nodeList = Nodes.ToList();
+                }
+            }
+
+            string scopeStr = isSelection ? "Selected Nodes" : "Full Canvas";
+
+            if (nodeList.Count == 0)
+            {
+                string emptySummary = $"Periphery eccentricity (0 nodes · {scopeStr}): Insufficient nodes";
+                StatusMessage = emptySummary;
+                return new PeripheryEccentricityAudit(
+                    0, 0, 0, 0.0, Array.Empty<string>(), 0, "No Nodes", isSelection, emptySummary);
+            }
+
+            var nodeSet = new HashSet<string>(nodeList.Select(n => n.Id), StringComparer.Ordinal);
+            var activeLinks = Links.Where(l => nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId)).ToList();
+
+            var adj = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            var totalDegree = new Dictionary<string, int>(StringComparer.Ordinal);
+
+            foreach (var node in nodeList)
+            {
+                adj[node.Id] = new List<string>();
+                totalDegree[node.Id] = 0;
+            }
+
+            foreach (var l in activeLinks)
+            {
+                if (adj.ContainsKey(l.SourceNodeId) && adj.ContainsKey(l.TargetNodeId))
+                {
+                    adj[l.SourceNodeId].Add(l.TargetNodeId);
+                    adj[l.TargetNodeId].Add(l.SourceNodeId);
+                    totalDegree[l.SourceNodeId]++;
+                    totalDegree[l.TargetNodeId]++;
+                }
+            }
+
+            var root = nodeList.FirstOrDefault(n => Document != null && n.Id == Document.RootNodeId)
+                       ?? nodeList.FirstOrDefault(n => string.IsNullOrEmpty(n.ParentId) && totalDegree[n.Id] > 0)
+                       ?? nodeList.OrderByDescending(n => totalDegree[n.Id]).FirstOrDefault()
+                       ?? nodeList[0];
+
+            var distances = new Dictionary<string, int>(StringComparer.Ordinal);
+            var queue = new Queue<string>();
+            distances[root.Id] = 0;
+            queue.Enqueue(root.Id);
+
+            while (queue.Count > 0)
+            {
+                var curr = queue.Dequeue();
+                int d = distances[curr];
+                foreach (var neighbor in adj[curr])
+                {
+                    if (!distances.ContainsKey(neighbor))
+                    {
+                        distances[neighbor] = d + 1;
+                        queue.Enqueue(neighbor);
+                    }
+                }
+            }
+
+            var leafNodes = nodeList.Where(n => (totalDegree[n.Id] <= 1 && n.Id != root.Id) || (nodeList.Count == 1)).ToList();
+            if (leafNodes.Count == 0 && nodeList.Count > 1)
+            {
+                leafNodes = nodeList.Where(n => n.Id != root.Id).ToList();
+            }
+
+            int maxEccentricity = distances.Values.Count > 0 ? distances.Values.Max() : 0;
+            var reachableLeaves = leafNodes.Where(n => distances.ContainsKey(n.Id)).ToList();
+            double avgLeafDepth = reachableLeaves.Count > 0
+                ? Math.Round(reachableLeaves.Average(n => distances[n.Id]), 1)
+                : 0.0;
+
+            var deepestLeaves = reachableLeaves
+                .Where(n => distances[n.Id] == maxEccentricity)
+                .Select(n => string.IsNullOrWhiteSpace(n.Title) ? n.Id : n.Title)
+                .Take(3)
+                .ToList();
+
+            int peripheralCount = distances.Values.Count(d => d >= Math.Max(1, maxEccentricity - 1));
+
+            string category;
+            if (maxEccentricity <= 1) category = "Compact / Star Hub";
+            else if (maxEccentricity <= 3) category = "Balanced Tree";
+            else if (maxEccentricity <= 5) category = "Deep Branching";
+            else category = "Elongated Linear Chain";
+
+            string summary = FormatPeripheryEccentricitySummary(
+                nodeList.Count, leafNodes.Count, maxEccentricity, avgLeafDepth, category, deepestLeaves, scopeStr);
+            StatusMessage = summary;
+
+            return new PeripheryEccentricityAudit(
+                nodeList.Count,
+                leafNodes.Count,
+                maxEccentricity,
+                avgLeafDepth,
+                deepestLeaves,
+                peripheralCount,
+                category,
+                isSelection,
+                summary);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of leaf node termination depth and periphery eccentricity metrics.
+        /// </summary>
+        public static string FormatPeripheryEccentricitySummary(
+            int totalNodes, int leafCount, int maxEccentricity, double avgLeafDepth, string category,
+            IReadOnlyList<string>? deepestLeaves = null, string scope = "Full Canvas")
+        {
+            if (totalNodes <= 0) return $"Periphery eccentricity (0 nodes · {scope}): Insufficient nodes";
+            string nodeLabel = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string leafLabel = leafCount == 1 ? "1 leaf" : $"{leafCount} leaves";
+
+            string topStr = "";
+            if (deepestLeaves != null && deepestLeaves.Count > 0)
+            {
+                topStr = $" (top: '{string.Join("', '", deepestLeaves)}')";
+            }
+
+            return $"Periphery eccentricity ({nodeLabel}, {leafLabel} · {scope}): Max depth {maxEccentricity}{topStr}, avg leaf depth {avgLeafDepth:0.#} · {category}";
+        }
+
+        /// <summary>
+        /// Audits periphery eccentricity across pure model nodes and links.
+        /// </summary>
+        public static PeripheryEccentricityAudit AuditPeripheryEccentricity(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditPeripheryEccentricity();
+        }
     }
 
     /// <summary>
@@ -4190,6 +4355,20 @@ namespace MarkSmith.ViewModels.MindMap
         int LeafNodeCount,
         int OrphanNodeCount,
         IReadOnlyList<NodeDegreeInfo> NodeDegrees,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents the result of a leaf node termination depth and periphery eccentricity audit.
+    /// </summary>
+    public sealed record PeripheryEccentricityAudit(
+        int TotalNodes,
+        int LeafNodeCount,
+        int MaxEccentricity,
+        double AverageLeafDepth,
+        IReadOnlyList<string> DeepestLeafTitles,
+        int PeripheralNodeCount,
+        string EccentricityCategory,
         bool IsSelectionScope,
         string Summary);
 }

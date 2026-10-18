@@ -3976,6 +3976,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditPeripheryEccentricityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditPeripheryEccentricity();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4847,6 +4855,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditDegreeCentralityItem.Click += OnAuditDegreeCentralityClick;
             menu.Items.Add(auditDegreeCentralityItem);
+
+            var auditPeripheryEccentricityItem = new MenuFlyoutItem
+            {
+                Text = "Audit leaf node depth & periphery eccentricity",
+                Icon = new FontIcon { Glyph = "\uE81C" }
+            };
+            auditPeripheryEccentricityItem.Click += OnAuditPeripheryEccentricityClick;
+            menu.Items.Add(auditPeripheryEccentricityItem);
 
             var fitItem = new MenuFlyoutItem
 

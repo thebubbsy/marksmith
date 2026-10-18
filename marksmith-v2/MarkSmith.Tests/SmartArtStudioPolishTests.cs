@@ -1052,6 +1052,42 @@ public class SmartArtStudioPolishTests
         Assert.Contains("exceeds horizontal slide capacity", crowded.Recommendation);
         Assert.Contains("Overcrowded", crowded.Summary);
     }
+
+    [Fact]
+    public void Run155_AuditSiblingTextLengthVariance()
+    {
+        // 1. Empty outline
+        var empty = SmartArtDesignStudioViewModel.AuditSiblingTextLengthVariance("");
+        Assert.Equal(0, empty.TotalNodes);
+        Assert.Equal(0, empty.SiblingGroupCount);
+        Assert.Contains("0 nodes (Empty outline)", empty.Summary);
+
+        // 2. Harmonious symmetry outline (siblings have very similar lengths)
+        var harmonious = """
+            - Planning Stage
+            - Building Stage
+            - Testing Stage
+            - Shipping Stage
+            """;
+        var auditHarmonious = SmartArtDesignStudioViewModel.AuditSiblingTextLengthVariance(harmonious);
+        Assert.Equal(4, auditHarmonious.TotalNodes);
+        Assert.Equal(1, auditHarmonious.SiblingGroupCount);
+        Assert.True(auditHarmonious.AverageCoefficientOfVariation < 0.15);
+        Assert.Equal("Harmonious Symmetry (<25% CV)", auditHarmonious.SymmetryCategory);
+        Assert.Contains("Harmonious Symmetry", auditHarmonious.Summary);
+
+        // 3. Asymmetric outline (one sibling has 5 chars, another has 85 chars)
+        var asymmetric = """
+            - Plan
+            - Comprehensive Multithreaded High-Throughput Asynchronous Distributed Network Engine
+            """;
+        var auditAsym = SmartArtDesignStudioViewModel.AuditSiblingTextLengthVariance(asymmetric);
+        Assert.Equal(2, auditAsym.TotalNodes);
+        Assert.Equal(1, auditAsym.SiblingGroupCount);
+        Assert.True(auditAsym.AverageCoefficientOfVariation > 0.65);
+        Assert.Equal("Highly Asymmetric (>65% CV)", auditAsym.SymmetryCategory);
+        Assert.Contains("Worst: 'Root'", auditAsym.Summary);
+    }
 }
 
 

@@ -673,6 +673,9 @@
                                         <MenuFlyoutItem x:Name="SelectionDistributeSpacingHorizontalItem" Text="Distribute uniform horizontal spacing (Equal gutters)" Click="OnSelectionDistributeSpacingHorizontalClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE734;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditOcclusionItem" Text="Audit Z-order depth overlap &amp; occlusion" Click="OnSelectionAuditOcclusionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

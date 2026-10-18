@@ -1827,6 +1827,113 @@ public sealed class RecentFilesService
         string clusterLabel = chips.Count == 1 ? "1 cluster" : $"{chips.Count} clusters";
         return $"Active cluster filter ({clusterLabel}): Top active '{top.ClusterName}' ({top.ActiveFiles}/{top.TotalFiles} active, {top.ActivityPercentage:0}%)";
     }
+
+    /// <summary>
+    /// Audits recent files to construct a file format cluster distribution matrix, calculate Simpson's
+    /// format diversity index, and detect single-format silos.
+    /// </summary>
+    public static FormatClusterMatrixAudit AuditFormatClusterMatrix(IEnumerable<string>? files)
+    {
+        var list = (files ?? Enumerable.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .ToList();
+
+        if (list.Count == 0)
+        {
+            return new FormatClusterMatrixAudit(
+                0, 0, "None", 0.0, 0.0, "Empty Library",
+                Array.Empty<FormatClusterInfo>(),
+                "Format cluster matrix: 0 files (Empty library)");
+        }
+
+        var extCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in list)
+        {
+            string ext = Path.GetExtension(file);
+            if (string.IsNullOrEmpty(ext)) ext = ".unknown";
+            else ext = ext.ToLowerInvariant();
+
+            extCounts[ext] = extCounts.TryGetValue(ext, out int c) ? c + 1 : 1;
+        }
+
+        var formats = extCounts
+            .OrderByDescending(kv => kv.Value)
+            .ThenBy(kv => kv.Key)
+            .Select(kv =>
+            {
+                string name = kv.Key switch
+                {
+                    ".md" => "Markdown",
+                    ".markdown" => "Markdown",
+                    ".docx" => "Word Document",
+                    ".pdf" => "PDF Document",
+                    ".pptx" => "PowerPoint",
+                    ".html" => "HTML Web Page",
+                    ".txt" => "Plain Text",
+                    ".json" => "JSON Data",
+                    _ => kv.Key.TrimStart('.').ToUpperInvariant()
+                };
+                double pct = Math.Round((double)kv.Value * 100.0 / list.Count, 1);
+                return new FormatClusterInfo(kv.Key, name, kv.Value, pct);
+            })
+            .ToList();
+
+        var top = formats[0];
+
+        double sumSq = formats.Sum(f => Math.Pow((double)f.FileCount / list.Count, 2));
+        double diversity = Math.Round(1.0 - sumSq, 2);
+
+        string siloStatus;
+        if (top.Percentage >= 80.0)
+        {
+            siloStatus = $"Single-Format Silo ({top.Extension} {top.Percentage:0}%)";
+        }
+        else if (formats.Count >= 2 && (top.Percentage + formats[1].Percentage) >= 80.0)
+        {
+            siloStatus = $"Dual-Format Focus ({top.Extension} + {formats[1].Extension})";
+        }
+        else if (diversity >= 0.6)
+        {
+            siloStatus = "Diverse Multi-Format Portfolio";
+        }
+        else
+        {
+            siloStatus = "Balanced Format Mix";
+        }
+
+        string summary = FormatClusterMatrixSummary(list.Count, formats.Count, top, diversity, siloStatus, formats);
+
+        return new FormatClusterMatrixAudit(
+            list.Count,
+            formats.Count,
+            top.Extension,
+            top.Percentage,
+            diversity,
+            siloStatus,
+            formats,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of the file format cluster distribution matrix.
+    /// </summary>
+    public static string FormatClusterMatrixSummary(
+        int totalFiles, int totalFormats, FormatClusterInfo topFormat, double diversityIndex, string siloStatus,
+        IReadOnlyList<FormatClusterInfo>? formats = null)
+    {
+        if (totalFiles <= 0) return "Format cluster matrix: 0 files (Empty library)";
+        string fileLabel = totalFiles == 1 ? "1 file" : $"{totalFiles} files";
+        string formatLabel = totalFormats == 1 ? "1 format" : $"{totalFormats} formats";
+
+        string breakdown = "";
+        if (formats != null && formats.Count > 0)
+        {
+            var parts = formats.Take(4).Select(f => $"{f.Extension}: {f.FileCount} ({f.Percentage:0}%)");
+            breakdown = $" · [{string.Join(", ", parts)}]";
+        }
+
+        return $"Format cluster matrix ({fileLabel} across {formatLabel} · {siloStatus}){breakdown} · Diversity: {diversityIndex:0.##}";
+    }
 }
 
 /// <summary>
@@ -1882,3 +1989,25 @@ public sealed record ActiveClusterFilterChip(
     double ActivityPercentage,
     string FilterQuery,
     string DisplayBadge);
+
+/// <summary>
+/// Represents file count and percentage metrics for an individual file extension / format.
+/// </summary>
+public sealed record FormatClusterInfo(
+    string Extension,
+    string FormatName,
+    int FileCount,
+    double Percentage);
+
+/// <summary>
+/// Represents the result of a file format cluster distribution matrix and silo detection audit.
+/// </summary>
+public sealed record FormatClusterMatrixAudit(
+    int TotalFiles,
+    int TotalFormats,
+    string DominantFormat,
+    double DominantPercentage,
+    double DiversityIndex,
+    string SiloStatus,
+    IReadOnlyList<FormatClusterInfo> Formats,
+    string Summary);

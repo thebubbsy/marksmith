@@ -11294,25 +11294,47 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #155 Blueprint — Carried-Forward Refinements & Next Cycle Targets (Status: Pending)
+## Scheduled WinUI 3 Desktop Polish Routine — Run #155 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-18
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Code Fence Language Tagging Coverage & Untagged Block Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditCodeFenceLanguageCoverage(markdownText)`, `FormatCodeFenceLanguageCoverageSummary(...)`, and record `CodeFenceLanguageCoverageAudit` analyzing total code fence blocks, language-tagged blocks, untagged blocks, coverage percentage, tagged languages breakdown, and first untagged line hint; wired to `codeFenceCoverageItem` (`\uE943`) in `StatusSectionBreadcrumbButton_RightTapped` and `FindCountText_RightTapped` flyouts with clipboard copy and status announcement.
+    2. **MindMapGalaxyWindow Leaf Node Termination Depth & Periphery Eccentricity Metrics (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditPeripheryEccentricity()`, `FormatPeripheryEccentricitySummary(...)`, and record `PeripheryEccentricityAudit` implementing graph BFS traversal from root to calculate max tree depth, average terminal leaf depth, periphery node count, and periphery eccentricity ratio; wired to `AuditPeripheryEccentricityItem` (`\uE81C`) in `ArrangeDropDownButton.Flyout` and right-tapped context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Z-Order Depth Overlap & Occlusion Detection (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditOcclusionAndOverlap()`, `FormatOcclusionSummary(...)`, and records `ShapeOcclusionInfo`, `ShapeOcclusionAudit` evaluating 2D bounding box intersections and Z-order drawing indices to detect heavily occluded underlying shapes (≥50% covered), max occlusion percentage, worst occluded pair, and severity ratings; wired to `SelectionAuditOcclusionItem` (`\uE71E`) in `SelectionBoundsFlyout`.
+    4. **SmartArtDesignStudioWindow Sibling Text Length Variance & Visual Symmetry Balance Metrics (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditSiblingTextLengthVariance(markdownText)`, `FormatSiblingTextVarianceSummary(...)`, and records `SiblingGroupVariance`, `SiblingTextVarianceAudit` parsing outline hierarchies to measure sibling character count standard deviation, length ratios, coefficient of variation, and classifying visual symmetry balance (`Optimal Symmetry`, `Moderate Asymmetry`, `Severe Imbalance`); wired to `AuditSiblingVarianceItem` (`\uE809`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Automated Release Announcement Social Card & Markdown Snippet Synthesizer (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.SynthesizeReleaseAnnouncementSnippet(...)` overloads synthesizing social release announcement cards with release metadata, highlights, git stats, and call-to-action links; wired to `synthesizeReleaseAnnouncement` (`\uE8A1`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and status feedback.
+    6. **SuiteHubView File Format Cluster Distribution Matrix & Silo Detection (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditFormatClusterMatrix(files)`, `FormatClusterMatrixSummary(...)`, and records `FormatClusterInfo`, `FormatClusterMatrixAudit` computing format frequency distribution (`.md`, `.docx`, `.pdf`, `.html`, `.epub`, `.mmd`), format diversity score (0–100), and detecting single-format silos (e.g. `100% Markdown Silo`); wired to `CopyFormatClusterMatrixItem` (`\uE809`) in `RecentDocsFlyout` with `Services.CopyFeedback.ApplyButtonTick`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `6/6` targeted Run #155 tests passing (`100%` pass rate).
+    - Total verified test suite passing: `54/54` tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`PID=10236, Responding=True, HasExited=False`).
+
+---
+
+### Run #156 Blueprint — Carried-Forward Refinements & Next Cycle Targets (Status: Pending)
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **What is missing**: Status bar breadcrumb lacks code fence language coverage and untagged block detection (total code blocks, fenced vs inline, percentage of syntax-highlighted blocks vs untagged blocks).
-   - **Deliverable**: Add `TextSearch.AuditCodeFenceLanguageCoverage(markdownText)` and `FormatCodeFenceLanguageCoverageSummary(...)`, wired to `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
+   - **What is missing**: Status bar lacks list item hierarchy and mixed bullet indentation auditing (measuring bullet depth consistency, mixed list types e.g. ordered vs unordered nesting, and orphaned list items).
+   - **Deliverable**: Add `TextSearch.AuditListIndentationHierarchy(markdownText)` and `FormatListIndentationSummary(...)`, wired to `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **What is missing**: Galaxy canvas lacks leaf node termination depth and periphery eccentricity metrics (evaluating max geodesic distance from root, average distance to terminal leaves, and identifying peripheral clusters).
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditPeripheryEccentricity()` and `FormatPeripheryEccentricitySummary(...)`, wired to `ArrangeDropDownButton.Flyout`.
+   - **What is missing**: Galaxy canvas lacks radial layout concentric ring and angular spacing uniformity auditing (evaluating whether nodes on concentric rings around the central root have balanced angular dispersion).
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditRadialAngularSpacing()` and `FormatRadialAngularSpacingSummary(...)`, wired to `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **What is missing**: Canvas selection flyout lacks Z-order depth overlap and occlusion detection (identifying shapes that completely or heavily obscure underlying shapes without grouped relationships).
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditOcclusionAndOverlap()` and `FormatOcclusionSummary(...)`, wired to `SelectionBoundsFlyout`.
+   - **What is missing**: Canvas selection flyout lacks canvas boundary margin and safe zone bleed auditing (detecting shapes placed too close to canvas boundaries or outside the printable/safe bounding margin).
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditBoundaryMarginsAndBleed(margin)` and `FormatBoundaryMarginSummary(...)`, wired to `SelectionBoundsFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **What is missing**: Outline editor lacks sibling text length variance and visual symmetry balance metrics (measuring character/word count variance among sibling nodes causing uneven shape rendering).
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditSiblingTextLengthVariance(markdownText)` and `FormatSiblingTextVarianceSummary(...)`, wired to `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #154 Idea 5]**:
-   - **Refinement Target**: Enhance `LineDiff.SynthesizeReleaseBadgesMarkdown` with an automated release announcement social card / markdown snippet synthesizer (`LineDiff.SynthesizeReleaseAnnouncementSnippet(version, milestone, status, highlights)`).
-   - **Deliverable**: Add `LineDiff.SynthesizeReleaseAnnouncementSnippet(version, milestoneName, status, highlights)` and wire to `TimelineHeaderBorder` flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #154 Idea 6]**:
-   - **Refinement Target**: Enhance `RecentFilesService.GetActiveClusterFilterChips` with a file format cluster distribution matrix (`RecentFilesService.AuditFormatClusterMatrix(files)`) to detect single-format silos.
-   - **Deliverable**: Add `RecentFilesService.AuditFormatClusterMatrix(files)` and wire to `RecentDocsFlyout`.
+   - **What is missing**: Outline editor lacks linear flow monotonicity and directional flow vector auditing (evaluating whether process steps flow monotonically left-to-right or top-to-bottom without erratic zig-zag coordinate leaps).
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditLinearFlowMonotonicity()` and `FormatLinearFlowSummary(...)`, wired to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #155 Idea 5]**:
+   - **Refinement Target**: Enhance `LineDiff.SynthesizeReleaseAnnouncementSnippet` into a multi-channel release digest generator supporting Slack, Discord, and Teams markdown formatting with automated changelog summary sections.
+   - **Deliverable**: Add `LineDiff.SynthesizeMultiChannelReleaseDigest(version, milestoneName, status, highlights)` and wire to `TimelineHeaderBorder` flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #155 Idea 6]**:
+   - **Refinement Target**: Enhance `RecentFilesService.AuditFormatClusterMatrix` with cross-reference interoperability and companion format auditing (detecting documents missing companion `.docx` or `.pdf` exports across workspace clusters).
+   - **Deliverable**: Add `RecentFilesService.AuditCompanionFormatCoverage(files)` and wire to `RecentDocsFlyout`.
 
 
 

@@ -4665,6 +4665,150 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         CanvasChanged?.Invoke(this, EventArgs.Empty);
         return (ordered.Count, modified, uniformGap, summary);
     }
+
+    /// <summary>
+    /// Audits Z-order depth overlap and occlusion between shapes on canvas, detecting hidden or obscured shapes.
+    /// </summary>
+    public ShapeOcclusionAudit AuditOcclusionAndOverlap(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = targetShapes != null || selected.Count >= 2;
+        string scopeStr = isSelection ? "Selected Shapes" : "Full Canvas";
+
+        if (targets.Count < 2)
+        {
+            string emptySummary = $"Occlusion & overlap audit (0 pairs · {scopeStr}): Insufficient shapes ({targets.Count} found)";
+            StatusMessage = emptySummary;
+            return new ShapeOcclusionAudit(
+                targets.Count, 0, 0, 0.0, "None", "None",
+                Array.Empty<ShapeOcclusionInfo>(), "Clean Layout", isSelection, emptySummary);
+        }
+
+        var shapeZ = new Dictionary<ShapeCanvasItemViewModel, int>();
+        for (int i = 0; i < Shapes.Count; i++)
+        {
+            shapeZ[Shapes[i]] = i;
+        }
+
+        int overlappingPairs = 0;
+        var occlusionInfos = new List<ShapeOcclusionInfo>();
+        double globalMaxOcclusion = 0.0;
+        string worstOccludedName = "None";
+        string worstCoveringName = "None";
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            var shapeA = targets[i];
+            double areaA = shapeA.Width * shapeA.Height;
+            if (areaA <= 0.01) continue;
+
+            int zA = shapeZ.TryGetValue(shapeA, out int zaVal) ? zaVal : i;
+            double maxCoverFraction = 0.0;
+            string topCoveringName = "None";
+            int overlapCount = 0;
+
+            for (int j = 0; j < targets.Count; j++)
+            {
+                if (i == j) continue;
+                var shapeB = targets[j];
+                double areaB = shapeB.Width * shapeB.Height;
+                if (areaB <= 0.01) continue;
+
+                int zB = shapeZ.TryGetValue(shapeB, out int zbVal) ? zbVal : j;
+
+                double left = Math.Max(shapeA.X, shapeB.X);
+                double right = Math.Min(shapeA.X + shapeA.Width, shapeB.X + shapeB.Width);
+                double top = Math.Max(shapeA.Y, shapeB.Y);
+                double bottom = Math.Min(shapeA.Y + shapeA.Height, shapeB.Y + shapeB.Height);
+
+                if (right > left && bottom > top)
+                {
+                    double intersectArea = (right - left) * (bottom - top);
+                    if (intersectArea > 0.01)
+                    {
+                        if (i < j) overlappingPairs++;
+                        overlapCount++;
+
+                        if (zB > zA)
+                        {
+                            double fraction = intersectArea / areaA;
+                            if (fraction > maxCoverFraction)
+                            {
+                                maxCoverFraction = fraction;
+                                topCoveringName = shapeB.DisplayName;
+                            }
+                        }
+                    }
+                }
+            }
+
+            double occlusionPercent = Math.Round(maxCoverFraction * 100.0, 1);
+            if (occlusionPercent >= 15.0)
+            {
+                string severity = occlusionPercent switch
+                {
+                    >= 90.0 => "Complete",
+                    >= 50.0 => "Heavy",
+                    _ => "Partial"
+                };
+
+                occlusionInfos.Add(new ShapeOcclusionInfo(
+                    shapeA.Id, shapeA.DisplayName, zA, areaA, occlusionPercent, topCoveringName, overlapCount, severity));
+
+                if (occlusionPercent > globalMaxOcclusion)
+                {
+                    globalMaxOcclusion = occlusionPercent;
+                    worstOccludedName = shapeA.DisplayName;
+                    worstCoveringName = topCoveringName;
+                }
+            }
+        }
+
+        int occludedCount = occlusionInfos.Count(o => o.MaxOcclusionPercentage >= 50.0);
+
+        string category;
+        if (overlappingPairs == 0) category = "Clean Layout (No Overlaps)";
+        else if (occludedCount == 0 && globalMaxOcclusion < 30.0) category = "Minor Overlaps";
+        else if (globalMaxOcclusion < 80.0) category = "Moderate Occlusions";
+        else category = "Severe Hidden Shapes";
+
+        string summary = FormatOcclusionSummary(
+            targets.Count, overlappingPairs, occludedCount, globalMaxOcclusion, worstOccludedName, worstCoveringName, category, scopeStr);
+        StatusMessage = summary;
+
+        return new ShapeOcclusionAudit(
+            targets.Count,
+            overlappingPairs,
+            occludedCount,
+            globalMaxOcclusion,
+            worstOccludedName,
+            worstCoveringName,
+            occlusionInfos,
+            category,
+            isSelection,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of Z-order depth overlap and occlusion metrics.
+    /// </summary>
+    public static string FormatOcclusionSummary(
+        int totalShapes, int pairCount, int occludedCount, double maxOcclusion,
+        string worstOccluded, string worstCovering, string category, string scope = "Full Canvas")
+    {
+        if (totalShapes < 2) return $"Occlusion audit (0 pairs · {scope}): Insufficient shapes";
+        string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        string pairLabel = pairCount == 1 ? "1 pair" : $"{pairCount} pairs";
+
+        string worstStr = "";
+        if (maxOcclusion >= 15.0 && !string.IsNullOrEmpty(worstOccluded) && worstOccluded != "None")
+        {
+            worstStr = $" · Worst: '{worstOccluded}' {maxOcclusion:0.#}% covered by '{worstCovering}'";
+        }
+
+        return $"Occlusion audit ({shapeLabel}, {pairLabel} overlapping · {category}): {occludedCount} heavily occluded shapes{worstStr}";
+    }
 }
 
 /// <summary>
@@ -4725,6 +4869,34 @@ public sealed record SpacingDistributionAudit(
     double MaxGap,
     bool IsUniform,
     DistributionAxis Axis,
+    string Summary);
+
+/// <summary>
+/// Represents occlusion and overlapping metrics for an individual shape.
+/// </summary>
+public sealed record ShapeOcclusionInfo(
+    string ShapeId,
+    string DisplayName,
+    int ZIndex,
+    double Area,
+    double MaxOcclusionPercentage,
+    string CoveringShapeName,
+    int OverlappingShapeCount,
+    string Severity);
+
+/// <summary>
+/// Represents the result of a multi-shape Z-order depth overlap and occlusion audit.
+/// </summary>
+public sealed record ShapeOcclusionAudit(
+    int TotalShapes,
+    int OverlappingPairCount,
+    int OccludedShapeCount,
+    double MaxOcclusionPercentage,
+    string WorstOccludedShapeName,
+    string WorstCoveringShapeName,
+    IReadOnlyList<ShapeOcclusionInfo> OccludedShapes,
+    string OcclusionCategory,
+    bool IsSelectionScope,
     string Summary);
 
 

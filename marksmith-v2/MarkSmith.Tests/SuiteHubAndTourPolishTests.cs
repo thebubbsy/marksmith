@@ -2216,6 +2216,68 @@ public class SuiteHubAndTourPolishTests
         var emptySummary = RecentFilesService.FormatActiveClusterFilterSummary(emptyChips);
         Assert.Contains("No clusters found", emptySummary);
     }
+
+    [Fact]
+    public void Run155_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. Verify all UI elements & handlers across surfaces
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("codeFenceCoverageItem", mainCs);
+        Assert.Contains("FormatCodeFenceLanguageCoverageSummary", mainCs);
+
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditPeripheryEccentricityItem", galaxyXaml);
+        Assert.Contains("OnAuditPeripheryEccentricityClick", galaxyXaml);
+        Assert.Contains("OnAuditPeripheryEccentricityClick", galaxyCs);
+        Assert.Contains("AuditPeripheryEccentricity", galaxyCs);
+
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditOcclusionItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditOcclusionClick", shapeXaml);
+        Assert.Contains("OnSelectionAuditOcclusionClick", shapeCs);
+        Assert.Contains("AuditOcclusionAndOverlap", shapeCs);
+
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditSiblingVarianceItem", smartArtXaml);
+        Assert.Contains("OnAuditSiblingVarianceClick", smartArtXaml);
+        Assert.Contains("OnAuditSiblingVarianceClick", smartArtCs);
+        Assert.Contains("AuditSiblingTextLengthVariance", smartArtCs);
+
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("synthesizeReleaseAnnouncement", historyCs);
+        Assert.Contains("SynthesizeReleaseAnnouncementSnippet", historyCs);
+
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyFormatClusterMatrixItem", suiteXaml);
+        Assert.Contains("OnCopyFormatClusterMatrixClick", suiteXaml);
+        Assert.Contains("OnCopyFormatClusterMatrixClick", suiteCs);
+        Assert.Contains("AuditFormatClusterMatrix", suiteCs);
+
+        // 2. Logic test for AuditFormatClusterMatrix
+        var emptyAudit = RecentFilesService.AuditFormatClusterMatrix(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFiles);
+        Assert.Equal("Empty Library", emptyAudit.SiloStatus);
+
+        var files = new[]
+        {
+            @"C:\Projects\Alpha\doc1.md",
+            @"C:\Projects\Alpha\doc2.md",
+            @"C:\Projects\Alpha\doc3.md",
+            @"C:\Projects\Alpha\report.docx",
+            @"C:\Projects\Alpha\export.pdf"
+        };
+        var audit = RecentFilesService.AuditFormatClusterMatrix(files);
+        Assert.Equal(5, audit.TotalFiles);
+        Assert.Equal(3, audit.TotalFormats);
+        Assert.Equal(".md", audit.DominantFormat);
+        Assert.Equal(60.0, audit.DominantPercentage);
+        Assert.True(audit.DiversityIndex > 0.4);
+        Assert.Contains("Format cluster matrix (5 files across 3 formats", audit.Summary);
+    }
 }
 
 

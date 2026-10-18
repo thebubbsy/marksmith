@@ -3289,6 +3289,152 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string recStr = !string.IsNullOrWhiteSpace(recommendation) ? $" · {recommendation}" : "";
         return $"Container density audit ('{category}', {itemLabel} in {containerWidth:0}px slide): {nodeWidth:0.#}px/item · {densityRating}{recStr}";
     }
+
+    /// <summary>
+    /// Audits sibling text length variance and visual symmetry balance of the active outline.
+    /// </summary>
+    public SiblingTextVarianceAudit AuditSiblingTextLengthVariance() => AuditSiblingTextLengthVariance(MarkdownText);
+
+    /// <summary>
+    /// Audits sibling text length variance and visual symmetry balance from markdown outline text.
+    /// </summary>
+    public static SiblingTextVarianceAudit AuditSiblingTextLengthVariance(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new SiblingTextVarianceAudit(
+                0, 0, 0.0, 0.0, "None",
+                Array.Empty<SiblingGroupVariance>(), "Empty Outline",
+                "Sibling text variance audit: 0 nodes (Empty outline)");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        var parsed = new List<(string Text, int Depth)>();
+
+        foreach (var rawLine in lines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+            int leadWs = 0;
+            int spaceCount = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t'))
+            {
+                spaceCount += rawLine[leadWs] == '\t' ? 4 : 1;
+                leadWs++;
+            }
+            int depth = Math.Min(6, (spaceCount / 2) + 1);
+            string trimmed = rawLine.Substring(leadWs).Trim();
+            if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ "))
+            {
+                trimmed = trimmed.Substring(2).Trim();
+            }
+            else if (trimmed.Length >= 2 && char.IsDigit(trimmed[0]) && trimmed[1] == '.')
+            {
+                trimmed = trimmed.Substring(2).Trim();
+            }
+            if (!string.IsNullOrWhiteSpace(trimmed))
+            {
+                parsed.Add((trimmed, depth));
+            }
+        }
+
+        if (parsed.Count == 0)
+        {
+            return new SiblingTextVarianceAudit(
+                0, 0, 0.0, 0.0, "None",
+                Array.Empty<SiblingGroupVariance>(), "Empty Outline",
+                "Sibling text variance audit: 0 nodes (Empty outline)");
+        }
+
+        var parentAtDepth = new Dictionary<int, string>();
+        parentAtDepth[0] = "Root";
+
+        var groups = new Dictionary<(int Depth, string Parent), List<string>>();
+
+        foreach (var (text, depth) in parsed)
+        {
+            string parent = parentAtDepth.TryGetValue(depth - 1, out var p) ? p : "Root";
+            parentAtDepth[depth] = text;
+
+            var key = (depth, parent);
+            if (!groups.TryGetValue(key, out var list))
+            {
+                list = new List<string>();
+                groups[key] = list;
+            }
+            list.Add(text);
+        }
+
+        var siblingVariances = new List<SiblingGroupVariance>();
+
+        foreach (var kvp in groups)
+        {
+            var siblings = kvp.Value;
+            if (siblings.Count < 2) continue;
+
+            int n = siblings.Count;
+            double mean = siblings.Average(s => s.Length);
+            double sumSqDiff = siblings.Sum(s => Math.Pow(s.Length - mean, 2));
+            double stdDev = Math.Sqrt(sumSqDiff / n);
+            double cv = mean > 0 ? (stdDev / mean) : 0.0;
+
+            siblingVariances.Add(new SiblingGroupVariance(
+                kvp.Key.Parent,
+                kvp.Key.Depth,
+                n,
+                Math.Round(mean, 1),
+                Math.Round(stdDev, 1),
+                Math.Round(cv, 2),
+                siblings));
+        }
+
+        if (siblingVariances.Count == 0)
+        {
+            string singleSummary = $"Sibling text variance audit ({parsed.Count} items): No multi-sibling groups found (Linear hierarchy)";
+            return new SiblingTextVarianceAudit(
+                parsed.Count, 0, 0.0, 0.0, "None",
+                Array.Empty<SiblingGroupVariance>(), "Linear Hierarchy", singleSummary);
+        }
+
+        double avgCv = Math.Round(siblingVariances.Average(g => g.CoefficientOfVariation), 2);
+        double maxCv = Math.Round(siblingVariances.Max(g => g.CoefficientOfVariation), 2);
+        var worstGroup = siblingVariances.OrderByDescending(g => g.CoefficientOfVariation).First();
+
+        string symmetryCategory;
+        if (avgCv <= 0.25) symmetryCategory = "Harmonious Symmetry (<25% CV)";
+        else if (avgCv <= 0.45) symmetryCategory = "Balanced Variance (25–45% CV)";
+        else if (avgCv <= 0.65) symmetryCategory = "Moderate Variance (45–65% CV)";
+        else symmetryCategory = "Highly Asymmetric (>65% CV)";
+
+        string summary = FormatSiblingTextVarianceSummary(
+            parsed.Count, siblingVariances.Count, avgCv, maxCv, worstGroup.ParentTitle, symmetryCategory);
+
+        return new SiblingTextVarianceAudit(
+            parsed.Count,
+            siblingVariances.Count,
+            avgCv,
+            maxCv,
+            worstGroup.ParentTitle,
+            siblingVariances,
+            symmetryCategory,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of sibling text length variance and visual symmetry balance.
+    /// </summary>
+    public static string FormatSiblingTextVarianceSummary(
+        int totalNodes, int groupCount, double avgCv, double maxCv, string worstParent, string symmetryCategory)
+    {
+        if (totalNodes <= 0) return "Sibling text variance audit: 0 nodes (Empty outline)";
+        string nodeLabel = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+        string groupLabel = groupCount == 1 ? "1 sibling group" : $"{groupCount} sibling groups";
+
+        string worstStr = groupCount > 0 && maxCv > 0.0
+            ? $" · Worst: '{worstParent}' ({maxCv * 100:0}% CV)"
+            : "";
+
+        return $"Sibling text variance audit ({nodeLabel}, {groupLabel} · {symmetryCategory}): avg CV {avgCv * 100:0}%{worstStr}";
+    }
 }
 
 /// <summary>
@@ -3365,4 +3511,29 @@ public sealed record ContainerDensityFitAudit(
     double NodeWidth,
     string DensityRating,
     string Recommendation,
+    string Summary);
+
+/// <summary>
+/// Represents length variance metrics for a group of sibling nodes.
+/// </summary>
+public sealed record SiblingGroupVariance(
+    string ParentTitle,
+    int Depth,
+    int SiblingCount,
+    double MeanCharCount,
+    double StdDevCharCount,
+    double CoefficientOfVariation,
+    IReadOnlyList<string> SiblingTexts);
+
+/// <summary>
+/// Represents the result of a sibling text length variance and visual symmetry balance audit.
+/// </summary>
+public sealed record SiblingTextVarianceAudit(
+    int TotalNodes,
+    int SiblingGroupCount,
+    double AverageCoefficientOfVariation,
+    double MaxCoefficientOfVariation,
+    string WorstGroupParentTitle,
+    IReadOnlyList<SiblingGroupVariance> SiblingGroups,
+    string SymmetryCategory,
     string Summary);

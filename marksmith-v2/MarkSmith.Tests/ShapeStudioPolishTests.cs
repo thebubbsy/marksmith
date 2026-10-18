@@ -1243,6 +1243,36 @@ public class ShapeStudioPolishTests
         vm.UndoCommand.Execute(null);
         Assert.Equal(120.0, vm.Shapes[1].X);
     }
+
+    [Fact]
+    public void Run155_AuditOcclusionAndOverlap()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // 1. Empty / single shape
+        var emptyAudit = vm.AuditOcclusionAndOverlap();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(0, emptyAudit.OverlappingPairCount);
+        Assert.Contains("Insufficient shapes", emptyAudit.Summary);
+
+        // 2. Add two shapes where Shape B (index 1, on top) covers 75% of Shape A (index 0, underlying)
+        // Shape A: X=0, Y=0, W=100, H=100 (Area = 10000)
+        // Shape B: X=25, Y=0, W=100, H=100 (Intersection: X from 25 to 100 = 75, Y from 0 to 100 = 100 -> IntersectArea = 7500 -> 75% occlusion of A)
+        vm.AddShapeAt("rect", 0, 0, 100, 100, "FF0000", "Underlying Base");
+        vm.AddShapeAt("rect", 25, 0, 100, 100, "00FF00", "Top Overlay");
+
+        var audit = vm.AuditOcclusionAndOverlap();
+        Assert.Equal(2, audit.TotalShapes);
+        Assert.Equal(1, audit.OverlappingPairCount);
+        Assert.Equal(1, audit.OccludedShapeCount);
+        Assert.Equal(75.0, audit.MaxOcclusionPercentage);
+        Assert.Equal(1, audit.OccludedShapes.Count);
+        Assert.Equal("Rectangle", audit.WorstOccludedShapeName);
+        Assert.Equal("Rectangle", audit.WorstCoveringShapeName);
+        Assert.Contains("75% covered", audit.Summary);
+        Assert.Contains("1 heavily occluded shapes", audit.Summary);
+    }
 }
 
 
