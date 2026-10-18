@@ -7869,6 +7869,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(taskListProgressItem);
 
+        var footnoteLinkageItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown footnote linkage & missing target audit",
+            Icon = new FontIcon { Glyph = "\uE7C1" }
+        };
+        footnoteLinkageItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatFootnoteLinkageSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(footnoteLinkageItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9230,6 +9244,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(taskListProgressItem);
+
+        var footnoteLinkageItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown footnote linkage & missing target audit",
+            Icon = new FontIcon { Glyph = "\uE7C1" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        footnoteLinkageItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatFootnoteLinkageSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(footnoteLinkageItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

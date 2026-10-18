@@ -2893,6 +2893,164 @@ public static class LineDiff
         var unified = BuildUnified(diff);
         return SynthesizePullRequestDescription(unified, before, prTitle);
     }
+
+    /// <summary>
+    /// Synthesizes a semantic Conventional Commit message (feat, fix, docs, refactor, style, chore)
+    /// from unified diff rows, detecting breaking changes, modified sections, and change intent.
+    /// </summary>
+    public static ConventionalCommitAudit SynthesizeConventionalCommitMessage(
+        IReadOnlyList<UnifiedRow>? unifiedRows, string? baseDoc = null, string? scope = null)
+    {
+        string determinedScope = !string.IsNullOrWhiteSpace(scope) ? scope.Trim().ToLowerInvariant() : "content";
+
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            string emptyMsg = $"chore({determinedScope}): no file changes recorded";
+            return new ConventionalCommitAudit(
+                "chore", determinedScope, "no file changes recorded", "No diff changes between compared versions.",
+                false, string.Empty, emptyMsg, "Conventional commit: 0 changes");
+        }
+
+        int added = 0;
+        int removed = 0;
+        bool hasRemovedHeadings = false;
+        bool hasRemovedTables = false;
+        bool hasBreakingKeyword = false;
+        bool hasFixKeyword = false;
+        bool hasDocKeyword = false;
+        var touchedHeadings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string currentHeading = "Preamble";
+
+        foreach (var r in unifiedRows)
+        {
+            string text = r.Text ?? string.Empty;
+            string trimmed = text.Trim();
+
+            if (trimmed.StartsWith("#"))
+            {
+                int h = 0;
+                while (h < trimmed.Length && trimmed[h] == '#') h++;
+                string headingTitle = trimmed[h..].Trim();
+                if (!string.IsNullOrEmpty(headingTitle)) currentHeading = headingTitle;
+            }
+
+            if (r.IsAdded)
+            {
+                added++;
+                touchedHeadings.Add(currentHeading);
+                string lower = trimmed.ToLowerInvariant();
+                if (lower.Contains("fix") || lower.Contains("bug") || lower.Contains("patch") || lower.Contains("resolve"))
+                    hasFixKeyword = true;
+                if (lower.Contains("docs") || lower.Contains("guide") || lower.Contains("readme"))
+                    hasDocKeyword = true;
+            }
+            else if (r.IsRemoved)
+            {
+                removed++;
+                touchedHeadings.Add(currentHeading);
+                if (trimmed.StartsWith("#")) hasRemovedHeadings = true;
+                if (trimmed.Contains("|")) hasRemovedTables = true;
+                if (trimmed.Contains("BREAKING CHANGE", StringComparison.OrdinalIgnoreCase))
+                    hasBreakingKeyword = true;
+            }
+        }
+
+        bool isBreakingChange = hasBreakingKeyword || hasRemovedHeadings || hasRemovedTables;
+        string breakingNotice = string.Empty;
+        if (isBreakingChange)
+        {
+            breakingNotice = hasRemovedHeadings
+                ? "BREAKING CHANGE: Removed or renamed structural section headings."
+                : (hasRemovedTables
+                    ? "BREAKING CHANGE: Structural table schemas or datasets removed."
+                    : "BREAKING CHANGE: Document structure modified in a non-backwards-compatible manner.");
+        }
+
+        string type;
+        if (hasFixKeyword)
+        {
+            type = "fix";
+        }
+        else if (added > 0 && removed == 0 && added >= 10)
+        {
+            type = "feat";
+        }
+        else if (added > 0 && (double)added / Math.Max(1, added + removed) >= 0.70)
+        {
+            type = "feat";
+        }
+        else if (hasDocKeyword)
+        {
+            type = "docs";
+        }
+        else if (added > 0 && removed > 0 && Math.Abs(added - removed) <= 10 && added < 30)
+        {
+            type = "refactor";
+        }
+        else if (added + removed <= 5)
+        {
+            type = "style";
+        }
+        else
+        {
+            type = "refactor";
+        }
+
+        var sampleHeadings = touchedHeadings.OrderBy(h => h).Take(3).ToList();
+        string subjectSummary;
+        if (sampleHeadings.Count > 0 && !sampleHeadings.All(h => h.Equals("Preamble", StringComparison.OrdinalIgnoreCase)))
+        {
+            var validHeadings = sampleHeadings.Where(h => !h.Equals("Preamble", StringComparison.OrdinalIgnoreCase)).ToList();
+            string areas = string.Join(", ", validHeadings);
+            if (areas.Length > 40) areas = areas[..37] + "...";
+            subjectSummary = $"update {areas}";
+        }
+        else
+        {
+            subjectSummary = $"{type} updates across document (+{added}/-{removed} lines)";
+        }
+
+        string headerLine = isBreakingChange
+            ? $"{type}({determinedScope})!: {subjectSummary}"
+            : $"{type}({determinedScope}): {subjectSummary}";
+
+        var bodyLines = new List<string>
+        {
+            $"- Delta: +{added} / -{removed} lines (net {(added - removed >= 0 ? "+" : "")}{added - removed})"
+        };
+        if (sampleHeadings.Count > 0)
+        {
+            bodyLines.Add($"- Touched sections: {string.Join(", ", sampleHeadings)}");
+        }
+        string body = string.Join("\n", bodyLines);
+
+        var sb = new StringBuilder();
+        sb.AppendLine(headerLine);
+        sb.AppendLine();
+        sb.AppendLine(body);
+        if (isBreakingChange)
+        {
+            sb.AppendLine();
+            sb.AppendLine(breakingNotice);
+        }
+
+        string fullCommitMessage = sb.ToString().TrimEnd();
+        string summary = $"Conventional commit ({type}{(isBreakingChange ? "!" : "")}): {subjectSummary} (+{added}/-{removed})";
+
+        return new ConventionalCommitAudit(
+            type, determinedScope, subjectSummary, body, isBreakingChange, breakingNotice, fullCommitMessage, summary);
+    }
+
+    /// <summary>
+    /// Synthesizes a conventional commit message between two markdown document versions.
+    /// </summary>
+    public static ConventionalCommitAudit SynthesizeConventionalCommitMessage(
+        string? before, string? after, string? scope = null)
+    {
+        var diff = Diff(before ?? "", after ?? "");
+        var unified = BuildUnified(diff);
+        return SynthesizeConventionalCommitMessage(unified, before, scope);
+    }
 }
 
 /// <summary>
@@ -2934,5 +3092,16 @@ public sealed record PullRequestDescriptionAudit(
     string PullRequestMarkdown,
     string Summary);
 
-
+/// <summary>
+/// Represents the result of a synthesized semantic Conventional Commit message and breaking change evaluation.
+/// </summary>
+public sealed record ConventionalCommitAudit(
+    string CommitType,
+    string Scope,
+    string Subject,
+    string Body,
+    bool IsBreakingChange,
+    string BreakingChangeNotice,
+    string FullCommitMessage,
+    string Summary);
 

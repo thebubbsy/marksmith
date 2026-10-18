@@ -3302,6 +3302,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {pr.Summary}");
                 };
                 menu.Items.Add(synthesizePullRequest);
+
+                var synthesizeConventionalCommit = new MenuFlyoutItem
+                {
+                    Text = "Synthesize Conventional Commit message & breaking change evaluation",
+                    Icon = new FontIcon { Glyph = "\uE8A1" }
+                };
+                synthesizeConventionalCommit.Click += (_, _) =>
+                {
+                    var commit = MarkSmith.Services.LineDiff.SynthesizeConventionalCommitMessage(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(commit.FullCommitMessage);
+                    _vm.ShowNotice($"✓ {commit.Summary}");
+                };
+                menu.Items.Add(synthesizeConventionalCommit);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

@@ -1211,6 +1211,51 @@ public class SmartArtStudioPolishTests
         Assert.Equal(2, twoAudit.TotalQuadrants);
         Assert.Equal("Incomplete Matrix (2/4 Quadrants)", twoAudit.BalanceCategory);
     }
+
+    [Fact]
+    public void Run159_NormalizeMatrixQuadrantHeaders_CanonicalizesTitles()
+    {
+        // 1. Empty outline
+        var emptyRes = SmartArtDesignStudioViewModel.NormalizeMatrixQuadrantHeaders("");
+        Assert.Equal(0, emptyRes.NormalizedHeadersCount);
+        Assert.Equal("None", emptyRes.DetectedArchetype);
+
+        // 2. SWOT outline with informal titles (S, W, O, T)
+        var rawSwot = """
+            - S
+              - Fast parsing
+            - W
+              - Memory limits
+            - O
+              - Cloud sync
+            - T
+              - Network loss
+            """;
+        var swotRes = SmartArtDesignStudioViewModel.NormalizeMatrixQuadrantHeaders(rawSwot);
+        Assert.Equal(4, swotRes.NormalizedHeadersCount);
+        Assert.Equal("SWOT Matrix", swotRes.DetectedArchetype);
+        Assert.Contains("- Strengths", swotRes.NormalizedMarkdown);
+        Assert.Contains("- Weaknesses", swotRes.NormalizedMarkdown);
+        Assert.Contains("- Opportunities", swotRes.NormalizedMarkdown);
+        Assert.Contains("- Threats", swotRes.NormalizedMarkdown);
+        Assert.Contains("Fast parsing", swotRes.NormalizedMarkdown);
+
+        // 3. Eisenhower matrix
+        var rawEisenhower = """
+            - Urgent & Important
+              - Server down
+            - Not Urgent & Important
+              - Refactoring
+            - Urgent & Not Important
+              - Phone call
+            - Not Urgent & Not Important
+              - Spam
+            """;
+        var eRes = SmartArtDesignStudioViewModel.NormalizeMatrixQuadrantHeaders(rawEisenhower);
+        Assert.Equal("Eisenhower Priority Matrix", eRes.DetectedArchetype);
+        Assert.Contains("Do First", eRes.NormalizedMarkdown);
+        Assert.Contains("Schedule", eRes.NormalizedMarkdown);
+    }
 }
 
 

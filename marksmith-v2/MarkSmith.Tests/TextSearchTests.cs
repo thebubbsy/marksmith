@@ -1283,6 +1283,62 @@ public class TextSearchTests
         Assert.Equal(100.0, compAudit.CompletionPercentage);
         Assert.Equal("All Tasks Completed (100%)", compAudit.VelocityCategory);
     }
+
+    [Fact]
+    public void AuditFootnoteLinkage_AccuratelyEvaluatesReferencesAndDefinitions()
+    {
+        // 1. Empty or whitespace
+        var emptyAudit = TextSearch.AuditFootnoteLinkage("");
+        Assert.Equal(0, emptyAudit.TotalReferences);
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal("No Footnotes", emptyAudit.LinkageCategory);
+        Assert.Contains("0 items", emptyAudit.Summary);
+
+        // 2. 100% Bidirectional Linkage with code fence immunity
+        var doc = """
+            # Document with Footnotes
+
+            Here is a reference [^first] and another [^second].
+
+            ```markdown
+            Code fence with ignored footnote:
+            [^ignored]: definition inside code fence
+            [^fake-ref]
+            ```
+
+            <!--
+            HTML comment:
+            [^comment-ref]
+            -->
+
+            [^first]: This is the first footnote definition.
+            [^second]: This is the second footnote definition.
+            """;
+
+        var audit = TextSearch.AuditFootnoteLinkage(doc);
+        Assert.Equal(2, audit.TotalReferences);
+        Assert.Equal(2, audit.TotalDefinitions);
+        Assert.Empty(audit.UnresolvedReferenceIds);
+        Assert.Empty(audit.OrphanDefinitionIds);
+        Assert.Empty(audit.DuplicateDefinitionIds);
+        Assert.Equal("100% Bidirectional Linkage", audit.LinkageCategory);
+        Assert.Contains("100% Bidirectional Linkage", audit.Summary);
+        Assert.Equal(audit.Summary, TextSearch.FormatFootnoteLinkageSummary(doc));
+
+        // 3. Unresolved and orphan footnotes
+        var brokenDoc = """
+            Here is a reference [^missing-target] and [^valid].
+
+            [^valid]: Valid definition.
+            [^orphan-target]: Unused definition.
+            """;
+        var brokenAudit = TextSearch.AuditFootnoteLinkage(brokenDoc);
+        Assert.Equal(2, brokenAudit.TotalReferences);
+        Assert.Equal(2, brokenAudit.TotalDefinitions);
+        Assert.Contains("missing-target", brokenAudit.UnresolvedReferenceIds);
+        Assert.Contains("orphan-target", brokenAudit.OrphanDefinitionIds);
+        Assert.Equal("Broken Footnote Linkage", brokenAudit.LinkageCategory);
+    }
 }
 
 

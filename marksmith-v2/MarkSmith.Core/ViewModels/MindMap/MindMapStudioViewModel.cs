@@ -4659,6 +4659,165 @@ namespace MarkSmith.ViewModels.MindMap
             }
             return vm.AuditBipartitePartitioning();
         }
+
+        /// <summary>
+        /// Audits the mind map graph (or selected subgraph) for Directed Acyclic Graph (DAG) acyclic validity,
+        /// detecting dependency feedback cycles and measuring topological sequence depth and entry/terminal tiers.
+        /// </summary>
+        public TopologicalOrderAudit AuditTopologicalOrderAndDepth()
+        {
+            var selectedNodes = Nodes.Where(n => n.IsSelected).ToList();
+            bool isSelection = selectedNodes.Count > 1;
+            var targetNodes = isSelection ? selectedNodes : Nodes.ToList();
+
+            if (targetNodes.Count == 0)
+            {
+                string emptySummary = "Topological DAG audit: 0 nodes · Map is empty";
+                StatusMessage = emptySummary;
+                return new TopologicalOrderAudit(
+                    0, 0, true, 0, 0, 0, Array.Empty<string>(), "None", "Empty Graph", isSelection, emptySummary);
+            }
+
+            var nodeSet = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.Ordinal);
+            var relevantLinks = Links.Where(l => nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId)).ToList();
+
+            // Directed adjacency and in-degree tracking
+            var outgoing = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            var inDegree = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var n in targetNodes)
+            {
+                outgoing[n.Id] = new List<string>();
+                inDegree[n.Id] = 0;
+            }
+
+            // Detect immediate self-loops
+            foreach (var l in relevantLinks)
+            {
+                if (l.SourceNodeId == l.TargetNodeId)
+                {
+                    string selfNodeTitle = targetNodes.FirstOrDefault(n => n.Id == l.SourceNodeId)?.Title ?? l.SourceNodeId;
+                    string selfSummary = $"Topological DAG audit ({targetNodes.Count} nodes · Cyclic Dependency Loop): Self-loop detected on '{selfNodeTitle}'";
+                    StatusMessage = selfSummary;
+                    return new TopologicalOrderAudit(
+                        targetNodes.Count, relevantLinks.Count, false, 0, 0, 0,
+                        Array.Empty<string>(), $"Self-loop on '{selfNodeTitle}'", "Cyclic Dependency Loop", isSelection, selfSummary);
+                }
+
+                outgoing[l.SourceNodeId].Add(l.TargetNodeId);
+                inDegree[l.TargetNodeId]++;
+            }
+
+            // Kahn's Algorithm for Topological Sort & Longest Path Depth
+            var inDegreeCopy = new Dictionary<string, int>(inDegree, StringComparer.Ordinal);
+            var queue = new Queue<string>();
+            var nodeDepth = new Dictionary<string, int>(StringComparer.Ordinal);
+
+            foreach (var n in targetNodes)
+            {
+                if (inDegreeCopy[n.Id] == 0)
+                {
+                    queue.Enqueue(n.Id);
+                    nodeDepth[n.Id] = 0;
+                }
+            }
+
+            int entryPointsCount = queue.Count;
+            var orderedIds = new List<string>();
+
+            while (queue.Count > 0)
+            {
+                var cur = queue.Dequeue();
+                orderedIds.Add(cur);
+                int curD = nodeDepth.TryGetValue(cur, out int d) ? d : 0;
+
+                foreach (var next in outgoing[cur])
+                {
+                    int nextD = curD + 1;
+                    if (!nodeDepth.TryGetValue(next, out int existingD) || nextD > existingD)
+                    {
+                        nodeDepth[next] = nextD;
+                    }
+
+                    inDegreeCopy[next]--;
+                    if (inDegreeCopy[next] == 0)
+                    {
+                        queue.Enqueue(next);
+                    }
+                }
+            }
+
+            bool isAcyclic = orderedIds.Count == targetNodes.Count;
+            int maxSequenceDepth = nodeDepth.Count > 0 ? nodeDepth.Values.Max() : 0;
+            int terminalSinksCount = targetNodes.Count(n => outgoing[n.Id].Count == 0);
+
+            var titleMap = targetNodes.ToDictionary(n => n.Id, n => n.Title, StringComparer.Ordinal);
+            var orderedTitles = orderedIds.Select(id => titleMap.TryGetValue(id, out var t) && !string.IsNullOrWhiteSpace(t) ? t : id).ToList();
+
+            string cycleDesc = "None";
+            if (!isAcyclic)
+            {
+                var cycleNodes = targetNodes.Where(n => inDegreeCopy[n.Id] > 0).ToList();
+                var sampleCycleTitles = cycleNodes.Take(3).Select(n => string.IsNullOrWhiteSpace(n.Title) ? n.Id : n.Title);
+                cycleDesc = $"Cycle in: {string.Join(" ↔ ", sampleCycleTitles)}";
+            }
+
+            string category;
+            if (!isAcyclic)
+            {
+                category = "Cyclic Dependency Loop";
+            }
+            else if (relevantLinks.Count == 0)
+            {
+                category = "Flat Independent Nodes";
+            }
+            else if (maxSequenceDepth == targetNodes.Count - 1 && targetNodes.Count > 1)
+            {
+                category = "Linear Sequential Pipeline";
+            }
+            else if (maxSequenceDepth >= 3)
+            {
+                category = $"Deep Layered DAG (Depth {maxSequenceDepth})";
+            }
+            else
+            {
+                category = $"Shallow Layered DAG (Depth {maxSequenceDepth})";
+            }
+
+            string scopeTag = isSelection ? "Selection · " : "";
+            string summary;
+            if (isAcyclic)
+            {
+                summary = $"Topological DAG audit ({scopeTag}{targetNodes.Count} nodes, {relevantLinks.Count} links · {category}): Max depth {maxSequenceDepth}, {entryPointsCount} entry points, {terminalSinksCount} sinks";
+            }
+            else
+            {
+                summary = $"Topological DAG audit ({scopeTag}{targetNodes.Count} nodes, {relevantLinks.Count} links · {category}): {cycleDesc}";
+            }
+
+            StatusMessage = summary;
+            return new TopologicalOrderAudit(
+                targetNodes.Count, relevantLinks.Count, isAcyclic, maxSequenceDepth,
+                entryPointsCount, terminalSinksCount, orderedTitles, cycleDesc, category, isSelection, summary);
+        }
+
+        /// <summary>
+        /// Audits topological DAG order and sequence depth across pure model nodes and links.
+        /// </summary>
+        public static TopologicalOrderAudit AuditTopologicalOrderAndDepth(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditTopologicalOrderAndDepth();
+        }
     }
 
     /// <summary>
@@ -4849,6 +5008,22 @@ namespace MarkSmith.ViewModels.MindMap
         int SetBCount,
         double PartitionBalance,
         string OddCycleDescription,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents the result of a Directed Acyclic Graph (DAG) topological sort and sequence depth audit.
+    /// </summary>
+    public sealed record TopologicalOrderAudit(
+        int TotalNodes,
+        int TotalLinks,
+        bool IsAcyclic,
+        int MaxSequenceDepth,
+        int EntryPointsCount,
+        int TerminalSinksCount,
+        IReadOnlyList<string> OrderedNodeTitles,
+        string CycleDescription,
         string Category,
         bool IsSelectionScope,
         string Summary);

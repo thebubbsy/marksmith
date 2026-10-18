@@ -685,6 +685,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditGoldenRatioItem" Text="Audit Golden Ratio (φ = 1.618) &amp; harmonic scale progression" Click="OnSelectionAuditGoldenRatioClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditGoldenSpiralItem" Text="Audit Golden Spiral logarithmic expansion &amp; angular progression" Click="OnSelectionAuditGoldenSpiralClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE777;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -2295,6 +2295,147 @@ public sealed class RecentFilesService
 
         return $"Workspace storage footprint ({docLabel} [{formattedTotal} total, avg {formattedAvg}] · {category}){heavyStr}{largestStr}";
     }
+
+    /// <summary>
+    /// Audits recent workspace document filenames for casing conventions (kebab-case, snake_case, PascalCase, camelCase),
+    /// measuring naming uniformity and detecting shell-unfriendly special characters or spaces.
+    /// </summary>
+    public static DocumentNamingConventionAudit AuditDocumentNamingConventions(IEnumerable<string>? files)
+    {
+        var list = files?.Where(f => !string.IsNullOrWhiteSpace(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                   ?? new List<string>();
+
+        if (list.Count == 0)
+        {
+            string emptySummary = "Document naming audit: 0 files (Empty library)";
+            return new DocumentNamingConventionAudit(
+                0, 0, 0, 0, 0, 0, 0, "None", 0.0, 0,
+                Array.Empty<DocumentNamingInfo>(), "Empty Library", emptySummary);
+        }
+
+        var docInfos = new List<DocumentNamingInfo>();
+        int kebabCount = 0;
+        int snakeCount = 0;
+        int pascalCount = 0;
+        int camelCount = 0;
+        int spacedCount = 0;
+        int otherCount = 0;
+        int specialCharsCount = 0;
+
+        char[] shellSpecialChars = new[] { '(', ')', '[', ']', '{', '}', '#', '%', '&', '+', '@', '!', ',', '~', '$', '^', '=' };
+
+        foreach (var p in list)
+        {
+            string fileName = Path.GetFileName(p);
+            if (string.IsNullOrWhiteSpace(fileName)) fileName = p;
+            string baseName = Path.GetFileNameWithoutExtension(fileName);
+            if (string.IsNullOrWhiteSpace(baseName)) baseName = fileName;
+
+            bool hasSpaces = baseName.Contains(' ');
+            bool hasSpecialChars = baseName.IndexOfAny(shellSpecialChars) >= 0;
+            if (hasSpecialChars) specialCharsCount++;
+
+            string convention;
+            if (hasSpaces)
+            {
+                convention = "Title / Spaced";
+                spacedCount++;
+            }
+            else if (baseName.Contains('-') && !baseName.Contains('_') && baseName.All(c => char.IsLower(c) || char.IsDigit(c) || c == '-'))
+            {
+                convention = "kebab-case";
+                kebabCount++;
+            }
+            else if (baseName.Contains('_') && !baseName.Contains('-') && baseName.All(c => char.IsLower(c) || char.IsDigit(c) || c == '_'))
+            {
+                convention = "snake_case";
+                snakeCount++;
+            }
+            else if (!baseName.Contains('-') && !baseName.Contains('_') &&
+                     char.IsUpper(baseName[0]) && baseName.Any(char.IsLower) && baseName.Skip(1).Any(char.IsUpper))
+            {
+                convention = "PascalCase";
+                pascalCount++;
+            }
+            else if (!baseName.Contains('-') && !baseName.Contains('_') &&
+                     char.IsLower(baseName[0]) && baseName.Any(char.IsUpper))
+            {
+                convention = "camelCase";
+                camelCount++;
+            }
+            else
+            {
+                convention = "Mixed / Other";
+                otherCount++;
+            }
+
+            docInfos.Add(new DocumentNamingInfo(p, fileName, baseName, convention, hasSpaces, hasSpecialChars));
+        }
+
+        var counts = new (string Name, int Count)[]
+        {
+            ("kebab-case", kebabCount),
+            ("snake_case", snakeCount),
+            ("PascalCase", pascalCount),
+            ("camelCase", camelCount),
+            ("Title / Spaced", spacedCount),
+            ("Mixed / Other", otherCount)
+        };
+
+        var dominant = counts.OrderByDescending(c => c.Count).First();
+        string dominantName = dominant.Count > 0 ? dominant.Name : "None";
+        double consistencyScore = Math.Round((double)dominant.Count / list.Count * 100.0, 1);
+
+        string category;
+        if (consistencyScore == 100.0)
+        {
+            category = $"Uniform {dominantName} (100%)";
+        }
+        else if (consistencyScore >= 70.0)
+        {
+            category = $"Predominantly {dominantName} ({consistencyScore:0.#}%)";
+        }
+        else if (spacedCount > list.Count / 2)
+        {
+            category = "Spaced Filenames";
+        }
+        else
+        {
+            category = "Mixed Casing Styles";
+        }
+
+        string summary = FormatDocumentNamingConventionsSummary(
+            list.Count, kebabCount, snakeCount, pascalCount, camelCount, spacedCount, otherCount,
+            dominantName, consistencyScore, specialCharsCount, category);
+
+        return new DocumentNamingConventionAudit(
+            list.Count, kebabCount, snakeCount, pascalCount, camelCount, spacedCount, otherCount,
+            dominantName, consistencyScore, specialCharsCount, docInfos, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of document naming convention metrics.
+    /// </summary>
+    public static string FormatDocumentNamingConventionsSummary(
+        int totalFiles, int kebabCount, int snakeCount, int pascalCount, int camelCount,
+        int spacedCount, int otherCount, string dominantConvention, double consistencyScore,
+        int specialCharsCount, string category)
+    {
+        if (totalFiles == 0) return "Document naming audit: 0 files (Empty library)";
+        string docLabel = totalFiles == 1 ? "1 document" : $"{totalFiles} documents";
+
+        var breakdownParts = new List<string>();
+        if (kebabCount > 0) breakdownParts.Add($"{kebabCount} kebab");
+        if (snakeCount > 0) breakdownParts.Add($"{snakeCount} snake");
+        if (pascalCount > 0) breakdownParts.Add($"{pascalCount} Pascal");
+        if (camelCount > 0) breakdownParts.Add($"{camelCount} camel");
+        if (spacedCount > 0) breakdownParts.Add($"{spacedCount} spaced");
+        if (otherCount > 0) breakdownParts.Add($"{otherCount} other");
+        string breakdownStr = string.Join(", ", breakdownParts);
+
+        string specialWarn = specialCharsCount > 0 ? $" · ⚠ {specialCharsCount} with special chars" : "";
+        return $"Document naming audit ({docLabel} [{breakdownStr}] · {category}): {dominantConvention} consistency {consistencyScore:0.#}%{specialWarn}";
+    }
 }
 
 /// <summary>
@@ -2458,4 +2599,31 @@ public sealed record WorkspaceStorageFootprintAudit(
     string FootprintCategory,
     string Summary);
 
+/// <summary>
+/// Represents parsed naming convention and character compliance information for an individual document.
+/// </summary>
+public sealed record DocumentNamingInfo(
+    string FilePath,
+    string FileName,
+    string BaseName,
+    string DetectedConvention,
+    bool HasSpaces,
+    bool HasSpecialChars);
 
+/// <summary>
+/// Represents the result of an audit of workspace document naming conventions, casing consistency, and shell-safety.
+/// </summary>
+public sealed record DocumentNamingConventionAudit(
+    int TotalFiles,
+    int KebabCaseCount,
+    int SnakeCaseCount,
+    int PascalCaseCount,
+    int CamelCaseCount,
+    int SpacedCount,
+    int OtherCount,
+    string DominantConvention,
+    double ConsistencyScore,
+    int FilesWithSpecialChars,
+    IReadOnlyList<DocumentNamingInfo> Documents,
+    string Category,
+    string Summary);

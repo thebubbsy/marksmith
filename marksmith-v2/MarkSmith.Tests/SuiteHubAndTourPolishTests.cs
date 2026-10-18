@@ -2502,6 +2502,91 @@ public class SuiteHubAndTourPolishTests
             audit.TotalFiles, audit.ExistingFiles, audit.TotalBytes, audit.FormattedTotalSize,
             audit.FormattedAverageSize, audit.HeavyOutliersCount, audit.LargestFileName, audit.LargestFileSizeBytes, audit.FootprintCategory));
     }
+
+    [Fact]
+    public void Run159_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // 1. MainWindow: footnote linkage audit wired to breadcrumb and find count
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy markdown footnote linkage & missing target audit", mainCs);
+        Assert.Contains("FormatFootnoteLinkageSummary", mainCs);
+
+        // 2. MindMapGalaxyWindow: topological DAG order in XAML and code-behind
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditTopologicalOrderItem", galaxyXaml);
+        Assert.Contains("OnAuditTopologicalOrderClick", galaxyXaml);
+        Assert.Contains("OnAuditTopologicalOrderClick", galaxyCs);
+        Assert.Contains("AuditTopologicalOrderAndDepth", galaxyCs);
+
+        // 3. ShapeDesignStudioWindow: golden spiral progression in XAML and code-behind
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditGoldenSpiralItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditGoldenSpiralClick", shapeXaml);
+        Assert.Contains("OnSelectionAuditGoldenSpiralClick", shapeCs);
+        Assert.Contains("AuditGoldenSpiralProgression", shapeCs);
+
+        // 4. SmartArtDesignStudioWindow: normalize matrix quadrant headers in XAML and code-behind
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("NormalizeMatrixQuadrantsItem", smartArtXaml);
+        Assert.Contains("OnNormalizeMatrixQuadrantsClick", smartArtXaml);
+        Assert.Contains("OnNormalizeMatrixQuadrantsClick", smartArtCs);
+        Assert.Contains("NormalizeMatrixQuadrantHeaders", smartArtCs);
+
+        // 5. HistoryWindow: conventional commit synthesizer in code-behind
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("synthesizeConventionalCommit", historyCs);
+        Assert.Contains("SynthesizeConventionalCommitMessage", historyCs);
+
+        // 6. SuiteHubView: document naming convention audit in XAML and code-behind
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyDocumentNamingConventionsItem", suiteXaml);
+        Assert.Contains("OnCopyDocumentNamingConventionsClick", suiteXaml);
+        Assert.Contains("OnCopyDocumentNamingConventionsClick", suiteCs);
+        Assert.Contains("AuditDocumentNamingConventions", suiteCs);
+    }
+
+    [Fact]
+    public void Run159_AuditDocumentNamingConventions()
+    {
+        // 1. Empty library
+        var emptyAudit = RecentFilesService.AuditDocumentNamingConventions(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFiles);
+        Assert.Equal("Empty Library", emptyAudit.Category);
+        Assert.Contains("0 files", emptyAudit.Summary);
+
+        // 2. Uniform kebab-case
+        var kebabFiles = new[]
+        {
+            @"C:\Docs\project-roadmap.md",
+            @"C:\Docs\architecture-overview.docx",
+            @"C:\Docs\release-notes-2026.pdf"
+        };
+        var kebabAudit = RecentFilesService.AuditDocumentNamingConventions(kebabFiles);
+        Assert.Equal(3, kebabAudit.TotalFiles);
+        Assert.Equal(3, kebabAudit.KebabCaseCount);
+        Assert.Equal("kebab-case", kebabAudit.DominantConvention);
+        Assert.Equal(100.0, kebabAudit.ConsistencyScore);
+        Assert.Equal("Uniform kebab-case (100%)", kebabAudit.Category);
+
+        // 3. Mixed with spaces and special chars
+        var mixedFiles = new[]
+        {
+            @"C:\Docs\Project Roadmap.md",
+            @"C:\Docs\user_guide.docx",
+            @"C:\Docs\spec(draft)[#1].md"
+        };
+        var mixedAudit = RecentFilesService.AuditDocumentNamingConventions(mixedFiles);
+        Assert.Equal(3, mixedAudit.TotalFiles);
+        Assert.Equal(1, mixedAudit.SpacedCount);
+        Assert.Equal(1, mixedAudit.SnakeCaseCount);
+        Assert.Equal(1, mixedAudit.FilesWithSpecialChars);
+        Assert.Contains("Document naming audit", mixedAudit.Summary);
+        Assert.Contains("special chars", mixedAudit.Summary);
+    }
 }
 
 

@@ -282,6 +282,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceStorageFootprintItem" Text="Copy workspace storage footprint &amp; size audit" Click="OnCopyWorkspaceStorageFootprintClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C8;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyDocumentNamingConventionsItem" Text="Copy document naming convention &amp; casing audit" Click="OnCopyDocumentNamingConventionsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

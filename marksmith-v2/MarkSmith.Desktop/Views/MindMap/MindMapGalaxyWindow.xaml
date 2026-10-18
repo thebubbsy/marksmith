@@ -294,6 +294,9 @@
                                     <MenuFlyoutItem x:Name="AuditBipartitePartitionItem" Text="Audit bipartite 2-coloring &amp; odd cycle partition" Click="OnAuditBipartitePartitionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72A;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditTopologicalOrderItem" Text="Audit topological DAG sort &amp; sequence depth" Click="OnAuditTopologicalOrderClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A7;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

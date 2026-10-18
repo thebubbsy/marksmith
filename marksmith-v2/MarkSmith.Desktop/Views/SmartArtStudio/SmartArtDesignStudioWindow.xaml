@@ -314,6 +314,9 @@
                                         <MenuFlyoutItem x:Name="AuditMatrixQuadrantBalanceItem" Text="Audit 2x2 matrix quadrant balance &amp; distribution" Click="OnAuditMatrixQuadrantBalanceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74C;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="NormalizeMatrixQuadrantsItem" Text="Normalize 2x2 matrix quadrant titles (SWOT / Eisenhower / BCG)" Click="OnNormalizeMatrixQuadrantsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

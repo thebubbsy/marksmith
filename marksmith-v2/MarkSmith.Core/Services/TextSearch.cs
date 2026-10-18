@@ -3010,6 +3010,165 @@ public static class TextSearch
 
         return $"Markdown tasks ({itemLabel} · {completedLabel} ({completionPercentage:0.#}%), {pendingTasks} pending · {category}){nextUp}";
     }
+
+    /// <summary>
+    /// Audits markdown footnotes for bidirectional linkage between inline references ([^id])
+    /// and footnote definitions ([^id]: ...), detecting missing targets, orphans, and duplicate definitions.
+    /// </summary>
+    public static FootnoteLinkageAudit AuditFootnoteLinkage(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new FootnoteLinkageAudit(
+                0, 0, 0, 0, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(),
+                Array.Empty<FootnoteReferenceItem>(), Array.Empty<FootnoteDefinitionItem>(),
+                "No Footnotes", "Markdown footnotes: 0 items · Document contains no footnotes");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        bool inCodeFence = false;
+        bool inHtmlComment = false;
+
+        var references = new List<FootnoteReferenceItem>();
+        var definitions = new List<FootnoteDefinitionItem>();
+
+        var defRegex = new Regex(@"^\s*\[\^([a-zA-Z0-9_\-]+)\]:\s*(.*)$", RegexOptions.Compiled);
+        var refRegex = new Regex(@"\[\^([a-zA-Z0-9_\-]+)\](?!:)", RegexOptions.Compiled);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            if (trimmed.StartsWith("<!--") && !trimmed.EndsWith("-->"))
+            {
+                inHtmlComment = true;
+                continue;
+            }
+            if (inHtmlComment)
+            {
+                if (trimmed.Contains("-->")) inHtmlComment = false;
+                continue;
+            }
+            if (trimmed.StartsWith("<!--") && trimmed.EndsWith("-->")) continue;
+
+            var defMatch = defRegex.Match(line);
+            if (defMatch.Success)
+            {
+                string id = defMatch.Groups[1].Value;
+                string preview = defMatch.Groups[2].Value.Trim();
+                definitions.Add(new FootnoteDefinitionItem(i + 1, id, preview));
+                string bodyPart = defMatch.Groups[2].Value;
+                var inlineMatches = refRegex.Matches(bodyPart);
+                foreach (Match m in inlineMatches)
+                {
+                    references.Add(new FootnoteReferenceItem(i + 1, m.Groups[1].Value));
+                }
+            }
+            else
+            {
+                var matches = refRegex.Matches(line);
+                foreach (Match m in matches)
+                {
+                    references.Add(new FootnoteReferenceItem(i + 1, m.Groups[1].Value));
+                }
+            }
+        }
+
+        if (references.Count == 0 && definitions.Count == 0)
+        {
+            return new FootnoteLinkageAudit(
+                0, 0, 0, 0, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(),
+                Array.Empty<FootnoteReferenceItem>(), Array.Empty<FootnoteDefinitionItem>(),
+                "No Footnotes", "Markdown footnotes: 0 items · Document contains no footnotes");
+        }
+
+        var referencedIds = references.Select(r => r.Id).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var definedIdGroups = definitions.GroupBy(d => d.Id, StringComparer.OrdinalIgnoreCase).ToList();
+        var definedIds = definedIdGroups.Select(g => g.Key).ToList();
+
+        var definedSet = new HashSet<string>(definedIds, StringComparer.OrdinalIgnoreCase);
+        var referencedSet = new HashSet<string>(referencedIds, StringComparer.OrdinalIgnoreCase);
+
+        var unresolvedIds = referencedIds.Where(id => !definedSet.Contains(id)).ToList();
+        var orphanIds = definedIds.Where(id => !referencedSet.Contains(id)).ToList();
+        var duplicateDefs = definedIdGroups.Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+
+        string category;
+        if (unresolvedIds.Count == 0 && orphanIds.Count == 0 && duplicateDefs.Count == 0)
+        {
+            category = "100% Bidirectional Linkage";
+        }
+        else if (unresolvedIds.Count > 0 && orphanIds.Count > 0)
+        {
+            category = "Broken Footnote Linkage";
+        }
+        else if (unresolvedIds.Count > 0)
+        {
+            category = "Missing Footnote Definitions";
+        }
+        else if (orphanIds.Count > 0)
+        {
+            category = "Orphan Footnote Definitions";
+        }
+        else
+        {
+            category = "Duplicate Footnote Definitions";
+        }
+
+        string summary = FormatFootnoteLinkageSummary(
+            references.Count, referencedIds.Count, definitions.Count, definedIds.Count,
+            unresolvedIds, orphanIds, duplicateDefs, category, references, definitions);
+
+        return new FootnoteLinkageAudit(
+            references.Count, referencedIds.Count, definitions.Count, definedIds.Count,
+            unresolvedIds, orphanIds, duplicateDefs, references, definitions, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown footnote reference and definition linkage.
+    /// </summary>
+    public static string FormatFootnoteLinkageSummary(string? markdownText)
+        => AuditFootnoteLinkage(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of footnote linkage metrics.
+    /// </summary>
+    public static string FormatFootnoteLinkageSummary(
+        int totalReferences, int uniqueReferencedIds, int totalDefinitions, int uniqueDefinedIds,
+        IReadOnlyList<string> unresolvedIds, IReadOnlyList<string> orphanIds, IReadOnlyList<string> duplicateDefs,
+        string category, IReadOnlyList<FootnoteReferenceItem>? references = null,
+        IReadOnlyList<FootnoteDefinitionItem>? definitions = null)
+    {
+        if (totalReferences == 0 && totalDefinitions == 0)
+            return "Markdown footnotes: 0 items · Document contains no footnotes";
+
+        string refLabel = totalReferences == 1 ? "1 ref" : $"{totalReferences} refs";
+        string defLabel = totalDefinitions == 1 ? "1 def" : $"{totalDefinitions} defs";
+
+        string issues = "";
+        if (unresolvedIds.Count > 0)
+        {
+            issues += $" · {unresolvedIds.Count} missing defs [^{string.Join(", [^", unresolvedIds.Take(2))}]";
+        }
+        if (orphanIds.Count > 0)
+        {
+            issues += $" · {orphanIds.Count} orphan defs [^{string.Join(", [^", orphanIds.Take(2))}]";
+        }
+        if (duplicateDefs.Count > 0)
+        {
+            issues += $" · {duplicateDefs.Count} duplicate defs [^{string.Join(", [^", duplicateDefs.Take(2))}]";
+        }
+
+        return $"Markdown footnotes ({refLabel}, {defLabel} · {category}){issues}";
+    }
 }
 
 /// <summary>
@@ -3151,5 +3310,33 @@ public sealed record TaskListProgressAudit(
     string VelocityCategory,
     string Summary);
 
+/// <summary>
+/// Represents an inline footnote reference [^id] with line number.
+/// </summary>
+public sealed record FootnoteReferenceItem(
+    int LineNumber,
+    string Id);
 
+/// <summary>
+/// Represents a footnote definition [^id]: text with line number and preview.
+/// </summary>
+public sealed record FootnoteDefinitionItem(
+    int LineNumber,
+    string Id,
+    string PreviewText);
 
+/// <summary>
+/// Represents the result of a comprehensive footnote reference and definition linkage audit.
+/// </summary>
+public sealed record FootnoteLinkageAudit(
+    int TotalReferences,
+    int UniqueReferencedIds,
+    int TotalDefinitions,
+    int UniqueDefinedIds,
+    IReadOnlyList<string> UnresolvedReferenceIds,
+    IReadOnlyList<string> OrphanDefinitionIds,
+    IReadOnlyList<string> DuplicateDefinitionIds,
+    IReadOnlyList<FootnoteReferenceItem> References,
+    IReadOnlyList<FootnoteDefinitionItem> Definitions,
+    string LinkageCategory,
+    string Summary);

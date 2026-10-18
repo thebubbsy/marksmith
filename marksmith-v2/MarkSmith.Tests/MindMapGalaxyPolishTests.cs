@@ -2122,6 +2122,62 @@ namespace MarkSmith.Tests
             Assert.Equal("Non-Bipartite (Odd Cycle)", oddAudit.Category);
             Assert.Contains("Odd cycle", oddAudit.OddCycleDescription);
         }
+
+        [Fact]
+        public void Run159_AuditTopologicalOrderAndDepth_AcyclicAndCycleDetection()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+
+            // 1. Empty map
+            var emptyAudit = vm.AuditTopologicalOrderAndDepth();
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.True(emptyAudit.IsAcyclic);
+            Assert.Equal(0, emptyAudit.MaxSequenceDepth);
+            Assert.Equal("Empty Graph", emptyAudit.Category);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Linear DAG pipeline (A -> B -> C)
+            var nA = new MindMapNode { Id = "na", Title = "Source Tier" };
+            var nB = new MindMapNode { Id = "nb", Title = "Transform Tier" };
+            var nC = new MindMapNode { Id = "nc", Title = "Sink Tier" };
+            vm.Nodes.Add(new MindMapNodeViewModel(nA));
+            vm.Nodes.Add(new MindMapNodeViewModel(nB));
+            vm.Nodes.Add(new MindMapNodeViewModel(nC));
+
+            var l1 = new MindMapLink { Id = "l1", SourceNodeId = "na", TargetNodeId = "nb" };
+            var l2 = new MindMapLink { Id = "l2", SourceNodeId = "nb", TargetNodeId = "nc" };
+            vm.Links.Add(new MindMapLinkViewModel(l1));
+            vm.Links.Add(new MindMapLinkViewModel(l2));
+
+            var dagAudit = vm.AuditTopologicalOrderAndDepth();
+            Assert.Equal(3, dagAudit.TotalNodes);
+            Assert.Equal(2, dagAudit.TotalLinks);
+            Assert.True(dagAudit.IsAcyclic);
+            Assert.Equal(2, dagAudit.MaxSequenceDepth);
+            Assert.Equal(1, dagAudit.EntryPointsCount);
+            Assert.Equal(1, dagAudit.TerminalSinksCount);
+            Assert.Equal(3, dagAudit.OrderedNodeTitles.Count);
+            Assert.Equal("Source Tier", dagAudit.OrderedNodeTitles[0]);
+            Assert.Equal("Sink Tier", dagAudit.OrderedNodeTitles[2]);
+            Assert.Equal("Linear Sequential Pipeline", dagAudit.Category);
+
+            // Static overload
+            var staticAudit = MindMapStudioViewModel.AuditTopologicalOrderAndDepth(
+                new[] { nA, nB, nC }, new[] { l1, l2 });
+            Assert.True(staticAudit.IsAcyclic);
+            Assert.Equal(2, staticAudit.MaxSequenceDepth);
+
+            // 3. Cyclic feedback loop (C -> A)
+            var lCycle = new MindMapLink { Id = "lc", SourceNodeId = "nc", TargetNodeId = "na" };
+            vm.Links.Add(new MindMapLinkViewModel(lCycle));
+
+            var cycleAudit = vm.AuditTopologicalOrderAndDepth();
+            Assert.False(cycleAudit.IsAcyclic);
+            Assert.Equal("Cyclic Dependency Loop", cycleAudit.Category);
+            Assert.Contains("Cycle in:", cycleAudit.CycleDescription);
+        }
     }
 }
 

@@ -1386,6 +1386,49 @@ public class HistoryPolishTests : IDisposable
         var breakPr = LineDiff.SynthesizePullRequestDescription(breakBefore, breakAfter);
         Assert.Equal("High (Structural / Breaking Changes)", breakPr.RiskTier);
     }
+
+    [Fact]
+    public void Run159_SynthesizeConventionalCommitMessage_ClassifiesTypesAndBreakingChanges()
+    {
+        // 1. Empty changes
+        var emptyCommit = LineDiff.SynthesizeConventionalCommitMessage(Array.Empty<LineDiff.UnifiedRow>(), scope: "docs");
+        Assert.Equal("chore", emptyCommit.CommitType);
+        Assert.Equal("docs", emptyCommit.Scope);
+        Assert.False(emptyCommit.IsBreakingChange);
+        Assert.Contains("chore(docs): no file changes recorded", emptyCommit.FullCommitMessage);
+
+        // 2. Feat additions
+        var beforeFeat = "Line 1\nLine 2";
+        var afterFeat = string.Join("\n", Enumerable.Range(1, 15).Select(i => $"Line {i} feature detail"));
+        var featCommit = LineDiff.SynthesizeConventionalCommitMessage(beforeFeat, afterFeat, scope: "desktop");
+        Assert.Equal("feat", featCommit.CommitType);
+        Assert.Equal("desktop", featCommit.Scope);
+        Assert.False(featCommit.IsBreakingChange);
+        Assert.Contains("feat(desktop):", featCommit.FullCommitMessage);
+        Assert.Contains("Delta:", featCommit.Body);
+
+        // 3. Fix with bug keywords
+        var beforeFix = "Line 1\nBroken error logic\nLine 3";
+        var afterFix = "Line 1\nFixed bug in error handler\nLine 3";
+        var fixCommit = LineDiff.SynthesizeConventionalCommitMessage(beforeFix, afterFix, scope: "engine");
+        Assert.Equal("fix", fixCommit.CommitType);
+        Assert.Equal("engine", fixCommit.Scope);
+        Assert.Contains("fix(engine):", fixCommit.FullCommitMessage);
+
+        // 4. Breaking change (removed heading and tables)
+        var breakBefore = """
+            # Public Endpoint
+            | Arg | Type |
+            | --- | --- |
+            | Id  | int  |
+            """;
+        var breakAfter = "Replaced with internal handler.";
+        var breakCommit = LineDiff.SynthesizeConventionalCommitMessage(breakBefore, breakAfter, scope: "api");
+        Assert.True(breakCommit.IsBreakingChange);
+        Assert.Contains("!", breakCommit.FullCommitMessage);
+        Assert.Contains("BREAKING CHANGE:", breakCommit.FullCommitMessage);
+        Assert.Contains("BREAKING CHANGE:", breakCommit.BreakingChangeNotice);
+    }
 }
 
 

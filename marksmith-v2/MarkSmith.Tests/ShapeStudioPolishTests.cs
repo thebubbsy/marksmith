@@ -1380,6 +1380,35 @@ public class ShapeStudioPolishTests
         Assert.Equal(0, arbAudit.GoldenAspectCount);
         Assert.Equal("Arbitrary Scale & Aspect", arbAudit.ProgressionCategory);
     }
+
+    [Fact]
+    public void Run159_AuditGoldenSpiralProgression_EvaluatesRadialAndAngularExpansion()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditGoldenSpiralProgression();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+        Assert.Contains("Canvas is empty", emptyAudit.Summary);
+
+        // 2. Multi-shape spiral layout (radial distances expanding ~1.6x)
+        var s1 = vm.AddShapeAt("rect", 190, 190, 20, 20, "FFFFFF", "Center 1");
+        var s2 = vm.AddShapeAt("rect", 220, 190, 20, 20, "EEEEEE", "Node 2");
+        var s3 = vm.AddShapeAt("rect", 190, 240, 20, 20, "DDDDDD", "Node 3");
+        var s4 = vm.AddShapeAt("rect", 110, 190, 20, 20, "CCCCCC", "Node 4");
+
+        var spiralAudit = vm.AuditGoldenSpiralProgression();
+        Assert.Equal(4, spiralAudit.TotalShapes);
+        Assert.NotEmpty(spiralAudit.Shapes);
+        Assert.Contains("Golden spiral audit", spiralAudit.Summary);
+
+        // Target list overload
+        var targetAudit = vm.AuditGoldenSpiralProgression(new[] { s1, s2, s3, s4 });
+        Assert.Equal(4, targetAudit.TotalShapes);
+        Assert.Equal(spiralAudit.AverageGrowthRatio, targetAudit.AverageGrowthRatio);
+    }
 }
 
 

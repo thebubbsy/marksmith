@@ -3824,6 +3824,142 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string quadLabel = totalQuadrants == 4 ? "4 quadrants (2x2)" : $"{totalQuadrants} quadrants";
         return $"Matrix quadrant audit ({quadLabel}, {totalItems} items · {category}): Avg {meanItems:0.#} items/quad, balance score {balanceScore:0.#}%";
     }
+
+    /// <summary>
+    /// Normalizes 2x2 matrix outline top-level quadrant headers (SWOT, Eisenhower, BCG, or Generic 2x2),
+    /// canonicalizing quadrant titles while preserving all child bullets and hierarchy.
+    /// </summary>
+    public MatrixQuadrantNormalizationResult NormalizeMatrixQuadrantHeaders()
+    {
+        var result = NormalizeMatrixQuadrantHeaders(MarkdownText);
+        if (result.NormalizedHeadersCount > 0)
+        {
+            MarkdownText = result.NormalizedMarkdown;
+        }
+        StatusMessage = result.Summary;
+        return result;
+    }
+
+    /// <summary>
+    /// Normalizes markdown outline text by canonicalizing 2x2 matrix top-level quadrant headers.
+    /// </summary>
+    public static MatrixQuadrantNormalizationResult NormalizeMatrixQuadrantHeaders(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            return new MatrixQuadrantNormalizationResult(
+                markdown ?? string.Empty, "None", 0, "Normalize matrix headers: 0 headers (Empty outline)");
+        }
+
+        var lines = markdown.Replace("\r", "").Split('\n');
+        var topLevelLineIndices = new List<int>();
+        var topLevelTitles = new List<string>();
+        bool inFence = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var raw = lines[i];
+            var trimmed = raw.Trim();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence || string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            int leadWs = 0;
+            while (leadWs < raw.Length && char.IsWhiteSpace(raw[leadWs])) leadWs++;
+
+            bool isBullet = trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ") ||
+                            char.IsDigit(trimmed[0]) && trimmed.Length > 2 && trimmed[1] == '.' && trimmed[2] == ' ';
+
+            if (!isBullet) continue;
+
+            int depth = 1 + (leadWs >= 2 ? (leadWs / 2) : 0);
+            if (depth == 1)
+            {
+                topLevelLineIndices.Add(i);
+                string content = trimmed.Length > 2 ? trimmed[2..].Trim() : trimmed;
+                topLevelTitles.Add(content);
+            }
+        }
+
+        if (topLevelTitles.Count != 4)
+        {
+            string non4Summary = $"Normalize matrix headers ({topLevelTitles.Count} top-level headers): Requires exactly 4 quadrant headers (Found {topLevelTitles.Count})";
+            return new MatrixQuadrantNormalizationResult(markdown, "Non-4-Quadrant", 0, non4Summary);
+        }
+
+        string combined = string.Join(" ", topLevelTitles).ToLowerInvariant();
+        string archetype;
+        string[] canonical;
+
+        if (combined.Contains("strength") || combined.Contains("weakness") || combined.Contains("threat") || combined.Contains("opportunit") ||
+            (topLevelTitles[0].Equals("S", StringComparison.OrdinalIgnoreCase) && topLevelTitles[1].Equals("W", StringComparison.OrdinalIgnoreCase)))
+        {
+            archetype = "SWOT Matrix";
+            canonical = new[] { "Strengths", "Weaknesses", "Opportunities", "Threats" };
+        }
+        else if (combined.Contains("urgent") || combined.Contains("importan") || combined.Contains("eisenhower"))
+        {
+            archetype = "Eisenhower Priority Matrix";
+            canonical = new[]
+            {
+                "Urgent & Important (Do First)",
+                "Important & Not Urgent (Schedule)",
+                "Urgent & Not Important (Delegate)",
+                "Not Urgent & Not Important (Eliminate)"
+            };
+        }
+        else if (combined.Contains("star") || combined.Contains("cow") || combined.Contains("dog") || combined.Contains("question"))
+        {
+            archetype = "BCG Growth-Share Matrix";
+            canonical = new[]
+            {
+                "Stars (High Growth, High Share)",
+                "Question Marks (High Growth, Low Share)",
+                "Cash Cows (Low Growth, High Share)",
+                "Dogs (Low Growth, Low Share)"
+            };
+        }
+        else
+        {
+            archetype = "2x2 Quadrant Matrix";
+            canonical = new[]
+            {
+                "Quadrant I (Top-Right)",
+                "Quadrant II (Top-Left)",
+                "Quadrant III (Bottom-Left)",
+                "Quadrant IV (Bottom-Right)"
+            };
+        }
+
+        int normalizedCount = 0;
+        for (int q = 0; q < 4; q++)
+        {
+            int lineIdx = topLevelLineIndices[q];
+            string rawLine = lines[lineIdx];
+            int leadWs = 0;
+            while (leadWs < rawLine.Length && char.IsWhiteSpace(rawLine[leadWs])) leadWs++;
+            string indent = rawLine[..leadWs];
+            string trimmed = rawLine.Trim();
+            string bulletPrefix = trimmed.StartsWith("- ") ? "- " :
+                                 trimmed.StartsWith("* ") ? "* " :
+                                 trimmed.StartsWith("+ ") ? "+ " : "- ";
+
+            string newTitle = canonical[q];
+            if (!topLevelTitles[q].Equals(newTitle, StringComparison.Ordinal))
+            {
+                lines[lineIdx] = $"{indent}{bulletPrefix}{newTitle}";
+                normalizedCount++;
+            }
+        }
+
+        string normalizedMd = string.Join("\n", lines);
+        string summary = $"Normalize matrix headers ({archetype}): {normalizedCount}/4 headers canonicalized [{string.Join(", ", canonical)}]";
+
+        return new MatrixQuadrantNormalizationResult(normalizedMd, archetype, normalizedCount, summary);
+    }
 }
 
 /// <summary>
@@ -3975,4 +4111,11 @@ public sealed record MatrixQuadrantBalanceAudit(
     string BalanceCategory,
     string Summary);
 
-
+/// <summary>
+/// Represents the result of a 2x2 matrix quadrant header normalization operation.
+/// </summary>
+public sealed record MatrixQuadrantNormalizationResult(
+    string NormalizedMarkdown,
+    string DetectedArchetype,
+    int NormalizedHeadersCount,
+    string Summary);

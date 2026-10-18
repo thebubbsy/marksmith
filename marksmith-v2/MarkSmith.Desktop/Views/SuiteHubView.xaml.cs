@@ -1720,6 +1720,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyDocumentNamingConventionsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var audit = RecentFilesService.AuditDocumentNamingConventions(files);
+            await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+            SetNotification($"Copied naming conventions audit: {audit.DominantConvention} ({audit.ConsistencyScore:0.#}%) across {audit.TotalFiles} files", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit naming conventions: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

@@ -11390,22 +11390,45 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #159 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+## Scheduled WinUI 3 Desktop Polish Routine — Run #159 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Footnote Reference Bidirectional Linkage & Missing Target Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditFootnoteLinkage(markdownText)`, `FormatFootnoteLinkageSummary(...)`, records `FootnoteReferenceItem`, `FootnoteDefinitionItem`, `FootnoteLinkageAudit`. Audits inline footnote references (`[^id]`) against definition blocks (`[^id]: ...`), immune to code fences and inline code backticks, identifying broken footnote anchors, orphan definitions, duplicate references, and total linkage integrity; wired to `footnoteLinkageItem` (`\uE7C1`) in both `StatusSectionBreadcrumbButton_RightTapped` and `FindCountText_RightTapped` context flyouts with clipboard copy and status announcement.
+    2. **MindMapGalaxyWindow Directed Acyclic Graph (DAG) Topological Sort & Sequence Depth Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditTopologicalOrderAndDepth()`, static model overload, and `TopologicalOrderAudit`. Implements Kahn's algorithm with cycle detection to compute valid dependency sequence execution order, maximum critical path dependency depth, and cycle detection feedback; wired to `AuditTopologicalOrderItem` (`\uE8A7`) in `ArrangeDropDownButton.Flyout` and right-tapped context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Logarithmic Golden Spiral Radial Progression Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditGoldenSpiralProgression(targetShapes)`, `FormatGoldenSpiralSummary(...)`, `ShapeSpiralNodeInfo`, and `GoldenSpiralProgressionAudit`. Evaluates 2D shape canvas centroids along polar logarithmic spiral expansions ($r = a \cdot e^{b \cdot \theta}$), measuring angular progression monotonicities, radius scaling fidelity, and mean logarithmic spiral compliance (0–100%); wired to `SelectionAuditGoldenSpiralItem` (`\uE777`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow 2x2 Matrix Quadrant Title Normalization & Preset Standardizer (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.NormalizeMatrixQuadrantHeaders(markdown, preset)`, static overload, and `MatrixQuadrantNormalizationResult`. Normalizes unordered or irregular 2x2 matrix headers into standardized quadrant frameworks (`SWOT`, `Eisenhower`, `BCG`, `Generic 2x2`) while preserving child bullets, indentation, and markdown content; wired to `NormalizeMatrixQuadrantsItem` (`\uE8D2`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Conventional Commit Message Generator & Breaking Change Detector (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.SynthesizeConventionalCommitMessage(unifiedRows, scope)`, text overloads, and record `ConventionalCommitAudit`. Analyzes diff delta additions, deletions, modified code headers, and keyword patterns (`fix`, `bug`, `breaking`, `table`, etc.) to synthesize standardized Conventional Commits (`feat(scope): ...`, `fix(scope): ...`, `feat(scope)!: ... BREAKING CHANGE: ...`); wired to `synthesizeConventionalCommit` (`\uE8A1`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback tick.
+    6. **SuiteHubView Workspace Document Naming Convention, Casing Uniformity, & Shell-Safety Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditDocumentNamingConventions(files)`, `FormatDocumentNamingConventionsSummary(...)`, `DocumentNamingInfo`, and `DocumentNamingConventionAudit`. Classifies workspace filenames into naming styles (`kebab-case`, `snake_case`, `camelCase`, `PascalCase`, `Title Case`, `Mixed / Irregular`), computes casing uniformity score (0–100%), and flags shell-hazardous characters (spaces, quotes, wildcards, symbols); wired to `CopyDocumentNamingConventionsItem` (`\uE8FD`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `6/6` targeted Run #159 tests passing (`100%` pass rate).
+    - Verified full test suite passing: `5093/5093` tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`PID=24580, Responding=True, HasExited=False`).
+
+---
+
+### Run #160 Blueprint — Carried-Forward Refinements & Next Cycle Targets
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **Feature**: Markdown footnote reference bidirectional linkage and missing target auditing.
-   - **Deliverable**: Add `TextSearch.AuditFootnoteLinkage(markdownText)` and `FormatFootnoteLinkageSummary(...)`, validating that every `[^id]` anchor has a matching definition and detecting orphan footnote definitions. Wire to `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
+   - **Feature**: Frontmatter YAML metadata schema validation, required key presence, and unknown property auditing.
+   - **Deliverable**: Add `TextSearch.AuditFrontmatterYamlSchema(markdownText, requiredKeys)` and `FormatFrontmatterSchemaSummary(...)`, validating opening YAML blocks (`---`) against standard document schema requirements. Wire to `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **Feature**: Topological sort acyclic validation and dependency sequence depth auditing for DAG mindmaps.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditTopologicalOrderAndDepth()` and `FormatTopologicalSummary(...)`, wired to `ArrangeDropDownButton.Flyout`.
-3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`) [Carried Forward from Run #158 Idea 3]**:
-   - **Refinement Target**: Enhance Golden Ratio progression with multi-axis golden spiral placement validation and geometric bounding progression curves.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditGoldenSpiralProgression()` and wire to `SelectionBoundsBorder.ContextFlyout`.
-4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`) [Carried Forward from Run #158 Idea 4]**:
-   - **Refinement Target**: Enhance Matrix 4-quadrant balancing with automated quadrant label normalization (SWOT: Strengths, Weaknesses, Opportunities, Threats; Eisenhower: Urgent/Important).
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.NormalizeMatrixQuadrantHeaders(markdown)` and wire to `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
-   - **Feature**: Semantic commit message conventional prefix classifier and breaking change warning generator.
-   - **Deliverable**: Add `LineDiff.SynthesizeConventionalCommitMessage(unifiedRows)` and wire to `TimelineHeaderBorder` context flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
-   - **Feature**: Workspace document naming convention audit (kebab-case, snake_case, PascalCase consistency and illegal character detection).
-   - **Deliverable**: Add `RecentFilesService.AuditDocumentNamingConventions(files)` and wire to `RecentDocsFlyout`.
+   - **Feature**: Graph bridge edge detection, articulation points, and structural vulnerability auditing in mindmaps.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphBridgesAndArticulationPoints()` and `FormatGraphVulnerabilitySummary(...)`, identifying single-point-of-failure connections whose removal partitions the mindmap graph. Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Shape color palette harmony, triadic/analogous hue balance, and chromatic consistency auditing.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditColorPaletteHarmony(shapes)` and `FormatColorHarmonySummary(...)`, evaluating fill and stroke colors on HSV color wheels to assess palette coherence. Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: Hierarchical pyramid and funnel stage area proportionality and stage volume taper auditing.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditPyramidStageProportionality(markdown)` and `FormatPyramidProportionalitySummary(...)`, verifying that hierarchical stages decrease monotonically in width and area from base to apex. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #159 Idea 5]**:
+   - **Refinement Target**: Enhance Conventional Commit analysis into an automated Semantic Version bump recommender (`major`, `minor`, `patch`) and changelog entry synthesizer.
+   - **Deliverable**: Add `LineDiff.SynthesizeSemanticVersionRecommendation(unifiedRows, currentVersion)` and wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #159 Idea 6]**:
+   - **Refinement Target**: Enhance document naming conventions with directory nesting depth, path character length, and Windows `MAX_PATH` (260 char) safety auditing.
+   - **Deliverable**: Add `RecentFilesService.AuditPathLengthsAndNestingDepth(files)` and wire to `RecentDocsFlyout`.
+

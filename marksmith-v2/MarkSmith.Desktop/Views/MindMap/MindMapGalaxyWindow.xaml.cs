@@ -4008,6 +4008,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditTopologicalOrderClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditTopologicalOrderAndDepth();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4911,6 +4919,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditBipartitePartitionItem.Click += OnAuditBipartitePartitionClick;
             menu.Items.Add(auditBipartitePartitionItem);
+
+            var auditTopologicalOrderItem = new MenuFlyoutItem
+            {
+                Text = "Audit topological DAG sort & sequence depth",
+                Icon = new FontIcon { Glyph = "\uE8A7" }
+            };
+            auditTopologicalOrderItem.Click += OnAuditTopologicalOrderClick;
+            menu.Items.Add(auditTopologicalOrderItem);
 
             var fitItem = new MenuFlyoutItem
 

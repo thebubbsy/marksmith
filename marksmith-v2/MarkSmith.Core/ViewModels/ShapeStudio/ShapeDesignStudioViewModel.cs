@@ -5148,6 +5148,137 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
         return $"Golden ratio audit ({scope}{shapeLabel} · {category}): {goldenAspectCount}/{totalShapes} golden aspect, avg step {avgProgressionRatio:0.00}x (score {adherenceScore:0.#}%)";
     }
+
+    /// <summary>
+    /// Audits shapes for logarithmic Golden Spiral placement progression, evaluating radial expansion
+    /// ratios (approximating phi = 1.618 per quarter turn) and angular trajectory around the collective center.
+    /// </summary>
+    public GoldenSpiralProgressionAudit AuditGoldenSpiralProgression(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = targetShapes != null || selected.Count >= 2;
+        string scopeStr = isSelection ? "Selected Shapes · " : "";
+
+        if (targets.Count == 0)
+        {
+            string emptySummary = "Golden spiral audit: 0 shapes · Canvas is empty";
+            StatusMessage = emptySummary;
+            return new GoldenSpiralProgressionAudit(
+                0, 0.0, 0.0, 1.0, 0.0, "None", Array.Empty<ShapeSpiralNodeInfo>(),
+                "Empty Canvas", isSelection, emptySummary);
+        }
+
+        const double phi = 1.6180339887;
+
+        double minX = targets.Min(s => s.X);
+        double maxX = targets.Max(s => s.X + s.Width);
+        double minY = targets.Min(s => s.Y);
+        double maxY = targets.Max(s => s.Y + s.Height);
+        double centerX = Math.Round((minX + maxX) / 2.0, 1);
+        double centerY = Math.Round((minY + maxY) / 2.0, 1);
+
+        var polarNodes = new List<(ShapeCanvasItemViewModel Shape, double Radius, double AngleDeg)>();
+        foreach (var s in targets)
+        {
+            double scx = s.X + s.Width / 2.0;
+            double scy = s.Y + s.Height / 2.0;
+            double dx = scx - centerX;
+            double dy = scy - centerY;
+            double r = Math.Sqrt(dx * dx + dy * dy);
+            double angleRad = Math.Atan2(dy, dx);
+            double angleDeg = (angleRad * 180.0 / Math.PI + 360.0) % 360.0;
+            polarNodes.Add((s, Math.Round(r, 1), Math.Round(angleDeg, 1)));
+        }
+
+        var orderedByRadius = polarNodes.OrderBy(p => p.Radius).ToList();
+        var spiralInfos = new List<ShapeSpiralNodeInfo>();
+
+        double sumGrowthRatio = 0.0;
+        double sumGrowthDelta = 0.0;
+        int stepCount = 0;
+        int clockwiseSteps = 0;
+        int counterClockwiseSteps = 0;
+
+        for (int i = 0; i < orderedByRadius.Count; i++)
+        {
+            var cur = orderedByRadius[i];
+            double growthRatio = 1.0;
+            if (i > 0)
+            {
+                double prevR = Math.Max(1.0, orderedByRadius[i - 1].Radius);
+                growthRatio = Math.Round(cur.Radius / prevR, 2);
+                sumGrowthRatio += growthRatio;
+                sumGrowthDelta += Math.Abs(growthRatio - phi);
+                stepCount++;
+
+                double prevAngle = orderedByRadius[i - 1].AngleDeg;
+                double diffAngle = (cur.AngleDeg - prevAngle + 360.0) % 360.0;
+                if (diffAngle > 0 && diffAngle <= 180.0)
+                    clockwiseSteps++;
+                else
+                    counterClockwiseSteps++;
+            }
+
+            string name = !string.IsNullOrWhiteSpace(cur.Shape.Text)
+                ? cur.Shape.Text.Replace("\n", " ").Trim()
+                : cur.Shape.DisplayName;
+            if (name.Length > 24) name = name[..21] + "...";
+
+            spiralInfos.Add(new ShapeSpiralNodeInfo(cur.Shape.Id, name, cur.Radius, cur.AngleDeg, growthRatio));
+        }
+
+        double avgGrowthRatio = stepCount > 0 ? Math.Round(sumGrowthRatio / stepCount, 2) : 1.0;
+        double avgGrowthDelta = stepCount > 0 ? sumGrowthDelta / stepCount : 0.0;
+        double adherenceScore = stepCount > 0
+            ? Math.Round(Math.Clamp(100.0 - (avgGrowthDelta / phi * 100.0), 0.0, 100.0), 1)
+            : 50.0;
+
+        string direction = "Radial Dispersed";
+        if (stepCount > 0)
+        {
+            if (clockwiseSteps > counterClockwiseSteps * 1.5) direction = "Clockwise Spiral";
+            else if (counterClockwiseSteps > clockwiseSteps * 1.5) direction = "Counter-Clockwise Spiral";
+        }
+
+        string category;
+        if (targets.Count >= 3 && adherenceScore >= 80.0 && direction.Contains("Spiral"))
+        {
+            category = "Harmonic Golden Spiral";
+        }
+        else if (targets.Count >= 3 && adherenceScore >= 55.0)
+        {
+            category = "Near-Spiral Dispersion";
+        }
+        else if (targets.Count >= 2)
+        {
+            category = "Concentric / Irregular Distribution";
+        }
+        else
+        {
+            category = "Single Anchor Point";
+        }
+
+        string summary = FormatGoldenSpiralSummary(
+            targets.Count, centerX, centerY, avgGrowthRatio, adherenceScore, direction, category, scopeStr);
+
+        StatusMessage = summary;
+        return new GoldenSpiralProgressionAudit(
+            targets.Count, centerX, centerY, avgGrowthRatio, adherenceScore, direction,
+            spiralInfos, category, isSelection, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of golden spiral progression metrics.
+    /// </summary>
+    public static string FormatGoldenSpiralSummary(
+        int totalShapes, double centerX, double centerY, double avgGrowthRatio,
+        double adherenceScore, string direction, string category, string scope = "")
+    {
+        if (totalShapes == 0) return "Golden spiral audit: 0 shapes · Canvas is empty";
+        string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        return $"Golden spiral audit ({scope}{shapeLabel} · {category}): Center ({centerX:0.#}, {centerY:0.#}), avg growth {avgGrowthRatio:0.00}x, {direction} (score {adherenceScore:0.#}%)";
+    }
 }
 
 /// <summary>
@@ -5309,7 +5440,28 @@ public sealed record GoldenRatioProgressionAudit(
     bool IsSelectionScope,
     string Summary);
 
+/// <summary>
+/// Represents polar coordinates and radial expansion metrics for a shape in a golden spiral progression.
+/// </summary>
+public sealed record ShapeSpiralNodeInfo(
+    string Id,
+    string DisplayName,
+    double Radius,
+    double AngleDegrees,
+    double RadialGrowthRatio);
 
-
-
+/// <summary>
+/// Represents the result of a logarithmic Golden Spiral placement and radial progression audit.
+/// </summary>
+public sealed record GoldenSpiralProgressionAudit(
+    int TotalShapes,
+    double CenterX,
+    double CenterY,
+    double AverageGrowthRatio,
+    double AdherenceScore,
+    string SpiralDirection,
+    IReadOnlyList<ShapeSpiralNodeInfo> Shapes,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
 
