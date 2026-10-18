@@ -4710,7 +4710,15 @@ namespace MarkSmith.Views.SmartArtStudio
         private void OnAuditCharBudgetsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
-            var result = SmartArtDesignStudioViewModel.AuditNodeCharacterBudgets(ViewModel.SelectedCategory?.Name, ViewModel.MarkdownSource);
+            var result = ViewModel.AuditNodeCharacterBudgets();
+            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
+        private void OnRecommendIconsOutlineClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.RecommendIconsForOutline();
             Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }

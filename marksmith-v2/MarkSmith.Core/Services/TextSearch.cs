@@ -1918,7 +1918,127 @@ public static class TextSearch
     {
         return AuditSentenceFlowCadence(markdownText).Summary;
     }
+
+    /// <summary>
+    /// Audits markdown text for Git merge conflict markers and common syntax ambiguities.
+    /// </summary>
+    public static ConflictMarkerAndAmbiguityAudit AuditConflictMarkersAndAmbiguities(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new ConflictMarkerAndAmbiguityAudit(
+                0, 0, Array.Empty<string>(), Array.Empty<string>(), true,
+                "Conflict markers & syntax ambiguities: Clean (0 issues detected)");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        var conflictLines = new List<string>();
+        var ambiguities = new List<string>();
+
+        bool inFence = false;
+        int mathDisplayDelimiterCount = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var raw = lines[i];
+            var trimmed = raw.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+
+            if (!inFence)
+            {
+                // Check conflict markers
+                if (trimmed.StartsWith("<<<<<<<") ||
+                    trimmed.StartsWith("=======") ||
+                    trimmed.StartsWith(">>>>>>>") ||
+                    trimmed.StartsWith("|||||||"))
+                {
+                    conflictLines.Add($"Line {i + 1}: {trimmed}");
+                }
+
+                // Check unclosed inline backticks (odd number of backticks in a single non-fence line)
+                int backtickCount = 0;
+                for (int b = 0; b < raw.Length; b++)
+                {
+                    if (raw[b] == '`') backtickCount++;
+                }
+                if (backtickCount % 2 != 0)
+                {
+                    ambiguities.Add($"Line {i + 1}: Unclosed inline code backtick (odd count: {backtickCount})");
+                }
+
+                // Count $$ display math occurrences
+                int idx = 0;
+                while ((idx = raw.IndexOf("$$", idx, StringComparison.Ordinal)) != -1)
+                {
+                    mathDisplayDelimiterCount++;
+                    idx += 2;
+                }
+            }
+        }
+
+        if (mathDisplayDelimiterCount % 2 != 0)
+        {
+            ambiguities.Add($"Document has unmatched display math delimiter ($$ count: {mathDisplayDelimiterCount})");
+        }
+
+        bool isClean = conflictLines.Count == 0 && ambiguities.Count == 0;
+        string summary;
+        if (isClean)
+        {
+            summary = "✓ Conflict markers & syntax ambiguities: Clean (0 issues detected)";
+        }
+        else
+        {
+            var parts = new List<string>();
+            if (conflictLines.Count > 0)
+            {
+                string cLabel = conflictLines.Count == 1 ? "1 conflict marker" : $"{conflictLines.Count} conflict markers";
+                parts.Add(cLabel);
+            }
+            if (ambiguities.Count > 0)
+            {
+                string aLabel = ambiguities.Count == 1 ? "1 syntax ambiguity" : $"{ambiguities.Count} syntax ambiguities";
+                parts.Add(aLabel);
+            }
+
+            string preview = conflictLines.Count > 0 ? conflictLines[0] : ambiguities[0];
+            summary = $"⚠ {string.Join(" and ", parts)} detected · {preview}";
+        }
+
+        return new ConflictMarkerAndAmbiguityAudit(
+            conflictLines.Count,
+            ambiguities.Count,
+            conflictLines,
+            ambiguities,
+            isClean,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of merge conflict markers and syntax ambiguities.
+    /// </summary>
+    public static string FormatConflictMarkerSummary(string? markdownText)
+    {
+        return AuditConflictMarkersAndAmbiguities(markdownText).Summary;
+    }
 }
+
+/// <summary>
+/// Represents the result of an audit for Git merge conflict markers and syntax ambiguities.
+/// </summary>
+public sealed record ConflictMarkerAndAmbiguityAudit(
+    int ConflictMarkerCount,
+    int AmbiguityCount,
+    IReadOnlyList<string> ConflictLines,
+    IReadOnlyList<string> Ambiguities,
+    bool IsClean,
+    string Summary);
+
 
 
 

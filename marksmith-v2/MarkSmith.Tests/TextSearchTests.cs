@@ -888,6 +888,70 @@ public class TextSearchTests
         Assert.Equal(2, codeAudit.ParagraphCount);
         Assert.Equal(2, codeAudit.SentenceCount);
     }
+
+    [Fact]
+    public void Run152_AuditConflictMarkersAndAmbiguities()
+    {
+        // 1. Empty or whitespace
+        var empty = TextSearch.AuditConflictMarkersAndAmbiguities("");
+        Assert.True(empty.IsClean);
+        Assert.Equal(0, empty.ConflictMarkerCount);
+        Assert.Equal(0, empty.AmbiguityCount);
+        Assert.Contains("Clean", empty.Summary);
+
+        // 2. Clean document with code block containing conflict-like text
+        var cleanDoc = """
+            # Architecture Guide
+            This is a clean document with valid inline `code` and balanced math $$E = mc^2$$.
+
+            ```bash
+            # Conflict markers inside code blocks should be ignored
+            <<<<<<< HEAD
+            echo "local"
+            =======
+            echo "remote"
+            >>>>>>> branch
+            ```
+
+            Final closing paragraph.
+            """;
+        var cleanAudit = TextSearch.AuditConflictMarkersAndAmbiguities(cleanDoc);
+        Assert.True(cleanAudit.IsClean);
+        Assert.Equal(0, cleanAudit.ConflictMarkerCount);
+        Assert.Equal(0, cleanAudit.AmbiguityCount);
+        Assert.Contains("Clean", cleanAudit.Summary);
+
+        // 3. Document with real Git conflict markers
+        var conflictDoc = """
+            # Introduction
+            <<<<<<< HEAD
+            Local feature branch changes
+            =======
+            Remote main branch changes
+            >>>>>>> main
+            Footer note.
+            """;
+        var conflictAudit = TextSearch.AuditConflictMarkersAndAmbiguities(conflictDoc);
+        Assert.False(conflictAudit.IsClean);
+        Assert.Equal(3, conflictAudit.ConflictMarkerCount);
+        Assert.Contains("Line 2: <<<<<<< HEAD", conflictAudit.ConflictLines);
+        Assert.Contains("Line 4: =======", conflictAudit.ConflictLines);
+        Assert.Contains("Line 6: >>>>>>> main", conflictAudit.ConflictLines);
+        Assert.Contains("3 conflict markers detected", conflictAudit.Summary);
+
+        // 4. Document with syntax ambiguities (unclosed backtick and unmatched math)
+        var ambiguityDoc = """
+            # Notes
+            Here is an unclosed `backtick that never finishes.
+            And here is an unmatched math delimiter: $$ x + y = z
+            """;
+        var ambAudit = TextSearch.AuditConflictMarkersAndAmbiguities(ambiguityDoc);
+        Assert.False(ambAudit.IsClean);
+        Assert.Equal(2, ambAudit.AmbiguityCount);
+        Assert.Contains("Unclosed inline code backtick", ambAudit.Ambiguities[0]);
+        Assert.Contains("unmatched display math delimiter", ambAudit.Ambiguities[1]);
+        Assert.Contains("2 syntax ambiguities detected", ambAudit.Summary);
+    }
 }
 
 

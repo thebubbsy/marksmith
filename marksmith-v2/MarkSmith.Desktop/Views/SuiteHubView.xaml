@@ -261,6 +261,9 @@
                                     <MenuFlyoutItem x:Name="CopyRecentDormancyAlertsItem" Text="Copy library dormancy risk &amp; revival alerts" Click="OnCopyRecentDormancyAlertsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7BA;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyRecentClusterDormancyItem" Text="Copy workspace cluster dormancy &amp; stagnation audit" Click="OnCopyRecentClusterDormancyClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

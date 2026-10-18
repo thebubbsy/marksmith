@@ -2712,6 +2712,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// <summary>
     /// Audits outline item label lengths against category-specific character budgets to detect text truncation risks.
     /// </summary>
+    public NodeCharacterBudgetAudit AuditNodeCharacterBudgets() => AuditNodeCharacterBudgets(SelectedCategory, MarkdownText);
+
+    /// <summary>
+    /// Audits outline item label lengths against category-specific character budgets to detect text truncation risks.
+    /// </summary>
     public static NodeCharacterBudgetAudit AuditNodeCharacterBudgets(string? category, string? markdownText)
     {
         string cat = string.IsNullOrWhiteSpace(category) ? "Process" : category.Trim();
@@ -2852,7 +2857,194 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Node character budget audit ({category} · {nodeLabel}): {overLabel} ({budgetLabel}) · Risk: {risk} · Max: {maxChars}c{preview}";
     }
+
+    /// <summary>
+    /// Recommends Fluent UI icon glyphs based on outline bullet semantic keywords.
+    /// </summary>
+    public OutlineIconRecommendationAudit RecommendIconsForOutline() => RecommendIconsForOutline(MarkdownText);
+
+    /// <summary>
+    /// Recommends Fluent UI icon glyphs based on outline bullet semantic keywords.
+    /// </summary>
+    public static OutlineIconRecommendationAudit RecommendIconsForOutline(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new OutlineIconRecommendationAudit(
+                0, 0, 0.0, Array.Empty<NodeIconAffinity>(),
+                "Outline icon recommendations: 0 nodes (Empty outline)");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        var nodes = new List<(string Text, int Depth)>();
+
+        foreach (var rawLine in lines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+            int leadWs = 0;
+            int spaceCount = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t'))
+            {
+                if (rawLine[leadWs] == '\t') spaceCount += 2;
+                else spaceCount += 1;
+                leadWs++;
+            }
+
+            if (leadWs < rawLine.Length)
+            {
+                var rest = rawLine.Substring(leadWs);
+                if (rest.StartsWith("- ") || rest.StartsWith("* ") || rest.StartsWith("+ ") ||
+                    (rest.Length > 2 && char.IsDigit(rest[0]) && rest[1] == '.' && rest[2] == ' '))
+                {
+                    string content = rest.Substring(2).Trim();
+                    int depth = (spaceCount / 2) + 1;
+                    nodes.Add((content, depth));
+                }
+            }
+        }
+
+        if (nodes.Count == 0)
+        {
+            return new OutlineIconRecommendationAudit(
+                0, 0, 0.0, Array.Empty<NodeIconAffinity>(),
+                "Outline icon recommendations: 0 nodes (Empty outline)");
+        }
+
+        var affinities = new List<NodeIconAffinity>();
+        int matched = 0;
+
+        foreach (var (text, depth) in nodes)
+        {
+            var (glyph, name, kw) = MatchKeywordToIcon(text);
+            if (!string.IsNullOrEmpty(kw)) matched++;
+            affinities.Add(new NodeIconAffinity(text, depth, glyph, name, string.IsNullOrEmpty(kw) ? "default" : kw));
+        }
+
+        double coverage = Math.Round((double)matched / nodes.Count * 100.0, 1);
+        string nodeLabel = nodes.Count == 1 ? "1 node" : $"{nodes.Count} nodes";
+        string summary = FormatIconRecommendationsSummary(nodes.Count, matched, coverage, affinities);
+
+        return new OutlineIconRecommendationAudit(
+            nodes.Count,
+            matched,
+            coverage,
+            affinities,
+            summary);
+    }
+
+    private static (string Glyph, string Name, string MatchedKeyword) MatchKeywordToIcon(string text)
+    {
+        var lower = text.ToLowerInvariant();
+        var wordSet = System.Text.RegularExpressions.Regex.Matches(lower, @"\b[a-z0-9]+\b")
+            .Select(m => m.Value)
+            .ToHashSet();
+
+        // 1. Security / Authentication
+        foreach (var k in new[] { "security", "protect", "auth", "lock", "shield", "safe" })
+            if (wordSet.Contains(k)) return ("\uE72E", "Lock", k);
+
+        // 2. Cloud Infrastructure
+        foreach (var k in new[] { "cloud", "aws", "azure", "serverless" })
+            if (wordSet.Contains(k)) return ("\uE753", "Cloud", k);
+
+        // 3. Database / Storage
+        foreach (var k in new[] { "database", "sql", "storage", "data", "store" })
+            if (wordSet.Contains(k)) return ("\uE81E", "Database", k);
+
+        // 4. Analytics / Reporting
+        foreach (var k in new[] { "analytics", "telemetry", "metric", "metrics", "report", "reporting", "stats", "chart" })
+            if (wordSet.Contains(k)) return ("\uE9D9", "Analytics", k);
+
+        // 5. User / Account
+        foreach (var k in new[] { "user", "users", "author", "account", "profile", "person", "team" })
+            if (wordSet.Contains(k)) return ("\uE77B", "Contact", k);
+
+        // 6. Settings / Config
+        foreach (var k in new[] { "settings", "config", "configuration", "setup", "options", "admin" })
+            if (wordSet.Contains(k)) return ("\uE713", "Setting", k);
+
+        // 7. Network / API
+        foreach (var k in new[] { "network", "api", "connect", "endpoint", "link" })
+            if (wordSet.Contains(k)) return ("\uE968", "Network", k);
+
+        // 8. Workflow / Process
+        foreach (var k in new[] { "workflow", "process", "pipeline", "task", "flow" })
+            if (wordSet.Contains(k)) return ("\uE809", "Flow", k);
+
+        // 9. Warnings / Alerts / Risk
+        foreach (var k in new[] { "warning", "risk", "conflict", "alert", "error" })
+            if (wordSet.Contains(k)) return ("\uE7BA", "Warning", k);
+
+        // 10. Success / Verification
+        foreach (var k in new[] { "success", "done", "complete", "pass", "verified", "verify" })
+            if (wordSet.Contains(k)) return ("\uE73E", "CheckMark", k);
+
+        // 11. Performance / Speed
+        foreach (var k in new[] { "performance", "speed", "fast", "velocity", "pace" })
+            if (wordSet.Contains(k)) return ("\uE9F9", "SpeedHigh", k);
+
+        // 12. Testing / Inspection
+        foreach (var k in new[] { "test", "tests", "audit", "check", "inspect" })
+            if (wordSet.Contains(k)) return ("\uE7B3", "Inspect", k);
+
+        // 13. Time / Calendar / Schedule
+        foreach (var k in new[] { "schedule", "calendar", "timeline", "clock", "date", "time" })
+            if (wordSet.Contains(k)) return ("\uE787", "Calendar", k);
+
+        // 14. Document / Specs
+        foreach (var k in new[] { "document", "doc", "file", "text", "write", "spec" })
+            if (wordSet.Contains(k)) return ("\uE8A5", "Document", k);
+
+        return ("\uE7C3", "Page", "");
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of outline icon recommendations.
+    /// </summary>
+    public static string FormatIconRecommendationsSummary(
+        int totalNodes, int matched, double coverage, IReadOnlyList<NodeIconAffinity>? affinities = null)
+    {
+        if (totalNodes <= 0) return "Outline icon recommendations: 0 nodes (Empty outline)";
+        string nodeLabel = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+
+        string preview = "";
+        if (affinities != null && affinities.Count > 0)
+        {
+            var sample = affinities.Take(3).Select(a => $"'{a.NodeText}' → {a.IconName}");
+            preview = $" [{string.Join(", ", sample)}{(affinities.Count > 3 ? ", …" : "")}]";
+        }
+
+        return $"Outline icon recommendations ({nodeLabel}): {matched}/{totalNodes} matched ({coverage}%) · Icons: Lock, Cloud, Database, Flow, etc.{preview}";
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of outline icon recommendations from markdown text.
+    /// </summary>
+    public static string FormatIconRecommendationsSummary(string? markdownText)
+    {
+        return RecommendIconsForOutline(markdownText).Summary;
+    }
 }
+
+/// <summary>
+/// Represents a recommended icon affinity for an outline node.
+/// </summary>
+public sealed record NodeIconAffinity(
+    string NodeText,
+    int Depth,
+    string IconGlyph,
+    string IconName,
+    string MatchedKeyword);
+
+/// <summary>
+/// Represents the result of an outline icon recommendation audit.
+/// </summary>
+public sealed record OutlineIconRecommendationAudit(
+    int TotalNodes,
+    int MatchedNodes,
+    double CoveragePercentage,
+    IReadOnlyList<NodeIconAffinity> Recommendations,
+    string Summary);
 
 /// <summary>
 /// Represents the result of an outline node character count budget and truncation risk audit.

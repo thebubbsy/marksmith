@@ -293,6 +293,9 @@
                                         <MenuFlyoutItem x:Name="AuditCharBudgetsItem" Text="Audit node character count budgets &amp; truncation risk" Click="OnAuditCharBudgetsClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="RecommendIconsOutlineItem" Text="Recommend icons for outline keywords" Click="OnRecommendIconsOutlineClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7B3;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

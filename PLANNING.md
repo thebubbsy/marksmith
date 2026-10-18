@@ -11209,25 +11209,67 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #151 Blueprint — Carried-Forward Refinements & Next Cycle Targets (Status: Pending)
+## Scheduled WinUI 3 Desktop Polish Routine — Run #151 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-18
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Sentence Flow & Paragraph Cadence Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditSentenceFlowCadence(markdown)` and `FormatSentenceFlowSummary(...)` analyzing paragraph count, sentence count, average words per sentence, run-on sentences (>35 words), micro-sentences (≤3 words), and cadence rhythm ratings (`Run-On Heavy`, `Staccato`, `Dense / Academic`, `Dynamic Flow`, `Balanced Flow`) with full stripping of code blocks, HTML, and image embeds; wired to `sentenceCadenceItem` (`\uE8A5`) in `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
+    2. **MindMapGalaxyWindow Orphaned Node Connector & Cluster Affinity Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditOrphanedNodes()` and `ConnectOrphanedNodesToClosestCluster()` computing Euclidean distances between disconnected nodes and nearest connected clusters, connecting orphans to their nearest spatial neighbors with atomic undo tracking (`PushUndo`, `SuspendEditTracking`), and formatting audit summaries; wired to `AuditOrphansItem` (`\uE8B7`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Z-Order Layer Stack Index Auditor & Sequential Normalizer (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditLayerStackIndices()` and `NormalizeZOrderStack()` determining min/max layer indices, contiguity status, and compacting selected shapes into contiguous layers with atomic undo recording (`RecordUndo`); wired to `SelectionAuditLayerStackItem` (`\uE8E5`) in `SelectionBoundsFlyout`.
+    4. **SmartArtDesignStudioWindow Node Character Count Budget Warning & Truncation Risk Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditNodeCharacterBudgets(category, markdownText)` and `FormatCharacterBudgetSummary(...)` analyzing outline item lengths against category-specific character budgets (L1: 20–45c, L2: 15–35c) and calculating truncation risk levels (`Minimal`, `Low`, `Moderate`, `Severe`); wired to `AuditCharBudgetsItem` (`\uE8A5`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Version Scope & Breaking Change Conventional Commit Synthesizer (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.SynthesizeConventionalCommitWithScope(unifiedRows, currentDoc)` and `FormatConventionalCommitWithScope(...)` extracting modified section headings as conventional commit scopes (e.g. `feat(quantum-telemetry): ...`), and automatically detecting breaking changes (removed section headings, deleted data tables) to generate `BREAKING CHANGE:` footer notices; wired to `synthesizeCommitScope` (`\uE82D`) in `TimelineHeaderBorder` context flyout.
+    6. **SuiteHubView Library Dormancy Risk & Stale Project Revival Alerts (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditDormancyAlerts(files, lastAccessTimeProvider, referenceTime)` and `FormatDormancyAlertsSummary(...)` detecting documents inactive >60 days or missing on disk, classifying library risk tiers (`None`, `Low`, `Moderate`, `High`), and generating project revival/archive action suggestions; wired to `CopyRecentDormancyAlertsItem` (`\uE7BA`) in `RecentDocsFlyout` with `Services.CopyFeedback.ApplyButtonTick`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors.
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `6/6` targeted Run #151 tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup.
+
+---
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #152 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-18
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Git Merge Conflict Marker & Syntax Ambiguity Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditConflictMarkersAndAmbiguities(markdown)` and `FormatConflictMarkerSummary(...)` auditing Git merge conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) and syntax ambiguities (unclosed code fences, unbalanced LaTeX math delimiters, ambiguous table pipes) with complete code fence immunity; wired to `conflictMarkersItem` (`\uE7BA`) in `StatusShortcutsButton` and `FindCountText` right-tap flyouts.
+    2. **MindMapGalaxyWindow Cluster 2D Spatial Convex Hull & Spatial Extent Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditClusterConvexHulls()` and 2D Monotone Chain convex hull algorithm computing convex hull perimeters, enclosed areas (Shoelace formula), centroids, bounding box dimensions, and node densities (nodes/kpx²) across tag clusters; wired to `AuditClusterHullsItem` (`\uE8B7`) in `ArrangeDropDownButton.Flyout` and `OnArrangeDropDownRightTapped`.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Layout Quantization Grid Alignment & 8px Snap Arranger (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditGridAlignment(gridSize)` and `QuantizeShapeCoordinates(gridSize)` evaluating shape X/Y coordinates and width/height dimensions against standard 4px/8px design grids, snapping coordinates with atomic undo tracking (`RecordUndo`), and fixed `ClearSelection()` to unconditionally deselect all canvas items; wired to `SelectionAuditGridSnapItem` (`\uE809`) and `SelectionQuantizeGridItem` in `SelectionBoundsFlyout`.
+    4. **SmartArtDesignStudioWindow Semantic Outline Keyword-to-Icon Affinity Recommender (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.RecommendIconsForOutline(markdown)` and `FormatIconRecommendationsSummary(...)` analyzing outline bullet keywords against prioritized semantic categories (Security, Cloud, Database, Analytics, Contact, Setting, Network, Flow, Calendar, etc.) and recommending Fluent icon glyphs with coverage metrics; wired to `RecommendIconsOutlineItem` (`\uE7B3`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Conventional CHANGELOG.md Section Formatter (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.FormatConventionalChangelogSection(unifiedRows, markdownDoc)` analyzing diff hunks to categorize changes into standard Keep-a-Changelog sections (`### Features`, `### Bug Fixes`, `### Documentation`, `### Refactoring`, `### Breaking Changes`) with commit message footers; wired to `formatChangelogSection` (`\uE8D2`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and status feedback.
+    6. **SuiteHubView Workspace Folder Cluster Dormancy & Stagnation Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceClusterDormancy(files, lastAccessTimeProvider, referenceTime)` and `FormatWorkspaceClusterDormancySummary(...)` grouping recent documents into workspace directory clusters (e.g. `onyachamp`, `marksmith`, `documents`), computing dormancy percentages, and identifying stale project repositories needing maintenance or archiving; wired to `CopyRecentClusterDormancyItem` (`\uE8F4`) in `RecentDocsFlyout` with `Services.CopyFeedback.ApplyButtonTick`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `6/6` targeted Run #152 tests passing (`100%` pass rate across all 6 test files).
+    - Verified live `Marksmith.exe` smoke startup (`SMOKE_TEST_PASS: Marksmith.exe launched and ran cleanly without crashing`).
+
+---
+
+### Run #153 Blueprint — Carried-Forward Refinements & Next Cycle Targets (Status: Pending)
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **What is missing**: Status bar breadcrumb lacks an automated paragraph length and sentence flow cadence audit highlighting run-on sentences (>35 words) or micro-paragraphs.
-   - **Deliverable**: Add `TextSearch.AuditSentenceFlowCadence(markdown)` and `FormatSentenceFlowSummary(...)`, wired to `sentenceCadenceItem` (`\uE8A5`) in `FindCountText` and breadcrumb flyouts.
+   - **What is missing**: Status bar breadcrumb lacks readability scoring and reading ease metrics (Flesch-Kincaid Grade Level, Flesch Reading Ease score) to guide document clarity before final export.
+   - **Deliverable**: Add `TextSearch.AuditReadabilityMetrics(markdown)` and `FormatReadabilitySummary(...)`, wired to `readabilityMetricsItem` (`\uE8A5`) in `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **What is missing**: Canvas lacks an automated orphaned node connector identifying disconnected thought nodes and suggesting proximity-based root or cluster attachments.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditOrphanedNodes()` and `ConnectOrphanedNodesToClosestCluster()`, wired to `AuditOrphansItem` (`\uE8B7`) in `ArrangeDropDownButton.Flyout`.
+   - **What is missing**: Galaxy canvas lacks a minimum spanning tree (MST) wireframe calculator (Kruskal's / Prim's 2D spatial graph) to compute minimal interconnect routing distance and identify trunk corridors.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditMinimumSpanningTree()` and `FormatMstSummary(...)`, wired to `AuditMstItem` (`\uE968`) in `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **What is missing**: Multi-shape selection lacks an automated z-order layering stack audit and visual step-layer reordering helper (send backwards, bring forward with depth indices).
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditLayerStackIndices()` and `NormalizeZOrderStack()`, wired to `AuditZOrderItem` (`\uE8E5`) in `SelectionBoundsFlyout`.
+   - **What is missing**: Canvas lacks an automated aspect ratio constraint lock and shape proportionality auditor (`1:1`, `4:3`, `16:9`, `Golden Ratio 1.618`) to snap shapes to balanced visual aspect ratios.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditAspectRatioProportions()` and `EnforceAspectRatioLock(targetRatio)`, wired to `AuditAspectRatioItem` (`\uE790`) in `SelectionBoundsFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **What is missing**: Outline editor lacks an automated character count budget warning per node category preventing label truncation in narrow SmartArt shapes.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditNodeCharacterBudgets(category)` and `FormatCharacterBudgetSummary(...)`, wired to `AuditCharBudgetsItem` (`\uE9F9`) in `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #150 Idea 5]**:
-   - **Refinement Target**: Enhance `LineDiff.SynthesizeSemanticVersionMessage` with automated breaking change detector (`BREAKING CHANGE:` footer) and scope-detection heuristics (e.g. extracting markdown top-level heading as the commit scope `feat(heading): ...`).
-   - **Deliverable**: Add `LineDiff.SynthesizeConventionalCommitWithScope(unifiedRows, markdownDoc)` and format preview with copy button.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #150 Idea 6]**:
-   - **Refinement Target**: Enhance `RecentFilesService.AuditAccessFrequencyHeatmap` with library dormancy risk alerts, flagging documents that have dropped below monthly revisit thresholds and generating quick-review suggestions.
-   - **Deliverable**: Add `RecentFilesService.AuditDormancyAlerts(files)` and `FormatDormancyAlertsSummary(...)`, wired to `RecentDocsFlyout`.
+   - **What is missing**: Outline editor lacks a hierarchy depth distribution and branching factor auditor evaluating tree balance and identifying deeply nested (>3 levels) or over-branching (>7 children) nodes.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditHierarchyBranchingFactor(markdown)` and `FormatHierarchyBranchingSummary(...)`, wired to `AuditBranchingFactorItem` (`\uE809`) in `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #152 Idea 5]**:
+   - **Refinement Target**: Enhance `LineDiff.FormatConventionalChangelogSection` with semantic git release tag and milestone header generation (`## [v1.x.y] - YYYY-MM-DD (Milestone Scope)`).
+   - **Deliverable**: Add `LineDiff.SynthesizeReleaseMilestoneHeader(version, milestoneName)` and wired to `synthesizeMilestoneHeader` in `TimelineHeaderBorder` flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #152 Idea 6]**:
+   - **Refinement Target**: Enhance `RecentFilesService.AuditWorkspaceClusterDormancy` with an automated workspace activity velocity index (active vs dormant ratio per folder cluster).
+   - **Deliverable**: Add `RecentFilesService.AuditClusterActivityVelocity(files)` and `FormatClusterActivityVelocitySummary(...)`, wired to `RecentDocsFlyout`.
 
 
 

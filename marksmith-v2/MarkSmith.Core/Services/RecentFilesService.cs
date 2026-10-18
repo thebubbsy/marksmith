@@ -1502,6 +1502,199 @@ public sealed class RecentFilesService
 
         return $"Library dormancy risk audit ({docLabel}): {dormantLabel}{missingStr} · Risk: {riskLevel} · Active: {activeCount}{preview}";
     }
+
+    /// <summary>
+    /// Audits dormancy and project stagnation across workspace folder clusters in recent documents.
+    /// </summary>
+    public static WorkspaceClusterDormancyAudit AuditWorkspaceClusterDormancy(
+        IEnumerable<string>? files,
+        Func<string, DateTime?>? lastAccessTimeProvider = null,
+        DateTime? referenceTime = null,
+        int dormancyDaysThreshold = 60)
+    {
+        var list = files?.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                   ?? new List<string>();
+
+        if (list.Count == 0)
+        {
+            return new WorkspaceClusterDormancyAudit(
+                0, 0, 0, Array.Empty<WorkspaceClusterDormancyInfo>(),
+                "Workspace cluster dormancy audit: 0 workspaces, 0 documents (No recent files recorded)");
+        }
+
+        var now = referenceTime ?? DateTime.UtcNow;
+
+        // Group into workspace clusters
+        var clusterBuckets = new Dictionary<string, (string DisplayName, List<(string FilePath, string FileName, bool IsDormant)> Files)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var p in list)
+        {
+            string fileName;
+            string dir;
+            try
+            {
+                fileName = Path.GetFileName(p);
+                if (string.IsNullOrWhiteSpace(fileName)) fileName = p;
+                dir = Path.GetDirectoryName(p) ?? "(root)";
+            }
+            catch
+            {
+                fileName = p;
+                dir = "(unknown)";
+            }
+
+            string workspaceName = "(root)";
+            if (!string.IsNullOrWhiteSpace(dir) && dir != "(root)" && dir != "(unknown)")
+            {
+                var segments = dir.Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
+                if (segments.Length >= 2)
+                {
+                    string leaf = segments[^1];
+                    if (leaf.Equals("docs", StringComparison.OrdinalIgnoreCase) ||
+                        leaf.Equals("notes", StringComparison.OrdinalIgnoreCase) ||
+                        leaf.Equals("specs", StringComparison.OrdinalIgnoreCase) ||
+                        leaf.Equals("src", StringComparison.OrdinalIgnoreCase))
+                    {
+                        workspaceName = $"{segments[^2]}/{leaf}";
+                    }
+                    else
+                    {
+                        workspaceName = leaf;
+                    }
+                }
+                else if (segments.Length == 1)
+                {
+                    workspaceName = segments[0];
+                }
+            }
+
+            // Determine if file is dormant
+            DateTime? accessTime = null;
+            bool exists = false;
+            try { exists = File.Exists(p); } catch { }
+
+            if (lastAccessTimeProvider != null)
+            {
+                accessTime = lastAccessTimeProvider(p);
+            }
+            else if (exists)
+            {
+                try
+                {
+                    var t = File.GetLastAccessTimeUtc(p);
+                    if (t != DateTime.MinValue) accessTime = t;
+                    else accessTime = File.GetLastWriteTimeUtc(p);
+                }
+                catch { }
+            }
+
+            int daysIdle = 999;
+            if (accessTime.HasValue)
+            {
+                daysIdle = Math.Max(0, (int)(now - accessTime.Value).TotalDays);
+            }
+            else if (exists)
+            {
+                daysIdle = 0;
+            }
+
+            bool isDormant = daysIdle >= dormancyDaysThreshold || (!exists && lastAccessTimeProvider == null);
+
+            if (!clusterBuckets.TryGetValue(dir, out var bucket))
+            {
+                bucket = (workspaceName, new List<(string, string, bool)>());
+                clusterBuckets[dir] = bucket;
+            }
+            bucket.Files.Add((p, fileName, isDormant));
+        }
+
+        var clusterInfos = new List<WorkspaceClusterDormancyInfo>();
+        int stagnantClusters = 0;
+
+        foreach (var kvp in clusterBuckets.OrderByDescending(b => b.Value.Files.Count))
+        {
+            string dirPath = kvp.Key;
+            string wsName = kvp.Value.DisplayName;
+            var fileList = kvp.Value.Files;
+
+            int totalInCluster = fileList.Count;
+            int dormantInCluster = fileList.Count(f => f.IsDormant);
+            double ratio = Math.Round((double)dormantInCluster / totalInCluster, 2);
+            var samples = fileList.Select(f => f.FileName).Distinct().Take(3).ToList();
+
+            if (ratio >= 0.5 && dormantInCluster > 0)
+            {
+                stagnantClusters++;
+            }
+
+            clusterInfos.Add(new WorkspaceClusterDormancyInfo(
+                wsName,
+                dirPath,
+                totalInCluster,
+                dormantInCluster,
+                ratio,
+                samples));
+        }
+
+        string docLabel = list.Count == 1 ? "1 document" : $"{list.Count} documents";
+        string wsLabel = clusterInfos.Count == 1 ? "1 workspace" : $"{clusterInfos.Count} workspaces";
+        string summary = FormatWorkspaceClusterDormancySummary(list.Count, clusterInfos.Count, stagnantClusters, clusterInfos);
+
+        return new WorkspaceClusterDormancyAudit(
+            list.Count,
+            clusterInfos.Count,
+            stagnantClusters,
+            clusterInfos,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of workspace cluster dormancy and project stagnation.
+    /// </summary>
+    public static string FormatWorkspaceClusterDormancySummary(
+        int totalFiles, int totalClusters, int stagnantClusters, IReadOnlyList<WorkspaceClusterDormancyInfo>? clusters = null)
+    {
+        if (totalFiles <= 0) return "Workspace cluster dormancy audit: 0 workspaces, 0 documents (No recent files recorded)";
+        string docLabel = totalFiles == 1 ? "1 document" : $"{totalFiles} documents";
+        string wsLabel = totalClusters == 1 ? "1 workspace" : $"{totalClusters} workspaces";
+
+        if (stagnantClusters == 0)
+        {
+            return $"Workspace cluster dormancy audit ({docLabel} across {wsLabel}): 0 stagnant clusters (All active)";
+        }
+
+        string stagLabel = stagnantClusters == 1 ? "1 stagnant cluster" : $"{stagnantClusters} stagnant clusters";
+        string preview = "";
+        if (clusters != null && clusters.Count > 0)
+        {
+            var stagList = clusters.Where(c => c.DormancyRatio >= 0.5 && c.DormantFiles > 0).Take(2)
+                .Select(c => $"'{c.WorkspaceName}' ({c.DormantFiles}/{c.TotalFiles} dormant, {c.DormancyRatio * 100:0}%)");
+            preview = $" [{string.Join(", ", stagList)}]";
+        }
+
+        return $"Workspace cluster dormancy audit ({docLabel} across {wsLabel}): {stagLabel}{preview}";
+    }
 }
+
+/// <summary>
+/// Represents dormancy and file inventory metrics for a workspace directory cluster.
+/// </summary>
+public sealed record WorkspaceClusterDormancyInfo(
+    string WorkspaceName,
+    string DirectoryPath,
+    int TotalFiles,
+    int DormantFiles,
+    double DormancyRatio,
+    IReadOnlyList<string> SampleFiles);
+
+/// <summary>
+/// Represents the result of a workspace folder cluster dormancy audit.
+/// </summary>
+public sealed record WorkspaceClusterDormancyAudit(
+    int TotalFiles,
+    int TotalClusters,
+    int StagnantClusters,
+    IReadOnlyList<WorkspaceClusterDormancyInfo> Clusters,
+    string Summary);
 
 

@@ -7771,6 +7771,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(sentenceCadenceItem);
 
+        var conflictMarkersItem = new MenuFlyoutItem
+        {
+            Text = "Audit Git merge conflict markers & syntax ambiguities",
+            Icon = new FontIcon { Glyph = "\uE7BA" }
+        };
+        conflictMarkersItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatConflictMarkerSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(conflictMarkersItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9027,6 +9041,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(sentenceCadenceItem);
+
+        var conflictMarkersItem = new MenuFlyoutItem
+        {
+            Text = "Audit Git merge conflict markers & syntax ambiguities",
+            Icon = new FontIcon { Glyph = "\uE7BA" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        conflictMarkersItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatConflictMarkerSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(conflictMarkersItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

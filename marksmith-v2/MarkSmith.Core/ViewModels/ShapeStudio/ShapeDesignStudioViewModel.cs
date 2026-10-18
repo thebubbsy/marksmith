@@ -592,7 +592,12 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         StatusMessage = $"Selected all {Shapes.Count} shapes.";
     }
 
-    public void ClearSelection() => SelectedShape = null;
+    public void ClearSelection()
+    {
+        SelectedShape = null;
+        foreach (var s in Shapes) s.IsSelected = false;
+        RaiseSelectionChanged();
+    }
 
     /// <summary>Plain click on a shape: an unselected shape becomes the only selection; a shape
     /// already in a multi-selection becomes the primary WITHOUT dropping the others, so the whole
@@ -4307,7 +4312,128 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         CanvasChanged?.Invoke(this, EventArgs.Empty);
         return (orderedTargets.Count, true, summary);
     }
+
+    /// <summary>
+    /// Audits alignment of shape coordinates and dimensions against a design grid.
+    /// </summary>
+    public GridAlignmentAudit AuditGridAlignment(double gridSize = 8.0)
+    {
+        double g = gridSize <= 0 ? 8.0 : gridSize;
+        var targets = SelectionCount > 0 ? Selection.ToList() : Shapes.ToList();
+        if (targets.Count == 0)
+        {
+            return new GridAlignmentAudit(
+                0, 0, g, 0, 0, 100.0, 0.0,
+                $"Grid alignment audit ({g}px grid): 0 shapes (Empty canvas)");
+        }
+
+        int alignedCount = 0;
+        int misalignedCount = 0;
+        double maxOffset = 0.0;
+
+        foreach (var s in targets)
+        {
+            double offX = Math.Abs(s.X - Math.Round(s.X / g) * g);
+            double offY = Math.Abs(s.Y - Math.Round(s.Y / g) * g);
+            double offW = Math.Abs(s.Width - Math.Round(s.Width / g) * g);
+            double offH = Math.Abs(s.Height - Math.Round(s.Height / g) * g);
+
+            double shapeMax = Math.Max(Math.Max(offX, offY), Math.Max(offW, offH));
+            if (shapeMax > maxOffset) maxOffset = shapeMax;
+
+            if (shapeMax < 0.01)
+            {
+                alignedCount++;
+            }
+            else
+            {
+                misalignedCount++;
+            }
+        }
+
+        double pct = Math.Round((double)alignedCount / targets.Count * 100.0, 1);
+        string targetLabel = SelectionCount > 0 ? $"{SelectionCount} selected" : $"{targets.Count} shapes";
+        string summary = $"Grid alignment audit ({targetLabel} · {g}px grid): {alignedCount}/{targets.Count} aligned ({pct}%) · Max offset: {maxOffset:0.##}px";
+
+        StatusMessage = summary;
+        return new GridAlignmentAudit(
+            Shapes.Count,
+            SelectionCount,
+            g,
+            alignedCount,
+            misalignedCount,
+            pct,
+            Math.Round(maxOffset, 2),
+            summary);
+    }
+
+    /// <summary>
+    /// Quantizes (snaps) coordinates and dimensions of selected or all shapes to the nearest grid step.
+    /// </summary>
+    public (int TargetCount, int ModifiedCount, string Summary) QuantizeShapeCoordinates(double gridSize = 8.0)
+    {
+        double g = gridSize <= 0 ? 8.0 : gridSize;
+        var targets = SelectionCount > 0 ? Selection.ToList() : Shapes.ToList();
+        if (targets.Count == 0)
+        {
+            string emptySummary = $"Quantize to {g}px grid: 0 shapes on canvas";
+            StatusMessage = emptySummary;
+            return (0, 0, emptySummary);
+        }
+
+        int modified = 0;
+        var adjustments = new List<(ShapeCanvasItemViewModel Shape, double OldX, double OldY, double OldW, double OldH, double NewX, double NewY, double NewW, double NewH)>();
+
+        foreach (var s in targets)
+        {
+            double newX = Math.Max(0.0, Math.Round(s.X / g) * g);
+            double newY = Math.Max(0.0, Math.Round(s.Y / g) * g);
+            double newW = Math.Max(g, Math.Round(s.Width / g) * g);
+            double newH = Math.Max(g, Math.Round(s.Height / g) * g);
+
+            if (Math.Abs(s.X - newX) > 0.01 || Math.Abs(s.Y - newY) > 0.01 ||
+                Math.Abs(s.Width - newW) > 0.01 || Math.Abs(s.Height - newH) > 0.01)
+            {
+                adjustments.Add((s, s.X, s.Y, s.Width, s.Height, newX, newY, newW, newH));
+            }
+        }
+
+        if (adjustments.Count == 0)
+        {
+            string cleanSummary = $"✓ All {targets.Count} shapes already aligned to {g}px grid";
+            StatusMessage = cleanSummary;
+            return (targets.Count, 0, cleanSummary);
+        }
+
+        RecordUndo();
+        foreach (var adj in adjustments)
+        {
+            adj.Shape.X = adj.NewX;
+            adj.Shape.Y = adj.NewY;
+            adj.Shape.Width = adj.NewW;
+            adj.Shape.Height = adj.NewH;
+            modified++;
+        }
+
+        string summary = $"✓ Snapped {modified} shapes to {g}px grid (Bounds & sizes quantized) · Ctrl+Z to undo";
+        StatusMessage = summary;
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        return (targets.Count, modified, summary);
+    }
 }
+
+/// <summary>
+/// Represents the result of an audit of shape coordinates and dimensions against a design grid.
+/// </summary>
+public sealed record GridAlignmentAudit(
+    int TotalShapes,
+    int SelectedCount,
+    double GridSize,
+    int AlignedCount,
+    int MisalignedCount,
+    double AlignmentPercentage,
+    double MaxOffset,
+    string Summary);
 
 /// <summary>
 /// Represents the result of a z-order layering stack and drawing index audit.

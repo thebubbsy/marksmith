@@ -938,6 +938,56 @@ public class SmartArtStudioPolishTests
         Assert.Equal(28, auditMatrix.Level1Budget);
         Assert.Equal(20, auditMatrix.Level2Budget);
     }
+
+    [Fact]
+    public void Run152_RecommendIconsForOutline()
+    {
+        // 1. Empty outline
+        var empty = SmartArtDesignStudioViewModel.RecommendIconsForOutline("");
+        Assert.Equal(0, empty.TotalNodes);
+        Assert.Equal(0, empty.MatchedNodes);
+        Assert.Contains("0 nodes (Empty outline)", empty.Summary);
+
+        // 2. Outline with strong semantic matches
+        var outline = """
+            - Cloud Architecture Pipeline
+              - Database Schema Replication
+              - Security Authentication Token
+            - Real-time Analytics Reporting
+            - User Profile Settings
+            """;
+
+        var audit = SmartArtDesignStudioViewModel.RecommendIconsForOutline(outline);
+        Assert.Equal(5, audit.TotalNodes);
+        Assert.Equal(5, audit.MatchedNodes);
+        Assert.Equal(100.0, audit.CoveragePercentage);
+
+        // Check matched keywords and glyphs
+        Assert.Equal("Cloud", audit.Recommendations[0].IconName);
+        Assert.Equal("\uE753", audit.Recommendations[0].IconGlyph);
+
+        Assert.Equal("Database", audit.Recommendations[1].IconName);
+        Assert.Equal("\uE81E", audit.Recommendations[1].IconGlyph);
+
+        Assert.Equal("Lock", audit.Recommendations[2].IconName);
+        Assert.Equal("\uE72E", audit.Recommendations[2].IconGlyph);
+
+        Assert.Equal("Analytics", audit.Recommendations[3].IconName);
+        Assert.Equal("\uE9D9", audit.Recommendations[3].IconGlyph);
+
+        Assert.Equal("Contact", audit.Recommendations[4].IconName);
+        Assert.Equal("\uE77B", audit.Recommendations[4].IconGlyph);
+
+        Assert.Contains("5/5 matched (100%)", audit.Summary);
+
+        // 3. Outline with fallback default icons
+        var genericOutline = "- Item Alpha\n- Item Beta";
+        var genericAudit = SmartArtDesignStudioViewModel.RecommendIconsForOutline(genericOutline);
+        Assert.Equal(2, genericAudit.TotalNodes);
+        Assert.Equal(0, genericAudit.MatchedNodes);
+        Assert.Equal(0.0, genericAudit.CoveragePercentage);
+        Assert.Equal("Page", genericAudit.Recommendations[0].IconName);
+    }
 }
 
 

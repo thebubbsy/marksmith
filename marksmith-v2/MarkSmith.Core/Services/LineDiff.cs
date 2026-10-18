@@ -1926,6 +1926,188 @@ public static class LineDiff
         }
         return sb.ToString().TrimEnd();
     }
+
+    /// <summary>
+    /// Formats a complete Markdown changelog section ready for CHANGELOG.md, grouping changes into
+    /// Features, Bug Fixes, Documentation, Refactoring, and Breaking Changes.
+    /// </summary>
+    public static string FormatConventionalChangelogSection(string? oldText, string? newText, string? versionTag = null)
+    {
+        var diff = Diff(oldText ?? string.Empty, newText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return FormatConventionalChangelogSection(unified, newText, versionTag);
+    }
+
+    /// <summary>
+    /// Formats a complete Markdown changelog section ready for CHANGELOG.md from active unified diff rows and current markdown.
+    /// </summary>
+    public static string FormatConventionalChangelogSection(
+        IReadOnlyList<UnifiedRow>? unifiedRows, string? currentDoc, string? versionTag = null)
+    {
+        string tag = string.IsNullOrWhiteSpace(versionTag) ? "Unreleased" : versionTag.Trim();
+        string dateStr = DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## [{tag}] - {dateStr}");
+
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("### Documentation");
+            sb.AppendLine("- Maintenance update; no functional prose or section changes.");
+            return sb.ToString().TrimEnd();
+        }
+
+        var features = new List<string>();
+        var fixes = new List<string>();
+        var docs = new List<string>();
+        var refactors = new List<string>();
+        var breaking = new List<string>();
+
+        int added = unifiedRows.Count(r => !r.IsGap && r.Kind == Kind.Added);
+        int removed = unifiedRows.Count(r => !r.IsGap && r.Kind == Kind.Removed);
+
+        if (added == 0 && removed == 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("### Documentation");
+            sb.AppendLine("- Maintenance update; identical version contents.");
+            return sb.ToString().TrimEnd();
+        }
+
+        var addedHeadings = new List<string>();
+        var removedHeadings = new List<string>();
+        bool addedTable = false;
+        bool removedTable = false;
+        bool modifiedDiagram = false;
+
+        foreach (var row in unifiedRows)
+        {
+            if (row.IsGap) continue;
+            var text = (row.Text ?? string.Empty).Trim();
+
+            if (row.Kind == Kind.Added)
+            {
+                if (text.StartsWith("#"))
+                {
+                    var cleanTitle = text.TrimStart('#').Trim();
+                    if (!string.IsNullOrEmpty(cleanTitle)) addedHeadings.Add(cleanTitle);
+                }
+                else if (text.StartsWith("|") && text.EndsWith("|"))
+                {
+                    addedTable = true;
+                }
+                else if (text.StartsWith("```") || text.StartsWith(":::"))
+                {
+                    modifiedDiagram = true;
+                }
+            }
+            else if (row.Kind == Kind.Removed)
+            {
+                if (text.StartsWith("#"))
+                {
+                    var cleanTitle = text.TrimStart('#').Trim();
+                    if (!string.IsNullOrEmpty(cleanTitle)) removedHeadings.Add(cleanTitle);
+                }
+                else if (text.StartsWith("|") && text.EndsWith("|"))
+                {
+                    removedTable = true;
+                }
+                else if (text.StartsWith("```") || text.StartsWith(":::"))
+                {
+                    modifiedDiagram = true;
+                }
+            }
+        }
+
+        // Section additions
+        foreach (var h in addedHeadings)
+        {
+            string scope = SlugifyHeading(h);
+            features.Add($"- **{scope}**: add section '{h}'");
+        }
+
+        // Section removals
+        foreach (var h in removedHeadings)
+        {
+            string scope = SlugifyHeading(h);
+            refactors.Add($"- **{scope}**: remove section '{h}'");
+            breaking.Add($"- **{scope}**: removed section '{h}'");
+        }
+
+        // Tables
+        if (addedTable && !removedTable)
+        {
+            features.Add("- **tables**: add structured data tables");
+        }
+        else if (removedTable && !addedTable)
+        {
+            refactors.Add("- **tables**: remove structured data tables");
+            breaking.Add("- **tables**: removed structured data tables");
+        }
+        else if (addedTable && removedTable)
+        {
+            fixes.Add("- **tables**: update table data and cell structures");
+        }
+
+        // Diagrams
+        if (modifiedDiagram)
+        {
+            fixes.Add("- **diagrams**: update code fences and diagram blocks");
+        }
+
+        // Prose volume
+        if (added > 0 && removed == 0 && features.Count == 0)
+        {
+            docs.Add($"- **content**: expand document content (+{added} lines)");
+        }
+        else if (removed > 0 && added == 0 && refactors.Count == 0)
+        {
+            refactors.Add($"- **content**: prune redundant document prose (-{removed} lines)");
+        }
+        else if (docs.Count == 0 && features.Count == 0 && fixes.Count == 0 && refactors.Count == 0)
+        {
+            docs.Add($"- **content**: refine prose and section details (+{added}/-{removed} lines)");
+        }
+
+        // Render sections
+        if (breaking.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("### Breaking Changes");
+            foreach (var b in breaking) sb.AppendLine(b);
+        }
+
+        if (features.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("### Features");
+            foreach (var f in features) sb.AppendLine(f);
+        }
+
+        if (fixes.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("### Bug Fixes");
+            foreach (var fx in fixes) sb.AppendLine(fx);
+        }
+
+        if (refactors.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("### Refactoring");
+            foreach (var r in refactors) sb.AppendLine(r);
+        }
+
+        if (docs.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("### Documentation");
+            foreach (var d in docs) sb.AppendLine(d);
+        }
+
+        return sb.ToString().TrimEnd();
+    }
 }
 
 

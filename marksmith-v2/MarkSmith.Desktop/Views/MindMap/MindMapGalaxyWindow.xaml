@@ -273,6 +273,9 @@
                                     <MenuFlyoutItem x:Name="AuditOrphansItem" Text="Audit orphaned nodes &amp; cluster affinity" Click="OnAuditOrphansClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditClusterHullsItem" Text="Audit cluster convex hulls &amp; spatial extent" Click="OnAuditClusterHullsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

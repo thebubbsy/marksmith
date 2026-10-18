@@ -1124,6 +1124,45 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("refactor(tables):", tableDelete);
         Assert.Contains("BREAKING CHANGE: Removed structured data table", tableDelete);
     }
+
+    [Fact]
+    public void Run152_FormatConventionalChangelogSection()
+    {
+        // 1. Identical documents
+        var sameDoc = "# Introduction\nContent here";
+        var emptySection = LineDiff.FormatConventionalChangelogSection(sameDoc, sameDoc, "v1.2.0");
+        Assert.Contains("## [v1.2.0]", emptySection);
+        Assert.Contains("### Documentation", emptySection);
+        Assert.Contains("identical version contents", emptySection);
+
+        // 2. Feature addition with breaking change
+        var oldDoc = """
+            # Architecture
+            Original architecture details.
+            # Legacy Protocol
+            Old communication system.
+            """;
+
+        var newDoc = """
+            # Architecture
+            Original architecture details.
+            # Quantum Telemetry
+            High-speed telemetry engine.
+            | Metric | Value |
+            | --- | --- |
+            | Ping | 1ms |
+            """;
+
+        var changelog = LineDiff.FormatConventionalChangelogSection(oldDoc, newDoc, "v2.0.0");
+        Assert.Contains("## [v2.0.0]", changelog);
+        Assert.Contains("### Breaking Changes", changelog);
+        Assert.Contains("- **legacy-protocol**: removed section 'Legacy Protocol'", changelog);
+        Assert.Contains("### Features", changelog);
+        Assert.Contains("- **quantum-telemetry**: add section 'Quantum Telemetry'", changelog);
+        Assert.Contains("- **tables**: add structured data tables", changelog);
+        Assert.Contains("### Refactoring", changelog);
+        Assert.Contains("- **legacy-protocol**: remove section 'Legacy Protocol'", changelog);
+    }
 }
 
 

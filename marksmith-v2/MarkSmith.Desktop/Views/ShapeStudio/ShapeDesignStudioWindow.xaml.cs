@@ -6260,6 +6260,23 @@ namespace MarkSmith.Views.ShapeStudio
             _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
+
+        private void OnSelectionAuditGridSnapClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGridAlignment(8.0);
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
+        private void OnSelectionQuantizeGridClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (targets, modified, summary) = ViewModel.QuantizeShapeCoordinates(8.0);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
     }
 }
 

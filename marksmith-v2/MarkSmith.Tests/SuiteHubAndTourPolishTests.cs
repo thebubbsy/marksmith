@@ -1967,6 +1967,88 @@ public class SuiteHubAndTourPolishTests
         Assert.Equal(0, emptyAudit.TotalFiles);
         Assert.Contains("0 documents (No recent files recorded)", emptyAudit.Summary);
     }
+
+    [Fact]
+    public void Run152_Desktop_Wiring_And_WorkspaceClusterDormancy()
+    {
+        // 1. Verify desktop wiring across surfaces
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("conflictMarkersItem", mainCs);
+        Assert.Contains("FormatConflictMarkerSummary", mainCs);
+
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditClusterHullsItem", galaxyXaml);
+        Assert.Contains("OnAuditClusterHullsClick", galaxyXaml);
+        Assert.Contains("OnAuditClusterHullsClick", galaxyCs);
+
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditGridSnapItem", shapeXaml);
+        Assert.Contains("SelectionQuantizeGridItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditGridSnapClick", shapeXaml);
+        Assert.Contains("OnSelectionQuantizeGridClick", shapeXaml);
+        Assert.Contains("OnSelectionAuditGridSnapClick", shapeCs);
+        Assert.Contains("OnSelectionQuantizeGridClick", shapeCs);
+
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("RecommendIconsOutlineItem", smartArtXaml);
+        Assert.Contains("OnRecommendIconsOutlineClick", smartArtXaml);
+        Assert.Contains("OnRecommendIconsOutlineClick", smartArtCs);
+
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("formatChangelogSection", historyCs);
+        Assert.Contains("FormatConventionalChangelogSection", historyCs);
+
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyRecentClusterDormancyItem", suiteXaml);
+        Assert.Contains("OnCopyRecentClusterDormancyClick", suiteXaml);
+        Assert.Contains("OnCopyRecentClusterDormancyClick", suiteCs);
+
+        // 2. Workspace cluster dormancy audit logic
+        var refTime = new DateTime(2026, 10, 18, 12, 0, 0);
+        var files = new[]
+        {
+            @"C:\Projects\Alpha\docs\overview.md",
+            @"C:\Projects\Alpha\docs\specs.md",
+            @"C:\Projects\Beta\notes\todo.md",
+            @"C:\Projects\Beta\notes\ancient.md"
+        };
+
+        DateTime? MockAccessTime(string path) => path switch
+        {
+            @"C:\Projects\Alpha\docs\overview.md" => refTime.AddDays(-2),   // active
+            @"C:\Projects\Alpha\docs\specs.md" => refTime.AddDays(-10),    // active
+            @"C:\Projects\Beta\notes\todo.md" => refTime.AddDays(-75),     // dormant (>60d)
+            @"C:\Projects\Beta\notes\ancient.md" => refTime.AddDays(-120),  // dormant (>60d)
+            _ => null
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceClusterDormancy(files, MockAccessTime, refTime, dormancyDaysThreshold: 60);
+        Assert.Equal(4, audit.TotalFiles);
+        Assert.Equal(2, audit.TotalClusters);
+        Assert.Equal(1, audit.StagnantClusters); // Beta is 100% dormant (2/2)
+
+        var betaCluster = audit.Clusters.First(c => c.WorkspaceName.Contains("Beta"));
+        Assert.Equal(2, betaCluster.TotalFiles);
+        Assert.Equal(2, betaCluster.DormantFiles);
+        Assert.Equal(1.0, betaCluster.DormancyRatio);
+
+        var alphaCluster = audit.Clusters.First(c => c.WorkspaceName.Contains("Alpha"));
+        Assert.Equal(2, alphaCluster.TotalFiles);
+        Assert.Equal(0, alphaCluster.DormantFiles);
+        Assert.Equal(0.0, alphaCluster.DormancyRatio);
+
+        Assert.Contains("1 stagnant cluster", audit.Summary);
+        Assert.Contains("Beta", audit.Summary);
+
+        // Empty file collection
+        var emptyAudit = RecentFilesService.AuditWorkspaceClusterDormancy(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFiles);
+        Assert.Contains("0 workspaces, 0 documents", emptyAudit.Summary);
+    }
 }
 
 

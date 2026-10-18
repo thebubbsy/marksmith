@@ -655,6 +655,12 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditLayerStackItem" Text="Audit z-order layering stack indices" Click="OnSelectionAuditLayerStackClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E5;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditGridSnapItem" Text="Audit 8px design grid alignment" Click="OnSelectionAuditGridSnapClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionQuantizeGridItem" Text="Snap shapes to 8px design grid" Click="OnSelectionQuantizeGridClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

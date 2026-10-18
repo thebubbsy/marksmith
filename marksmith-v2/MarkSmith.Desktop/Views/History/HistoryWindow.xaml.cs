@@ -3211,6 +3211,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied scoped commit: {message.Split('\n')[0]}");
                 };
                 menu.Items.Add(synthesizeCommitScope);
+
+                var formatChangelogSection = new MenuFlyoutItem
+                {
+                    Text = "Format conventional CHANGELOG.md section",
+                    Icon = new FontIcon { Glyph = "\uE8A1" }
+                };
+                formatChangelogSection.Click += (_, _) =>
+                {
+                    var section = MarkSmith.Services.LineDiff.FormatConventionalChangelogSection(_vm.UnifiedDiffRows, _main?.PastedMarkdown);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(section);
+                    _vm.ShowNotice($"Copied changelog section: {section.Split('\n')[0]}");
+                };
+                menu.Items.Add(formatChangelogSection);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

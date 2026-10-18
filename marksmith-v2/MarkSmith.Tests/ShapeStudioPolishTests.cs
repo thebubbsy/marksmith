@@ -1091,6 +1091,60 @@ public class ShapeStudioPolishTests
         Assert.True(vm.CanUndo);
         vm.UndoCommand.Execute(null);
     }
+
+    [Fact]
+    public void Run152_AuditGridAlignment_And_QuantizeShapeCoordinates()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // 1. Empty canvas
+        var empty = vm.AuditGridAlignment(8.0);
+        Assert.Equal(0, empty.TotalShapes);
+        Assert.Contains("0 shapes (Empty canvas)", empty.Summary);
+
+        // 2. Add shapes: one aligned (X:16, Y:24, W:80, H:40), one misaligned (X:13, Y:25, W:77, H:43)
+        vm.AddShapeAt("rect", 16, 24, 80, 40, "0078D4", "Aligned");
+        vm.AddShapeAt("circle", 13, 25, 77, 43, "107C41", "Misaligned");
+        vm.ClearSelection();
+
+        var audit = vm.AuditGridAlignment(8.0);
+        Assert.Equal(2, audit.TotalShapes);
+        Assert.Equal(1, audit.AlignedCount);
+        Assert.Equal(1, audit.MisalignedCount);
+        Assert.Equal(50.0, audit.AlignmentPercentage);
+        Assert.True(audit.MaxOffset > 0);
+        Assert.Contains("1/2 aligned (50%)", audit.Summary);
+
+        // 3. Quantize misaligned shape
+        vm.Shapes[1].IsSelected = true;
+        vm.Shapes[0].IsSelected = false;
+
+        var (targets, modified, summary) = vm.QuantizeShapeCoordinates(8.0);
+        Assert.Equal(1, targets);
+        Assert.Equal(1, modified);
+        Assert.Contains("Snapped 1 shapes to 8px grid", summary);
+
+        // Check snapped values for shape 1
+        Assert.Equal(16.0, vm.Shapes[1].X);
+        Assert.Equal(24.0, vm.Shapes[1].Y);
+        Assert.Equal(80.0, vm.Shapes[1].Width);
+        Assert.Equal(40.0, vm.Shapes[1].Height);
+
+        // 4. Re-audit -> 100% aligned
+        vm.ClearSelection();
+        var postAudit = vm.AuditGridAlignment(8.0);
+        Assert.Equal(2, postAudit.AlignedCount);
+        Assert.Equal(0, postAudit.MisalignedCount);
+        Assert.Equal(100.0, postAudit.AlignmentPercentage);
+        Assert.Equal(0.0, postAudit.MaxOffset);
+
+        // 5. Test undo reverts shape 1 back to 13, 25
+        Assert.True(vm.CanUndo);
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(13.0, vm.Shapes[1].X);
+        Assert.Equal(25.0, vm.Shapes[1].Y);
+    }
 }
 
 

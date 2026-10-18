@@ -1806,6 +1806,56 @@ namespace MarkSmith.Tests
             Assert.Equal(0, cleanAudit.OrphanCount);
             Assert.Contains("0 orphans", cleanAudit.Summary);
         }
+
+        [Fact]
+        public void Run152_AuditClusterConvexHulls()
+        {
+            // 1. Empty map
+            var empty = MindMapStudioViewModel.AuditClusterConvexHulls(new List<MindMapNodeViewModel>());
+            Assert.Equal(0, empty.TotalClusters);
+            Assert.Equal(0, empty.TotalNodes);
+            Assert.Contains("0 clusters, 0 nodes (Empty map)", empty.Summary);
+
+            // 2. Tagged map with multiple clusters
+            var doc = new MindMapDocument
+            {
+                Nodes = new List<MindMapNode>
+                {
+                    // Cluster "Architecture" (triangle: 0,0; 100,0; 50,100) -> Area 5000
+                    new MindMapNode { Id = "a1", Title = "Arch 1", X = 0, Y = 0, Tags = new List<string> { "Architecture" } },
+                    new MindMapNode { Id = "a2", Title = "Arch 2", X = 100, Y = 0, Tags = new List<string> { "Architecture" } },
+                    new MindMapNode { Id = "a3", Title = "Arch 3", X = 50, Y = 100, Tags = new List<string> { "Architecture" } },
+
+                    // Cluster "Backend" (2 nodes: segment)
+                    new MindMapNode { Id = "b1", Title = "Back 1", X = 200, Y = 200, Tags = new List<string> { "Backend" } },
+                    new MindMapNode { Id = "b2", Title = "Back 2", X = 300, Y = 200, Tags = new List<string> { "Backend" } }
+                }
+            };
+
+            var vm = new MindMapStudioViewModel();
+            vm.LoadDocument(doc);
+
+            var audit = vm.AuditClusterConvexHulls();
+            Assert.Equal(2, audit.TotalClusters);
+            Assert.Equal(5, audit.TotalNodes);
+            Assert.Equal("Architecture", audit.LargestClusterTag);
+            Assert.Equal(5000.0, audit.MaxClusterArea);
+
+            var arch = audit.Clusters.First(c => c.Tag == "Architecture");
+            Assert.Equal(3, arch.NodeCount);
+            Assert.Equal(5000.0, arch.HullArea);
+            Assert.True(arch.HullPerimeter > 200.0);
+            Assert.Equal(100.0, arch.BoundingWidth);
+            Assert.Equal(100.0, arch.BoundingHeight);
+            Assert.True(arch.Density > 0);
+
+            var back = audit.Clusters.First(c => c.Tag == "Backend");
+            Assert.Equal(2, back.NodeCount);
+            Assert.Equal(0.0, back.HullArea);
+            Assert.Equal(200.0, back.HullPerimeter);
+
+            Assert.Contains("Largest 'Architecture'", audit.Summary);
+        }
     }
 }
 

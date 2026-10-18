@@ -3620,7 +3620,206 @@ namespace MarkSmith.ViewModels.MindMap
             StatusMessage = summary;
             return (connectedCount, avgDist, summary);
         }
+
+        /// <summary>
+        /// Audits 2D spatial convex hulls and bounding envelope metrics across tag clusters or all nodes in the galaxy.
+        /// </summary>
+        public ClusterConvexHullAudit AuditClusterConvexHulls()
+        {
+            var audit = AuditClusterConvexHulls(Nodes);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        /// <summary>
+        /// Computes 2D spatial convex hulls, perimeters, enclosed areas, centroids, and node densities across tag clusters.
+        /// </summary>
+        public static ClusterConvexHullAudit AuditClusterConvexHulls(IEnumerable<MindMapNodeViewModel>? nodes)
+        {
+            var list = nodes?.ToList() ?? new List<MindMapNodeViewModel>();
+            if (list.Count == 0)
+            {
+                return new ClusterConvexHullAudit(
+                    0, 0, "None", 0.0, Array.Empty<TagClusterHullInfo>(),
+                    "Cluster convex hull audit: 0 clusters, 0 nodes (Empty map)");
+            }
+
+            // Group by primary tag (or "Untagged")
+            var groups = list
+                .GroupBy(n => n.Tags.Count > 0 && !string.IsNullOrWhiteSpace(n.Tags[0]) ? n.Tags[0].Trim().TrimStart('#') : "Untagged")
+                .OrderByDescending(g => g.Count())
+                .ThenBy(g => g.Key)
+                .ToList();
+
+            var clusterInfos = new List<TagClusterHullInfo>();
+
+            foreach (var grp in groups)
+            {
+                var pts = grp.Select(n => (n.X, n.Y)).Distinct().ToList();
+                double minX = grp.Min(n => n.X);
+                double maxX = grp.Max(n => n.X);
+                double minY = grp.Min(n => n.Y);
+                double maxY = grp.Max(n => n.Y);
+                double bboxW = Math.Round(maxX - minX, 1);
+                double bboxH = Math.Round(maxY - minY, 1);
+
+                double hullArea = 0.0;
+                double hullPerimeter = 0.0;
+                double centroidX = Math.Round(grp.Average(n => n.X), 1);
+                double centroidY = Math.Round(grp.Average(n => n.Y), 1);
+
+                if (pts.Count == 1)
+                {
+                    hullArea = 0.0;
+                    hullPerimeter = 0.0;
+                }
+                else if (pts.Count == 2)
+                {
+                    double d = Math.Sqrt(Math.Pow(pts[1].X - pts[0].X, 2) + Math.Pow(pts[1].Y - pts[0].Y, 2));
+                    hullPerimeter = Math.Round(2.0 * d, 1);
+                    hullArea = 0.0;
+                }
+                else
+                {
+                    var hull = ComputeConvexHull2D(pts);
+                    hullPerimeter = Math.Round(ComputePolygonPerimeter(hull), 1);
+                    hullArea = Math.Round(ComputePolygonArea(hull), 1);
+
+                    if (hullArea > 0.0)
+                    {
+                        var (cx, cy) = ComputePolygonCentroid(hull, hullArea);
+                        centroidX = Math.Round(cx, 1);
+                        centroidY = Math.Round(cy, 1);
+                    }
+                }
+
+                double density = hullArea > 0.0 ? Math.Round((grp.Count() / hullArea) * 1000.0, 2) : 0.0;
+
+                clusterInfos.Add(new TagClusterHullInfo(
+                    grp.Key,
+                    grp.Count(),
+                    hullArea,
+                    hullPerimeter,
+                    centroidX,
+                    centroidY,
+                    bboxW,
+                    bboxH,
+                    density));
+            }
+
+            var largest = clusterInfos.OrderByDescending(c => c.HullArea).First();
+            string clusterLabel = clusterInfos.Count == 1 ? "1 cluster" : $"{clusterInfos.Count} clusters";
+            string nodeLabel = list.Count == 1 ? "1 node" : $"{list.Count} nodes";
+
+            string summary = $"Cluster convex hull audit ({clusterLabel}, {nodeLabel}): Largest '{largest.Tag}' ({largest.HullArea:N0}px², {largest.Density:0.##} nodes/kpx² at centroid {largest.CentroidX:0.#},{largest.CentroidY:0.#})";
+
+            return new ClusterConvexHullAudit(
+                clusterInfos.Count,
+                list.Count,
+                largest.Tag,
+                largest.HullArea,
+                clusterInfos,
+                summary);
+        }
+
+        private static List<(double X, double Y)> ComputeConvexHull2D(List<(double X, double Y)> points)
+        {
+            var sorted = points.OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
+            var lower = new List<(double X, double Y)>();
+            foreach (var p in sorted)
+            {
+                while (lower.Count >= 2 && CrossProduct(lower[^2], lower[^1], p) <= 0)
+                    lower.RemoveAt(lower.Count - 1);
+                lower.Add(p);
+            }
+
+            var upper = new List<(double X, double Y)>();
+            for (int i = sorted.Count - 1; i >= 0; i--)
+            {
+                var p = sorted[i];
+                while (upper.Count >= 2 && CrossProduct(upper[^2], upper[^1], p) <= 0)
+                    upper.RemoveAt(upper.Count - 1);
+                upper.Add(p);
+            }
+
+            lower.RemoveAt(lower.Count - 1);
+            upper.RemoveAt(upper.Count - 1);
+            lower.AddRange(upper);
+            return lower;
+        }
+
+        private static double CrossProduct((double X, double Y) a, (double X, double Y) b, (double X, double Y) c)
+        {
+            return (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+        }
+
+        private static double ComputePolygonPerimeter(List<(double X, double Y)> hull)
+        {
+            if (hull.Count < 2) return 0.0;
+            double sum = 0.0;
+            for (int i = 0; i < hull.Count; i++)
+            {
+                var p1 = hull[i];
+                var p2 = hull[(i + 1) % hull.Count];
+                sum += Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));
+            }
+            return sum;
+        }
+
+        private static double ComputePolygonArea(List<(double X, double Y)> hull)
+        {
+            if (hull.Count < 3) return 0.0;
+            double area = 0.0;
+            for (int i = 0; i < hull.Count; i++)
+            {
+                var p1 = hull[i];
+                var p2 = hull[(i + 1) % hull.Count];
+                area += (p1.X * p2.Y) - (p2.X * p1.Y);
+            }
+            return Math.Abs(area) * 0.5;
+        }
+
+        private static (double X, double Y) ComputePolygonCentroid(List<(double X, double Y)> hull, double area)
+        {
+            double cx = 0.0;
+            double cy = 0.0;
+            for (int i = 0; i < hull.Count; i++)
+            {
+                var p1 = hull[i];
+                var p2 = hull[(i + 1) % hull.Count];
+                double factor = (p1.X * p2.Y) - (p2.X * p1.Y);
+                cx += (p1.X + p2.X) * factor;
+                cy += (p1.Y + p2.Y) * factor;
+            }
+            double denom = 6.0 * area;
+            return (Math.Abs(denom) > 1e-6 ? cx / denom : 0.0, Math.Abs(denom) > 1e-6 ? cy / denom : 0.0);
+        }
     }
+
+    /// <summary>
+    /// Represents 2D spatial convex hull and bounding envelope metrics for a tag cluster.
+    /// </summary>
+    public sealed record TagClusterHullInfo(
+        string Tag,
+        int NodeCount,
+        double HullArea,
+        double HullPerimeter,
+        double CentroidX,
+        double CentroidY,
+        double BoundingWidth,
+        double BoundingHeight,
+        double Density);
+
+    /// <summary>
+    /// Represents the result of a spatial convex hull analysis across clusters in the mind map.
+    /// </summary>
+    public sealed record ClusterConvexHullAudit(
+        int TotalClusters,
+        int TotalNodes,
+        string LargestClusterTag,
+        double MaxClusterArea,
+        IReadOnlyList<TagClusterHullInfo> Clusters,
+        string Summary);
 
     /// <summary>
     /// Represents the result of an orphaned node and cluster proximity audit in the mind map.
