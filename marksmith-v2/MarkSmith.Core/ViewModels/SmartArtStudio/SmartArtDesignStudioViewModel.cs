@@ -4947,6 +4947,158 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Hierarchy span of control audit ({nodeLabel} · {mgrLabel}, {icLabel} · Depth {maxDepth} · {category}): Span: ~{meanSpan:0.#} reports/mgr (Std dev {stdDev:0.#}) · Ratio: {ratio:0.##} mgr/IC · {balanceScore:0.#}% balance{issues}";
     }
+
+    /// <summary>
+    /// Audits SmartArt layout typography scaling, label font-fit, multi-line text wrapping,
+    /// and text clipping hazards across diagram node boundaries.
+    /// </summary>
+    public SmartArtTypographyFontFitAudit AuditLayoutTypographyAndFontFit(
+        string? markdown = null, double canvasWidth = 800.0, double canvasHeight = 500.0)
+    {
+        string text = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            string emptySummary = "Typography font-fit audit: 0 nodes · Outline is empty";
+            StatusMessage = emptySummary;
+            return new SmartArtTypographyFontFitAudit(
+                0, canvasWidth, canvasHeight, 0.0, 0.0, 0.0, 0, 100.0,
+                Array.Empty<SmartArtNodeTypographyInfo>(), "Empty Outline", emptySummary);
+        }
+
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var parsedNodes = new List<string>();
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("<!--") || trimmed.StartsWith("```") || trimmed.StartsWith(":::")) continue;
+
+            string clean = System.Text.RegularExpressions.Regex.Replace(trimmed, @"^([-*+]|\d+\.)\s*", "").Trim();
+            if (string.IsNullOrWhiteSpace(clean)) continue;
+
+            parsedNodes.Add(clean);
+        }
+
+        if (parsedNodes.Count == 0)
+        {
+            string emptySummary = "Typography font-fit audit: 0 nodes · Outline contains no items";
+            StatusMessage = emptySummary;
+            return new SmartArtTypographyFontFitAudit(
+                0, canvasWidth, canvasHeight, 0.0, 0.0, 0.0, 0, 100.0,
+                Array.Empty<SmartArtNodeTypographyInfo>(), "Empty Outline", emptySummary);
+        }
+
+        int nodeCount = parsedNodes.Count;
+        double estimatedNodeWidth = Math.Max(120.0, (canvasWidth - 80.0) / Math.Max(1, Math.Min(nodeCount, 5)));
+        double estimatedNodeHeight = Math.Max(60.0, (canvasHeight - 60.0) / Math.Max(1, (nodeCount + 4) / 5));
+
+        var nodeInfos = new List<SmartArtNodeTypographyInfo>();
+        int clippingRiskCount = 0;
+        double sumFontSize = 0.0;
+        double minFont = double.MaxValue;
+        double maxFont = double.MinValue;
+
+        for (int i = 0; i < parsedNodes.Count; i++)
+        {
+            string title = parsedNodes[i];
+            int charCount = title.Length;
+            var words = title.Split(new[] { ' ', '\t', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            int wordCount = words.Length;
+
+            double availW = Math.Max(60.0, estimatedNodeWidth - 24.0);
+            double availH = Math.Max(40.0, estimatedNodeHeight - 20.0);
+
+            double optimalFontSize = 14.0;
+            bool clippingRisk = false;
+            bool requiresHyphenation = words.Any(w => w.Length > 16);
+
+            for (double fs = 18.0; fs >= 8.0; fs -= 0.5)
+            {
+                double charW = fs * 0.55;
+                double lineH = fs * 1.35;
+                int maxCharsPerLine = Math.Max(4, (int)(availW / charW));
+                int estLines = Math.Max(1, (int)Math.Ceiling((double)charCount / maxCharsPerLine));
+                double reqHeight = estLines * lineH;
+
+                if (reqHeight <= availH && !words.Any(w => w.Length * charW > availW))
+                {
+                    optimalFontSize = fs;
+                    break;
+                }
+                optimalFontSize = fs;
+            }
+
+            if (optimalFontSize <= 8.5 || charCount > 80 || requiresHyphenation)
+            {
+                clippingRisk = true;
+                clippingRiskCount++;
+            }
+
+            int approxLines = Math.Max(1, (int)Math.Ceiling((double)charCount / Math.Max(5, (int)(availW / (optimalFontSize * 0.55)))));
+
+            if (optimalFontSize < minFont) minFont = optimalFontSize;
+            if (optimalFontSize > maxFont) maxFont = optimalFontSize;
+            sumFontSize += optimalFontSize;
+
+            nodeInfos.Add(new SmartArtNodeTypographyInfo(
+                i + 1, title, charCount, wordCount, approxLines, Math.Round(optimalFontSize, 1), clippingRisk, requiresHyphenation));
+        }
+
+        double meanFont = Math.Round(sumFontSize / nodeCount, 1);
+        if (minFont == double.MaxValue) minFont = 14.0;
+        if (maxFont == double.MinValue) maxFont = 14.0;
+
+        double legibilityScore = Math.Round(Math.Clamp(100.0 - (clippingRiskCount * 18.0) - (Math.Max(0.0, 12.0 - meanFont) * 5.0), 0.0, 100.0), 1);
+
+        string category;
+        if (clippingRiskCount == 0 && meanFont >= 13.0)
+        {
+            category = "Optimal Typographic Legibility";
+        }
+        else if (clippingRiskCount == 0)
+        {
+            category = "Readable (Compact Typography)";
+        }
+        else if (clippingRiskCount <= 2)
+        {
+            category = "Minor Text Overflow Risks";
+        }
+        else
+        {
+            category = "Severe Text Clipping & Compression Hazards";
+        }
+
+        string summary = FormatTypographyFontFitSummary(
+            nodeCount, minFont, maxFont, meanFont, clippingRiskCount, legibilityScore, category);
+
+        StatusMessage = summary;
+
+        return new SmartArtTypographyFontFitAudit(
+            nodeCount, canvasWidth, canvasHeight, minFont, maxFont, meanFont,
+            clippingRiskCount, legibilityScore, nodeInfos, category, summary);
+    }
+
+    public static SmartArtTypographyFontFitAudit AuditLayoutTypographyAndFontFit(string? markdown, bool isStatic)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditLayoutTypographyAndFontFit(markdown);
+    }
+
+    public static string FormatTypographyFontFitSummary(
+        int totalNodes, double minFont, double maxFont, double meanFont, int clippingCount,
+        double legibilityScore, string category)
+    {
+        if (totalNodes == 0) return "Typography font-fit audit: 0 nodes · Outline is empty";
+
+        string nodeDesc = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+        string fontDesc = Math.Abs(minFont - maxFont) < 0.1
+            ? $"{meanFont:0.#}pt"
+            : $"{minFont:0.#}–{maxFont:0.#}pt (~{meanFont:0.#}pt avg)";
+        string clipDesc = clippingCount > 0 ? $" · ⚠ {clippingCount} clipping risk{(clippingCount == 1 ? "" : "s")}" : " · 0 clipping risks";
+
+        return $"Typography font-fit audit ({nodeDesc} [{fontDesc}] · {category} · {legibilityScore:0.#}% legibility){clipDesc}";
+    }
 }
 
 /// <summary>
@@ -5237,5 +5389,35 @@ public sealed record HierarchySpanOfControlAudit(
     double HierarchyBalanceScore,
     IReadOnlyList<HierarchyNodeSpanInfo> NodeSpans,
     string HierarchyCategory,
+    string Summary);
+
+/// <summary>
+/// Represents typography scaling, font size fit, and text wrapping metrics for an individual SmartArt node.
+/// </summary>
+public sealed record SmartArtNodeTypographyInfo(
+    int NodeIndex,
+    string Title,
+    int CharacterCount,
+    int WordCount,
+    int LineCount,
+    double EstimatedOptimalFontSizePt,
+    bool HasClippingRisk,
+    bool RequiresHyphenation);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt layout typography scaling, label font-fit,
+/// and text clipping hazards across diagram node boundaries.
+/// </summary>
+public sealed record SmartArtTypographyFontFitAudit(
+    int TotalNodes,
+    double TargetCanvasWidth,
+    double TargetCanvasHeight,
+    double MinFontSizePt,
+    double MaxFontSizePt,
+    double MeanFontSizePt,
+    int ClippingRiskCount,
+    double TypographicLegibilityScore,
+    IReadOnlyList<SmartArtNodeTypographyInfo> Nodes,
+    string LegibilityCategory,
     string Summary);
 

@@ -4056,6 +4056,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditBetweennessCentralityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditBetweennessCentralityAndBridges();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5007,6 +5015,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditClosenessItem.Click += OnAuditClosenessCentralityClick;
             menu.Items.Add(auditClosenessItem);
+
+            var auditBetweennessItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph betweenness centrality, bottlenecks & bridge concepts",
+                Icon = new FontIcon { Glyph = "\uE817" }
+            };
+            auditBetweennessItem.Click += OnAuditBetweennessCentralityClick;
+            menu.Items.Add(auditBetweennessItem);
 
             var fitItem = new MenuFlyoutItem
 

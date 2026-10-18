@@ -7953,6 +7953,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(mathFormulaComplexityItem);
 
+        var tableAlignmentSpacingItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown table column alignment & pipe spacing audit",
+            Icon = new FontIcon { Glyph = "\uF14B" }
+        };
+        tableAlignmentSpacingItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatTableAlignmentAndColumnSpacingSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(tableAlignmentSpacingItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9404,6 +9418,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(mathFormulaComplexityItem);
+
+        var tableAlignmentSpacingItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown table column alignment & pipe spacing audit",
+            Icon = new FontIcon { Glyph = "\uF14B" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        tableAlignmentSpacingItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatTableAlignmentAndColumnSpacingSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(tableAlignmentSpacingItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

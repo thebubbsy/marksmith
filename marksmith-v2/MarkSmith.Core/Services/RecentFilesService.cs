@@ -3377,6 +3377,180 @@ public sealed class RecentFilesService
 
         return $"High-DPI & SVG asset advisor ({assetLabel} [{breakdown}] · {category}): {readinessScore:0.#}% High-DPI ready ({highDpiReadyCount} ready){issues}";
     }
+
+    /// <summary>
+    /// Audits workspace documents and web assets for custom font families, embedded web fonts,
+    /// generic CSS fallback coverage (sans-serif, serif, monospace), and self-containment resilience.
+    /// </summary>
+    public static WorkspaceTypographyAudit AuditWorkspaceTypographyAndFontEmbedding(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var fileList = files?.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                       ?? new List<string>();
+
+        fileExistsProvider ??= File.Exists;
+        contentReader ??= File.ReadAllText;
+
+        if (fileList.Count == 0)
+        {
+            string emptySummary = "Workspace typography advisor: 0 font declarations · Workspace contains no documents";
+            return new WorkspaceTypographyAudit(0, 0, 0, 0, 0, 0, 100.0, Array.Empty<WorkspaceFontItem>(), Array.Empty<string>(), "Empty Workspace", emptySummary);
+        }
+
+        var fontItems = new List<WorkspaceFontItem>();
+        var discoveredFamilies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var fontFaceRegex = new System.Text.RegularExpressions.Regex(@"@font-face\s*\{[^}]*font-family:\s*['""]?([^'"";}\n]+)['""]?", System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var cssFontFamilyRegex = new System.Text.RegularExpressions.Regex(@"font-family:\s*([^;}\n]+)", System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var googleFontsRegex = new System.Text.RegularExpressions.Regex(@"https?://fonts\.googleapis\.com/css2?\?family=([^&""'\s>]+)", System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var frontmatterFontRegex = new System.Text.RegularExpressions.Regex(@"^\s*font(?:-family)?:\s*['""]?([^'"";\n]+)['""]?", System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        int scannedCount = 0;
+
+        foreach (var file in fileList)
+        {
+            if (!fileExistsProvider(file)) continue;
+            string ext = "";
+            try { ext = Path.GetExtension(file).ToLowerInvariant(); } catch { }
+            if (ext != ".md" && ext != ".markdown" && ext != ".html" && ext != ".htm" && ext != ".css" && ext != ".svg")
+                continue;
+
+            string content;
+            try { content = contentReader(file); }
+            catch { continue; }
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            scannedCount++;
+            string fileName = "";
+            try { fileName = Path.GetFileName(file); } catch { }
+
+            foreach (System.Text.RegularExpressions.Match m in googleFontsRegex.Matches(content))
+            {
+                if (m.Groups.Count > 1)
+                {
+                    string rawFam = Uri.UnescapeDataString(m.Groups[1].Value.Split(':')[0].Replace('+', ' ')).Trim();
+                    discoveredFamilies.Add(rawFam);
+                    fontItems.Add(new WorkspaceFontItem(
+                        fileName, rawFam, "Remote Google Fonts Link", true, "sans-serif", true, false));
+                }
+            }
+
+            foreach (System.Text.RegularExpressions.Match m in fontFaceRegex.Matches(content))
+            {
+                if (m.Groups.Count > 1)
+                {
+                    string fam = m.Groups[1].Value.Trim();
+                    discoveredFamilies.Add(fam);
+                    bool hasRemoteUrl = m.Value.Contains("http://", StringComparison.OrdinalIgnoreCase) || m.Value.Contains("https://", StringComparison.OrdinalIgnoreCase);
+                    fontItems.Add(new WorkspaceFontItem(
+                        fileName, fam, "@font-face Rule", true, "sans-serif", hasRemoteUrl, !hasRemoteUrl));
+                }
+            }
+
+            foreach (System.Text.RegularExpressions.Match m in cssFontFamilyRegex.Matches(content))
+            {
+                if (m.Groups.Count > 1)
+                {
+                    string rawStack = m.Groups[1].Value.Trim();
+                    var parts = rawStack.Split(',').Select(p => p.Trim().Trim('\'', '"')).Where(p => !string.IsNullOrEmpty(p)).ToList();
+                    if (parts.Count > 0)
+                    {
+                        string leadFont = parts[0];
+                        discoveredFamilies.Add(leadFont);
+
+                        string lastPart = parts[^1].ToLowerInvariant();
+                        bool hasFallback = lastPart == "sans-serif" || lastPart == "serif" || lastPart == "monospace" ||
+                                            lastPart == "system-ui" || lastPart == "cursive" || lastPart == "fantasy";
+                        string cat = hasFallback ? lastPart : "none";
+
+                        fontItems.Add(new WorkspaceFontItem(
+                            fileName, leadFont, "CSS font-family Stack", hasFallback, cat, false, true));
+                    }
+                }
+            }
+
+            foreach (System.Text.RegularExpressions.Match m in frontmatterFontRegex.Matches(content))
+            {
+                if (m.Groups.Count > 1)
+                {
+                    string fam = m.Groups[1].Value.Trim();
+                    discoveredFamilies.Add(fam);
+                    fontItems.Add(new WorkspaceFontItem(
+                        fileName, fam, "Frontmatter Metadata", false, "none", false, true));
+                }
+            }
+        }
+
+        if (fontItems.Count == 0)
+        {
+            string cleanSummary = $"Workspace typography advisor: 0 custom font declarations across {scannedCount} docs · Standard system typography (100% self-contained)";
+            return new WorkspaceTypographyAudit(
+                scannedCount, 0, 0, 0, 0, 0, 100.0, Array.Empty<WorkspaceFontItem>(), Array.Empty<string>(), "Clean System Typography", cleanSummary);
+        }
+
+        int totalDeclarations = fontItems.Count;
+        int distinctFamilies = discoveredFamilies.Count;
+        int selfContainedCount = fontItems.Count(f => f.IsSelfContained);
+        int missingFallbackCount = fontItems.Count(f => !f.HasGenericFallback);
+        int remoteFontCount = fontItems.Count(f => f.IsRemoteAsset);
+
+        double score = 100.0 - (missingFallbackCount * 12.0) - (remoteFontCount * 15.0);
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string healthCategory;
+        if (remoteFontCount == 0 && missingFallbackCount == 0)
+        {
+            healthCategory = "Self-Contained Offline Typography (100% Robust)";
+        }
+        else if (remoteFontCount == 0)
+        {
+            healthCategory = "Missing Generic Fallbacks (Layout Shift Risk)";
+        }
+        else if (missingFallbackCount == 0)
+        {
+            healthCategory = "Remote Web Fonts Protected by Fallbacks";
+        }
+        else
+        {
+            healthCategory = "Heavy External Web Font Reliance (Air-Gap Fragile)";
+        }
+
+        var famList = discoveredFamilies.OrderBy(f => f).ToList();
+        string summary = FormatWorkspaceTypographySummary(
+            scannedCount, totalDeclarations, distinctFamilies, selfContainedCount,
+            missingFallbackCount, remoteFontCount, score, healthCategory, famList);
+
+        return new WorkspaceTypographyAudit(
+            scannedCount, totalDeclarations, distinctFamilies, selfContainedCount,
+            missingFallbackCount, remoteFontCount, score, fontItems, famList, healthCategory, summary);
+    }
+
+    public static string FormatWorkspaceTypographySummary(
+        int scannedCount, int totalDeclarations, int distinctFamilies, int selfContained,
+        int missingFallbacks, int remoteFonts, double score, string category, IReadOnlyList<string>? families = null)
+    {
+        if (totalDeclarations == 0)
+        {
+            return $"Workspace typography advisor: 0 custom font declarations across {scannedCount} docs · Standard system typography (100% self-contained)";
+        }
+
+        string decLabel = totalDeclarations == 1 ? "1 font declaration" : $"{totalDeclarations} font declarations";
+        string famLabel = distinctFamilies == 1 ? "1 family" : $"{distinctFamilies} distinct families";
+
+        string issues = "";
+        if (missingFallbacks > 0) issues += $" · ⚠ {missingFallbacks} missing generic fallback";
+        if (remoteFonts > 0) issues += $" · ⚠ {remoteFonts} remote CDN dependency";
+
+        string topFam = "";
+        if (families != null && families.Count > 0)
+        {
+            topFam = $" · Families: {string.Join(", ", families.Take(3).Select(f => $"'{f}'"))}";
+        }
+
+        return $"Workspace typography advisor ({decLabel} across {famLabel} · {category} · {score:0.#}% self-containment): {selfContained} self-contained{issues}{topFam}";
+    }
 }
 
 /// <summary>
@@ -3715,5 +3889,34 @@ public sealed record WorkspaceAssetDpiSvgAudit(
     long PotentialSvgSavingsBytes,
     IReadOnlyList<AssetDpiSvgItem> Assets,
     string ReadinessCategory,
+    string Summary);
+
+/// <summary>
+/// Represents parsed font family metrics, declaration source, and fallback status for an asset.
+/// </summary>
+public sealed record WorkspaceFontItem(
+    string SourceFile,
+    string FontFamily,
+    string DeclaredSource,
+    bool HasGenericFallback,
+    string FallbackCategory,
+    bool IsRemoteAsset,
+    bool IsSelfContained);
+
+/// <summary>
+/// Represents the result of an audit of workspace typography, embedded web font assets,
+/// generic CSS fallback coverage, and self-containment resilience.
+/// </summary>
+public sealed record WorkspaceTypographyAudit(
+    int TotalFilesScanned,
+    int TotalFontDeclarations,
+    int DistinctFamiliesCount,
+    int SelfContainedFontCount,
+    int MissingFallbackCount,
+    int RemoteWebFontCount,
+    double TypographicSelfContainmentScore,
+    IReadOnlyList<WorkspaceFontItem> FontDeclarations,
+    IReadOnlyList<string> DiscoveredFamilies,
+    string TypographicHealthCategory,
     string Summary);
 

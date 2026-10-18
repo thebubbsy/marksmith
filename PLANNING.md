@@ -11519,25 +11519,46 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #165 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+## Scheduled WinUI 3 Desktop Polish Routine — Run #165 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Table Column Alignment Consistency, Cell Wrapping & Delimiter Pipe Spacing Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditTableAlignmentAndColumnSpacing(markdownText)`, `FormatTableAlignmentAndColumnSpacingSummary(...)`, records `TableColumnMetrics`, `TableDetailInfo`, and `TableAlignmentAndSpacingAudit`. Parses GFM tables, evaluates column count uniformity, detects ragged rows, counts alignment specifiers (`:---`, `:---:`, `---:`), measures delimiter padding, and computes overall table quality score ($0-100\%$); wired to `tableAlignmentSpacingItem` (`\uF14B`) in both `StatusSectionBreadcrumbButton_RightTapped` and `FindCountText_RightTapped` context menus with clipboard copy and status toast.
+    2. **MindMapGalaxyWindow Graph Betweenness Centrality, Information Bottlenecks & Critical Bridge Node Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditBetweennessCentralityAndBridges()`, static overload, `FormatBetweennessCentralitySummary(...)`, records `NodeBetweennessInfo`, and `BetweennessCentralityAudit`. Implements Brandes' algorithm for exact shortest-path betweenness centrality on undirected mindmap graphs, identifies single-point-of-failure hub bottlenecks, detects graph bridges via DFS cut-edge analysis, and calculates mean/max normalized betweenness scores; wired to `AuditBetweennessCentralityItem` (`\uE817`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Shape Grid Snap Conformance, Multi-Grid Quantization & Subpixel Drift Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditGridSnapConformance(shapes)`, static overload, `FormatGridSnapSummary(...)`, records `ShapeGridSnapInfo`, and `ShapeGridSnapAudit`. Evaluates shape coordinates and dimensions against multi-grid quantization intervals ($4\text{px}, 8\text{px}, 10\text{px}, 16\text{px}$), measures fractional subpixel drift, and computes grid snap fidelity score ($0-100\%$); wired to `SelectionAuditGridSnapConformanceItem` (`\uE706`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Layout Typography Scaling, Label Font-Fit & Node Density Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditLayoutTypographyAndFontFit(markdown)`, static overload, `FormatTypographyFontFitSummary(...)`, records `SmartArtNodeTypographyInfo`, and `SmartArtTypographyFontFitAudit`. Evaluates character density across outline nodes, detects tight fitting and overflow risk nodes, estimates optimal base font sizes ($8\text{pt}-18\text{pt}$), and computes readability fidelity score ($0-100\%$); wired to `AuditTypographyFontFitItem` (`\uE8D2`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Word-Level Diff Chunking, Intra-Line Token Replacements & Token Shift Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditWordLevelDiffChunkingAndTokenShifts(rows)`, static overload, `FormatWordLevelDiffSummary(...)`, records `WordDiffChunkInfo`, and `WordLevelDiffAudit`. Analyzes unified diff rows at token granularity, isolates intra-line word deletions, insertions, and reordered token shifts, and calculates word-level granularity score ($0-100\%$); wired to `auditWordDiff` (`\uE8D2`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace Typography, Web-Safe Font Stacks & Embedded Font Readiness Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceTypographyAndFontEmbedding(files, fileExists, readFile)`, `FormatWorkspaceTypographySummary(...)`, records `WorkspaceFontItem`, and `WorkspaceTypographyAudit`. Scans workspace markdown files for inline font declarations and CSS `@font-face` / `font-family` references, categorizes fonts into standard web-safe vs custom fonts, verifies local system font availability, and calculates workspace font readiness score ($0-100\%$); wired to `CopyWorkspaceTypographyAdvisorItem` (`\uE8D2`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `6/6` targeted Run #165 tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`PID=10632, Responding=True, HasExited=False`).
+
+---
+
+### Run #166 Blueprint — Carried-Forward Refinements & Next Cycle Targets
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **Feature**: Markdown Table Column Alignment Consistency, Cell Wrapping & Delimiter Pipe Spacing Auditor.
-   - **Deliverable**: Add `TextSearch.AuditTableAlignmentAndColumnSpacing(markdownText)` and `FormatTableAlignmentSummary(...)`, parsing GFM tables, checking column width consistency, pipe delimiter padding, cell truncation risks, and column alignment specifiers (`:---`, `:---:`, `---:`). Wire to `StatusSectionBreadcrumbButton` and `FindCountText` context flyouts.
+   - **Feature**: Markdown Definition List (`:::deflist` / `Term\n: Definition`) Syntax & Hanging Indent Consistency Auditor.
+   - **Deliverable**: Add `TextSearch.AuditDefinitionListConsistency(markdownText)` and `FormatDefinitionListSummary(...)`, checking definition syntax balance, colon indents, multi-line definition continuity, and glossary completeness. Wire to `StatusSectionBreadcrumbButton` and `FindCountText` context flyouts.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **Feature**: Graph Betweenness Centrality, Information Bottlenecks & Critical Bridge Node Auditor.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditBetweennessCentralityAndBridges()` and `FormatBetweennessSummary(...)`, identifying structural bottleneck nodes that lie on the highest fraction of all shortest paths, computing bridge edge criticalities, and recommending redundancy links. Wire to `ArrangeDropDownButton.Flyout`.
+   - **Feature**: Graph Eigenvector Centrality & Influence Propagation Network Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditEigenvectorCentrality()` and `FormatEigenvectorCentralitySummary(...)`, computing the principal eigenvector of the adjacency matrix to identify authoritative nodes connected to other influential hubs. Wire to `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **Feature**: Shape Grid Snap Conformance, Pixel-Rounding Tolerance & Coordinate Quantization Auditor.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditGridSnapConformance(shapes, gridSize)` and `FormatGridSnapSummary(...)`, evaluating all shape coordinates $(X, Y, W, H)$ against user-selected snap grids ($4\text{px}, 8\text{px}, 10\text{px}, 16\text{px}$), quantifying subpixel rounding drift, and detecting misaligned shapes. Wire to `SelectionBoundsBorder.ContextFlyout`.
+   - **Feature**: Diagram Visual Weight & Centroid Optical Balance Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditVisualWeightAndOpticalCentroid(shapes)` and `FormatVisualWeightSummary(...)`, computing the area-weighted center of gravity versus geometric bounding box center, detecting optical imbalance or heavy bottom/side visual tilt. Wire to `SelectionBoundsBorder.ContextFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **Feature**: SmartArt Layout Typography Scaling, Label Font-Fit & Multi-Line Text Wrapping Auditor.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditLayoutTypographyAndFontFit(markdown, targetCanvasW, targetCanvasH)` and `FormatTypographyFontFitSummary(...)`, simulating node bounding box text rendering, estimating optimal font sizes ($8\text{pt}-18\text{pt}$), identifying text clipping risks, and scoring typographic legibility. Wire to `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #164 Block 3 Idea 5]**:
-   - **Refinement Target**: Syntactic Token AST Scope Collisions, Line Range Anchoring & Intra-Line Word Diff Chunking.
-   - **Deliverable**: Add `LineDiff.AuditWordLevelDiffChunkingAndTokenShifts(unifiedRows)` to pinpoint intra-line character/word substitutions within modified rows, compute token-level similarity deltas, and format high-resolution inline edit badges. Wire to `TimelineHeaderBorder` context flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #164 Block 3 Idea 6]**:
-   - **Refinement Target**: Workspace Font Asset & Icon Embedding Auditor, Missing Glyph Fallbacks & Font Weight Consistency.
-   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceFontEmbeddingAndGlyphCoverage(files)` to audit referenced web/local fonts, CSS/SVG icon glyphs, flag missing fallback families, and score workspace typographic self-containment. Wire to `RecentDocsFlyout`.
+   - **Feature**: SmartArt Color Hierarchy & Depth Gradient Chromatic Harmony Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditColorHierarchyAndGradients(markdown, palette)` and `FormatColorHierarchySummary(...)`, verifying that root and child node contrast levels match visual hierarchy depth and maintain WCAG AAA compliance across all tiers. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #165 Block 3 Idea 5]**:
+   - **Refinement Target**: Levenshtein String Distance, Character Transposition & Typo Edit Distance Auditor.
+   - **Deliverable**: Add `LineDiff.AuditCharacterLevenshteinEditDistance(unifiedRows)` to quantify exact character edit distance, identify transposed characters (Damerau-Levenshtein), and classify typo fixes versus functional rewrites. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #165 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace File Size Distribution, Heavy Asset Bloat & Storage Quota Advisor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceFileSizeDistribution(files)` to scan document and asset payload distributions, flag outlier files (>5MB) and oversized attachments, and compute workspace storage compactness score. Wire to `RecentDocsFlyout`.
 
 
 

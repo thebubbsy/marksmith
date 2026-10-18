@@ -1640,6 +1640,47 @@ public class TextSearchTests
         Assert.Equal("LaTeX Syntax Errors Detected", invalidAudit.ComplexityCategory);
         Assert.Contains("issues", invalidAudit.Summary);
     }
+
+    [Fact]
+    public void Run165_AuditTableAlignmentAndColumnSpacing_EvaluatesTableFormatAndAlignment()
+    {
+        // 1. Empty / no tables
+        var emptyAudit = TextSearch.AuditTableAlignmentAndColumnSpacing("");
+        Assert.Equal(0, emptyAudit.TotalTables);
+        Assert.Equal(100.0, emptyAudit.MeanAlignmentScore);
+        Assert.Equal("No Tables", emptyAudit.Category);
+        Assert.Equal(emptyAudit.Summary, TextSearch.FormatTableAlignmentAndColumnSpacingSummary(""));
+
+        // 2. Well-formatted table with alignments and paddings
+        var validDoc = string.Join("\n",
+            "# Service Endpoints",
+            "| Endpoint | Method | Latency | Status |",
+            "| :--- | :---: | ---: | :--- |",
+            "| /api/v1/auth | POST | 12ms | Active |",
+            "| /api/v1/user | GET | 5ms | Active |");
+
+        var validAudit = TextSearch.AuditTableAlignmentAndColumnSpacing(validDoc);
+        Assert.Equal(1, validAudit.TotalTables);
+        Assert.Equal(4, validAudit.TotalColumns);
+        Assert.Equal(3, validAudit.TotalRows);
+        Assert.Equal(12, validAudit.TotalCells);
+        Assert.Equal(100.0, validAudit.MeanAlignmentScore);
+        Assert.Equal(0, validAudit.RaggedRows);
+        Assert.Equal(validAudit.Summary, TextSearch.FormatTableAlignmentAndColumnSpacingSummary(validDoc));
+
+        // 3. Ragged table (inconsistent column counts)
+        var raggedDoc = string.Join("\n",
+            "| Header A | Header B |",
+            "| --- | --- |",
+            "| Cell 1 | Cell 2 | Cell 3 Extra |",
+            "| Single |");
+
+        var raggedAudit = TextSearch.AuditTableAlignmentAndColumnSpacing(raggedDoc);
+        Assert.Equal(1, raggedAudit.TotalTables);
+        Assert.True(raggedAudit.RaggedRows >= 1);
+        Assert.True(raggedAudit.MeanAlignmentScore < 100.0);
+        Assert.Equal("Minor Ragged Rows Detected", raggedAudit.Category);
+    }
 }
 
 

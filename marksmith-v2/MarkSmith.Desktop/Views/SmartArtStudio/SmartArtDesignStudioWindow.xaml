@@ -332,6 +332,9 @@
                                         <MenuFlyoutItem x:Name="AuditHierarchySpanItem" Text="Audit hierarchy span of control, branching &amp; manager ratios" Click="OnAuditHierarchySpanClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditTypographyFontFitItem" Text="Audit layout typography scaling, label font-fit &amp; text clipping" Click="OnAuditTypographyFontFitClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -6179,6 +6179,119 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         return $"Orthogonal routing audit ({scope}{shapeDesc} · {channelCount} channels · {category}): Efficiency: {efficiencyScore:0.#}% ({clearCount} clear · Mean clearance {meanClearance:0.#}px){issues}";
     }
+
+    /// <summary>
+    /// Audits 2D shape coordinates (X, Y, Width, Height) against standard snap grids (4px, 8px, 10px, 16px),
+    /// measuring subpixel rounding drift, coordinate quantization adherence, and misaligned elements.
+    /// </summary>
+    public ShapeGridSnapAudit AuditGridSnapConformance(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null, double gridSize = 8.0)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count > 0 ? selected : Shapes)).ToList();
+        bool isSelection = (targetShapes != null) || (selected.Count > 0 && selected.Count < Shapes.Count);
+        string scopeStr = isSelection ? "Selected Shapes · " : "";
+
+        if (gridSize <= 0) gridSize = 8.0;
+
+        if (targets.Count == 0)
+        {
+            string emptySummary = "Grid snap audit: Canvas contains 0 shapes";
+            StatusMessage = emptySummary;
+            return new ShapeGridSnapAudit(
+                0, gridSize, 0, 0, 0, 0.0, 100.0, Array.Empty<ShapeGridSnapInfo>(), "Empty Canvas", isSelection, emptySummary);
+        }
+
+        var shapeSnapInfos = new List<ShapeGridSnapInfo>();
+        int fullySnappedCount = 0;
+        int subpixelDriftCount = 0;
+        int misalignedCount = 0;
+        double totalSnapError = 0.0;
+
+        foreach (var s in targets)
+        {
+            double xRem = Math.Abs(s.X % gridSize);
+            double xSnapErr = Math.Min(xRem, gridSize - xRem);
+
+            double yRem = Math.Abs(s.Y % gridSize);
+            double ySnapErr = Math.Min(yRem, gridSize - yRem);
+
+            double wRem = Math.Abs(s.Width % gridSize);
+            double wSnapErr = Math.Min(wRem, gridSize - wRem);
+
+            double hRem = Math.Abs(s.Height % gridSize);
+            double hSnapErr = Math.Min(hRem, gridSize - hRem);
+
+            bool subpixel = (Math.Abs(s.X - Math.Round(s.X)) > 0.01) ||
+                            (Math.Abs(s.Y - Math.Round(s.Y)) > 0.01) ||
+                            (Math.Abs(s.Width - Math.Round(s.Width)) > 0.01) ||
+                            (Math.Abs(s.Height - Math.Round(s.Height)) > 0.01);
+
+            double maxErr = Math.Max(Math.Max(xSnapErr, ySnapErr), Math.Max(wSnapErr, hSnapErr));
+            double avgErr = (xSnapErr + ySnapErr + wSnapErr + hSnapErr) / 4.0;
+            totalSnapError += avgErr;
+
+            bool isSnapped = maxErr < 0.5;
+            if (isSnapped) fullySnappedCount++;
+            else misalignedCount++;
+
+            if (subpixel) subpixelDriftCount++;
+
+            shapeSnapInfos.Add(new ShapeGridSnapInfo(
+                s.Id, s.Name, s.X, s.Y, s.Width, s.Height,
+                Math.Round(xSnapErr, 2), Math.Round(ySnapErr, 2),
+                Math.Round(wSnapErr, 2), Math.Round(hSnapErr, 2),
+                isSnapped, subpixel));
+        }
+
+        double meanSnapError = Math.Round(totalSnapError / targets.Count, 2);
+        double maxTolerance = gridSize / 2.0;
+        double conformanceScore = Math.Round(Math.Clamp((1.0 - (meanSnapError / maxTolerance)) * 100.0, 0.0, 100.0), 1);
+
+        string category;
+        if (misalignedCount == 0 && subpixelDriftCount == 0)
+        {
+            category = $"Pixel-Perfect ({gridSize}px Snap Grid)";
+        }
+        else if (misalignedCount == 0)
+        {
+            category = "Grid Snapped (Subpixel Rounding Drift)";
+        }
+        else if (conformanceScore >= 80.0)
+        {
+            category = "High Grid Conformance (Minor Offsets)";
+        }
+        else if (conformanceScore >= 50.0)
+        {
+            category = "Moderate Coordinate Quantization Discrepancies";
+        }
+        else
+        {
+            category = "Unsnapped / Freehand Coordinate Drift";
+        }
+
+        string summary = FormatGridSnapSummary(
+            targets.Count, gridSize, fullySnappedCount, misalignedCount, subpixelDriftCount,
+            meanSnapError, conformanceScore, category, scopeStr);
+
+        StatusMessage = summary;
+
+        return new ShapeGridSnapAudit(
+            targets.Count, gridSize, fullySnappedCount, misalignedCount, subpixelDriftCount,
+            meanSnapError, conformanceScore, shapeSnapInfos, category, isSelection, summary);
+    }
+
+    public static string FormatGridSnapSummary(
+        int totalShapes, double gridSize, int fullySnapped, int misaligned, int subpixelDrift,
+        double meanSnapError, double conformanceScore, string category, string scope = "")
+    {
+        if (totalShapes == 0) return $"Grid snap audit ({scope}0 shapes): Canvas is empty";
+
+        string shapeDesc = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        string snapDesc = $"{fullySnapped}/{totalShapes} snapped ({gridSize}px grid)";
+        string driftDesc = subpixelDrift > 0 ? $" · ⚠ {subpixelDrift} subpixel drift" : "";
+
+        return $"Grid snap audit ({scope}{shapeDesc} [{snapDesc}] · {category} · {conformanceScore:0.#}% conformance): ~{meanSnapError:0.##}px avg offset{driftDesc}";
+    }
 }
 
 /// <summary>
@@ -6507,6 +6620,40 @@ public sealed record OrthogonalRoutingAudit(
     double RoutingEfficiencyScore,
     IReadOnlyList<OrthogonalChannelInfo> Channels,
     string RoutingCategory,
+    bool IsSelectionScope,
+    string Summary);
+
+/// <summary>
+/// Represents grid snap error and subpixel rounding drift metrics for an individual shape.
+/// </summary>
+public sealed record ShapeGridSnapInfo(
+    string ShapeId,
+    string Name,
+    double X,
+    double Y,
+    double Width,
+    double Height,
+    double XSnapError,
+    double YSnapError,
+    double WidthSnapError,
+    double HeightSnapError,
+    bool IsFullySnapped,
+    bool HasSubpixelDrift);
+
+/// <summary>
+/// Represents the result of an audit of 2D shape grid snap conformance, coordinate quantization adherence,
+/// and subpixel rounding drift.
+/// </summary>
+public sealed record ShapeGridSnapAudit(
+    int TotalShapesEvaluated,
+    double GridSize,
+    int FullySnappedCount,
+    int MisalignedShapeCount,
+    int SubpixelDriftCount,
+    double MeanSnapErrorPixels,
+    double GridSnapConformanceScore,
+    IReadOnlyList<ShapeGridSnapInfo> Shapes,
+    string ConformanceCategory,
     bool IsSelectionScope,
     string Summary);
 

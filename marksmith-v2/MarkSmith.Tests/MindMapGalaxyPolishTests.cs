@@ -2444,6 +2444,50 @@ namespace MarkSmith.Tests
                 starAudit.OptimalHubTitles, starAudit.PeripheralTitles.Count, starAudit.EfficiencyCategory, starAudit.IsSelectionScope);
             Assert.Equal(starAudit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run165_AuditBetweennessCentralityAndBridges_CalculatesBrandesCentralityAndDetectsBridges()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditBetweennessCentralityAndBridges(Array.Empty<MindMapNode>(), null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0.0, emptyAudit.MeanBetweenness);
+            Assert.Equal("Empty Graph", emptyAudit.BottleneckCategory);
+
+            // 2. Linear 3-node path: A - B - C
+            var nodeA = new MindMapNode { Id = "a", Title = "Node A" };
+            var nodeB = new MindMapNode { Id = "b", Title = "Bridge Node B" };
+            var nodeC = new MindMapNode { Id = "c", Title = "Node C" };
+
+            var linkAB = new MindMapLink { Id = "e1", SourceNodeId = "a", TargetNodeId = "b" };
+            var linkBC = new MindMapLink { Id = "e2", SourceNodeId = "b", TargetNodeId = "c" };
+
+            var pathAudit = MindMapStudioViewModel.AuditBetweennessCentralityAndBridges(
+                new[] { nodeA, nodeB, nodeC }, new[] { linkAB, linkBC });
+
+            Assert.Equal(3, pathAudit.TotalNodes);
+            Assert.Equal(2, pathAudit.TotalLinks);
+            Assert.Equal(1, pathAudit.ConnectedComponents);
+            Assert.Equal(1, pathAudit.BottleneckNodeCount);
+            Assert.Contains("Bridge Node B", pathAudit.BottleneckNodeTitles);
+
+            var metricB = pathAudit.NodeMetrics.First(m => m.Title == "Bridge Node B");
+            Assert.Equal(1.0, metricB.RawBetweenness);
+            Assert.Equal(1.0, metricB.NormalizedBetweenness);
+            Assert.True(metricB.IsCriticalBottleneck);
+
+            var metricA = pathAudit.NodeMetrics.First(m => m.Title == "Node A");
+            Assert.Equal(0.0, metricA.NormalizedBetweenness);
+            Assert.False(metricA.IsCriticalBottleneck);
+
+            // 3. Formatter test
+            string formatted = MindMapStudioViewModel.FormatBetweennessCentralitySummary(
+                pathAudit.TotalNodes, pathAudit.TotalLinks, pathAudit.ConnectedComponents,
+                pathAudit.MaxBetweenness, pathAudit.MeanBetweenness,
+                pathAudit.BottleneckNodeTitles, pathAudit.BottleneckNodeCount, pathAudit.BottleneckCategory,
+                pathAudit.IsSelectionScope);
+            Assert.Equal(pathAudit.Summary, formatted);
+        }
     }
 }
 

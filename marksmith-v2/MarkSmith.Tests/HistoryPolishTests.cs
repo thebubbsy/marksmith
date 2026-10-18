@@ -1674,6 +1674,40 @@ public class HistoryPolishTests : IDisposable
             foldingAudit.FoldingCategory);
         Assert.Equal(foldingAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run165_AuditWordLevelDiffChunkingAndTokenShifts_EvaluatesTokenGranularityAndShifts()
+    {
+        // 1. Identical text (0 modified lines)
+        var unchAudit = LineDiff.AuditWordLevelDiffChunkingAndTokenShifts("Single line unchanged", "Single line unchanged");
+        Assert.Equal(0, unchAudit.TotalModifiedLinePairs);
+        Assert.Equal(0, unchAudit.TotalWordSubstitutions);
+        Assert.Equal(100.0, unchAudit.IntraLineDiffResolutionScore);
+        Assert.Equal("Zero Diffs (Unchanged)", unchAudit.ResolutionCategory);
+        Assert.Contains("0 modified lines", unchAudit.Summary);
+
+        // 2. Surgical word-level replacements
+        var oldDoc = "The quick brown fox jumps over the lazy dog";
+        var newDoc = "The fast brown fox leaps over the sleepy dog";
+        var wordAudit = LineDiff.AuditWordLevelDiffChunkingAndTokenShifts(oldDoc, newDoc);
+
+        Assert.Equal(1, wordAudit.TotalModifiedLinePairs);
+        Assert.True(wordAudit.TotalWordSubstitutions >= 1);
+        Assert.True(wordAudit.IntraLineDiffResolutionScore > 0.0);
+        Assert.NotEmpty(wordAudit.WordChunks);
+        Assert.Equal(wordAudit.Summary, LineDiff.FormatWordLevelDiffSummary(
+            1, wordAudit.TotalWordSubstitutions, wordAudit.TotalWordInsertions, wordAudit.TotalWordDeletions,
+            wordAudit.IdenticalWordCount, wordAudit.MeanTokenSimilarity, wordAudit.IntraLineDiffResolutionScore,
+            wordAudit.ResolutionCategory, wordAudit.WordChunks));
+
+        // 3. Word shift reordering
+        var oldShift = "alpha beta gamma delta";
+        var newShift = "delta alpha beta gamma";
+        var shiftAudit = LineDiff.AuditWordLevelDiffChunkingAndTokenShifts(oldShift, newShift);
+
+        Assert.Equal(1, shiftAudit.TotalModifiedLinePairs);
+        Assert.NotEmpty(shiftAudit.WordChunks);
+    }
 }
 
 

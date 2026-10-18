@@ -4429,6 +4429,322 @@ public static class TextSearch
 
         return $"LaTeX math formula audit ({problemCount}/{totalFormulas} issues · {syntaxIntegrityScore:0.#}% valid [{breakdown}] · {category}): ~{meanComplexity:0.#} avg complexity{firstProblem}";
     }
+
+    /// <summary>
+    /// Audits GFM markdown tables for column alignment consistency, cell wrapping risks,
+    /// delimiter pipe padding, and ragged row anomalies.
+    /// </summary>
+    public static TableAlignmentAndSpacingAudit AuditTableAlignmentAndColumnSpacing(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "Markdown table alignment audit: 0 tables · Document contains no markdown tables";
+            return new TableAlignmentAndSpacingAudit(
+                0, 0, 0, 0, 0, 0, 100.0, Array.Empty<TableDetailInfo>(), Array.Empty<string>(), "No Tables", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        var tables = new List<TableDetailInfo>();
+        var globalIssues = new List<string>();
+
+        bool inCodeFence = false;
+        bool inHtmlComment = false;
+        var currentBlock = new List<(int LineNumber, string Line)>();
+
+        void ProcessTableBlock()
+        {
+            if (currentBlock.Count < 2)
+            {
+                currentBlock.Clear();
+                return;
+            }
+
+            // Split rows into pipe cells
+            var parsedRows = new List<(int LineNumber, List<string> Cells, bool HasOuterPipes, int UnpaddedCount)>();
+            foreach (var item in currentBlock)
+            {
+                string raw = item.Line.Trim();
+                bool hasOuter = raw.StartsWith("|") && raw.EndsWith("|");
+                string inner = raw;
+                if (inner.StartsWith("|")) inner = inner.Substring(1);
+                if (inner.EndsWith("|") && inner.Length > 0) inner = inner.Substring(0, inner.Length - 1);
+
+                // Count unpadded pipes inside raw
+                int unpadded = 0;
+                for (int c = 0; c < raw.Length; c++)
+                {
+                    if (raw[c] == '|')
+                    {
+                        bool leftPadded = c == 0 || char.IsWhiteSpace(raw[c - 1]) || raw[c - 1] == '|';
+                        bool rightPadded = c == raw.Length - 1 || char.IsWhiteSpace(raw[c + 1]) || raw[c + 1] == '|';
+                        if (!leftPadded || !rightPadded) unpadded++;
+                    }
+                }
+
+                // Split by unescaped pipe
+                var cells = new List<string>();
+                var cellBuffer = new System.Text.StringBuilder();
+                for (int c = 0; c < inner.Length; c++)
+                {
+                    if (inner[c] == '\\' && c + 1 < inner.Length && inner[c + 1] == '|')
+                    {
+                        cellBuffer.Append('|');
+                        c++;
+                    }
+                    else if (inner[c] == '|')
+                    {
+                        cells.Add(cellBuffer.ToString());
+                        cellBuffer.Clear();
+                    }
+                    else
+                    {
+                        cellBuffer.Append(inner[c]);
+                    }
+                }
+                cells.Add(cellBuffer.ToString());
+                parsedRows.Add((item.LineNumber, cells, hasOuter, unpadded));
+            }
+
+            // Find delimiter row index (usually index 1)
+            int delimiterIdx = -1;
+            for (int r = 1; r < Math.Min(3, parsedRows.Count); r++)
+            {
+                var cells = parsedRows[r].Cells;
+                if (cells.Count > 0 && cells.All(c =>
+                {
+                    string t = c.Trim();
+                    return t.Length >= 3 && t.All(ch => ch == '-' || ch == ':' || ch == ' ');
+                }))
+                {
+                    delimiterIdx = r;
+                    break;
+                }
+            }
+
+            if (delimiterIdx < 1)
+            {
+                currentBlock.Clear();
+                return;
+            }
+
+            int expectedCols = parsedRows[delimiterIdx].Cells.Count;
+            var alignments = new List<string>();
+            var alignmentSpecs = new List<string>();
+
+            foreach (var delCell in parsedRows[delimiterIdx].Cells)
+            {
+                string dt = delCell.Trim();
+                alignmentSpecs.Add(dt);
+                bool left = dt.StartsWith(":");
+                bool right = dt.EndsWith(":");
+                if (left && right) alignments.Add("center");
+                else if (left) alignments.Add("left");
+                else if (right) alignments.Add("right");
+                else alignments.Add("default");
+            }
+
+            int raggedCount = 0;
+            int totalDataRows = 0;
+            int totalCells = 0;
+            int unpaddedPipesTotal = parsedRows.Sum(p => p.UnpaddedCount);
+
+            var colHeaderWidths = new int[expectedCols];
+            var colMinCellWidths = new int[expectedCols];
+            var colMaxCellWidths = new int[expectedCols];
+            var colTotalCellWidths = new int[expectedCols];
+            var colCellCounts = new int[expectedCols];
+            var colTruncationRisks = new bool[expectedCols];
+            var colUnpaddedCounts = new int[expectedCols];
+
+            for (int c = 0; c < expectedCols; c++)
+            {
+                colMinCellWidths[c] = int.MaxValue;
+                if (c < parsedRows[0].Cells.Count)
+                {
+                    int hw = parsedRows[0].Cells[c].Trim().Length;
+                    colHeaderWidths[c] = hw;
+                    colMinCellWidths[c] = hw;
+                    colMaxCellWidths[c] = hw;
+                    colTotalCellWidths[c] = hw;
+                    colCellCounts[c] = 1;
+                }
+            }
+
+            for (int r = 0; r < parsedRows.Count; r++)
+            {
+                if (r == delimiterIdx) continue;
+                totalDataRows++;
+                var rowCells = parsedRows[r].Cells;
+                totalCells += rowCells.Count;
+
+                if (rowCells.Count != expectedCols)
+                {
+                    raggedCount++;
+                }
+
+                for (int c = 0; c < expectedCols && c < rowCells.Count; c++)
+                {
+                    string cellText = rowCells[c].Trim();
+                    int len = cellText.Length;
+                    if (len < colMinCellWidths[c]) colMinCellWidths[c] = len;
+                    if (len > colMaxCellWidths[c]) colMaxCellWidths[c] = len;
+                    colTotalCellWidths[c] += len;
+                    colCellCounts[c]++;
+
+                    // Truncation risk: monolithic token > 45 chars or cell > 90 chars
+                    if (len > 90 || (len > 45 && !cellText.Contains(' ')))
+                    {
+                        colTruncationRisks[c] = true;
+                    }
+                }
+            }
+
+            var colMetrics = new List<TableColumnMetrics>();
+            for (int c = 0; c < expectedCols; c++)
+            {
+                int minW = colMinCellWidths[c] == int.MaxValue ? 0 : colMinCellWidths[c];
+                int maxW = colMaxCellWidths[c];
+                double meanW = colCellCounts[c] > 0 ? Math.Round((double)colTotalCellWidths[c] / colCellCounts[c], 1) : 0.0;
+                string align = c < alignments.Count ? alignments[c] : "default";
+                colMetrics.Add(new TableColumnMetrics(
+                    c + 1, align, colHeaderWidths[c], maxW, minW, meanW, colTruncationRisks[c], colUnpaddedCounts[c]));
+            }
+
+            double score = 100.0;
+            if (raggedCount > 0) score -= Math.Min(40.0, raggedCount * 15.0);
+            if (unpaddedPipesTotal > 0) score -= Math.Min(25.0, unpaddedPipesTotal * 2.5);
+            if (colTruncationRisks.Any(t => t)) score -= 15.0;
+            score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+            int startLine = currentBlock[0].LineNumber;
+            int endLine = currentBlock[^1].LineNumber;
+            bool properPadding = unpaddedPipesTotal == 0;
+
+            tables.Add(new TableDetailInfo(
+                startLine, endLine, expectedCols, totalDataRows, raggedCount, totalCells,
+                score, colMetrics, alignmentSpecs, properPadding));
+
+            currentBlock.Clear();
+        }
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                if (currentBlock.Count > 0) ProcessTableBlock();
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            if (trimmed.StartsWith("<!--") && !trimmed.EndsWith("-->"))
+            {
+                inHtmlComment = true;
+                if (currentBlock.Count > 0) ProcessTableBlock();
+                continue;
+            }
+            if (inHtmlComment)
+            {
+                if (trimmed.Contains("-->")) inHtmlComment = false;
+                continue;
+            }
+            if (trimmed.StartsWith("<!--") && trimmed.EndsWith("-->")) continue;
+
+            if (trimmed.Contains("|") && !string.IsNullOrWhiteSpace(trimmed))
+            {
+                currentBlock.Add((i + 1, line));
+            }
+            else
+            {
+                if (currentBlock.Count > 0) ProcessTableBlock();
+            }
+        }
+
+        if (currentBlock.Count > 0) ProcessTableBlock();
+
+        if (tables.Count == 0)
+        {
+            string emptySummary = "Markdown table alignment audit: 0 tables · Document contains no markdown tables";
+            return new TableAlignmentAndSpacingAudit(
+                0, 0, 0, 0, 0, 0, 100.0, Array.Empty<TableDetailInfo>(), Array.Empty<string>(), "No Tables", emptySummary);
+        }
+
+        int totalTables = tables.Count;
+        int totalRows = tables.Sum(t => t.TotalRows);
+        int totalCols = tables.Sum(t => t.ColumnCount);
+        int totalCellsCount = tables.Sum(t => t.CellCount);
+        int totalRagged = tables.Sum(t => t.RaggedRowCount);
+        int totalUnpadded = tables.Sum(t => t.Columns.Sum(c => c.UnpaddedPipesCount));
+        double meanScore = Math.Round(tables.Average(t => t.AlignmentIntegrityScore), 1);
+
+        string category;
+        if (totalRagged == 0 && meanScore >= 95.0)
+        {
+            category = "Consistent Column Alignment (100% Valid)";
+        }
+        else if (totalRagged == 0)
+        {
+            category = "Properly Aligned (Minor Padding Variances)";
+        }
+        else if (totalRagged <= 2)
+        {
+            category = "Minor Ragged Rows Detected";
+        }
+        else
+        {
+            category = "Severe Table Structural Discrepancies";
+        }
+
+        if (totalRagged > 0)
+        {
+            globalIssues.Add($"{totalRagged} ragged row{(totalRagged == 1 ? "" : "s")} with missing or extra column cells");
+        }
+        if (tables.Any(t => !t.HasProperPadding))
+        {
+            globalIssues.Add("Unpadded delimiter pipe boundaries detected");
+        }
+        if (tables.Any(t => t.Columns.Any(c => c.HasTruncationRisk)))
+        {
+            globalIssues.Add("Wide cell wrapping or truncation hazards detected");
+        }
+
+        string summary = FormatTableAlignmentAndColumnSpacingSummary(
+            totalTables, totalRows, totalCols, totalRagged, meanScore, category, globalIssues, tables);
+
+        return new TableAlignmentAndSpacingAudit(
+            totalTables, totalRows, totalCols, totalCellsCount, totalRagged, totalUnpadded,
+            meanScore, tables, globalIssues, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown table column alignment and pipe spacing.
+    /// </summary>
+    public static string FormatTableAlignmentAndColumnSpacingSummary(string? markdownText)
+        => AuditTableAlignmentAndColumnSpacing(markdownText).Summary;
+
+    public static string FormatTableAlignmentAndColumnSpacingSummary(
+        int totalTables, int totalRows, int totalColumns, int totalRagged,
+        double meanScore, string category, IReadOnlyList<string> issues,
+        IReadOnlyList<TableDetailInfo> tables)
+    {
+        if (totalTables == 0)
+            return "Markdown table alignment audit: 0 tables · Document contains no markdown tables";
+
+        string tableDesc = totalTables == 1 ? "1 table" : $"{totalTables} tables";
+        int maxCols = tables.Count > 0 ? tables.Max(t => t.ColumnCount) : 0;
+        string colDesc = $"{totalRows} rows, max {maxCols} cols";
+
+        if (totalRagged == 0 && issues.Count == 0)
+        {
+            return $"Markdown table alignment audit ({tableDesc} [{colDesc}] · {category} · {meanScore:0.#}% score): Fully aligned GFM grids";
+        }
+
+        string firstIssue = issues.Count > 0 ? $" · {issues[0]}" : "";
+        return $"Markdown table alignment audit ({tableDesc} [{colDesc}] · {category} · {meanScore:0.#}% score){firstIssue}";
+    }
 }
 
 /// <summary>
@@ -4764,5 +5080,50 @@ public sealed record MathFormulaAudit(
     IReadOnlyList<string> GlobalIssues,
     string ComplexityCategory,
     double SyntaxIntegrityScore,
+    string Summary);
+
+/// <summary>
+/// Represents column width, alignment, and cell padding metrics for a single table column.
+/// </summary>
+public sealed record TableColumnMetrics(
+    int ColumnIndex,
+    string Alignment,
+    int HeaderWidth,
+    int MaxCellWidth,
+    int MinCellWidth,
+    double MeanCellWidth,
+    bool HasTruncationRisk,
+    int UnpaddedPipesCount);
+
+/// <summary>
+/// Represents parsed metrics, alignment specs, and row integrity for an individual markdown table.
+/// </summary>
+public sealed record TableDetailInfo(
+    int StartLine,
+    int EndLine,
+    int ColumnCount,
+    int TotalRows,
+    int RaggedRowCount,
+    int CellCount,
+    double AlignmentIntegrityScore,
+    IReadOnlyList<TableColumnMetrics> Columns,
+    IReadOnlyList<string> AlignmentSpecifiers,
+    bool HasProperPadding);
+
+/// <summary>
+/// Represents the result of an audit of GFM markdown table column alignment consistency,
+/// delimiter pipe padding, cell wrapping hazards, and ragged rows.
+/// </summary>
+public sealed record TableAlignmentAndSpacingAudit(
+    int TotalTables,
+    int TotalRows,
+    int TotalColumns,
+    int TotalCells,
+    int RaggedRows,
+    int UnpaddedPipes,
+    double MeanAlignmentScore,
+    IReadOnlyList<TableDetailInfo> Tables,
+    IReadOnlyList<string> Issues,
+    string Category,
     string Summary);
 

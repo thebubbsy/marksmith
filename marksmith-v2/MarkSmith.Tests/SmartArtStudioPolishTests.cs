@@ -1527,6 +1527,44 @@ public class SmartArtStudioPolishTests
             orgAudit.ManagerToReportRatio, orgAudit.OverloadedManagerCount, orgAudit.UnderutilizedManagerCount,
             orgAudit.HierarchyBalanceScore, orgAudit.HierarchyCategory));
     }
+
+    [Fact]
+    public void Run165_AuditLayoutTypographyAndFontFit_EvaluatesNodeDensityAndOverflowRisk()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditLayoutTypographyAndFontFit("", isStatic: true);
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal("Empty Outline", emptyAudit.LegibilityCategory);
+        Assert.Equal(100.0, emptyAudit.TypographicLegibilityScore);
+        Assert.Contains("Outline is empty", emptyAudit.Summary);
+
+        // 2. Concise clean outline
+        var conciseMd = """
+            - Initiate
+            - Plan
+            - Execute
+            - Monitor
+            - Close
+            """;
+        var conciseAudit = SmartArtDesignStudioViewModel.AuditLayoutTypographyAndFontFit(conciseMd, isStatic: true);
+        Assert.Equal(5, conciseAudit.TotalNodes);
+        Assert.Equal(0, conciseAudit.ClippingRiskCount);
+        Assert.Equal(100.0, conciseAudit.TypographicLegibilityScore);
+        Assert.Equal(conciseAudit.Summary, SmartArtDesignStudioViewModel.FormatTypographyFontFitSummary(
+            5, conciseAudit.MinFontSizePt, conciseAudit.MaxFontSizePt, conciseAudit.MeanFontSizePt,
+            0, 100.0, conciseAudit.LegibilityCategory));
+
+        // 3. Verbose overflow risk node
+        var verboseMd = """
+            - Concise Node
+            - This is an excessively long node label with multiple sentences designed to cause severe overflow and tight typography constraints inside SmartArt layout bounding boxes
+            """;
+        var verboseAudit = SmartArtDesignStudioViewModel.AuditLayoutTypographyAndFontFit(verboseMd, isStatic: true);
+        Assert.Equal(2, verboseAudit.TotalNodes);
+        Assert.True(verboseAudit.ClippingRiskCount >= 1);
+        Assert.True(verboseAudit.TypographicLegibilityScore < 100.0);
+        Assert.Contains(verboseAudit.LegibilityCategory, new[] { "Text Overflow Risk Detected", "Tight Text Fitting", "Minor Text Overflow Risks" });
+    }
 }
 
 

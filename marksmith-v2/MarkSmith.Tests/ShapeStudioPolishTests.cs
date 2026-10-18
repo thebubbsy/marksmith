@@ -1621,6 +1621,46 @@ public class ShapeStudioPolishTests
         Assert.Contains("Shape Collisions on Routing Channels", obstAudit.RoutingCategory);
         Assert.True(obstAudit.RoutingEfficiencyScore < 100.0);
     }
+
+    [Fact]
+    public void Run165_AuditGridSnapConformance_EvaluatesMultiGridAndSubpixelDrift()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Empty shapes
+        var emptyAudit = vm.AuditGridSnapConformance();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(100.0, emptyAudit.GridSnapConformanceScore);
+        Assert.Equal("Empty Canvas", emptyAudit.ConformanceCategory);
+        Assert.Contains("Canvas contains 0 shapes", emptyAudit.Summary);
+
+        // 2. Pixel-perfect 8px snapped shapes with zero subpixel drift
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Text = "Box 1", X = 16, Y = 32, Width = 64, Height = 48 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Text = "Box 2", X = 80, Y = 96, Width = 32, Height = 16 };
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+
+        var cleanAudit = vm.AuditGridSnapConformance(gridSize: 8.0);
+        Assert.Equal(2, cleanAudit.TotalShapesEvaluated);
+        Assert.Equal(2, cleanAudit.FullySnappedCount);
+        Assert.Equal(0, cleanAudit.SubpixelDriftCount);
+        Assert.Equal(0.0, cleanAudit.MeanSnapErrorPixels);
+        Assert.Equal(100.0, cleanAudit.GridSnapConformanceScore);
+        Assert.Contains("Pixel-Perfect", cleanAudit.ConformanceCategory);
+        Assert.Equal(cleanAudit.Summary, ShapeDesignStudioViewModel.FormatGridSnapSummary(
+            2, 8.0, 2, 0, 0, 0.0, 100.0, cleanAudit.ConformanceCategory, ""));
+
+        // 3. Shape with fractional coordinates / subpixel drift
+        var sDrift = new ShapeCanvasItemViewModel { Id = "s3", Text = "Drift", X = 15.35, Y = 22.75, Width = 50.4, Height = 40.2 };
+        vm.Shapes.Add(sDrift);
+
+        var driftAudit = vm.AuditGridSnapConformance(gridSize: 8.0);
+        Assert.Equal(3, driftAudit.TotalShapesEvaluated);
+        Assert.Equal(1, driftAudit.SubpixelDriftCount);
+        Assert.True(driftAudit.MeanSnapErrorPixels > 0.0);
+        Assert.True(driftAudit.GridSnapConformanceScore < 100.0);
+    }
 }
 
 

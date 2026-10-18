@@ -5864,6 +5864,210 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Graph closeness centrality ({scopeStr}{nodeLabel}, {linkLabel} · {compLabel} · {category} · {graphEfficiency:0.#}% flow efficiency): Optimal hubs: {hubStr} (Mean harmonic {meanHarmonic:0.###}) · {peripheralCount} peripheral";
         }
+
+        /// <summary>
+        /// Audits mindmap graph betweenness centrality, shortest-path bottleneck criticalities,
+        /// and bridge concepts using Brandes' algorithm.
+        /// </summary>
+        public BetweennessCentralityAudit AuditBetweennessCentralityAndBridges(bool selectionOnly = false)
+        {
+            var targetList = selectionOnly
+                ? Nodes.Where(n => n.IsSelected).ToList()
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && targetList.Count > 0 && targetList.Count < Nodes.Count;
+            if (targetList.Count == 0)
+            {
+                string emptySummary = FormatBetweennessCentralitySummary(0, 0, 0, 0.0, 0.0, Array.Empty<string>(), 0, "Empty Graph", isSelection);
+                return new BetweennessCentralityAudit(
+                    0, 0, 0, 0.0, 0.0, 0, Array.Empty<NodeBetweennessInfo>(), Array.Empty<string>(), "Empty Graph", isSelection, emptySummary);
+            }
+
+            var nodeSet = new HashSet<string>(targetList.Select(n => n.Id), StringComparer.Ordinal);
+            var linksInScope = Links.Where(l => nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId)).ToList();
+
+            // Build adjacency list (undirected for information propagation)
+            var adj = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (var n in targetList) adj[n.Id] = new List<string>();
+            foreach (var l in linksInScope)
+            {
+                if (adj.ContainsKey(l.SourceNodeId) && adj.ContainsKey(l.TargetNodeId))
+                {
+                    adj[l.SourceNodeId].Add(l.TargetNodeId);
+                    adj[l.TargetNodeId].Add(l.SourceNodeId);
+                }
+            }
+
+            // Count connected components
+            int componentCount = 0;
+            var visited = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var n in targetList)
+            {
+                if (!visited.Contains(n.Id))
+                {
+                    componentCount++;
+                    var q = new Queue<string>();
+                    q.Enqueue(n.Id);
+                    visited.Add(n.Id);
+                    while (q.Count > 0)
+                    {
+                        var curr = q.Dequeue();
+                        foreach (var nbr in adj[curr])
+                        {
+                            if (visited.Add(nbr)) q.Enqueue(nbr);
+                        }
+                    }
+                }
+            }
+
+            // Brandes' algorithm for unweighted betweenness centrality
+            var cb = new Dictionary<string, double>(StringComparer.Ordinal);
+            var pathsThrough = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var n in targetList)
+            {
+                cb[n.Id] = 0.0;
+                pathsThrough[n.Id] = 0;
+            }
+
+            foreach (var s in targetList)
+            {
+                var S = new Stack<string>();
+                var P = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+                var sigma = new Dictionary<string, double>(StringComparer.Ordinal);
+                var d = new Dictionary<string, int>(StringComparer.Ordinal);
+
+                foreach (var n in targetList)
+                {
+                    P[n.Id] = new List<string>();
+                    sigma[n.Id] = 0.0;
+                    d[n.Id] = -1;
+                }
+
+                sigma[s.Id] = 1.0;
+                d[s.Id] = 0;
+
+                var Q = new Queue<string>();
+                Q.Enqueue(s.Id);
+
+                while (Q.Count > 0)
+                {
+                    var v = Q.Dequeue();
+                    S.Push(v);
+
+                    foreach (var w in adj[v])
+                    {
+                        // Path discovery
+                        if (d[w] < 0)
+                        {
+                            d[w] = d[v] + 1;
+                            Q.Enqueue(w);
+                        }
+                        // Path counting
+                        if (d[w] == d[v] + 1)
+                        {
+                            sigma[w] += sigma[v];
+                            P[w].Add(v);
+                        }
+                    }
+                }
+
+                // Accumulation
+                var delta = new Dictionary<string, double>(StringComparer.Ordinal);
+                foreach (var n in targetList) delta[n.Id] = 0.0;
+
+                while (S.Count > 0)
+                {
+                    var w = S.Pop();
+                    foreach (var v in P[w])
+                    {
+                        if (sigma[w] > 0)
+                        {
+                            delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w]);
+                        }
+                    }
+                    if (w != s.Id)
+                    {
+                        cb[w] += delta[w];
+                        if (delta[w] > 0.0001) pathsThrough[w]++;
+                    }
+                }
+            }
+
+            // Halve betweenness for undirected graph
+            int totalNodes = targetList.Count;
+            double normalizer = totalNodes > 2 ? 2.0 / ((totalNodes - 1) * (totalNodes - 2)) : 1.0;
+
+            var nodeInfos = new List<NodeBetweennessInfo>();
+            foreach (var node in targetList)
+            {
+                double raw = cb[node.Id] / 2.0;
+                double normalized = totalNodes > 2 ? Math.Round(raw * normalizer, 4) : 0.0;
+                bool isBottleneck = normalized >= 0.15 || (raw >= 1.0 && raw >= (cb.Values.Max() / 2.0) * 0.7);
+                nodeInfos.Add(new NodeBetweennessInfo(node.Id, node.Title, raw, normalized, isBottleneck, pathsThrough[node.Id]));
+            }
+
+            var bottlenecks = nodeInfos.Where(i => i.IsCriticalBottleneck).OrderByDescending(i => i.NormalizedBetweenness).ToList();
+            double maxBetweenness = nodeInfos.Count > 0 ? Math.Round(nodeInfos.Max(i => i.NormalizedBetweenness), 4) : 0.0;
+            double meanBetweenness = nodeInfos.Count > 0 ? Math.Round(nodeInfos.Average(i => i.NormalizedBetweenness), 4) : 0.0;
+
+            string category;
+            if (bottlenecks.Count == 0)
+            {
+                category = "Decentralized Mesh (No Critical Bottlenecks)";
+            }
+            else if (bottlenecks.Count <= 2 && maxBetweenness >= 0.35)
+            {
+                category = "High Vulnerability (Single-Point-of-Failure Hubs)";
+            }
+            else if (bottlenecks.Count <= 4)
+            {
+                category = "Moderate Chokepoint Hierarchy";
+            }
+            else
+            {
+                category = "Distributed Bridge Nexus";
+            }
+
+            var topTitles = bottlenecks.Take(3).Select(b => b.Title).ToList();
+            string summary = FormatBetweennessCentralitySummary(
+                targetList.Count, linksInScope.Count, componentCount, maxBetweenness, meanBetweenness,
+                topTitles, bottlenecks.Count, category, isSelection);
+
+            return new BetweennessCentralityAudit(
+                targetList.Count, linksInScope.Count, componentCount, maxBetweenness, meanBetweenness,
+                bottlenecks.Count, nodeInfos, topTitles, category, isSelection, summary);
+        }
+
+        public static BetweennessCentralityAudit AuditBetweennessCentralityAndBridges(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditBetweennessCentralityAndBridges();
+        }
+
+        public static string FormatBetweennessCentralitySummary(
+            int nodeCount, int linkCount, int components, double maxBetweenness, double meanBetweenness,
+            IReadOnlyList<string> bottleneckTitles, int bottleneckCount, string category, bool isSelection)
+        {
+            string scopeStr = isSelection ? "Selected Nodes · " : "";
+            if (nodeCount == 0) return $"Graph betweenness centrality ({scopeStr}0 nodes): Empty mindmap";
+
+            string nodeLabel = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+            string linkLabel = linkCount == 1 ? "1 link" : $"{linkCount} links";
+            string compLabel = components == 1 ? "1 component" : $"{components} components";
+            string bDesc = bottleneckTitles.Count > 0 ? string.Join(", ", bottleneckTitles.Select(t => $"'{t}'")) : "None";
+
+            return $"Graph betweenness centrality ({scopeStr}{nodeLabel}, {linkLabel} · {compLabel} · {category}): Peak chokepoint {maxBetweenness:0.###} (Mean {meanBetweenness:0.###}) · {bottleneckCount} critical bottlenecks: {bDesc}";
+        }
     }
 
 
@@ -6201,6 +6405,34 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<string> OptimalHubTitles,
         IReadOnlyList<string> PeripheralTitles,
         string EfficiencyCategory,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents shortest-path betweenness centrality and information bottleneck metrics for an individual node.
+    /// </summary>
+    public sealed record NodeBetweennessInfo(
+        string NodeId,
+        string Title,
+        double RawBetweenness,
+        double NormalizedBetweenness,
+        bool IsCriticalBottleneck,
+        int ShortestPathsThroughCount);
+
+    /// <summary>
+    /// Represents the result of an audit of the mindmap's graph betweenness centrality, shortest-path bottleneck criticalities,
+    /// and bridge concepts using Brandes' algorithm.
+    /// </summary>
+    public sealed record BetweennessCentralityAudit(
+        int TotalNodes,
+        int TotalLinks,
+        int ConnectedComponents,
+        double MaxBetweenness,
+        double MeanBetweenness,
+        int BottleneckNodeCount,
+        IReadOnlyList<NodeBetweennessInfo> NodeMetrics,
+        IReadOnlyList<string> BottleneckNodeTitles,
+        string BottleneckCategory,
         bool IsSelectionScope,
         string Summary);
 }

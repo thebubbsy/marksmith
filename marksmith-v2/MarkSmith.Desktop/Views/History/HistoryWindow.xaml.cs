@@ -3380,6 +3380,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditSemanticFolding);
+
+                var auditWordDiff = new MenuFlyoutItem
+                {
+                    Text = "Audit intra-line word-level diff chunking & token shifts",
+                    Icon = new FontIcon { Glyph = "\uE8D2" }
+                };
+                auditWordDiff.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditWordLevelDiffChunkingAndTokenShifts(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditWordDiff);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

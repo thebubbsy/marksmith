@@ -4002,6 +4002,207 @@ public static class LineDiff
 
         return $"Diff semantic hunk folding ({hunkLabel} across {scopeLabel} · {category}): {coverageScore:0.#}% pinned context ({pinnedCount} pinned · {foldableCount} foldable){unpinnedWarning}";
     }
+
+    /// <summary>
+    /// Audits version diff deltas for intra-line word-level modifications, token substitutions,
+    /// insertions, deletions, and high-resolution inline edit resolution.
+    /// </summary>
+    public static WordLevelDiffAudit AuditWordLevelDiffChunkingAndTokenShifts(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            string emptySummary = "Word-level diff audit: 0 diff rows · Document is unchanged";
+            return new WordLevelDiffAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0, Array.Empty<WordDiffChunkInfo>(), "Unchanged (Zero Diffs)", emptySummary);
+        }
+
+        var lines = unifiedRows.Where(r => !r.IsGap).ToList();
+        var wordChunks = new List<WordDiffChunkInfo>();
+
+        int hunkIndex = 0;
+        int modifiedPairsCount = 0;
+        int totalSubstitutions = 0;
+        int totalInsertions = 0;
+        int totalDeletions = 0;
+        int totalIdentical = 0;
+        double sumSimilarity = 0.0;
+
+        for (int i = 0; i < lines.Count; i++)
+        {
+            if (lines[i].Kind != Kind.Same && (i == 0 || lines[i - 1].Kind == Kind.Same))
+            {
+                hunkIndex++;
+            }
+
+            if (lines[i].Kind == Kind.Removed && i + 1 < lines.Count && lines[i + 1].Kind == Kind.Added)
+            {
+                modifiedPairsCount++;
+                var oldRow = lines[i];
+                var newRow = lines[i + 1];
+
+                string oldText = oldRow.Text ?? "";
+                string newText = newRow.Text ?? "";
+
+                var oldTokens = System.Text.RegularExpressions.Regex.Matches(oldText, @"\w+|[^\w\s]|\s+")
+                    .Cast<System.Text.RegularExpressions.Match>()
+                    .Select(m => m.Value)
+                    .Where(t => !string.IsNullOrWhiteSpace(t))
+                    .ToList();
+
+                var newTokens = System.Text.RegularExpressions.Regex.Matches(newText, @"\w+|[^\w\s]|\s+")
+                    .Cast<System.Text.RegularExpressions.Match>()
+                    .Select(m => m.Value)
+                    .Where(t => !string.IsNullOrWhiteSpace(t))
+                    .ToList();
+
+                int mLen = oldTokens.Count;
+                int nLen = newTokens.Count;
+                int[,] lcs = new int[mLen + 1, nLen + 1];
+
+                for (int x = 1; x <= mLen; x++)
+                {
+                    for (int y = 1; y <= nLen; y++)
+                    {
+                        if (string.Equals(oldTokens[x - 1], newTokens[y - 1], StringComparison.Ordinal))
+                            lcs[x, y] = lcs[x - 1, y - 1] + 1;
+                        else
+                            lcs[x, y] = Math.Max(lcs[x - 1, y], lcs[x, y - 1]);
+                    }
+                }
+
+                int matchingWords = lcs[mLen, nLen];
+                totalIdentical += matchingWords;
+
+                double tokenSim = (mLen + nLen) > 0
+                    ? Math.Round((2.0 * matchingWords) / (mLen + nLen), 3)
+                    : 1.0;
+                sumSimilarity += tokenSim;
+
+                int curX = mLen, curY = nLen;
+                var pairChunks = new List<WordDiffChunkInfo>();
+
+                while (curX > 0 || curY > 0)
+                {
+                    if (curX > 0 && curY > 0 && string.Equals(oldTokens[curX - 1], newTokens[curY - 1], StringComparison.Ordinal))
+                    {
+                        curX--;
+                        curY--;
+                    }
+                    else if (curX > 0 && curY > 0 && lcs[curX - 1, curY - 1] == lcs[curX, curY])
+                    {
+                        pairChunks.Add(new WordDiffChunkInfo(
+                            hunkIndex, oldRow.OldNumber ?? 0, newRow.NewNumber ?? 0,
+                            oldTokens[curX - 1], newTokens[curY - 1], "Substitution", tokenSim));
+                        totalSubstitutions++;
+                        curX--;
+                        curY--;
+                    }
+                    else if (curY > 0 && (curX == 0 || lcs[curX, curY - 1] >= lcs[curX - 1, curY]))
+                    {
+                        pairChunks.Add(new WordDiffChunkInfo(
+                            hunkIndex, oldRow.OldNumber ?? 0, newRow.NewNumber ?? 0,
+                            "", newTokens[curY - 1], "Insertion", tokenSim));
+                        totalInsertions++;
+                        curY--;
+                    }
+                    else if (curX > 0 && (curY == 0 || lcs[curX, curY - 1] < lcs[curX - 1, curY]))
+                    {
+                        pairChunks.Add(new WordDiffChunkInfo(
+                            hunkIndex, oldRow.OldNumber ?? 0, newRow.NewNumber ?? 0,
+                            oldTokens[curX - 1], "", "Deletion", tokenSim));
+                        totalDeletions++;
+                        curX--;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                pairChunks.Reverse();
+                wordChunks.AddRange(pairChunks);
+
+                i++;
+            }
+        }
+
+        double meanSimilarity = modifiedPairsCount > 0
+            ? Math.Round(sumSimilarity / modifiedPairsCount, 3)
+            : 1.0;
+
+        double resolutionScore;
+        if (modifiedPairsCount == 0)
+        {
+            resolutionScore = 100.0;
+        }
+        else
+        {
+            resolutionScore = Math.Round(Math.Clamp(meanSimilarity * 100.0, 0.0, 100.0), 1);
+        }
+
+        string category;
+        if (modifiedPairsCount == 0 && lines.All(l => l.Kind == Kind.Same))
+        {
+            category = "Zero Diffs (Unchanged)";
+        }
+        else if (modifiedPairsCount == 0)
+        {
+            category = "Pure Insertion / Deletion Hunks";
+        }
+        else if (meanSimilarity >= 0.75)
+        {
+            category = "High-Resolution Word Substitutions";
+        }
+        else if (meanSimilarity >= 0.45)
+        {
+            category = "Moderate Intra-Line Token Shifts";
+        }
+        else
+        {
+            category = "Heavy Block Rewrites";
+        }
+
+        string summary = FormatWordLevelDiffSummary(
+            modifiedPairsCount, totalSubstitutions, totalInsertions, totalDeletions,
+            totalIdentical, meanSimilarity, resolutionScore, category, wordChunks);
+
+        return new WordLevelDiffAudit(
+            modifiedPairsCount, totalSubstitutions, totalInsertions, totalDeletions,
+            totalIdentical, meanSimilarity, resolutionScore, wordChunks, category, summary);
+    }
+
+    public static WordLevelDiffAudit AuditWordLevelDiffChunkingAndTokenShifts(string? before, string? after)
+    {
+        var diff = Diff(before ?? "", after ?? "");
+        var unified = BuildUnified(diff);
+        return AuditWordLevelDiffChunkingAndTokenShifts(unified);
+    }
+
+    public static string FormatWordLevelDiffSummary(
+        int modifiedPairs, int substitutions, int insertions, int deletions,
+        int identicalWords, double meanSimilarity, double resolutionScore,
+        string category, IReadOnlyList<WordDiffChunkInfo>? chunks = null)
+    {
+        if (modifiedPairs == 0 && substitutions == 0 && insertions == 0 && deletions == 0)
+        {
+            return $"Word-level diff audit ({category}): 0 modified lines · No intra-line token shifts";
+        }
+
+        string pairLabel = modifiedPairs == 1 ? "1 modified line" : $"{modifiedPairs} modified lines";
+        string tokenBreakdown = $"{substitutions} sub, +{insertions}/-{deletions} words";
+
+        string sample = "";
+        if (chunks != null && chunks.Count > 0)
+        {
+            var firstSub = chunks.FirstOrDefault(c => c.Operation == "Substitution");
+            if (firstSub != null)
+            {
+                sample = $" · L{firstSub.NewLineNumber}: '{firstSub.OldWord}' → '{firstSub.NewWord}'";
+            }
+        }
+
+        return $"Word-level diff audit ({pairLabel} [{tokenBreakdown}] · {category} · {resolutionScore:0.#}% resolution): ~{meanSimilarity * 100.0:0.#}% similarity{sample}";
+    }
 }
 
 /// <summary>
@@ -4176,6 +4377,34 @@ public sealed record SemanticHunkFoldingAudit(
     IReadOnlyList<SemanticHunkScopeInfo> Hunks,
     IReadOnlyList<string> DiscoveredScopes,
     string FoldingCategory,
+    string Summary);
+
+/// <summary>
+/// Represents intra-line word-level edit chunking and token substitution metrics.
+/// </summary>
+public sealed record WordDiffChunkInfo(
+    int HunkIndex,
+    int OldLineNumber,
+    int NewLineNumber,
+    string OldWord,
+    string NewWord,
+    string Operation,
+    double TokenSimilarity);
+
+/// <summary>
+/// Represents the result of an audit of intra-line word-level diff chunking, token shifts,
+/// and high-resolution inline edit resolution.
+/// </summary>
+public sealed record WordLevelDiffAudit(
+    int TotalModifiedLinePairs,
+    int TotalWordSubstitutions,
+    int TotalWordInsertions,
+    int TotalWordDeletions,
+    int IdenticalWordCount,
+    double MeanTokenSimilarity,
+    double IntraLineDiffResolutionScore,
+    IReadOnlyList<WordDiffChunkInfo> WordChunks,
+    string ResolutionCategory,
     string Summary);
 
 

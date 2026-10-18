@@ -703,6 +703,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditOrthogonalRoutingItem" Text="Audit orthogonal connection routing channels &amp; wire crossings" Click="OnSelectionAuditOrthogonalRoutingClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditGridSnapConformanceItem" Text="Audit shape grid snap conformance &amp; subpixel drift" Click="OnSelectionAuditGridSnapConformanceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE706;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

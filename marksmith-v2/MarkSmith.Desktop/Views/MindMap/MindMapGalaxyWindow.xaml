@@ -312,6 +312,9 @@
                                     <MenuFlyoutItem x:Name="AuditClosenessCentralityItem" Text="Audit closeness centrality, harmonic distance &amp; propagation" Click="OnAuditClosenessCentralityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditBetweennessCentralityItem" Text="Audit graph betweenness centrality, bottlenecks &amp; bridge concepts" Click="OnAuditBetweennessCentralityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE817;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

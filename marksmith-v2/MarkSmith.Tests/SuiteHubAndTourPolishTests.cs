@@ -2939,6 +2939,72 @@ public class SuiteHubAndTourPolishTests
             audit.HighDpiReadyCount, audit.LowDpiRiskCount, audit.UnoptimizedSvgCount,
             audit.OverallHighDpiReadinessScore, audit.PotentialSvgSavingsBytes, audit.ReadinessCategory));
     }
+
+    [Fact]
+    public void Run165_WorkspaceTypographyAndFontEmbedding_And_CrossSurfaceWiring()
+    {
+        // 1. Logic test for RecentFilesService.AuditWorkspaceTypographyAndFontEmbedding
+        var emptyAudit = RecentFilesService.AuditWorkspaceTypographyAndFontEmbedding(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(0, emptyAudit.DistinctFamiliesCount);
+        Assert.Equal("Empty Workspace", emptyAudit.TypographicHealthCategory);
+        Assert.Equal(100.0, emptyAudit.TypographicSelfContainmentScore);
+
+        var docContent = """
+            # Document Header
+            <div style="font-family: 'Segoe UI', Arial, sans-serif;">System Font</div>
+            <p style="font-family: 'Cascadia Code', monospace;">Code block</p>
+            <span style="font-family: 'CustomExoticFont', sans-serif;">Exotic custom font</span>
+            """;
+
+        var fontAudit = RecentFilesService.AuditWorkspaceTypographyAndFontEmbedding(
+            new[] { @"C:\Docs\spec.md" },
+            fileExistsProvider: _ => true,
+            contentReader: _ => docContent);
+
+        Assert.Equal(1, fontAudit.TotalFilesScanned);
+        Assert.True(fontAudit.DistinctFamiliesCount >= 2);
+        Assert.True(fontAudit.TotalFontDeclarations >= 2);
+        Assert.Equal(fontAudit.Summary, RecentFilesService.FormatWorkspaceTypographySummary(
+            1, fontAudit.TotalFontDeclarations, fontAudit.DistinctFamiliesCount,
+            fontAudit.SelfContainedFontCount, fontAudit.MissingFallbackCount, fontAudit.RemoteWebFontCount,
+            fontAudit.TypographicSelfContainmentScore, fontAudit.TypographicHealthCategory, fontAudit.DiscoveredFamilies));
+
+        // 2. Cross-surface XAML / C# wiring verification for Run #165 across all 6 surfaces:
+        // MainWindow: tableAlignmentSpacingItem
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("tableAlignmentSpacingItem", mainCs);
+        Assert.Contains("FormatTableAlignmentAndColumnSpacingSummary", mainCs);
+
+        // MindMapGalaxy: AuditBetweennessCentralityItem
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditBetweennessCentralityItem", galaxyXaml);
+        Assert.Contains("OnAuditBetweennessCentralityClick", galaxyCs);
+
+        // ShapeStudio: SelectionAuditGridSnapConformanceItem
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditGridSnapConformanceItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditGridSnapConformanceClick", shapeCs);
+
+        // SmartArtStudio: AuditTypographyFontFitItem
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditTypographyFontFitItem", smartArtXaml);
+        Assert.Contains("OnAuditTypographyFontFitClick", smartArtCs);
+
+        // HistoryWindow: auditWordDiff
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditWordDiff", historyCs);
+        Assert.Contains("AuditWordLevelDiffChunkingAndTokenShifts", historyCs);
+
+        // SuiteHubView: CopyWorkspaceTypographyAdvisorItem
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceTypographyAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceTypographyAdvisorClick", suiteCs);
+    }
 }
 
 
