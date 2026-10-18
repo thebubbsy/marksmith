@@ -1579,7 +1579,45 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal(hotspotAudit.RemovedRows, unifiedAudit.RemovedRows);
         Assert.Equal(hotspotAudit.VolatilityIndex, unifiedAudit.VolatilityIndex);
     }
+
+    [Fact]
+    public void Run163_AuditChunkContextBoundaries_DetectsHunkSizesAndDiscontinuities()
+    {
+        // 1. Unchanged diff (0 hunks)
+        var emptyAudit = LineDiff.AuditChunkContextBoundaries(Array.Empty<LineDiff.UnifiedRow>());
+        Assert.Equal(0, emptyAudit.TotalHunks);
+        Assert.Equal(0, emptyAudit.SemanticallyAlignedHunks);
+        Assert.Equal(0, emptyAudit.TruncatedConstructCount);
+        Assert.Equal(0, emptyAudit.OverlappingHunkCount);
+        Assert.Equal("Clean Baseline (Zero Diff Deltas)", emptyAudit.AlignmentCategory);
+        Assert.Equal(100.0, emptyAudit.BoundaryIntegrityScore);
+        Assert.Equal("Diff chunk boundary audit: 0 hunks · Document is unchanged (Zero diff deltas)", emptyAudit.Summary);
+
+        // 2. Multi-chunk diff with separated modifications
+        var beforeLines = new List<string>();
+        for (int i = 1; i <= 30; i++) beforeLines.Add($"Unchanged line {i}");
+        var afterLines = new List<string>(beforeLines);
+        afterLines[2] = "Modified line 3";
+        afterLines[25] = "Modified line 26";
+
+        var beforeDoc = string.Join("\n", beforeLines);
+        var afterDoc = string.Join("\n", afterLines);
+
+        var chunkAudit = LineDiff.AuditChunkContextBoundaries(beforeDoc, afterDoc);
+        Assert.True(chunkAudit.TotalHunks >= 2);
+        Assert.True(chunkAudit.BoundaryIntegrityScore > 0);
+        Assert.NotEmpty(chunkAudit.Hunks);
+        Assert.Contains("Diff chunk boundary audit", chunkAudit.Summary);
+
+        // 3. Verify format summary consistency
+        string formatted = LineDiff.FormatChunkBoundarySummary(
+            chunkAudit.TotalHunks, chunkAudit.SemanticallyAlignedHunks, chunkAudit.TruncatedConstructCount,
+            chunkAudit.OverlappingHunkCount, chunkAudit.MeanContextPadding, chunkAudit.BoundaryIntegrityScore,
+            chunkAudit.AlignmentCategory);
+        Assert.Equal(chunkAudit.Summary, formatted);
+    }
 }
+
 
 
 

@@ -2883,6 +2883,282 @@ public sealed class RecentFilesService
 
         return $"Cross-reference audit ({totalFiles} files · {linkDesc}{breakdown} · {category}): {score:0.#}% integrity{brokenDesc}{orphanDesc}";
     }
+
+    /// <summary>
+    /// Audits workspace media assets for file size, compression efficiency, and modern format modernization (WebP/AVIF).
+    /// </summary>
+    public static WorkspaceAssetCompressionAudit AuditAssetCompressionAndFormatAdvisor(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null,
+        Func<string, long>? fileLengthProvider = null)
+    {
+        var fileList = files?.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                       ?? new List<string>();
+
+        fileExistsProvider ??= File.Exists;
+        contentReader ??= File.ReadAllText;
+        fileLengthProvider ??= p =>
+        {
+            try { return new FileInfo(p).Length; }
+            catch { return 0L; }
+        };
+
+        if (fileList.Count == 0)
+        {
+            string emptySummary = "Asset compression audit: 0 files · Workspace is empty";
+            return new WorkspaceAssetCompressionAudit(
+                0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0.0, 100.0,
+                Array.Empty<AssetCompressionItem>(), "Empty Workspace", emptySummary);
+        }
+
+        var imageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tif", ".svg", ".webp", ".avif"
+        };
+
+        var modernExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".webp", ".avif", ".svg"
+        };
+
+        var assetMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // Path -> SourceMd
+
+        var mdRegex = new System.Text.RegularExpressions.Regex(
+            @"!\[([^\]]*)\]\(([^)]+)\)",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        foreach (var file in fileList)
+        {
+            string ext = "";
+            try { ext = Path.GetExtension(file); } catch { }
+
+            if (imageExtensions.Contains(ext))
+            {
+                if (!assetMap.ContainsKey(file))
+                    assetMap[file] = file;
+            }
+            else if (ext.Equals(".md", StringComparison.OrdinalIgnoreCase) ||
+                     ext.Equals(".markdown", StringComparison.OrdinalIgnoreCase))
+            {
+                if (fileExistsProvider(file))
+                {
+                    string content = "";
+                    try { content = contentReader(file); } catch { }
+
+                    var matches = mdRegex.Matches(content);
+                    foreach (System.Text.RegularExpressions.Match m in matches)
+                    {
+                        string target = m.Groups[2].Value.Trim().Trim('"', '\'');
+                        if (!string.IsNullOrEmpty(target) && !assetMap.ContainsKey(target))
+                        {
+                            assetMap[target] = file;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (assetMap.Count == 0)
+        {
+            string textOnlySummary = "Asset compression audit: 0 media assets detected · Workspace is 100% text-based";
+            return new WorkspaceAssetCompressionAudit(
+                0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0.0, 100.0,
+                Array.Empty<AssetCompressionItem>(), "Pure Text Workspace", textOnlySummary);
+        }
+
+        static string FormatBytes(long bytes)
+        {
+            if (bytes <= 0) return "0 B";
+            if (bytes < 1024) return $"{bytes} B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:0.#} KB";
+            return $"{bytes / (1024.0 * 1024.0):0.##} MB";
+        }
+
+        var items = new List<AssetCompressionItem>();
+        int localCount = 0;
+        int remoteCount = 0;
+        int modernCount = 0;
+        int legacyCount = 0;
+        int oversizedCount = 0;
+        long totalCurrentBytes = 0;
+        long totalOptimizedBytes = 0;
+
+        foreach (var (assetPath, sourceFile) in assetMap)
+        {
+            bool isRemote = assetPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                            assetPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+            string fn = Path.GetFileName(assetPath);
+            if (string.IsNullOrEmpty(fn)) fn = assetPath;
+
+            string ext = "";
+            try { ext = Path.GetExtension(assetPath).ToLowerInvariant(); } catch { }
+
+            if (isRemote)
+            {
+                remoteCount++;
+                items.Add(new AssetCompressionItem(
+                    assetPath, fn, ext, 0L, "Remote", 0L, "Remote", 0.0,
+                    "Remote URL (CDN Cached)", false, true));
+                continue;
+            }
+
+            localCount++;
+
+            // Resolve full path
+            string fullPath = assetPath;
+            if (!Path.IsPathRooted(assetPath))
+            {
+                string? dir = Path.GetDirectoryName(sourceFile);
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    try { fullPath = Path.GetFullPath(Path.Combine(dir, assetPath)); } catch { }
+                }
+            }
+
+            long currentSize = 0;
+            if (fileExistsProvider(fullPath))
+            {
+                currentSize = fileLengthProvider(fullPath);
+            }
+
+            totalCurrentBytes += currentSize;
+
+            double ratio = 1.0;
+            string recommended = "Retain Format";
+
+            switch (ext)
+            {
+                case ".bmp":
+                    ratio = 0.20; // 80% savings
+                    recommended = "WebP / PNG (Lossless)";
+                    legacyCount++;
+                    break;
+                case ".png":
+                    ratio = 0.65; // 35% savings
+                    recommended = "WebP (Modern Lossless/Lossy)";
+                    legacyCount++;
+                    break;
+                case ".jpg":
+                case ".jpeg":
+                    ratio = 0.75; // 25% savings
+                    recommended = "WebP / AVIF (Next-Gen Lossy)";
+                    legacyCount++;
+                    break;
+                case ".gif":
+                    ratio = 0.50; // 50% savings
+                    recommended = "WebP / MP4 Animation";
+                    legacyCount++;
+                    break;
+                case ".tiff":
+                case ".tif":
+                    ratio = 0.30; // 70% savings
+                    recommended = "WebP / PNG";
+                    legacyCount++;
+                    break;
+                case ".webp":
+                case ".avif":
+                case ".svg":
+                    ratio = 1.0;
+                    recommended = "Modern Format (Optimal)";
+                    modernCount++;
+                    break;
+                default:
+                    legacyCount++;
+                    recommended = "WebP / SVG";
+                    break;
+            }
+
+            long optSize = (long)(currentSize * ratio);
+            totalOptimizedBytes += optSize;
+
+            bool isOversized = currentSize >= 500 * 1024;
+            if (isOversized) oversizedCount++;
+
+            double savingsPct = currentSize > 0
+                ? Math.Round(((double)(currentSize - optSize) / currentSize) * 100.0, 1)
+                : 0.0;
+
+            items.Add(new AssetCompressionItem(
+                assetPath, fn, ext, currentSize, FormatBytes(currentSize),
+                optSize, FormatBytes(optSize), savingsPct, recommended, isOversized, false));
+        }
+
+        long totalSavingsBytes = Math.Max(0L, totalCurrentBytes - totalOptimizedBytes);
+        double overallSavings = totalCurrentBytes > 0
+            ? Math.Round(((double)totalSavingsBytes / totalCurrentBytes) * 100.0, 1)
+            : 0.0;
+
+        double efficiencyScore = Math.Round(Math.Clamp(
+            100.0 - (overallSavings * 0.7) - (oversizedCount * 5.0), 0.0, 100.0), 1);
+
+        string category;
+        if (efficiencyScore >= 85.0 && oversizedCount == 0)
+        {
+            category = "Modernized Lightweight Assets (WebP/SVG)";
+        }
+        else if (oversizedCount > 0)
+        {
+            category = "Heavy Media Assets Detected (>500 KB)";
+        }
+        else if (overallSavings >= 25.0)
+        {
+            category = "Substantial Modernization Savings Potential";
+        }
+        else
+        {
+            category = "Moderate Compression Optimization";
+        }
+
+        string summary = FormatAssetCompressionSummary(
+            assetMap.Count, localCount, remoteCount, modernCount, legacyCount, oversizedCount,
+            totalCurrentBytes, totalSavingsBytes, overallSavings, efficiencyScore, category);
+
+        return new WorkspaceAssetCompressionAudit(
+            assetMap.Count,
+            localCount,
+            remoteCount,
+            modernCount,
+            legacyCount,
+            oversizedCount,
+            totalCurrentBytes,
+            totalOptimizedBytes,
+            totalSavingsBytes,
+            overallSavings,
+            efficiencyScore,
+            items,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of workspace asset compression metrics.
+    /// </summary>
+    public static string FormatAssetCompressionSummary(IEnumerable<string>? files)
+        => AuditAssetCompressionAndFormatAdvisor(files).Summary;
+
+    public static string FormatAssetCompressionSummary(
+        int totalAssets, int localCount, int remoteCount, int modernCount, int legacyCount,
+        int oversizedCount, long currentBytes, long savingsBytes, double savingsPct,
+        double efficiencyScore, string category)
+    {
+        if (totalAssets == 0) return "Asset compression audit: 0 media assets detected · Workspace is 100% text-based";
+
+        static string FormatBytes(long bytes)
+        {
+            if (bytes <= 0) return "0 B";
+            if (bytes < 1024) return $"{bytes} B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:0.#} KB";
+            return $"{bytes / (1024.0 * 1024.0):0.##} MB";
+        }
+
+        string assetLabel = totalAssets == 1 ? "1 asset" : $"{totalAssets} assets";
+        string savingsStr = savingsBytes > 0 ? $" · Potential savings: {FormatBytes(savingsBytes)} ({savingsPct:0.#}%)" : "";
+        string oversizedStr = oversizedCount > 0 ? $" · ⚠ {oversizedCount} oversized (>500KB)" : "";
+
+        return $"Asset compression audit ({assetLabel} [{modernCount} modern, {legacyCount} legacy] · {category}): Efficiency: {efficiencyScore:0.#}% (Total: {FormatBytes(currentBytes)}){savingsStr}{oversizedStr}";
+    }
 }
 
 /// <summary>
@@ -3156,5 +3432,38 @@ public sealed record WorkspaceDeadLinkAudit(
     string IntegrityCategory,
     string Summary);
 
+/// <summary>
+/// Represents compression savings and modern format recommendations for an individual media asset.
+/// </summary>
+public sealed record AssetCompressionItem(
+    string AssetPath,
+    string FileName,
+    string Extension,
+    long CurrentSizeBytes,
+    string CurrentFormattedSize,
+    long EstimatedOptimizedSizeBytes,
+    string EstimatedOptimizedFormattedSize,
+    double PotentialSavingsPercent,
+    string RecommendedFormat,
+    bool IsOversized,
+    bool IsRemote);
 
-
+/// <summary>
+/// Represents the result of an audit of workspace media asset compression,
+/// image format modernization (WebP/AVIF), and storage optimization potential.
+/// </summary>
+public sealed record WorkspaceAssetCompressionAudit(
+    int TotalAssetsScanned,
+    int LocalAssetsCount,
+    int RemoteAssetsCount,
+    int ModernFormatCount,
+    int LegacyFormatCount,
+    int OversizedCount,
+    long TotalCurrentSizeBytes,
+    long TotalEstimatedOptimizedSizeBytes,
+    long TotalPotentialSavingsBytes,
+    double OverallSavingsPercentage,
+    double AssetEfficiencyScore,
+    IReadOnlyList<AssetCompressionItem> Assets,
+    string EfficiencyCategory,
+    string Summary);

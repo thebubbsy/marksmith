@@ -697,6 +697,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditSymmetryItem" Text="Audit diagram bilateral reflection &amp; rotational symmetry" Click="OnSelectionAuditSymmetryClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE745;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditSpacingUniformityItem" Text="Audit shape boundary spacing uniformity &amp; collisions" Click="OnSelectionAuditSpacingUniformityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE746;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

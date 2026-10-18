@@ -3354,6 +3354,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {churn.Summary}");
                 };
                 menu.Items.Add(auditCommitChurn);
+
+                var auditChunkBoundaries = new MenuFlyoutItem
+                {
+                    Text = "Audit diff chunk semantic boundaries & hunk overlaps",
+                    Icon = new FontIcon { Glyph = "\uE8D2" }
+                };
+                auditChunkBoundaries.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditChunkContextBoundaries(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditChunkBoundaries);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

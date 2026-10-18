@@ -5411,6 +5411,225 @@ namespace MarkSmith.ViewModels.MindMap
             int nodeCount, int linkCount, int clusterCount, double modularityQ, int bridgingNodeCount,
             string category, bool isSelection)
             => FormatCommunitySummary(nodeCount, linkCount, clusterCount, modularityQ, bridgingNodeCount, category, isSelection);
+
+        /// <summary>
+        /// Audits the mindmap's geodesic graph diameter, radial eccentricity, peripheral nodes, central nodes,
+        /// and identifies the longest critical semantic concept path.
+        /// </summary>
+        public GraphDiameterAudit AuditGraphDiameterAndEccentricity(IEnumerable<MindMapNodeViewModel>? targetNodes = null)
+        {
+            bool isSelection = false;
+            var targetList = targetNodes?.ToList();
+            if (targetList == null)
+            {
+                var selectedNodes = Nodes.Where(n => n.IsSelected).ToList();
+                if (selectedNodes.Count > 1)
+                {
+                    targetList = selectedNodes;
+                    isSelection = true;
+                }
+                else
+                {
+                    targetList = Nodes.ToList();
+                }
+            }
+
+            if (targetList.Count == 0)
+            {
+                string emptySummary = "Graph diameter audit: 0 nodes (Empty mindmap)";
+                StatusMessage = emptySummary;
+                return new GraphDiameterAudit(0, 0, 0, 0, 0, 0, 0, Array.Empty<string>(), Array.Empty<NodeEccentricityInfo>(), "Empty Mindmap", isSelection, emptySummary);
+            }
+
+            if (targetList.Count == 1)
+            {
+                var single = targetList[0];
+                string singleSummary = $"Graph diameter audit: 1 node ('{single.Title}') · Diameter 0, Radius 0";
+                StatusMessage = singleSummary;
+                var singleInfo = new NodeEccentricityInfo(single.Id, single.Title, 0, true, true);
+                return new GraphDiameterAudit(1, 0, 1, 0, 0, 1, 1, new[] { single.Title }, new[] { singleInfo }, "Single Node Hub", isSelection, singleSummary);
+            }
+
+            var targetIds = new HashSet<string>(targetList.Select(n => n.Id));
+            var linksInScope = Links.Where(l => targetIds.Contains(l.SourceNodeId) && targetIds.Contains(l.TargetNodeId)).ToList();
+            var nodesById = targetList.ToDictionary(n => n.Id);
+
+            var adj = new Dictionary<string, List<string>>();
+            foreach (var n in targetList) adj[n.Id] = new List<string>();
+            foreach (var l in linksInScope)
+            {
+                if (l.SourceNodeId != l.TargetNodeId)
+                {
+                    adj[l.SourceNodeId].Add(l.TargetNodeId);
+                    adj[l.TargetNodeId].Add(l.SourceNodeId);
+                }
+            }
+
+            // Identify connected components
+            var visitedComponents = new HashSet<string>();
+            int componentCount = 0;
+            foreach (var n in targetList)
+            {
+                if (!visitedComponents.Contains(n.Id))
+                {
+                    componentCount++;
+                    var qComp = new Queue<string>();
+                    visitedComponents.Add(n.Id);
+                    qComp.Enqueue(n.Id);
+                    while (qComp.Count > 0)
+                    {
+                        var curr = qComp.Dequeue();
+                        foreach (var nbr in adj[curr])
+                        {
+                            if (visitedComponents.Add(nbr))
+                                qComp.Enqueue(nbr);
+                        }
+                    }
+                }
+            }
+
+            var eccentricities = new Dictionary<string, int>();
+            int maxDistOverall = 0;
+            string bestStartNode = targetList[0].Id;
+            string bestEndNode = targetList[0].Id;
+            Dictionary<string, string?> bestPrevMap = new();
+
+            foreach (var sourceNode in targetList)
+            {
+                var dist = new Dictionary<string, int>();
+                var prev = new Dictionary<string, string?>();
+                var queue = new Queue<string>();
+
+                dist[sourceNode.Id] = 0;
+                prev[sourceNode.Id] = null;
+                queue.Enqueue(sourceNode.Id);
+
+                while (queue.Count > 0)
+                {
+                    var u = queue.Dequeue();
+                    int d = dist[u];
+                    foreach (var v in adj[u])
+                    {
+                        if (!dist.ContainsKey(v))
+                        {
+                            dist[v] = d + 1;
+                            prev[v] = u;
+                            queue.Enqueue(v);
+                        }
+                    }
+                }
+
+                int maxD = dist.Values.Max();
+                eccentricities[sourceNode.Id] = maxD;
+
+                if (maxD > maxDistOverall)
+                {
+                    maxDistOverall = maxD;
+                    bestStartNode = sourceNode.Id;
+                    bestEndNode = dist.OrderByDescending(kv => kv.Value).First().Key;
+                    bestPrevMap = prev;
+                }
+            }
+
+            int diameter = maxDistOverall;
+            int radius = eccentricities.Values.Min();
+
+            var nodeInfos = new List<NodeEccentricityInfo>();
+            int peripheralCount = 0;
+            int centralCount = 0;
+
+            foreach (var n in targetList)
+            {
+                int ecc = eccentricities[n.Id];
+                bool isPeripheral = (ecc == diameter && diameter > 0);
+                bool isCentral = (ecc == radius);
+                if (isPeripheral) peripheralCount++;
+                if (isCentral) centralCount++;
+                nodeInfos.Add(new NodeEccentricityInfo(n.Id, n.Title, ecc, isPeripheral, isCentral));
+            }
+
+            // Reconstruct longest concept path
+            var longestPath = new List<string>();
+            if (diameter > 0 && bestPrevMap.Count > 0)
+            {
+                string? curr = bestEndNode;
+                while (curr != null)
+                {
+                    longestPath.Add(nodesById[curr].Title);
+                    curr = bestPrevMap.TryGetValue(curr, out var p) ? p : null;
+                }
+                longestPath.Reverse();
+            }
+            else
+            {
+                longestPath.Add(targetList[0].Title);
+            }
+
+            string category;
+            if (diameter == 0) category = "Trivial / Disconnected Nodes";
+            else if (diameter == 1) category = "Direct Star Topology (Radius 1)";
+            else if (diameter == 2) category = "Compact Hub-and-Spoke (Diameter 2)";
+            else if (diameter <= 4) category = "Balanced Semantic Network (Diameter 3–4)";
+            else category = "Extended Concept Chain (Deep Hierarchy)";
+
+            string summary = FormatDiameterEccentricitySummary(
+                targetList.Count, linksInScope.Count, componentCount, diameter, radius,
+                peripheralCount, centralCount, longestPath, category, isSelection);
+
+            StatusMessage = summary;
+
+            return new GraphDiameterAudit(
+                targetList.Count,
+                linksInScope.Count,
+                componentCount,
+                diameter,
+                radius,
+                peripheralCount,
+                centralCount,
+                longestPath,
+                nodeInfos,
+                category,
+                isSelection,
+                summary);
+        }
+
+        /// <summary>
+        /// Audits mindmap graph diameter across pure model nodes and links.
+        /// </summary>
+        public static GraphDiameterAudit AuditGraphDiameterAndEccentricity(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditGraphDiameterAndEccentricity();
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of graph diameter, eccentricity, and longest concept path.
+        /// </summary>
+        public static string FormatDiameterEccentricitySummary(
+            int nodeCount, int linkCount, int components, int diameter, int radius,
+            int peripheralCount, int centralCount, IReadOnlyList<string> longestPath,
+            string category, bool isSelection)
+        {
+            string scopeStr = isSelection ? "Selected Nodes · " : "";
+            if (nodeCount == 0) return $"Graph diameter ({scopeStr}0 nodes): Empty mindmap";
+
+            string nodeLabel = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+            string linkLabel = linkCount == 1 ? "1 link" : $"{linkCount} links";
+            string compLabel = components == 1 ? "1 component" : $"{components} components";
+            string pathStr = longestPath.Count > 0 ? string.Join(" → ", longestPath.Select(p => $"'{p}'")) : "None";
+
+            return $"Graph diameter audit ({scopeStr}{nodeLabel}, {linkLabel} · {compLabel} · Diameter {diameter}, Radius {radius} · {category}): Longest concept path: {pathStr} ({diameter} hops) · {peripheralCount} peripheral, {centralCount} central";
+        }
     }
 
 
@@ -5691,6 +5910,34 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<MindMapCommunityInfo> Communities,
         IReadOnlyList<string> BridgingNodeTitles,
         string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents geodesic eccentricity and path metrics for an individual node in a graph diameter audit.
+    /// </summary>
+    public sealed record NodeEccentricityInfo(
+        string NodeId,
+        string Title,
+        int Eccentricity,
+        bool IsPeripheral,
+        bool IsCentral);
+
+    /// <summary>
+    /// Represents the result of an audit of the mindmap's geodesic graph diameter, radial eccentricity,
+    /// and longest critical semantic concept path.
+    /// </summary>
+    public sealed record GraphDiameterAudit(
+        int TotalNodes,
+        int TotalLinks,
+        int ConnectedComponents,
+        int GraphDiameter,
+        int GraphRadius,
+        int PeripheralNodeCount,
+        int CentralNodeCount,
+        IReadOnlyList<string> LongestConceptPath,
+        IReadOnlyList<NodeEccentricityInfo> Nodes,
+        string DiameterCategory,
         bool IsSelectionScope,
         string Summary);
 }

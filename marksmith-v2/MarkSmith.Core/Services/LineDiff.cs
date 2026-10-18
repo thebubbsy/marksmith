@@ -3627,6 +3627,206 @@ public static class LineDiff
 
         return $"Commit churn audit (+{added}/-{removed} in {totalRows} rows · {category}): Volatility: {volatilityIndex:0.#}/100 (Entropy {entropy:0.##}) · {clusterLabel}{topHotspotStr}";
     }
+
+    /// <summary>
+    /// Audits diff chunk context boundaries for semantic alignment (headings, code fences, functions),
+    /// multiline construct truncation, and identifies adjacent/overlapping hunks suitable for deduplication.
+    /// </summary>
+    public static DiffChunkBoundaryAudit AuditChunkContextBoundaries(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows is null || unifiedRows.Count == 0)
+        {
+            string emptySummary = "Diff chunk boundary audit: 0 hunks · Document is unchanged (Zero diff deltas)";
+            return new DiffChunkBoundaryAudit(0, 0, 0, 0, 0.0, 100.0, Array.Empty<ChunkBoundaryInfo>(), "Clean Baseline (Zero Diff Deltas)", emptySummary);
+        }
+
+        var rows = unifiedRows.Where(r => !r.IsGap).ToList();
+        if (rows.Count == 0 || rows.All(r => r.Kind == Kind.Same))
+        {
+            string emptySummary = "Diff chunk boundary audit: 0 hunks · Document is unchanged (Zero diff deltas)";
+            return new DiffChunkBoundaryAudit(0, 0, 0, 0, 0.0, 100.0, Array.Empty<ChunkBoundaryInfo>(), "Clean Baseline (Zero Diff Deltas)", emptySummary);
+        }
+
+        // Identify modified clusters (hunks)
+        var hunkRanges = new List<(int Start, int End)>();
+        int hunkStart = -1;
+
+        for (int i = 0; i < rows.Count; i++)
+        {
+            bool isMod = rows[i].Kind != Kind.Same;
+            if (isMod)
+            {
+                if (hunkStart == -1) hunkStart = i;
+            }
+            else
+            {
+                if (hunkStart != -1)
+                {
+                    hunkRanges.Add((hunkStart, i - 1));
+                    hunkStart = -1;
+                }
+            }
+        }
+        if (hunkStart != -1)
+        {
+            hunkRanges.Add((hunkStart, rows.Count - 1));
+        }
+
+        if (hunkRanges.Count == 0)
+        {
+            string emptySummary = "Diff chunk boundary audit: 0 hunks · Document is unchanged (Zero diff deltas)";
+            return new DiffChunkBoundaryAudit(0, 0, 0, 0, 0.0, 100.0, Array.Empty<ChunkBoundaryInfo>(), "Clean Baseline (Zero Diff Deltas)", emptySummary);
+        }
+
+        var hunkInfos = new List<ChunkBoundaryInfo>();
+        int alignedCount = 0;
+        int truncatedCount = 0;
+        int overlappingCount = 0;
+        double totalPadding = 0.0;
+
+        for (int h = 0; h < hunkRanges.Count; h++)
+        {
+            var (startIdx, endIdx) = hunkRanges[h];
+
+            // Context leading lines
+            int leadingContext = 0;
+            int prevBoundary = (h > 0) ? hunkRanges[h - 1].End : -1;
+            for (int k = startIdx - 1; k > prevBoundary; k--)
+            {
+                if (rows[k].Kind == Kind.Same) leadingContext++;
+                else break;
+            }
+
+            // Context trailing lines
+            int trailingContext = 0;
+            int nextBoundary = (h < hunkRanges.Count - 1) ? hunkRanges[h + 1].Start : rows.Count;
+            for (int k = endIdx + 1; k < nextBoundary; k++)
+            {
+                if (rows[k].Kind == Kind.Same) trailingContext++;
+                else break;
+            }
+
+            totalPadding += (leadingContext + trailingContext) / 2.0;
+
+            // Check overlap / proximity to adjacent hunk
+            bool overlaps = false;
+            if (h > 0 && (startIdx - hunkRanges[h - 1].End - 1) <= 2) overlaps = true;
+            if (h < hunkRanges.Count - 1 && (hunkRanges[h + 1].Start - endIdx - 1) <= 2) overlaps = true;
+            if (overlaps) overlappingCount++;
+
+            // Find preceding semantic header
+            string precedingHeader = "(Document Root)";
+            for (int k = startIdx; k >= 0; k--)
+            {
+                string t = rows[k].Text?.Trim() ?? "";
+                if (t.StartsWith("#") || t.StartsWith("//") || t.StartsWith("/*") || t.Contains("class ") || t.Contains("void "))
+                {
+                    precedingHeader = t.Length > 30 ? t.Substring(0, 27) + "..." : t;
+                    break;
+                }
+            }
+
+            // Semantic alignment check
+            bool aligns = false;
+            if (startIdx == 0) aligns = true;
+            else
+            {
+                string prevLine = rows[startIdx - 1].Text?.Trim() ?? "";
+                string startLine = rows[startIdx].Text?.Trim() ?? "";
+                if (string.IsNullOrWhiteSpace(prevLine) || prevLine.StartsWith("#") || prevLine.StartsWith("```") ||
+                    startLine.StartsWith("#") || startLine.StartsWith("```"))
+                {
+                    aligns = true;
+                }
+            }
+            if (aligns) alignedCount++;
+
+            // Truncation check (e.g. split in the middle of a code fence or table)
+            int fencesBefore = 0;
+            for (int k = 0; k < startIdx; k++)
+            {
+                if ((rows[k].Text?.Trim() ?? "").StartsWith("```")) fencesBefore++;
+            }
+            bool truncates = (fencesBefore % 2 != 0);
+            if (truncates) truncatedCount++;
+
+            hunkInfos.Add(new ChunkBoundaryInfo(
+                h + 1,
+                startIdx + 1,
+                endIdx + 1,
+                leadingContext,
+                trailingContext,
+                precedingHeader,
+                aligns,
+                truncates,
+                overlaps));
+        }
+
+        double meanPadding = Math.Round(totalPadding / hunkRanges.Count, 1);
+        double boundaryScore = Math.Round(Math.Clamp(
+            ((double)alignedCount / hunkRanges.Count * 60.0) +
+            (Math.Max(0.0, 1.0 - ((double)truncatedCount / hunkRanges.Count)) * 25.0) +
+            (Math.Max(0.0, 1.0 - ((double)overlappingCount / hunkRanges.Count)) * 15.0), 0.0, 100.0), 1);
+
+        string category;
+        if (alignedCount == hunkRanges.Count && truncatedCount == 0 && overlappingCount == 0)
+        {
+            category = "Pixel-Perfect Semantic Chunk Boundaries";
+        }
+        else if (truncatedCount > 0)
+        {
+            category = "Truncated Multiline Constructs Detected";
+        }
+        else if (overlappingCount > 0)
+        {
+            category = "Overlapping Hunks (Deduplication Recommended)";
+        }
+        else
+        {
+            category = "Well-Formed Chunk Boundaries";
+        }
+
+        string summary = FormatChunkBoundarySummary(
+            hunkRanges.Count, alignedCount, truncatedCount, overlappingCount, meanPadding, boundaryScore, category);
+
+        return new DiffChunkBoundaryAudit(
+            hunkRanges.Count,
+            alignedCount,
+            truncatedCount,
+            overlappingCount,
+            meanPadding,
+            boundaryScore,
+            hunkInfos,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Static overload auditing diff chunk context boundaries from raw text comparison.
+    /// </summary>
+    public static DiffChunkBoundaryAudit AuditChunkContextBoundaries(string? before, string? after)
+    {
+        var diff = Diff(before ?? "", after ?? "");
+        var unified = BuildUnified(diff);
+        return AuditChunkContextBoundaries(unified);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of diff chunk boundary metrics.
+    /// </summary>
+    public static string FormatChunkBoundarySummary(
+        int totalHunks, int alignedHunks, int truncatedCount, int overlappingCount,
+        double meanPadding, double score, string category)
+    {
+        if (totalHunks == 0) return "Diff chunk boundary audit: 0 hunks · Document is unchanged (Zero diff deltas)";
+
+        string hunkLabel = totalHunks == 1 ? "1 hunk" : $"{totalHunks} hunks";
+        string issues = "";
+        if (truncatedCount > 0) issues += $" · ⚠ {truncatedCount} truncated constructs";
+        if (overlappingCount > 0) issues += $" · ⚠ {overlappingCount} overlapping hunks";
+
+        return $"Diff chunk boundary audit ({hunkLabel} · {category}): {score:0.#}% integrity (Aligned: {alignedHunks}/{totalHunks} · Mean context padding {meanPadding:0.#} lines){issues}";
+    }
 }
 
 /// <summary>
@@ -3745,6 +3945,32 @@ public sealed record CommitChurnHotspotsAudit(
     string VolatilityCategory,
     string Summary);
 
+/// <summary>
+/// Represents boundary alignment and semantic context metrics for an individual diff hunk.
+/// </summary>
+public sealed record ChunkBoundaryInfo(
+    int HunkIndex,
+    int StartLine,
+    int EndLine,
+    int ContextLeadingLines,
+    int ContextTrailingLines,
+    string PrecedingSemanticHeader,
+    bool AlignsToSemanticBoundary,
+    bool TruncatesMultilineConstruct,
+    bool OverlapsAdjacentHunk);
 
-
+/// <summary>
+/// Represents the result of an audit of diff chunk context semantic boundaries,
+/// multiline construct integrity, and hunk overlap deduplication.
+/// </summary>
+public sealed record DiffChunkBoundaryAudit(
+    int TotalHunks,
+    int SemanticallyAlignedHunks,
+    int TruncatedConstructCount,
+    int OverlappingHunkCount,
+    double MeanContextPadding,
+    double BoundaryIntegrityScore,
+    IReadOnlyList<ChunkBoundaryInfo> Hunks,
+    string AlignmentCategory,
+    string Summary);
 

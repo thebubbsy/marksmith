@@ -1425,7 +1425,56 @@ public class SmartArtStudioPolishTests
         Assert.Equal(0, undatedAudit.DatedMilestones);
         Assert.Equal("Undated Sequential Steps", undatedAudit.Category);
     }
+
+    [Fact]
+    public void Run163_AuditCyclicProcessConvergence_ValidatesClosingFeedbackLoops()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditCyclicProcessConvergence("");
+        Assert.Equal(0, emptyAudit.TotalStages);
+        Assert.Equal("Empty Outline", emptyAudit.ConvergenceCategory);
+        Assert.Equal(100.0, emptyAudit.LoopConvergenceScore);
+        Assert.False(emptyAudit.HasRecurrenceClosure);
+
+        // 2. Insufficient stages
+        var singleAudit = SmartArtDesignStudioViewModel.AuditCyclicProcessConvergence("- Single Phase");
+        Assert.Equal(1, singleAudit.TotalStages);
+        Assert.Equal("Incomplete Loop (1 Stage)", singleAudit.ConvergenceCategory);
+
+        // 3. Closed cyclic process with return loop
+        var closedCycleMd = """
+            - Plan: Define requirements
+            - Do: Implement changes
+            - Check: Verify tests
+            - Act: Return to Plan for iterative refinement
+            """;
+        var closedAudit = SmartArtDesignStudioViewModel.AuditCyclicProcessConvergence(closedCycleMd);
+        Assert.Equal(4, closedAudit.TotalStages);
+        Assert.True(closedAudit.HasRecurrenceClosure);
+        Assert.Contains("Explicit Recurrence", closedAudit.ClosureMechanism);
+        Assert.True(closedAudit.LoopConvergenceScore >= 80.0);
+        Assert.Equal("Seamless Closed-Loop Convergence", closedAudit.ConvergenceCategory);
+        Assert.Equal(closedAudit.Summary, SmartArtDesignStudioViewModel.FormatCyclicProcessSummary(
+            closedAudit.TotalStages, closedAudit.HasRecurrenceClosure, closedAudit.TerminalSinkCount,
+            closedAudit.StageWordCountVariance, closedAudit.LoopConvergenceScore,
+            closedAudit.ClosureMechanism, closedAudit.ConvergenceCategory));
+
+        // 4. Open process lacking return arc
+        var openCycleMd = """
+            - Inception
+            - Construction
+            - Transition
+            """;
+        var vm = new SmartArtDesignStudioViewModel();
+        vm.MarkdownText = openCycleMd;
+        var openAudit = vm.AuditCyclicProcessConvergence();
+        Assert.Equal(3, openAudit.TotalStages);
+        Assert.False(openAudit.HasRecurrenceClosure);
+        Assert.True(openAudit.LoopConvergenceScore < 100.0);
+        Assert.Equal("Open-Ended Linear Sequence (Missing Recurrence Closure)", openAudit.ConvergenceCategory);
+    }
 }
+
 
 
 

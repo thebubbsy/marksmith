@@ -1538,7 +1538,51 @@ public class ShapeStudioPolishTests
         Assert.Equal(3, asymAudit.TotalShapes);
         Assert.True(asymAudit.OverallSymmetryScore < vertAudit.OverallSymmetryScore);
     }
+
+    [Fact]
+    public void Run163_AuditSpacingUniformityAndCollisions_DetectsGuttersAndCollisions()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Insufficient shapes (<2)
+        var emptyAudit = vm.AuditSpacingUniformityAndCollisions();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal("Insufficient Shapes", emptyAudit.SpacingCategory);
+        Assert.Equal(100.0, emptyAudit.SpacingUniformityScore);
+
+        // 2. Pixel-perfect uniform spacing (20px gutters)
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Text = "Col 1", X = 0, Y = 100, Width = 100, Height = 50 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Text = "Col 2", X = 120, Y = 100, Width = 100, Height = 50 }; // gap = 20
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Text = "Col 3", X = 240, Y = 100, Width = 100, Height = 50 }; // gap = 20
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+        vm.Shapes.Add(s3);
+
+        var uniformAudit = vm.AuditSpacingUniformityAndCollisions();
+        Assert.Equal(3, uniformAudit.TotalShapesEvaluated);
+        Assert.Equal(3, uniformAudit.EvaluatedPairCount);
+        Assert.Equal(0, uniformAudit.CollidingPairCount);
+        Assert.Equal(0.0, uniformAudit.GutterStandardDeviation);
+        Assert.Equal("Pixel-Perfect Uniform Spacing", uniformAudit.SpacingCategory);
+        Assert.Equal(100.0, uniformAudit.SpacingUniformityScore);
+        Assert.Equal(uniformAudit.Summary, ShapeDesignStudioViewModel.FormatSpacingCollisionSummary(
+            uniformAudit.TotalShapesEvaluated, uniformAudit.EvaluatedPairCount, uniformAudit.CollidingPairCount,
+            uniformAudit.MeanHorizontalGutter, uniformAudit.MeanVerticalGutter, uniformAudit.GutterStandardDeviation,
+            uniformAudit.SpacingUniformityScore, uniformAudit.SpacingCategory, uniformAudit.IsSelectionScope ? "Selected Shapes · " : ""));
+
+        // 3. Collision detection (overlapping shapes)
+        var sCollide = new ShapeCanvasItemViewModel { Id = "s4", Text = "Overlapper", X = 50, Y = 120, Width = 100, Height = 50 };
+        vm.Shapes.Add(sCollide);
+        var collideAudit = vm.AuditSpacingUniformityAndCollisions();
+        Assert.Equal(4, collideAudit.TotalShapesEvaluated);
+        Assert.True(collideAudit.CollidingPairCount >= 1);
+        Assert.Equal("Bounding Box Collisions Detected", collideAudit.SpacingCategory);
+        Assert.True(collideAudit.SpacingUniformityScore < 100.0);
+        Assert.Contains(collideAudit.Pairs, p => p.IsColliding);
+    }
 }
+
 
 
 

@@ -1545,7 +1545,52 @@ public class TextSearchTests
         Assert.Contains("dup", dupAudit.DuplicateLabels);
         Assert.Equal("Duplicate Reference Definitions", dupAudit.Category);
     }
+
+    [Fact]
+    public void Run163_AuditSyntaxAmbiguityAndDelimiterBalance_ValidatesDelimitersAndFences()
+    {
+        // 1. Empty document
+        var emptyAudit = TextSearch.AuditSyntaxAmbiguityAndDelimiterBalance("");
+        Assert.Equal(0, emptyAudit.TotalAmbiguities);
+        Assert.Equal(0, emptyAudit.UnclosedCodeSpans);
+        Assert.Equal(0, emptyAudit.UnclosedEmphasisPairs);
+        Assert.Equal(0, emptyAudit.UnclosedMathDelimiters);
+        Assert.Equal(0, emptyAudit.UnmatchedBrackets);
+        Assert.Equal("Empty Document", emptyAudit.Category);
+        Assert.Equal(100.0, emptyAudit.SyntaxIntegrityScore);
+        Assert.Equal(emptyAudit.Summary, TextSearch.FormatSyntaxAmbiguitySummary(""));
+
+        // 2. Perfectly balanced markdown document
+        var balancedDoc = string.Join("\n",
+            "# Heading",
+            "This is **bold** text and `inline code` and $E=mc^2$.",
+            "A link [OpenAI](https://openai.com) with (parentheses) and {braces}.",
+            "```csharp",
+            "Console.WriteLine(\"Hello\");",
+            "```",
+            ":::smartart",
+            "- Process 1",
+            ":::");
+        var balancedAudit = TextSearch.AuditSyntaxAmbiguityAndDelimiterBalance(balancedDoc);
+        Assert.Equal(0, balancedAudit.TotalAmbiguities);
+        Assert.Equal(100.0, balancedAudit.SyntaxIntegrityScore);
+        Assert.Equal("Optimal Markdown Syntax (100% Balanced)", balancedAudit.Category);
+        Assert.Contains("0 issues", balancedAudit.Summary);
+
+        // 3. Unbalanced markdown (unclosed inline code and unclosed bracket)
+        var unbalancedDoc = string.Join("\n",
+            "# Unfinished Section",
+            "Here is an unclosed `code span without closing backtick.",
+            "And an unclosed [bracket link without closing square.");
+        var unbalAudit = TextSearch.AuditSyntaxAmbiguityAndDelimiterBalance(unbalancedDoc);
+        Assert.True(unbalAudit.TotalAmbiguities >= 2);
+        Assert.True(unbalAudit.SyntaxIntegrityScore < 100.0);
+        Assert.NotEmpty(unbalAudit.Ambiguities);
+        Assert.Contains(unbalAudit.Ambiguities, d => d.Delimiter == "`");
+        Assert.Contains(unbalAudit.Ambiguities, d => d.Delimiter == "[");
+    }
 }
+
 
 
 

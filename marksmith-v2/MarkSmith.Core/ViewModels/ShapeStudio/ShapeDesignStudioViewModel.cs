@@ -5784,6 +5784,159 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string shapeLabel = $"{totalShapes} shapes";
         return $"Diagram symmetry audit ({scope}{shapeLabel} · {category}): Symmetry: {overallScore:0.#}% (V:{vertRatio:0.#}% [{vertMatches}/{totalShapes}], H:{horizRatio:0.#}%, Rot:{rotRatio:0.#}%)";
     }
+
+    /// <summary>
+    /// Audits shape boundary spacing uniformity, gutter consistency, and detects overlapping bounding box collisions.
+    /// </summary>
+    public ShapeSpacingUniformityAudit AuditSpacingUniformityAndCollisions(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = (targetShapes != null) || (selected.Count >= 2);
+        string scopeStr = isSelection ? "Selected Shapes · " : "";
+
+        if (targets.Count < 2)
+        {
+            string emptySummary = "Shape spacing audit: Insufficient shapes (<2) · Minimum 2 shapes required for spacing analysis";
+            StatusMessage = emptySummary;
+            return new ShapeSpacingUniformityAudit(
+                targets.Count, 0, 0, 0.0, 0.0, 0.0, 100.0,
+                Array.Empty<ShapeSpacingCollisionInfo>(), "Insufficient Shapes", isSelection, emptySummary);
+        }
+
+        var pairs = new List<ShapeSpacingCollisionInfo>();
+        int collidingCount = 0;
+        double sumH = 0.0;
+        double sumV = 0.0;
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            var a = targets[i];
+            double ax1 = a.X, ax2 = a.X + Math.Max(1.0, a.Width);
+            double ay1 = a.Y, ay2 = a.Y + Math.Max(1.0, a.Height);
+
+            for (int j = i + 1; j < targets.Count; j++)
+            {
+                var b = targets[j];
+                double bx1 = b.X, bx2 = b.X + Math.Max(1.0, b.Width);
+                double by1 = b.Y, by2 = b.Y + Math.Max(1.0, b.Height);
+
+                double hGap;
+                if (ax2 <= bx1) hGap = bx1 - ax2;
+                else if (bx2 <= ax1) hGap = ax1 - bx2;
+                else hGap = -(Math.Min(ax2, bx2) - Math.Max(ax1, bx1));
+
+                double vGap;
+                if (ay2 <= by1) vGap = by1 - ay2;
+                else if (by2 <= ay1) vGap = ay1 - by2;
+                else vGap = -(Math.Min(ay2, by2) - Math.Max(ay1, by1));
+
+                bool isColliding = hGap < 0 && vGap < 0;
+                double overlapArea = isColliding ? (-hGap) * (-vGap) : 0.0;
+                double minClearance = isColliding ? -Math.Min(-hGap, -vGap) : Math.Max(hGap, vGap);
+
+                if (isColliding) collidingCount++;
+                sumH += Math.Max(0.0, hGap);
+                sumV += Math.Max(0.0, vGap);
+
+                string aName = string.IsNullOrWhiteSpace(a.Text) ? a.DisplayName : a.Text.Replace("\n", " ").Trim();
+                if (aName.Length > 20) aName = aName.Substring(0, 17) + "...";
+                string bName = string.IsNullOrWhiteSpace(b.Text) ? b.DisplayName : b.Text.Replace("\n", " ").Trim();
+                if (bName.Length > 20) bName = bName.Substring(0, 17) + "...";
+
+                pairs.Add(new ShapeSpacingCollisionInfo(
+                    a.Id, b.Id, aName, bName, Math.Round(hGap, 1), Math.Round(vGap, 1),
+                    Math.Round(minClearance, 1), isColliding, Math.Round(overlapArea, 1)));
+            }
+        }
+
+        // Measure consecutive adjacent gutters along dominant axis
+        double minCx = targets.Min(s => s.X + s.Width / 2.0);
+        double maxCx = targets.Max(s => s.X + s.Width / 2.0);
+        double minCy = targets.Min(s => s.Y + s.Height / 2.0);
+        double maxCy = targets.Max(s => s.Y + s.Height / 2.0);
+
+        var consecutiveGaps = new List<double>();
+        if ((maxCx - minCx) >= (maxCy - minCy))
+        {
+            var sorted = targets.OrderBy(s => s.X).ToList();
+            for (int k = 0; k < sorted.Count - 1; k++)
+            {
+                double gap = sorted[k + 1].X - (sorted[k].X + sorted[k].Width);
+                consecutiveGaps.Add(gap);
+            }
+        }
+        else
+        {
+            var sorted = targets.OrderBy(s => s.Y).ToList();
+            for (int k = 0; k < sorted.Count - 1; k++)
+            {
+                double gap = sorted[k + 1].Y - (sorted[k].Y + sorted[k].Height);
+                consecutiveGaps.Add(gap);
+            }
+        }
+
+        double meanGap = consecutiveGaps.Count > 0 ? consecutiveGaps.Average() : 0.0;
+        double variance = consecutiveGaps.Count > 1
+            ? consecutiveGaps.Select(g => (g - meanGap) * (g - meanGap)).Average()
+            : 0.0;
+        double stdDev = Math.Round(Math.Sqrt(variance), 1);
+
+        double meanH = pairs.Count > 0 ? Math.Round(sumH / pairs.Count, 1) : 0.0;
+        double meanV = pairs.Count > 0 ? Math.Round(sumV / pairs.Count, 1) : 0.0;
+
+        double uniformityScore = Math.Round(Math.Clamp(100.0 - (collidingCount * 25.0) - (stdDev * 1.5), 0.0, 100.0), 1);
+
+        string category;
+        if (collidingCount > 0)
+        {
+            category = "Bounding Box Collisions Detected";
+        }
+        else if (stdDev <= 4.0)
+        {
+            category = "Pixel-Perfect Uniform Spacing";
+        }
+        else if (stdDev <= 18.0)
+        {
+            category = "Harmonious Spacing Distribution";
+        }
+        else
+        {
+            category = "Irregular / Asymmetric Spacing";
+        }
+
+        string summary = FormatSpacingCollisionSummary(
+            targets.Count, pairs.Count, collidingCount, meanH, meanV, stdDev, uniformityScore, category, scopeStr);
+
+        StatusMessage = summary;
+
+        return new ShapeSpacingUniformityAudit(
+            targets.Count,
+            pairs.Count,
+            collidingCount,
+            meanH,
+            meanV,
+            stdDev,
+            uniformityScore,
+            pairs,
+            category,
+            isSelection,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of shape boundary spacing and collisions.
+    /// </summary>
+    public static string FormatSpacingCollisionSummary(
+        int totalShapes, int pairCount, int collidingCount, double meanH, double meanV,
+        double stdDev, double uniformityScore, string category, string scope = "")
+    {
+        if (totalShapes < 2) return "Shape spacing audit: Insufficient shapes (<2) · Minimum 2 shapes required";
+
+        string shapeDesc = $"{totalShapes} shapes";
+        string collisionAlert = collidingCount > 0 ? $" · ⚠ {collidingCount} colliding pairs" : " · 0 collisions";
+        return $"Shape spacing audit ({scope}{shapeDesc} · {category}): Uniformity: {uniformityScore:0.#}% (Gutter std dev {stdDev:0.#}px · Mean H:{meanH:0.#}px, V:{meanV:0.#}px){collisionAlert}";
+    }
 }
 
 /// <summary>
@@ -6053,6 +6206,34 @@ public sealed record DiagramSymmetryAudit(
     bool IsSelectionScope,
     string Summary);
 
+/// <summary>
+/// Represents pairwise spacing, gutter clearance, and collision status between two adjacent shapes.
+/// </summary>
+public sealed record ShapeSpacingCollisionInfo(
+    string ShapeAId,
+    string ShapeBId,
+    string ShapeAName,
+    string ShapeBName,
+    double HorizontalGutter,
+    double VerticalGutter,
+    double MinimumClearance,
+    bool IsColliding,
+    double OverlapArea);
 
-
+/// <summary>
+/// Represents the result of an audit of shape boundary spacing uniformity, gutter consistency,
+/// and bounding box collisions.
+/// </summary>
+public sealed record ShapeSpacingUniformityAudit(
+    int TotalShapesEvaluated,
+    int EvaluatedPairCount,
+    int CollidingPairCount,
+    double MeanHorizontalGutter,
+    double MeanVerticalGutter,
+    double GutterStandardDeviation,
+    double SpacingUniformityScore,
+    IReadOnlyList<ShapeSpacingCollisionInfo> Pairs,
+    string SpacingCategory,
+    bool IsSelectionScope,
+    string Summary);
 

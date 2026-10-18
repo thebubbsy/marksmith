@@ -326,6 +326,9 @@
                                         <MenuFlyoutItem x:Name="AuditTimelineChronologyItem" Text="Audit timeline milestone chronology &amp; date format consistency" Click="OnAuditTimelineChronologyClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditCyclicConvergenceItem" Text="Audit cyclic process loop convergence &amp; recurrence closure" Click="OnAuditCyclicConvergenceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

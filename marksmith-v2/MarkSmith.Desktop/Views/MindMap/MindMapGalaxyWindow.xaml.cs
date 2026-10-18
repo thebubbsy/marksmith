@@ -4040,6 +4040,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditGraphDiameterClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphDiameterAndEccentricity();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4975,6 +4983,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditCommunitiesItem.Click += OnAuditGraphCommunitiesClick;
             menu.Items.Add(auditCommunitiesItem);
+
+            var auditDiameterItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph diameter, eccentricity & longest path",
+                Icon = new FontIcon { Glyph = "\uE9E9" }
+            };
+            auditDiameterItem.Click += OnAuditGraphDiameterClick;
+            menu.Items.Add(auditDiameterItem);
 
             var fitItem = new MenuFlyoutItem
 

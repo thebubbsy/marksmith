@@ -4545,6 +4545,205 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Timeline chronology audit ({milestoneLabel} [{datedLabel}] · {category}): {monotonicityScore:0.#}% chronological score{formatStr}{inversionStr}";
     }
+
+    /// <summary>
+    /// Audits cyclic process diagrams for loop convergence, recurrence closure, terminal state detection,
+    /// and word count balance across stages.
+    /// </summary>
+    public CyclicProcessConvergenceAudit AuditCyclicProcessConvergence(string? markdown = null)
+    {
+        var result = AuditCyclicProcessConvergence(markdown ?? MarkdownText, SelectedCategory);
+        StatusMessage = result.Summary;
+        return result;
+    }
+
+    /// <summary>
+    /// Static overload auditing cyclic process convergence from markdown text and layout preset.
+    /// </summary>
+    public static CyclicProcessConvergenceAudit AuditCyclicProcessConvergence(string? markdown, string? layoutPreset = null)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = "Cyclic process audit: 0 stages · Outline is empty";
+            return new CyclicProcessConvergenceAudit(
+                0, false, 0, 0.0, 100.0, Array.Empty<CyclicStageInfo>(), "None", "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var stageList = new List<(string Title, int Words, int Children)>();
+        bool inFence = false;
+
+        string currentTitle = "";
+        int currentWords = 0;
+        int currentChildren = 0;
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence || string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            int leadWs = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t')) leadWs++;
+            var stripped = rawLine.Substring(leadWs);
+
+            bool isTopBullet = (leadWs < 2) && (stripped.StartsWith("- ") || stripped.StartsWith("* ") || stripped.StartsWith("+ ") ||
+                               System.Text.RegularExpressions.Regex.IsMatch(stripped, @"^\d+[\.\)]\s+"));
+
+            bool isChildBullet = (leadWs >= 2) && (stripped.StartsWith("- ") || stripped.StartsWith("* ") || stripped.StartsWith("+ ") ||
+                                 System.Text.RegularExpressions.Regex.IsMatch(stripped, @"^\d+[\.\)]\s+"));
+
+            if (isTopBullet)
+            {
+                if (!string.IsNullOrEmpty(currentTitle))
+                {
+                    stageList.Add((currentTitle, currentWords, currentChildren));
+                }
+                string cleanText = stripped;
+                if (stripped.StartsWith("- ") || stripped.StartsWith("* ") || stripped.StartsWith("+ "))
+                    cleanText = stripped.Substring(2).Trim();
+                else
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(stripped, @"^\d+[\.\)]\s+");
+                    cleanText = stripped.Substring(m.Length).Trim();
+                }
+                currentTitle = cleanText;
+                currentWords = cleanText.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                currentChildren = 0;
+            }
+            else if (isChildBullet)
+            {
+                currentChildren++;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(currentTitle))
+        {
+            stageList.Add((currentTitle, currentWords, currentChildren));
+        }
+
+        if (stageList.Count == 0)
+        {
+            string noStagesSummary = "Cyclic process audit: 0 stages · No outline bullets detected";
+            return new CyclicProcessConvergenceAudit(
+                0, false, 0, 0.0, 100.0, Array.Empty<CyclicStageInfo>(), "None", "No Stages Detected", noStagesSummary);
+        }
+
+        if (stageList.Count == 1)
+        {
+            var s = stageList[0];
+            string singleSummary = $"Cyclic process audit (1 stage '{s.Title}'): Incomplete loop · Minimum 2 stages required for cyclic recurrence";
+            var singleInfo = new CyclicStageInfo(1, s.Title, s.Words, s.Children, s.Title, false);
+            return new CyclicProcessConvergenceAudit(
+                1, false, 0, 0.0, 50.0, new[] { singleInfo }, "Single Stage", "Incomplete Loop (1 Stage)", singleSummary);
+        }
+
+        // Loop closure detection
+        string preset = layoutPreset ?? "";
+        bool isCyclicPreset = preset.Contains("cycle", StringComparison.OrdinalIgnoreCase) ||
+                              preset.Contains("radial", StringComparison.OrdinalIgnoreCase) ||
+                              preset.Contains("gear", StringComparison.OrdinalIgnoreCase) ||
+                              preset.Contains("circle", StringComparison.OrdinalIgnoreCase);
+
+        bool hasExplicitLoopKeyword = false;
+        string firstStageTitle = stageList[0].Title.ToLowerInvariant();
+        var lastStage = stageList[^1];
+        string lastText = lastStage.Title.ToLowerInvariant();
+
+        string[] loopKeywords = { "repeat", "loop", "cycle", "recurrence", "continuous", "feedback", "iterate", "return" };
+        if (loopKeywords.Any(k => lastText.Contains(k)) || lastText.Contains(firstStageTitle))
+        {
+            hasExplicitLoopKeyword = true;
+        }
+
+        bool hasRecurrenceClosure = isCyclicPreset || hasExplicitLoopKeyword;
+        string closureMechanism = isCyclicPreset
+            ? (hasExplicitLoopKeyword ? "Preset Geometry & Explicit Recurrence Phrase" : "Layout Preset Geometric Closure")
+            : (hasExplicitLoopKeyword ? "Explicit Recurrence Keyword / Stage Ref" : "None (Linear)");
+
+        string[] terminalKeywords = { "terminate", "exit", "end", "stop", "final", "deliver", "archive" };
+        int terminalSinkCount = 0;
+        var stages = new List<CyclicStageInfo>();
+
+        for (int i = 0; i < stageList.Count; i++)
+        {
+            var cur = stageList[i];
+            string nextTitle = (i < stageList.Count - 1) ? stageList[i + 1].Title : stageList[0].Title;
+            bool isTerminal = false;
+
+            if (terminalKeywords.Any(k => cur.Title.ToLowerInvariant().Contains(k)) && !hasExplicitLoopKeyword)
+            {
+                isTerminal = true;
+                terminalSinkCount++;
+            }
+
+            stages.Add(new CyclicStageInfo(i + 1, cur.Title, cur.Words, cur.Children, nextTitle, isTerminal));
+        }
+
+        double meanWords = stageList.Average(s => s.Words);
+        double variance = stageList.Count > 1
+            ? stageList.Select(s => (s.Words - meanWords) * (s.Words - meanWords)).Average()
+            : 0.0;
+        double stdDev = Math.Round(Math.Sqrt(variance), 1);
+
+        double convergenceScore = 100.0;
+        if (!hasRecurrenceClosure) convergenceScore -= 40.0;
+        convergenceScore -= (terminalSinkCount * 15.0);
+        convergenceScore -= (stdDev * 2.0);
+        convergenceScore = Math.Round(Math.Clamp(convergenceScore, 0.0, 100.0), 1);
+
+        string category;
+        if (hasRecurrenceClosure && terminalSinkCount == 0 && convergenceScore >= 80.0)
+        {
+            category = "Seamless Closed-Loop Convergence";
+        }
+        else if (hasRecurrenceClosure && terminalSinkCount > 0)
+        {
+            category = "Cyclic Loop with Terminal Sink Branches";
+        }
+        else if (hasRecurrenceClosure)
+        {
+            category = "Balanced Cyclic Recurrence";
+        }
+        else
+        {
+            category = "Open-Ended Linear Sequence (Missing Recurrence Closure)";
+        }
+
+        string summary = FormatCyclicProcessSummary(
+            stageList.Count, hasRecurrenceClosure, terminalSinkCount, stdDev, convergenceScore, closureMechanism, category);
+
+        return new CyclicProcessConvergenceAudit(
+            stageList.Count,
+            hasRecurrenceClosure,
+            terminalSinkCount,
+            stdDev,
+            convergenceScore,
+            stages,
+            closureMechanism,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of cyclic process convergence metrics.
+    /// </summary>
+    public static string FormatCyclicProcessSummary(
+        int totalStages, bool hasClosure, int terminalSinks, double wordVariance,
+        double convergenceScore, string mechanism, string category)
+    {
+        if (totalStages == 0) return "Cyclic process audit: 0 stages · Outline is empty";
+
+        string stageLabel = totalStages == 1 ? "1 stage" : $"{totalStages} stages";
+        string closureStr = hasClosure ? $"Closed loop ({mechanism})" : "Open-ended sequence";
+        string sinkStr = terminalSinks > 0 ? $" · ⚠ {terminalSinks} terminal sink{(terminalSinks == 1 ? "" : "s")}" : "";
+
+        return $"Cyclic process audit ({stageLabel} · {closureStr} · {category}): {convergenceScore:0.#}% convergence score (Word balance variance {wordVariance:0.#}w){sinkStr}";
+    }
 }
 
 /// <summary>
@@ -4780,5 +4979,28 @@ public sealed record TimelineChronologyAudit(
     string Category,
     string Summary);
 
+/// <summary>
+/// Represents stage sequencing and transition metrics for an individual stage in a cyclic process.
+/// </summary>
+public sealed record CyclicStageInfo(
+    int StageIndex,
+    string StageTitle,
+    int WordCount,
+    int ChildBulletCount,
+    string NextStageTitle,
+    bool IsTerminalSink);
 
-
+/// <summary>
+/// Represents the result of an audit of cyclic process loop convergence, terminal state detection,
+/// and recurrence closure in SmartArt diagrams.
+/// </summary>
+public sealed record CyclicProcessConvergenceAudit(
+    int TotalStages,
+    bool HasRecurrenceClosure,
+    int TerminalSinkCount,
+    double StageWordCountVariance,
+    double LoopConvergenceScore,
+    IReadOnlyList<CyclicStageInfo> Stages,
+    string ClosureMechanism,
+    string ConvergenceCategory,
+    string Summary);

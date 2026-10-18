@@ -2734,7 +2734,97 @@ public class SuiteHubAndTourPolishTests
             audit.TotalFiles, audit.TotalRelativeLinks, audit.ValidLinkCount, audit.BrokenLinkCount,
             audit.OrphanAssetCount, audit.IntegrityScore, audit.IntegrityCategory, audit.BrokenLinks, audit.OrphanAssets));
     }
+
+    [Fact]
+    public void Run163_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // 1. MainWindow: syntax ambiguity and delimiter balance audit wired to breadcrumb and find count
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy syntax ambiguity & delimiter balance audit", mainCs);
+        Assert.Contains("FormatSyntaxAmbiguitySummary", mainCs);
+
+        // 2. MindMapGalaxyWindow: graph diameter and eccentricity audit in XAML and code-behind
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphDiameterItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphDiameterClick", galaxyXaml);
+        Assert.Contains("OnAuditGraphDiameterClick", galaxyCs);
+        Assert.Contains("AuditGraphDiameterAndEccentricity", galaxyCs);
+
+        // 3. ShapeDesignStudioWindow: boundary spacing uniformity in XAML and code-behind
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditSpacingUniformityItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditSpacingUniformityClick", shapeXaml);
+        Assert.Contains("OnSelectionAuditSpacingUniformityClick", shapeCs);
+        Assert.Contains("AuditSpacingUniformityAndCollisions", shapeCs);
+
+        // 4. SmartArtDesignStudioWindow: cyclic convergence audit in XAML and code-behind
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditCyclicConvergenceItem", smartArtXaml);
+        Assert.Contains("OnAuditCyclicConvergenceClick", smartArtXaml);
+        Assert.Contains("OnAuditCyclicConvergenceClick", smartArtCs);
+        Assert.Contains("AuditCyclicProcessConvergence", smartArtCs);
+
+        // 5. HistoryWindow: chunk boundary audit in code-behind
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditChunkBoundaries", historyCs);
+        Assert.Contains("AuditChunkContextBoundaries", historyCs);
+
+        // 6. SuiteHubView: asset compression advisor in XAML and code-behind
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyAssetCompressionAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyAssetCompressionAdvisorClick", suiteXaml);
+        Assert.Contains("OnCopyAssetCompressionAdvisorClick", suiteCs);
+        Assert.Contains("AuditAssetCompressionAndFormatAdvisor", suiteCs);
+    }
+
+    [Fact]
+    public void Run163_AuditAssetCompressionAndFormatAdvisor_RecommendsWebPAndVectors()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditAssetCompressionAndFormatAdvisor(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalAssetsScanned);
+        Assert.Equal("Empty Workspace", emptyAudit.EfficiencyCategory);
+        Assert.Equal(0, emptyAudit.TotalPotentialSavingsBytes);
+
+        // 2. Multi-image assets with uncompressed formats
+        var doc1 = @"C:\Workspace\doc1.md";
+        var heavyBmp = @"C:\Workspace\images\diagram.bmp";
+        var heavyPng = @"C:\Workspace\images\screenshot.png";
+        var smallSvg = @"C:\Workspace\images\icon.svg";
+
+        var files = new[] { doc1, heavyBmp, heavyPng, smallSvg };
+        var fileSizes = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+        {
+            [doc1] = 2048,
+            [heavyBmp] = 2_000_000,
+            [heavyPng] = 600_000,
+            [smallSvg] = 12_000
+        };
+
+        var audit = RecentFilesService.AuditAssetCompressionAndFormatAdvisor(
+            files,
+            fileExistsProvider: path => fileSizes.ContainsKey(path),
+            fileLengthProvider: path => fileSizes.TryGetValue(path, out var s) ? s : 0);
+
+        Assert.Equal(3, audit.TotalAssetsScanned);
+        Assert.Equal(3, audit.LocalAssetsCount);
+        Assert.True(audit.LegacyFormatCount >= 2);
+        Assert.True(audit.TotalPotentialSavingsBytes > 1_000_000);
+        Assert.Contains("Heavy Media Assets Detected", audit.EfficiencyCategory);
+        Assert.NotEmpty(audit.Assets);
+        Assert.Contains(audit.Assets, a => a.Extension == ".bmp" && a.RecommendedFormat.StartsWith("WebP / PNG"));
+        Assert.Equal(audit.Summary, RecentFilesService.FormatAssetCompressionSummary(
+            audit.TotalAssetsScanned, audit.LocalAssetsCount, audit.RemoteAssetsCount,
+            audit.ModernFormatCount, audit.LegacyFormatCount, audit.OversizedCount,
+            audit.TotalCurrentSizeBytes, audit.TotalPotentialSavingsBytes, audit.OverallSavingsPercentage,
+            audit.AssetEfficiencyScore, audit.EfficiencyCategory));
+    }
 }
+
 
 
 

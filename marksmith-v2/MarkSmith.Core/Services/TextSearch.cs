@@ -3792,6 +3792,246 @@ public static class TextSearch
 
         return $"Reference link audit: {defDesc}, {linkDesc} [{breakdown}] · {category} · {integrityScore:0.#}% integrity{issues}";
     }
+
+    /// <summary>
+    /// Audits markdown text for syntax ambiguity, unclosed delimiter pairs (inline code, math, brackets, emphasis),
+    /// nested syntax collisions, and generates auto-repair preview proposals.
+    /// </summary>
+    public static SyntaxAmbiguityAudit AuditSyntaxAmbiguityAndDelimiterBalance(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "Syntax ambiguity audit: 0 issues · Document is empty";
+            return new SyntaxAmbiguityAudit(0, 0, 0, 0, 0, 100.0, Array.Empty<DelimiterBalanceItem>(), "Empty Document", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        var ambiguities = new List<DelimiterBalanceItem>();
+
+        bool inCodeFence = false;
+        bool inHtmlComment = false;
+        bool inMathBlock = false;
+
+        int unclosedCode = 0;
+        int unclosedEmphasis = 0;
+        int unclosedMath = 0;
+        int unmatchedBrackets = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            // Code fence handling
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            // HTML comments
+            if (trimmed.StartsWith("<!--") && !trimmed.EndsWith("-->"))
+            {
+                inHtmlComment = true;
+                continue;
+            }
+            if (inHtmlComment)
+            {
+                if (trimmed.Contains("-->")) inHtmlComment = false;
+                continue;
+            }
+            if (trimmed.StartsWith("<!--") && trimmed.EndsWith("-->")) continue;
+
+            // Multiline Math Block ($$)
+            if (trimmed.StartsWith("$$") && trimmed.Length == 2)
+            {
+                inMathBlock = !inMathBlock;
+                continue;
+            }
+            if (inMathBlock)
+            {
+                if (trimmed.EndsWith("$$")) inMathBlock = false;
+                continue;
+            }
+
+            // 1. Unclosed backticks (inline code spans)
+            int backtickCount = 0;
+            int lastBacktickCol = -1;
+            for (int c = 0; c < line.Length; c++)
+            {
+                if (line[c] == '`' && (c == 0 || line[c - 1] != '\\'))
+                {
+                    backtickCount++;
+                    lastBacktickCol = c + 1;
+                }
+            }
+            if (backtickCount % 2 != 0)
+            {
+                unclosedCode++;
+                string snippet = line.Length > 40 ? line.Substring(0, 37) + "..." : line;
+                ambiguities.Add(new DelimiterBalanceItem(
+                    i + 1, lastBacktickCol, "`", "Unclosed inline code span (odd backtick count)", snippet, line + "`"));
+            }
+
+            // Strip code spans for subsequent checks so code internals don't trigger false positives
+            string stripped = System.Text.RegularExpressions.Regex.Replace(line, @"`[^`]*`", "");
+
+            // 2. Unclosed inline math ($ ... $)
+            int mathCount = 0;
+            int lastMathCol = -1;
+            for (int c = 0; c < stripped.Length; c++)
+            {
+                if (stripped[c] == '$' && (c == 0 || stripped[c - 1] != '\\'))
+                {
+                    // Avoid currency pattern like $100 or $5.50
+                    if (c + 1 < stripped.Length && char.IsDigit(stripped[c + 1]))
+                        continue;
+                    // Avoid $$
+                    if (c + 1 < stripped.Length && stripped[c + 1] == '$')
+                    {
+                        c++;
+                        continue;
+                    }
+                    mathCount++;
+                    lastMathCol = c + 1;
+                }
+            }
+            if (mathCount % 2 != 0)
+            {
+                unclosedMath++;
+                string snippet = line.Length > 40 ? line.Substring(0, 37) + "..." : line;
+                ambiguities.Add(new DelimiterBalanceItem(
+                    i + 1, lastMathCol, "$", "Unclosed inline math delimiter (odd $ count)", snippet, line + "$"));
+            }
+
+            // 3. Unmatched brackets [ and ]
+            int openBrackets = 0;
+            int closeBrackets = 0;
+            int lastBracketCol = -1;
+            for (int c = 0; c < stripped.Length; c++)
+            {
+                if (stripped[c] == '[' && (c == 0 || stripped[c - 1] != '\\'))
+                {
+                    openBrackets++;
+                    lastBracketCol = c + 1;
+                }
+                else if (stripped[c] == ']' && (c == 0 || stripped[c - 1] != '\\'))
+                {
+                    closeBrackets++;
+                    lastBracketCol = c + 1;
+                }
+            }
+            if (openBrackets != closeBrackets)
+            {
+                unmatchedBrackets++;
+                string delim = openBrackets > closeBrackets ? "[" : "]";
+                string desc = openBrackets > closeBrackets
+                    ? "Unclosed opening bracket '[' without matching ']'"
+                    : "Unmatched closing bracket ']' without opening '['";
+                string repair = openBrackets > closeBrackets ? line + "]" : "[" + line;
+                string snippet = line.Length > 40 ? line.Substring(0, 37) + "..." : line;
+                ambiguities.Add(new DelimiterBalanceItem(i + 1, lastBracketCol, delim, desc, snippet, repair));
+            }
+
+            // 4. Unclosed emphasis (* or **)
+            int starCount = 0;
+            int lastStarCol = -1;
+            for (int c = 0; c < stripped.Length; c++)
+            {
+                if (stripped[c] == '*' && (c == 0 || stripped[c - 1] != '\\'))
+                {
+                    // If it's a bullet list item at start of line, ignore
+                    if (c == 0 && c + 1 < stripped.Length && char.IsWhiteSpace(stripped[c + 1]))
+                        continue;
+                    starCount++;
+                    lastStarCol = c + 1;
+                }
+            }
+            if (starCount % 2 != 0)
+            {
+                unclosedEmphasis++;
+                string snippet = line.Length > 40 ? line.Substring(0, 37) + "..." : line;
+                ambiguities.Add(new DelimiterBalanceItem(
+                    i + 1, lastStarCol, "*", "Unclosed emphasis delimiter (odd asterisk count)", snippet, line + "*"));
+            }
+
+            // 5. Nested collisions (e.g. *[bold*] or [*bold*])
+            if (System.Text.RegularExpressions.Regex.IsMatch(stripped, @"\*\[[^\]]*\*\]") ||
+                System.Text.RegularExpressions.Regex.IsMatch(stripped, @"\[\*[^\*]*\]\*"))
+            {
+                ambiguities.Add(new DelimiterBalanceItem(
+                    i + 1, 1, "*[]", "Nested emphasis and link bracket collision detected", line, line.Replace("*[", "[*")));
+            }
+        }
+
+        int totalAmbiguities = ambiguities.Count;
+        double integrityScore = Math.Round(Math.Clamp(100.0 - (totalAmbiguities * 12.5), 0.0, 100.0), 1);
+
+        string category;
+        if (totalAmbiguities == 0)
+        {
+            category = "Optimal Markdown Syntax (100% Balanced)";
+        }
+        else if (totalAmbiguities <= 2)
+        {
+            category = "Minor Inline Ambiguities";
+        }
+        else if (totalAmbiguities <= 5)
+        {
+            category = "Moderate Delimiter Mismatch";
+        }
+        else
+        {
+            category = "Severe Syntax Collision Risk";
+        }
+
+        string summary = FormatSyntaxAmbiguitySummary(
+            totalAmbiguities, unclosedCode, unclosedEmphasis, unclosedMath, unmatchedBrackets,
+            integrityScore, category, ambiguities);
+
+        return new SyntaxAmbiguityAudit(
+            totalAmbiguities,
+            unclosedCode,
+            unclosedEmphasis,
+            unclosedMath,
+            unmatchedBrackets,
+            integrityScore,
+            ambiguities,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown syntax ambiguity and delimiter balance.
+    /// </summary>
+    public static string FormatSyntaxAmbiguitySummary(string? markdownText)
+        => AuditSyntaxAmbiguityAndDelimiterBalance(markdownText).Summary;
+
+    public static string FormatSyntaxAmbiguitySummary(
+        int totalAmbiguities, int codeSpans, int emphasis, int math, int brackets,
+        double integrityScore, string category, IReadOnlyList<DelimiterBalanceItem> ambiguities)
+    {
+        if (totalAmbiguities == 0)
+            return "Syntax ambiguity audit: 0 issues · All inline delimiters (*, `, $, []) are 100% balanced";
+
+        string issueDesc = totalAmbiguities == 1 ? "1 ambiguity" : $"{totalAmbiguities} ambiguities";
+        var parts = new List<string>();
+        if (codeSpans > 0) parts.Add($"{codeSpans} unclosed code `");
+        if (emphasis > 0) parts.Add($"{emphasis} unclosed emphasis *");
+        if (math > 0) parts.Add($"{math} unclosed math $");
+        if (brackets > 0) parts.Add($"{brackets} unmatched brackets []");
+        string breakdown = string.Join(", ", parts);
+
+        string firstIssue = "";
+        if (ambiguities.Count > 0)
+        {
+            var a = ambiguities[0];
+            firstIssue = $" · Line {a.LineNumber}: {a.Description}";
+        }
+
+        return $"Syntax ambiguity audit ({issueDesc} [{breakdown}] · {category} · {integrityScore:0.#}% integrity){firstIssue}";
+    }
 }
 
 /// <summary>
@@ -4073,5 +4313,28 @@ public sealed record ReferenceLinkIntegrityAudit(
     string Category,
     string Summary);
 
+/// <summary>
+/// Represents an unbalanced delimiter occurrence or syntax ambiguity in markdown text.
+/// </summary>
+public sealed record DelimiterBalanceItem(
+    int LineNumber,
+    int Column,
+    string Delimiter,
+    string Description,
+    string ContextSnippet,
+    string ProposedAutoRepair);
 
-
+/// <summary>
+/// Represents the result of an audit of markdown syntax ambiguity, unmatched delimiter balance,
+/// and auto-repair preview proposals.
+/// </summary>
+public sealed record SyntaxAmbiguityAudit(
+    int TotalAmbiguities,
+    int UnclosedCodeSpans,
+    int UnclosedEmphasisPairs,
+    int UnclosedMathDelimiters,
+    int UnmatchedBrackets,
+    double SyntaxIntegrityScore,
+    IReadOnlyList<DelimiterBalanceItem> Ambiguities,
+    string Category,
+    string Summary);

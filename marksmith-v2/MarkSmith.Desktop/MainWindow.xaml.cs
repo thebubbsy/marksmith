@@ -7925,6 +7925,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(referenceLinkIntegrityItem);
 
+        var syntaxAmbiguityItem = new MenuFlyoutItem
+        {
+            Text = "Copy syntax ambiguity & delimiter balance audit",
+            Icon = new FontIcon { Glyph = "\uE943" }
+        };
+        syntaxAmbiguityItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatSyntaxAmbiguitySummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(syntaxAmbiguityItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9346,6 +9360,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(referenceLinkIntegrityItem);
+
+        var syntaxAmbiguityItem = new MenuFlyoutItem
+        {
+            Text = "Copy syntax ambiguity & delimiter balance audit",
+            Icon = new FontIcon { Glyph = "\uE943" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        syntaxAmbiguityItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatSyntaxAmbiguitySummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(syntaxAmbiguityItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

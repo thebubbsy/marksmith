@@ -2341,7 +2341,58 @@ namespace MarkSmith.Tests
                 vmAudit.TotalNodes, vmAudit.TotalLinks, vmAudit.CommunityCount, vmAudit.ModularityQ,
                 vmAudit.BridgingNodeCount, vmAudit.Category, vmAudit.IsSelectionScope));
         }
+
+        [Fact]
+        public void Run163_AuditGraphDiameterAndEccentricity_CalculatesHopsAndLongestPath()
+        {
+            // 1. Empty mindmap
+            var emptyAudit = MindMapStudioViewModel.AuditGraphDiameterAndEccentricity(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.GraphDiameter);
+            Assert.Equal("Empty Mindmap", emptyAudit.DiameterCategory);
+
+            // 2. Single node
+            var n1 = new MindMapNode { Id = "n1", Title = "Root Core" };
+            var singleAudit = MindMapStudioViewModel.AuditGraphDiameterAndEccentricity(new[] { n1 }, null);
+            Assert.Equal(1, singleAudit.TotalNodes);
+            Assert.Equal(0, singleAudit.GraphDiameter);
+            Assert.Equal(0, singleAudit.GraphRadius);
+            Assert.Equal("Single Node Hub", singleAudit.DiameterCategory);
+
+            // 3. Chain network: A - B - C - D (diameter = 3)
+            var a = new MindMapNode { Id = "a", Title = "Alpha" };
+            var b = new MindMapNode { Id = "b", Title = "Beta" };
+            var c = new MindMapNode { Id = "c", Title = "Gamma" };
+            var d = new MindMapNode { Id = "d", Title = "Delta" };
+            var lab = new MindMapLink { Id = "lab", SourceNodeId = "a", TargetNodeId = "b" };
+            var lbc = new MindMapLink { Id = "lbc", SourceNodeId = "b", TargetNodeId = "c" };
+            var lcd = new MindMapLink { Id = "lcd", SourceNodeId = "c", TargetNodeId = "d" };
+
+            var nodes = new[] { a, b, c, d };
+            var links = new[] { lab, lbc, lcd };
+
+            var chainAudit = MindMapStudioViewModel.AuditGraphDiameterAndEccentricity(nodes, links);
+            Assert.Equal(4, chainAudit.TotalNodes);
+            Assert.Equal(3, chainAudit.TotalLinks);
+            Assert.Equal(1, chainAudit.ConnectedComponents);
+            Assert.Equal(3, chainAudit.GraphDiameter);
+            Assert.Equal(2, chainAudit.GraphRadius);
+            Assert.Equal(2, chainAudit.PeripheralNodeCount); // a and d
+            Assert.Equal(2, chainAudit.CentralNodeCount);    // b and c
+            Assert.Equal(4, chainAudit.LongestConceptPath.Count);
+            Assert.Equal("Alpha", chainAudit.LongestConceptPath[0]);
+            Assert.Equal("Delta", chainAudit.LongestConceptPath[3]);
+            Assert.Contains("Balanced Semantic Network", chainAudit.DiameterCategory);
+
+            // 4. Format summary consistency
+            string formatted = MindMapStudioViewModel.FormatDiameterEccentricitySummary(
+                chainAudit.TotalNodes, chainAudit.TotalLinks, chainAudit.ConnectedComponents,
+                chainAudit.GraphDiameter, chainAudit.GraphRadius, chainAudit.PeripheralNodeCount,
+                chainAudit.CentralNodeCount, chainAudit.LongestConceptPath, chainAudit.DiameterCategory, chainAudit.IsSelectionScope);
+            Assert.Equal(chainAudit.Summary, formatted);
+        }
     }
 }
+
 
 

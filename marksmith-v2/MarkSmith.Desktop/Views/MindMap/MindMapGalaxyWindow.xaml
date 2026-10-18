@@ -306,6 +306,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphCommunitiesItem" Text="Audit graph modularity &amp; community clusters" Click="OnAuditGraphCommunitiesClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphDiameterItem" Text="Audit graph diameter, eccentricity &amp; longest path" Click="OnAuditGraphDiameterClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9E9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>
