@@ -1193,6 +1193,39 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("1 feature", header3);
         Assert.Contains("1 fix", header3);
     }
+
+    [Fact]
+    public void Run154_SynthesizeReleaseBadgesMarkdown()
+    {
+        // 1. Direct synthesis with parameter overrides
+        var badges1 = LineDiff.SynthesizeReleaseBadgesMarkdown(
+            "1.4.0", "Quantum Architecture", "stable",
+            featureCount: 5, fixCount: 2);
+
+        Assert.Contains("release-v1.4.0-blue.svg", badges1);
+        Assert.Contains("milestone-Quantum%20Architecture-success.svg", badges1);
+        Assert.Contains("status-stable-green.svg", badges1);
+        Assert.Contains("changes-5%20feat%20%C2%B7%202%20fix-orange.svg", badges1);
+
+        // 2. Default fallback values without changes
+        var badges2 = LineDiff.SynthesizeReleaseBadgesMarkdown();
+        Assert.Contains("release-v1.0.0-blue.svg", badges2);
+        Assert.Contains("milestone-General%20Availability-success.svg", badges2);
+        Assert.Contains("status-stable-green.svg", badges2);
+        Assert.DoesNotContain("changes-", badges2);
+
+        // 3. Synthesis from diff rows
+        var oldDoc = "# Architecture\nOverview";
+        var newDoc = "# Architecture\nOverview\n# Telemetry\nReal-time monitoring\n```csharp\ncode\n```";
+        var diff = LineDiff.Diff(oldDoc, newDoc);
+        var unified = LineDiff.BuildUnified(diff);
+
+        var badges3 = LineDiff.SynthesizeReleaseBadgesMarkdown(unified, "v2.1.0", "Cloud Engine", "active");
+        Assert.Contains("release-v2.1.0-blue.svg", badges3);
+        Assert.Contains("milestone-Cloud%20Engine-success.svg", badges3);
+        Assert.Contains("status-active-green.svg", badges3);
+        Assert.Contains("changes-1%20feat%20%C2%B7%201%20fix-orange.svg", badges3);
+    }
 }
 
 

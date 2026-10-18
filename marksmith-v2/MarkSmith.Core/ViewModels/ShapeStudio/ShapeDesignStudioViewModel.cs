@@ -4545,6 +4545,126 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         CanvasChanged?.Invoke(this, EventArgs.Empty);
         return (targets.Count, modified, summary);
     }
+
+    /// <summary>
+    /// Audits multi-shape spacing distribution and gap uniformity along horizontal or vertical axes.
+    /// </summary>
+    public SpacingDistributionAudit AuditSpacingDistribution(
+        DistributionAxis axis = DistributionAxis.Horizontal,
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        string axisStr = axis == DistributionAxis.Horizontal ? "Horizontal" : "Vertical";
+
+        if (targets.Count < 2)
+        {
+            string emptySummary = $"{axisStr} spacing audit: Insufficient shapes ({targets.Count} found)";
+            StatusMessage = emptySummary;
+            return new SpacingDistributionAudit(targets.Count, 0, 0.0, 0.0, 0.0, true, axis, emptySummary);
+        }
+
+        var ordered = (axis == DistributionAxis.Horizontal ? targets.OrderBy(s => s.X) : targets.OrderBy(s => s.Y)).ToList();
+        var gaps = new List<double>();
+        for (int i = 0; i < ordered.Count - 1; i++)
+        {
+            double gap = axis == DistributionAxis.Horizontal
+                ? ordered[i + 1].X - (ordered[i].X + ordered[i].Width)
+                : ordered[i + 1].Y - (ordered[i].Y + ordered[i].Height);
+            gaps.Add(Math.Round(gap, 1));
+        }
+
+        double minGap = gaps.Min();
+        double maxGap = gaps.Max();
+        double avgGap = Math.Round(gaps.Average(), 1);
+        bool isUniform = Math.Abs(maxGap - minGap) <= 1.5;
+        string summary = FormatSpacingDistributionSummary(targets.Count, gaps.Count, avgGap, minGap, maxGap, isUniform, axis);
+        StatusMessage = summary;
+        return new SpacingDistributionAudit(targets.Count, gaps.Count, avgGap, minGap, maxGap, isUniform, axis, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of spacing distribution and gap uniformity.
+    /// </summary>
+    public static string FormatSpacingDistributionSummary(
+        int shapeCount, int gapCount, double avgGap, double minGap, double maxGap, bool isUniform, DistributionAxis axis)
+    {
+        string axisStr = axis == DistributionAxis.Horizontal ? "Horizontal" : "Vertical";
+        if (shapeCount < 2) return $"{axisStr} spacing audit: Insufficient shapes ({shapeCount})";
+        string shapeLabel = shapeCount == 1 ? "1 shape" : $"{shapeCount} shapes";
+        string gapLabel = gapCount == 1 ? "1 gap" : $"{gapCount} gaps";
+        string status = isUniform ? "Uniform" : "Uneven";
+        return $"{axisStr} spacing audit ({shapeLabel}, {gapLabel} · {status}): avg {avgGap:0.#}px (Min: {minGap:0.#}px, Max: {maxGap:0.#}px)";
+    }
+
+    /// <summary>
+    /// Evenly distributes the spacing/gutters between selected shapes along the specified axis, keeping the outermost shapes fixed.
+    /// </summary>
+    public (int TotalShapes, int ModifiedCount, double UniformGap, string Summary) DistributeSpacingUniformly(
+        DistributionAxis axis = DistributionAxis.Horizontal,
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        string axisStr = axis == DistributionAxis.Horizontal ? "Horizontal" : "Vertical";
+        if (targets.Count < 3)
+        {
+            string insufficient = $"Spacing distribution: Requires at least 3 shapes to distribute intermediate spacing ({targets.Count} found)";
+            StatusMessage = insufficient;
+            return (targets.Count, 0, 0.0, insufficient);
+        }
+
+        var ordered = (axis == DistributionAxis.Horizontal ? targets.OrderBy(s => s.X) : targets.OrderBy(s => s.Y)).ToList();
+        var first = ordered[0];
+        var last = ordered[^1];
+
+        double totalEnvelope = axis == DistributionAxis.Horizontal
+            ? (last.X + last.Width) - first.X
+            : (last.Y + last.Height) - first.Y;
+
+        double totalShapesSize = ordered.Sum(s => axis == DistributionAxis.Horizontal ? s.Width : s.Height);
+        double totalGapSpace = totalEnvelope - totalShapesSize;
+        double uniformGap = Math.Round(totalGapSpace / (ordered.Count - 1), 1);
+
+        var adjustments = new List<(ShapeCanvasItemViewModel Shape, double NewCoord)>();
+        double currentCoord = axis == DistributionAxis.Horizontal
+            ? first.X + first.Width + uniformGap
+            : first.Y + first.Height + uniformGap;
+
+        for (int i = 1; i < ordered.Count - 1; i++)
+        {
+            var s = ordered[i];
+            double roundedCoord = Math.Round(currentCoord);
+            double oldCoord = axis == DistributionAxis.Horizontal ? s.X : s.Y;
+            if (Math.Abs(oldCoord - roundedCoord) > 0.5)
+            {
+                adjustments.Add((s, roundedCoord));
+            }
+            double size = axis == DistributionAxis.Horizontal ? s.Width : s.Height;
+            currentCoord += size + uniformGap;
+        }
+
+        if (adjustments.Count == 0)
+        {
+            string alreadyUniform = $"✓ {ordered.Count} shapes are already uniformly spaced ({uniformGap:0.#}px {axisStr.ToLowerInvariant()} gaps)";
+            StatusMessage = alreadyUniform;
+            return (ordered.Count, 0, uniformGap, alreadyUniform);
+        }
+
+        RecordUndo();
+        int modified = 0;
+        foreach (var (shape, newCoord) in adjustments)
+        {
+            if (axis == DistributionAxis.Horizontal) shape.X = newCoord;
+            else shape.Y = newCoord;
+            modified++;
+        }
+
+        string summary = $"✓ Distributed uniform {axisStr.ToLowerInvariant()} spacing ({uniformGap:0.#}px gaps across {ordered.Count} shapes) · Ctrl+Z to undo";
+        StatusMessage = summary;
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        return (ordered.Count, modified, uniformGap, summary);
+    }
 }
 
 /// <summary>
@@ -4593,5 +4713,19 @@ public enum DistributionAxis
     Horizontal,
     Vertical
 }
+
+/// <summary>
+/// Represents the result of an audit of spacing distribution and gap uniformity between shapes.
+/// </summary>
+public sealed record SpacingDistributionAudit(
+    int TotalShapes,
+    int GapCount,
+    double AverageGap,
+    double MinGap,
+    double MaxGap,
+    bool IsUniform,
+    DistributionAxis Axis,
+    string Summary);
+
 
 

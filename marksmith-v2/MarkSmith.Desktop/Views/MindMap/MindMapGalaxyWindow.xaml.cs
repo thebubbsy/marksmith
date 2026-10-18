@@ -3968,6 +3968,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditDegreeCentralityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditDegreeCentrality();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4831,6 +4839,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditMstItem.Click += OnAuditMstClick;
             menu.Items.Add(auditMstItem);
+
+            var auditDegreeCentralityItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph degree centrality & node hubs",
+                Icon = new FontIcon { Glyph = "\uE7C1" }
+            };
+            auditDegreeCentralityItem.Click += OnAuditDegreeCentralityClick;
+            menu.Items.Add(auditDegreeCentralityItem);
 
             var fitItem = new MenuFlyoutItem
 

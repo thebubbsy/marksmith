@@ -3938,6 +3938,148 @@ namespace MarkSmith.ViewModels.MindMap
             var dummy = new MindMapStudioViewModel();
             return dummy.AuditMinimumSpanningTree(vms);
         }
+
+        /// <summary>
+        /// Audits node degree centrality, focal hubs, terminal leaf nodes, and average node connectivity across the mind map graph.
+        /// </summary>
+        public DegreeCentralityAudit AuditDegreeCentrality(IEnumerable<MindMapNodeViewModel>? targetNodes = null)
+        {
+            bool isSelection = false;
+            List<MindMapNodeViewModel> nodeList;
+
+            if (targetNodes != null)
+            {
+                nodeList = targetNodes.ToList();
+                isSelection = true;
+            }
+            else
+            {
+                var selected = Nodes.Where(n => n.IsSelected).ToList();
+                if (selected.Count >= 2)
+                {
+                    nodeList = selected;
+                    isSelection = true;
+                }
+                else
+                {
+                    nodeList = Nodes.ToList();
+                }
+            }
+
+            int n = nodeList.Count;
+            string scopeStr = isSelection ? $"Selection: {n} nodes" : $"Canvas: {n} nodes";
+
+            if (n == 0)
+            {
+                string emptySummary = $"Graph degree centrality (0 nodes, 0 links · {scopeStr}): Insufficient nodes";
+                StatusMessage = emptySummary;
+                return new DegreeCentralityAudit(
+                    0, 0, 0.0, 0, "None", 0, 0,
+                    Array.Empty<NodeDegreeInfo>(), isSelection, emptySummary);
+            }
+
+            var nodeSet = new HashSet<string>(nodeList.Select(node => node.Id), StringComparer.Ordinal);
+            var inDegree = new Dictionary<string, int>(StringComparer.Ordinal);
+            var outDegree = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var node in nodeList)
+            {
+                inDegree[node.Id] = 0;
+                outDegree[node.Id] = 0;
+            }
+
+            int linkCount = 0;
+            foreach (var l in Links)
+            {
+                if (nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId))
+                {
+                    linkCount++;
+                    outDegree[l.SourceNodeId]++;
+                    inDegree[l.TargetNodeId]++;
+                }
+            }
+
+            var degreeInfos = new List<NodeDegreeInfo>();
+            int leafCount = 0;
+            int orphanCount = 0;
+            int totalDegreeSum = 0;
+            int maxDegree = 0;
+            string topHubTitle = "None";
+
+            foreach (var node in nodeList)
+            {
+                int inD = inDegree[node.Id];
+                int outD = outDegree[node.Id];
+                int totalD = inD + outD;
+                totalDegreeSum += totalD;
+
+                if (totalD > maxDegree)
+                {
+                    maxDegree = totalD;
+                    topHubTitle = string.IsNullOrWhiteSpace(node.Title) ? node.Id : node.Title;
+                }
+
+                if (totalD == 0) orphanCount++;
+                else if (totalD == 1) leafCount++;
+
+                string role = totalD switch
+                {
+                    0 => "Isolated Orphan",
+                    1 => "Terminal Leaf",
+                    >= 4 => "Major Focal Hub",
+                    >= 2 => "Connected Branch",
+                    _ => "Node"
+                };
+
+                degreeInfos.Add(new NodeDegreeInfo(
+                    node.Id,
+                    string.IsNullOrWhiteSpace(node.Title) ? node.Id : node.Title,
+                    inD, outD, totalD, role));
+            }
+
+            double avgDegree = n > 0 ? Math.Round((double)totalDegreeSum / n, 1) : 0.0;
+            string summary = FormatDegreeCentralitySummary(
+                n, linkCount, avgDegree, maxDegree, topHubTitle, leafCount, orphanCount, scopeStr);
+            StatusMessage = summary;
+
+            return new DegreeCentralityAudit(
+                n, linkCount, avgDegree, maxDegree, topHubTitle,
+                leafCount, orphanCount, degreeInfos, isSelection, summary);
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of graph degree centrality and node hub metrics.
+        /// </summary>
+        public static string FormatDegreeCentralitySummary(
+            int nodeCount, int linkCount, double avgDegree, int maxDegree, string topHub, int leafCount, int orphanCount, string scope = "Full Canvas")
+        {
+            if (nodeCount == 0) return $"Graph degree centrality (0 nodes, 0 links · {scope}): Insufficient nodes";
+            string nodeLabel = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+            string linkLabel = linkCount == 1 ? "1 link" : $"{linkCount} links";
+            string leafLabel = leafCount == 1 ? "1 leaf" : $"{leafCount} leaves";
+            string orphanLabel = orphanCount == 1 ? "1 orphan" : $"{orphanCount} orphans";
+
+            string hubStr = maxDegree > 0 ? $"Top hub '{topHub}' (deg:{maxDegree}), " : "";
+            return $"Graph degree centrality ({nodeLabel}, {linkLabel} · {scope}): {hubStr}{leafLabel}, {orphanLabel} · avg deg {avgDegree:0.#} (Max: {maxDegree})";
+        }
+
+        /// <summary>
+        /// Audits degree centrality across pure model nodes and links.
+        /// </summary>
+        public static DegreeCentralityAudit AuditDegreeCentrality(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditDegreeCentrality();
+        }
     }
 
     /// <summary>
@@ -4024,5 +4166,31 @@ namespace MarkSmith.ViewModels.MindMap
         LowerCase,
         SentenceCase
     }
+
+    /// <summary>
+    /// Represents degree centrality metrics and role classification for an individual node.
+    /// </summary>
+    public sealed record NodeDegreeInfo(
+        string NodeId,
+        string Title,
+        int InDegree,
+        int OutDegree,
+        int TotalDegree,
+        string Role);
+
+    /// <summary>
+    /// Represents the result of a graph degree centrality and node hub audit.
+    /// </summary>
+    public sealed record DegreeCentralityAudit(
+        int TotalNodes,
+        int TotalLinks,
+        double AverageDegree,
+        int MaxDegree,
+        string TopHubTitle,
+        int LeafNodeCount,
+        int OrphanNodeCount,
+        IReadOnlyList<NodeDegreeInfo> NodeDegrees,
+        bool IsSelectionScope,
+        string Summary);
 }
 

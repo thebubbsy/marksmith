@@ -3212,6 +3212,83 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string branchStr = maxDepth > 1 ? $" · Max branch: {maxBranching} (avg {avgBranching:0.#})" : "";
         return $"Hierarchy branching audit ({itemLabel} across {maxDepth} levels{branchStr} · {treeBalance}): Recommended: {recommendedCategory}";
     }
+
+    /// <summary>
+    /// Audits the container density and slide fit of the active outline against standard slide dimensions.
+    /// </summary>
+    public ContainerDensityFitAudit AuditContainerDensityFit()
+    {
+        int count = OutlineRows.Count > 0 ? OutlineRows.Count : 0;
+        var result = AuditContainerDensityFit(SelectedCategory, count, 960.0);
+        StatusMessage = result.Summary;
+        return result;
+    }
+
+    /// <summary>
+    /// Audits node count against container slide width to evaluate visual density, item fit, and overflow/truncation risks.
+    /// </summary>
+    public static ContainerDensityFitAudit AuditContainerDensityFit(
+        string? category = null,
+        int? nodeCount = null,
+        double containerWidth = 960.0)
+    {
+        string cat = string.IsNullOrWhiteSpace(category) ? "Process / Steps" : category.Trim();
+        int count = nodeCount ?? 0;
+
+        if (count == 0)
+        {
+            string emptySummary = $"Container density audit ('{cat}', 0 items): Insufficient items (Empty outline)";
+            return new ContainerDensityFitAudit(
+                cat, 0, containerWidth, 0.0, "Empty", "Add items to outline", emptySummary);
+        }
+
+        // Available horizontal slide space calculation: 80px outer margins, 16px inter-node gaps
+        double outerMargins = 80.0;
+        double gap = 16.0;
+        double availableWidth = Math.Max(100.0, containerWidth - outerMargins - ((count - 1) * gap));
+        double nodeWidth = Math.Round(availableWidth / count, 1);
+
+        string densityRating;
+        string recommendation;
+
+        if (nodeWidth >= 160.0)
+        {
+            densityRating = "Spacious Fit";
+            recommendation = "Optimal typography legibility and spacing.";
+        }
+        else if (nodeWidth >= 110.0)
+        {
+            densityRating = "Optimal Density";
+            recommendation = "Balanced layout with clear visual hierarchy.";
+        }
+        else if (nodeWidth >= 75.0)
+        {
+            densityRating = "Dense / Compact";
+            recommendation = "Minor truncation risk; consider shortening labels or expanding canvas.";
+        }
+        else
+        {
+            densityRating = "Overcrowded (High Overflow Risk)";
+            recommendation = $"Step count ({count}) exceeds horizontal slide capacity; switch to Multi-row Grid or split across slides.";
+        }
+
+        string summary = FormatContainerDensitySummary(cat, count, containerWidth, nodeWidth, densityRating, recommendation);
+
+        return new ContainerDensityFitAudit(
+            cat, count, containerWidth, nodeWidth, densityRating, recommendation, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of container density and slide fit metrics.
+    /// </summary>
+    public static string FormatContainerDensitySummary(
+        string category, int nodeCount, double containerWidth, double nodeWidth, string densityRating, string? recommendation = null)
+    {
+        if (nodeCount <= 0) return $"Container density audit ('{category}', 0 items): Insufficient items";
+        string itemLabel = nodeCount == 1 ? "1 item" : $"{nodeCount} items";
+        string recStr = !string.IsNullOrWhiteSpace(recommendation) ? $" · {recommendation}" : "";
+        return $"Container density audit ('{category}', {itemLabel} in {containerWidth:0}px slide): {nodeWidth:0.#}px/item · {densityRating}{recStr}";
+    }
 }
 
 /// <summary>
@@ -3278,5 +3355,14 @@ public sealed record LayoutAspectRatioFit(
     string FitQuality,
     string Summary);
 
-
-
+/// <summary>
+/// Represents the result of a SmartArt container density and slide width overflow risk audit.
+/// </summary>
+public sealed record ContainerDensityFitAudit(
+    string Category,
+    int NodeCount,
+    double ContainerWidth,
+    double NodeWidth,
+    string DensityRating,
+    string Recommendation,
+    string Summary);

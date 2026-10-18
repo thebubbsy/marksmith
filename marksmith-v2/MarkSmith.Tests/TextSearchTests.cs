@@ -991,6 +991,61 @@ public class TextSearchTests
         Assert.True(techAudit.GunningFogIndex > 8.0);
         Assert.Contains("Readability audit:", techAudit.Summary);
     }
+
+    [Fact]
+    public void Run154_AuditHeadingOutlineBalance()
+    {
+        // 1. Empty / null document returns graceful defaults
+        var emptyAudit = TextSearch.AuditHeadingOutlineBalance("");
+        Assert.Equal(0, emptyAudit.TotalHeadings);
+        Assert.Equal(0, emptyAudit.SkippedLevelCount);
+        Assert.Equal("No Headings (Unstructured)", emptyAudit.BalanceCategory);
+        Assert.Contains("0 headings", emptyAudit.Summary);
+
+        // 2. Well-balanced multi-tier hierarchy without skipped levels
+        var balancedDoc = """
+            # System Architecture
+            Overview of the kernel.
+            ## Storage Subsystem
+            Details about block storage.
+            ### Cache Layer
+            L1 and L2 cache specs.
+            ### WAL Log
+            Write-ahead logging protocol.
+            ## Compute Pipeline
+            Worker scheduler.
+            """;
+        var balancedAudit = TextSearch.AuditHeadingOutlineBalance(balancedDoc);
+        Assert.Equal(5, balancedAudit.TotalHeadings);
+        Assert.Equal(1, balancedAudit.MinDepth);
+        Assert.Equal(3, balancedAudit.MaxDepth);
+        Assert.Equal(0, balancedAudit.SkippedLevelCount);
+        Assert.Equal(1, balancedAudit.LevelCounts[1]);
+        Assert.Equal(2, balancedAudit.LevelCounts[2]);
+        Assert.Equal(2, balancedAudit.LevelCounts[3]);
+        Assert.Equal("Well-Balanced Outline", balancedAudit.BalanceCategory);
+        Assert.Contains("5 headings across H1–H3", balancedAudit.Summary);
+        Assert.Equal(balancedAudit.Summary, TextSearch.FormatHeadingOutlineBalanceSummary(balancedDoc));
+
+        // 3. Document with skipped levels (H1 directly jumping to H3 and H5)
+        var fragmentedDoc = """
+            # Executive Summary
+            ```markdown
+            # This is inside a code block and should be ignored
+            ```
+            ### Deep Implementation Detail
+            Skipped H2!
+            ##### Ultra Deep Sub-Detail
+            Skipped H4!
+            """;
+        var fragAudit = TextSearch.AuditHeadingOutlineBalance(fragmentedDoc);
+        Assert.Equal(3, fragAudit.TotalHeadings);
+        Assert.Equal(2, fragAudit.SkippedLevelCount);
+        Assert.Equal("Fragmented Outline (Skipped Levels)", fragAudit.BalanceCategory);
+        Assert.Contains("Skipped level (H1 -> H3)", fragAudit.SkippedWarnings[0]);
+        Assert.Contains("Skipped level (H3 -> H5)", fragAudit.SkippedWarnings[1]);
+        Assert.Contains("2 skipped levels warning", fragAudit.Summary);
+    }
 }
 
 

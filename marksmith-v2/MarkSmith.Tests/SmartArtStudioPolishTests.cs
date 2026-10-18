@@ -1025,6 +1025,33 @@ public class SmartArtStudioPolishTests
         Assert.Equal("Hierarchy / Organization Chart", audit.RecommendedCategory);
         Assert.Contains("10 items across 3 levels", audit.Summary);
     }
+
+    [Fact]
+    public void Run154_AuditContainerDensityFit()
+    {
+        // 1. Empty outline
+        var empty = SmartArtDesignStudioViewModel.AuditContainerDensityFit(category: "Process / Steps", nodeCount: 0);
+        Assert.Equal(0, empty.NodeCount);
+        Assert.Equal("Empty", empty.DensityRating);
+        Assert.Contains("Insufficient items", empty.Summary);
+
+        // 2. Optimal 4-step process on standard 960px container
+        // Available width = 960 - 80 - (3 * 16) = 832. 832 / 4 = 208px per item => Spacious
+        var spacious = SmartArtDesignStudioViewModel.AuditContainerDensityFit(category: "Process / Steps", nodeCount: 4, containerWidth: 960.0);
+        Assert.Equal(4, spacious.NodeCount);
+        Assert.Equal(208.0, spacious.NodeWidth);
+        Assert.Equal("Spacious Fit", spacious.DensityRating);
+        Assert.Contains("208px/item", spacious.Summary);
+
+        // 3. Overcrowded 12-step process on standard 960px container
+        // Available width = 960 - 80 - (11 * 16) = 704. 704 / 12 = 58.7px per item => Overcrowded
+        var crowded = SmartArtDesignStudioViewModel.AuditContainerDensityFit(category: "Process / Steps", nodeCount: 12, containerWidth: 960.0);
+        Assert.Equal(12, crowded.NodeCount);
+        Assert.True(crowded.NodeWidth < 75.0);
+        Assert.Equal("Overcrowded (High Overflow Risk)", crowded.DensityRating);
+        Assert.Contains("exceeds horizontal slide capacity", crowded.Recommendation);
+        Assert.Contains("Overcrowded", crowded.Summary);
+    }
 }
 
 

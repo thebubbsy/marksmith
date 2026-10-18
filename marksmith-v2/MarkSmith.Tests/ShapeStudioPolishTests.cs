@@ -1191,6 +1191,58 @@ public class ShapeStudioPolishTests
         Assert.Equal(200.0, vm.Shapes[2].Width);
         Assert.Equal(50.0, vm.Shapes[2].Height);
     }
+
+    [Fact]
+    public void Run154_AuditSpacingDistributionAndDistributeUniformly()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // 1. Less than 2 shapes
+        var emptyAudit = vm.AuditSpacingDistribution();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Contains("Insufficient shapes", emptyAudit.Summary);
+
+        // 2. Add 3 shapes with uneven spacing:
+        // Shape 0: X=0, W=100 (ends at 100)
+        // Shape 1: X=120, W=100 (gap 20, ends at 220)
+        // Shape 2: X=300, W=100 (gap 80, ends at 400)
+        // Total envelope: 400 - 0 = 400. Shapes width: 300. Total gap: 100. Uniform gap = 100 / 2 = 50.
+        vm.AddShapeAt("rect", 0, 0, 100, 50, "FF0000", "A");
+        vm.AddShapeAt("rect", 120, 0, 100, 50, "00FF00", "B");
+        vm.AddShapeAt("rect", 300, 0, 100, 50, "0000FF", "C");
+
+        var unevenAudit = vm.AuditSpacingDistribution(DistributionAxis.Horizontal);
+        Assert.Equal(3, unevenAudit.TotalShapes);
+        Assert.Equal(2, unevenAudit.GapCount);
+        Assert.Equal(20.0, unevenAudit.MinGap);
+        Assert.Equal(80.0, unevenAudit.MaxGap);
+        Assert.Equal(50.0, unevenAudit.AverageGap);
+        Assert.False(unevenAudit.IsUniform);
+        Assert.Contains("Uneven", unevenAudit.Summary);
+
+        // 3. Distribute spacing uniformly
+        var (targets, modified, gap, summary) = vm.DistributeSpacingUniformly(DistributionAxis.Horizontal);
+        Assert.Equal(3, targets);
+        Assert.Equal(1, modified);
+        Assert.Equal(50.0, gap);
+        Assert.Contains("Distributed uniform horizontal spacing", summary);
+
+        // Shape 1 should now be at X = 0 + 100 + 50 = 150
+        Assert.Equal(150.0, vm.Shapes[1].X);
+
+        // 4. Verify post-distribution audit reports Uniform
+        var uniformAudit = vm.AuditSpacingDistribution(DistributionAxis.Horizontal);
+        Assert.True(uniformAudit.IsUniform);
+        Assert.Equal(50.0, uniformAudit.MinGap);
+        Assert.Equal(50.0, uniformAudit.MaxGap);
+        Assert.Contains("Uniform", uniformAudit.Summary);
+
+        // 5. Test Undo restores Shape 1 to X=120
+        Assert.True(vm.CanUndo);
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(120.0, vm.Shapes[1].X);
+    }
 }
 
 

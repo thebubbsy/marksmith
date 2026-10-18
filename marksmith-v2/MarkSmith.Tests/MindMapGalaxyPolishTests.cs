@@ -1892,6 +1892,49 @@ namespace MarkSmith.Tests
             Assert.Contains("Trunk Hub", audit.TrunkNodeTitles[0]);
             Assert.Contains("4 edges · 400px wire", audit.Summary);
         }
+
+        [Fact]
+        public void Run154_AuditDegreeCentrality()
+        {
+            // 1. Empty / single node
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            var emptyAudit = vm.AuditDegreeCentrality();
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalLinks);
+            Assert.Contains("Insufficient nodes", emptyAudit.Summary);
+
+            // 2. Star graph: Central Hub connected to 4 satellite leaves and 1 orphan
+            var hub = new MindMapNode { Id = "hub", Title = "Central API Gateway" };
+            var leaf1 = new MindMapNode { Id = "leaf1", Title = "Auth Microservice" };
+            var leaf2 = new MindMapNode { Id = "leaf2", Title = "Billing Worker" };
+            var leaf3 = new MindMapNode { Id = "leaf3", Title = "Telemetry Streamer" };
+            var leaf4 = new MindMapNode { Id = "leaf4", Title = "Notification Sender" };
+            var orphan = new MindMapNode { Id = "orphan", Title = "Draft Scratchpad" };
+
+            vm.Nodes.Add(new MindMapNodeViewModel(hub));
+            vm.Nodes.Add(new MindMapNodeViewModel(leaf1));
+            vm.Nodes.Add(new MindMapNodeViewModel(leaf2));
+            vm.Nodes.Add(new MindMapNodeViewModel(leaf3));
+            vm.Nodes.Add(new MindMapNodeViewModel(leaf4));
+            vm.Nodes.Add(new MindMapNodeViewModel(orphan));
+
+            vm.Links.Add(new MindMapLinkViewModel(new MindMapLink { SourceNodeId = "hub", TargetNodeId = "leaf1" }));
+            vm.Links.Add(new MindMapLinkViewModel(new MindMapLink { SourceNodeId = "hub", TargetNodeId = "leaf2" }));
+            vm.Links.Add(new MindMapLinkViewModel(new MindMapLink { SourceNodeId = "hub", TargetNodeId = "leaf3" }));
+            vm.Links.Add(new MindMapLinkViewModel(new MindMapLink { SourceNodeId = "hub", TargetNodeId = "leaf4" }));
+
+            var audit = vm.AuditDegreeCentrality();
+            Assert.Equal(6, audit.TotalNodes);
+            Assert.Equal(4, audit.TotalLinks);
+            Assert.Equal(4, audit.MaxDegree);
+            Assert.Equal("Central API Gateway", audit.TopHubTitle);
+            Assert.Equal(4, audit.LeafNodeCount);
+            Assert.Equal(1, audit.OrphanNodeCount);
+            Assert.Contains("Top hub 'Central API Gateway' (deg:4)", audit.Summary);
+            Assert.Contains("4 leaves, 1 orphan", audit.Summary);
+        }
     }
 }
 

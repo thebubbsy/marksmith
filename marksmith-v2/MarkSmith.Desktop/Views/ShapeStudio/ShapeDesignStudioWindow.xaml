@@ -667,6 +667,12 @@
                                         <MenuFlyoutItem x:Name="SelectionLockAspectRatioSquareItem" Text="Lock shape aspect ratio (1:1 Square)" Click="OnSelectionLockAspectRatioSquareClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE734;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditSpacingItem" Text="Audit multi-shape spacing &amp; gap uniformity" Click="OnSelectionAuditSpacingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionDistributeSpacingHorizontalItem" Text="Distribute uniform horizontal spacing (Equal gutters)" Click="OnSelectionDistributeSpacingHorizontalClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE734;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -2161,6 +2161,160 @@ public static class TextSearch
     {
         return AuditReadabilityMetrics(markdownText).Summary;
     }
+
+    /// <summary>
+    /// Formats a human-readable summary of heading outline structural balance and depth distribution for the given document text.
+    /// </summary>
+    public static string FormatHeadingOutlineBalanceSummary(string? markdownText)
+    {
+        return AuditHeadingOutlineBalance(markdownText).Summary;
+    }
+
+    /// <summary>
+    /// Audits markdown heading outline structure, depth distribution, and detects skipped hierarchy levels.
+    /// </summary>
+    public static HeadingOutlineBalanceAudit AuditHeadingOutlineBalance(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new HeadingOutlineBalanceAudit(
+                0, 0, 0, 0,
+                new Dictionary<int, int> { { 1, 0 }, { 2, 0 }, { 3, 0 }, { 4, 0 }, { 5, 0 }, { 6, 0 } },
+                Array.Empty<string>(),
+                Array.Empty<HeadingOutlineItem>(),
+                "No Headings (Unstructured)",
+                "Outline balance audit: 0 headings (Empty document) · No outline structure detected");
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        bool inFence = false;
+        string fenceMarker = string.Empty;
+
+        var headings = new List<HeadingOutlineItem>();
+        var levelCounts = new Dictionary<int, int>
+        {
+            { 1, 0 }, { 2, 0 }, { 3, 0 }, { 4, 0 }, { 5, 0 }, { 6, 0 }
+        };
+        var skippedWarnings = new List<string>();
+
+        int prevLevel = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                string tag = trimmed.Length >= 3 ? trimmed.Substring(0, 3) : trimmed;
+                if (!inFence)
+                {
+                    inFence = true;
+                    fenceMarker = tag;
+                }
+                else if (tag == fenceMarker || trimmed == ":::")
+                {
+                    inFence = false;
+                    fenceMarker = string.Empty;
+                }
+                continue;
+            }
+
+            if (inFence) continue;
+
+            // Check ATX headings: # to ######
+            if (trimmed.StartsWith('#'))
+            {
+                int level = 0;
+                while (level < trimmed.Length && trimmed[level] == '#') level++;
+
+                if (level >= 1 && level <= 6 && (level == trimmed.Length || char.IsWhiteSpace(trimmed[level])))
+                {
+                    string title = trimmed.Substring(level).Trim();
+                    levelCounts[level]++;
+
+                    if (prevLevel > 0 && level > prevLevel + 1)
+                    {
+                        skippedWarnings.Add($"Line {i + 1}: Skipped level (H{prevLevel} -> H{level}) at '{title}'");
+                    }
+                    else if (prevLevel == 0 && level > 2)
+                    {
+                        skippedWarnings.Add($"Line {i + 1}: Document starts at deep level H{level} without H1/H2 context at '{title}'");
+                    }
+
+                    headings.Add(new HeadingOutlineItem(i + 1, level, title));
+                    prevLevel = level;
+                }
+            }
+        }
+
+        if (headings.Count == 0)
+        {
+            return new HeadingOutlineBalanceAudit(
+                0, 0, 0, 0,
+                levelCounts,
+                Array.Empty<string>(),
+                Array.Empty<HeadingOutlineItem>(),
+                "No Headings (Unstructured)",
+                "Outline balance audit: 0 headings · Document contains no markdown headings");
+        }
+
+        int totalHeadings = headings.Count;
+        int maxDepth = headings.Max(h => h.Level);
+        int minDepth = headings.Min(h => h.Level);
+        int skippedCount = skippedWarnings.Count;
+
+        string balanceCategory;
+        if (skippedCount > 0)
+        {
+            balanceCategory = "Fragmented Outline (Skipped Levels)";
+        }
+        else if (maxDepth == 1 && levelCounts[1] > 1)
+        {
+            balanceCategory = "Flat Outline (Single Tier)";
+        }
+        else if (levelCounts[1] == 1 && maxDepth <= 4 && skippedCount == 0)
+        {
+            balanceCategory = "Well-Balanced Outline";
+        }
+        else if (maxDepth >= 5)
+        {
+            balanceCategory = "Deep Hierarchy (H5/H6)";
+        }
+        else
+        {
+            balanceCategory = "Multi-Tier Hierarchy";
+        }
+
+        string summary = FormatHeadingOutlineBalanceSummary(totalHeadings, minDepth, maxDepth, skippedCount, balanceCategory, levelCounts);
+
+        return new HeadingOutlineBalanceAudit(
+            totalHeadings, minDepth, maxDepth, skippedCount,
+            levelCounts, skippedWarnings, headings,
+            balanceCategory, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of heading outline structural balance and depth distribution.
+    /// </summary>
+    public static string FormatHeadingOutlineBalanceSummary(
+        int totalHeadings, int minDepth, int maxDepth, int skippedLevels, string balanceCategory, IReadOnlyDictionary<int, int>? levelCounts = null)
+    {
+        if (totalHeadings <= 0) return "Outline balance audit: 0 headings · Document contains no markdown headings";
+
+        string hLabel = totalHeadings == 1 ? "1 heading" : $"{totalHeadings} headings";
+        string range = minDepth == maxDepth ? $"H{minDepth}" : $"H{minDepth}–H{maxDepth}";
+
+        string dist = "";
+        if (levelCounts != null)
+        {
+            var active = levelCounts.Where(kvp => kvp.Value > 0).Select(kvp => $"{kvp.Value} H{kvp.Key}");
+            dist = $" [{string.Join(", ", active)}]";
+        }
+
+        string skippedStr = skippedLevels > 0 ? $" · {skippedLevels} skipped levels warning" : " · No skipped levels";
+        return $"Outline balance audit ({hLabel} across {range}{dist} · {balanceCategory}){skippedStr}";
+    }
 }
 
 /// <summary>
@@ -2196,7 +2350,25 @@ public sealed record ReadabilityMetricsAudit(
     TimeSpan EstimatedSpeakingTime,
     string Summary);
 
+/// <summary>
+/// Represents a parsed markdown heading item with line number, depth level, and title text.
+/// </summary>
+public sealed record HeadingOutlineItem(
+    int LineNumber,
+    int Level,
+    string Title);
 
-
-
+/// <summary>
+/// Represents the result of an audit of document heading outline balance and hierarchy depth distribution.
+/// </summary>
+public sealed record HeadingOutlineBalanceAudit(
+    int TotalHeadings,
+    int MinDepth,
+    int MaxDepth,
+    int SkippedLevelCount,
+    IReadOnlyDictionary<int, int> LevelCounts,
+    IReadOnlyList<string> SkippedWarnings,
+    IReadOnlyList<HeadingOutlineItem> Headings,
+    string BalanceCategory,
+    string Summary);
 

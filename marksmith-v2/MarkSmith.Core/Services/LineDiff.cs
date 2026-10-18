@@ -2229,6 +2229,115 @@ public static class LineDiff
 
         return SynthesizeReleaseMilestoneHeader(versionTag, milestoneScope, releaseDate, feat, fix, breaking, 1);
     }
+
+    /// <summary>
+    /// Synthesizes a row of standardized Markdown release and status badges (Shields.io formatted)
+    /// for documentation headers and release announcements.
+    /// </summary>
+    public static string SynthesizeReleaseBadgesMarkdown(
+        string? versionTag = null,
+        string? milestoneScope = null,
+        string? status = null,
+        int featureCount = 0,
+        int fixCount = 0)
+    {
+        string tag = string.IsNullOrWhiteSpace(versionTag) ? "v1.0.0" : versionTag.Trim();
+        if (!tag.StartsWith("v", StringComparison.OrdinalIgnoreCase) && !tag.StartsWith("["))
+        {
+            tag = $"v{tag}";
+        }
+
+        string scope = string.IsNullOrWhiteSpace(milestoneScope)
+            ? "General Availability"
+            : milestoneScope.Trim();
+
+        string statusLabel = string.IsNullOrWhiteSpace(status)
+            ? "stable"
+            : status.Trim().ToLowerInvariant();
+
+        string safeTag = Uri.EscapeDataString(tag);
+        string safeScope = Uri.EscapeDataString(scope);
+        string safeStatus = Uri.EscapeDataString(statusLabel);
+
+        var badges = new List<string>
+        {
+            $"[![Release](https://img.shields.io/badge/release-{safeTag}-blue.svg)](#)",
+            $"[![Milestone](https://img.shields.io/badge/milestone-{safeScope}-success.svg)](#)",
+            $"[![Status](https://img.shields.io/badge/status-{safeStatus}-green.svg)](#)"
+        };
+
+        if (featureCount > 0 || fixCount > 0)
+        {
+            string changeMetric = Uri.EscapeDataString($"{featureCount} feat · {fixCount} fix");
+            badges.Add($"[![Changes](https://img.shields.io/badge/changes-{changeMetric}-orange.svg)](#)");
+        }
+
+        return string.Join(" ", badges);
+    }
+
+    /// <summary>
+    /// Synthesizes release badges from unified diff rows between version checkpoints.
+    /// </summary>
+    public static string SynthesizeReleaseBadgesMarkdown(
+        IReadOnlyList<UnifiedRow>? unifiedRows,
+        string? versionTag = null,
+        string? milestoneScope = null,
+        string? status = null)
+    {
+        int feat = 0;
+        int fix = 0;
+
+        if (unifiedRows != null && unifiedRows.Count > 0)
+        {
+            var addedHeadings = new List<string>();
+            bool addedTable = false;
+            bool removedTable = false;
+            bool modifiedDiagram = false;
+
+            foreach (var row in unifiedRows)
+            {
+                if (row.IsGap) continue;
+                var text = (row.Text ?? string.Empty).Trim();
+
+                if (row.Kind == Kind.Added)
+                {
+                    if (text.StartsWith('#'))
+                    {
+                        var cleanTitle = text.TrimStart('#').Trim();
+                        if (!string.IsNullOrEmpty(cleanTitle)) addedHeadings.Add(cleanTitle);
+                    }
+                    else if (text.StartsWith('|') && text.EndsWith('|'))
+                    {
+                        addedTable = true;
+                    }
+                    else if (text.StartsWith("```") || text.StartsWith(":::"))
+                    {
+                        modifiedDiagram = true;
+                    }
+                }
+                else if (row.Kind == Kind.Removed)
+                {
+                    if (text.StartsWith('|') && text.EndsWith('|'))
+                    {
+                        removedTable = true;
+                    }
+                    else if (text.StartsWith("```") || text.StartsWith(":::"))
+                    {
+                        modifiedDiagram = true;
+                    }
+                }
+            }
+
+            feat = addedHeadings.Count + (addedTable && !removedTable ? 1 : 0);
+            if (feat == 0 && unifiedRows.Any(r => r.Kind == Kind.Added))
+            {
+                feat = 1;
+            }
+            fix = (modifiedDiagram ? 1 : 0) + (addedTable && removedTable ? 1 : 0);
+        }
+
+        return SynthesizeReleaseBadgesMarkdown(versionTag, milestoneScope, status, feat, fix);
+    }
 }
 
 

@@ -3237,6 +3237,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"Copied release milestone: {header.Split('\n')[0]}");
                 };
                 menu.Items.Add(synthesizeMilestoneHeader);
+
+                var synthesizeReleaseBadges = new MenuFlyoutItem
+                {
+                    Text = "Synthesize Shields.io release & status badges markdown",
+                    Icon = new FontIcon { Glyph = "\uE734" }
+                };
+                synthesizeReleaseBadges.Click += (_, _) =>
+                {
+                    var badges = MarkSmith.Services.LineDiff.SynthesizeReleaseBadgesMarkdown(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(badges);
+                    _vm.ShowNotice($"Copied release badges: {badges.Split(' ')[0]}");
+                };
+                menu.Items.Add(synthesizeReleaseBadges);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

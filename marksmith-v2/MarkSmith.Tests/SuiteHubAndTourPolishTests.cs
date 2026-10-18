@@ -2134,6 +2134,88 @@ public class SuiteHubAndTourPolishTests
         Assert.Equal(0, emptyVelocity.TotalFiles);
         Assert.Contains("0 workspaces, 0 documents", emptyVelocity.Summary);
     }
+
+    [Fact]
+    public void Run154_Polish_Elements_Wired_Across_Surfaces_And_ActiveClusterChips()
+    {
+        // 1. Cross-surface XAML and code-behind wiring tests
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("headingOutlineBalanceItem", mainCs);
+        Assert.Contains("FormatHeadingOutlineBalanceSummary", mainCs);
+
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditDegreeCentralityItem", galaxyXaml);
+        Assert.Contains("OnAuditDegreeCentralityClick", galaxyXaml);
+        Assert.Contains("OnAuditDegreeCentralityClick", galaxyCs);
+        Assert.Contains("AuditDegreeCentrality", galaxyCs);
+
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditSpacingItem", shapeXaml);
+        Assert.Contains("SelectionDistributeSpacingHorizontalItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditSpacingClick", shapeCs);
+        Assert.Contains("OnSelectionDistributeSpacingHorizontalClick", shapeCs);
+        Assert.Contains("AuditSpacingDistribution", shapeCs);
+        Assert.Contains("DistributeSpacingUniformly", shapeCs);
+
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditContainerDensityItem", smartArtXaml);
+        Assert.Contains("OnAuditContainerDensityClick", smartArtXaml);
+        Assert.Contains("OnAuditContainerDensityClick", smartArtCs);
+        Assert.Contains("AuditContainerDensityFit", smartArtCs);
+
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("synthesizeReleaseBadges", historyCs);
+        Assert.Contains("SynthesizeReleaseBadgesMarkdown", historyCs);
+
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("FilterByActiveClusterItem", suiteXaml);
+        Assert.Contains("OnFilterByActiveClusterClick", suiteXaml);
+        Assert.Contains("OnFilterByActiveClusterClick", suiteCs);
+        Assert.Contains("GetActiveClusterFilterChips", suiteCs);
+
+        // 2. Logic test for GetActiveClusterFilterChips
+        var refTime = new DateTime(2026, 10, 18, 12, 0, 0);
+        var files = new[]
+        {
+            @"C:\Projects\Alpha\docs\overview.md",
+            @"C:\Projects\Alpha\docs\specs.md",
+            @"C:\Projects\Beta\notes\todo.md",
+            @"C:\Projects\Beta\notes\ancient.md"
+        };
+
+        DateTime MockAccessTime(string path) => path switch
+        {
+            @"C:\Projects\Alpha\docs\overview.md" => refTime.AddDays(-2),   // active (<14d)
+            @"C:\Projects\Alpha\docs\specs.md" => refTime.AddDays(-5),     // active (<14d)
+            @"C:\Projects\Beta\notes\todo.md" => refTime.AddDays(-25),     // dormant (>=14d)
+            @"C:\Projects\Beta\notes\ancient.md" => refTime.AddDays(-100),  // dormant (>=14d)
+            _ => DateTime.MinValue
+        };
+
+        var chips = RecentFilesService.GetActiveClusterFilterChips(files, MockAccessTime, refTime);
+        Assert.Equal(2, chips.Count);
+
+        var topChip = chips[0];
+        Assert.Equal("docs", topChip.ClusterName);
+        Assert.Equal(2, topChip.TotalFiles);
+        Assert.Equal(2, topChip.ActiveFiles);
+        Assert.Equal(100.0, topChip.ActivityPercentage);
+        Assert.Contains("2/2 active", topChip.DisplayBadge);
+
+        var summary = RecentFilesService.FormatActiveClusterFilterSummary(chips);
+        Assert.Contains("Top active 'docs'", summary);
+        Assert.Contains("2/2 active", summary);
+
+        // Empty file collection test
+        var emptyChips = RecentFilesService.GetActiveClusterFilterChips(Array.Empty<string>());
+        Assert.Empty(emptyChips);
+        var emptySummary = RecentFilesService.FormatActiveClusterFilterSummary(emptyChips);
+        Assert.Contains("No clusters found", emptySummary);
+    }
 }
 
 

@@ -7799,6 +7799,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(readabilityMetricsItem);
 
+        var headingOutlineBalanceItem = new MenuFlyoutItem
+        {
+            Text = "Copy heading outline structural balance & depth metrics",
+            Icon = new FontIcon { Glyph = "\uE809" }
+        };
+        headingOutlineBalanceItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatHeadingOutlineBalanceSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(headingOutlineBalanceItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9085,6 +9099,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(readabilityMetricsItem);
+
+        var headingOutlineBalanceItem = new MenuFlyoutItem
+        {
+            Text = "Copy heading outline structural balance & depth metrics",
+            Icon = new FontIcon { Glyph = "\uE809" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        headingOutlineBalanceItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatHeadingOutlineBalanceSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(headingOutlineBalanceItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

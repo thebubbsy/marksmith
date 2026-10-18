@@ -1792,6 +1792,41 @@ public sealed class RecentFilesService
 
         return $"Workspace velocity audit ({overallVelocity:0.#}% active across {wsLabel}, {docLabel} · Top: '{topCluster}'): {overallVelocity:0.#}% library velocity{preview}";
     }
+
+    /// <summary>
+    /// Generates active workspace cluster filter chips from recent files, enabling one-click directory filtering in the UI.
+    /// </summary>
+    public static IReadOnlyList<ActiveClusterFilterChip> GetActiveClusterFilterChips(
+        IEnumerable<string>? recentFiles,
+        Func<string, DateTime>? lastAccessTimeProvider = null,
+        DateTime? referenceTime = null)
+    {
+        var audit = AuditClusterActivityVelocity(recentFiles, lastAccessTimeProvider, referenceTime);
+        if (audit.Clusters.Count == 0) return Array.Empty<ActiveClusterFilterChip>();
+
+        return audit.Clusters
+            .OrderByDescending(c => c.ActiveFiles)
+            .ThenByDescending(c => c.ActivityPercentage)
+            .Select(c => new ActiveClusterFilterChip(
+                c.ClusterName,
+                c.TotalFiles,
+                c.ActiveFiles,
+                c.ActivityPercentage,
+                c.ClusterName,
+                $"'{c.ClusterName}' ({c.ActiveFiles}/{c.TotalFiles} active)"))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of active cluster filter chips.
+    /// </summary>
+    public static string FormatActiveClusterFilterSummary(IReadOnlyList<ActiveClusterFilterChip> chips)
+    {
+        if (chips == null || chips.Count == 0) return "Active cluster filter: No clusters found";
+        var top = chips[0];
+        string clusterLabel = chips.Count == 1 ? "1 cluster" : $"{chips.Count} clusters";
+        return $"Active cluster filter ({clusterLabel}): Top active '{top.ClusterName}' ({top.ActiveFiles}/{top.TotalFiles} active, {top.ActivityPercentage:0}%)";
+    }
 }
 
 /// <summary>
@@ -1837,5 +1872,13 @@ public sealed record ClusterActivityVelocityAudit(
     IReadOnlyList<ClusterActivityVelocityInfo> Clusters,
     string Summary);
 
-
-
+/// <summary>
+/// Represents an active workspace cluster filter chip for quick search filtering in the SuiteHub.
+/// </summary>
+public sealed record ActiveClusterFilterChip(
+    string ClusterName,
+    int TotalFiles,
+    int ActiveFiles,
+    double ActivityPercentage,
+    string FilterQuery,
+    string DisplayBadge);

@@ -279,6 +279,9 @@
                                     <MenuFlyoutItem x:Name="AuditMstItem" Text="Audit Minimum Spanning Tree (MST) wireframe" Click="OnAuditMstClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE968;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditDegreeCentralityItem" Text="Audit graph degree centrality &amp; node hubs" Click="OnAuditDegreeCentralityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C1;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

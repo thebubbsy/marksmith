@@ -1614,6 +1614,36 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnFilterByActiveClusterClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var chips = RecentFilesService.GetActiveClusterFilterChips(files);
+            if (chips.Count > 0)
+            {
+                var top = chips[0];
+                RecentSearchBox.Text = top.ClusterName;
+                LoadRecentFiles(top.ClusterName);
+                string summary = RecentFilesService.FormatActiveClusterFilterSummary(chips);
+                await Services.ClipboardWriter.TrySetTextAsync(summary);
+                SetNotification($"Filtered by top active cluster: '{top.ClusterName}' ({top.ActiveFiles} active documents)", success: true);
+                if (RecentDocsActionBtn != null)
+                {
+                    Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Filtered");
+                }
+            }
+            else
+            {
+                SetNotification("No active workspace clusters found in recent documents.", success: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't filter by active cluster: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";
