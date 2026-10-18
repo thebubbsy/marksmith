@@ -11511,6 +11511,108 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.ShowAt(anchor);
     }
 
+    private List<(string Label, string Url)> ExtractDocumentLinks()
+    {
+        var md = EditorDocument();
+        var results = new List<(string Label, string Url)>();
+        if (string.IsNullOrWhiteSpace(md)) return results;
+
+        var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(
+            md, @"(?<!!)\[(?<text>[^\]]+)\]\((?<url>[^)\s]+)(?:\s+""[^""]*"")?\)"))
+        {
+            var label = m.Groups["text"].Value.Trim();
+            var url = m.Groups["url"].Value.Trim();
+            if (!string.IsNullOrEmpty(url) && seenUrls.Add(url))
+            {
+                results.Add((string.IsNullOrEmpty(label) ? url : label, url));
+            }
+        }
+
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(
+            md, @"(?<![\(\[])https?://[^\s\)\]>""'`]+"))
+        {
+            var url = m.Value.TrimEnd('.', ',', ';', ':');
+            if (!string.IsNullOrEmpty(url) && seenUrls.Add(url))
+            {
+                results.Add((url, url));
+            }
+        }
+
+        return results;
+    }
+
+    private void OnStatusCopyLinksButtonClick(object sender, RoutedEventArgs e)
+    {
+        var links = ExtractDocumentLinks();
+        if (links.Count == 0)
+        {
+            AnnounceStatus("No links or URLs found in document");
+            return;
+        }
+
+        var formatted = string.Join(Environment.NewLine, links.Select(l => $"- [{l.Label}]({l.Url})"));
+        _ = Services.ClipboardWriter.TrySetTextAsync(formatted);
+        AnnounceStatus($"Copied {links.Count:N0} Markdown link(s) to clipboard");
+    }
+
+    private void OnStatusCopyLinksButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+
+        var menu = new MenuFlyout();
+
+        var mdListItem = new MenuFlyoutItem
+        {
+            Text = "Copy Markdown link list (- [Label](url))",
+            Icon = new FontIcon { Glyph = "\uE71B" }
+        };
+        mdListItem.Click += (_, _) => OnStatusCopyLinksButtonClick(sender, new RoutedEventArgs());
+        menu.Items.Add(mdListItem);
+
+        var rawUrlsItem = new MenuFlyoutItem
+        {
+            Text = "Copy raw URLs only (one per line)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        rawUrlsItem.Click += (_, _) =>
+        {
+            var links = ExtractDocumentLinks();
+            if (links.Count == 0)
+            {
+                AnnounceStatus("No links or URLs found in document");
+                return;
+            }
+            var raw = string.Join(Environment.NewLine, links.Select(l => l.Url));
+            _ = Services.ClipboardWriter.TrySetTextAsync(raw);
+            AnnounceStatus($"Copied {links.Count:N0} raw URL(s) to clipboard");
+        };
+        menu.Items.Add(rawUrlsItem);
+
+        var insertLinksItem = new MenuFlyoutItem
+        {
+            Text = "Insert Link Index section at cursor",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertLinksItem.Click += (_, _) =>
+        {
+            var links = ExtractDocumentLinks();
+            if (links.Count == 0)
+            {
+                AnnounceStatus("No links found in document to build Link Index");
+                return;
+            }
+            var formatted = string.Join(Environment.NewLine, links.Select(l => $"- [{l.Label}]({l.Url})"));
+            InsertMarkdown($"## References & Links\n\n{formatted}\n\n");
+            AnnounceStatus($"Inserted Link Index ({links.Count:N0} links) at cursor");
+        };
+        menu.Items.Add(insertLinksItem);
+
+        menu.ShowAt(anchor);
+    }
+
     private void OnStatusCopyMarkdownButtonClick(object sender, RoutedEventArgs e)
     {
         var selected = PasteTextBox?.SelectedText;
