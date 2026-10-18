@@ -2635,6 +2635,174 @@ public static class LineDiff
         return SynthesizeMultiChannelReleaseDigest(
             versionTag, milestoneScope, status, highlights, feat, fix, doc, releaseDate);
     }
+
+    /// <summary>
+    /// Audits version diff churn acceleration, line turbulence, and modification hotspots across unified diff rows.
+    /// </summary>
+    public static DiffChurnAccelerationAudit AuditDiffChurnAcceleration(IEnumerable<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null) return AuditDiffChurnAcceleration((IEnumerable<Line>?)null);
+        return AuditDiffChurnAcceleration(unifiedRows.Where(r => !r.IsGap).Select(r => new Line(r.Kind, r.OldNumber, r.NewNumber, r.Text)));
+    }
+
+    /// <summary>
+    /// Audits version diff churn acceleration, line turbulence, and modification hotspots across diff rows.
+    /// </summary>
+    public static DiffChurnAccelerationAudit AuditDiffChurnAcceleration(IEnumerable<Line>? diffLines)
+    {
+        if (diffLines == null)
+        {
+            return new DiffChurnAccelerationAudit(
+                0, 0, 0, 0, 0, 0.0, 0.0, "None",
+                Array.Empty<SectionChurnHotspot>(), "Identical (Zero Churn)",
+                "Diff churn acceleration: 0 lines · No diff rows");
+        }
+
+        var list = diffLines.ToList();
+        if (list.Count == 0)
+        {
+            return new DiffChurnAccelerationAudit(
+                0, 0, 0, 0, 0, 0.0, 0.0, "None",
+                Array.Empty<SectionChurnHotspot>(), "Identical (Zero Churn)",
+                "Diff churn acceleration: 0 lines · No diff rows");
+        }
+
+        int added = list.Count(l => l.Kind == Kind.Added);
+        int removed = list.Count(l => l.Kind == Kind.Removed);
+        int same = list.Count(l => l.Kind == Kind.Same);
+
+        int totalBefore = same + removed;
+        int totalAfter = same + added;
+        int totalChanged = added + removed;
+
+        double churnRatio = totalBefore > 0
+            ? Math.Round((double)totalChanged / totalBefore, 2)
+            : (totalAfter > 0 ? 1.0 : 0.0);
+
+        double netGrowth = totalBefore > 0
+            ? Math.Round((double)(totalAfter - totalBefore) / totalBefore, 2)
+            : (totalAfter > 0 ? 1.0 : 0.0);
+
+        // Section hotspots
+        var sectionChanges = new Dictionary<string, (int Added, int Removed)>(StringComparer.OrdinalIgnoreCase);
+        string currentHeading = "Preamble / Introduction";
+
+        foreach (var l in list)
+        {
+            string t = l.Text.Trim();
+            if (t.StartsWith("#"))
+            {
+                currentHeading = t.TrimStart('#', ' ').Trim();
+            }
+
+            if (l.Kind == Kind.Added || l.Kind == Kind.Removed)
+            {
+                if (!sectionChanges.TryGetValue(currentHeading, out var cur))
+                {
+                    cur = (0, 0);
+                }
+
+                if (l.Kind == Kind.Added) cur = (cur.Added + 1, cur.Removed);
+                else cur = (cur.Added, cur.Removed + 1);
+
+                sectionChanges[currentHeading] = cur;
+            }
+        }
+
+        var hotspots = new List<SectionChurnHotspot>();
+        string worstHeading = "None";
+        int maxSectionChurn = -1;
+
+        foreach (var kvp in sectionChanges.OrderByDescending(c => c.Value.Added + c.Value.Removed))
+        {
+            int ch = kvp.Value.Added + kvp.Value.Removed;
+            double velocity = totalChanged > 0 ? Math.Round((double)ch / totalChanged, 2) : 0.0;
+            hotspots.Add(new SectionChurnHotspot(kvp.Key, kvp.Value.Added, kvp.Value.Removed, ch, velocity));
+
+            if (ch > maxSectionChurn)
+            {
+                maxSectionChurn = ch;
+                worstHeading = kvp.Key;
+            }
+        }
+
+        string category;
+        if (totalChanged == 0)
+        {
+            category = "Identical (Zero Churn)";
+        }
+        else if (churnRatio >= 0.50)
+        {
+            category = "High Volatility (Rapid Revision Churn)";
+        }
+        else if (churnRatio >= 0.15)
+        {
+            category = "Moderate Active Churn";
+        }
+        else
+        {
+            category = "Stable Minor Edits";
+        }
+
+        string summary = FormatDiffChurnSummary(
+            totalBefore, totalAfter, added, removed, churnRatio, netGrowth, worstHeading, category);
+
+        return new DiffChurnAccelerationAudit(
+            totalBefore, totalAfter, added, removed, same,
+            churnRatio, netGrowth, worstHeading, hotspots, category, summary);
+    }
+
+    /// <summary>
+    /// Audits version diff churn acceleration between two markdown text versions.
+    /// </summary>
+    public static DiffChurnAccelerationAudit AuditDiffChurnAcceleration(string? before, string? after)
+    {
+        var diff = Diff(before ?? "", after ?? "");
+        return AuditDiffChurnAcceleration(diff);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of diff churn acceleration metrics.
+    /// </summary>
+    public static string FormatDiffChurnSummary(
+        int totalBefore, int totalAfter, int added, int removed,
+        double churnRatio, double netGrowth, string hotspotHeading, string category)
+    {
+        int totalChanged = added + removed;
+        if (totalChanged == 0) return "Diff churn acceleration: 0 changes · Versions are identical";
+
+        string sign = netGrowth >= 0 ? "+" : "";
+        string growthStr = $"{sign}{netGrowth * 100:0.#}% net";
+        string hotspotStr = hotspotHeading != "None" ? $" · Hotspot: '{hotspotHeading}'" : "";
+
+        return $"Diff churn acceleration (+{added}/-{removed} lines · {category}): {churnRatio * 100:0.#}% churn ratio, {growthStr}{hotspotStr}";
+    }
 }
+
+/// <summary>
+/// Represents line change turbulence and churn metrics for a document subsection or heading block.
+/// </summary>
+public sealed record SectionChurnHotspot(
+    string SectionHeading,
+    int AddedLines,
+    int RemovedLines,
+    int TotalChangedLines,
+    double ChurnVelocity);
+
+/// <summary>
+/// Represents the result of an audit of version diff churn acceleration, line turbulence, and modification hotspots.
+/// </summary>
+public sealed record DiffChurnAccelerationAudit(
+    int TotalBeforeLines,
+    int TotalAfterLines,
+    int AddedCount,
+    int RemovedCount,
+    int UnchangedCount,
+    double ChurnRatio,
+    double NetGrowthRate,
+    string HotspotSectionHeading,
+    IReadOnlyList<SectionChurnHotspot> SectionHotspots,
+    string VolatilityCategory,
+    string Summary);
 
 

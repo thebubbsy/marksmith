@@ -1157,6 +1157,59 @@ public class TextSearchTests
         Assert.Equal("Inconsistent Indentation", incAudit.StructureCategory);
         Assert.Contains("1 indent jumps", incAudit.Summary);
     }
+
+    [Fact]
+    public void Run157_AuditMarkdownTableColumnAlignment()
+    {
+        // 1. Empty / degenerate document
+        var emptyAudit = TextSearch.AuditMarkdownTableColumnAlignment("");
+        Assert.Equal(0, emptyAudit.TotalTables);
+        Assert.Equal(0, emptyAudit.TotalTableRows);
+        Assert.Equal(0, emptyAudit.TotalRaggedRows);
+        Assert.Equal("No Tables", emptyAudit.AlignmentCategory);
+        Assert.Contains("0 tables", emptyAudit.Summary);
+
+        // 2. Perfectly aligned table with alignments
+        var doc = """
+            # Executive Summary
+            | Metric | Status | SLA |
+            | :--- | :---: | ---: |
+            | Availability | 99.99% | Meets SLA |
+            | Latency | 24ms | Exceeds SLA |
+            | Errors | 0.01% | Meets SLA |
+
+            ```markdown
+            | Code | Fenced | Pipe |
+            | Inside | Code | Fence |
+            ```
+            """;
+        var audit = TextSearch.AuditMarkdownTableColumnAlignment(doc);
+        Assert.Equal(1, audit.TotalTables);
+        Assert.Equal(4, audit.TotalTableRows);
+        Assert.Equal(0, audit.TotalRaggedRows);
+        Assert.Equal(3, audit.MaxColumnsObserved);
+        Assert.Equal("Perfect Grid Alignment", audit.AlignmentCategory);
+        Assert.Contains("1 table [4 rows, max 3 cols]", audit.Summary);
+        Assert.Equal("left", audit.Tables[0].Alignments[0]);
+        Assert.Equal("center", audit.Tables[0].Alignments[1]);
+        Assert.Equal("right", audit.Tables[0].Alignments[2]);
+        Assert.Equal(audit.Summary, TextSearch.FormatTableAlignmentSummary(doc));
+
+        // 3. Ragged row detection (mismatched columns)
+        var raggedDoc = """
+            | Name | Role | Department |
+            | --- | --- | --- |
+            | Alice | Engineering | Systems |
+            | Bob | Product |
+            | Charlie | Design | UX | Extra |
+            """;
+        var ragAudit = TextSearch.AuditMarkdownTableColumnAlignment(raggedDoc);
+        Assert.Equal(1, ragAudit.TotalTables);
+        Assert.Equal(4, ragAudit.TotalTableRows);
+        Assert.Equal(2, ragAudit.TotalRaggedRows);
+        Assert.Equal("Ragged Rows Detected", ragAudit.AlignmentCategory);
+        Assert.Contains("2 ragged rows", ragAudit.Summary);
+    }
 }
 
 

@@ -679,6 +679,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditBoundaryBleedItem" Text="Audit canvas boundary margins &amp; bleed" Click="OnSelectionAuditBoundaryBleedClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7B5;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditTextContrastItem" Text="Audit shape label text contrast &amp; WCAG compliance" Click="OnSelectionAuditTextContrastClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7E6;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -2649,6 +2649,217 @@ public static class TextSearch
 
         return $"List hierarchy ({itemsLabel} [{breakdown}], {depthLabel} · {category}): avg indent {avgIndent:0.#}sp{issueNote}{mixedNote}";
     }
+
+    private static List<string> SplitMarkdownTableCells(string line)
+    {
+        var cells = new List<string>();
+        string trimmed = line.Trim();
+        if (trimmed.StartsWith("|")) trimmed = trimmed.Substring(1);
+        if (trimmed.EndsWith("|") && !trimmed.EndsWith(@"\|")) trimmed = trimmed.Substring(0, trimmed.Length - 1);
+
+        var currentCell = new StringBuilder();
+        bool inCodeSpan = false;
+
+        for (int i = 0; i < trimmed.Length; i++)
+        {
+            char c = trimmed[i];
+            if (c == '`')
+            {
+                inCodeSpan = !inCodeSpan;
+                currentCell.Append(c);
+            }
+            else if (c == '\\' && i + 1 < trimmed.Length && trimmed[i + 1] == '|')
+            {
+                currentCell.Append('|');
+                i++;
+            }
+            else if (c == '|' && !inCodeSpan)
+            {
+                cells.Add(currentCell.ToString().Trim());
+                currentCell.Clear();
+            }
+            else
+            {
+                currentCell.Append(c);
+            }
+        }
+        cells.Add(currentCell.ToString().Trim());
+        return cells;
+    }
+
+    private static bool IsTableDelimiterRow(List<string> cells)
+    {
+        if (cells.Count == 0) return false;
+        foreach (var c in cells)
+        {
+            string t = c.Trim();
+            if (string.IsNullOrEmpty(t)) return false;
+            if (!Regex.IsMatch(t, @"^:?-+:?$")) return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Audits markdown tables for pipe grid consistency, expected column counts, and ragged rows.
+    /// </summary>
+    public static TableColumnAlignmentAudit AuditMarkdownTableColumnAlignment(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new TableColumnAlignmentAudit(
+                0, 0, 0, 0, Array.Empty<MarkdownTableInfo>(), "No Tables",
+                "Markdown tables: 0 tables · Document contains no markdown tables");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        var tables = new List<MarkdownTableInfo>();
+
+        bool inCodeFence = false;
+        var currentTableLines = new List<(int LineNumber, string Line)>();
+
+        void ProcessCurrentTable()
+        {
+            if (currentTableLines.Count < 2)
+            {
+                currentTableLines.Clear();
+                return;
+            }
+
+            var parsedRows = currentTableLines.Select(tl => (tl.LineNumber, Cells: SplitMarkdownTableCells(tl.Line))).ToList();
+            if (parsedRows.Count < 2)
+            {
+                currentTableLines.Clear();
+                return;
+            }
+
+            int delimiterIndex = -1;
+            for (int r = 1; r < Math.Min(3, parsedRows.Count); r++)
+            {
+                if (IsTableDelimiterRow(parsedRows[r].Cells))
+                {
+                    delimiterIndex = r;
+                    break;
+                }
+            }
+
+            if (delimiterIndex < 1)
+            {
+                // Not a valid markdown table without a delimiter separator
+                currentTableLines.Clear();
+                return;
+            }
+
+            int expectedCols = parsedRows[delimiterIndex].Cells.Count;
+            var alignments = new List<string>();
+            foreach (var delCell in parsedRows[delimiterIndex].Cells)
+            {
+                string dt = delCell.Trim();
+                bool left = dt.StartsWith(":");
+                bool right = dt.EndsWith(":");
+                if (left && right) alignments.Add("center");
+                else if (left) alignments.Add("left");
+                else if (right) alignments.Add("right");
+                else alignments.Add("default");
+            }
+
+            int raggedCount = 0;
+            int totalRows = 0;
+
+            for (int r = 0; r < parsedRows.Count; r++)
+            {
+                if (r == delimiterIndex) continue; // Skip separator line from row count
+                totalRows++;
+                if (parsedRows[r].Cells.Count != expectedCols)
+                {
+                    raggedCount++;
+                }
+            }
+
+            int startLine = currentTableLines[0].LineNumber;
+            int endLine = currentTableLines[^1].LineNumber;
+
+            tables.Add(new MarkdownTableInfo(
+                startLine, endLine, expectedCols, totalRows, raggedCount, true, alignments));
+
+            currentTableLines.Clear();
+        }
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                if (currentTableLines.Count > 0)
+                {
+                    ProcessCurrentTable();
+                }
+                continue;
+            }
+
+            if (inCodeFence) continue;
+
+            if (trimmed.Contains("|") && !string.IsNullOrWhiteSpace(trimmed))
+            {
+                currentTableLines.Add((i + 1, line));
+            }
+            else
+            {
+                if (currentTableLines.Count > 0)
+                {
+                    ProcessCurrentTable();
+                }
+            }
+        }
+
+        if (currentTableLines.Count > 0)
+        {
+            ProcessCurrentTable();
+        }
+
+        if (tables.Count == 0)
+        {
+            return new TableColumnAlignmentAudit(
+                0, 0, 0, 0, Array.Empty<MarkdownTableInfo>(), "No Tables",
+                "Markdown tables: 0 tables · Document contains no markdown tables");
+        }
+
+        int totalTables = tables.Count;
+        int totalTableRows = tables.Sum(t => t.TotalRows);
+        int totalRaggedRows = tables.Sum(t => t.RaggedRowCount);
+        int maxCols = tables.Max(t => t.ExpectedColumnCount);
+
+        string category = totalRaggedRows == 0 ? "Perfect Grid Alignment" : "Ragged Rows Detected";
+        string summary = FormatTableAlignmentSummary(totalTables, totalTableRows, totalRaggedRows, maxCols, category);
+
+        return new TableColumnAlignmentAudit(
+            totalTables, totalTableRows, totalRaggedRows, maxCols, tables, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown table column alignment.
+    /// </summary>
+    public static string FormatTableAlignmentSummary(string? markdownText)
+        => AuditMarkdownTableColumnAlignment(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of table alignment metrics.
+    /// </summary>
+    public static string FormatTableAlignmentSummary(
+        int totalTables, int totalRows, int raggedRows, int maxCols, string category)
+    {
+        if (totalTables == 0)
+            return "Markdown tables: 0 tables · Document contains no markdown tables";
+
+        string tableLabel = totalTables == 1 ? "1 table" : $"{totalTables} tables";
+        string rowLabel = totalRows == 1 ? "1 row" : $"{totalRows} rows";
+        string colLabel = maxCols == 1 ? "1 col" : $"max {maxCols} cols";
+        string raggedNote = raggedRows > 0 ? $" · ⚠ {raggedRows} ragged {(raggedRows == 1 ? "row" : "rows")}" : "";
+
+        return $"Markdown tables ({tableLabel} [{rowLabel}, {colLabel}] · {category}){raggedNote}";
+    }
 }
 
 /// <summary>
@@ -2732,6 +2943,30 @@ public sealed record ListIndentationAudit(
     int InconsistentIndentCount,
     int MixedListTypeCount,
     string StructureCategory,
+    string Summary);
+
+/// <summary>
+/// Represents a parsed markdown table with line range, column counts, ragged rows, and alignment descriptors.
+/// </summary>
+public sealed record MarkdownTableInfo(
+    int StartLine,
+    int EndLine,
+    int ExpectedColumnCount,
+    int TotalRows,
+    int RaggedRowCount,
+    bool HasHeaderSeparator,
+    IReadOnlyList<string> Alignments);
+
+/// <summary>
+/// Represents the result of an audit of markdown table column counts, pipe delimiters, and ragged row alignment.
+/// </summary>
+public sealed record TableColumnAlignmentAudit(
+    int TotalTables,
+    int TotalTableRows,
+    int TotalRaggedRows,
+    int MaxColumnsObserved,
+    IReadOnlyList<MarkdownTableInfo> Tables,
+    string AlignmentCategory,
     string Summary);
 
 

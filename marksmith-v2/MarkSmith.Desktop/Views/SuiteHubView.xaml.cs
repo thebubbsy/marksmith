@@ -1682,6 +1682,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyDocumentStalenessClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var audit = RecentFilesService.AuditDocumentStalenessAndVelocity(files);
+            await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+            SetNotification($"Copied document velocity: {audit.FreshnessIndex:0.#}% fresh ({audit.ActiveFiles} active, {audit.WarmFiles} warm)", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit document staleness: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

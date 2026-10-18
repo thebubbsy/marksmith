@@ -308,6 +308,9 @@
                                         <MenuFlyoutItem x:Name="AuditLinearFlowMonotonicityItem" Text="Audit linear flow monotonicity &amp; step layout fit" Click="OnAuditLinearFlowMonotonicityClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditCyclicFlowContinuityItem" Text="Audit cyclic flow continuity &amp; loop closure" Click="OnAuditCyclicFlowContinuityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

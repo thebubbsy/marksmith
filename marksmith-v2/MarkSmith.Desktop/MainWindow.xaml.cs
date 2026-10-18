@@ -7841,6 +7841,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(listIndentationItem);
 
+        var tableAlignmentItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown table column alignment & pipe grid audit",
+            Icon = new FontIcon { Glyph = "\uF0E2" }
+        };
+        tableAlignmentItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatTableAlignmentSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(tableAlignmentItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9172,6 +9186,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(listIndentationItem);
+
+        var tableAlignmentItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown table column alignment & pipe grid audit",
+            Icon = new FontIcon { Glyph = "\uF0E2" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        tableAlignmentItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatTableAlignmentSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(tableAlignmentItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

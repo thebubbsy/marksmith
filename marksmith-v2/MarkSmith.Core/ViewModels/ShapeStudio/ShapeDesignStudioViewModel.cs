@@ -4926,6 +4926,128 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         return $"Boundary margin audit ({shapeLabel} · {category}): min margin {minMargin:0.#}px{bleedNote}{tightNote}{worstStr}";
     }
+
+    /// <summary>
+    /// Audits WCAG AA/AAA contrast ratios between shape background fills and embedded label typography.
+    /// </summary>
+    public ShapeTextContrastAudit AuditShapeTextContrast(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = targetShapes != null || selected.Count >= 2;
+        string scopeStr = isSelection ? "Selected Shapes" : "Full Canvas";
+
+        if (targets.Count == 0)
+        {
+            string emptySummary = $"Text contrast audit (0 shapes · {scopeStr}): Canvas is empty";
+            StatusMessage = emptySummary;
+            return new ShapeTextContrastAudit(
+                0, 0, 0, 0, 0, 0.0, 0.0, "None",
+                Array.Empty<ShapeTextContrastInfo>(), "Empty Canvas", isSelection, emptySummary);
+        }
+
+        var contrastInfos = new List<ShapeTextContrastInfo>();
+        int aaCount = 0;
+        int aaaCount = 0;
+        int failingCount = 0;
+        double minRatio = double.MaxValue;
+        double totalRatio = 0.0;
+        string worstShapeName = "None";
+
+        var labeledShapes = targets.Where(s => !string.IsNullOrWhiteSpace(s.Text)).ToList();
+
+        if (labeledShapes.Count == 0)
+        {
+            string noLabelsSummary = $"Text contrast audit ({targets.Count} shapes · {scopeStr}): No labeled shapes";
+            StatusMessage = noLabelsSummary;
+            return new ShapeTextContrastAudit(
+                targets.Count, 0, 0, 0, 0, 0.0, 0.0, "None",
+                Array.Empty<ShapeTextContrastInfo>(), "No Labeled Shapes", isSelection, noLabelsSummary);
+        }
+
+        foreach (var shape in labeledShapes)
+        {
+            string cleanFill = (shape.Fill ?? "FFFFFF").Trim().TrimStart('#');
+            if (cleanFill.Length != 6) cleanFill = "FFFFFF";
+
+            string textCol = shape.TextColor ?? (Services.ContrastGuard.GetLuminance(cleanFill) < 0.35 ? "FFFFFF" : "1E1E1E");
+            string cleanTextCol = textCol.Trim().TrimStart('#');
+            if (cleanTextCol.Length != 6) cleanTextCol = "000000";
+
+            double ratio = Math.Round(Services.ContrastGuard.GetContrastRatio(cleanTextCol, cleanFill), 2);
+            bool isAa = ratio >= 4.5;
+            bool isAaa = ratio >= 7.0;
+
+            if (isAa) aaCount++;
+            else failingCount++;
+
+            if (isAaa) aaaCount++;
+
+            string labelOrName = !string.IsNullOrWhiteSpace(shape.Text)
+                ? shape.Text.Trim().Split('\n')[0].Trim()
+                : shape.DisplayName;
+
+            if (ratio < minRatio)
+            {
+                minRatio = ratio;
+                worstShapeName = labelOrName;
+            }
+
+            totalRatio += ratio;
+
+            string suggested = Services.ContrastGuard.GetLuminance(cleanFill) < 0.4 ? "FFFFFF" : "121212";
+
+            contrastInfos.Add(new ShapeTextContrastInfo(
+                shape.Id, labelOrName, cleanFill, cleanTextCol, ratio, isAa, isAaa, suggested));
+        }
+
+        if (minRatio == double.MaxValue) minRatio = 0.0;
+        double avgRatio = Math.Round(totalRatio / labeledShapes.Count, 2);
+
+        string category;
+        if (failingCount == 0 && aaaCount == labeledShapes.Count)
+        {
+            category = "WCAG AAA Compliant (All ≥7.0:1)";
+        }
+        else if (failingCount == 0)
+        {
+            category = "WCAG AA Compliant (All ≥4.5:1)";
+        }
+        else
+        {
+            category = "Contrast Violations Detected (<4.5:1)";
+        }
+
+        string summary = FormatShapeTextContrastSummary(
+            targets.Count, labeledShapes.Count, aaCount, failingCount, minRatio, avgRatio, worstShapeName, category, scopeStr);
+        StatusMessage = summary;
+
+        return new ShapeTextContrastAudit(
+            targets.Count, labeledShapes.Count, aaCount, aaaCount, failingCount,
+            minRatio, avgRatio, worstShapeName, contrastInfos, category, isSelection, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of shape label text contrast metrics.
+    /// </summary>
+    public static string FormatShapeTextContrastSummary(
+        int totalShapes, int labeledShapes, int aaCount, int failingCount,
+        double minRatio, double avgRatio, string worstShape, string category, string scope = "Full Canvas")
+    {
+        if (totalShapes == 0) return $"Text contrast audit (0 shapes · {scope}): Canvas is empty";
+        if (labeledShapes == 0) return $"Text contrast audit ({totalShapes} shapes · {scope}): No labeled shapes";
+
+        string shapeLabel = labeledShapes == 1 ? "1 labeled shape" : $"{labeledShapes} labeled shapes";
+        string worstStr = "";
+        if (worstShape != "None" && failingCount > 0)
+        {
+            worstStr = $" · Lowest: '{worstShape}' ({minRatio:0.0}:1)";
+        }
+
+        string failNote = failingCount > 0 ? $" · ⚠ {failingCount} failing" : "";
+
+        return $"Text contrast audit ({shapeLabel} · {category}): min {minRatio:0.0}:1, avg {avgRatio:0.0}:1{failNote}{worstStr}";
+    }
 }
 
 /// <summary>
@@ -5027,6 +5149,36 @@ public sealed record ShapeBoundaryBleedAudit(
     double MinObservedMargin,
     string WorstShapeName,
     string SafetyCategory,
+    bool IsSelectionScope,
+    string Summary);
+
+/// <summary>
+/// Represents contrast and accessibility metrics for a shape's label text on its fill background.
+/// </summary>
+public sealed record ShapeTextContrastInfo(
+    string ShapeId,
+    string DisplayName,
+    string FillHex,
+    string TextColorHex,
+    double ContrastRatio,
+    bool IsWcagAaCompliant,
+    bool IsWcagAaaCompliant,
+    string SuggestedTextColorHex);
+
+/// <summary>
+/// Represents the result of an audit of text contrast ratios and WCAG compliance across shape labels.
+/// </summary>
+public sealed record ShapeTextContrastAudit(
+    int TotalShapes,
+    int LabeledShapes,
+    int CompliantAaCount,
+    int CompliantAaaCount,
+    int FailingCount,
+    double MinObservedRatio,
+    double AverageRatio,
+    string WorstShapeName,
+    IReadOnlyList<ShapeTextContrastInfo> Contrasts,
+    string ComplianceCategory,
     bool IsSelectionScope,
     string Summary);
 

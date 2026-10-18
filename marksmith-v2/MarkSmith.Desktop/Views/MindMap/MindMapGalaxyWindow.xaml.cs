@@ -3992,6 +3992,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditClusterCohesionClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditClusterCohesionAndDensity();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4879,6 +4887,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditRadialAngularItem.Click += OnAuditRadialAngularClick;
             menu.Items.Add(auditRadialAngularItem);
+
+            var auditClusterCohesionItem = new MenuFlyoutItem
+            {
+                Text = "Audit semantic tag cluster cohesion & density",
+                Icon = new FontIcon { Glyph = "\uE81E" }
+            };
+            auditClusterCohesionItem.Click += OnAuditClusterCohesionClick;
+            menu.Items.Add(auditClusterCohesionItem);
 
             var fitItem = new MenuFlyoutItem
 

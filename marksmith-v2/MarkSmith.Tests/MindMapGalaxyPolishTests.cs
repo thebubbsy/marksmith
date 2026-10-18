@@ -2012,6 +2012,54 @@ namespace MarkSmith.Tests
             Assert.Contains("avg gap 90°", audit.Summary);
             Assert.Contains("Uniform Radial Dispersion", audit.Summary);
         }
+
+        [Fact]
+        public void Run157_AuditClusterCohesionAndDensity()
+        {
+            // 1. Empty / degenerate vault
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            var emptyAudit = vm.AuditClusterCohesionAndDensity();
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.ClusterCount);
+            Assert.Equal("Insufficient Nodes", emptyAudit.CohesionCategory);
+            Assert.Contains("Insufficient nodes", emptyAudit.Summary);
+
+            // 2. 2 Tag clusters: "Frontend" (tight) and "Backend" (tight)
+            var n1 = new MindMapNode { Id = "fe1", Title = "UI Shell", X = 100, Y = 100, Tags = new List<string> { "frontend" } };
+            var n2 = new MindMapNode { Id = "fe2", Title = "Style System", X = 120, Y = 110, Tags = new List<string> { "frontend" } };
+            var n3 = new MindMapNode { Id = "be1", Title = "API Server", X = 500, Y = 500, Tags = new List<string> { "backend" } };
+            var n4 = new MindMapNode { Id = "be2", Title = "Database", X = 520, Y = 510, Tags = new List<string> { "backend" } };
+            var orphan = new MindMapNode { Id = "orp", Title = "Scratch Note", X = 900, Y = 900 };
+
+            vm.Nodes.Add(new MindMapNodeViewModel(n1));
+            vm.Nodes.Add(new MindMapNodeViewModel(n2));
+            vm.Nodes.Add(new MindMapNodeViewModel(n3));
+            vm.Nodes.Add(new MindMapNodeViewModel(n4));
+            vm.Nodes.Add(new MindMapNodeViewModel(orphan));
+
+            var l1 = new MindMapLink { Id = "l1", SourceNodeId = "fe1", TargetNodeId = "fe2" };
+            var l2 = new MindMapLink { Id = "l2", SourceNodeId = "be1", TargetNodeId = "be2" };
+            vm.Links.Add(new MindMapLinkViewModel(l1));
+            vm.Links.Add(new MindMapLinkViewModel(l2));
+
+            var audit = vm.AuditClusterCohesionAndDensity();
+            Assert.Equal(5, audit.TotalNodes);
+            Assert.Equal(4, audit.ClusteredNodes);
+            Assert.Equal(1, audit.OrphanNodes);
+            Assert.Equal(2, audit.ClusterCount);
+            Assert.True(audit.GlobalCohesionScore >= 0.70, $"Score {audit.GlobalCohesionScore} should be >= 0.70");
+            Assert.Equal("Tight Semantic Constellations", audit.CohesionCategory);
+            Assert.Contains("2 clusters, 5 nodes", audit.Summary);
+            Assert.Contains("1 untagged", audit.Summary);
+
+            // Model overload test
+            var staticAudit = MindMapStudioViewModel.AuditClusterCohesionAndDensity(
+                new[] { n1, n2, n3, n4, orphan }, new[] { l1, l2 });
+            Assert.Equal(2, staticAudit.ClusterCount);
+            Assert.Equal(audit.GlobalCohesionScore, staticAudit.GlobalCohesionScore);
+        }
     }
 }
 

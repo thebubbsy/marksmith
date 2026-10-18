@@ -4755,6 +4755,14 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditCyclicFlowContinuityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditCyclicFlowContinuity();
+            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         #endregion
 
 

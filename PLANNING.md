@@ -11340,6 +11340,33 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
   - `MarkSmith.Desktop.csproj` built with 0 errors.
   - `MarkSmith.Tests.csproj` verified: 657/657 tests passing (100% pass rate).
 
+---
+
+### Run #157 Blueprint — 3-Block Polish across all 6 WinUI 3 Desktop Surfaces (Status: Completed)
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown table column alignment and delimiter pipe uniformity auditing.
+   - **Deliverable**: Added `TextSearch.AuditMarkdownTableColumnAlignment(markdownText)`, `FormatTableAlignmentSummary(...)`, `MarkdownTableInfo`, and `TableColumnAlignmentAudit`. Wired into `StatusSectionBreadcrumbButton` and `FindCountText` right-tap context flyouts.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Semantic tag cluster cohesion, inter-node bounding spans, and spatial density auditing.
+   - **Deliverable**: Added `MindMapStudioViewModel.AuditClusterCohesionAndDensity()`, `ClusterMetricInfo`, and `ClusterCohesionAudit`. Added `AuditClusterCohesionItem` to `ArrangeDropDownButton.Flyout` with glyph `\uE81E` and wired `OnAuditClusterCohesionClick`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Shape label text contrast ratio and WCAG AA (≥4.5:1) / AAA (≥7.0:1) compliance auditing with auto-suggested foregrounds.
+   - **Deliverable**: Added `ShapeDesignStudioViewModel.AuditShapeTextContrast()`, `FormatShapeTextContrastSummary(...)`, `ShapeTextContrastInfo`, and `ShapeTextContrastAudit`. Added `SelectionAuditTextContrastItem` to `SelectionBoundsBorder.ContextFlyout` with glyph `\uE7E6` and wired `OnSelectionAuditTextContrastClick`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: Cyclic flow continuity, loop closure, step-to-step directional monotonicity, and return vector auditing.
+   - **Deliverable**: Added `SmartArtDesignStudioViewModel.AuditCyclicFlowContinuity()`, `FormatCyclicFlowSummary(...)`, and `CyclicFlowContinuityAudit`. Added `AuditCyclicFlowContinuityItem` to `OutlineStatsFlyout` with glyph `\uE72C` and wired `OnAuditCyclicFlowContinuityClick`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
+   - **Feature**: Version diff churn acceleration, modification turbulence, net growth velocity, and section hotspot auditing.
+   - **Deliverable**: Added `LineDiff.AuditDiffChurnAcceleration(IEnumerable<Line>)` and `(IEnumerable<UnifiedRow>)`, `FormatDiffChurnSummary(...)`, `SectionChurnHotspot`, and `DiffChurnAccelerationAudit`. Wired into `TimelineHeaderBorder` context flyout with glyph `\uE9D9`.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
+   - **Feature**: Document aging, staleness decay, and workspace editing velocity auditing.
+   - **Deliverable**: Added `RecentFilesService.AuditDocumentStalenessAndVelocity(files)`, `FormatDocumentStalenessSummary(...)`, `DocumentAgingInfo`, and `DocumentStalenessAudit`. Added `CopyDocumentStalenessItem` to `RecentDocsFlyout` with glyph `\uE823` and wired `OnCopyDocumentStalenessClick`.
+
+- **Execution & Empirical Verification**:
+  - `MarkSmith.Desktop.csproj` built with 0 errors.
+  - `MarkSmith.Tests.csproj` verified: 663/663 tests passing (100% pass rate).
+
+
 
 
 

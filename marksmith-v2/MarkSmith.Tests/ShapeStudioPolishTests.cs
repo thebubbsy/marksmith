@@ -1306,6 +1306,44 @@ public class ShapeStudioPolishTests
         Assert.Equal("Boundary Bleed (Clipped Shapes)", bleedAudit.SafetyCategory);
         Assert.Contains("1 bleeding/clipped", bleedAudit.Summary);
     }
+
+    [Fact]
+    public void Run157_AuditShapeTextContrast()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+        var emptyAudit = vm.AuditShapeTextContrast();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal("Empty Canvas", emptyAudit.ComplianceCategory);
+        Assert.Contains("Canvas is empty", emptyAudit.Summary);
+
+        // 2. High contrast accessible shapes (Black text on White, Deep Navy text on Light Cyan)
+        var s1 = vm.AddShapeAt("rect", 50, 50, 100, 50, "FFFFFF", "Light Card");
+        s1.TextColor = "000000";
+        var s2 = vm.AddShapeAt("roundrect", 200, 50, 100, 50, "B3E5FC", "Cyan Badge");
+        s2.TextColor = "001F3F";
+
+        var passAudit = vm.AuditShapeTextContrast();
+        Assert.Equal(2, passAudit.TotalShapes);
+        Assert.Equal(2, passAudit.LabeledShapes);
+        Assert.Equal(2, passAudit.CompliantAaCount);
+        Assert.Equal(2, passAudit.CompliantAaaCount);
+        Assert.Equal(0, passAudit.FailingCount);
+        Assert.True(passAudit.MinObservedRatio >= 7.0, $"Min ratio {passAudit.MinObservedRatio} should be >= 7.0");
+        Assert.Equal("WCAG AAA Compliant (All ≥7.0:1)", passAudit.ComplianceCategory);
+        Assert.Contains("WCAG AAA Compliant", passAudit.Summary);
+
+        // 3. Contrast violation (Yellow text on White fill)
+        var s3 = vm.AddShapeAt("circle", 350, 50, 80, 80, "FFFFFF", "Yellow Label");
+        s3.TextColor = "FFFF00";
+        var failAudit = vm.AuditShapeTextContrast();
+        Assert.Equal(3, failAudit.TotalShapes);
+        Assert.Equal(3, failAudit.LabeledShapes);
+        Assert.Equal(1, failAudit.FailingCount);
+        Assert.Equal("Contrast Violations Detected (<4.5:1)", failAudit.ComplianceCategory);
+        Assert.Contains("1 failing", failAudit.Summary);
+        Assert.Equal("Yellow Label", failAudit.WorstShapeName);
+    }
 }
 
 

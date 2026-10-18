@@ -1127,6 +1127,44 @@ public class SmartArtStudioPolishTests
         Assert.Equal("Non-Monotonic (Out-of-Order Steps)", auditInv.FlowCategory);
         Assert.Contains("1 out-of-order inversions", auditInv.Summary);
     }
+
+    [Fact]
+    public void Run157_AuditCyclicFlowContinuity()
+    {
+        // 1. Empty outline
+        var empty = SmartArtDesignStudioViewModel.AuditCyclicFlowContinuity("");
+        Assert.Equal(0, empty.TotalSteps);
+        Assert.False(empty.HasLoopClosure);
+        Assert.Equal("Empty Outline", empty.FlowContinuityCategory);
+        Assert.Contains("0 steps", empty.Summary);
+
+        // 2. Insufficient steps (<3)
+        var shortOutline = """
+            - Plan sprint
+            - Execute sprint
+            """;
+        var shortAudit = SmartArtDesignStudioViewModel.AuditCyclicFlowContinuity(shortOutline);
+        Assert.Equal(2, shortAudit.TotalSteps);
+        Assert.False(shortAudit.HasLoopClosure);
+        Assert.Equal("Insufficient Steps for Cycle (Minimum 3)", shortAudit.FlowContinuityCategory);
+        Assert.Equal("Process / Steps", shortAudit.RecommendedLayoutCategory);
+
+        // 3. Closed circular cycle with tail loopback keyword
+        var cycleOutline = """
+            - Plan Objectives
+            - Implement Architecture
+            - Validate Verification Gate
+            - Iterate and Repeat Cycle
+            """;
+        var cycleAudit = SmartArtDesignStudioViewModel.AuditCyclicFlowContinuity(cycleOutline);
+        Assert.Equal(4, cycleAudit.TotalSteps);
+        Assert.True(cycleAudit.HasLoopClosure);
+        Assert.Equal("Tail Keyword Loopback", cycleAudit.ClosureMechanism);
+        Assert.Equal("Closed Circular Feedback Loop", cycleAudit.FlowContinuityCategory);
+        Assert.Equal("Cycle / Circular", cycleAudit.RecommendedLayoutCategory);
+        Assert.True(cycleAudit.ContinuityScore >= 0.70);
+        Assert.Contains("Closed Loop (↺)", cycleAudit.Summary);
+    }
 }
 
 

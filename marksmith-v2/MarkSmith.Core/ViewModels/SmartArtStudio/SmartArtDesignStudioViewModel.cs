@@ -3560,6 +3560,134 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Linear flow audit ({stepLabel}{numNote} · {flowCategory}): Recommended layout '{recommendedLayout}'{invNote}";
     }
+
+    /// <summary>
+    /// Audits cyclic flow continuity, loop closure, and circular layout fit across outline items.
+    /// </summary>
+    public CyclicFlowContinuityAudit AuditCyclicFlowContinuity() => AuditCyclicFlowContinuity(MarkdownText, SelectedCategory);
+
+    /// <summary>
+    /// Audits cyclic flow continuity and circular loop closure across outline items.
+    /// </summary>
+    public static CyclicFlowContinuityAudit AuditCyclicFlowContinuity(string? markdownText, string? category = null)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new CyclicFlowContinuityAudit(
+                0, false, 0, 0.0, "None", "Empty Outline", "Process / Steps",
+                "Cyclic flow continuity audit: 0 steps (Empty outline)");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        var stepTitles = new List<string>();
+        int branchCount = 0;
+
+        foreach (var rawLine in lines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+            string trimmed = rawLine.TrimStart();
+            int indent = rawLine.Length - trimmed.Length;
+            if (indent >= 2)
+            {
+                branchCount++;
+                continue;
+            }
+
+            string text = trimmed.TrimStart('-', '*', '+', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', ' ')
+                                 .Trim();
+            if (string.IsNullOrEmpty(text)) continue;
+
+            stepTitles.Add(text);
+        }
+
+        if (stepTitles.Count == 0)
+        {
+            return new CyclicFlowContinuityAudit(
+                0, false, 0, 0.0, "None", "Empty Outline", "Process / Steps",
+                "Cyclic flow continuity audit: 0 steps (Empty outline)");
+        }
+
+        if (stepTitles.Count < 3)
+        {
+            string insufficientSummary = $"Cyclic flow continuity audit: {stepTitles.Count} steps (Minimum 3 steps required for circular cycle layout) · Process / Steps";
+            return new CyclicFlowContinuityAudit(
+                stepTitles.Count, false, branchCount, 0.2, "None",
+                "Insufficient Steps for Cycle (Minimum 3)", "Process / Steps", insufficientSummary);
+        }
+
+        bool hasClosure = false;
+        string closureMechanism = "None";
+
+        string lastStep = stepTitles[^1].ToLowerInvariant();
+        string firstStep = stepTitles[0].ToLowerInvariant();
+
+        if (lastStep.Contains("repeat") || lastStep.Contains("restart") || lastStep.Contains("loop") ||
+            lastStep.Contains("iterate") || lastStep.Contains("cycle") || lastStep.Contains("return") ||
+            lastStep.Contains("feedback") || lastStep.Contains("continuous") || lastStep.Contains("revisit"))
+        {
+            hasClosure = true;
+            closureMechanism = "Tail Keyword Loopback";
+        }
+        else if (firstStep.Contains("cycle") || firstStep.Contains("loop") || firstStep.Contains("pdca") ||
+                 firstStep.Contains("ooda") || firstStep.Contains("sprint"))
+        {
+            hasClosure = true;
+            closureMechanism = "Header Cycle Motif";
+        }
+        else if (!string.IsNullOrEmpty(category) && category.Contains("Cycle", StringComparison.OrdinalIgnoreCase))
+        {
+            hasClosure = true;
+            closureMechanism = "Explicit Cycle Layout Category";
+        }
+
+        double score = 0.5;
+        if (hasClosure) score += 0.3;
+        if (stepTitles.Count >= 3 && stepTitles.Count <= 7) score += 0.2;
+        if (branchCount > 3) score -= 0.2;
+        score = Math.Round(Math.Clamp(score, 0.0, 1.0), 2);
+
+        string flowCategory;
+        if (hasClosure)
+        {
+            flowCategory = "Closed Circular Feedback Loop";
+        }
+        else if (branchCount > 4)
+        {
+            flowCategory = "Branched Tree (Unsuitable for Pure Cycle)";
+        }
+        else
+        {
+            flowCategory = "Candidate Circular Pipeline (Open Loop)";
+        }
+
+        string recommendedCategory = (hasClosure || score >= 0.70) ? "Cycle / Circular" : "Process / Steps";
+        string summary = FormatCyclicFlowSummary(
+            stepTitles.Count, hasClosure, branchCount, score, flowCategory, recommendedCategory);
+
+        return new CyclicFlowContinuityAudit(
+            stepTitles.Count,
+            hasClosure,
+            branchCount,
+            score,
+            closureMechanism,
+            flowCategory,
+            recommendedCategory,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of cyclic flow continuity metrics.
+    /// </summary>
+    public static string FormatCyclicFlowSummary(
+        int stepCount, bool hasClosure, int branchCount, double score, string category, string recommendedLayout)
+    {
+        if (stepCount == 0) return "Cyclic flow continuity audit: 0 steps (Empty outline)";
+        string stepLabel = stepCount == 1 ? "1 step" : $"{stepCount} steps";
+        string closureNote = hasClosure ? " · Closed Loop (↺)" : " · Open Loop (→)";
+        string branchNote = branchCount > 0 ? $" · {branchCount} branches" : " · Flat";
+
+        return $"Cyclic flow audit ({stepLabel}{closureNote}{branchNote} · {category}): Score {score:0.00} · Recommended '{recommendedLayout}'";
+    }
 }
 
 /// <summary>
@@ -3673,6 +3801,19 @@ public sealed record LinearFlowMonotonicityAudit(
     int SequentialStepCount,
     string LeadingStepTitle,
     string FlowCategory,
+    string RecommendedLayoutCategory,
+    string Summary);
+
+/// <summary>
+/// Represents the result of an audit of cyclic flow continuity, loop closure, and circular layout fit across outline items.
+/// </summary>
+public sealed record CyclicFlowContinuityAudit(
+    int TotalSteps,
+    bool HasLoopClosure,
+    int IntermediateBranchCount,
+    double ContinuityScore,
+    string ClosureMechanism,
+    string FlowContinuityCategory,
     string RecommendedLayoutCategory,
     string Summary);
 

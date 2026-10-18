@@ -2065,6 +2065,125 @@ public sealed class RecentFilesService
 
         return $"Companion coverage ({familyLabel} [{breakdown}] · {status}): {coveragePercent:0.#}% companion rate";
     }
+
+    /// <summary>
+    /// Audits workspace document aging, modification staleness, and editing velocity.
+    /// </summary>
+    public static DocumentStalenessAudit AuditDocumentStalenessAndVelocity(
+        IEnumerable<string>? files, DateTime? referenceTimeUtc = null)
+    {
+        if (files == null)
+        {
+            return new DocumentStalenessAudit(
+                0, 0, 0, 0, 0, 0.0, 0.0, Array.Empty<DocumentAgingInfo>(),
+                "Empty Library", "Document aging & velocity: 0 documents (Empty library)");
+        }
+
+        var list = files.Where(f => !string.IsNullOrWhiteSpace(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (list.Count == 0)
+        {
+            return new DocumentStalenessAudit(
+                0, 0, 0, 0, 0, 0.0, 0.0, Array.Empty<DocumentAgingInfo>(),
+                "Empty Library", "Document aging & velocity: 0 documents (Empty library)");
+        }
+
+        DateTime now = referenceTimeUtc ?? DateTime.UtcNow;
+        var agingInfos = new List<DocumentAgingInfo>();
+
+        int active = 0;
+        int warm = 0;
+        int cold = 0;
+        int archived = 0;
+        double totalAgeDays = 0.0;
+
+        foreach (var path in list)
+        {
+            DateTime lastWrite;
+            try
+            {
+                if (File.Exists(path))
+                {
+                    lastWrite = File.GetLastWriteTimeUtc(path);
+                }
+                else
+                {
+                    lastWrite = now.AddDays(-14);
+                }
+            }
+            catch
+            {
+                lastWrite = now.AddDays(-14);
+            }
+
+            double ageDays = Math.Max(0.0, Math.Round((now - lastWrite).TotalDays, 1));
+            totalAgeDays += ageDays;
+
+            string tier;
+            if (ageDays < 1.0)
+            {
+                tier = "Active (<24h)";
+                active++;
+            }
+            else if (ageDays < 7.0)
+            {
+                tier = "Warm (<7d)";
+                warm++;
+            }
+            else if (ageDays < 30.0)
+            {
+                tier = "Cold (<30d)";
+                cold++;
+            }
+            else
+            {
+                tier = "Archived (>30d)";
+                archived++;
+            }
+
+            string fileName = Path.GetFileName(path);
+            if (string.IsNullOrEmpty(fileName)) fileName = path;
+
+            agingInfos.Add(new DocumentAgingInfo(path, fileName, lastWrite, ageDays, tier));
+        }
+
+        double avgAge = Math.Round(totalAgeDays / list.Count, 1);
+        double freshnessIndex = Math.Round((double)(active + warm) * 100.0 / list.Count, 1);
+
+        string category;
+        if (freshnessIndex >= 70.0)
+        {
+            category = "High Sprint Velocity (Active Workspace)";
+        }
+        else if (freshnessIndex >= 35.0)
+        {
+            category = "Steady Maintenance Velocity";
+        }
+        else
+        {
+            category = "Dormant / Stale Document Archive";
+        }
+
+        string summary = FormatDocumentStalenessSummary(
+            list.Count, active, warm, cold, archived, freshnessIndex, avgAge, category);
+
+        return new DocumentStalenessAudit(
+            list.Count, active, warm, cold, archived,
+            freshnessIndex, avgAge, agingInfos, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of document aging and editing velocity metrics.
+    /// </summary>
+    public static string FormatDocumentStalenessSummary(
+        int totalFiles, int active, int warm, int cold, int archived,
+        double freshnessIndex, double avgAge, string category)
+    {
+        if (totalFiles == 0) return "Document aging & velocity: 0 documents (Empty library)";
+        string docLabel = totalFiles == 1 ? "1 document" : $"{totalFiles} documents";
+        string breakdown = $"{active} active (<24h), {warm} warm (<7d), {cold} cold, {archived} archived";
+
+        return $"Document velocity ({docLabel} [{breakdown}] · {category}): {freshnessIndex:0.#}% freshness index (avg age {avgAge:0.#}d)";
+    }
 }
 
 /// <summary>
@@ -2174,5 +2293,30 @@ public sealed record CompanionFormatCoverageAudit(
     double CoveragePercentage,
     string CoverageStatus,
     IReadOnlyList<DocumentFamilyCoverageInfo> Families,
+    string Summary);
+
+/// <summary>
+/// Represents aging category and file details for a single document.
+/// </summary>
+public sealed record DocumentAgingInfo(
+    string FilePath,
+    string FileName,
+    DateTime LastModifiedUtc,
+    double AgeDays,
+    string AgeTier);
+
+/// <summary>
+/// Represents the result of an audit of workspace document aging, modification staleness, and editing velocity.
+/// </summary>
+public sealed record DocumentStalenessAudit(
+    int TotalFiles,
+    int ActiveFiles,
+    int WarmFiles,
+    int ColdFiles,
+    int ArchivedFiles,
+    double FreshnessIndex,
+    double AverageAgeDays,
+    IReadOnlyList<DocumentAgingInfo> DocumentAges,
+    string VelocityCategory,
     string Summary);
 

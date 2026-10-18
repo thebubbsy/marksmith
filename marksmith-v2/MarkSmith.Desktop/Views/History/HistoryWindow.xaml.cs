@@ -3276,6 +3276,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice("Copied multi-channel release digest");
                 };
                 menu.Items.Add(synthesizeMultiChannelDigest);
+
+                var auditDiffChurnAcceleration = new MenuFlyoutItem
+                {
+                    Text = "Audit version diff churn acceleration & hotspot density",
+                    Icon = new FontIcon { Glyph = "\uE9D9" }
+                };
+                auditDiffChurnAcceleration.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditDiffChurnAcceleration(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditDiffChurnAcceleration);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

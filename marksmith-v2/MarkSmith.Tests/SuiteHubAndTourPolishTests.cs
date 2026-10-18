@@ -2340,6 +2340,79 @@ public class SuiteHubAndTourPolishTests
         Assert.Equal(33.3, audit.CoveragePercentage);
         Assert.Contains("Companion coverage (3 document families [1 compiled companions, 1 source-only, 1 export-only]", audit.Summary);
     }
+
+    [Fact]
+    public void Run157_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // 1. MainWindow: table column alignment audit wired to breadcrumb and find count
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("Copy markdown table column alignment & pipe grid audit", mainCs);
+        Assert.Contains("FormatTableAlignmentSummary", mainCs);
+
+        // 2. MindMapGalaxyWindow: cluster cohesion audit in XAML and code-behind
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditClusterCohesionItem", galaxyXaml);
+        Assert.Contains("OnAuditClusterCohesionClick", galaxyXaml);
+        Assert.Contains("OnAuditClusterCohesionClick", galaxyCs);
+        Assert.Contains("AuditClusterCohesionAndDensity", galaxyCs);
+
+        // 3. ShapeDesignStudioWindow: text contrast audit in XAML and code-behind
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditTextContrastItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditTextContrastClick", shapeXaml);
+        Assert.Contains("OnSelectionAuditTextContrastClick", shapeCs);
+        Assert.Contains("AuditShapeTextContrast", shapeCs);
+
+        // 4. SmartArtDesignStudioWindow: cyclic flow continuity audit in XAML and code-behind
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditCyclicFlowContinuityItem", smartArtXaml);
+        Assert.Contains("OnAuditCyclicFlowContinuityClick", smartArtXaml);
+        Assert.Contains("OnAuditCyclicFlowContinuityClick", smartArtCs);
+        Assert.Contains("AuditCyclicFlowContinuity", smartArtCs);
+
+        // 5. HistoryWindow: diff churn acceleration in code-behind
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditDiffChurnAcceleration", historyCs);
+        Assert.Contains("AuditDiffChurnAcceleration", historyCs);
+
+        // 6. SuiteHubView: document aging and velocity in XAML and code-behind
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyDocumentStalenessItem", suiteXaml);
+        Assert.Contains("OnCopyDocumentStalenessClick", suiteXaml);
+        Assert.Contains("OnCopyDocumentStalenessClick", suiteCs);
+        Assert.Contains("AuditDocumentStalenessAndVelocity", suiteCs);
+    }
+
+    [Fact]
+    public void Run157_AuditDocumentStalenessAndVelocity()
+    {
+        // 1. Empty library
+        var emptyAudit = RecentFilesService.AuditDocumentStalenessAndVelocity(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFiles);
+        Assert.Equal("Empty Library", emptyAudit.VelocityCategory);
+        Assert.Contains("0 documents", emptyAudit.Summary);
+
+        // 2. Active sprint documents with reference time
+        var refTime = new DateTime(2026, 10, 18, 12, 0, 0, DateTimeKind.Utc);
+        var files = new[]
+        {
+            @"C:\Projects\Active\doc1.md",
+            @"C:\Projects\Active\doc2.md",
+            @"C:\Projects\Active\doc3.md"
+        };
+
+        var audit = RecentFilesService.AuditDocumentStalenessAndVelocity(files, refTime);
+        Assert.Equal(3, audit.TotalFiles);
+        Assert.True(audit.DocumentAges.Count == 3);
+        Assert.Contains("Document velocity", audit.Summary);
+        Assert.Equal(audit.Summary, RecentFilesService.FormatDocumentStalenessSummary(
+            audit.TotalFiles, audit.ActiveFiles, audit.WarmFiles, audit.ColdFiles, audit.ArchivedFiles,
+            audit.FreshnessIndex, audit.AverageAgeDays, audit.VelocityCategory));
+    }
 }
 
 

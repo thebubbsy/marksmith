@@ -1295,6 +1295,45 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("Added new section: **Vector Graphics**", digest2);
         Assert.Contains("Added fenced code snippets", digest2);
     }
+
+    [Fact]
+    public void Run157_AuditDiffChurnAcceleration()
+    {
+        // 1. Identical documents (zero churn)
+        var sameDoc = "# Heading\nConstant body paragraph.";
+        var zeroAudit = LineDiff.AuditDiffChurnAcceleration(sameDoc, sameDoc);
+        Assert.Equal(0, zeroAudit.AddedCount);
+        Assert.Equal(0, zeroAudit.RemovedCount);
+        Assert.Equal(0.0, zeroAudit.ChurnRatio);
+        Assert.Equal("Identical (Zero Churn)", zeroAudit.VolatilityCategory);
+        Assert.Contains("0 changes", zeroAudit.Summary);
+
+        // 2. High volatility churn with section hotspot
+        var oldDoc = """
+            # Architecture
+            Original monolithic pipeline.
+            Single thread processing.
+            # Security
+            Standard RBAC controls.
+            """;
+        var newDoc = """
+            # Architecture
+            High-throughput distributed actor model.
+            Multi-core SIMD vector pipelines.
+            Lock-free memory channels.
+            Dynamic batch scheduling.
+            # Security
+            Standard RBAC controls.
+            """;
+        var churnAudit = LineDiff.AuditDiffChurnAcceleration(oldDoc, newDoc);
+        Assert.True(churnAudit.AddedCount >= 4);
+        Assert.True(churnAudit.RemovedCount >= 2);
+        Assert.True(churnAudit.ChurnRatio >= 0.50);
+        Assert.Equal("High Volatility (Rapid Revision Churn)", churnAudit.VolatilityCategory);
+        Assert.Equal("Architecture", churnAudit.HotspotSectionHeading);
+        Assert.Contains("Architecture", churnAudit.Summary);
+        Assert.Contains("churn ratio", churnAudit.Summary);
+    }
 }
 
 

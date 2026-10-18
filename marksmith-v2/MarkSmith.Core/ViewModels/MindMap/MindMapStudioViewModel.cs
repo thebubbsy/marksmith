@@ -4392,6 +4392,131 @@ namespace MarkSmith.ViewModels.MindMap
             }
             return vm.AuditRadialAngularSpacing();
         }
+
+        /// <summary>
+        /// Audits semantic tag cluster cohesion, centroid dispersion, and density across nodes.
+        /// </summary>
+        public ClusterCohesionAudit AuditClusterCohesionAndDensity(IEnumerable<MindMapNodeViewModel>? targetNodes = null)
+        {
+            var selectedList = Nodes.Where(n => n.IsSelected).ToList();
+            var nodeList = (targetNodes ?? (selectedList.Count >= 2 ? selectedList : Nodes)).ToList();
+            bool isSelection = targetNodes != null || selectedList.Count >= 2;
+            string scopeTag = isSelection ? "selection · " : "";
+
+            if (nodeList.Count < 2)
+            {
+                return new ClusterCohesionAudit(
+                    nodeList.Count, 0, nodeList.Count, 0, 0.0, 0.0,
+                    Array.Empty<ClusterMetricInfo>(), "Insufficient Nodes", isSelection,
+                    $"Cluster cohesion ({nodeList.Count} nodes): Insufficient nodes to audit cluster cohesion (minimum 2 nodes required)");
+            }
+
+            // Group nodes by tags
+            var clusters = new List<ClusterMetricInfo>();
+            var taggedNodeIds = new HashSet<string>();
+            var tagGroups = new Dictionary<string, List<MindMapNodeViewModel>>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var node in nodeList)
+            {
+                if (node.Tags.Count == 0) continue;
+                foreach (var tag in node.Tags)
+                {
+                    taggedNodeIds.Add(node.Id);
+                    if (!tagGroups.TryGetValue(tag, out var group))
+                    {
+                        group = new List<MindMapNodeViewModel>();
+                        tagGroups[tag] = group;
+                    }
+                    group.Add(node);
+                }
+            }
+
+            int orphanCount = nodeList.Count - taggedNodeIds.Count;
+            var linkList = Links.ToList();
+
+            double totalWeightedRadius = 0.0;
+            int totalClusteredNodes = 0;
+
+            foreach (var kvp in tagGroups.OrderByDescending(g => g.Value.Count).ThenBy(g => g.Key))
+            {
+                string tag = kvp.Key;
+                var groupNodes = kvp.Value;
+                int count = groupNodes.Count;
+                if (count < 2) continue; // single-node tags don't form clusters
+
+                double sumX = groupNodes.Sum(n => n.X);
+                double sumY = groupNodes.Sum(n => n.Y);
+                double centX = Math.Round(sumX / count, 1);
+                double centY = Math.Round(sumY / count, 1);
+
+                double sumR = 0.0;
+                foreach (var n in groupNodes)
+                {
+                    double dx = n.X - centX;
+                    double dy = n.Y - centY;
+                    sumR += Math.Sqrt(dx * dx + dy * dy);
+                }
+                double meanR = Math.Round(sumR / count, 1);
+
+                var groupIds = new HashSet<string>(groupNodes.Select(n => n.Id));
+                int internalEdges = linkList.Count(l => groupIds.Contains(l.SourceNodeId) && groupIds.Contains(l.TargetNodeId));
+                double density = Math.Round((double)internalEdges / Math.Max(1.0, meanR * 0.01 + 1.0), 2);
+
+                clusters.Add(new ClusterMetricInfo(tag, count, internalEdges, centX, centY, meanR, density));
+
+                totalWeightedRadius += meanR * count;
+                totalClusteredNodes += count;
+            }
+
+            double avgRadius = totalClusteredNodes > 0 ? Math.Round(totalWeightedRadius / totalClusteredNodes, 1) : 0.0;
+
+            double cohesionScore = totalClusteredNodes > 0
+                ? Math.Round(Math.Clamp(1.0 - (avgRadius / 800.0), 0.0, 1.0), 2)
+                : 0.0;
+
+            string category;
+            if (clusters.Count == 0)
+            {
+                category = "No Multi-Node Clusters";
+            }
+            else if (cohesionScore >= 0.70)
+            {
+                category = "Tight Semantic Constellations";
+            }
+            else if (cohesionScore >= 0.40)
+            {
+                category = "Balanced Semantic Groupings";
+            }
+            else
+            {
+                category = "Dispersed Semantic Clouds";
+            }
+
+            string summary = $"Cluster cohesion ({scopeTag}{clusters.Count} clusters, {nodeList.Count} nodes · {category}): avg radius {avgRadius:0.#}px, cohesion {cohesionScore:0.00}, {orphanCount} untagged";
+
+            return new ClusterCohesionAudit(
+                nodeList.Count, totalClusteredNodes, orphanCount, clusters.Count,
+                avgRadius, cohesionScore, clusters, category, isSelection, summary);
+        }
+
+        /// <summary>
+        /// Audits cluster cohesion and density across pure model nodes and links.
+        /// </summary>
+        public static ClusterCohesionAudit AuditClusterCohesionAndDensity(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditClusterCohesionAndDensity();
+        }
     }
 
     /// <summary>
@@ -4541,6 +4666,33 @@ namespace MarkSmith.ViewModels.MindMap
         double GapStandardDeviation,
         IReadOnlyList<RadialNodePolarInfo> PolarNodes,
         string DispersionCategory,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents geometric and connectivity metrics for an individual semantic or tag cluster.
+    /// </summary>
+    public sealed record ClusterMetricInfo(
+        string Tag,
+        int NodeCount,
+        int InternalEdgeCount,
+        double CentroidX,
+        double CentroidY,
+        double MeanRadius,
+        double Density);
+
+    /// <summary>
+    /// Represents the result of a semantic tag cluster cohesion, centroid dispersion, and density audit.
+    /// </summary>
+    public sealed record ClusterCohesionAudit(
+        int TotalNodes,
+        int ClusteredNodes,
+        int OrphanNodes,
+        int ClusterCount,
+        double AverageClusterRadius,
+        double GlobalCohesionScore,
+        IReadOnlyList<ClusterMetricInfo> Clusters,
+        string CohesionCategory,
         bool IsSelectionScope,
         string Summary);
 }
