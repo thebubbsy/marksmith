@@ -3315,6 +3315,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {commit.Summary}");
                 };
                 menu.Items.Add(synthesizeConventionalCommit);
+
+                var synthesizeSemanticVersion = new MenuFlyoutItem
+                {
+                    Text = "Synthesize Semantic Version bump & changelog entry",
+                    Icon = new FontIcon { Glyph = "\uE8EC" }
+                };
+                synthesizeSemanticVersion.Click += (_, _) =>
+                {
+                    var semver = MarkSmith.Services.LineDiff.SynthesizeSemanticVersionRecommendation(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(semver.ChangelogMarkdown);
+                    _vm.ShowNotice($"✓ {semver.Summary}");
+                };
+                menu.Items.Add(synthesizeSemanticVersion);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

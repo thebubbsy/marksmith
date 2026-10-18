@@ -1429,6 +1429,55 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("BREAKING CHANGE:", breakCommit.FullCommitMessage);
         Assert.Contains("BREAKING CHANGE:", breakCommit.BreakingChangeNotice);
     }
+
+    [Fact]
+    public void SynthesizeSemanticVersionRecommendation_AccuratelyCalculatesBumpsAndChangelogs()
+    {
+        // 1. Unchanged
+        var unch = LineDiff.SynthesizeSemanticVersionRecommendation("Same text", "Same text", "1.2.3");
+        Assert.Equal("1.2.3", unch.CurrentVersion);
+        Assert.Equal("1.2.3", unch.RecommendedVersion);
+        Assert.Equal("None", unch.BumpType);
+
+        // 2. Patch bump (minor revisions)
+        var beforePatch = "Line 1\nSome typos\nLine 3";
+        var afterPatch = "Line 1\nFixed typos\nLine 3";
+        var patchRes = LineDiff.SynthesizeSemanticVersionRecommendation(beforePatch, afterPatch, "1.2.3");
+        Assert.Equal("1.2.3", patchRes.CurrentVersion);
+        Assert.Equal("1.2.4", patchRes.RecommendedVersion);
+        Assert.Equal("Patch", patchRes.BumpType);
+        Assert.Contains("## [1.2.4]", patchRes.ChangelogMarkdown);
+
+        // 3. Minor bump (new section / headings)
+        var beforeMinor = "# Overview\nInitial content";
+        var afterMinor = """
+            # Overview
+            Initial content
+
+            # New Feature Architecture
+            Extensive feature additions with substantial content across multiple lines.
+            """;
+        var minorRes = LineDiff.SynthesizeSemanticVersionRecommendation(beforeMinor, afterMinor, "1.2.3");
+        Assert.Equal("1.2.3", minorRes.CurrentVersion);
+        Assert.Equal("1.3.0", minorRes.RecommendedVersion);
+        Assert.Equal("Minor", minorRes.BumpType);
+        Assert.Contains("Added section `New Feature Architecture`", minorRes.ChangelogMarkdown);
+
+        // 4. Major bump (breaking change - removed heading & table)
+        var beforeMajor = """
+            # Public API Contract
+            | Method | Return |
+            | --- | --- |
+            | Execute | void |
+            """;
+        var afterMajor = "Internalized API.";
+        var majorRes = LineDiff.SynthesizeSemanticVersionRecommendation(beforeMajor, afterMajor, "1.2.3");
+        Assert.Equal("1.2.3", majorRes.CurrentVersion);
+        Assert.Equal("2.0.0", majorRes.RecommendedVersion);
+        Assert.Equal("Major", majorRes.BumpType);
+        Assert.True(majorRes.HasBreakingChanges);
+        Assert.Contains("### Breaking Changes", majorRes.ChangelogMarkdown);
+    }
 }
 
 

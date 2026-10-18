@@ -3051,6 +3051,173 @@ public static class LineDiff
         var unified = BuildUnified(diff);
         return SynthesizeConventionalCommitMessage(unified, before, scope);
     }
+
+    /// <summary>
+    /// Evaluates unified diff rows and current version string to recommend a Semantic Version (SemVer)
+    /// bump (Major, Minor, Patch) and synthesizes a formatted changelog entry.
+    /// </summary>
+    public static SemanticVersionBumpAudit SynthesizeSemanticVersionRecommendation(
+        IReadOnlyList<UnifiedRow>? unifiedRows, string? currentVersion = null, string? baseDoc = null)
+    {
+        string rawVer = !string.IsNullOrWhiteSpace(currentVersion) ? currentVersion.Trim().TrimStart('v', 'V') : "1.0.0";
+        int major = 1, minor = 0, patch = 0;
+        var verParts = rawVer.Split('.');
+        if (verParts.Length >= 1 && int.TryParse(verParts[0], out int maj)) major = maj;
+        if (verParts.Length >= 2 && int.TryParse(verParts[1], out int min)) minor = min;
+        if (verParts.Length >= 3 && int.TryParse(verParts[2].Split('-', '+')[0], out int pat)) patch = pat;
+
+        string currentSemVer = $"{major}.{minor}.{patch}";
+
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            string emptySummary = $"SemVer bump: {currentSemVer} → {currentSemVer} (None) · No diff changes detected";
+            return new SemanticVersionBumpAudit(
+                currentSemVer, currentSemVer, "None", "No diff changes between compared versions.",
+                0, 0, false, $"## [{currentSemVer}] - {DateTime.UtcNow:yyyy-MM-dd}\n### Unchanged\n- No modifications detected.\n", emptySummary);
+        }
+
+        int added = 0;
+        int removed = 0;
+        bool hasBreakingKeyword = false;
+        bool hasRemovedHeadings = false;
+        bool hasRemovedTables = false;
+        bool hasAddedHeadings = false;
+        bool hasAddedTables = false;
+        bool hasFixKeyword = false;
+        var addedBulletPoints = new List<string>();
+        var fixedBulletPoints = new List<string>();
+        var changedBulletPoints = new List<string>();
+
+        foreach (var r in unifiedRows)
+        {
+            string text = r.Text ?? string.Empty;
+            string trimmed = text.Trim();
+
+            if (r.IsAdded)
+            {
+                added++;
+                if (trimmed.StartsWith("#"))
+                {
+                    hasAddedHeadings = true;
+                    string hTitle = trimmed.TrimStart('#').Trim();
+                    if (!string.IsNullOrEmpty(hTitle)) addedBulletPoints.Add($"Added section `{hTitle}`");
+                }
+                if (trimmed.Contains("|")) hasAddedTables = true;
+
+                string lower = trimmed.ToLowerInvariant();
+                if (lower.Contains("fix") || lower.Contains("bug") || lower.Contains("patch") || lower.Contains("resolve"))
+                {
+                    hasFixKeyword = true;
+                    if (trimmed.Length > 4 && fixedBulletPoints.Count < 5)
+                    {
+                        fixedBulletPoints.Add(trimmed.Length > 60 ? trimmed[..57] + "..." : trimmed);
+                    }
+                }
+            }
+            else if (r.IsRemoved)
+            {
+                removed++;
+                if (trimmed.StartsWith("#"))
+                {
+                    hasRemovedHeadings = true;
+                    string hTitle = trimmed.TrimStart('#').Trim();
+                    if (!string.IsNullOrEmpty(hTitle)) changedBulletPoints.Add($"Removed section `{hTitle}`");
+                }
+                if (trimmed.Contains("|")) hasRemovedTables = true;
+                if (trimmed.Contains("BREAKING CHANGE", StringComparison.OrdinalIgnoreCase))
+                    hasBreakingKeyword = true;
+            }
+        }
+
+        bool isBreaking = hasBreakingKeyword || hasRemovedHeadings || hasRemovedTables;
+        string bumpType;
+        string recommendedVer;
+        string rationale;
+
+        if (isBreaking)
+        {
+            bumpType = "Major";
+            recommendedVer = $"{major + 1}.0.0";
+            rationale = "Breaking change detected (structural removal of headings/tables or explicit BREAKING CHANGE notice)";
+        }
+        else if (hasAddedHeadings || hasAddedTables || added >= 15)
+        {
+            bumpType = "Minor";
+            recommendedVer = $"{major}.{minor + 1}.0";
+            rationale = "New feature or section additions detected (substantive new content with backwards compatibility)";
+        }
+        else if (added > 0 || removed > 0)
+        {
+            bumpType = "Patch";
+            recommendedVer = $"{major}.{minor}.{patch + 1}";
+            rationale = hasFixKeyword
+                ? "Backwards-compatible defect resolution or bug fix detected"
+                : "Backwards-compatible revisions, prose polish, or targeted corrections";
+        }
+        else
+        {
+            bumpType = "None";
+            recommendedVer = currentSemVer;
+            rationale = "No line modifications recorded";
+        }
+
+        // Build Keep-A-Changelog formatted markdown
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"## [{recommendedVer}] - {DateTime.UtcNow:yyyy-MM-dd}");
+        if (isBreaking)
+        {
+            sb.AppendLine("### Breaking Changes");
+            sb.AppendLine($"- {rationale}");
+        }
+        if (addedBulletPoints.Count > 0)
+        {
+            sb.AppendLine("### Added");
+            foreach (var b in addedBulletPoints.Take(5)) sb.AppendLine($"- {b}");
+        }
+        if (fixedBulletPoints.Count > 0)
+        {
+            sb.AppendLine("### Fixed");
+            foreach (var b in fixedBulletPoints.Take(5)) sb.AppendLine($"- {b}");
+        }
+        if (changedBulletPoints.Count > 0)
+        {
+            sb.AppendLine("### Changed");
+            foreach (var b in changedBulletPoints.Take(5)) sb.AppendLine($"- {b}");
+        }
+        if (addedBulletPoints.Count == 0 && fixedBulletPoints.Count == 0 && changedBulletPoints.Count == 0)
+        {
+            sb.AppendLine(bumpType == "Patch" ? "### Fixed" : "### Changed");
+            sb.AppendLine($"- General revisions and document refinements ({added} added, {removed} removed lines).");
+        }
+
+        string changelog = sb.ToString();
+        string summary = $"SemVer bump recommendation: {currentSemVer} → {recommendedVer} ({bumpType}) · {added} additions, {removed} deletions · {rationale}";
+
+        return new SemanticVersionBumpAudit(
+            currentSemVer, recommendedVer, bumpType, rationale, added, removed, isBreaking, changelog, summary);
+    }
+
+    /// <summary>
+    /// Evaluates diff line changes to recommend a Semantic Version bump.
+    /// </summary>
+    public static SemanticVersionBumpAudit SynthesizeSemanticVersionRecommendation(
+        IEnumerable<Line>? diffLines, string? currentVersion = null)
+    {
+        var lineList = (diffLines as IReadOnlyList<Line>) ?? diffLines?.ToList() ?? (IReadOnlyList<Line>)Array.Empty<Line>();
+        var unified = BuildUnified(lineList);
+        return SynthesizeSemanticVersionRecommendation(unified, currentVersion);
+    }
+
+    /// <summary>
+    /// Evaluates raw text diff between before and after versions to recommend a Semantic Version bump.
+    /// </summary>
+    public static SemanticVersionBumpAudit SynthesizeSemanticVersionRecommendation(
+        string? before, string? after, string? currentVersion = null)
+    {
+        var diff = Diff(before ?? "", after ?? "");
+        var unified = BuildUnified(diff);
+        return SynthesizeSemanticVersionRecommendation(unified, currentVersion, before);
+    }
 }
 
 /// <summary>
@@ -3104,4 +3271,19 @@ public sealed record ConventionalCommitAudit(
     string BreakingChangeNotice,
     string FullCommitMessage,
     string Summary);
+
+/// <summary>
+/// Represents the result of a synthesized Semantic Version (SemVer) bump evaluation and Keep-A-Changelog entry.
+/// </summary>
+public sealed record SemanticVersionBumpAudit(
+    string CurrentVersion,
+    string RecommendedVersion,
+    string BumpType,
+    string Rationale,
+    int AddedLines,
+    int RemovedLines,
+    bool HasBreakingChanges,
+    string ChangelogMarkdown,
+    string Summary);
+
 

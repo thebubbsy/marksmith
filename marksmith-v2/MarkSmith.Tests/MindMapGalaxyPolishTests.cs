@@ -2178,6 +2178,60 @@ namespace MarkSmith.Tests
             Assert.Equal("Cyclic Dependency Loop", cycleAudit.Category);
             Assert.Contains("Cycle in:", cycleAudit.CycleDescription);
         }
+
+        [Fact]
+        public void Run160_AuditGraphBridgesAndArticulationPoints_TarjanConnectivity()
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+
+            // 1. Empty map
+            var emptyAudit = vm.AuditGraphBridgesAndArticulationPoints();
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.BridgeLinkCount);
+            Assert.Equal("Empty Graph", emptyAudit.VulnerabilityCategory);
+
+            // 2. Pure tree hierarchy (Root -> Child 1, Root -> Child 2)
+            var nRoot = new MindMapNode { Id = "root", Title = "Central Concept" };
+            var n1 = new MindMapNode { Id = "n1", Title = "Branch Alpha" };
+            var n2 = new MindMapNode { Id = "n2", Title = "Branch Beta" };
+            vm.Nodes.Add(new MindMapNodeViewModel(nRoot));
+            vm.Nodes.Add(new MindMapNodeViewModel(n1));
+            vm.Nodes.Add(new MindMapNodeViewModel(n2));
+
+            var l1 = new MindMapLink { Id = "l1", SourceNodeId = "root", TargetNodeId = "n1" };
+            var l2 = new MindMapLink { Id = "l2", SourceNodeId = "root", TargetNodeId = "n2" };
+            vm.Links.Add(new MindMapLinkViewModel(l1));
+            vm.Links.Add(new MindMapLinkViewModel(l2));
+
+            var treeAudit = vm.AuditGraphBridgesAndArticulationPoints();
+            Assert.Equal(3, treeAudit.TotalNodes);
+            Assert.Equal(2, treeAudit.TotalLinks);
+            Assert.Equal(2, treeAudit.BridgeLinkCount);
+            Assert.Equal(1, treeAudit.ArticulationPointCount);
+            Assert.Contains("Central Concept", treeAudit.ArticulationNodeTitles);
+            Assert.Equal(100.0, treeAudit.StructuralFragilityIndex);
+            Assert.Equal("Pure Tree Hierarchy (Max Fragility)", treeAudit.VulnerabilityCategory);
+
+            // Static overload
+            var staticAudit = MindMapStudioViewModel.AuditGraphBridgesAndArticulationPoints(
+                new[] { nRoot, n1, n2 }, new[] { l1, l2 });
+            Assert.Equal(2, staticAudit.BridgeLinkCount);
+            Assert.Equal(1, staticAudit.ArticulationPointCount);
+
+            // 3. Resilient triangle mesh (no bridges, no articulation points)
+            var l3 = new MindMapLink { Id = "l3", SourceNodeId = "n1", TargetNodeId = "n2" };
+            vm.Links.Add(new MindMapLinkViewModel(l3));
+
+            var meshAudit = vm.AuditGraphBridgesAndArticulationPoints();
+            Assert.Equal(3, meshAudit.TotalNodes);
+            Assert.Equal(3, meshAudit.TotalLinks);
+            Assert.Equal(0, meshAudit.BridgeLinkCount);
+            Assert.Equal(0, meshAudit.ArticulationPointCount);
+            Assert.Equal(0.0, meshAudit.StructuralFragilityIndex);
+            Assert.Equal("Robust Resilient Mesh (0 Single Points of Failure)", meshAudit.VulnerabilityCategory);
+        }
     }
 }
 

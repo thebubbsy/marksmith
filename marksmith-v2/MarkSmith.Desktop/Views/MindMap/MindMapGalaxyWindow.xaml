@@ -297,6 +297,9 @@
                                     <MenuFlyoutItem x:Name="AuditTopologicalOrderItem" Text="Audit topological DAG sort &amp; sequence depth" Click="OnAuditTopologicalOrderClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A7;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphVulnerabilityItem" Text="Audit graph bridge links &amp; articulation vulnerability" Click="OnAuditGraphVulnerabilityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE817;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

@@ -5279,6 +5279,214 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
         return $"Golden spiral audit ({scope}{shapeLabel} · {category}): Center ({centerX:0.#}, {centerY:0.#}), avg growth {avgGrowthRatio:0.00}x, {direction} (score {adherenceScore:0.#}%)";
     }
+
+    /// <summary>
+    /// Audits shape fill color palette harmony, evaluating chromatic dispersion, hue clusters
+    /// (monochromatic, analogous, complementary, triadic, tetradic), and neutral anchor distribution.
+    /// </summary>
+    public ShapeColorHarmonyAudit AuditColorPaletteHarmony(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = targetShapes != null || selected.Count >= 2;
+        string scopeStr = isSelection ? "Selected Shapes · " : "";
+
+        if (targets.Count == 0)
+        {
+            string emptySummary = "Color palette harmony audit: 0 shapes · Canvas is empty";
+            StatusMessage = emptySummary;
+            return new ShapeColorHarmonyAudit(
+                0, 0, 0, 0.0, 0.0, "None", 0.0, Array.Empty<string>(),
+                Array.Empty<ShapeColorInfo>(), "Empty Canvas", isSelection, emptySummary);
+        }
+
+        var colorInfos = new List<ShapeColorInfo>();
+        var chromaticHues = new List<double>();
+        int neutralCount = 0;
+
+        foreach (var shape in targets)
+        {
+            string rawFill = (shape.Fill ?? "4B9CD3").Trim().TrimStart('#');
+            if (rawFill.Length != 6) rawFill = "4B9CD3";
+
+            byte r = Convert.ToByte(rawFill[0..2], 16);
+            byte g = Convert.ToByte(rawFill[2..4], 16);
+            byte b = Convert.ToByte(rawFill[4..6], 16);
+
+            double rf = r / 255.0;
+            double gf = g / 255.0;
+            double bf = b / 255.0;
+
+            double max = Math.Max(rf, Math.Max(gf, bf));
+            double min = Math.Min(rf, Math.Min(gf, bf));
+            double delta = max - min;
+
+            double hue = 0.0;
+            if (delta > 0.0001)
+            {
+                if (Math.Abs(max - rf) < 0.0001)
+                {
+                    hue = 60.0 * (((gf - bf) / delta) % 6.0);
+                }
+                else if (Math.Abs(max - gf) < 0.0001)
+                {
+                    hue = 60.0 * (((bf - rf) / delta) + 2.0);
+                }
+                else
+                {
+                    hue = 60.0 * (((rf - gf) / delta) + 4.0);
+                }
+                if (hue < 0) hue += 360.0;
+            }
+
+            double sat = max > 0.0001 ? delta / max : 0.0;
+            double val = max;
+
+            bool isNeutral = sat < 0.15 || val < 0.12 || (val > 0.95 && sat < 0.18);
+            if (isNeutral) neutralCount++;
+            else chromaticHues.Add(hue);
+
+            string classification;
+            if (isNeutral)
+            {
+                classification = val > 0.8 ? "Neutral Light / White" : (val < 0.25 ? "Neutral Dark / Black" : "Neutral Gray");
+            }
+            else
+            {
+                if (hue < 25 || hue >= 345) classification = "Red / Crimson";
+                else if (hue < 50) classification = "Orange / Amber";
+                else if (hue < 75) classification = "Yellow / Gold";
+                else if (hue < 160) classification = "Green / Emerald";
+                else if (hue < 200) classification = "Cyan / Teal";
+                else if (hue < 260) classification = "Blue / Azure";
+                else if (hue < 300) classification = "Purple / Indigo";
+                else classification = "Magenta / Pink";
+            }
+
+            string name = !string.IsNullOrWhiteSpace(shape.Text)
+                ? shape.Text.Replace("\n", " ").Trim()
+                : shape.DisplayName;
+            if (name.Length > 24) name = name[..21] + "...";
+
+            colorInfos.Add(new ShapeColorInfo(
+                shape.Id, name, $"#{rawFill.ToUpperInvariant()}",
+                Math.Round(hue, 1), Math.Round(sat, 2), Math.Round(val, 2), isNeutral, classification));
+        }
+
+        int chromaticCount = chromaticHues.Count;
+        double meanHue = 0.0;
+        double hueStdDev = 0.0;
+        string harmonyType;
+        double coherenceScore;
+
+        if (chromaticCount == 0)
+        {
+            harmonyType = "Monochrome Neutral Anchors";
+            coherenceScore = 100.0;
+        }
+        else if (chromaticCount == 1)
+        {
+            harmonyType = "Single Hue Accent";
+            meanHue = Math.Round(chromaticHues[0], 1);
+            coherenceScore = 100.0;
+        }
+        else
+        {
+            // Circular mean of chromatic angles
+            double sumSin = chromaticHues.Sum(h => Math.Sin(h * Math.PI / 180.0));
+            double sumCos = chromaticHues.Sum(h => Math.Cos(h * Math.PI / 180.0));
+            double avgAngleRad = Math.Atan2(sumSin / chromaticCount, sumCos / chromaticCount);
+            meanHue = Math.Round((avgAngleRad * 180.0 / Math.PI + 360.0) % 360.0, 1);
+
+            // Circular angular dispersion
+            double rLen = Math.Sqrt(sumSin * sumSin + sumCos * sumCos) / chromaticCount;
+            double circVariance = Math.Max(0.0, 1.0 - rLen);
+            hueStdDev = Math.Round(Math.Sqrt(-2.0 * Math.Log(Math.Max(0.0001, rLen))) * 180.0 / Math.PI, 1);
+
+            // Cluster analysis across chromatic hues
+            var sortedHues = chromaticHues.OrderBy(h => h).ToList();
+            double maxSpan = 0.0;
+            for (int i = 0; i < sortedHues.Count; i++)
+            {
+                double h1 = sortedHues[i];
+                double h2 = sortedHues[(i + 1) % sortedHues.Count];
+                double gap = (h2 - h1 + 360.0) % 360.0;
+                if (gap > maxSpan) maxSpan = gap;
+            }
+            double clusterSpan = 360.0 - maxSpan;
+
+            if (clusterSpan <= 30.0)
+            {
+                harmonyType = "Monochromatic (Cohesive Tone)";
+                coherenceScore = Math.Round(95.0 + (30.0 - clusterSpan) / 6.0, 1);
+            }
+            else if (clusterSpan <= 75.0)
+            {
+                harmonyType = "Analogous (Harmonious Adjacent Hues)";
+                coherenceScore = Math.Round(85.0 + (75.0 - clusterSpan) / 4.5, 1);
+            }
+            else
+            {
+                // Check for complementary (pairs ~180 deg) or triadic (~120 deg)
+                bool hasComplementary = false;
+                bool hasTriadic = false;
+                for (int i = 0; i < sortedHues.Count; i++)
+                {
+                    for (int j = i + 1; j < sortedHues.Count; j++)
+                    {
+                        double diff = Math.Abs(sortedHues[i] - sortedHues[j]);
+                        if (diff > 180.0) diff = 360.0 - diff;
+                        if (diff >= 150.0 && diff <= 180.0) hasComplementary = true;
+                        if (diff >= 105.0 && diff <= 135.0) hasTriadic = true;
+                    }
+                }
+
+                if (hasTriadic)
+                {
+                    harmonyType = "Triadic (Balanced High-Contrast)";
+                    coherenceScore = 88.0;
+                }
+                else if (hasComplementary)
+                {
+                    harmonyType = "Complementary (Dynamic Opposing Accent)";
+                    coherenceScore = 90.0;
+                }
+                else
+                {
+                    harmonyType = "Poly-Chromatic (Eclectic Dispersion)";
+                    coherenceScore = Math.Round(Math.Max(40.0, 100.0 - (hueStdDev * 0.7)), 1);
+                }
+            }
+        }
+
+        var dominantNames = colorInfos.Select(c => c.ColorClassification).GroupBy(c => c)
+            .OrderByDescending(g => g.Count())
+            .Select(g => $"{g.Key} ({g.Count()})")
+            .Take(3).ToList();
+
+        string summary = FormatColorPaletteHarmonySummary(
+            targets.Count, neutralCount, chromaticCount, meanHue, hueStdDev,
+            harmonyType, coherenceScore, dominantNames, scopeStr);
+
+        StatusMessage = summary;
+        return new ShapeColorHarmonyAudit(
+            targets.Count, neutralCount, chromaticCount, meanHue, hueStdDev,
+            harmonyType, coherenceScore, dominantNames, colorInfos, harmonyType, isSelection, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of shape color palette harmony metrics.
+    /// </summary>
+    public static string FormatColorPaletteHarmonySummary(
+        int totalShapes, int neutralCount, int chromaticCount, double meanHue,
+        double hueStdDev, string harmonyType, double coherenceScore,
+        IReadOnlyList<string> dominantNames, string scope = "")
+    {
+        if (totalShapes == 0) return "Color palette harmony audit: 0 shapes · Canvas is empty";
+        string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        string dominant = dominantNames.Count > 0 ? $" · Dominant: {string.Join(", ", dominantNames)}" : "";
+        return $"Color palette harmony ({scope}{shapeLabel} · {harmonyType}): Coherence: {coherenceScore:0.#}% · Mean Hue: {meanHue:0.#}° (σ={hueStdDev:0.#}°){dominant}";
+    }
 }
 
 /// <summary>
@@ -5464,4 +5672,35 @@ public sealed record GoldenSpiralProgressionAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents parsed color metrics for a shape in a palette harmony audit.
+/// </summary>
+public sealed record ShapeColorInfo(
+    string ShapeId,
+    string Name,
+    string HexColor,
+    double HueDegrees,
+    double Saturation,
+    double Value,
+    bool IsNeutral,
+    string ColorClassification);
+
+/// <summary>
+/// Represents the result of an audit of shape color palette harmony and chromatic coherence.
+/// </summary>
+public sealed record ShapeColorHarmonyAudit(
+    int TotalAnalyzedShapes,
+    int NeutralColorCount,
+    int ChromaticColorCount,
+    double MeanHueDegrees,
+    double HueStandardDeviation,
+    string HarmonyType,
+    double HarmonyCoherenceScore,
+    IReadOnlyList<string> DominantColorNames,
+    IReadOnlyList<ShapeColorInfo> Colors,
+    string SummaryCategory,
+    bool IsSelectionScope,
+    string Summary);
+
 

@@ -11412,23 +11412,44 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #160 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+## Scheduled WinUI 3 Desktop Polish Routine — Run #160 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Frontmatter YAML Schema Compliance, Required Keys, & Property Inferred-Type Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditFrontmatterYamlSchema(markdownText, requiredKeys, standardKeys)`, `FormatFrontmatterSchemaSummary(...)`, records `FrontmatterPropertyItem`, and `FrontmatterSchemaAudit`. Audits YAML frontmatter opening/closing delimiters (`---`), key-value pairs, inferred types (`String`, `Number`, `Boolean`, `Date`, `List`), required key compliance (`title`, `author`, `date`), duplicate keys, and custom properties; fixed ordinal BOM handling to prevent zero-weight culture truncation; wired to `frontmatterSchemaItem` (`\uE82D`) in both `StatusSectionBreadcrumbButton_RightTapped` and `FindCountText_RightTapped` context flyouts with clipboard copy and status announcement.
+    2. **MindMapGalaxyWindow Graph Bridges, Cut Vertices (Articulation Points), & Structural Vulnerability Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditGraphBridgesAndArticulationPoints()`, static model overload, and `GraphVulnerabilityAudit`. Implements Tarjan's bridge and cut-vertex DFS algorithm with discovery and low-link numbers to locate single-point-of-failure connections and bottleneck concept nodes that partition the mindmap graph; wired to `AuditGraphVulnerabilityItem` (`\uE817`) in `ArrangeDropDownButton.Flyout` and right-tapped context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Color Palette Harmony, Circular Hue Dispersion, & Chromatic Balance Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditColorPaletteHarmony(targetShapes)`, `FormatColorPaletteHarmonySummary(...)`, `ShapeColorInfo`, and `ShapeColorHarmonyAudit`. Extracts hex fill/stroke colors, converts to HSV color space, computes circular hue standard deviation, and classifies palette harmony into `Monochromatic`, `Analogous`, `Complementary`, `Triadic`, `Neutral / Grayscale`, or `Heterogeneous / Complex` with harmony coherence scores (0–100%); wired to `SelectionAuditColorHarmonyItem` (`\uE771`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow Hierarchical Pyramid & Funnel Stage Area Proportionality & Taper Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditPyramidStageProportionality(markdown)`, `FormatPyramidProportionalitySummary(...)`, `PyramidStageInfo`, and `PyramidProportionalityAudit`. Analyzes hierarchical pyramid and funnel outlines, measures stage area and character weights, computes top-to-bottom monotonic taper progression, and assesses stage balance score (0–100%); wired to `AuditPyramidProportionalityItem` (`\uE80A`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Version Bump (SemVer 2.0) Recommender & Keep-A-Changelog Synthesizer (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.SynthesizeSemanticVersionRecommendation(unifiedRows, currentVersion)`, text overloads, and record `SemanticVersionBumpAudit`. Analyzes diff rows for breaking changes (`BREAKING CHANGE:`, `!:`), new features (`feat:`), and bug fixes (`fix:`) to calculate SemVer 2.0 bump recommendation (`Major`, `Minor`, `Patch`, `None`), next version number, and Keep-A-Changelog Markdown entries; wired to `synthesizeSemanticVersion` (`\uE8EC`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback tick.
+    6. **SuiteHubView Workspace Path Character Lengths, Directory Nesting Depth, & Windows MAX_PATH (260 char) Safety Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditPathLengthsAndNestingDepth(files)`, `FormatPathLengthsSummary(...)`, `PathLengthMetricInfo`, and `WorkspacePathLengthAudit`. Computes path character lengths, directory nesting depths, and audits against the Windows `MAX_PATH` (260 character) boundary to flag high-risk deep paths; wired to `CopyPathLengthAuditItem` (`\uE8B7`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `54/54` targeted Run #160 and command icon tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`PID=31500, Responding=True, HasExited=False`).
+
+---
+
+### Run #161 Blueprint — Carried-Forward Refinements & Next Cycle Targets
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **Feature**: Frontmatter YAML metadata schema validation, required key presence, and unknown property auditing.
-   - **Deliverable**: Add `TextSearch.AuditFrontmatterYamlSchema(markdownText, requiredKeys)` and `FormatFrontmatterSchemaSummary(...)`, validating opening YAML blocks (`---`) against standard document schema requirements. Wire to `StatusSectionBreadcrumbButton` and `FindCountText` right-tap flyouts.
+   - **Feature**: Document Table of Contents (TOC) Depth Consistency, Heading Anchor Slug Collisions, and Self-Referential Link Auditor.
+   - **Deliverable**: Add `TextSearch.AuditTocDepthAndAnchorCollisions(markdownText)` and `FormatTocAnchorSummary(...)`, validating heading anchors, slug uniqueness, and TOC hierarchy fidelity. Wire to `StatusSectionBreadcrumbButton` and `FindCountText` context flyouts.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **Feature**: Graph bridge edge detection, articulation points, and structural vulnerability auditing in mindmaps.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphBridgesAndArticulationPoints()` and `FormatGraphVulnerabilitySummary(...)`, identifying single-point-of-failure connections whose removal partitions the mindmap graph. Wire to `ArrangeDropDownButton.Flyout`.
+   - **Feature**: Minimum Spanning Tree (Kruskal/Prim) and Network Redundancy/Backbone Optimization Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditMinimumSpanningTreeAndRedundancy()` and `FormatMstSummary(...)`, identifying the core minimal backbone edges and non-essential redundant chords in cyclic mindmaps. Wire to `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **Feature**: Shape color palette harmony, triadic/analogous hue balance, and chromatic consistency auditing.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditColorPaletteHarmony(shapes)` and `FormatColorHarmonySummary(...)`, evaluating fill and stroke colors on HSV color wheels to assess palette coherence. Wire to `SelectionBoundsBorder.ContextFlyout`.
+   - **Feature**: Shape Group Isometric Grid Alignment, 30°/60° Axonometric Projection Fidelity, and Depth Stacking Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditIsometricGridAlignment(shapes)` and `FormatIsometricSummary(...)`, evaluating 30°/60° isometric plane snapping and z-order consistency. Wire to `SelectionBoundsBorder.ContextFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **Feature**: Hierarchical pyramid and funnel stage area proportionality and stage volume taper auditing.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditPyramidStageProportionality(markdown)` and `FormatPyramidProportionalitySummary(...)`, verifying that hierarchical stages decrease monotonically in width and area from base to apex. Wire to `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #159 Idea 5]**:
-   - **Refinement Target**: Enhance Conventional Commit analysis into an automated Semantic Version bump recommender (`major`, `minor`, `patch`) and changelog entry synthesizer.
-   - **Deliverable**: Add `LineDiff.SynthesizeSemanticVersionRecommendation(unifiedRows, currentVersion)` and wire to `TimelineHeaderBorder` context flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #159 Idea 6]**:
-   - **Refinement Target**: Enhance document naming conventions with directory nesting depth, path character length, and Windows `MAX_PATH` (260 char) safety auditing.
-   - **Deliverable**: Add `RecentFilesService.AuditPathLengthsAndNestingDepth(files)` and wire to `RecentDocsFlyout`.
+   - **Feature**: Venn Diagram and Euler Set Overlap Completeness and Disjoint Partitioning Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditVennDiagramCompleteness(markdown)` and `FormatVennSummary(...)`, auditing 2-circle and 3-circle Venn outlines, intersection labels, and non-empty sub-partition presence. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #160 Idea 5]**:
+   - **Refinement Target**: Automated Release Notes & Migration Guide Synthesizer with breaking change code examples and deprecation notices derived from diff AST/heading deltas.
+   - **Deliverable**: Add `LineDiff.SynthesizeReleaseNotesAndMigrationGuide(unifiedRows, currentVersion)` and wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #160 Idea 6]**:
+   - **Refinement Target**: Workspace File Extension Diversity, MIME Type Distribution, and Non-Standard Markdown Variant Auditor (`.md`, `.markdown`, `.mdown`, `.mdx`).
+   - **Deliverable**: Add `RecentFilesService.AuditFileExtensionDiversity(files)` and wire to `RecentDocsFlyout`.
 

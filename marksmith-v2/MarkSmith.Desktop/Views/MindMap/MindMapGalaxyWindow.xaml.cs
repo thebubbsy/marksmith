@@ -4016,6 +4016,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditGraphVulnerabilityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphBridgesAndArticulationPoints();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4927,6 +4935,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditTopologicalOrderItem.Click += OnAuditTopologicalOrderClick;
             menu.Items.Add(auditTopologicalOrderItem);
+
+            var auditGraphVulnerabilityItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph bridge links & articulation vulnerability",
+                Icon = new FontIcon { Glyph = "\uE817" }
+            };
+            auditGraphVulnerabilityItem.Click += OnAuditGraphVulnerabilityClick;
+            menu.Items.Add(auditGraphVulnerabilityItem);
 
             var fitItem = new MenuFlyoutItem
 

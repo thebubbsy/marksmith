@@ -1339,6 +1339,71 @@ public class TextSearchTests
         Assert.Contains("orphan-target", brokenAudit.OrphanDefinitionIds);
         Assert.Equal("Broken Footnote Linkage", brokenAudit.LinkageCategory);
     }
+
+    [Fact]
+    public void AuditFrontmatterYamlSchema_AccuratelyEvaluatesSchemaAndCompliance()
+    {
+        // 1. Empty or whitespace
+        var emptyAudit = TextSearch.AuditFrontmatterYamlSchema("");
+        Assert.False(emptyAudit.HasFrontmatter);
+        Assert.False(emptyAudit.IsClosed);
+        Assert.Equal(0, emptyAudit.KeyCount);
+        Assert.Equal("Empty Document", emptyAudit.SchemaHealthCategory);
+        Assert.Contains("0 properties", emptyAudit.Summary);
+
+        // 2. Valid complete schema
+        var doc = string.Join("\n",
+            "---",
+            "title: Engineering Architecture Guide",
+            "author: MarkSmith Core Team",
+            "date: 2026-10-19",
+            "tags: [dotnet, winui3, architecture]",
+            "draft: false",
+            "---",
+            "",
+            "# Document Content",
+            "Here is the body.");
+
+        var audit = TextSearch.AuditFrontmatterYamlSchema(doc);
+        Assert.True(audit.HasFrontmatter, audit.Summary);
+        Assert.True(audit.IsClosed, audit.Summary);
+        Assert.Equal(5, audit.KeyCount);
+        Assert.Contains("title", audit.PresentKeys);
+        Assert.Contains("author", audit.PresentKeys);
+        Assert.Contains("date", audit.PresentKeys);
+        Assert.Empty(audit.MissingRequiredKeys);
+        Assert.Empty(audit.DuplicateKeys);
+        Assert.Equal(100.0, audit.CompletenessPercentage);
+        Assert.Equal("Valid Complete Schema", audit.SchemaHealthCategory);
+        Assert.Equal(audit.Summary, TextSearch.FormatFrontmatterSchemaSummary(doc));
+
+        // 3. Missing required keys
+        var partialDoc = string.Join("\n",
+            "---",
+            "title: Only Title",
+            "category: Documentation",
+            "---",
+            "",
+            "# Partial Document");
+        var partialAudit = TextSearch.AuditFrontmatterYamlSchema(partialDoc);
+        Assert.True(partialAudit.HasFrontmatter);
+        Assert.True(partialAudit.IsClosed);
+        Assert.Contains("author", partialAudit.MissingRequiredKeys);
+        Assert.Contains("date", partialAudit.MissingRequiredKeys);
+        Assert.Equal("Missing Required Keys", partialAudit.SchemaHealthCategory);
+        Assert.True(partialAudit.CompletenessPercentage < 100.0);
+
+        // 4. Unclosed frontmatter
+        var unclosedDoc = string.Join("\n",
+            "---",
+            "title: Unclosed",
+            "author: Tester",
+            "# No closing marker");
+        var unclosedAudit = TextSearch.AuditFrontmatterYamlSchema(unclosedDoc);
+        Assert.True(unclosedAudit.HasFrontmatter);
+        Assert.False(unclosedAudit.IsClosed);
+        Assert.Equal("Unclosed Frontmatter", unclosedAudit.SchemaHealthCategory);
+    }
 }
 
 

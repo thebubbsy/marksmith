@@ -1409,6 +1409,51 @@ public class ShapeStudioPolishTests
         Assert.Equal(4, targetAudit.TotalShapes);
         Assert.Equal(spiralAudit.AverageGrowthRatio, targetAudit.AverageGrowthRatio);
     }
+
+    [Fact]
+    public void Run160_AuditColorPaletteHarmony_EvaluatesChromaticHarmonies()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditColorPaletteHarmony();
+        Assert.Equal(0, emptyAudit.TotalAnalyzedShapes);
+        Assert.Equal("Empty Canvas", emptyAudit.SummaryCategory);
+
+        // 2. Monochromatic / Cohesive blue palette
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Text = "Primary", Fill = "#1E88E5" }; // Azure / Blue (~207 deg)
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Text = "Secondary", Fill = "#1976D2" }; // Azure / Blue (~210 deg)
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Text = "Dark Tone", Fill = "#0D47A1" }; // Azure / Blue (~217 deg)
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+        vm.Shapes.Add(s3);
+
+        var monoAudit = vm.AuditColorPaletteHarmony();
+        Assert.Equal(3, monoAudit.TotalAnalyzedShapes);
+        Assert.Equal(3, monoAudit.ChromaticColorCount);
+        Assert.Equal(0, monoAudit.NeutralColorCount);
+        Assert.Contains("Monochromatic", monoAudit.HarmonyType);
+        Assert.True(monoAudit.HarmonyCoherenceScore >= 90.0);
+
+        // 3. Complementary contrast (Blue + Amber/Orange)
+        var sOrange = new ShapeCanvasItemViewModel { Id = "s4", Text = "Accent", Fill = "#FFA000" }; // Orange (~38 deg, ~170 deg diff from 210 deg)
+        vm.Shapes.Add(sOrange);
+
+        var compAudit = vm.AuditColorPaletteHarmony();
+        Assert.Equal(4, compAudit.TotalAnalyzedShapes);
+        Assert.Equal("Complementary (Dynamic Opposing Accent)", compAudit.HarmonyType);
+        Assert.True(compAudit.HarmonyCoherenceScore >= 80.0);
+
+        // 4. Target shapes overload
+        var neutralShape = new ShapeCanvasItemViewModel { Id = "sn", Text = "White Card", Fill = "#FFFFFF" };
+        var neutralAudit = vm.AuditColorPaletteHarmony(new[] { neutralShape });
+        Assert.Equal(1, neutralAudit.TotalAnalyzedShapes);
+        Assert.Equal(1, neutralAudit.NeutralColorCount);
+        Assert.Equal(0, neutralAudit.ChromaticColorCount);
+        Assert.Equal("Monochrome Neutral Anchors", neutralAudit.HarmonyType);
+        Assert.Equal(100.0, neutralAudit.HarmonyCoherenceScore);
+    }
 }
 
 

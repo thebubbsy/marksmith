@@ -317,6 +317,9 @@
                                         <MenuFlyoutItem x:Name="NormalizeMatrixQuadrantsItem" Text="Normalize 2x2 matrix quadrant titles (SWOT / Eisenhower / BCG)" Click="OnNormalizeMatrixQuadrantsClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditPyramidProportionalityItem" Text="Audit pyramid / funnel stage area proportionality &amp; taper" Click="OnAuditPyramidProportionalityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

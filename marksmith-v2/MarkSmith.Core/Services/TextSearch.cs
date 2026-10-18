@@ -3169,6 +3169,161 @@ public static class TextSearch
 
         return $"Markdown footnotes ({refLabel}, {defLabel} · {category}){issues}";
     }
+
+    /// <summary>
+    /// Audits markdown YAML frontmatter for schema compliance, required key presence,
+    /// duplicate keys, and unexpected/custom properties.
+    /// </summary>
+    public static FrontmatterSchemaAudit AuditFrontmatterYamlSchema(
+        string? markdownText,
+        IEnumerable<string>? requiredKeys = null,
+        IEnumerable<string>? standardKeys = null)
+    {
+        var reqList = requiredKeys?.Where(k => !string.IsNullOrWhiteSpace(k)).Select(k => k.Trim().ToLowerInvariant()).Distinct().ToList()
+            ?? new List<string> { "title", "author", "date" };
+
+        var stdSet = new HashSet<string>(
+            standardKeys?.Where(k => !string.IsNullOrWhiteSpace(k)).Select(k => k.Trim().ToLowerInvariant())
+            ?? new[] { "title", "author", "date", "description", "version", "tags", "category", "draft", "slug", "layout" },
+            StringComparer.OrdinalIgnoreCase);
+
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "YAML frontmatter schema: 0 properties · Document is empty";
+            return new FrontmatterSchemaAudit(
+                false, false, 0, Array.Empty<string>(), reqList, Array.Empty<string>(), Array.Empty<string>(),
+                Array.Empty<FrontmatterPropertyItem>(), "Empty Document", 0.0, emptySummary);
+        }
+
+        string text = markdownText;
+        if (text.Length > 0 && text[0] == '\uFEFF') text = text[1..];
+
+        var lines = text.Replace("\r", "").Split('\n');
+        int firstNonEmpty = 0;
+        while (firstNonEmpty < lines.Length && string.IsNullOrWhiteSpace(lines[firstNonEmpty]))
+            firstNonEmpty++;
+
+        if (firstNonEmpty >= lines.Length || !lines[firstNonEmpty].Trim().StartsWith("---"))
+        {
+            string noFrontmatterSummary = "YAML frontmatter schema: No Frontmatter · Document contains no YAML header";
+            return new FrontmatterSchemaAudit(
+                false, false, 0, Array.Empty<string>(), reqList, Array.Empty<string>(), Array.Empty<string>(),
+                Array.Empty<FrontmatterPropertyItem>(), "No Frontmatter", 0.0, noFrontmatterSummary);
+        }
+
+        bool isClosed = false;
+        int closingLineIndex = -1;
+        for (int i = firstNonEmpty + 1; i < lines.Length; i++)
+        {
+            string trimmed = lines[i].Trim();
+            if (trimmed == "---" || trimmed == "...")
+            {
+                isClosed = true;
+                closingLineIndex = i;
+                break;
+            }
+        }
+
+        int maxLine = isClosed ? closingLineIndex : lines.Length;
+        var properties = new List<FrontmatterPropertyItem>();
+        var seenKeys = new List<string>();
+        var duplicateKeys = new List<string>();
+        var keyRegex = new Regex(@"^([a-zA-Z0-9_\-]+)\s*:\s*(.*)$", RegexOptions.Compiled);
+
+        for (int i = firstNonEmpty + 1; i < maxLine; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("#")) continue;
+
+            var match = keyRegex.Match(trimmed);
+            if (match.Success)
+            {
+                string key = match.Groups[1].Value.ToLowerInvariant();
+                string rawVal = match.Groups[2].Value.Trim();
+
+                if (seenKeys.Contains(key) && !duplicateKeys.Contains(key))
+                {
+                    duplicateKeys.Add(key);
+                }
+                seenKeys.Add(key);
+
+                string inferredType;
+                if (rawVal.StartsWith("[") && rawVal.EndsWith("]")) inferredType = "List";
+                else if (rawVal.Equals("true", StringComparison.OrdinalIgnoreCase) || rawVal.Equals("false", StringComparison.OrdinalIgnoreCase)) inferredType = "Boolean";
+                else if (double.TryParse(rawVal, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out _)) inferredType = "Number";
+                else if (Regex.IsMatch(rawVal, @"^\d{4}-\d{2}-\d{2}")) inferredType = "Date";
+                else inferredType = "String";
+
+                properties.Add(new FrontmatterPropertyItem(i + 1, key, rawVal, inferredType));
+            }
+        }
+
+        var presentDistinctKeys = properties.Select(p => p.Key).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var presentSet = new HashSet<string>(presentDistinctKeys, StringComparer.OrdinalIgnoreCase);
+
+        var missingRequired = reqList.Where(k => !presentSet.Contains(k)).ToList();
+        var customKeys = presentDistinctKeys.Where(k => !stdSet.Contains(k)).ToList();
+
+        double completeness = reqList.Count > 0
+            ? Math.Round(((reqList.Count - missingRequired.Count) / (double)reqList.Count) * 100.0, 1)
+            : 100.0;
+
+        string category;
+        if (!isClosed)
+        {
+            category = "Unclosed Frontmatter";
+        }
+        else if (duplicateKeys.Count > 0)
+        {
+            category = "Duplicate Keys Detected";
+        }
+        else if (missingRequired.Count > 0)
+        {
+            category = "Missing Required Keys";
+        }
+        else if (customKeys.Count > 0)
+        {
+            category = "Valid Schema (Extended Properties)";
+        }
+        else
+        {
+            category = "Valid Complete Schema";
+        }
+
+        string summary = FormatFrontmatterSchemaSummary(
+            true, isClosed, properties.Count, presentDistinctKeys, missingRequired,
+            customKeys, duplicateKeys, category, completeness);
+
+        return new FrontmatterSchemaAudit(
+            true, isClosed, properties.Count, presentDistinctKeys, missingRequired,
+            customKeys, duplicateKeys, properties, category, completeness, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of YAML frontmatter metadata and schema validity.
+    /// </summary>
+    public static string FormatFrontmatterSchemaSummary(string? markdownText, IEnumerable<string>? requiredKeys = null)
+        => AuditFrontmatterYamlSchema(markdownText, requiredKeys).Summary;
+
+    public static string FormatFrontmatterSchemaSummary(
+        bool hasFrontmatter, bool isClosed, int propCount,
+        IReadOnlyList<string> presentKeys, IReadOnlyList<string> missingRequired,
+        IReadOnlyList<string> customKeys, IReadOnlyList<string> duplicateKeys,
+        string category, double completeness)
+    {
+        if (!hasFrontmatter)
+            return "YAML frontmatter schema: No Frontmatter · Document contains no YAML header";
+
+        string propLabel = propCount == 1 ? "1 property" : $"{propCount} properties";
+        string issues = "";
+        if (!isClosed) issues += " · Unclosed YAML block (missing closing '---')";
+        if (missingRequired.Count > 0) issues += $" · Missing: {string.Join(", ", missingRequired)}";
+        if (duplicateKeys.Count > 0) issues += $" · Duplicates: {string.Join(", ", duplicateKeys)}";
+        if (customKeys.Count > 0) issues += $" · {customKeys.Count} custom: {string.Join(", ", customKeys.Take(2))}";
+
+        return $"YAML frontmatter schema ({propLabel} · {category} · {completeness:0.#}% complete){issues}";
+    }
 }
 
 /// <summary>
@@ -3340,3 +3495,30 @@ public sealed record FootnoteLinkageAudit(
     IReadOnlyList<FootnoteDefinitionItem> Definitions,
     string LinkageCategory,
     string Summary);
+
+/// <summary>
+/// Represents an individual parsed YAML frontmatter property with line number and inferred type.
+/// </summary>
+public sealed record FrontmatterPropertyItem(
+    int LineNumber,
+    string Key,
+    string RawValue,
+    string InferredType);
+
+/// <summary>
+/// Represents the result of an audit of markdown YAML frontmatter schema compliance,
+/// required key presence, and unexpected/custom properties.
+/// </summary>
+public sealed record FrontmatterSchemaAudit(
+    bool HasFrontmatter,
+    bool IsClosed,
+    int KeyCount,
+    IReadOnlyList<string> PresentKeys,
+    IReadOnlyList<string> MissingRequiredKeys,
+    IReadOnlyList<string> CustomKeys,
+    IReadOnlyList<string> DuplicateKeys,
+    IReadOnlyList<FrontmatterPropertyItem> Properties,
+    string SchemaHealthCategory,
+    double CompletenessPercentage,
+    string Summary);
+

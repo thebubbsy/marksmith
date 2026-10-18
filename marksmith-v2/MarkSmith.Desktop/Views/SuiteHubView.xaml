@@ -285,6 +285,9 @@
                                     <MenuFlyoutItem x:Name="CopyDocumentNamingConventionsItem" Text="Copy document naming convention &amp; casing audit" Click="OnCopyDocumentNamingConventionsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyPathLengthAuditItem" Text="Copy path length &amp; MAX_PATH (260 char) safety audit" Click="OnCopyPathLengthAuditClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

@@ -2587,6 +2587,54 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("Document naming audit", mixedAudit.Summary);
         Assert.Contains("special chars", mixedAudit.Summary);
     }
+
+    [Fact]
+    public void Run160_AuditPathLengthsAndNestingDepth()
+    {
+        // 1. Empty library
+        var emptyAudit = RecentFilesService.AuditPathLengthsAndNestingDepth(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFiles);
+        Assert.Equal("Empty Library", emptyAudit.SafetyCategory);
+        Assert.Equal(100.0, emptyAudit.PathSafetyScore);
+
+        // 2. Safe short paths
+        var safeFiles = new[]
+        {
+            @"C:\Projects\app\readme.md",
+            @"C:\Projects\app\docs\architecture.md",
+            @"C:\Projects\app\docs\spec.md"
+        };
+        var safeAudit = RecentFilesService.AuditPathLengthsAndNestingDepth(safeFiles);
+        Assert.Equal(3, safeAudit.TotalFiles);
+        Assert.Equal(3, safeAudit.SafePathCount);
+        Assert.Equal(0, safeAudit.WarningPathCount);
+        Assert.Equal(0, safeAudit.ViolationPathCount);
+        Assert.Equal("100% MAX_PATH Safe", safeAudit.SafetyCategory);
+        Assert.Equal(100.0, safeAudit.PathSafetyScore);
+        Assert.Equal(4, safeAudit.MaxNestingDepth);
+
+        // 3. Warning path (>200 chars) & Violation (>=260 chars)
+        string baseDir = @"C:\DeepWorkspace\EnterpriseProject\Subsystems\Microservices\DataPipelines\OrchestrationEngine\Connectors\";
+        string warningFile = baseDir + new string('a', 150) + ".md"; // ~240 chars
+        string violationFile = baseDir + new string('b', 200) + ".md"; // ~290 chars
+
+        var riskFiles = new[]
+        {
+            @"C:\Docs\normal.md",
+            warningFile,
+            violationFile
+        };
+
+        var riskAudit = RecentFilesService.AuditPathLengthsAndNestingDepth(riskFiles);
+        Assert.Equal(3, riskAudit.TotalFiles);
+        Assert.Equal(1, riskAudit.SafePathCount);
+        Assert.Equal(1, riskAudit.WarningPathCount);
+        Assert.Equal(1, riskAudit.ViolationPathCount);
+        Assert.Equal("MAX_PATH Violations Detected (≥260 chars)", riskAudit.SafetyCategory);
+        Assert.True(riskAudit.PathSafetyScore < 70.0);
+        Assert.Contains("MAX_PATH violations", riskAudit.Summary);
+        Assert.Equal(riskAudit.Summary, RecentFilesService.FormatPathLengthsSummary(riskFiles));
+    }
 }
 
 

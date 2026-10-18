@@ -3960,6 +3960,166 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return new MatrixQuadrantNormalizationResult(normalizedMd, archetype, normalizedCount, summary);
     }
+
+    /// <summary>
+    /// Audits hierarchical pyramid and funnel stage area proportionality, volume progression,
+    /// and monotonic taper across outline items.
+    /// </summary>
+    public PyramidProportionalityAudit AuditPyramidStageProportionality()
+    {
+        var result = AuditPyramidStageProportionality(MarkdownText);
+        StatusMessage = result.Summary;
+        return result;
+    }
+
+    /// <summary>
+    /// Audits markdown outline text for hierarchical pyramid / funnel stage area proportionality and volume progression.
+    /// </summary>
+    public static PyramidProportionalityAudit AuditPyramidStageProportionality(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = "Pyramid proportionality audit: 0 stages · Outline is empty";
+            return new PyramidProportionalityAudit(
+                0, Array.Empty<PyramidStageInfo>(), 1.0, true, 0.0, "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Replace("\r", "").Split('\n');
+        var stageInfos = new List<PyramidStageInfo>();
+        bool inFence = false;
+
+        string currentStageTitle = "";
+        int currentStageCharCount = 0;
+        int currentStageChildBullets = 0;
+        int stageIndex = 0;
+
+        void CommitCurrentStage()
+        {
+            if (stageIndex > 0)
+            {
+                stageInfos.Add(new PyramidStageInfo(
+                    stageIndex, currentStageTitle, currentStageCharCount, currentStageChildBullets, 0.0));
+            }
+        }
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var raw = lines[i];
+            var trimmed = raw.Trim();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence || string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            int leadWs = 0;
+            while (leadWs < raw.Length && char.IsWhiteSpace(raw[leadWs])) leadWs++;
+
+            bool isBullet = trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ") ||
+                            (char.IsDigit(trimmed[0]) && trimmed.Length > 2 && trimmed[1] == '.' && trimmed[2] == ' ');
+
+            if (!isBullet)
+            {
+                if (stageIndex > 0) currentStageCharCount += trimmed.Length;
+                continue;
+            }
+
+            int depth = 1 + (leadWs >= 2 ? (leadWs / 2) : 0);
+            string content = trimmed.Length > 2 ? trimmed[2..].Trim() : trimmed;
+
+            if (depth == 1)
+            {
+                CommitCurrentStage();
+                stageIndex++;
+                currentStageTitle = content;
+                currentStageCharCount = content.Length;
+                currentStageChildBullets = 0;
+            }
+            else
+            {
+                if (stageIndex > 0)
+                {
+                    currentStageChildBullets++;
+                    currentStageCharCount += content.Length;
+                }
+            }
+        }
+        CommitCurrentStage();
+
+        if (stageInfos.Count == 0)
+        {
+            string noStagesSummary = "Pyramid proportionality audit: 0 stages · No outline bullets found";
+            return new PyramidProportionalityAudit(
+                0, Array.Empty<PyramidStageInfo>(), 1.0, true, 0.0, "No Stages Found", noStagesSummary);
+        }
+
+        int totalChars = stageInfos.Sum(s => s.CharacterCount);
+        var calibratedStages = stageInfos.Select(s => new PyramidStageInfo(
+            s.StageIndex, s.StageTitle, s.CharacterCount, s.ChildBulletCount,
+            totalChars > 0 ? Math.Round((s.CharacterCount / (double)totalChars) * 100.0, 1) : Math.Round(100.0 / stageInfos.Count, 1)
+        )).ToList();
+
+        if (calibratedStages.Count == 1)
+        {
+            string singleSummary = $"Pyramid proportionality audit (1 stage · Single Tier): '{calibratedStages[0].StageTitle}'";
+            return new PyramidProportionalityAudit(
+                1, calibratedStages, 1.0, true, 50.0, "Single Stage", singleSummary);
+        }
+
+        // Evaluate monotonicity
+        bool isDecreasing = true;
+        bool isIncreasing = true;
+        double sumStepRatio = 0.0;
+        int stepCount = 0;
+
+        for (int i = 1; i < calibratedStages.Count; i++)
+        {
+            double prevVol = Math.Max(1.0, calibratedStages[i - 1].CharacterCount);
+            double curVol = Math.Max(1.0, calibratedStages[i].CharacterCount);
+
+            if (curVol > prevVol) isDecreasing = false;
+            if (curVol < prevVol) isIncreasing = false;
+
+            double ratio = curVol / prevVol;
+            sumStepRatio += ratio;
+            stepCount++;
+        }
+
+        double avgTaperRatio = stepCount > 0 ? Math.Round(sumStepRatio / stepCount, 2) : 1.0;
+        bool isMonotonic = isDecreasing || isIncreasing;
+
+        string category;
+        double proportionalityScore;
+
+        if (isDecreasing && avgTaperRatio <= 0.85)
+        {
+            category = "Monotonically Tapered (Top-to-Bottom / Inverted Funnel)";
+            proportionalityScore = Math.Round(88.0 + (calibratedStages.Count >= 3 && calibratedStages.Count <= 6 ? 10.0 : 0.0), 1);
+        }
+        else if (isIncreasing && avgTaperRatio >= 1.15)
+        {
+            category = "Monotonically Tapered (Bottom-to-Top / Upward Pyramid)";
+            proportionalityScore = Math.Round(88.0 + (calibratedStages.Count >= 3 && calibratedStages.Count <= 6 ? 10.0 : 0.0), 1);
+        }
+        else if (Math.Abs(avgTaperRatio - 1.0) <= 0.20)
+        {
+            category = "Uniform Slices (Balanced Hierarchy)";
+            proportionalityScore = 85.0;
+        }
+        else
+        {
+            category = "Irregular Stage Volume Fluctuation";
+            proportionalityScore = 65.0;
+        }
+
+        string stageLabel = calibratedStages.Count == 1 ? "1 stage" : $"{calibratedStages.Count} stages";
+        string summary = $"Pyramid proportionality audit ({stageLabel} · {category}): Taper ratio {avgTaperRatio:0.00}x (Score {proportionalityScore:0.#}%)";
+
+        return new PyramidProportionalityAudit(
+            calibratedStages.Count, calibratedStages, avgTaperRatio, isMonotonic,
+            proportionalityScore, category, summary);
+    }
 }
 
 /// <summary>
@@ -4119,3 +4279,26 @@ public sealed record MatrixQuadrantNormalizationResult(
     string DetectedArchetype,
     int NormalizedHeadersCount,
     string Summary);
+
+/// <summary>
+/// Represents volume and bullet metrics for an individual pyramid or funnel stage.
+/// </summary>
+public sealed record PyramidStageInfo(
+    int StageIndex,
+    string StageTitle,
+    int CharacterCount,
+    int ChildBulletCount,
+    double RelativeVolumePercentage);
+
+/// <summary>
+/// Represents the result of an audit of hierarchical pyramid and funnel stage area proportionality and volume progression.
+/// </summary>
+public sealed record PyramidProportionalityAudit(
+    int StageCount,
+    IReadOnlyList<PyramidStageInfo> Stages,
+    double TaperProgressionRatio,
+    bool IsMonotonicallyTapered,
+    double ProportionalityScore,
+    string ProportionalityCategory,
+    string Summary);
+

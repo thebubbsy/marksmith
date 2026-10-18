@@ -7883,6 +7883,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(footnoteLinkageItem);
 
+        var frontmatterSchemaItem = new MenuFlyoutItem
+        {
+            Text = "Copy YAML frontmatter metadata & schema audit",
+            Icon = new FontIcon { Glyph = "\uE82D" }
+        };
+        frontmatterSchemaItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatFrontmatterSchemaSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(frontmatterSchemaItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9259,6 +9273,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(footnoteLinkageItem);
+
+        var frontmatterSchemaItem = new MenuFlyoutItem
+        {
+            Text = "Copy YAML frontmatter metadata & schema audit",
+            Icon = new FontIcon { Glyph = "\uE82D" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        frontmatterSchemaItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatFrontmatterSchemaSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(frontmatterSchemaItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

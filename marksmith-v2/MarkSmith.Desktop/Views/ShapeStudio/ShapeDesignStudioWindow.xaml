@@ -688,6 +688,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditGoldenSpiralItem" Text="Audit Golden Spiral logarithmic expansion &amp; angular progression" Click="OnSelectionAuditGoldenSpiralClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE777;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditColorHarmonyItem" Text="Audit color palette harmony &amp; chromatic coherence" Click="OnSelectionAuditColorHarmonyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE771;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

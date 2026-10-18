@@ -4818,6 +4818,161 @@ namespace MarkSmith.ViewModels.MindMap
             }
             return vm.AuditTopologicalOrderAndDepth();
         }
+
+        /// <summary>
+        /// Audits mindmap graph for bridge links, articulation points (cut vertices), and structural vulnerability.
+        /// </summary>
+        public GraphVulnerabilityAudit AuditGraphBridgesAndArticulationPoints()
+        {
+            var selectedNodes = Nodes.Where(n => n.IsSelected).ToList();
+            bool isSelection = selectedNodes.Count > 1;
+            var targetNodes = isSelection ? selectedNodes : Nodes.ToList();
+
+            if (targetNodes.Count == 0)
+            {
+                string emptySummary = "Graph vulnerability audit: 0 nodes · Map is empty";
+                StatusMessage = emptySummary;
+                return new GraphVulnerabilityAudit(
+                    0, 0, 0, 0, 0, Array.Empty<string>(), Array.Empty<string>(),
+                    0.0, "Empty Graph", isSelection, emptySummary);
+            }
+
+            var nodeSet = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.Ordinal);
+            var titleMap = targetNodes.ToDictionary(n => n.Id, n => !string.IsNullOrWhiteSpace(n.Title) ? n.Title : n.Id, StringComparer.Ordinal);
+            var relevantLinks = Links.Where(l => nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId)).ToList();
+
+            if (targetNodes.Count == 1)
+            {
+                string singleSummary = $"Graph vulnerability audit (1 node · Isolated Single Node): 0 bridges · 0 articulation points · '{titleMap[targetNodes[0].Id]}'";
+                StatusMessage = singleSummary;
+                return new GraphVulnerabilityAudit(
+                    1, relevantLinks.Count, 1, 0, 0, Array.Empty<string>(), Array.Empty<string>(),
+                    0.0, "Single Node", isSelection, singleSummary);
+            }
+
+            // Build undirected adjacency graph
+            var adj = new Dictionary<string, List<(string Neighbor, string LinkId)>>(StringComparer.Ordinal);
+            foreach (var n in targetNodes) adj[n.Id] = new List<(string, string)>();
+
+            foreach (var l in relevantLinks)
+            {
+                if (l.SourceNodeId == l.TargetNodeId) continue; // ignore self-loops
+                adj[l.SourceNodeId].Add((l.TargetNodeId, l.Id));
+                adj[l.TargetNodeId].Add((l.SourceNodeId, l.Id));
+            }
+
+            var disc = new Dictionary<string, int>(StringComparer.Ordinal);
+            var low = new Dictionary<string, int>(StringComparer.Ordinal);
+            var bridges = new List<string>();
+            var articulationPoints = new HashSet<string>(StringComparer.Ordinal);
+            int time = 0;
+            int componentCount = 0;
+
+            void Dfs(string u, string? parentLinkId)
+            {
+                disc[u] = low[u] = ++time;
+                int children = 0;
+
+                foreach (var (v, linkId) in adj[u])
+                {
+                    if (linkId == parentLinkId) continue;
+
+                    if (disc.ContainsKey(v))
+                    {
+                        low[u] = Math.Min(low[u], disc[v]);
+                    }
+                    else
+                    {
+                        children++;
+                        Dfs(v, linkId);
+                        low[u] = Math.Min(low[u], low[v]);
+
+                        if (low[v] > disc[u])
+                        {
+                            string uTitle = titleMap[u];
+                            string vTitle = titleMap[v];
+                            bridges.Add($"{uTitle} <-> {vTitle}");
+                        }
+
+                        if (parentLinkId != null && low[v] >= disc[u])
+                        {
+                            articulationPoints.Add(u);
+                        }
+                    }
+                }
+
+                if (parentLinkId == null && children > 1)
+                {
+                    articulationPoints.Add(u);
+                }
+            }
+
+            foreach (var n in targetNodes)
+            {
+                if (!disc.ContainsKey(n.Id))
+                {
+                    componentCount++;
+                    Dfs(n.Id, null);
+                }
+            }
+
+            var artPointTitles = articulationPoints.Select(id => titleMap[id]).OrderBy(t => t).ToList();
+            double fragilityIndex = relevantLinks.Count > 0
+                ? Math.Round((bridges.Count / (double)relevantLinks.Count) * 100.0, 1)
+                : 0.0;
+
+            string category;
+            if (componentCount > 1)
+            {
+                category = $"Disconnected Forest ({componentCount} components)";
+            }
+            else if (bridges.Count == 0 && artPointTitles.Count == 0)
+            {
+                category = "Robust Resilient Mesh (0 Single Points of Failure)";
+            }
+            else if (bridges.Count == relevantLinks.Count)
+            {
+                category = "Pure Tree Hierarchy (Max Fragility)";
+            }
+            else
+            {
+                category = $"Partially Redundant Mesh ({bridges.Count} Bridges)";
+            }
+
+            string bridgeDetail = bridges.Count > 0
+                ? $" · {bridges.Count} bridge links [{string.Join(", ", bridges.Take(2))}]"
+                : " · 0 bridge links";
+            string artDetail = artPointTitles.Count > 0
+                ? $" · {artPointTitles.Count} articulation points [{string.Join(", ", artPointTitles.Take(2))}]"
+                : " · 0 articulation points";
+
+            string scopeStr = isSelection ? "Selected Nodes · " : "";
+            string summary = $"Graph vulnerability audit ({scopeStr}{targetNodes.Count} nodes, {relevantLinks.Count} links · {category}): Fragility: {fragilityIndex:0.#}%{bridgeDetail}{artDetail}";
+            StatusMessage = summary;
+
+            return new GraphVulnerabilityAudit(
+                targetNodes.Count, relevantLinks.Count, componentCount, bridges.Count,
+                artPointTitles.Count, bridges, artPointTitles, fragilityIndex, category, isSelection, summary);
+        }
+
+        /// <summary>
+        /// Audits graph vulnerability across pure model nodes and links.
+        /// </summary>
+        public static GraphVulnerabilityAudit AuditGraphBridgesAndArticulationPoints(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditGraphBridgesAndArticulationPoints();
+        }
     }
 
     /// <summary>
@@ -5025,6 +5180,23 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<string> OrderedNodeTitles,
         string CycleDescription,
         string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents the result of a mindmap graph bridge links, articulation points (cut vertices),
+    /// and structural vulnerability audit.
+    /// </summary>
+    public sealed record GraphVulnerabilityAudit(
+        int TotalNodes,
+        int TotalLinks,
+        int ConnectedComponents,
+        int BridgeLinkCount,
+        int ArticulationPointCount,
+        IReadOnlyList<string> BridgeDescriptions,
+        IReadOnlyList<string> ArticulationNodeTitles,
+        double StructuralFragilityIndex,
+        string VulnerabilityCategory,
         bool IsSelectionScope,
         string Summary);
 }

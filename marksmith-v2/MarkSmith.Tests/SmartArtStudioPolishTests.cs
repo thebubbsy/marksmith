@@ -1256,6 +1256,56 @@ public class SmartArtStudioPolishTests
         Assert.Contains("Do First", eRes.NormalizedMarkdown);
         Assert.Contains("Schedule", eRes.NormalizedMarkdown);
     }
+
+    [Fact]
+    public void AuditPyramidStageProportionality_EvaluatesTaperProgression()
+    {
+        // 1. Empty or whitespace
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditPyramidStageProportionality("");
+        Assert.Equal(0, emptyAudit.StageCount);
+        Assert.Equal("Empty Outline", emptyAudit.ProportionalityCategory);
+
+        // 2. Monotonically tapered top-to-bottom funnel (Inverted Funnel)
+        var funnelMd = """
+            - Top-of-Funnel Brand Awareness & Public Marketing Outreach Campaigns
+              - Social ads
+              - Search engine marketing
+              - Public blogs
+            - Mid-Funnel Lead Qualification & Product Trial Registrations
+              - Free tier signups
+              - Webinar attendees
+            - Bottom-Funnel Enterprise Purchase Contracts
+              - Custom terms
+            """;
+        var funnelAudit = SmartArtDesignStudioViewModel.AuditPyramidStageProportionality(funnelMd);
+        Assert.Equal(3, funnelAudit.StageCount);
+        Assert.True(funnelAudit.IsMonotonicallyTapered);
+        Assert.Contains("Top-to-Bottom", funnelAudit.ProportionalityCategory);
+        Assert.True(funnelAudit.TaperProgressionRatio < 1.0);
+        Assert.True(funnelAudit.ProportionalityScore >= 80.0);
+
+        // 3. Upward pyramid (base largest at bottom)
+        var pyramidMd = """
+            - Apex Tier Executive Strategy
+            - Management Tier Operational Coordination & Scheduling
+            - Foundation Tier Infrastructure, Hardware, Core Network Routing, & Physical Security
+            """;
+        var pyramidAudit = SmartArtDesignStudioViewModel.AuditPyramidStageProportionality(pyramidMd);
+        Assert.Equal(3, pyramidAudit.StageCount);
+        Assert.True(pyramidAudit.IsMonotonicallyTapered);
+        Assert.Contains("Bottom-to-Top", pyramidAudit.ProportionalityCategory);
+        Assert.True(pyramidAudit.TaperProgressionRatio > 1.0);
+
+        // 4. Uniform slices
+        var uniformMd = """
+            - Stage 1: Assessment
+            - Stage 2: Assessment
+            - Stage 3: Assessment
+            """;
+        var uniformAudit = SmartArtDesignStudioViewModel.AuditPyramidStageProportionality(uniformMd);
+        Assert.Equal(3, uniformAudit.StageCount);
+        Assert.Equal("Uniform Slices (Balanced Hierarchy)", uniformAudit.ProportionalityCategory);
+    }
 }
 
 

@@ -2436,6 +2436,119 @@ public sealed class RecentFilesService
         string specialWarn = specialCharsCount > 0 ? $" · ⚠ {specialCharsCount} with special chars" : "";
         return $"Document naming audit ({docLabel} [{breakdownStr}] · {category}): {dominantConvention} consistency {consistencyScore:0.#}%{specialWarn}";
     }
+
+    /// <summary>
+    /// Audits workspace file paths for character length, folder nesting depth, and Windows MAX_PATH (260 char) safety.
+    /// </summary>
+    public static WorkspacePathLengthAudit AuditPathLengthsAndNestingDepth(IEnumerable<string>? files)
+    {
+        var list = files?.Where(f => !string.IsNullOrWhiteSpace(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                   ?? new List<string>();
+
+        if (list.Count == 0)
+        {
+            string emptySummary = "Workspace path length audit: 0 files (Empty library)";
+            return new WorkspacePathLengthAudit(
+                0, 0, 0, 0, 0, "None", 0, "None", 0.0, 0.0, 100.0,
+                Array.Empty<PathLengthMetricInfo>(), "Empty Library", emptySummary);
+        }
+
+        var metrics = new List<PathLengthMetricInfo>();
+        int safeCount = 0;
+        int warningCount = 0;
+        int violationCount = 0;
+        int maxLen = 0;
+        string longestPath = "";
+        int maxDepth = 0;
+        string deepestPath = "";
+        double totalLen = 0;
+        double totalDepth = 0;
+
+        foreach (var p in list)
+        {
+            int len = p.Length;
+            totalLen += len;
+            if (len > maxLen)
+            {
+                maxLen = len;
+                longestPath = p;
+            }
+
+            int depth = 0;
+            for (int i = 0; i < p.Length; i++)
+            {
+                if (p[i] == '\\' || p[i] == '/') depth++;
+            }
+            totalDepth += depth;
+            if (depth > maxDepth)
+            {
+                maxDepth = depth;
+                deepestPath = p;
+            }
+
+            bool exceedsMax = len >= 260;
+            bool isWarning = len >= 200 && len < 260;
+
+            if (exceedsMax) violationCount++;
+            else if (isWarning) warningCount++;
+            else safeCount++;
+
+            string fn = Path.GetFileName(p);
+            if (string.IsNullOrEmpty(fn)) fn = p;
+
+            metrics.Add(new PathLengthMetricInfo(p, fn, len, depth, exceedsMax, isWarning));
+        }
+
+        double avgLen = Math.Round(totalLen / list.Count, 1);
+        double avgDepth = Math.Round(totalDepth / list.Count, 1);
+
+        double safetyScore;
+        string category;
+        if (violationCount > 0)
+        {
+            category = "MAX_PATH Violations Detected (≥260 chars)";
+            safetyScore = Math.Max(0.0, Math.Round(100.0 - (violationCount * 30.0) - (warningCount * 10.0), 1));
+        }
+        else if (warningCount > 0)
+        {
+            category = "Approaching Limits (200–259 chars)";
+            safetyScore = Math.Max(40.0, Math.Round(100.0 - (warningCount * 10.0), 1));
+        }
+        else
+        {
+            category = "100% MAX_PATH Safe";
+            safetyScore = 100.0;
+        }
+
+        string summary = FormatPathLengthsSummary(
+            list.Count, safeCount, warningCount, violationCount, maxLen, maxDepth,
+            avgLen, avgDepth, safetyScore, category, longestPath);
+
+        return new WorkspacePathLengthAudit(
+            list.Count, safeCount, warningCount, violationCount, maxLen, longestPath,
+            maxDepth, deepestPath, avgLen, avgDepth, safetyScore, metrics, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of workspace path lengths and MAX_PATH safety metrics.
+    /// </summary>
+    public static string FormatPathLengthsSummary(IEnumerable<string>? files)
+        => AuditPathLengthsAndNestingDepth(files).Summary;
+
+    public static string FormatPathLengthsSummary(
+        int totalFiles, int safeCount, int warningCount, int violationCount,
+        int maxLen, int maxDepth, double avgLen, double avgDepth,
+        double safetyScore, string category, string longestPath)
+    {
+        if (totalFiles == 0) return "Workspace path length audit: 0 files (Empty library)";
+        string fileLabel = totalFiles == 1 ? "1 file" : $"{totalFiles} files";
+
+        string alerts = "";
+        if (violationCount > 0) alerts += $" · 🚨 {violationCount} MAX_PATH violations";
+        if (warningCount > 0) alerts += $" · ⚠ {warningCount} long paths (>200 chars)";
+
+        return $"Workspace path length audit ({fileLabel} · {category}): Max length: {maxLen} chars (avg {avgLen:0.#}), Max depth: {maxDepth} tiers (avg {avgDepth:0.#}){alerts}";
+    }
 }
 
 /// <summary>
@@ -2627,3 +2740,34 @@ public sealed record DocumentNamingConventionAudit(
     IReadOnlyList<DocumentNamingInfo> Documents,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents path length and folder nesting metrics for an individual file in a MAX_PATH safety audit.
+/// </summary>
+public sealed record PathLengthMetricInfo(
+    string FilePath,
+    string FileName,
+    int PathLength,
+    int NestingDepth,
+    bool ExceedsMaxPath,
+    bool IsApproachingLimit);
+
+/// <summary>
+/// Represents the result of an audit of workspace file path lengths, folder nesting depth, and Windows MAX_PATH safety.
+/// </summary>
+public sealed record WorkspacePathLengthAudit(
+    int TotalFiles,
+    int SafePathCount,
+    int WarningPathCount,
+    int ViolationPathCount,
+    int MaxPathLength,
+    string LongestPath,
+    int MaxNestingDepth,
+    string DeepestPath,
+    double AveragePathLength,
+    double AverageNestingDepth,
+    double PathSafetyScore,
+    IReadOnlyList<PathLengthMetricInfo> PathMetrics,
+    string SafetyCategory,
+    string Summary);
+
