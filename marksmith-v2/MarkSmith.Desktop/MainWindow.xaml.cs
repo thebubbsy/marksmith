@@ -11409,6 +11409,129 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.ShowAt(anchor);
     }
 
+    private (string TocText, int HeadingCount) BuildMarkdownTocOutline(bool linkedLinks)
+    {
+        var md = EditorDocument();
+        if (string.IsNullOrWhiteSpace(md)) return (string.Empty, 0);
+
+        var sb = new System.Text.StringBuilder();
+        int count = 0;
+        bool inFence = false;
+        int minLevel = 6;
+        var parsed = new List<(int Level, string Title)>();
+
+        foreach (var rawLine in md.Split('\n'))
+        {
+            var line = rawLine.TrimEnd('\r');
+            var trimmed = line.TrimStart();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence || !trimmed.StartsWith('#')) continue;
+
+            int lvl = 0;
+            while (lvl < trimmed.Length && lvl < 6 && trimmed[lvl] == '#') lvl++;
+            if (lvl > 0 && lvl < trimmed.Length && char.IsWhiteSpace(trimmed[lvl]))
+            {
+                var headingText = trimmed[lvl..].Trim().TrimEnd('#').Trim();
+                if (!string.IsNullOrEmpty(headingText))
+                {
+                    if (lvl < minLevel) minLevel = lvl;
+                    parsed.Add((lvl, headingText));
+                }
+            }
+        }
+
+        foreach (var (lvl, title) in parsed)
+        {
+            var indent = new string(' ', Math.Max(0, lvl - minLevel) * 2);
+            if (linkedLinks)
+            {
+                var slugChars = title.ToLowerInvariant()
+                    .Where(c => char.IsLetterOrDigit(c) || c == ' ' || c == '-')
+                    .ToArray();
+                var slug = string.Join("-", new string(slugChars).Split(' ', StringSplitOptions.RemoveEmptyEntries));
+                sb.AppendLine($"{indent}- [{title}](#{slug})");
+            }
+            else
+            {
+                sb.AppendLine($"{indent}- {title}");
+            }
+            count++;
+        }
+
+        return (sb.ToString().TrimEnd(), count);
+    }
+
+    private void OnStatusCopyTocButtonClick(object sender, RoutedEventArgs e)
+    {
+        var (toc, count) = BuildMarkdownTocOutline(linkedLinks: true);
+        if (count == 0)
+        {
+            AnnounceStatus("No Markdown headings (# .. ######) found in document");
+            return;
+        }
+
+        _ = Services.ClipboardWriter.TrySetTextAsync(toc);
+        AnnounceStatus($"Copied Markdown Table of Contents ({count:N0} headings) to clipboard");
+    }
+
+    private void OnStatusCopyTocButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+
+        var menu = new MenuFlyout();
+
+        var linkedItem = new MenuFlyoutItem
+        {
+            Text = "Copy linked Markdown TOC (- [Title](#slug))",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        linkedItem.Click += (_, _) => OnStatusCopyTocButtonClick(sender, new RoutedEventArgs());
+        menu.Items.Add(linkedItem);
+
+        var plainItem = new MenuFlyoutItem
+        {
+            Text = "Copy plain indented outline (- Title)",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        plainItem.Click += (_, _) =>
+        {
+            var (outline, count) = BuildMarkdownTocOutline(linkedLinks: false);
+            if (count == 0)
+            {
+                AnnounceStatus("No Markdown headings found in document");
+                return;
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(outline);
+            AnnounceStatus($"Copied plain heading outline ({count:N0} headings) to clipboard");
+        };
+        menu.Items.Add(plainItem);
+
+        var insertItem = new MenuFlyoutItem
+        {
+            Text = "Insert Markdown TOC at cursor",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertItem.Click += (_, _) =>
+        {
+            var (toc, count) = BuildMarkdownTocOutline(linkedLinks: true);
+            if (count == 0)
+            {
+                AnnounceStatus("No Markdown headings found to build TOC");
+                return;
+            }
+            InsertMarkdown($"## Table of Contents\n\n{toc}\n\n");
+            AnnounceStatus($"Inserted Table of Contents ({count:N0} headings) at cursor");
+        };
+        menu.Items.Add(insertItem);
+
+        menu.ShowAt(anchor);
+    }
+
     private void OnWordCountTextTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
         e.Handled = true;
