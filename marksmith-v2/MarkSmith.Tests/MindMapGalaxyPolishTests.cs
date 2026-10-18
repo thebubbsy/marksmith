@@ -2582,6 +2582,49 @@ namespace MarkSmith.Tests
                 radialAudit.LayoutCategory, radialAudit.CrowdedNodeTitles.Count, radialAudit.IsSelectionScope);
             Assert.Equal(radialAudit.Summary, formatted);
         }
+
+        [Fact]
+        public void GraphClusteringAndTransitivity_Audits_Properly()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditClusteringCoefficientAndTransitivity(
+                Array.Empty<MindMapNode>(), Array.Empty<MindMapLink>());
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalLinks);
+            Assert.Equal(100.0, emptyAudit.ClusteringFidelityScore);
+            Assert.Equal("Empty Galaxy", emptyAudit.TopologyCategory);
+
+            // 2. Triangle clique (n1 - n2 - n3 - n1) -> 1 triangle, 3 nodes, 3 links, 100% transitivity
+            var n1 = new MindMapNode { Id = "n1", Title = "Node 1" };
+            var n2 = new MindMapNode { Id = "n2", Title = "Node 2" };
+            var n3 = new MindMapNode { Id = "n3", Title = "Node 3" };
+
+            var l1 = new MindMapLink { Id = "l1", SourceNodeId = "n1", TargetNodeId = "n2" };
+            var l2 = new MindMapLink { Id = "l2", SourceNodeId = "n2", TargetNodeId = "n3" };
+            var l3 = new MindMapLink { Id = "l3", SourceNodeId = "n3", TargetNodeId = "n1" };
+
+            var triangleAudit = MindMapStudioViewModel.AuditClusteringCoefficientAndTransitivity(
+                new[] { n1, n2, n3 }, new[] { l1, l2, l3 });
+
+            Assert.Equal(3, triangleAudit.TotalNodes);
+            Assert.Equal(3, triangleAudit.TotalLinks);
+            Assert.Equal(1, triangleAudit.TotalTriangles);
+            Assert.Equal(100.0, triangleAudit.GlobalTransitivity);
+            Assert.Equal(100.0, triangleAudit.MeanClusteringCoefficient);
+            Assert.Equal("Dense Triadic Mesh (High Semantic Clustering)", triangleAudit.TopologyCategory);
+
+            // 3. Tree topology (n1 - n2 and n1 - n3, but no edge n2 - n3) -> 0 triangles, 1 open triplet
+            var treeAudit = MindMapStudioViewModel.AuditClusteringCoefficientAndTransitivity(
+                new[] { n1, n2, n3 }, new[] { l1, l2 });
+
+            Assert.Equal(3, treeAudit.TotalNodes);
+            Assert.Equal(2, treeAudit.TotalLinks);
+            Assert.Equal(0, treeAudit.TotalTriangles);
+            Assert.Equal(1, treeAudit.TotalOpenTriplets);
+            Assert.Equal(0.0, treeAudit.GlobalTransitivity);
+            Assert.Equal("Acyclic Tree Hierarchy (0 Triangles)", treeAudit.TopologyCategory);
+            Assert.Equal(95.0, treeAudit.ClusteringFidelityScore);
+        }
     }
 }
 

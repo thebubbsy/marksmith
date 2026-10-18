@@ -6524,6 +6524,213 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Graph radial layout ({scopeStr}{nodeLabel}, {ringLabel} · {category}): Fidelity {fidelityScore:0.#}% (Angular uniformity {angularScore:0.#}%, Jitter ±{radiusJitter:0.#}px){crowdAlert}";
         }
+
+        /// <summary>
+        /// Audits graph clustering coefficients, triadic closure, and network transitivity
+        /// to evaluate local community cohesiveness and open triplet bridging opportunities.
+        /// </summary>
+        public GraphClusteringAndTransitivityAudit AuditClusteringCoefficientAndTransitivity(bool selectionOnly = false)
+        {
+            var targetNodes = (selectionOnly && HasSelection)
+                ? Nodes.Where(n => n.IsSelected).ToList()
+                : Nodes.ToList();
+
+            if (targetNodes.Count == 0)
+            {
+                string emptySummary = FormatClusteringCoefficientSummary(0, 0, 0, 0.0, 0.0, "Empty Galaxy", 0, selectionOnly);
+                return new GraphClusteringAndTransitivityAudit(
+                    TotalNodes: 0,
+                    TotalLinks: 0,
+                    TotalTriangles: 0,
+                    TotalClosedTriplets: 0,
+                    TotalOpenTriplets: 0,
+                    GlobalTransitivity: 100.0,
+                    MeanClusteringCoefficient: 100.0,
+                    Nodes: Array.Empty<NodeClusteringInfo>(),
+                    HighClusteringNodeTitles: Array.Empty<string>(),
+                    BridgeBottleneckNodeTitles: Array.Empty<string>(),
+                    TopologyCategory: "Empty Galaxy",
+                    ClusteringFidelityScore: 100.0,
+                    IsSelectionScope: selectionOnly,
+                    Summary: emptySummary);
+            }
+
+            var nodeSet = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.Ordinal);
+            var adj = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            foreach (var n in targetNodes)
+            {
+                adj[n.Id] = new HashSet<string>(StringComparer.Ordinal);
+            }
+
+            int relevantLinks = 0;
+            foreach (var l in Links)
+            {
+                if (nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId) && l.SourceNodeId != l.TargetNodeId)
+                {
+                    if (adj[l.SourceNodeId].Add(l.TargetNodeId))
+                    {
+                        adj[l.TargetNodeId].Add(l.SourceNodeId);
+                        relevantLinks++;
+                    }
+                }
+            }
+
+            var nodeMetrics = new List<NodeClusteringInfo>();
+            int totalTrianglesCount = 0;
+            int totalConnectedTriplets = 0;
+            int totalOpenTriplets = 0;
+
+            foreach (var n in targetNodes)
+            {
+                var neighbors = adj[n.Id].ToList();
+                int degree = neighbors.Count;
+
+                if (degree < 2)
+                {
+                    nodeMetrics.Add(new NodeClusteringInfo(
+                        NodeId: n.Id,
+                        NodeTitle: string.IsNullOrWhiteSpace(n.Title) ? n.Id : n.Title,
+                        Degree: degree,
+                        TriangleCount: 0,
+                        LocalClusteringCoefficient: 0.0,
+                        OpenTripletCount: 0));
+                    continue;
+                }
+
+                int localTriangles = 0;
+                for (int i = 0; i < neighbors.Count; i++)
+                {
+                    for (int j = i + 1; j < neighbors.Count; j++)
+                    {
+                        if (adj[neighbors[i]].Contains(neighbors[j]))
+                        {
+                            localTriangles++;
+                        }
+                    }
+                }
+
+                int possibleTriangles = (degree * (degree - 1)) / 2;
+                int openTriplets = possibleTriangles - localTriangles;
+                double localC = possibleTriangles > 0 ? (double)localTriangles / possibleTriangles : 0.0;
+
+                totalTrianglesCount += localTriangles;
+                totalConnectedTriplets += possibleTriangles;
+                totalOpenTriplets += openTriplets;
+
+                nodeMetrics.Add(new NodeClusteringInfo(
+                    NodeId: n.Id,
+                    NodeTitle: string.IsNullOrWhiteSpace(n.Title) ? n.Id : n.Title,
+                    Degree: degree,
+                    TriangleCount: localTriangles,
+                    LocalClusteringCoefficient: Math.Round(localC * 100.0, 1),
+                    OpenTripletCount: openTriplets));
+            }
+
+            int uniqueTriangles = totalTrianglesCount / 3;
+            double globalTransitivity = totalConnectedTriplets > 0
+                ? ((3.0 * uniqueTriangles) / totalConnectedTriplets) * 100.0
+                : 0.0;
+
+            var nodesWithDegreeGte2 = nodeMetrics.Where(m => m.Degree >= 2).ToList();
+            double meanLocalC = nodesWithDegreeGte2.Count > 0
+                ? nodesWithDegreeGte2.Average(m => m.LocalClusteringCoefficient)
+                : 0.0;
+
+            var highClustering = nodeMetrics
+                .Where(m => m.Degree >= 2 && m.LocalClusteringCoefficient >= 50.0)
+                .OrderByDescending(m => m.LocalClusteringCoefficient)
+                .ThenByDescending(m => m.TriangleCount)
+                .Select(m => m.NodeTitle)
+                .Take(5)
+                .ToList();
+
+            var bridgeBottlenecks = nodeMetrics
+                .Where(m => m.Degree >= 3 && m.LocalClusteringCoefficient == 0.0)
+                .OrderByDescending(m => m.Degree)
+                .Select(m => m.NodeTitle)
+                .Take(5)
+                .ToList();
+
+            string category;
+            double fidelityScore;
+
+            if (targetNodes.Count <= 2 || relevantLinks == 0)
+            {
+                category = "Disconnected or Minimal Cluster";
+                fidelityScore = 100.0;
+            }
+            else if (uniqueTriangles == 0)
+            {
+                category = "Acyclic Tree Hierarchy (0 Triangles)";
+                fidelityScore = 95.0;
+            }
+            else if (globalTransitivity >= 45.0)
+            {
+                category = "Dense Triadic Mesh (High Semantic Clustering)";
+                fidelityScore = Math.Min(100.0, 75.0 + (globalTransitivity * 0.25));
+            }
+            else if (globalTransitivity >= 20.0)
+            {
+                category = "Harmonic Small-World Network";
+                fidelityScore = 90.0;
+            }
+            else
+            {
+                category = "Sparse Conceptual Web";
+                fidelityScore = 80.0;
+            }
+
+            string summary = FormatClusteringCoefficientSummary(
+                targetNodes.Count, relevantLinks, uniqueTriangles, globalTransitivity,
+                meanLocalC, category, openTriplets: totalOpenTriplets, isSelection: selectionOnly);
+
+            return new GraphClusteringAndTransitivityAudit(
+                TotalNodes: targetNodes.Count,
+                TotalLinks: relevantLinks,
+                TotalTriangles: uniqueTriangles,
+                TotalClosedTriplets: uniqueTriangles,
+                TotalOpenTriplets: totalOpenTriplets,
+                GlobalTransitivity: Math.Round(globalTransitivity, 1),
+                MeanClusteringCoefficient: Math.Round(meanLocalC, 1),
+                Nodes: nodeMetrics,
+                HighClusteringNodeTitles: highClustering,
+                BridgeBottleneckNodeTitles: bridgeBottlenecks,
+                TopologyCategory: category,
+                ClusteringFidelityScore: Math.Round(fidelityScore, 1),
+                IsSelectionScope: selectionOnly,
+                Summary: summary);
+        }
+
+        public static GraphClusteringAndTransitivityAudit AuditClusteringCoefficientAndTransitivity(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditClusteringCoefficientAndTransitivity();
+        }
+
+        public static string FormatClusteringCoefficientSummary(
+            int nodeCount, int linkCount, int triangleCount, double transitivity,
+            double meanLocalC, string category, int openTriplets = 0, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection" : "Galaxy";
+            if (nodeCount == 0) return $"Graph clustering & transitivity audit ({scope}): 0 nodes · Empty map";
+
+            string nodeStr = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+            string linkStr = linkCount == 1 ? "1 link" : $"{linkCount} links";
+            string triStr = triangleCount == 1 ? "1 triangle" : $"{triangleCount} triangles";
+
+            return $"Graph clustering & transitivity audit ({scope} · {nodeStr}, {linkStr}, {triStr} · {category} · {transitivity:0.#}% transitivity · {meanLocalC:0.#}% mean local C · {openTriplets} open triplets)";
+        }
     }
 
 
@@ -6961,6 +7168,37 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<NodeRadialMetric> NodeMetrics,
         IReadOnlyList<string> CrowdedNodeTitles,
         string LayoutCategory,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents degree, local triangle count, clustering coefficient, and open triplet metrics for a mind map node.
+    /// </summary>
+    public sealed record NodeClusteringInfo(
+        string NodeId,
+        string NodeTitle,
+        int Degree,
+        int TriangleCount,
+        double LocalClusteringCoefficient,
+        int OpenTripletCount);
+
+    /// <summary>
+    /// Represents the result of an audit of graph clustering coefficients, triadic closure,
+    /// network transitivity, and community density across mind map nodes.
+    /// </summary>
+    public sealed record GraphClusteringAndTransitivityAudit(
+        int TotalNodes,
+        int TotalLinks,
+        int TotalTriangles,
+        int TotalClosedTriplets,
+        int TotalOpenTriplets,
+        double GlobalTransitivity,
+        double MeanClusteringCoefficient,
+        IReadOnlyList<NodeClusteringInfo> Nodes,
+        IReadOnlyList<string> HighClusteringNodeTitles,
+        IReadOnlyList<string> BridgeBottleneckNodeTitles,
+        string TopologyCategory,
+        double ClusteringFidelityScore,
         bool IsSelectionScope,
         string Summary);
 }

@@ -7995,6 +7995,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(footnoteReferenceConsistencyItem);
 
+        var admonitionCalloutItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown admonition callout consistency audit",
+            Icon = new FontIcon { Glyph = "\uE7BA" }
+        };
+        admonitionCalloutItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatAdmonitionCalloutSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(admonitionCalloutItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9491,6 +9505,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(footnoteReferenceConsistencyItem);
+
+        var admonitionCalloutItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown admonition callout consistency audit",
+            Icon = new FontIcon { Glyph = "\uE7BA" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        admonitionCalloutItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatAdmonitionCalloutSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(admonitionCalloutItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

@@ -1783,6 +1783,54 @@ public class TextSearchTests
         Assert.True(mixedAudit.FootnoteConsistencyScore < 100.0);
         Assert.Equal("Missing Footnote Targets", mixedAudit.Category);
     }
+
+    [Fact]
+    public void AdmonitionCalloutConsistency_Audits_Properly()
+    {
+        // 1. Empty / whitespace doc
+        var emptyAudit = TextSearch.AuditAdmonitionCalloutConsistency("");
+        Assert.Equal(0, emptyAudit.TotalCallouts);
+        Assert.Equal(100.0, emptyAudit.ParityScore);
+        Assert.Equal("No Admonitions", emptyAudit.Category);
+
+        // 2. Clean GFM callouts
+        var cleanDoc = string.Join("\n",
+            "> [!NOTE]",
+            "> Useful background context for the section.",
+            "",
+            "> [!TIP] Pro Tip",
+            "> Press Ctrl+S frequently to save work.",
+            "",
+            "> [!WARNING]+ Collapsible Warning",
+            "> High voltage wiring inside.");
+
+        var cleanAudit = TextSearch.AuditAdmonitionCalloutConsistency(cleanDoc);
+        Assert.Equal(3, cleanAudit.TotalCallouts);
+        Assert.Equal(3, cleanAudit.StandardCallouts);
+        Assert.Equal(0, cleanAudit.CustomCallouts);
+        Assert.Equal(0, cleanAudit.ImproperSpacingCount);
+        Assert.Equal(0, cleanAudit.EmptyBodyCount);
+        Assert.Equal(100.0, cleanAudit.ParityScore);
+        Assert.Equal("Pristine GFM Admonition Syntax", cleanAudit.Category);
+        Assert.True(cleanAudit.Callouts[2].IsFoldable);
+        Assert.True(cleanAudit.Callouts[2].FoldableExpanded);
+
+        // 3. Document with improper spacing and nested depth
+        var mixedDoc = string.Join("\n",
+            ">[!NOTE]", // missing space
+            "> No space after chevron.",
+            "",
+            ">> [!CAUTION]", // nested
+            ">> Deeply nested alert.");
+
+        var mixedAudit = TextSearch.AuditAdmonitionCalloutConsistency(mixedDoc);
+        Assert.Equal(2, mixedAudit.TotalCallouts);
+        Assert.Equal(1, mixedAudit.ImproperSpacingCount);
+        Assert.Equal(1, mixedAudit.NestedCallouts);
+        Assert.Equal(2, mixedAudit.MaxNestingDepth);
+        Assert.True(mixedAudit.ParityScore < 100.0);
+        Assert.Equal(mixedAudit.Summary, TextSearch.FormatAdmonitionCalloutSummary(mixedDoc));
+    }
 }
 
 

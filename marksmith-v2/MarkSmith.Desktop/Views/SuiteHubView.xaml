@@ -309,6 +309,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceAssetDeduplicationAdvisorItem" Text="Copy workspace asset redundancy &amp; hash deduplication advisor" Click="OnCopyWorkspaceAssetDeduplicationAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE777;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyWorkspaceHeadingAdvisorItem" Text="Copy workspace markdown header depth uniformity &amp; slug advisor" Click="OnCopyWorkspaceHeadingAdvisorClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

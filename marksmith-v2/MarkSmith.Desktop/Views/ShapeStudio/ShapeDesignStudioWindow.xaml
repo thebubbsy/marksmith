@@ -712,6 +712,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditConnectorCurvatureItem" Text="Audit connector path curvature &amp; Bezier tangent smoothness" Click="OnSelectionAuditConnectorCurvatureClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE746;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditAspectRatioScalingItem" Text="Audit shape aspect ratio lock &amp; geometric primitive scaling" Click="OnSelectionAuditAspectRatioScalingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE799;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -4546,6 +4546,108 @@ public static class LineDiff
         string deltaSign = deltaH >= 0 ? "+" : "";
         return $"Semantic diff token entropy audit ({category} · {driftScore:0.#}% stability): H_before={hBefore:0.##}b, H_after={hAfter:0.##}b (ΔH={deltaSign}{deltaH:0.##} bits/token · Vocab ratio {vocabExpansion:0.##}x)";
     }
+
+    /// <summary>
+    /// Audits unified diff lines for line-wrap boundaries, long line overflows, and horizontal scroll spills
+    /// in side-by-side or unified diff viewing contexts.
+    /// </summary>
+    public static DiffLineWrapOverflowAudit AuditDiffLineWrapAndOverflow(
+        IReadOnlyList<UnifiedRow>? unifiedRows, int maxColumnWidth = 120)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            string emptySummary = "Diff line-wrap audit: 0 rows · Empty diff (Zero diff deltas)";
+            return new DiffLineWrapOverflowAudit(
+                0, 0, 0, 0, maxColumnWidth, 100.0,
+                Array.Empty<DiffLineOverflowInfo>(),
+                "Empty Diff",
+                emptySummary);
+        }
+
+        int standardWidthCount = 0;
+        int moderateOverflowCount = 0;
+        int severeOverflowCount = 0;
+        var overflows = new List<DiffLineOverflowInfo>();
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var row = unifiedRows[i];
+            string text = row.Text ?? string.Empty;
+
+            int visualLength = 0;
+            foreach (char c in text)
+            {
+                if (c == '\t') visualLength += 4 - (visualLength % 4);
+                else visualLength++;
+            }
+
+            string changeType = row.Kind.ToString();
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            if (visualLength <= maxColumnWidth)
+            {
+                standardWidthCount++;
+            }
+            else
+            {
+                bool isSevere = visualLength > (maxColumnWidth + 40);
+                if (isSevere) severeOverflowCount++;
+                else moderateOverflowCount++;
+
+                string snippet = text.Length > 60 ? text.Substring(0, 57) + "..." : text;
+                overflows.Add(new DiffLineOverflowInfo(
+                    RowIndex: i,
+                    ChangeType: changeType,
+                    LineNumber: lineNum,
+                    ColumnLength: visualLength,
+                    PreviewSnippet: snippet,
+                    IsExtremeOverflow: visualLength > 250));
+            }
+        }
+
+        int totalEvaluated = unifiedRows.Count;
+        double penalty = (moderateOverflowCount * 10.0 + severeOverflowCount * 25.0) / totalEvaluated;
+        double stabilityScore = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = stabilityScore switch
+        {
+            >= 95.0 when moderateOverflowCount == 0 && severeOverflowCount == 0 => "Zero Horizontal Spill / Optimal Wrap Boundaries",
+            >= 80.0 => "Minor Diff Column Width Overflows",
+            >= 60.0 => "Moderate Horizontal Scroll Spills",
+            _ => "Severe Diff Line Wrapping / Extreme Overflow"
+        };
+
+        string summary = FormatDiffLineWrapSummary(
+            totalEvaluated, standardWidthCount, moderateOverflowCount, severeOverflowCount,
+            maxColumnWidth, stabilityScore, category);
+
+        return new DiffLineWrapOverflowAudit(
+            TotalRowsEvaluated: totalEvaluated,
+            StandardWidthCount: standardWidthCount,
+            ModerateOverflowCount: moderateOverflowCount,
+            SevereOverflowCount: severeOverflowCount,
+            MaxColumnWidth: maxColumnWidth,
+            HorizontalStabilityScore: Math.Round(stabilityScore, 1),
+            Overflows: overflows,
+            Category: category,
+            Summary: summary);
+    }
+
+    public static string FormatDiffLineWrapSummary(
+        int totalRows, int standardCount, int moderateOverflow, int severeOverflow,
+        int maxWidth, double stabilityScore, string category)
+    {
+        if (totalRows == 0) return "Diff line-wrap audit: 0 rows · Empty diff (Zero diff deltas)";
+
+        string rowLabel = totalRows == 1 ? "1 row" : $"{totalRows} rows";
+        int totalOverflow = moderateOverflow + severeOverflow;
+        var alerts = new List<string>();
+        if (severeOverflow > 0) alerts.Add($"🚨 {severeOverflow} severe spill{(severeOverflow == 1 ? "" : "s")}");
+        if (moderateOverflow > 0) alerts.Add($"⚠ {moderateOverflow} wide line{(moderateOverflow == 1 ? "" : "s")}");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : $" · All ≤{maxWidth} cols";
+        return $"Diff line-wrap & overflow audit ({rowLabel} [limit {maxWidth} cols] · {category} · {stabilityScore:0.#}% score){details}";
+    }
 }
 
 /// <summary>
@@ -4809,6 +4911,28 @@ public sealed record SemanticDiffTokenEntropyAudit(
     string DriftCategory,
     string Summary);
 
+/// <summary>
+/// Represents column length, row index, and overflow severity for an individual diff row.
+/// </summary>
+public sealed record DiffLineOverflowInfo(
+    int RowIndex,
+    string ChangeType,
+    int LineNumber,
+    int ColumnLength,
+    string PreviewSnippet,
+    bool IsExtremeOverflow);
 
-
-
+/// <summary>
+/// Represents the result of an audit of diff line-wrap boundaries, column width overflows,
+/// and horizontal scroll spills.
+/// </summary>
+public sealed record DiffLineWrapOverflowAudit(
+    int TotalRowsEvaluated,
+    int StandardWidthCount,
+    int ModerateOverflowCount,
+    int SevereOverflowCount,
+    int MaxColumnWidth,
+    double HorizontalStabilityScore,
+    IReadOnlyList<DiffLineOverflowInfo> Overflows,
+    string Category,
+    string Summary);

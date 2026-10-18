@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MarkSmith.Core.AST;
@@ -5416,6 +5417,184 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Linear flow rhythm audit ({stepLabel} [{totalWords} words, avg {meanWords:0.#}w/step] · {category} · {score:0.#}% score): Variation CV={cv:0.##}{outlierAlert}";
     }
+
+    /// <summary>
+    /// Audits SmartArt radial cycle and hub-and-spoke outline structures for harmonic angular sector spacing (360° / N),
+    /// spoke orbital pacing, word count variance, and text weight balance.
+    /// </summary>
+    public SmartArtRadialCycleAudit AuditRadialCycleOrbitalBalance(string? markdown = null)
+    {
+        string text = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            string emptySummary = "Radial cycle orbital balance audit: 0 spokes · Outline is empty";
+            return new SmartArtRadialCycleAudit(
+                HubTitle: "Empty Outline",
+                TotalSpokes: 0,
+                AngularSectorStepDegrees: 0.0,
+                WordCountStdDev: 0.0,
+                SpokeBalanceScore: 100.0,
+                ImbalancedSpokeCount: 0,
+                Spokes: Array.Empty<RadialSpokeInfo>(),
+                Category: "Empty Outline",
+                Summary: emptySummary);
+        }
+
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        string hubTitle = "Central Hub";
+        var spokes = new List<(string Title, int Words, int SubBullets)>();
+
+        string? currentSpoke = null;
+        int currentSpokeWords = 0;
+        int currentSpokeSubBullets = 0;
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            bool isBullet = trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ") || Regex.IsMatch(trimmed, @"^\d+\.\s");
+            int indent = rawLine.TakeWhile(c => c == ' ' || c == '\t').Sum(c => c == '\t' ? 4 : 1);
+
+            string content = Regex.Replace(trimmed, @"^[-*+#\d.]+\s*", "").Trim();
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            int wordCount = content.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+
+            if (trimmed.StartsWith("# ") || (indent == 0 && !isBullet && spokes.Count == 0 && currentSpoke == null))
+            {
+                hubTitle = content;
+                continue;
+            }
+
+            if ((isBullet && indent <= 2) || (indent == 0 && isBullet))
+            {
+                if (currentSpoke != null)
+                {
+                    spokes.Add((currentSpoke, currentSpokeWords, currentSpokeSubBullets));
+                }
+                currentSpoke = content;
+                currentSpokeWords = wordCount;
+                currentSpokeSubBullets = 0;
+            }
+            else
+            {
+                if (currentSpoke != null)
+                {
+                    currentSpokeWords += wordCount;
+                    currentSpokeSubBullets++;
+                }
+                else
+                {
+                    currentSpoke = content;
+                    currentSpokeWords = wordCount;
+                    currentSpokeSubBullets = 0;
+                }
+            }
+        }
+
+        if (currentSpoke != null)
+        {
+            spokes.Add((currentSpoke, currentSpokeWords, currentSpokeSubBullets));
+        }
+
+        int totalSpokes = spokes.Count;
+        if (totalSpokes == 0)
+        {
+            string emptySummary = "Radial cycle orbital balance audit: 0 spokes · Outline contains no orbital nodes";
+            return new SmartArtRadialCycleAudit(
+                HubTitle: hubTitle,
+                TotalSpokes: 0,
+                AngularSectorStepDegrees: 0.0,
+                WordCountStdDev: 0.0,
+                SpokeBalanceScore: 100.0,
+                ImbalancedSpokeCount: 0,
+                Spokes: Array.Empty<RadialSpokeInfo>(),
+                Category: "No Spokes Found",
+                Summary: emptySummary);
+        }
+
+        double angleStep = totalSpokes > 0 ? (360.0 / totalSpokes) : 0.0;
+        double meanWords = spokes.Average(s => s.Words);
+        double variance = spokes.Select(s => Math.Pow(s.Words - meanWords, 2)).Average();
+        double stdDev = Math.Sqrt(variance);
+        double cv = meanWords > 0 ? (stdDev / meanWords) : 0.0;
+
+        var evaluatedSpokes = new List<RadialSpokeInfo>();
+        int imbalancedCount = 0;
+
+        for (int i = 0; i < totalSpokes; i++)
+        {
+            var sp = spokes[i];
+            double angle = i * angleStep;
+            double weightRatio = meanWords > 0 ? (sp.Words / meanWords) : 1.0;
+            bool isImbalanced = weightRatio > 2.0 || weightRatio < 0.35;
+            if (isImbalanced) imbalancedCount++;
+
+            evaluatedSpokes.Add(new RadialSpokeInfo(
+                SpokeIndex: i + 1,
+                Title: sp.Title,
+                AngleDegrees: Math.Round(angle, 1),
+                WordCount: sp.Words,
+                SubBulletCount: sp.SubBullets,
+                WeightRatio: Math.Round(weightRatio, 2),
+                IsImbalanced: isImbalanced));
+        }
+
+        double score;
+        if (totalSpokes < 3)
+        {
+            score = 65.0;
+        }
+        else if (totalSpokes > 10)
+        {
+            score = Math.Max(50.0, 95.0 - (totalSpokes - 10) * 8.0);
+        }
+        else
+        {
+            score = Math.Clamp(100.0 - (cv * 35.0) - (imbalancedCount * 12.0), 0.0, 100.0);
+        }
+
+        string category = score switch
+        {
+            >= 90.0 when totalSpokes >= 3 && totalSpokes <= 8 => "Harmonic Radial Orbital Cycle",
+            >= 75.0 => "Balanced Hub-and-Spoke Distribution",
+            >= 60.0 => totalSpokes < 3 ? "Degenerate Radial Cycle (< 3 Spokes)" : "Lopsided Spoke Text Weight",
+            _ => totalSpokes > 10 ? "Crowded Orbital Ring (> 10 Spokes)" : "Severe Radial Weight Imbalance"
+        };
+
+        string summary = FormatRadialCycleSummary(
+            hubTitle, totalSpokes, angleStep, stdDev, score, category, imbalancedCount);
+
+        return new SmartArtRadialCycleAudit(
+            HubTitle: hubTitle,
+            TotalSpokes: totalSpokes,
+            AngularSectorStepDegrees: Math.Round(angleStep, 1),
+            WordCountStdDev: Math.Round(stdDev, 1),
+            SpokeBalanceScore: Math.Round(score, 1),
+            ImbalancedSpokeCount: imbalancedCount,
+            Spokes: evaluatedSpokes,
+            Category: category,
+            Summary: summary);
+    }
+
+    public static SmartArtRadialCycleAudit AuditRadialCycleOrbitalBalance(string? markdown, bool isStatic)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditRadialCycleOrbitalBalance(markdown);
+    }
+
+    public static string FormatRadialCycleSummary(
+        string hubTitle, int totalSpokes, double angleStep, double stdDev,
+        double score, string category, int imbalancedCount)
+    {
+        if (totalSpokes == 0) return "Radial cycle orbital balance audit: 0 spokes · Outline is empty";
+
+        string spokeLabel = totalSpokes == 1 ? "1 spoke" : $"{totalSpokes} spokes";
+        string imbalanceAlert = imbalancedCount > 0 ? $" · ⚠ {imbalancedCount} lopsided spoke{(imbalancedCount == 1 ? "" : "s")}" : " · Harmonic angular pacing";
+
+        return $"Radial cycle orbital balance audit (Hub: \"{hubTitle}\" · {spokeLabel} [{angleStep:0.#}° step] · {category} · {score:0.#}% score): Text std dev ±{stdDev:0.#}w{imbalanceAlert}";
+    }
 }
 
 /// <summary>
@@ -5794,5 +5973,29 @@ public sealed record LinearFlowChevronRhythmAudit(
     string RhythmCategory,
     string Summary);
 
+/// <summary>
+/// Represents evaluated angular sector, text weight ratio, and balance metrics for an individual radial spoke.
+/// </summary>
+public sealed record RadialSpokeInfo(
+    int SpokeIndex,
+    string Title,
+    double AngleDegrees,
+    int WordCount,
+    int SubBulletCount,
+    double WeightRatio,
+    bool IsImbalanced);
 
-
+/// <summary>
+/// Represents the result of an audit of SmartArt radial cycle and hub-and-spoke angular balance,
+/// orbital pacing, and spoke text weight distribution.
+/// </summary>
+public sealed record SmartArtRadialCycleAudit(
+    string HubTitle,
+    int TotalSpokes,
+    double AngularSectorStepDegrees,
+    double WordCountStdDev,
+    double SpokeBalanceScore,
+    int ImbalancedSpokeCount,
+    IReadOnlyList<RadialSpokeInfo> Spokes,
+    string Category,
+    string Summary);

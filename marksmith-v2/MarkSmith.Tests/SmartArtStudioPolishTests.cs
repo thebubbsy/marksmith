@@ -1646,6 +1646,43 @@ public class SmartArtStudioPolishTests
         Assert.True(outlierAudit.ProgressionRhythmScore < 85.0);
         Assert.Equal("Pacing Imbalance / Wordy Steps Detected", outlierAudit.RhythmCategory);
     }
+
+    [Fact]
+    public void Run168_AuditRadialCycleOrbitalBalance_DetectsSpokeBalance()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditRadialCycleOrbitalBalance("", isStatic: true);
+        Assert.Equal(0, emptyAudit.TotalSpokes);
+        Assert.Equal(100.0, emptyAudit.SpokeBalanceScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        // 2. Harmonic 4-spoke radial cycle with central hub
+        var balancedMd = string.Join("\n",
+            "# Core System Hub",
+            "- Frontend Presentation Layer",
+            "- Backend API Service",
+            "- Database Storage Cluster",
+            "- Realtime Messaging Bus");
+
+        var balancedAudit = SmartArtDesignStudioViewModel.AuditRadialCycleOrbitalBalance(balancedMd, isStatic: true);
+        Assert.Equal("Core System Hub", balancedAudit.HubTitle);
+        Assert.Equal(4, balancedAudit.TotalSpokes);
+        Assert.Equal(90.0, balancedAudit.AngularSectorStepDegrees); // 360 / 4 = 90
+        Assert.Equal(0, balancedAudit.ImbalancedSpokeCount);
+        Assert.True(balancedAudit.SpokeBalanceScore >= 90.0);
+        Assert.Equal("Harmonic Radial Orbital Cycle", balancedAudit.Category);
+
+        // 3. Degenerate cycle (<3 spokes)
+        var degenerateMd = string.Join("\n",
+            "# Two Spokes",
+            "- Spoke A",
+            "- Spoke B");
+
+        var degenerateAudit = SmartArtDesignStudioViewModel.AuditRadialCycleOrbitalBalance(degenerateMd, isStatic: true);
+        Assert.Equal(2, degenerateAudit.TotalSpokes);
+        Assert.Equal(65.0, degenerateAudit.SpokeBalanceScore);
+        Assert.Contains("< 3 Spokes", degenerateAudit.Category);
+    }
 }
 
 

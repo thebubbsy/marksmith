@@ -4080,6 +4080,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditClusteringTransitivityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditClusteringCoefficientAndTransitivity();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5055,6 +5063,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditRadialLayoutItem.Click += OnAuditRadialLayoutClick;
             menu.Items.Add(auditRadialLayoutItem);
+
+            var auditClusteringTransitivityItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph clustering coefficient & triadic closure",
+                Icon = new FontIcon { Glyph = "\uE81E" }
+            };
+            auditClusteringTransitivityItem.Click += OnAuditClusteringTransitivityClick;
+            menu.Items.Add(auditClusteringTransitivityItem);
 
             var fitItem = new MenuFlyoutItem
 

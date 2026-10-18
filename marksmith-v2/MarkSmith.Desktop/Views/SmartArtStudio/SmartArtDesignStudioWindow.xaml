@@ -341,6 +341,9 @@
                                         <MenuFlyoutItem x:Name="AuditLinearFlowRhythmItem" Text="Audit chevron / linear flow arrowhead aspect ratio &amp; progression rhythm" Click="OnAuditLinearFlowRhythmClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditRadialCycleBalanceItem" Text="Audit radial cycle / hub-and-spoke angular balance &amp; orbital pacing" Click="OnAuditRadialCycleBalanceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C1;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

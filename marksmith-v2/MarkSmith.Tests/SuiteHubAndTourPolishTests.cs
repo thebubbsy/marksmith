@@ -3165,6 +3165,83 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("CopyWorkspaceAssetDeduplicationAdvisorItem", suiteXaml);
         Assert.Contains("OnCopyWorkspaceAssetDeduplicationAdvisorClick", suiteCs);
     }
+
+    [Fact]
+    public void Run168_Polish_Elements_Wired_Across_Surfaces_And_HeadingUniformity()
+    {
+        // 1. AuditWorkspaceMarkdownHeaderUniformity - empty
+        var empty = RecentFilesService.AuditWorkspaceMarkdownHeaderUniformity(Array.Empty<string>());
+        Assert.Equal(0, empty.TotalDocumentsEvaluated);
+        Assert.Equal(100.0, empty.HeadingUniformityScore);
+        Assert.Equal("No Documents", empty.Category);
+
+        // 2. AuditWorkspaceMarkdownHeaderUniformity with mock documents
+        var doc1 = string.Join("\n",
+            "# Introduction",
+            "Introductory text.",
+            "## Architecture Overview",
+            "Architecture details.",
+            "### Component Pipeline",
+            "Pipeline breakdown.");
+
+        var doc2 = string.Join("\n",
+            "# Getting Started",
+            "Setup guide.",
+            "## Prerequisites",
+            "Prereq list.");
+
+        var files = new[] { "C:/docs/doc1.md", "C:/docs/doc2.md" };
+        var audit = RecentFilesService.AuditWorkspaceMarkdownHeaderUniformity(
+            files,
+            fileExistsProvider: _ => true,
+            contentReader: path => path.EndsWith("doc1.md") ? doc1 : doc2);
+
+        Assert.Equal(2, audit.TotalDocumentsEvaluated);
+        Assert.Equal(5, audit.TotalHeadingsFound);
+        Assert.Equal(5, audit.AtxCount);
+        Assert.Equal(0, audit.SetextCount);
+        Assert.Equal(0, audit.SkippedLevelCount);
+        Assert.Equal(0, audit.DuplicateSlugCount);
+        Assert.Equal(100.0, audit.HeadingUniformityScore);
+        Assert.Equal("Pure Monotonic ATX Hierarchy", audit.Category);
+        Assert.Equal(audit.Summary, RecentFilesService.FormatWorkspaceHeadingUniformitySummary(
+            2, 5, 5, 0, 0, 0, 100.0, audit.Category));
+
+        // 3. Cross-surface XAML / C# wiring verification for Run #168 across all 6 surfaces:
+        // MainWindow: admonitionCalloutItem
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("admonitionCalloutItem", mainCs);
+        Assert.Contains("FormatAdmonitionCalloutSummary", mainCs);
+
+        // MindMapGalaxy: AuditClusteringTransitivityItem
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditClusteringTransitivityItem", galaxyXaml);
+        Assert.Contains("OnAuditClusteringTransitivityClick", galaxyCs);
+
+        // ShapeStudio: SelectionAuditAspectRatioScalingItem
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditAspectRatioScalingItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditAspectRatioScalingClick", shapeCs);
+
+        // SmartArtStudio: AuditRadialCycleBalanceItem
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditRadialCycleBalanceItem", smartArtXaml);
+        Assert.Contains("OnAuditRadialCycleBalanceClick", smartArtCs);
+
+        // HistoryWindow: auditDiffLineWrap
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditDiffLineWrap", historyCs);
+        Assert.Contains("AuditDiffLineWrapAndOverflow", historyCs);
+
+        // SuiteHubView: CopyWorkspaceHeadingAdvisorItem
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceHeadingAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceHeadingAdvisorClick", suiteCs);
+    }
 }
 
 

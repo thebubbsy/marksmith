@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace MarkSmith.Services;
 
@@ -3893,6 +3894,226 @@ public sealed class RecentFilesService
 
         return $"Workspace asset deduplication advisor ({assetLabel} · {category} · {efficiencyScore:0.#}% efficiency): {duplicateGroups} duplicate group{(duplicateGroups == 1 ? "" : "s")} ({redundantCopies} copies) · {wastedStr} reclaimable";
     }
+
+    /// <summary>
+    /// Audits workspace markdown documents for heading style uniformity (ATX # vs Setext === / ---),
+    /// heading depth monotonicity (detecting skipped levels), and anchor slug collisions/invalid characters.
+    /// </summary>
+    public static WorkspaceHeadingUniformityAudit AuditWorkspaceMarkdownHeaderUniformity(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var fileList = (files ?? Enumerable.Empty<string>()).ToList();
+        var exists = fileExistsProvider ?? (path => File.Exists(path));
+        var reader = contentReader ?? (path => File.ReadAllText(path));
+
+        var mdFiles = fileList
+            .Where(f => !string.IsNullOrWhiteSpace(f) &&
+                        (f.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
+                         f.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (mdFiles.Count == 0)
+        {
+            string emptySummary = "Workspace heading uniformity advisor: 0 markdown documents · No documents in scope";
+            return new WorkspaceHeadingUniformityAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DocumentHeadingItem>(),
+                Array.Empty<string>(),
+                "No Documents",
+                emptySummary);
+        }
+
+        var allHeadings = new List<DocumentHeadingItem>();
+        var issues = new List<string>();
+
+        int evaluatedDocCount = 0;
+        int atxCount = 0;
+        int setextCount = 0;
+        int skippedLevelCount = 0;
+        int duplicateSlugCount = 0;
+
+        foreach (var file in mdFiles)
+        {
+            if (!exists(file)) continue;
+
+            string text;
+            try
+            {
+                text = reader(file);
+            }
+            catch
+            {
+                continue;
+            }
+
+            evaluatedDocCount++;
+            var lines = text.Replace("\r\n", "\n").Split('\n');
+            bool inCodeFence = false;
+            string fenceMarker = string.Empty;
+
+            var docSlugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int prevLevel = 0;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                var trimmed = line.Trim();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+                {
+                    string tag = trimmed.Length >= 3 ? trimmed.Substring(0, 3) : trimmed;
+                    if (!inCodeFence)
+                    {
+                        inCodeFence = true;
+                        fenceMarker = tag;
+                    }
+                    else if (tag == fenceMarker || trimmed == ":::")
+                    {
+                        inCodeFence = false;
+                        fenceMarker = string.Empty;
+                    }
+                    continue;
+                }
+
+                if (inCodeFence) continue;
+
+                // Check ATX heading: # Heading
+                var atxMatch = Regex.Match(line, @"^(#{1,6})\s+(.*)$");
+                if (atxMatch.Success)
+                {
+                    atxCount++;
+                    int level = atxMatch.Groups[1].Value.Length;
+                    string title = atxMatch.Groups[2].Value.Trim().TrimEnd('#').Trim();
+                    string slug = GenerateSlug(title);
+
+                    bool isSkipped = prevLevel > 0 && level > prevLevel + 1;
+                    if (isSkipped) skippedLevelCount++;
+
+                    bool hasInvalidChars = Regex.IsMatch(title, @"[<>""'|?*]");
+                    bool isDuplicate = !docSlugs.Add(slug);
+                    if (isDuplicate) duplicateSlugCount++;
+
+                    allHeadings.Add(new DocumentHeadingItem(
+                        FilePath: file,
+                        LineNumber: i + 1,
+                        Level: level,
+                        Style: "ATX",
+                        Title: title,
+                        AnchorSlug: slug,
+                        HasInvalidChars: hasInvalidChars,
+                        IsLevelSkipped: isSkipped));
+
+                    prevLevel = level;
+                    continue;
+                }
+
+                // Check Setext heading: line followed by === or ---
+                if (i > 0 && (Regex.IsMatch(trimmed, @"^={2,}$") || Regex.IsMatch(trimmed, @"^-{2,}$")))
+                {
+                    var prevLine = lines[i - 1].Trim();
+                    if (!string.IsNullOrWhiteSpace(prevLine) && !prevLine.StartsWith("#") && !prevLine.StartsWith(">") && !prevLine.StartsWith("-") && !prevLine.StartsWith("*"))
+                    {
+                        setextCount++;
+                        int level = trimmed.StartsWith("=") ? 1 : 2;
+                        string title = prevLine;
+                        string slug = GenerateSlug(title);
+
+                        bool isSkipped = prevLevel > 0 && level > prevLevel + 1;
+                        if (isSkipped) skippedLevelCount++;
+
+                        bool hasInvalidChars = Regex.IsMatch(title, @"[<>""'|?*]");
+                        bool isDuplicate = !docSlugs.Add(slug);
+                        if (isDuplicate) duplicateSlugCount++;
+
+                        allHeadings.Add(new DocumentHeadingItem(
+                            FilePath: file,
+                            LineNumber: i,
+                            Level: level,
+                            Style: "Setext",
+                            Title: title,
+                            AnchorSlug: slug,
+                            HasInvalidChars: hasInvalidChars,
+                            IsLevelSkipped: isSkipped));
+
+                        prevLevel = level;
+                    }
+                }
+            }
+        }
+
+        int totalHeadings = allHeadings.Count;
+        double uniformityScore;
+
+        if (totalHeadings == 0)
+        {
+            uniformityScore = 100.0;
+        }
+        else
+        {
+            double styleDisparity = (atxCount > 0 && setextCount > 0)
+                ? (Math.Min(atxCount, setextCount) * 20.0) / totalHeadings
+                : 0.0;
+
+            double skipPenalty = (skippedLevelCount * 15.0) / totalHeadings;
+            double duplicatePenalty = (duplicateSlugCount * 12.0) / totalHeadings;
+
+            uniformityScore = Math.Clamp(100.0 - styleDisparity - skipPenalty - duplicatePenalty, 0.0, 100.0);
+        }
+
+        string category = uniformityScore switch
+        {
+            >= 95.0 when setextCount == 0 && skippedLevelCount == 0 => "Pure Monotonic ATX Hierarchy",
+            >= 80.0 => "Consistent Heading Structure",
+            >= 60.0 => (atxCount > 0 && setextCount > 0) ? "Mixed ATX/Setext Heading Styles" : "Level-Skipping Heading Jumps",
+            _ => "Fragmented Heading Hierarchy / Slug Collisions"
+        };
+
+        string summary = FormatWorkspaceHeadingUniformitySummary(
+            evaluatedDocCount, totalHeadings, atxCount, setextCount, skippedLevelCount,
+            duplicateSlugCount, uniformityScore, category);
+
+        return new WorkspaceHeadingUniformityAudit(
+            TotalDocumentsEvaluated: evaluatedDocCount,
+            TotalHeadingsFound: totalHeadings,
+            AtxCount: atxCount,
+            SetextCount: setextCount,
+            SkippedLevelCount: skippedLevelCount,
+            DuplicateSlugCount: duplicateSlugCount,
+            HeadingUniformityScore: Math.Round(uniformityScore, 1),
+            Headings: allHeadings,
+            Issues: issues,
+            Category: category,
+            Summary: summary);
+    }
+
+    private static string GenerateSlug(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "section";
+        string slug = Regex.Replace(text.ToLowerInvariant(), @"[^\w\- ]+", "");
+        slug = Regex.Replace(slug, @"[\s\-]+", "-").Trim('-');
+        return string.IsNullOrEmpty(slug) ? "section" : slug;
+    }
+
+    public static string FormatWorkspaceHeadingUniformitySummary(
+        int totalDocs, int totalHeadings, int atxCount, int setextCount,
+        int skippedLevels, int duplicateSlugs, double score, string category)
+    {
+        if (totalDocs == 0) return "Workspace heading uniformity advisor: 0 documents · Workspace is empty";
+
+        string docLabel = totalDocs == 1 ? "1 document" : $"{totalDocs} documents";
+        string headingLabel = totalHeadings == 1 ? "1 heading" : $"{totalHeadings} headings";
+
+        var alerts = new List<string>();
+        if (atxCount > 0 && setextCount > 0) alerts.Add($"⚠ Mixed {atxCount} ATX / {setextCount} Setext");
+        if (skippedLevels > 0) alerts.Add($"🚨 {skippedLevels} level jump{(skippedLevels == 1 ? "" : "s")}");
+        if (duplicateSlugs > 0) alerts.Add($"⚠ {duplicateSlugs} duplicate slug{(duplicateSlugs == 1 ? "" : "s")}");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · Consistent hierarchy";
+        return $"Workspace heading uniformity advisor ({docLabel}, {headingLabel} · {category} · {score:0.#}% score){details}";
+    }
 }
 
 /// <summary>
@@ -4320,5 +4541,32 @@ public sealed record WorkspaceAssetDeduplicationAudit(
     string DeduplicationCategory,
     string Summary);
 
+/// <summary>
+/// Represents parsed level, formatting style, title, and anchor slug for an individual document heading.
+/// </summary>
+public sealed record DocumentHeadingItem(
+    string FilePath,
+    int LineNumber,
+    int Level,
+    string Style,
+    string Title,
+    string AnchorSlug,
+    bool HasInvalidChars,
+    bool IsLevelSkipped);
 
-
+/// <summary>
+/// Represents the result of an audit of workspace heading depth uniformity, ATX vs Setext style consistency,
+/// and anchor slug integrity.
+/// </summary>
+public sealed record WorkspaceHeadingUniformityAudit(
+    int TotalDocumentsEvaluated,
+    int TotalHeadingsFound,
+    int AtxCount,
+    int SetextCount,
+    int SkippedLevelCount,
+    int DuplicateSlugCount,
+    double HeadingUniformityScore,
+    IReadOnlyList<DocumentHeadingItem> Headings,
+    IReadOnlyList<string> Issues,
+    string Category,
+    string Summary);

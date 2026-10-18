@@ -1786,6 +1786,40 @@ public class HistoryPolishTests : IDisposable
             expandAudit.DriftCategory);
         Assert.Equal(expandAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void AuditDiffLineWrapAndOverflow_DetectsOverflows()
+    {
+        // 1. Empty rows
+        var emptyAudit = LineDiff.AuditDiffLineWrapAndOverflow(Array.Empty<LineDiff.UnifiedRow>());
+        Assert.Equal(0, emptyAudit.TotalRowsEvaluated);
+        Assert.Equal(100.0, emptyAudit.HorizontalStabilityScore);
+        Assert.Equal("Empty Diff", emptyAudit.Category);
+
+        // 2. Clean rows <= 120 cols
+        var r1 = new LineDiff.UnifiedRow(LineDiff.Kind.Same, 1, 1, "Standard line 1", "  ");
+        var r2 = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 2, "Standard line 2", "+ ");
+        var cleanAudit = LineDiff.AuditDiffLineWrapAndOverflow(new[] { r1, r2 }, maxColumnWidth: 120);
+
+        Assert.Equal(2, cleanAudit.TotalRowsEvaluated);
+        Assert.Equal(2, cleanAudit.StandardWidthCount);
+        Assert.Equal(0, cleanAudit.ModerateOverflowCount);
+        Assert.Equal(0, cleanAudit.SevereOverflowCount);
+        Assert.Equal(100.0, cleanAudit.HorizontalStabilityScore);
+        Assert.Equal("Zero Horizontal Spill / Optimal Wrap Boundaries", cleanAudit.Category);
+
+        // 3. Overflow row > 160 cols
+        var longLine = new string('A', 170);
+        var rLong = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 3, longLine, "+ ");
+        var overflowAudit = LineDiff.AuditDiffLineWrapAndOverflow(new[] { r1, rLong }, maxColumnWidth: 120);
+
+        Assert.Equal(2, overflowAudit.TotalRowsEvaluated);
+        Assert.Equal(1, overflowAudit.StandardWidthCount);
+        Assert.Equal(1, overflowAudit.SevereOverflowCount);
+        Assert.True(overflowAudit.HorizontalStabilityScore < 100.0);
+        Assert.Single(overflowAudit.Overflows);
+        Assert.Equal(170, overflowAudit.Overflows[0].ColumnLength);
+    }
 }
 
 

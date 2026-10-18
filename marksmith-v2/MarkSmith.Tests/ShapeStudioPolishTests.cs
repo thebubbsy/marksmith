@@ -1773,6 +1773,43 @@ public class ShapeStudioPolishTests
             kinkAudit.SmoothnessCategory, kinkAudit.IsSelectionScope ? "Selection · " : "");
         Assert.Equal(kinkAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run168_AuditAspectRatioAndPrimitiveScaling_DetectsConformingAndDrift()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditAspectRatioAndPrimitiveScaling();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(100.0, emptyAudit.AspectRatioFidelityScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+
+        // 2. Conforming 1:1 square and 16:9 widescreen
+        var sSquare = new ShapeCanvasItemViewModel { Id = "s1", Text = "Square", Width = 100, Height = 100 };
+        var sWide = new ShapeCanvasItemViewModel { Id = "s2", Text = "16:9 Slide", Width = 160, Height = 90 };
+        vm.Shapes.Add(sSquare);
+        vm.Shapes.Add(sWide);
+
+        var cleanAudit = vm.AuditAspectRatioAndPrimitiveScaling();
+        Assert.Equal(2, cleanAudit.TotalShapesEvaluated);
+        Assert.Equal(2, cleanAudit.ConformingShapeCount);
+        Assert.Equal(0, cleanAudit.AccidentalDriftCount);
+        Assert.Equal(100.0, cleanAudit.AspectRatioFidelityScore);
+        Assert.Equal("Perfect Geometric Aspect Ratio Conformance", cleanAudit.Category);
+
+        // 3. Accidental scaling drift (e.g. 100 x 106, 6% drift from 1:1)
+        var sDrift = new ShapeCanvasItemViewModel { Id = "s3", Text = "Slightly skewed square", Width = 100, Height = 106 };
+        vm.Shapes.Add(sDrift);
+
+        var driftAudit = vm.AuditAspectRatioAndPrimitiveScaling();
+        Assert.Equal(3, driftAudit.TotalShapesEvaluated);
+        Assert.Equal(2, driftAudit.ConformingShapeCount);
+        Assert.Equal(1, driftAudit.AccidentalDriftCount);
+        Assert.True(driftAudit.MeanDriftPercentage >= 5.0 && driftAudit.MeanDriftPercentage <= 7.0);
+        Assert.True(driftAudit.AspectRatioFidelityScore < 100.0);
+    }
 }
 
 

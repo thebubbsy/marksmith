@@ -11603,5 +11603,50 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
    - **Refinement Target**: Workspace Markdown Header Depth Uniformity, ATX vs Setext Style & Slug Sanitization Advisor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceMarkdownHeaderUniformity(files)` to scan workspace documents for mixed ATX (`#`) vs Setext (`===` / `---`) headers, heading depth monotonicity, and non-ASCII anchor slug collisions across multi-document sets. Wire to `RecentDocsFlyout`.
 
+---
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #168 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Admonition Callout (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`) Syntax, Nesting Depth & Style Parity Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditAdmonitionCalloutConsistency(markdownText)`, `FormatAdmonitionCalloutSummary(...)`, records `AdmonitionCalloutItem`, and `AdmonitionCalloutAudit`. Evaluates GFM callout token capitalization, blockquote nesting depth (multi-level chevrons), foldable markers (`+`/`-`), empty body line boundaries, and checks whitespace after chevrons; strips fenced code blocks; wired to `admonitionCalloutItem` (`\uE7BA`) in both `StatusSectionBreadcrumbButton_RightTapped` and `FindCountText_RightTapped` with automated clipboard copy and status feedback.
+    2. **MindMapGalaxyWindow Graph Clustering Coefficient, Triadic Closure & Local Community Transitivity Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditClusteringCoefficientAndTransitivity()`, static overload, `FormatClusteringCoefficientSummary(...)`, records `NodeClusteringInfo`, and `GraphClusteringAndTransitivityAudit`. Computes Watts-Strogatz local clustering coefficients $C_i = \frac{2 e_i}{k_i(k_i - 1)}$, global network transitivity $T = \frac{3 \times \text{Triangles}}{\text{Triplets}}$, and open triplet bridges, distinguishing acyclic tree hierarchies from clustered network topologies; wired to `AuditClusteringTransitivityItem` (`\uE81E`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Shape Aspect Ratio Lock Conformance, Standard Geometric Primitives & Non-Uniform Scaling Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditAspectRatioAndPrimitiveScaling(shapes)`, `FormatAspectRatioSummary(...)`, records `ShapeAspectRatioInfo`, and `DiagramAspectRatioAudit`. Evaluates 2D shapes against canonical geometric archetypes (1:1 square/circle, 16:9 widescreen, 4:3 standard, 3:2 classic, Golden Ratio 1.618, 2:1 banner, 3:1 ribbon) and flags accidental unlocked non-uniform scaling drift ($1\%-12\%$); wired to `SelectionAuditAspectRatioScalingItem` (`\uE799`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status notification.
+    4. **SmartArtDesignStudioWindow SmartArt Radial Cycle / Hub-and-Spoke Angular Balance & Node Orbital Pacing Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditRadialCycleOrbitalBalance(markdown)`, static overload, `FormatRadialCycleSummary(...)`, records `RadialSpokeInfo`, and `SmartArtRadialCycleAudit`. Analyzes central hub and orbital spokes, computing harmonic angular sector steps ($360^\circ / N$), word count standard deviations, and spoke text weight imbalance; wired to `AuditRadialCycleBalanceItem` (`\uE7C1`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Diff Line-Wrap Boundary, Long Line Overflow & Side-by-Side Horizontal Scroll Spill Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditDiffLineWrapAndOverflow(unifiedRows, maxColumnWidth = 120)`, `FormatDiffLineWrapSummary(...)`, records `DiffLineOverflowInfo`, and `DiffLineWrapOverflowAudit`. Evaluates visual column lengths (expanding tabs to 4 spaces), detecting line-wrap boundaries, long line overflows ($>120$ cols), and horizontal scroll spills; wired to `auditDiffLineWrap` (`\uE8E4`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace Markdown Header Depth Uniformity, ATX vs Setext Style & Slug Sanitization Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceMarkdownHeaderUniformity(files, fileExistsProvider, contentReader)`, `FormatWorkspaceHeadingUniformitySummary(...)`, records `DocumentHeadingItem`, and `WorkspaceHeadingUniformityAudit`. Evaluates workspace markdown documents for ATX (`#`) vs Setext (`===`/`---`) style uniformity, heading depth monotonicity (detecting skipped levels), and anchor slug collisions; wired to `CopyWorkspaceHeadingAdvisorItem` (`\uE8D2`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `6/6` targeted Run #168 tests passing (`100%` pass rate).
+    - Verified full targeted polish test suite: `861/861` tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`PID=31424, Responding=True, HasExited=False`).
+
+---
+
+### Run #169 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Image Tag & Relative Path Validation, Missing Alt-Text & Web URL Accessibility Auditor.
+   - **Deliverable**: Add `TextSearch.AuditImageLinkAndAltTextAccessibility(markdownText)` and `FormatImageAccessibilitySummary(...)`, auditing inline image tags (`![alt](url)`), identifying missing or generic alt-text, detecting broken relative file paths, and scoring WCAG non-text content compliance ($0-100\%$). Wire to `StatusSectionBreadcrumbButton` and `FindCountText` context flyouts.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Algebraic Connectivity (Fiedler Vector) & Graph Bisection / Spectral Partitioning Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditSpectralBisectionAndAlgebraicConnectivity()` and `FormatSpectralBisectionSummary(...)`, approximating the graph Laplacian matrix second-smallest eigenvalue $\lambda_2$ (Fiedler value) to evaluate graph cut robustness, bridge vulnerability, and natural cluster partition quality. Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Shape Border Stroke Alignment (Inside / Center / Outside), Corner Radius Uniformity & Miter Limit Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditStrokeAlignmentAndCornerRadius(shapes)` and `FormatStrokeAlignmentSummary(...)`, auditing stroke alignment modes, rounded rectangle corner radii consistency across adjacent shapes, and miter join limit spikes. Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Pyramid & Funnel Layer Volume / Height Tapering & Proportional Mass Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditPyramidTaperingAndMassBalance(markdown)` and `FormatPyramidTaperingSummary(...)`, auditing vertical trapezoidal layer height proportions, top-to-bottom area tapering ratios, and content density balance across hierarchical pyramid diagrams. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #168 Block 3 Idea 5]**:
+   - **Refinement Target**: Diff Git Conflict Marker Syntax, Unmerged Hunk Boundary & Rebase Residue Auditor.
+   - **Deliverable**: Add `LineDiff.AuditGitConflictMarkersAndRebaseResidue(unifiedRows)` to detect left-over conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`), unmerged git cherry-pick headers, and corrupt diff boundaries. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #168 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Code Fence Language Tag Consistency & Syntax Highlighter Coverage Advisor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceCodeFenceLanguageTags(files)` to scan workspace documents for untagged code fences (``` without language specifier), unknown language aliases, and assess syntax highlighting readiness across the project. Wire to `RecentDocsFlyout`.
+
+
 
 

@@ -321,6 +321,9 @@
                                     <MenuFlyoutItem x:Name="AuditRadialLayoutItem" Text="Audit graph radial layout spacing &amp; angular sector distribution" Click="OnAuditRadialLayoutClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditClusteringTransitivityItem" Text="Audit graph clustering coefficient &amp; triadic closure" Click="OnAuditClusteringTransitivityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

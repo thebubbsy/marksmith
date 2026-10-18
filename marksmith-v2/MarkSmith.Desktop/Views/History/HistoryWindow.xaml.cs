@@ -3419,6 +3419,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditDiffTokenEntropy);
+
+                var auditDiffLineWrap = new MenuFlyoutItem
+                {
+                    Text = "Audit diff line-wrap boundary, long line overflow & horizontal scroll spill",
+                    Icon = new FontIcon { Glyph = "\uE8E4" }
+                };
+                auditDiffLineWrap.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditDiffLineWrapAndOverflow(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditDiffLineWrap);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

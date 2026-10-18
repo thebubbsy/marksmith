@@ -6577,6 +6577,142 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         return $"Connector curvature audit ({scope}{connLabel}, {knotLabel} · {category} · {score:0.#}% score): Mean turning angle {meanAngle:0.#}°{kinkAlert}";
     }
+
+    /// <summary>
+    /// Audits shape aspect ratio lock conformance, standard geometric primitive scaling (1:1, 16:9, 4:3, Golden Ratio),
+    /// and flags accidental non-uniform aspect ratio drift.
+    /// </summary>
+    public DiagramAspectRatioAudit AuditAspectRatioAndPrimitiveScaling(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var rawTargets = targetShapes?.ToList() ?? (selected.Count > 0 ? selected : Shapes.ToList());
+        if (rawTargets.Count == 0)
+        {
+            rawTargets = Shapes.ToList();
+        }
+
+        bool isSelection = (targetShapes != null) || (selected.Count > 0 && rawTargets.Count < Shapes.Count);
+
+        var geometricShapes = rawTargets.Where(s =>
+            s.Width > 0 && s.Height > 0 &&
+            !(s.ShapeType != null && (
+                s.ShapeType.Contains("connector", StringComparison.OrdinalIgnoreCase) ||
+                s.ShapeType.Contains("line", StringComparison.OrdinalIgnoreCase) ||
+                s.ShapeType.Contains("path", StringComparison.OrdinalIgnoreCase) ||
+                s.ShapeType.Contains("polyline", StringComparison.OrdinalIgnoreCase)))).ToList();
+
+        if (geometricShapes.Count == 0)
+        {
+            string emptySummary = FormatAspectRatioSummary(0, 0, 0, 0, 100.0, "Empty Canvas", isSelection);
+            StatusMessage = emptySummary;
+            return new DiagramAspectRatioAudit(
+                0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ShapeAspectRatioInfo>(),
+                "Empty Canvas",
+                isSelection,
+                emptySummary);
+        }
+
+        var archetypes = new (string Name, double Ratio)[]
+        {
+            ("1:1 Square / Circle", 1.0),
+            ("16:9 Widescreen", 16.0 / 9.0),
+            ("4:3 Standard Display", 4.0 / 3.0),
+            ("3:2 Classic Photo", 1.5),
+            ("Golden Ratio (1.618)", (1.0 + Math.Sqrt(5.0)) / 2.0),
+            ("2:1 Wide Banner", 2.0),
+            ("3:1 Header Strip", 3.0)
+        };
+
+        var evaluated = new List<ShapeAspectRatioInfo>();
+        int conformingCount = 0;
+        int driftCount = 0;
+        int freeformCount = 0;
+        double totalDriftPct = 0.0;
+
+        foreach (var s in geometricShapes)
+        {
+            double w = s.Width;
+            double h = s.Height;
+            double actualRatio = Math.Max(w, h) / Math.Min(w, h);
+
+            var closest = archetypes.OrderBy(a => Math.Abs(actualRatio - a.Ratio)).First();
+            double drift = Math.Abs(actualRatio - closest.Ratio) / closest.Ratio;
+            double driftPct = drift * 100.0;
+
+            bool isConforming = driftPct <= 1.0;
+            bool hasAccidentalDrift = driftPct > 1.0 && driftPct <= 12.0;
+
+            if (isConforming) conformingCount++;
+            else if (hasAccidentalDrift) driftCount++;
+            else freeformCount++;
+
+            if (hasAccidentalDrift) totalDriftPct += driftPct;
+
+            string shapeTitle = !string.IsNullOrWhiteSpace(s.Text)
+                ? s.Text
+                : (!string.IsNullOrWhiteSpace(s.Name) ? s.Name : (!string.IsNullOrWhiteSpace(s.ShapeType) ? s.ShapeType : $"Shape #{s.Id}"));
+
+            evaluated.Add(new ShapeAspectRatioInfo(
+                ShapeId: s.Id,
+                DisplayName: shapeTitle,
+                Width: Math.Round(w, 1),
+                Height: Math.Round(h, 1),
+                ActualAspectRatio: Math.Round(actualRatio, 3),
+                NearestArchetype: closest.Name,
+                TargetAspectRatio: Math.Round(closest.Ratio, 3),
+                DriftPercentage: Math.Round(driftPct, 1),
+                IsConforming: isConforming,
+                HasAccidentalDrift: hasAccidentalDrift));
+        }
+
+        double meanDrift = driftCount > 0 ? (totalDriftPct / driftCount) : 0.0;
+        double penalty = (driftCount * 18.0) / geometricShapes.Count;
+        double fidelityScore = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = fidelityScore switch
+        {
+            >= 95.0 when driftCount == 0 => "Perfect Geometric Aspect Ratio Conformance",
+            >= 80.0 => "Harmonic Canonical Aspect Ratios",
+            >= 60.0 => "Minor Unlocked Scaling Drift",
+            _ => "Unconstrained Non-Uniform Scaling"
+        };
+
+        string summary = FormatAspectRatioSummary(
+            geometricShapes.Count, conformingCount, driftCount, freeformCount,
+            fidelityScore, category, isSelection);
+
+        StatusMessage = summary;
+
+        return new DiagramAspectRatioAudit(
+            TotalShapesEvaluated: geometricShapes.Count,
+            ConformingShapeCount: conformingCount,
+            AccidentalDriftCount: driftCount,
+            CustomFreeformCount: freeformCount,
+            MeanDriftPercentage: Math.Round(meanDrift, 1),
+            AspectRatioFidelityScore: Math.Round(fidelityScore, 1),
+            Shapes: evaluated,
+            Category: category,
+            IsSelectionScope: isSelection,
+            Summary: summary);
+    }
+
+    public static string FormatAspectRatioSummary(
+        int totalShapes, int conformingCount, int driftCount, int freeformCount,
+        double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Shape aspect ratio audit ({scopeStr}0 shapes): Empty canvas";
+
+        string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        var alerts = new List<string>();
+        if (driftCount > 0) alerts.Add($"⚠ {driftCount} accidental drift{(driftCount == 1 ? "" : "s")}");
+        if (conformingCount > 0) alerts.Add($"{conformingCount} locked");
+        if (freeformCount > 0) alerts.Add($"{freeformCount} freeform");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
+        return $"Shape aspect ratio audit ({scopeStr}{shapeLabel} · {category} · {score:0.#}% score){details}";
+    }
 }
 
 /// <summary>
@@ -7006,6 +7142,33 @@ public sealed record ConnectorCurvatureAudit(
     bool IsSelectionScope,
     string Summary);
 
+/// <summary>
+/// Represents evaluated aspect ratio, nearest canonical archetype, and scaling drift metrics for an individual shape.
+/// </summary>
+public sealed record ShapeAspectRatioInfo(
+    string ShapeId,
+    string DisplayName,
+    double Width,
+    double Height,
+    double ActualAspectRatio,
+    string NearestArchetype,
+    double TargetAspectRatio,
+    double DriftPercentage,
+    bool IsConforming,
+    bool HasAccidentalDrift);
 
-
-
+/// <summary>
+/// Represents the result of an audit of shape aspect ratios, canonical archetype lock conformance,
+/// and non-uniform scaling drift.
+/// </summary>
+public sealed record DiagramAspectRatioAudit(
+    int TotalShapesEvaluated,
+    int ConformingShapeCount,
+    int AccidentalDriftCount,
+    int CustomFreeformCount,
+    double MeanDriftPercentage,
+    double AspectRatioFidelityScore,
+    IReadOnlyList<ShapeAspectRatioInfo> Shapes,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

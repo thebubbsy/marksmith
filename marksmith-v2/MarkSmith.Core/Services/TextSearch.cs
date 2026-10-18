@@ -5183,6 +5183,232 @@ public static class TextSearch
 
         return $"Footnote reference consistency audit ({anchorLabel}, {defLabel} · {category} · {consistencyScore:0.#}% score){alertSuffix}";
     }
+
+    /// <summary>
+    /// Audits markdown text for GitHub Flavored Markdown (GFM) and Obsidian admonition callout syntax
+    /// (> [!NOTE], > [!TIP], > [!IMPORTANT], > [!WARNING], > [!CAUTION]), nesting depth, spacing consistency,
+    /// foldability markers, and content body emptiness.
+    /// </summary>
+    public static AdmonitionCalloutAudit AuditAdmonitionCalloutConsistency(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "Markdown admonition callout audit: 0 callouts · Document contains no admonitions";
+            return new AdmonitionCalloutAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<AdmonitionCalloutItem>(),
+                Array.Empty<string>(),
+                "No Admonitions",
+                emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        var callouts = new List<AdmonitionCalloutItem>();
+        var issues = new List<string>();
+
+        bool inCodeFence = false;
+        string fenceMarker = string.Empty;
+
+        var standardTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"
+        };
+
+        var extendedTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "INFO", "HINT", "DANGER", "ERROR", "FAQ", "ABSTRACT", "SUMMARY", "TLDR", "EXAMPLE", "QUOTE", "BUG", "QUESTION", "SUCCESS", "FAILURE"
+        };
+
+        var calloutHeaderRegex = new Regex(@"^[ \t]*(>+)[ \t]*\[!([a-zA-Z0-9_\-]+)\]([+-]?)(?:[ \t]+(.*))?$", RegexOptions.Compiled);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                string tag = trimmed.Length >= 3 ? trimmed.Substring(0, 3) : trimmed;
+                if (!inCodeFence)
+                {
+                    inCodeFence = true;
+                    fenceMarker = tag;
+                }
+                else if (tag == fenceMarker || trimmed == ":::")
+                {
+                    inCodeFence = false;
+                    fenceMarker = string.Empty;
+                }
+                continue;
+            }
+
+            if (inCodeFence) continue;
+
+            var match = calloutHeaderRegex.Match(line);
+            if (!match.Success) continue;
+
+            var chevronGroup = match.Groups[1].Value;
+            int nestingDepth = chevronGroup.Length;
+            string rawType = match.Groups[2].Value;
+            string foldChar = match.Groups[3].Value;
+            string title = match.Groups[4].Success ? match.Groups[4].Value.Trim() : string.Empty;
+
+            bool isStandard = standardTypes.Contains(rawType);
+            bool isRecognized = isStandard || extendedTypes.Contains(rawType);
+            bool isFoldable = !string.IsNullOrEmpty(foldChar);
+            bool? foldExpanded = foldChar == "+" ? true : (foldChar == "-" ? false : null);
+
+            int endOfChevrons = match.Groups[1].Index + match.Groups[1].Length;
+            int indexOfBracket = line.IndexOf("[!", endOfChevrons, StringComparison.Ordinal);
+            bool hasProperSpacing = (indexOfBracket > endOfChevrons) &&
+                                    char.IsWhiteSpace(line[endOfChevrons]);
+
+            int bodyLineCount = 0;
+            int j = i + 1;
+            while (j < lines.Length)
+            {
+                var nextLine = lines[j];
+                var nextTrimmed = nextLine.Trim();
+
+                if (nextTrimmed.StartsWith("```") || nextTrimmed.StartsWith("~~~") || nextTrimmed.StartsWith(":::"))
+                    break;
+
+                if (calloutHeaderRegex.IsMatch(nextLine))
+                    break;
+
+                var nextChevrons = nextLine.TakeWhile(c => c == ' ' || c == '\t' || c == '>').Count(c => c == '>');
+                if (nextChevrons >= nestingDepth)
+                {
+                    string remainder = nextLine.TrimStart(' ', '\t', '>');
+                    if (!string.IsNullOrWhiteSpace(remainder))
+                    {
+                        bodyLineCount++;
+                    }
+                    j++;
+                }
+                else if (string.IsNullOrWhiteSpace(nextLine))
+                {
+                    if (j + 1 < lines.Length && lines[j + 1].TrimStart().StartsWith(">"))
+                    {
+                        j++;
+                        continue;
+                    }
+                    break;
+                }
+                else
+                {
+                    if (nextTrimmed.StartsWith("#") || nextTrimmed.StartsWith("- ") || nextTrimmed.StartsWith("* ") || nextTrimmed.StartsWith("1."))
+                        break;
+                    bodyLineCount++;
+                    j++;
+                }
+            }
+
+            var item = new AdmonitionCalloutItem(
+                LineNumber: i + 1,
+                Tag: rawType.ToUpperInvariant(),
+                Title: title,
+                NestingDepth: nestingDepth,
+                HasProperSpacing: hasProperSpacing,
+                IsStandardType: isStandard,
+                IsFoldable: isFoldable,
+                FoldableExpanded: foldExpanded,
+                ContentLineCount: bodyLineCount);
+
+            callouts.Add(item);
+
+            if (!hasProperSpacing)
+            {
+                issues.Add($"Line {i + 1}: Missing space after blockquote chevron in '>[!{rawType}]'");
+            }
+            if (!isRecognized)
+            {
+                issues.Add($"Line {i + 1}: Non-standard callout type '[!{rawType}]'");
+            }
+            if (nestingDepth > 2)
+            {
+                issues.Add($"Line {i + 1}: Deeply nested callout (depth {nestingDepth})");
+            }
+            if (bodyLineCount == 0 && string.IsNullOrWhiteSpace(title))
+            {
+                issues.Add($"Line {i + 1}: Empty callout body with no content lines");
+            }
+        }
+
+        int totalCallouts = callouts.Count;
+        if (totalCallouts == 0)
+        {
+            string emptySummary = "Markdown admonition callout audit: 0 callouts · Document contains no admonitions";
+            return new AdmonitionCalloutAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                callouts, issues, "No Admonitions", emptySummary);
+        }
+
+        int standardCallouts = callouts.Count(c => c.IsStandardType);
+        int customCallouts = callouts.Count(c => !c.IsStandardType);
+        int nestedCallouts = callouts.Count(c => c.NestingDepth > 1);
+        int maxNestingDepth = callouts.Max(c => c.NestingDepth);
+        int improperSpacing = callouts.Count(c => !c.HasProperSpacing);
+        int emptyBodyCount = callouts.Count(c => c.ContentLineCount == 0 && string.IsNullOrWhiteSpace(c.Title));
+
+        double penalty = (improperSpacing * 15.0) + (emptyBodyCount * 20.0) + (customCallouts * 5.0) + (Math.Max(0, maxNestingDepth - 2) * 10.0);
+        double parityScore = Math.Clamp(100.0 - (penalty / totalCallouts), 0.0, 100.0);
+
+        string category = parityScore switch
+        {
+            >= 95.0 when improperSpacing == 0 && emptyBodyCount == 0 => "Pristine GFM Admonition Syntax",
+            >= 80.0 => "Minor Callout Syntax Variance",
+            >= 60.0 => "Improper Spacing or Non-Standard Types",
+            _ => "Malformed or Empty Callouts"
+        };
+
+        string summary = FormatAdmonitionCalloutSummary(
+            totalCallouts, standardCallouts, customCallouts, nestedCallouts,
+            maxNestingDepth, improperSpacing, emptyBodyCount, parityScore, category);
+
+        return new AdmonitionCalloutAudit(
+            TotalCallouts: totalCallouts,
+            StandardCallouts: standardCallouts,
+            CustomCallouts: customCallouts,
+            NestedCallouts: nestedCallouts,
+            MaxNestingDepth: maxNestingDepth,
+            ImproperSpacingCount: improperSpacing,
+            EmptyBodyCount: emptyBodyCount,
+            ParityScore: Math.Round(parityScore, 1),
+            Callouts: callouts,
+            Issues: issues,
+            Category: category,
+            Summary: summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown admonition callout consistency metrics.
+    /// </summary>
+    public static string FormatAdmonitionCalloutSummary(string? markdownText)
+        => AuditAdmonitionCalloutConsistency(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown admonition callout consistency metrics.
+    /// </summary>
+    public static string FormatAdmonitionCalloutSummary(
+        int totalCallouts, int standardCallouts, int customCallouts, int nestedCallouts,
+        int maxNestingDepth, int improperSpacing, int emptyBody, double parityScore, string category)
+    {
+        if (totalCallouts == 0)
+            return "Markdown admonition callout audit: 0 callouts · Document contains no admonitions";
+
+        string calloutLabel = totalCallouts == 1 ? "1 callout" : $"{totalCallouts} callouts";
+
+        var alerts = new List<string>();
+        if (improperSpacing > 0) alerts.Add($"⚠ {improperSpacing} spacing defect{(improperSpacing == 1 ? "" : "s")}");
+        if (emptyBody > 0) alerts.Add($"🚨 {emptyBody} empty body{(emptyBody == 1 ? "" : "ies")}");
+        if (customCallouts > 0) alerts.Add($"{customCallouts} non-standard");
+        if (nestedCallouts > 0) alerts.Add($"{nestedCallouts} nested (max depth {maxNestingDepth})");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · All GFM standard types";
+
+        return $"Markdown admonition callout audit ({calloutLabel} · {category} · {parityScore:0.#}% score){alertSuffix}";
+    }
 }
 
 /// <summary>
@@ -5635,5 +5861,34 @@ public sealed record FootnoteReferenceConsistencyAudit(
     string Category,
     string Summary);
 
+/// <summary>
+/// Represents evaluated metrics, nesting depth, and formatting for an individual markdown admonition callout.
+/// </summary>
+public sealed record AdmonitionCalloutItem(
+    int LineNumber,
+    string Tag,
+    string Title,
+    int NestingDepth,
+    bool HasProperSpacing,
+    bool IsStandardType,
+    bool IsFoldable,
+    bool? FoldableExpanded,
+    int ContentLineCount);
 
-
+/// <summary>
+/// Represents the result of an audit of markdown admonition callouts, syntax compliance,
+/// nesting depth, foldability markers, and content body emptiness.
+/// </summary>
+public sealed record AdmonitionCalloutAudit(
+    int TotalCallouts,
+    int StandardCallouts,
+    int CustomCallouts,
+    int NestedCallouts,
+    int MaxNestingDepth,
+    int ImproperSpacingCount,
+    int EmptyBodyCount,
+    double ParityScore,
+    IReadOnlyList<AdmonitionCalloutItem> Callouts,
+    IReadOnlyList<string> Issues,
+    string Category,
+    string Summary);
