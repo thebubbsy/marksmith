@@ -4048,6 +4048,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditClosenessCentralityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditClosenessCentralityAndHarmonicDistance();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4991,6 +4999,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditDiameterItem.Click += OnAuditGraphDiameterClick;
             menu.Items.Add(auditDiameterItem);
+
+            var auditClosenessItem = new MenuFlyoutItem
+            {
+                Text = "Audit closeness centrality, harmonic distance & propagation",
+                Icon = new FontIcon { Glyph = "\uE8A5" }
+            };
+            auditClosenessItem.Click += OnAuditClosenessCentralityClick;
+            menu.Items.Add(auditClosenessItem);
 
             var fitItem = new MenuFlyoutItem
 

@@ -1473,6 +1473,60 @@ public class SmartArtStudioPolishTests
         Assert.True(openAudit.LoopConvergenceScore < 100.0);
         Assert.Equal("Open-Ended Linear Sequence (Missing Recurrence Closure)", openAudit.ConvergenceCategory);
     }
+
+    [Fact]
+    public void Run164_AuditHierarchySpanOfControl_ValidatesManagerReportsAndBranching()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditHierarchySpanOfControl("", isStatic: true);
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal("Empty Outline", emptyAudit.HierarchyCategory);
+        Assert.Equal(100.0, emptyAudit.HierarchyBalanceScore);
+        Assert.Contains("Outline is empty", emptyAudit.Summary);
+
+        // 2. Flat non-hierarchical list (all level 0)
+        var flatMd = """
+            - Item 1
+            - Item 2
+            - Item 3
+            """;
+        var flatAudit = SmartArtDesignStudioViewModel.AuditHierarchySpanOfControl(flatMd, isStatic: true);
+        Assert.Equal(3, flatAudit.TotalNodes);
+        Assert.Equal(0, flatAudit.ManagerCount);
+        Assert.Equal(3, flatAudit.IndividualContributorCount);
+        Assert.Equal("Flat Non-Hierarchical List", flatAudit.HierarchyCategory);
+        Assert.Equal(100.0, flatAudit.HierarchyBalanceScore);
+
+        // 3. Balanced organizational hierarchy
+        var orgMd = """
+            - Chief Executive Officer
+              - VP Engineering
+                - Senior Backend Dev
+                - Frontend Architect
+                - QA Automation Lead
+              - VP Product
+                - Principal PM
+                - UX Research Lead
+                - Technical Writer
+            """;
+        var vm = new SmartArtDesignStudioViewModel();
+        vm.MarkdownText = orgMd;
+        var orgAudit = vm.AuditHierarchySpanOfControl();
+
+        Assert.Equal(9, orgAudit.TotalNodes);
+        Assert.Equal(3, orgAudit.ManagerCount); // CEO, VP Eng, VP Product
+        Assert.Equal(6, orgAudit.IndividualContributorCount);
+        Assert.Equal(2, orgAudit.MaxDepth);
+        Assert.True(orgAudit.MeanSpanOfControl >= 2.5);
+        Assert.Equal(0, orgAudit.OverloadedManagerCount);
+        Assert.Equal(1, orgAudit.UnderutilizedManagerCount); // CEO has 2 reports (< 3)
+        Assert.NotEmpty(orgAudit.NodeSpans);
+        Assert.Equal(orgAudit.Summary, SmartArtDesignStudioViewModel.FormatHierarchySpanSummary(
+            orgAudit.TotalNodes, orgAudit.ManagerCount, orgAudit.IndividualContributorCount,
+            orgAudit.MaxDepth, orgAudit.MeanSpanOfControl, orgAudit.SpanStandardDeviation,
+            orgAudit.ManagerToReportRatio, orgAudit.OverloadedManagerCount, orgAudit.UnderutilizedManagerCount,
+            orgAudit.HierarchyBalanceScore, orgAudit.HierarchyCategory));
+    }
 }
 
 

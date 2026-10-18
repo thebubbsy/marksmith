@@ -3367,6 +3367,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditChunkBoundaries);
+
+                var auditSemanticFolding = new MenuFlyoutItem
+                {
+                    Text = "Audit diff hunk semantic folding & scope context pinning",
+                    Icon = new FontIcon { Glyph = "\uE8D2" }
+                };
+                auditSemanticFolding.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditSemanticHunkFoldingAndTokenContext(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditSemanticFolding);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

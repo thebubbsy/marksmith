@@ -2391,6 +2391,59 @@ namespace MarkSmith.Tests
                 chainAudit.CentralNodeCount, chainAudit.LongestConceptPath, chainAudit.DiameterCategory, chainAudit.IsSelectionScope);
             Assert.Equal(chainAudit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run164_AuditClosenessCentralityAndHarmonicDistance_CalculatesFlowAndDisseminationHubs()
+        {
+            // 1. Empty mindmap
+            var emptyAudit = MindMapStudioViewModel.AuditClosenessCentralityAndHarmonicDistance(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0.0, emptyAudit.MeanHarmonicCentrality);
+            Assert.Equal("Empty MindMap", emptyAudit.EfficiencyCategory);
+
+            // 2. Single node
+            var n1 = new MindMapNode { Id = "n1", Title = "Root Core" };
+            var singleAudit = MindMapStudioViewModel.AuditClosenessCentralityAndHarmonicDistance(new[] { n1 }, null);
+            Assert.Equal(1, singleAudit.TotalNodes);
+            Assert.Equal(1.0, singleAudit.MeanHarmonicCentrality);
+            Assert.Equal(100.0, singleAudit.GraphEfficiency);
+            Assert.Equal("Single Isolated Node", singleAudit.EfficiencyCategory);
+
+            // 3. Star network (hub in center): Center - Leaf1, Center - Leaf2, Center - Leaf3
+            var center = new MindMapNode { Id = "c", Title = "Central Hub" };
+            var l1 = new MindMapNode { Id = "l1", Title = "Leaf 1" };
+            var l2 = new MindMapNode { Id = "l2", Title = "Leaf 2" };
+            var l3 = new MindMapNode { Id = "l3", Title = "Leaf 3" };
+
+            var e1 = new MindMapLink { Id = "e1", SourceNodeId = "c", TargetNodeId = "l1" };
+            var e2 = new MindMapLink { Id = "e2", SourceNodeId = "c", TargetNodeId = "l2" };
+            var e3 = new MindMapLink { Id = "e3", SourceNodeId = "c", TargetNodeId = "l3" };
+
+            var starAudit = MindMapStudioViewModel.AuditClosenessCentralityAndHarmonicDistance(
+                new[] { center, l1, l2, l3 }, new[] { e1, e2, e3 });
+
+            Assert.Equal(4, starAudit.TotalNodes);
+            Assert.Equal(3, starAudit.TotalLinks);
+            Assert.Equal(1, starAudit.ConnectedComponents);
+            Assert.Contains("Central Hub", starAudit.OptimalHubTitles);
+
+            var centerMetric = starAudit.NodeMetrics.First(m => m.Title == "Central Hub");
+            Assert.Equal(1.0, centerMetric.ClosenessCentrality);
+            Assert.Equal(1.0, centerMetric.HarmonicCentrality);
+            Assert.Equal(1.0, centerMetric.MeanDistance);
+            Assert.True(centerMetric.IsOptimalDisseminationHub);
+
+            var leafMetric = starAudit.NodeMetrics.First(m => m.Title == "Leaf 1");
+            Assert.True(leafMetric.HarmonicCentrality < centerMetric.HarmonicCentrality);
+            Assert.False(leafMetric.IsOptimalDisseminationHub);
+
+            // 4. Formatter test
+            string formatted = MindMapStudioViewModel.FormatClosenessCentralitySummary(
+                starAudit.TotalNodes, starAudit.TotalLinks, starAudit.ConnectedComponents,
+                starAudit.MeanHarmonicCentrality, starAudit.GraphEfficiency,
+                starAudit.OptimalHubTitles, starAudit.PeripheralTitles.Count, starAudit.EfficiencyCategory, starAudit.IsSelectionScope);
+            Assert.Equal(starAudit.Summary, formatted);
+        }
     }
 }
 

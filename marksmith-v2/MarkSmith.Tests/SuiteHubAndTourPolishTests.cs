@@ -2823,6 +2823,122 @@ public class SuiteHubAndTourPolishTests
             audit.TotalCurrentSizeBytes, audit.TotalPotentialSavingsBytes, audit.OverallSavingsPercentage,
             audit.AssetEfficiencyScore, audit.EfficiencyCategory));
     }
+
+    [Fact]
+    public void Run164_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // 1. MainWindow: math formula complexity item in breadcrumb and search HUD
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("mathFormulaComplexityItem", mainCs);
+        Assert.Contains("FormatMathFormulaSummary", mainCs);
+
+        // 2. MindMapGalaxyWindow: closeness centrality audit in XAML and code-behind
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditClosenessCentralityItem", galaxyXaml);
+        Assert.Contains("OnAuditClosenessCentralityClick", galaxyXaml);
+        Assert.Contains("OnAuditClosenessCentralityClick", galaxyCs);
+        Assert.Contains("AuditClosenessCentralityAndHarmonicDistance", galaxyCs);
+
+        // 3. ShapeDesignStudioWindow: orthogonal connection routing in XAML and code-behind
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditOrthogonalRoutingItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditOrthogonalRoutingClick", shapeXaml);
+        Assert.Contains("OnSelectionAuditOrthogonalRoutingClick", shapeCs);
+        Assert.Contains("AuditOrthogonalRoutingAndIntersections", shapeCs);
+
+        // 4. SmartArtDesignStudioWindow: hierarchy span of control audit in XAML and code-behind
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditHierarchySpanItem", smartArtXaml);
+        Assert.Contains("OnAuditHierarchySpanClick", smartArtXaml);
+        Assert.Contains("OnAuditHierarchySpanClick", smartArtCs);
+        Assert.Contains("AuditHierarchySpanOfControl", smartArtCs);
+
+        // 5. HistoryWindow: semantic hunk folding audit in code-behind
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditSemanticFolding", historyCs);
+        Assert.Contains("AuditSemanticHunkFoldingAndTokenContext", historyCs);
+
+        // 6. SuiteHubView: asset DPI and SVG optimization advisor in XAML and code-behind
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyAssetDpiSvgAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyAssetDpiSvgAdvisorClick", suiteXaml);
+        Assert.Contains("OnCopyAssetDpiSvgAdvisorClick", suiteCs);
+        Assert.Contains("AuditAssetDpiAndSvgOptimizationAdvisor", suiteCs);
+    }
+
+    [Fact]
+    public void Run164_AuditAssetDpiAndSvgOptimizationAdvisor_DetectsHighDpiAndSvgBloat()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditAssetDpiAndSvgOptimizationAdvisor(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalAssetsEvaluated);
+        Assert.Equal("Empty Workspace", emptyAudit.ReadinessCategory);
+        Assert.Equal(100.0, emptyAudit.OverallHighDpiReadinessScore);
+        Assert.Contains("Workspace contains no documents", emptyAudit.Summary);
+
+        // 2. Multi-asset workspace with SVG bloat and mixed DPI rasters
+        var doc1 = @"C:\Workspace\doc1.md";
+        var bloatedSvg = @"C:\Workspace\images\diagram.svg";
+        var retinaPng = @"C:\Workspace\images\hero@2x.png";
+        var lowDpiJpg = @"C:\Workspace\images\thumbnail.jpg";
+
+        var files = new[] { doc1, bloatedSvg, retinaPng, lowDpiJpg };
+        var fileSizes = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+        {
+            [doc1] = 2048,
+            [bloatedSvg] = 45000,
+            [retinaPng] = 120000,
+            [lowDpiJpg] = 8000
+        };
+
+        var docContent = """
+            # Document Overview
+            Here is a vector diagram:
+            ![Diagram](images/diagram.svg)
+            And high-dpi retina asset:
+            ![Hero](images/hero@2x.png)
+            And low-dpi asset:
+            ![Thumb](images/thumbnail.jpg)
+            """;
+
+        var svgContent = """
+            <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape">
+              <!-- Created with Inkscape -->
+              <metadata>
+                <rdf:RDF>Document metadata</rdf:RDF>
+              </metadata>
+              <rect width="100" height="100" fill="red"/>
+            </svg>
+            """;
+
+        var audit = RecentFilesService.AuditAssetDpiAndSvgOptimizationAdvisor(
+            files,
+            fileExistsProvider: path => fileSizes.ContainsKey(path),
+            fileLengthProvider: path => fileSizes.TryGetValue(path, out var s) ? s : 0,
+            dimensionsProvider: path => path.Contains("thumbnail") ? (100, 100) : (1920, 1080),
+            contentReader: path => path.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
+                ? svgContent
+                : (path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? docContent : ""));
+
+        Assert.Equal(3, audit.TotalAssetsEvaluated);
+        Assert.Equal(1, audit.SvgCount);
+        Assert.Equal(2, audit.RasterCount);
+        Assert.Equal(2, audit.HighDpiReadyCount); // SVG is scalable, hero@2x is Retina
+        Assert.Equal(1, audit.LowDpiRiskCount); // thumbnail.jpg is low-DPI
+        Assert.Equal(1, audit.UnoptimizedSvgCount); // bloatedSvg has inkscape, metadata, rdf tags
+        Assert.True(audit.PotentialSvgSavingsBytes > 0);
+        Assert.NotEmpty(audit.Assets);
+        Assert.Contains(audit.Assets, a => a.HasSvgBloat && a.SvgBloatTagCount >= 3);
+        Assert.Contains(audit.Assets, a => a.FileName.Contains("@2x") && a.IsHighDpiReady);
+        Assert.Equal(audit.Summary, RecentFilesService.FormatAssetDpiSvgSummary(
+            audit.TotalAssetsEvaluated, audit.SvgCount, audit.RasterCount,
+            audit.HighDpiReadyCount, audit.LowDpiRiskCount, audit.UnoptimizedSvgCount,
+            audit.OverallHighDpiReadinessScore, audit.PotentialSvgSavingsBytes, audit.ReadinessCategory));
+    }
 }
 
 

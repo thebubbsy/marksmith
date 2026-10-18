@@ -4032,6 +4032,403 @@ public static class TextSearch
 
         return $"Syntax ambiguity audit ({issueDesc} [{breakdown}] · {category} · {integrityScore:0.#}% integrity){firstIssue}";
     }
+
+    /// <summary>
+    /// Audits markdown text for LaTeX math formula syntax, KaTeX delimiter pairing ($...$, $$...$$, \(...\), \[...\]),
+    /// curly brace nesting balance, environment tag closure (\begin{...}...\end{...}), and mathematical complexity.
+    /// </summary>
+    public static MathFormulaAudit AuditMathFormulaComplexityAndDelimiters(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "LaTeX math formula audit: 0 equations · Document contains no math blocks or inline delimiters";
+            return new MathFormulaAudit(0, 0, 0, 0, 0, 0.0, Array.Empty<MathFormulaItem>(), Array.Empty<string>(), "No Formulas (Clean)", 100.0, emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        var formulas = new List<MathFormulaItem>();
+        var globalIssues = new List<string>();
+
+        bool inCodeFence = false;
+        bool inHtmlComment = false;
+        bool inDisplayMathBlock = false;
+        int displayMathStartLine = 0;
+        string displayMathDelimiter = "";
+        var displayMathBuffer = new System.Text.StringBuilder();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            int lineNum = i + 1;
+            string rawLine = lines[i];
+            string trimmed = rawLine.Trim();
+
+            // 1. Code fence check
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            // 2. HTML comment check
+            if (trimmed.StartsWith("<!--") && !trimmed.Contains("-->"))
+            {
+                inHtmlComment = true;
+                continue;
+            }
+            if (inHtmlComment)
+            {
+                if (trimmed.Contains("-->")) inHtmlComment = false;
+                continue;
+            }
+
+            // 3. Multiline display math block ($$ or \[)
+            if (inDisplayMathBlock)
+            {
+                if ((displayMathDelimiter == "$$" && trimmed.EndsWith("$$")) ||
+                    (displayMathDelimiter == "\\[" && trimmed.EndsWith("\\]")))
+                {
+                    // Closing display block
+                    string content = trimmed;
+                    if (displayMathDelimiter == "$$" && content.EndsWith("$$"))
+                        content = content.Substring(0, content.Length - 2);
+                    else if (displayMathDelimiter == "\\[" && content.EndsWith("\\]"))
+                        content = content.Substring(0, content.Length - 2);
+
+                    displayMathBuffer.AppendLine(content);
+                    string fullFormula = displayMathBuffer.ToString().Trim();
+
+                    var parsed = AnalyzeFormulaBody(displayMathStartLine, displayMathDelimiter, fullFormula);
+                    formulas.Add(parsed);
+
+                    inDisplayMathBlock = false;
+                    displayMathBuffer.Clear();
+                    continue;
+                }
+                else
+                {
+                    displayMathBuffer.AppendLine(rawLine);
+                    continue;
+                }
+            }
+
+            // Check if line begins a multiline display block
+            if (trimmed.StartsWith("$$") && !trimmed.Substring(2).Contains("$$"))
+            {
+                inDisplayMathBlock = true;
+                displayMathDelimiter = "$$";
+                displayMathStartLine = lineNum;
+                displayMathBuffer.Clear();
+                displayMathBuffer.AppendLine(trimmed.Substring(2));
+                continue;
+            }
+            if (trimmed.StartsWith("\\[") && !trimmed.Substring(2).Contains("\\]"))
+            {
+                inDisplayMathBlock = true;
+                displayMathDelimiter = "\\[";
+                displayMathStartLine = lineNum;
+                displayMathBuffer.Clear();
+                displayMathBuffer.AppendLine(trimmed.Substring(2));
+                continue;
+            }
+
+            // 4. Line-level scan (mask out inline code spans)
+            // Replace backticked code spans with spaces so we don't look inside them
+            var charArray = rawLine.ToCharArray();
+            bool insideCodeSpan = false;
+            for (int c = 0; c < charArray.Length; c++)
+            {
+                if (charArray[c] == '`')
+                {
+                    insideCodeSpan = !insideCodeSpan;
+                    charArray[c] = ' ';
+                }
+                else if (insideCodeSpan)
+                {
+                    charArray[c] = ' ';
+                }
+            }
+            string scrubbed = new string(charArray);
+
+            int pos = 0;
+            while (pos < scrubbed.Length)
+            {
+                // Check escaped \$
+                if (pos > 0 && scrubbed[pos - 1] == '\\' && scrubbed[pos] == '$')
+                {
+                    pos++;
+                    continue;
+                }
+
+                // Check display math $$...$$ on same line
+                if (pos <= scrubbed.Length - 2 && scrubbed[pos] == '$' && scrubbed[pos + 1] == '$')
+                {
+                    int closeIdx = scrubbed.IndexOf("$$", pos + 2, StringComparison.Ordinal);
+                    if (closeIdx >= 0)
+                    {
+                        string body = scrubbed.Substring(pos + 2, closeIdx - (pos + 2)).Trim();
+                        formulas.Add(AnalyzeFormulaBody(lineNum, "$$", body));
+                        pos = closeIdx + 2;
+                        continue;
+                    }
+                    else
+                    {
+                        globalIssues.Add($"Line {lineNum}: Unclosed display math delimiter '$$'");
+                        pos += 2;
+                        continue;
+                    }
+                }
+
+                // Check display math \[ ... \] on same line
+                if (pos <= scrubbed.Length - 2 && scrubbed[pos] == '\\' && scrubbed[pos + 1] == '[')
+                {
+                    int closeIdx = scrubbed.IndexOf("\\]", pos + 2, StringComparison.Ordinal);
+                    if (closeIdx >= 0)
+                    {
+                        string body = scrubbed.Substring(pos + 2, closeIdx - (pos + 2)).Trim();
+                        formulas.Add(AnalyzeFormulaBody(lineNum, "\\[", body));
+                        pos = closeIdx + 2;
+                        continue;
+                    }
+                    else
+                    {
+                        globalIssues.Add($"Line {lineNum}: Unclosed display math delimiter '\\['");
+                        pos += 2;
+                        continue;
+                    }
+                }
+
+                // Check inline math \( ... \)
+                if (pos <= scrubbed.Length - 2 && scrubbed[pos] == '\\' && scrubbed[pos + 1] == '(')
+                {
+                    int closeIdx = scrubbed.IndexOf("\\)", pos + 2, StringComparison.Ordinal);
+                    if (closeIdx >= 0)
+                    {
+                        string body = scrubbed.Substring(pos + 2, closeIdx - (pos + 2)).Trim();
+                        formulas.Add(AnalyzeFormulaBody(lineNum, "\\(", body));
+                        pos = closeIdx + 2;
+                        continue;
+                    }
+                    else
+                    {
+                        globalIssues.Add($"Line {lineNum}: Unclosed inline math delimiter '\\('");
+                        pos += 2;
+                        continue;
+                    }
+                }
+
+                // Check inline math $...$
+                if (scrubbed[pos] == '$')
+                {
+                    // KaTeX rule: opening $ cannot be followed by space or digit (currency heuristic)
+                    if (pos + 1 < scrubbed.Length && !char.IsWhiteSpace(scrubbed[pos + 1]) && scrubbed[pos + 1] != '$')
+                    {
+                        int closeIdx = -1;
+                        for (int k = pos + 1; k < scrubbed.Length; k++)
+                        {
+                            if (scrubbed[k] == '$' && scrubbed[k - 1] != '\\')
+                            {
+                                // Closing $ cannot be preceded by whitespace
+                                if (!char.IsWhiteSpace(scrubbed[k - 1]))
+                                {
+                                    // Also cannot be followed immediately by a digit (avoid $10 and $20)
+                                    if (k + 1 >= scrubbed.Length || !char.IsDigit(scrubbed[k + 1]))
+                                    {
+                                        closeIdx = k;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (closeIdx > pos)
+                        {
+                            string body = scrubbed.Substring(pos + 1, closeIdx - (pos + 1)).Trim();
+                            formulas.Add(AnalyzeFormulaBody(lineNum, "$", body));
+                            pos = closeIdx + 1;
+                            continue;
+                        }
+                    }
+                }
+
+                pos++;
+            }
+        }
+
+        if (inDisplayMathBlock)
+        {
+            globalIssues.Add($"Line {displayMathStartLine}: Unclosed multiline display math block '{displayMathDelimiter}' reaching end of document");
+        }
+
+        int totalFormulas = formulas.Count;
+        int inlineCount = formulas.Count(f => f.DelimiterType == "$" || f.DelimiterType == "\\(");
+        int displayCount = formulas.Count(f => f.DelimiterType == "$$" || f.DelimiterType == "\\[");
+        int validCount = formulas.Count(f => f.IsBalanced);
+        int problemCount = formulas.Count(f => !f.IsBalanced) + globalIssues.Count;
+
+        double meanComplexity = totalFormulas > 0
+            ? Math.Round(formulas.Average(f => f.ComplexityScore), 1)
+            : 0.0;
+
+        double syntaxIntegrityScore = totalFormulas > 0
+            ? Math.Round(Math.Clamp(100.0 * validCount / totalFormulas - (globalIssues.Count * 15.0), 0.0, 100.0), 1)
+            : 100.0;
+
+        string category;
+        if (totalFormulas == 0)
+        {
+            category = "No Formulas (Clean)";
+        }
+        else if (problemCount > 0)
+        {
+            category = "LaTeX Syntax Errors Detected";
+        }
+        else if (meanComplexity >= 12.0)
+        {
+            category = "Advanced Mathematical Complexity";
+        }
+        else if (meanComplexity >= 4.0)
+        {
+            category = "Moderate Formula Complexity";
+        }
+        else
+        {
+            category = "Light Mathematical Notation";
+        }
+
+        string summary = FormatMathFormulaSummary(
+            totalFormulas, inlineCount, displayCount, validCount, problemCount,
+            meanComplexity, syntaxIntegrityScore, category, formulas, globalIssues);
+
+        return new MathFormulaAudit(
+            totalFormulas,
+            inlineCount,
+            displayCount,
+            validCount,
+            problemCount,
+            meanComplexity,
+            formulas,
+            globalIssues,
+            category,
+            syntaxIntegrityScore,
+            summary);
+    }
+
+    private static MathFormulaItem AnalyzeFormulaBody(int lineNumber, string delimiter, string body)
+    {
+        var issues = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            issues.Add("Empty formula body");
+            return new MathFormulaItem(lineNumber, delimiter, "(empty)", false, 0, 0, 0.0, issues);
+        }
+
+        int braceDepth = 0;
+        int maxBraceDepth = 0;
+        for (int i = 0; i < body.Length; i++)
+        {
+            if (body[i] == '{' && (i == 0 || body[i - 1] != '\\'))
+            {
+                braceDepth++;
+                if (braceDepth > maxBraceDepth) maxBraceDepth = braceDepth;
+            }
+            else if (body[i] == '}' && (i == 0 || body[i - 1] != '\\'))
+            {
+                braceDepth--;
+                if (braceDepth < 0)
+                {
+                    issues.Add("Extra closing brace '}' without matching '{'");
+                    braceDepth = 0;
+                }
+            }
+        }
+        if (braceDepth > 0)
+        {
+            issues.Add($"{braceDepth} unclosed curly brace{(braceDepth == 1 ? "" : "s")} '{{'");
+        }
+
+        // Environment match: \begin{env} ... \end{env}
+        var beginMatches = System.Text.RegularExpressions.Regex.Matches(body, @"\\begin\{([a-zA-Z*]+)\}");
+        var endMatches = System.Text.RegularExpressions.Regex.Matches(body, @"\\end\{([a-zA-Z*]+)\}");
+        if (beginMatches.Count != endMatches.Count)
+        {
+            issues.Add($"Mismatched environments: {beginMatches.Count} \\begin vs {endMatches.Count} \\end");
+        }
+        else
+        {
+            for (int e = 0; e < beginMatches.Count; e++)
+            {
+                string bName = beginMatches[e].Groups[1].Value;
+                string eName = endMatches[e].Groups[1].Value;
+                if (!string.Equals(bName, eName, StringComparison.Ordinal))
+                {
+                    issues.Add($"Environment mismatch: \\begin{{{bName}}} closed with \\end{{{eName}}}");
+                }
+            }
+        }
+
+        // Count mathematical operators and constructs
+        int operatorCount = 0;
+        char[] basicOps = { '+', '-', '=', '<', '>', '/', '*' };
+        foreach (char c in body)
+        {
+            if (Array.IndexOf(basicOps, c) >= 0) operatorCount++;
+        }
+        var specialOps = System.Text.RegularExpressions.Regex.Matches(body, @"\\(frac|sqrt|int|sum|prod|lim|times|cdot|div|pm|partial|nabla|alpha|beta|gamma|theta|lambda|pi|sigma|infty|approx|equiv|neq|leq|geq)");
+        operatorCount += specialOps.Count;
+
+        // Subscripts / superscripts
+        foreach (char c in body)
+        {
+            if (c == '^' || c == '_') operatorCount++;
+        }
+
+        double complexity = Math.Round(Math.Min(10.0, body.Length / 8.0) + (operatorCount * 1.2) + (maxBraceDepth * 1.5) + (beginMatches.Count * 2.5), 1);
+        bool isBalanced = issues.Count == 0;
+
+        string snippet = body.Length <= 40 ? body : body.Substring(0, 37) + "...";
+        return new MathFormulaItem(lineNumber, delimiter, snippet, isBalanced, maxBraceDepth, operatorCount, complexity, issues);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of LaTeX math formula complexity and delimiters.
+    /// </summary>
+    public static string FormatMathFormulaSummary(string? markdownText)
+        => AuditMathFormulaComplexityAndDelimiters(markdownText).Summary;
+
+    public static string FormatMathFormulaSummary(
+        int totalFormulas, int inlineCount, int displayCount, int validCount, int problemCount,
+        double meanComplexity, double syntaxIntegrityScore, string category,
+        IReadOnlyList<MathFormulaItem> formulas, IReadOnlyList<string> globalIssues)
+    {
+        if (totalFormulas == 0)
+            return "LaTeX math formula audit: 0 equations · Document contains no math blocks or inline delimiters";
+
+        string formDesc = totalFormulas == 1 ? "1 formula" : $"{totalFormulas} formulas";
+        string breakdown = $"{inlineCount} inline, {displayCount} display";
+
+        if (problemCount == 0)
+        {
+            return $"LaTeX math formula audit ({formDesc} [{breakdown}] · {category} · 100% valid): ~{meanComplexity:0.#} avg complexity score";
+        }
+
+        string firstProblem = "";
+        if (globalIssues.Count > 0)
+        {
+            firstProblem = $" · {globalIssues[0]}";
+        }
+        else
+        {
+            var p = formulas.FirstOrDefault(f => !f.IsBalanced);
+            if (p != null && p.SyntaxIssues.Count > 0)
+            {
+                firstProblem = $" · Line {p.LineNumber}: {p.SyntaxIssues[0]} in '{p.FormulaSnippet}'";
+            }
+        }
+
+        return $"LaTeX math formula audit ({problemCount}/{totalFormulas} issues · {syntaxIntegrityScore:0.#}% valid [{breakdown}] · {category}): ~{meanComplexity:0.#} avg complexity{firstProblem}";
+    }
 }
 
 /// <summary>
@@ -4338,3 +4735,34 @@ public sealed record SyntaxAmbiguityAudit(
     IReadOnlyList<DelimiterBalanceItem> Ambiguities,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents an analyzed inline or display LaTeX / KaTeX math formula and its syntactic complexity.
+/// </summary>
+public sealed record MathFormulaItem(
+    int LineNumber,
+    string DelimiterType,
+    string FormulaSnippet,
+    bool IsBalanced,
+    int CurlyBraceDepth,
+    int OperatorCount,
+    double ComplexityScore,
+    IReadOnlyList<string> SyntaxIssues);
+
+/// <summary>
+/// Represents the result of an audit of document LaTeX math syntax, KaTeX delimiter pairing,
+/// formula complexity metrics, and environment closure.
+/// </summary>
+public sealed record MathFormulaAudit(
+    int TotalFormulas,
+    int InlineFormulas,
+    int DisplayFormulas,
+    int ValidFormulas,
+    int ProblematicFormulas,
+    double MeanComplexityScore,
+    IReadOnlyList<MathFormulaItem> Formulas,
+    IReadOnlyList<string> GlobalIssues,
+    string ComplexityCategory,
+    double SyntaxIntegrityScore,
+    string Summary);
+

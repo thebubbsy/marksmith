@@ -1581,6 +1581,46 @@ public class ShapeStudioPolishTests
         Assert.True(collideAudit.SpacingUniformityScore < 100.0);
         Assert.Contains(collideAudit.Pairs, p => p.IsColliding);
     }
+
+    [Fact]
+    public void Run164_AuditOrthogonalRoutingAndIntersections_EvaluatesManhattanChannelsAndCrossings()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Insufficient shapes (<2)
+        var emptyAudit = vm.AuditOrthogonalRoutingAndIntersections();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(0, emptyAudit.ConnectionChannelsEvaluated);
+        Assert.Equal("Orthogonal routing audit: Insufficient shapes (<2) · Minimum 2 shapes required for channel routing", emptyAudit.Summary);
+
+        // 2. Clear horizontal planar channel (0 bends, 0 crossings, 0 collisions)
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Text = "Source Node", X = 0, Y = 100, Width = 60, Height = 60 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Text = "Target Node", X = 200, Y = 100, Width = 60, Height = 60 };
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+
+        var clearAudit = vm.AuditOrthogonalRoutingAndIntersections();
+        Assert.Equal(2, clearAudit.TotalShapesEvaluated);
+        Assert.Equal(1, clearAudit.ConnectionChannelsEvaluated);
+        Assert.Equal(1, clearAudit.ClearChannelCount);
+        Assert.Equal(0, clearAudit.ObstructedChannelCount);
+        Assert.Equal(0, clearAudit.TotalWireCrossings);
+        Assert.Equal(100.0, clearAudit.RoutingEfficiencyScore);
+        Assert.Contains("Optimal Orthogonal Planar Channels", clearAudit.RoutingCategory);
+        Assert.Equal(clearAudit.Summary, ShapeDesignStudioViewModel.FormatOrthogonalRoutingSummary(
+            2, 1, 1, 0, 0, clearAudit.MeanChannelClearance, 100.0, clearAudit.RoutingCategory, ""));
+
+        // 3. Obstructed channel with collision
+        var sObstacle = new ShapeCanvasItemViewModel { Id = "sObs", Text = "Obstacle", X = 100, Y = 100, Width = 60, Height = 60 };
+        vm.Shapes.Add(sObstacle);
+
+        var obstAudit = vm.AuditOrthogonalRoutingAndIntersections();
+        Assert.Equal(3, obstAudit.TotalShapesEvaluated);
+        Assert.True(obstAudit.ObstructedChannelCount >= 1);
+        Assert.Contains("Shape Collisions on Routing Channels", obstAudit.RoutingCategory);
+        Assert.True(obstAudit.RoutingEfficiencyScore < 100.0);
+    }
 }
 
 

@@ -1815,6 +1815,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyAssetDpiSvgAdvisorClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var audit = RecentFilesService.AuditAssetDpiAndSvgOptimizationAdvisor(files);
+            await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+            SetNotification($"Copied High-DPI & SVG advisor: {audit.ReadinessCategory} · {audit.OverallHighDpiReadinessScore:0.#}% ready", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit High-DPI & SVG assets: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

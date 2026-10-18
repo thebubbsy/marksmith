@@ -329,6 +329,9 @@
                                         <MenuFlyoutItem x:Name="AuditCyclicConvergenceItem" Text="Audit cyclic process loop convergence &amp; recurrence closure" Click="OnAuditCyclicConvergenceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditHierarchySpanItem" Text="Audit hierarchy span of control, branching &amp; manager ratios" Click="OnAuditHierarchySpanClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -297,6 +297,9 @@
                                     <MenuFlyoutItem x:Name="CopyAssetCompressionAdvisorItem" Text="Copy workspace asset compression &amp; format modernization advisor" Click="OnCopyAssetCompressionAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyAssetDpiSvgAdvisorItem" Text="Copy High-DPI display &amp; SVG vector optimization advisor" Click="OnCopyAssetDpiSvgAdvisorClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

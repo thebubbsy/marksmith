@@ -11498,25 +11498,46 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #164 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+## Scheduled WinUI 3 Desktop Polish Routine — Run #164 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Inline Math LaTeX Equation Syntax Validation, KaTeX Delimiter Pairing & Formula Complexity Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditMathFormulaComplexityAndDelimiters(markdownText)`, `FormatMathFormulaSummary(...)`, records `MathFormulaItem`, and `MathFormulaAudit`. Audits inline math `$formula$` and block math `$$formula$$`, LaTeX delimiters `\(...\)` / `\[...\]`, nested curly brace balance, unclosed environment tags (`\begin{matrix}...\end{matrix}`), formula character complexity, and mathematical density ($0-100\%$); wired to `mathFormulaComplexityItem` (`\uE943`) in both `StatusSectionBreadcrumbButton_RightTapped` and `FindCountText_RightTapped` context menus with clipboard copy and status toast.
+    2. **MindMapGalaxyWindow Graph Closeness Centrality, Harmonic Distance & Information Flow Propagation Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditClosenessCentralityAndHarmonicDistance()`, static overload, `FormatClosenessCentralitySummary(...)`, records `NodeClosenessInfo`, and `ClosenessCentralityAudit`. Implements all-pairs shortest paths using Dijkstra/BFS, computes standardized closeness centrality, harmonic mean distances for disconnected subgraphs, identifies top dissemination hubs, peripheral knowledge sinks, and overall graph flow efficiency ($0-100\%$); wired to `AuditClosenessCentralityItem` (`\uE8A5`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Orthogonal Connection Routing Channels, Wire Intersection Crossings & Manhattan Path Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditOrthogonalRoutingAndIntersections(shapes)`, `FormatOrthogonalRoutingSummary(...)`, records `OrthogonalChannelInfo`, and `OrthogonalRoutingAudit`. Evaluates orthogonal Manhattan routing channels between shapes, computes bend counts, detects connector-shape collisions, calculates channel clearances, and counts non-planar wire crossings, scoring routing efficiency ($0-100\%$); wired to `SelectionAuditOrthogonalRoutingItem` (`\uE81E`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow Organizational Hierarchy Span of Control, Branching Factor & Manager-to-Report Ratio Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditHierarchySpanOfControl(markdown)`, static overload, `FormatHierarchySpanSummary(...)`, records `HierarchyNodeSpanInfo`, and `HierarchySpanOfControlAudit`. Evaluates hierarchical tree outlines for organizational span of control, manager-to-report ratios, branching factor variance, flags overloaded managers (>8 reports) and underutilized managers (<3 reports), and computes hierarchy balance scores ($0-100\%$); wired to `AuditHierarchySpanItem` (`\uE8FD`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Diff Hunk Semantic Folding, Syntactic Token AST Context Pinning & Scope Anchor Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditSemanticHunkFoldingAndTokenContext(unifiedRows)`, static overload, `FormatSemanticHunkFoldingSummary(...)`, records `SemanticHunkScopeInfo`, and `SemanticHunkFoldingAudit`. Scans unified diff hunks, resolves enclosing syntactic scope headers (markdown headings, code fence languages, blockquotes), detects unpinned diff hunks and foldable scopes, and computes semantic coverage scores ($0-100\%$); wired to `auditSemanticFolding` (`\uE8D2`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace High-DPI Display Readiness, Raster Density, and SVG Vector Minification Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditAssetDpiAndSvgOptimizationAdvisor(files, ...)`, `FormatAssetDpiSvgSummary(...)`, records `AssetDpiSvgItem`, and `WorkspaceAssetDpiSvgAudit`. Scans referenced workspace media assets, checks raster assets for high-DPI (Retina/@2x/@3x) display readiness, detects unoptimized SVGs containing redundant metadata/editor tags (`xmlns:inkscape`, `xmlns:sodipodi`, `<metadata>`, `<rdf:RDF>`), and calculates potential SVG minification gains; wired to `CopyAssetDpiSvgAdvisorItem` (`\uEB9F`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `7/7` targeted Run #164 tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`PID=14312, Responding=True, HasExited=False`).
+
+---
+
+### Run #165 Blueprint — Carried-Forward Refinements & Next Cycle Targets
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **Feature**: Inline Math LaTeX Equation Syntax Validation, KaTeX Delimiter Pairing & Formula Complexity Auditor.
-   - **Deliverable**: Add `TextSearch.AuditMathFormulaComplexityAndDelimiters(markdownText)` and `FormatMathFormulaSummary(...)`, detecting unmatched LaTeX math delimiters (`$`, `$$`, `\(`, `\[`), unbalanced curly braces within equations, unclosed environment tags (`\begin{matrix}...\end{matrix}`), and calculating mathematical complexity metrics. Wire to `StatusSectionBreadcrumbButton` and `FindCountText` context flyouts.
+   - **Feature**: Markdown Table Column Alignment Consistency, Cell Wrapping & Delimiter Pipe Spacing Auditor.
+   - **Deliverable**: Add `TextSearch.AuditTableAlignmentAndColumnSpacing(markdownText)` and `FormatTableAlignmentSummary(...)`, parsing GFM tables, checking column width consistency, pipe delimiter padding, cell truncation risks, and column alignment specifiers (`:---`, `:---:`, `---:`). Wire to `StatusSectionBreadcrumbButton` and `FindCountText` context flyouts.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **Feature**: Graph Closeness Centrality, Harmonic Distance & Information Flow Propagation Auditor.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditClosenessCentralityAndHarmonicDistance()` and `FormatClosenessCentralitySummary(...)`, computing shortest path closeness centrality, harmonic mean distances for disconnected subgraphs, identifying optimal knowledge dissemination nodes, and scoring information flow efficiency. Wire to `ArrangeDropDownButton.Flyout`.
+   - **Feature**: Graph Betweenness Centrality, Information Bottlenecks & Critical Bridge Node Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditBetweennessCentralityAndBridges()` and `FormatBetweennessSummary(...)`, identifying structural bottleneck nodes that lie on the highest fraction of all shortest paths, computing bridge edge criticalities, and recommending redundancy links. Wire to `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **Feature**: Orthogonal Connection Routing Channels, Wire Intersection Crossings & Manhattan Path Auditor.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditOrthogonalRoutingAndIntersections(shapes)` and `FormatOrthogonalRoutingSummary(...)`, analyzing orthogonal connector channel clearance, Manhattan routing bend counts, detecting connector-shape collisions, and minimizing non-planar wire crossings. Wire to `SelectionBoundsBorder.ContextFlyout`.
+   - **Feature**: Shape Grid Snap Conformance, Pixel-Rounding Tolerance & Coordinate Quantization Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditGridSnapConformance(shapes, gridSize)` and `FormatGridSnapSummary(...)`, evaluating all shape coordinates $(X, Y, W, H)$ against user-selected snap grids ($4\text{px}, 8\text{px}, 10\text{px}, 16\text{px}$), quantifying subpixel rounding drift, and detecting misaligned shapes. Wire to `SelectionBoundsBorder.ContextFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **Feature**: Organizational Hierarchy Span of Control, Branching Factor & Manager-to-Report Ratio Auditor.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditHierarchySpanOfControl(markdown)` and `FormatHierarchySpanSummary(...)`, evaluating hierarchical tree outlines for organizational span of control, branching factor standard deviation, identifying flat vs tall hierarchy bottlenecks, and computing structural hierarchy balance scores. Wire to `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #163 Block 3 Idea 5]**:
-   - **Refinement Target**: Advanced Diff Hunk Semantic Folding, Syntactic Token AST Context Pinning, and Multi-File Collision Boundary Resolution.
-   - **Deliverable**: Add `LineDiff.AuditSemanticHunkFoldingAndTokenContext(unifiedRows)` to analyze unified diff hunks with syntax-aware scope headers (function/type signatures) to ensure folded diff hunks preserve complete lexical context blocks and prevent ambiguous patch rejections. Wire to `TimelineHeaderBorder` context flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #163 Block 3 Idea 6]**:
-   - **Refinement Target**: Workspace Vector & Raster Asset DPI/Resolution Density, SVG Optimization Opportunity, and High-DPI Scaling Advisor.
-   - **Deliverable**: Add `RecentFilesService.AuditAssetDpiAndSvgOptimizationAdvisor(files)` to audit referenced raster assets for high-DPI (Retina/@2x/@3x) display readiness, detect unoptimized SVGs containing redundant metadata/editor tags, and calculate potential SVG minification gains. Wire to `RecentDocsFlyout`.
+   - **Feature**: SmartArt Layout Typography Scaling, Label Font-Fit & Multi-Line Text Wrapping Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditLayoutTypographyAndFontFit(markdown, targetCanvasW, targetCanvasH)` and `FormatTypographyFontFitSummary(...)`, simulating node bounding box text rendering, estimating optimal font sizes ($8\text{pt}-18\text{pt}$), identifying text clipping risks, and scoring typographic legibility. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #164 Block 3 Idea 5]**:
+   - **Refinement Target**: Syntactic Token AST Scope Collisions, Line Range Anchoring & Intra-Line Word Diff Chunking.
+   - **Deliverable**: Add `LineDiff.AuditWordLevelDiffChunkingAndTokenShifts(unifiedRows)` to pinpoint intra-line character/word substitutions within modified rows, compute token-level similarity deltas, and format high-resolution inline edit badges. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #164 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Font Asset & Icon Embedding Auditor, Missing Glyph Fallbacks & Font Weight Consistency.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceFontEmbeddingAndGlyphCoverage(files)` to audit referenced web/local fonts, CSS/SVG icon glyphs, flag missing fallback families, and score workspace typographic self-containment. Wire to `RecentDocsFlyout`.
 
 
 

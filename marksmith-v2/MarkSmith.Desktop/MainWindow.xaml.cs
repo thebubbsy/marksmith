@@ -7939,6 +7939,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(syntaxAmbiguityItem);
 
+        var mathFormulaComplexityItem = new MenuFlyoutItem
+        {
+            Text = "Copy inline LaTeX & KaTeX formula delimiter audit",
+            Icon = new FontIcon { Glyph = "\uE943" }
+        };
+        mathFormulaComplexityItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatMathFormulaSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(mathFormulaComplexityItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9375,6 +9389,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(syntaxAmbiguityItem);
+
+        var mathFormulaComplexityItem = new MenuFlyoutItem
+        {
+            Text = "Copy inline LaTeX & KaTeX formula delimiter audit",
+            Icon = new FontIcon { Glyph = "\uE943" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        mathFormulaComplexityItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatMathFormulaSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(mathFormulaComplexityItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

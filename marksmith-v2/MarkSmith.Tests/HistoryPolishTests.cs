@@ -1616,6 +1616,64 @@ public class HistoryPolishTests : IDisposable
             chunkAudit.AlignmentCategory);
         Assert.Equal(chunkAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run164_AuditSemanticHunkFoldingAndTokenContext_PinsScopesAndHunkFolding()
+    {
+        // 1. Unchanged document (0 hunks)
+        var emptyAudit = LineDiff.AuditSemanticHunkFoldingAndTokenContext("identical document", "identical document");
+        Assert.Equal(0, emptyAudit.TotalHunks);
+        Assert.Equal(0, emptyAudit.PinnedHunkCount);
+        Assert.Equal(0, emptyAudit.UnpinnedHunkCount);
+        Assert.Equal(0, emptyAudit.FoldableHunkCount);
+        Assert.Equal(100.0, emptyAudit.SemanticCoverageScore);
+        Assert.Equal("Clean Baseline (Zero Diff Deltas)", emptyAudit.FoldingCategory);
+        Assert.Equal("Diff semantic hunk folding: 0 hunks · Document is unchanged (Zero diff deltas)", emptyAudit.Summary);
+
+        // 2. Multi-hunk diff inside markdown sections with pinned heading scopes
+        var beforeDoc = """
+            # Architecture Overview
+            Unchanged line 1
+            Old architecture paragraph
+            Unchanged line 2
+
+            # Telemetry Metrics
+            Unchanged metric 1
+            Old telemetry parameter
+            Unchanged metric 2
+            """;
+
+        var afterDoc = """
+            # Architecture Overview
+            Unchanged line 1
+            New architecture section
+            New architecture pipeline
+            Unchanged line 2
+
+            # Telemetry Metrics
+            Unchanged metric 1
+            Updated telemetry parameter
+            Unchanged metric 2
+            """;
+
+        var foldingAudit = LineDiff.AuditSemanticHunkFoldingAndTokenContext(beforeDoc, afterDoc);
+        Assert.Equal(2, foldingAudit.TotalHunks);
+        Assert.Equal(2, foldingAudit.PinnedHunkCount);
+        Assert.Equal(0, foldingAudit.UnpinnedHunkCount);
+        Assert.Equal(2, foldingAudit.DistinctScopesCount);
+        Assert.Equal(100.0, foldingAudit.SemanticCoverageScore);
+        Assert.Contains("Comprehensive Syntactic Scope Pinning", foldingAudit.FoldingCategory);
+        Assert.Contains(foldingAudit.DiscoveredScopes, s => s.Contains("Architecture Overview"));
+        Assert.Contains(foldingAudit.DiscoveredScopes, s => s.Contains("Telemetry Metrics"));
+        Assert.All(foldingAudit.Hunks, h => Assert.True(h.HasPinnedContext));
+
+        // 3. Verify format summary consistency
+        string formatted = LineDiff.FormatSemanticHunkFoldingSummary(
+            foldingAudit.TotalHunks, foldingAudit.PinnedHunkCount, foldingAudit.UnpinnedHunkCount,
+            foldingAudit.FoldableHunkCount, foldingAudit.DistinctScopesCount, foldingAudit.SemanticCoverageScore,
+            foldingAudit.FoldingCategory);
+        Assert.Equal(foldingAudit.Summary, formatted);
+    }
 }
 
 

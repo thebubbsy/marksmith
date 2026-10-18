@@ -5937,6 +5937,248 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string collisionAlert = collidingCount > 0 ? $" · ⚠ {collidingCount} colliding pairs" : " · 0 collisions";
         return $"Shape spacing audit ({scope}{shapeDesc} · {category}): Uniformity: {uniformityScore:0.#}% (Gutter std dev {stdDev:0.#}px · Mean H:{meanH:0.#}px, V:{meanV:0.#}px){collisionAlert}";
     }
+
+    /// <summary>
+    /// Audits orthogonal connection routing channels, wire intersection crossings, shape bounding box collisions,
+    /// and Manhattan path clearances.
+    /// </summary>
+    public OrthogonalRoutingAudit AuditOrthogonalRoutingAndIntersections(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = (targetShapes != null) || (selected.Count >= 2);
+        string scopeStr = isSelection ? "Selected Shapes · " : "";
+
+        if (targets.Count < 2)
+        {
+            string emptySummary = "Orthogonal routing audit: Insufficient shapes (<2) · Minimum 2 shapes required for channel routing";
+            StatusMessage = emptySummary;
+            return new OrthogonalRoutingAudit(
+                targets.Count, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<OrthogonalChannelInfo>(), "Insufficient Shapes", isSelection, emptySummary);
+        }
+
+        // Determine dominant flow axis
+        double spanX = targets.Max(s => s.X + s.Width) - targets.Min(s => s.X);
+        double spanY = targets.Max(s => s.Y + s.Height) - targets.Min(s => s.Y);
+
+        var orderedShapes = spanX >= spanY
+            ? targets.OrderBy(s => s.X).ThenBy(s => s.Y).ToList()
+            : targets.OrderBy(s => s.Y).ThenBy(s => s.X).ToList();
+
+        // Build connection pairs (adjacent flow channels plus pairwise if small graph)
+        var channelPairs = new List<(ShapeCanvasItemViewModel A, ShapeCanvasItemViewModel B)>();
+        if (orderedShapes.Count <= 8)
+        {
+            for (int i = 0; i < orderedShapes.Count; i++)
+            {
+                for (int j = i + 1; j < orderedShapes.Count; j++)
+                {
+                    channelPairs.Add((orderedShapes[i], orderedShapes[j]));
+                }
+            }
+        }
+        else
+        {
+            for (int i = 0; i < orderedShapes.Count - 1; i++)
+            {
+                channelPairs.Add((orderedShapes[i], orderedShapes[i + 1]));
+            }
+        }
+
+        var channelInfos = new List<OrthogonalChannelInfo>();
+        var hSegments = new List<(double Y, double MinX, double MaxX, int ChannelIdx)>();
+        var vSegments = new List<(double X, double MinY, double MaxY, int ChannelIdx)>();
+
+        int obstructedCount = 0;
+        int clearCount = 0;
+        double sumClearance = 0.0;
+
+        for (int chIdx = 0; chIdx < channelPairs.Count; chIdx++)
+        {
+            var (a, b) = channelPairs[chIdx];
+            double ax = a.X + a.Width / 2.0;
+            double ay = a.Y + a.Height / 2.0;
+            double bx = b.X + b.Width / 2.0;
+            double by = b.Y + b.Height / 2.0;
+
+            int bends = 0;
+            bool collides = false;
+            double minClearance = double.MaxValue;
+
+            if (Math.Abs(ax - bx) < 4.0)
+            {
+                // Straight vertical
+                bends = 0;
+                double minY = Math.Min(ay, by);
+                double maxY = Math.Max(ay, by);
+                vSegments.Add((ax, minY, maxY, chIdx));
+
+                // Check collision with other shapes
+                foreach (var other in targets)
+                {
+                    if (other.Id == a.Id || other.Id == b.Id) continue;
+                    if (ax >= other.X && ax <= other.X + other.Width &&
+                        maxY >= other.Y && minY <= other.Y + other.Height)
+                    {
+                        collides = true;
+                    }
+                    double dist = Math.Max(0.0, Math.Min(Math.Abs(ax - other.X), Math.Abs(ax - (other.X + other.Width))));
+                    if (dist < minClearance) minClearance = dist;
+                }
+            }
+            else if (Math.Abs(ay - by) < 4.0)
+            {
+                // Straight horizontal
+                bends = 0;
+                double minX = Math.Min(ax, bx);
+                double maxX = Math.Max(ax, bx);
+                hSegments.Add((ay, minX, maxX, chIdx));
+
+                foreach (var other in targets)
+                {
+                    if (other.Id == a.Id || other.Id == b.Id) continue;
+                    if (ay >= other.Y && ay <= other.Y + other.Height &&
+                        maxX >= other.X && minX <= other.X + other.Width)
+                    {
+                        collides = true;
+                    }
+                    double dist = Math.Max(0.0, Math.Min(Math.Abs(ay - other.Y), Math.Abs(ay - (other.Y + other.Height))));
+                    if (dist < minClearance) minClearance = dist;
+                }
+            }
+            else
+            {
+                // 2-bend Manhattan channel via midpoint
+                bends = 2;
+                double midX = (ax + bx) / 2.0;
+
+                // Segment 1: horizontal (ay, ax -> midX)
+                hSegments.Add((ay, Math.Min(ax, midX), Math.Max(ax, midX), chIdx));
+                // Segment 2: vertical (midX, ay -> by)
+                vSegments.Add((midX, Math.Min(ay, by), Math.Max(ay, by), chIdx));
+                // Segment 3: horizontal (by, midX -> bx)
+                hSegments.Add((by, Math.Min(midX, bx), Math.Max(midX, bx), chIdx));
+
+                foreach (var other in targets)
+                {
+                    if (other.Id == a.Id || other.Id == b.Id) continue;
+                    // Check horizontal 1
+                    if (ay >= other.Y && ay <= other.Y + other.Height &&
+                        Math.Max(ax, midX) >= other.X && Math.Min(ax, midX) <= other.X + other.Width)
+                        collides = true;
+                    // Check vertical 2
+                    if (midX >= other.X && midX <= other.X + other.Width &&
+                        Math.Max(ay, by) >= other.Y && Math.Min(ay, by) <= other.Y + other.Height)
+                        collides = true;
+                    // Check horizontal 3
+                    if (by >= other.Y && by <= other.Y + other.Height &&
+                        Math.Max(midX, bx) >= other.X && Math.Min(midX, bx) <= other.X + other.Width)
+                        collides = true;
+
+                    double dX = Math.Min(Math.Abs(midX - other.X), Math.Abs(midX - (other.X + other.Width)));
+                    double dY = Math.Min(Math.Abs(ay - other.Y), Math.Abs(by - (other.Y + other.Height)));
+                    double d = Math.Min(dX, dY);
+                    if (d < minClearance) minClearance = d;
+                }
+            }
+
+            if (minClearance == double.MaxValue) minClearance = 50.0;
+            minClearance = Math.Round(minClearance, 1);
+            sumClearance += minClearance;
+
+            if (collides) obstructedCount++;
+            else clearCount++;
+
+            channelInfos.Add(new OrthogonalChannelInfo(
+                a.Id, b.Id, a.DisplayName, b.DisplayName, bends, collides, 0, minClearance, !collides));
+        }
+
+        // Count wire crossings between different channels
+        int totalCrossings = 0;
+        var crossingCountsPerChannel = new int[channelPairs.Count];
+
+        foreach (var h in hSegments)
+        {
+            foreach (var v in vSegments)
+            {
+                if (h.ChannelIdx != v.ChannelIdx)
+                {
+                    if (v.X > h.MinX && v.X < h.MaxX &&
+                        h.Y > v.MinY && h.Y < v.MaxY)
+                    {
+                        totalCrossings++;
+                        crossingCountsPerChannel[h.ChannelIdx]++;
+                        crossingCountsPerChannel[v.ChannelIdx]++;
+                    }
+                }
+            }
+        }
+
+        // Update channel crossing count
+        var finalChannels = new List<OrthogonalChannelInfo>();
+        for (int i = 0; i < channelInfos.Count; i++)
+        {
+            finalChannels.Add(channelInfos[i] with { CrossingCount = crossingCountsPerChannel[i] });
+        }
+
+        double meanClearance = channelPairs.Count > 0 ? Math.Round(sumClearance / channelPairs.Count, 1) : 0.0;
+        double routingEfficiency = Math.Round(Math.Clamp(100.0 - (obstructedCount * 22.0) - (totalCrossings * 10.0), 0.0, 100.0), 1);
+
+        string category;
+        if (obstructedCount > 0)
+        {
+            category = "Shape Collisions on Routing Channels";
+        }
+        else if (totalCrossings > 0)
+        {
+            category = "Non-Planar Wire Crossings Present";
+        }
+        else if (meanClearance >= 24.0)
+        {
+            category = "Optimal Orthogonal Planar Channels";
+        }
+        else
+        {
+            category = "Clear Orthogonal Routing";
+        }
+
+        string summary = FormatOrthogonalRoutingSummary(
+            targets.Count, channelPairs.Count, clearCount, obstructedCount, totalCrossings,
+            meanClearance, routingEfficiency, category, scopeStr);
+
+        StatusMessage = summary;
+
+        return new OrthogonalRoutingAudit(
+            targets.Count,
+            channelPairs.Count,
+            clearCount,
+            obstructedCount,
+            totalCrossings,
+            meanClearance,
+            routingEfficiency,
+            finalChannels,
+            category,
+            isSelection,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of orthogonal routing channels and wire crossings.
+    /// </summary>
+    public static string FormatOrthogonalRoutingSummary(
+        int totalShapes, int channelCount, int clearCount, int obstructedCount, int crossings,
+        double meanClearance, double efficiencyScore, string category, string scope = "")
+    {
+        if (totalShapes < 2) return "Orthogonal routing audit: Insufficient shapes (<2) · Minimum 2 shapes required";
+
+        string shapeDesc = $"{totalShapes} shapes";
+        string issues = "";
+        if (obstructedCount > 0) issues += $" · ⚠ {obstructedCount} obstructed channels";
+        if (crossings > 0) issues += $" · ⚠ {crossings} wire crossings";
+
+        return $"Orthogonal routing audit ({scope}{shapeDesc} · {channelCount} channels · {category}): Efficiency: {efficiencyScore:0.#}% ({clearCount} clear · Mean clearance {meanClearance:0.#}px){issues}";
+    }
 }
 
 /// <summary>
@@ -6236,4 +6478,36 @@ public sealed record ShapeSpacingUniformityAudit(
     string SpacingCategory,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents clearance, bend count, collisions, and wire crossings for an orthogonal connection routing channel.
+/// </summary>
+public sealed record OrthogonalChannelInfo(
+    string ShapeAId,
+    string ShapeBId,
+    string ShapeAName,
+    string ShapeBName,
+    int BendCount,
+    bool CollidesWithShapes,
+    int CrossingCount,
+    double ChannelClearance,
+    bool HasClearChannel);
+
+/// <summary>
+/// Represents the result of an audit of orthogonal connection routing channels, wire intersection crossings,
+/// shape collisions, and Manhattan routing clearances.
+/// </summary>
+public sealed record OrthogonalRoutingAudit(
+    int TotalShapesEvaluated,
+    int ConnectionChannelsEvaluated,
+    int ClearChannelCount,
+    int ObstructedChannelCount,
+    int TotalWireCrossings,
+    double MeanChannelClearance,
+    double RoutingEfficiencyScore,
+    IReadOnlyList<OrthogonalChannelInfo> Channels,
+    string RoutingCategory,
+    bool IsSelectionScope,
+    string Summary);
+
 

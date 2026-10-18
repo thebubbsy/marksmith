@@ -5630,6 +5630,240 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Graph diameter audit ({scopeStr}{nodeLabel}, {linkLabel} · {compLabel} · Diameter {diameter}, Radius {radius} · {category}): Longest concept path: {pathStr} ({diameter} hops) · {peripheralCount} peripheral, {centralCount} central";
         }
+
+        /// <summary>
+        /// Audits mindmap graph closeness centrality, harmonic mean distances for disconnected subgraphs,
+        /// identifies optimal knowledge dissemination hubs, and scores information propagation efficiency.
+        /// </summary>
+        public ClosenessCentralityAudit AuditClosenessCentralityAndHarmonicDistance(IEnumerable<MindMapNodeViewModel>? targetNodes = null)
+        {
+            bool isSelection = false;
+            var targetList = targetNodes?.ToList();
+            if (targetList == null)
+            {
+                var selectedNodes = Nodes.Where(n => n.IsSelected).ToList();
+                if (selectedNodes.Count > 1)
+                {
+                    targetList = selectedNodes;
+                    isSelection = true;
+                }
+                else
+                {
+                    targetList = Nodes.ToList();
+                }
+            }
+            else
+            {
+                isSelection = true;
+            }
+
+            string scopeStr = isSelection ? "Selected Nodes · " : "";
+            if (targetList.Count == 0)
+            {
+                string emptySummary = $"Graph closeness centrality ({scopeStr}0 nodes): Empty mindmap";
+                return new ClosenessCentralityAudit(0, 0, 0, 0.0, 0.0, Array.Empty<NodeClosenessInfo>(), Array.Empty<string>(), Array.Empty<string>(), "Empty MindMap", isSelection, emptySummary);
+            }
+
+            var nodeSet = new HashSet<string>(targetList.Select(n => n.Id));
+            var linksInScope = Links.Where(l => nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId)).ToList();
+
+            // Adjacency list
+            var adj = new Dictionary<string, List<string>>();
+            foreach (var n in targetList) adj[n.Id] = new List<string>();
+            foreach (var l in linksInScope)
+            {
+                if (adj.ContainsKey(l.SourceNodeId) && adj.ContainsKey(l.TargetNodeId))
+                {
+                    adj[l.SourceNodeId].Add(l.TargetNodeId);
+                    adj[l.TargetNodeId].Add(l.SourceNodeId);
+                }
+            }
+
+            int nTotal = targetList.Count;
+
+            // Single node edge case
+            if (nTotal == 1)
+            {
+                var single = targetList[0];
+                var singleInfo = new NodeClosenessInfo(single.Id, single.Title, 1.0, 1.0, 0.0, 0, true);
+                string singleSummary = $"Graph closeness centrality ({scopeStr}1 node, 0 links · 1 component · Optimal Knowledge Hub · 100% efficiency): Single isolated node '{single.Title}'";
+                return new ClosenessCentralityAudit(1, 0, 1, 1.0, 100.0, new[] { singleInfo }, new[] { single.Title }, Array.Empty<string>(), "Single Isolated Node", isSelection, singleSummary);
+            }
+
+            // BFS from each node to calculate geodesic distances
+            var nodeInfos = new List<NodeClosenessInfo>();
+            var visitedComponents = new HashSet<string>();
+            int componentCount = 0;
+
+            // Count connected components
+            foreach (var node in targetList)
+            {
+                if (!visitedComponents.Contains(node.Id))
+                {
+                    componentCount++;
+                    var qComp = new Queue<string>();
+                    qComp.Enqueue(node.Id);
+                    visitedComponents.Add(node.Id);
+                    while (qComp.Count > 0)
+                    {
+                        var curr = qComp.Dequeue();
+                        foreach (var neighbor in adj[curr])
+                        {
+                            if (visitedComponents.Add(neighbor))
+                            {
+                                qComp.Enqueue(neighbor);
+                            }
+                        }
+                    }
+                }
+            }
+
+            double totalHarmonic = 0.0;
+            double maxHarmonic = -1.0;
+            double minHarmonic = double.MaxValue;
+
+            foreach (var node in targetList)
+            {
+                var dist = new Dictionary<string, int>();
+                var queue = new Queue<string>();
+                dist[node.Id] = 0;
+                queue.Enqueue(node.Id);
+
+                while (queue.Count > 0)
+                {
+                    var u = queue.Dequeue();
+                    int d = dist[u];
+                    foreach (var v in adj[u])
+                    {
+                        if (!dist.ContainsKey(v))
+                        {
+                            dist[v] = d + 1;
+                            queue.Enqueue(v);
+                        }
+                    }
+                }
+
+                int reachableCount = dist.Count - 1; // excluding self
+                double sumDist = 0.0;
+                double sumReciprocalDist = 0.0;
+
+                foreach (var kvp in dist)
+                {
+                    if (kvp.Key == node.Id) continue;
+                    sumDist += kvp.Value;
+                    sumReciprocalDist += 1.0 / kvp.Value;
+                }
+
+                // Harmonic centrality normalized by (N - 1)
+                double harmonic = Math.Round(sumReciprocalDist / (nTotal - 1), 3);
+                // Closeness centrality: Wasserman-Faust formula for disconnected graphs
+                double closeness = 0.0;
+                if (sumDist > 0 && reachableCount > 0)
+                {
+                    double rawCloseness = (double)reachableCount / sumDist;
+                    closeness = Math.Round(((double)reachableCount / (nTotal - 1)) * rawCloseness, 3);
+                }
+
+                double meanDist = reachableCount > 0 ? Math.Round(sumDist / reachableCount, 1) : 0.0;
+
+                totalHarmonic += harmonic;
+                if (harmonic > maxHarmonic) maxHarmonic = harmonic;
+                if (harmonic < minHarmonic) minHarmonic = harmonic;
+
+                nodeInfos.Add(new NodeClosenessInfo(node.Id, node.Title, closeness, harmonic, meanDist, reachableCount, false));
+            }
+
+            double meanHarmonic = Math.Round(totalHarmonic / nTotal, 3);
+            double graphEfficiency = Math.Round(meanHarmonic * 100.0, 1);
+
+            // Flag hubs (harmonic >= maxHarmonic - 0.05 and harmonic > 0.1)
+            var topHubs = new List<string>();
+            var peripheralNodes = new List<string>();
+
+            var updatedInfos = new List<NodeClosenessInfo>();
+            foreach (var info in nodeInfos)
+            {
+                bool isHub = maxHarmonic > 0 && info.HarmonicCentrality >= maxHarmonic - 0.001;
+                if (isHub) topHubs.Add(info.Title);
+                if (info.HarmonicCentrality <= minHarmonic + 0.001 || info.ReachableNodes == 0)
+                {
+                    peripheralNodes.Add(info.Title);
+                }
+                updatedInfos.Add(info with { IsOptimalDisseminationHub = isHub });
+            }
+
+            string category;
+            if (meanHarmonic >= 0.70)
+            {
+                category = "High Information Flow Efficiency";
+            }
+            else if (meanHarmonic >= 0.40)
+            {
+                category = "Balanced Propagation Dynamics";
+            }
+            else if (componentCount > 1)
+            {
+                category = "Fragmented Graph Components";
+            }
+            else
+            {
+                category = "Sparse / Linear Propagation Bottlenecks";
+            }
+
+            string summary = FormatClosenessCentralitySummary(
+                targetList.Count, linksInScope.Count, componentCount, meanHarmonic, graphEfficiency,
+                topHubs, peripheralNodes.Count, category, isSelection);
+
+            return new ClosenessCentralityAudit(
+                targetList.Count,
+                linksInScope.Count,
+                componentCount,
+                meanHarmonic,
+                graphEfficiency,
+                updatedInfos,
+                topHubs,
+                peripheralNodes,
+                category,
+                isSelection,
+                summary);
+        }
+
+        /// <summary>
+        /// Audits mindmap graph closeness centrality across pure model nodes and links.
+        /// </summary>
+        public static ClosenessCentralityAudit AuditClosenessCentralityAndHarmonicDistance(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditClosenessCentralityAndHarmonicDistance();
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of graph closeness centrality and harmonic distance.
+        /// </summary>
+        public static string FormatClosenessCentralitySummary(
+            int nodeCount, int linkCount, int components, double meanHarmonic, double graphEfficiency,
+            IReadOnlyList<string> topHubs, int peripheralCount, string category, bool isSelection)
+        {
+            string scopeStr = isSelection ? "Selected Nodes · " : "";
+            if (nodeCount == 0) return $"Graph closeness centrality ({scopeStr}0 nodes): Empty mindmap";
+
+            string nodeLabel = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+            string linkLabel = linkCount == 1 ? "1 link" : $"{linkCount} links";
+            string compLabel = components == 1 ? "1 component" : $"{components} components";
+            string hubStr = topHubs.Count > 0 ? string.Join(", ", topHubs.Select(h => $"'{h}'")) : "None";
+
+            return $"Graph closeness centrality ({scopeStr}{nodeLabel}, {linkLabel} · {compLabel} · {category} · {graphEfficiency:0.#}% flow efficiency): Optimal hubs: {hubStr} (Mean harmonic {meanHarmonic:0.###}) · {peripheralCount} peripheral";
+        }
     }
 
 
@@ -5938,6 +6172,35 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<string> LongestConceptPath,
         IReadOnlyList<NodeEccentricityInfo> Nodes,
         string DiameterCategory,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents closeness centrality, harmonic mean distance, and information propagation metrics for an individual node.
+    /// </summary>
+    public sealed record NodeClosenessInfo(
+        string NodeId,
+        string Title,
+        double ClosenessCentrality,
+        double HarmonicCentrality,
+        double MeanDistance,
+        int ReachableNodes,
+        bool IsOptimalDisseminationHub);
+
+    /// <summary>
+    /// Represents the result of an audit of the mindmap's graph closeness centrality, harmonic mean distance,
+    /// and information flow propagation efficiency.
+    /// </summary>
+    public sealed record ClosenessCentralityAudit(
+        int TotalNodes,
+        int TotalLinks,
+        int ConnectedComponents,
+        double MeanHarmonicCentrality,
+        double GraphEfficiency,
+        IReadOnlyList<NodeClosenessInfo> NodeMetrics,
+        IReadOnlyList<string> OptimalHubTitles,
+        IReadOnlyList<string> PeripheralTitles,
+        string EfficiencyCategory,
         bool IsSelectionScope,
         string Summary);
 }

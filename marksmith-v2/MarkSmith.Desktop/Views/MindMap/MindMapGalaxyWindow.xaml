@@ -309,6 +309,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphDiameterItem" Text="Audit graph diameter, eccentricity &amp; longest path" Click="OnAuditGraphDiameterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9E9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditClosenessCentralityItem" Text="Audit closeness centrality, harmonic distance &amp; propagation" Click="OnAuditClosenessCentralityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

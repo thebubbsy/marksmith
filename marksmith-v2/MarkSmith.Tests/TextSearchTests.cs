@@ -1589,6 +1589,57 @@ public class TextSearchTests
         Assert.Contains(unbalAudit.Ambiguities, d => d.Delimiter == "`");
         Assert.Contains(unbalAudit.Ambiguities, d => d.Delimiter == "[");
     }
+
+    [Fact]
+    public void Run164_AuditMathFormulaComplexityAndDelimiters_ValidatesKaTeXDelimitersAndBraces()
+    {
+        // 1. Empty document
+        var emptyAudit = TextSearch.AuditMathFormulaComplexityAndDelimiters("");
+        Assert.Equal(0, emptyAudit.TotalFormulas);
+        Assert.Equal(0, emptyAudit.ProblematicFormulas);
+        Assert.Equal(100.0, emptyAudit.SyntaxIntegrityScore);
+        Assert.Equal("No Formulas (Clean)", emptyAudit.ComplexityCategory);
+        Assert.Equal(emptyAudit.Summary, TextSearch.FormatMathFormulaSummary(""));
+
+        // 2. Valid inline and display math formulas
+        var validDoc = string.Join("\n",
+            "# Physics Notes",
+            "Einstein's energy relation is $E = mc^2$ and momentum is $p = \\hbar k$.",
+            "Display equation:",
+            "$$",
+            "\\int_{0}^{\\infty} e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}",
+            "$$",
+            "Currency should be ignored: $50 and $100.",
+            "Inline code with dollar should be ignored: `$foo$`.");
+
+        var validAudit = TextSearch.AuditMathFormulaComplexityAndDelimiters(validDoc);
+        Assert.Equal(3, validAudit.TotalFormulas);
+        Assert.Equal(2, validAudit.InlineFormulas);
+        Assert.Equal(1, validAudit.DisplayFormulas);
+        Assert.Equal(3, validAudit.ValidFormulas);
+        Assert.Equal(0, validAudit.ProblematicFormulas);
+        Assert.True(validAudit.MeanComplexityScore > 0.0);
+        Assert.Equal(100.0, validAudit.SyntaxIntegrityScore);
+        Assert.Contains("100% valid", validAudit.Summary);
+
+        // 3. Formula with syntax error (unbalanced curly brace and mismatched environment)
+        var invalidDoc = string.Join("\n",
+            "Broken inline math: $\\frac{a}{b$",
+            "Broken environment:",
+            "$$",
+            "\\begin{matrix}",
+            "1 & 2 \\\\",
+            "3 & 4",
+            "\\end{pmatrix}",
+            "$$");
+
+        var invalidAudit = TextSearch.AuditMathFormulaComplexityAndDelimiters(invalidDoc);
+        Assert.Equal(2, invalidAudit.TotalFormulas);
+        Assert.True(invalidAudit.ProblematicFormulas >= 2);
+        Assert.True(invalidAudit.SyntaxIntegrityScore < 100.0);
+        Assert.Equal("LaTeX Syntax Errors Detected", invalidAudit.ComplexityCategory);
+        Assert.Contains("issues", invalidAudit.Summary);
+    }
 }
 
 

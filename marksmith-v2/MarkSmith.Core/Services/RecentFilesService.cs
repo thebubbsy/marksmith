@@ -3159,6 +3159,224 @@ public sealed class RecentFilesService
 
         return $"Asset compression audit ({assetLabel} [{modernCount} modern, {legacyCount} legacy] · {category}): Efficiency: {efficiencyScore:0.#}% (Total: {FormatBytes(currentBytes)}){savingsStr}{oversizedStr}";
     }
+
+    /// <summary>
+    /// Audits workspace media assets for high-DPI (Retina/@2x/@3x) display readiness, detects unoptimized SVG vector
+    /// files containing editor/metadata bloat, and calculates potential vector minification gains.
+    /// </summary>
+    public static WorkspaceAssetDpiSvgAudit AuditAssetDpiAndSvgOptimizationAdvisor(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null,
+        Func<string, long>? fileLengthProvider = null,
+        Func<string, (int width, int height)>? dimensionsProvider = null)
+    {
+        var fileList = files?.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                       ?? new List<string>();
+
+        fileExistsProvider ??= File.Exists;
+        contentReader ??= File.ReadAllText;
+        fileLengthProvider ??= p =>
+        {
+            try { return new FileInfo(p).Length; }
+            catch { return 0L; }
+        };
+        dimensionsProvider ??= _ => (0, 0);
+
+        if (fileList.Count == 0)
+        {
+            string emptySummary = "High-DPI & SVG asset advisor: 0 media assets detected · Workspace contains no documents";
+            return new WorkspaceAssetDpiSvgAudit(0, 0, 0, 0, 0, 0, 100.0, 0L, Array.Empty<AssetDpiSvgItem>(), "Empty Workspace", emptySummary);
+        }
+
+        var assetItems = new List<AssetDpiSvgItem>();
+        var seenAssets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var mdImgRegex = new System.Text.RegularExpressions.Regex(@"!\[(.*?)\]\((.*?)\)", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var htmlImgRegex = new System.Text.RegularExpressions.Regex(@"<img\s+[^>]*src=[""'](.*?)[""']", System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        foreach (var file in fileList)
+        {
+            if (!fileExistsProvider(file)) continue;
+            string content;
+            try { content = contentReader(file); }
+            catch { continue; }
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            string docDir = "";
+            try { docDir = Path.GetDirectoryName(file) ?? ""; } catch { }
+
+            var matches = new List<string>();
+            foreach (System.Text.RegularExpressions.Match m in mdImgRegex.Matches(content))
+            {
+                if (m.Groups.Count > 2) matches.Add(m.Groups[2].Value.Trim());
+            }
+            foreach (System.Text.RegularExpressions.Match m in htmlImgRegex.Matches(content))
+            {
+                if (m.Groups.Count > 1) matches.Add(m.Groups[1].Value.Trim());
+            }
+
+            foreach (var rawRef in matches)
+            {
+                if (string.IsNullOrWhiteSpace(rawRef)) continue;
+                // Clean URL params or anchors
+                string cleaned = rawRef.Split('?')[0].Split('#')[0].Trim();
+                if (cleaned.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    cleaned.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                    cleaned.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue; // Skip remote/data URLs for local High-DPI/SVG audit
+                }
+
+                string resolved = cleaned;
+                if (!Path.IsPathRooted(cleaned) && !string.IsNullOrEmpty(docDir))
+                {
+                    try { resolved = Path.GetFullPath(Path.Combine(docDir, cleaned)); } catch { }
+                }
+
+                if (!seenAssets.Add(resolved)) continue;
+
+                string ext = "";
+                try { ext = Path.GetExtension(resolved).ToLowerInvariant(); } catch { }
+                string fileName = "";
+                try { fileName = Path.GetFileName(resolved); } catch { }
+
+                long sizeBytes = fileLengthProvider(resolved);
+                bool isSvg = ext == ".svg";
+                bool isRaster = ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".bmp" || ext == ".webp" || ext == ".avif";
+
+                if (!isSvg && !isRaster) continue;
+
+                if (isSvg)
+                {
+                    string svgText = "";
+                    if (fileExistsProvider(resolved))
+                    {
+                        try { svgText = contentReader(resolved); } catch { }
+                    }
+
+                    int bloatCount = 0;
+                    if (!string.IsNullOrEmpty(svgText))
+                    {
+                        if (svgText.Contains("xmlns:inkscape") || svgText.Contains("inkscape:")) bloatCount++;
+                        if (svgText.Contains("xmlns:sodipodi") || svgText.Contains("sodipodi:")) bloatCount++;
+                        if (svgText.Contains("<metadata") || svgText.Contains("</metadata>")) bloatCount++;
+                        if (svgText.Contains("<rdf:RDF") || svgText.Contains("</rdf:RDF>")) bloatCount++;
+                        if (svgText.Contains("<!--")) bloatCount++;
+                        if (System.Text.RegularExpressions.Regex.IsMatch(svgText, @"<g\s*>\s*</g>")) bloatCount++;
+                    }
+
+                    bool hasBloat = bloatCount > 0;
+                    double savingsPct = hasBloat ? Math.Min(60.0, 15.0 + (bloatCount * 8.0)) : 0.0;
+                    string rec = hasBloat
+                        ? $"Strip {bloatCount} editor/metadata tags (~{savingsPct:0}% minification)"
+                        : "Optimal scalable vector (High-DPI Ready)";
+
+                    assetItems.Add(new AssetDpiSvgItem(
+                        resolved, fileName, "Vector (SVG)", sizeBytes, true, hasBloat, bloatCount, savingsPct, rec));
+                }
+                else
+                {
+                    // Raster image
+                    bool has2xName = fileName.Contains("@2x", StringComparison.OrdinalIgnoreCase) ||
+                                     fileName.Contains("@3x", StringComparison.OrdinalIgnoreCase) ||
+                                     fileName.Contains("-2x", StringComparison.OrdinalIgnoreCase);
+
+                    var (w, h) = dimensionsProvider(resolved);
+                    bool isHighRes = has2xName || (w >= 1600 || h >= 1200) || (w == 0 && sizeBytes >= 250 * 1024);
+
+                    string rec;
+                    if (has2xName) rec = "High-DPI asset detected (@2x format)";
+                    else if (isHighRes) rec = "High-resolution master raster";
+                    else rec = "Low-DPI raster: Consider vector SVG or @2x asset for Retina displays";
+
+                    assetItems.Add(new AssetDpiSvgItem(
+                        resolved, fileName, "Raster Image", sizeBytes, isHighRes, false, 0, 0.0, rec));
+                }
+            }
+        }
+
+        if (assetItems.Count == 0)
+        {
+            string emptySummary = "High-DPI & SVG asset advisor: 0 media assets detected · Workspace is 100% text-based";
+            return new WorkspaceAssetDpiSvgAudit(0, 0, 0, 0, 0, 0, 100.0, 0L, Array.Empty<AssetDpiSvgItem>(), "Text-Only Workspace", emptySummary);
+        }
+
+        int totalAssets = assetItems.Count;
+        int svgCount = assetItems.Count(a => a.AssetType.Contains("SVG"));
+        int rasterCount = totalAssets - svgCount;
+        int highDpiReadyCount = assetItems.Count(a => a.IsHighDpiReady);
+        int lowDpiRiskCount = totalAssets - highDpiReadyCount;
+        int unoptimizedSvgCount = assetItems.Count(a => a.HasSvgBloat);
+
+        long potentialSvgSavingsBytes = assetItems
+            .Where(a => a.HasSvgBloat)
+            .Sum(a => (long)(a.FileSizeBytes * (a.EstimatedOptimizationSavingsPercent / 100.0)));
+
+        double readinessScore = Math.Round(100.0 * highDpiReadyCount / totalAssets, 1);
+
+        string category;
+        if (readinessScore >= 90.0 && unoptimizedSvgCount == 0)
+        {
+            category = "High-DPI & Retina Ready (Optimal)";
+        }
+        else if (unoptimizedSvgCount > 0 && lowDpiRiskCount > 0)
+        {
+            category = "Vector Bloat & Low-DPI Raster Risks";
+        }
+        else if (unoptimizedSvgCount > 0)
+        {
+            category = "SVG Vector Minification Opportunities";
+        }
+        else
+        {
+            category = "Low-DPI Raster Assets Detected";
+        }
+
+        string summary = FormatAssetDpiSvgSummary(
+            totalAssets, svgCount, rasterCount, highDpiReadyCount, lowDpiRiskCount,
+            unoptimizedSvgCount, readinessScore, potentialSvgSavingsBytes, category);
+
+        return new WorkspaceAssetDpiSvgAudit(
+            totalAssets,
+            rasterCount,
+            svgCount,
+            highDpiReadyCount,
+            lowDpiRiskCount,
+            unoptimizedSvgCount,
+            readinessScore,
+            potentialSvgSavingsBytes,
+            assetItems,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of High-DPI display readiness and SVG vector minification opportunities.
+    /// </summary>
+    public static string FormatAssetDpiSvgSummary(
+        int totalAssets, int svgCount, int rasterCount, int highDpiReadyCount, int lowDpiRiskCount,
+        int unoptimizedSvgCount, double readinessScore, long svgSavingsBytes, string category)
+    {
+        if (totalAssets == 0) return "High-DPI & SVG asset advisor: 0 media assets detected · Workspace is 100% text-based";
+
+        static string FormatBytes(long bytes)
+        {
+            if (bytes <= 0) return "0 B";
+            if (bytes < 1024) return $"{bytes} B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:0.#} KB";
+            return $"{bytes / (1024.0 * 1024.0):0.##} MB";
+        }
+
+        string assetLabel = totalAssets == 1 ? "1 asset" : $"{totalAssets} assets";
+        string breakdown = $"{svgCount} SVG, {rasterCount} raster";
+
+        string issues = "";
+        if (unoptimizedSvgCount > 0) issues += $" · ⚠ {unoptimizedSvgCount} unoptimized SVG{(unoptimizedSvgCount == 1 ? "" : "s")} ({FormatBytes(svgSavingsBytes)} potential savings)";
+        if (lowDpiRiskCount > 0) issues += $" · ⚠ {lowDpiRiskCount} low-DPI raster asset{(lowDpiRiskCount == 1 ? "" : "s")}";
+
+        return $"High-DPI & SVG asset advisor ({assetLabel} [{breakdown}] · {category}): {readinessScore:0.#}% High-DPI ready ({highDpiReadyCount} ready){issues}";
+    }
 }
 
 /// <summary>
@@ -3467,3 +3685,35 @@ public sealed record WorkspaceAssetCompressionAudit(
     IReadOnlyList<AssetCompressionItem> Assets,
     string EfficiencyCategory,
     string Summary);
+
+/// <summary>
+/// Represents high-DPI scaling readiness and SVG bloat optimization metrics for an individual media asset.
+/// </summary>
+public sealed record AssetDpiSvgItem(
+    string AssetPath,
+    string FileName,
+    string AssetType,
+    long FileSizeBytes,
+    bool IsHighDpiReady,
+    bool HasSvgBloat,
+    int SvgBloatTagCount,
+    double EstimatedOptimizationSavingsPercent,
+    string OptimizationRecommendation);
+
+/// <summary>
+/// Represents the result of an audit of workspace High-DPI display readiness, raster density,
+/// and SVG vector minification opportunities.
+/// </summary>
+public sealed record WorkspaceAssetDpiSvgAudit(
+    int TotalAssetsEvaluated,
+    int RasterCount,
+    int SvgCount,
+    int HighDpiReadyCount,
+    int LowDpiRiskCount,
+    int UnoptimizedSvgCount,
+    double OverallHighDpiReadinessScore,
+    long PotentialSvgSavingsBytes,
+    IReadOnlyList<AssetDpiSvgItem> Assets,
+    string ReadinessCategory,
+    string Summary);
+

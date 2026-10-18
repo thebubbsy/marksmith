@@ -3827,6 +3827,181 @@ public static class LineDiff
 
         return $"Diff chunk boundary audit ({hunkLabel} · {category}): {score:0.#}% integrity (Aligned: {alignedHunks}/{totalHunks} · Mean context padding {meanPadding:0.#} lines){issues}";
     }
+
+    /// <summary>
+    /// Audits unified diff hunks for syntactic scope headers (classes, methods, functions, markdown headings),
+    /// ensures folded diff hunks preserve complete lexical context blocks, and identifies unanchored diff deltas.
+    /// </summary>
+    public static SemanticHunkFoldingAudit AuditSemanticHunkFoldingAndTokenContext(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows is null || unifiedRows.Count == 0)
+        {
+            string emptySummary = "Diff semantic hunk folding: 0 hunks · Document is unchanged (Zero diff deltas)";
+            return new SemanticHunkFoldingAudit(0, 0, 0, 0, 0, 100.0, Array.Empty<SemanticHunkScopeInfo>(), Array.Empty<string>(), "Clean Baseline (Zero Diff Deltas)", emptySummary);
+        }
+
+        var rows = unifiedRows.Where(r => !r.IsGap).ToList();
+        if (rows.Count == 0 || rows.All(r => r.Kind == Kind.Same))
+        {
+            string emptySummary = "Diff semantic hunk folding: 0 hunks · Document is unchanged (Zero diff deltas)";
+            return new SemanticHunkFoldingAudit(0, 0, 0, 0, 0, 100.0, Array.Empty<SemanticHunkScopeInfo>(), Array.Empty<string>(), "Clean Baseline (Zero Diff Deltas)", emptySummary);
+        }
+
+        // Identify contiguous change clusters (hunks) allowing <= 2 unchanged rows
+        var hunkRanges = new List<(int Start, int End)>();
+        int hunkStart = -1;
+        int lastChange = -1;
+
+        for (int i = 0; i < rows.Count; i++)
+        {
+            bool isChange = rows[i].Kind != Kind.Same;
+            if (isChange)
+            {
+                if (hunkStart < 0) hunkStart = i;
+                lastChange = i;
+            }
+            else if (hunkStart >= 0 && (i - lastChange) > 2)
+            {
+                hunkRanges.Add((hunkStart, lastChange));
+                hunkStart = -1;
+                lastChange = -1;
+            }
+        }
+        if (hunkStart >= 0)
+        {
+            hunkRanges.Add((hunkStart, lastChange));
+        }
+
+        var hunkInfos = new List<SemanticHunkScopeInfo>();
+        var discoveredScopes = new List<string>();
+
+        for (int hIdx = 0; hIdx < hunkRanges.Count; hIdx++)
+        {
+            var (start, end) = hunkRanges[hIdx];
+
+            string scopeHeader = "Root Document Scope";
+            string scopeKind = "Global Document";
+            int nestingLevel = 0;
+            bool hasPinned = false;
+
+            // Search backward for enclosing syntactic context
+            for (int r = start - 1; r >= 0; r--)
+            {
+                string text = rows[r].Text ?? string.Empty;
+                string trimmed = text.Trim();
+
+                // 1. Markdown heading
+                if (trimmed.StartsWith("#"))
+                {
+                    scopeHeader = trimmed;
+                    scopeKind = "Markdown Section";
+                    nestingLevel = trimmed.TakeWhile(c => c == '#').Count();
+                    hasPinned = true;
+                    break;
+                }
+
+                // 2. Code definition: class, struct, record, interface, enum, method, function
+                var codeMatch = System.Text.RegularExpressions.Regex.Match(
+                    trimmed, @"\b(class|struct|record|interface|enum|public|private|protected|internal|void|async|def|fn|function)\b\s+([A-Za-z0-9_<>]+)");
+                if (codeMatch.Success)
+                {
+                    scopeHeader = trimmed;
+                    scopeKind = "Type/Method Definition";
+                    int spaces = text.TakeWhile(c => c == ' ' || c == '\t').Count();
+                    nestingLevel = spaces / 4;
+                    hasPinned = true;
+                    break;
+                }
+
+                // 3. Fenced code block header
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    scopeHeader = trimmed;
+                    scopeKind = "Code Block";
+                    hasPinned = true;
+                    break;
+                }
+            }
+
+            if (hasPinned && !discoveredScopes.Contains(scopeHeader))
+            {
+                discoveredScopes.Add(scopeHeader);
+            }
+
+            bool isFoldable = (end - start >= 1) || hasPinned;
+
+            hunkInfos.Add(new SemanticHunkScopeInfo(
+                hIdx + 1, start + 1, end + 1, scopeHeader, scopeKind, nestingLevel, hasPinned, isFoldable));
+        }
+
+        int totalHunks = hunkInfos.Count;
+        int pinnedCount = hunkInfos.Count(h => h.HasPinnedContext);
+        int unpinnedCount = totalHunks - pinnedCount;
+        int foldableCount = hunkInfos.Count(h => h.IsFoldable);
+
+        double coverageScore = totalHunks > 0
+            ? Math.Round(100.0 * pinnedCount / totalHunks, 1)
+            : 100.0;
+
+        string category;
+        if (totalHunks == 0)
+        {
+            category = "Clean Baseline (Zero Diff Deltas)";
+        }
+        else if (coverageScore >= 85.0)
+        {
+            category = "Comprehensive Syntactic Scope Pinning";
+        }
+        else if (coverageScore >= 50.0)
+        {
+            category = "Moderate Semantic Scope Coverage";
+        }
+        else
+        {
+            category = "Unanchored Diff Deltas Present";
+        }
+
+        string summary = FormatSemanticHunkFoldingSummary(
+            totalHunks, pinnedCount, unpinnedCount, foldableCount, discoveredScopes.Count, coverageScore, category);
+
+        return new SemanticHunkFoldingAudit(
+            totalHunks,
+            pinnedCount,
+            unpinnedCount,
+            foldableCount,
+            discoveredScopes.Count,
+            coverageScore,
+            hunkInfos,
+            discoveredScopes,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Static overload auditing semantic hunk folding from raw before and after text strings.
+    /// </summary>
+    public static SemanticHunkFoldingAudit AuditSemanticHunkFoldingAndTokenContext(string? before, string? after)
+    {
+        var diff = Diff(before ?? "", after ?? "");
+        var unified = BuildUnified(diff);
+        return AuditSemanticHunkFoldingAndTokenContext(unified);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of diff hunk semantic folding and token context.
+    /// </summary>
+    public static string FormatSemanticHunkFoldingSummary(
+        int totalHunks, int pinnedCount, int unpinnedCount, int foldableCount, int scopeCount,
+        double coverageScore, string category)
+    {
+        if (totalHunks == 0) return "Diff semantic hunk folding: 0 hunks · Document is unchanged (Zero diff deltas)";
+
+        string hunkLabel = totalHunks == 1 ? "1 hunk" : $"{totalHunks} hunks";
+        string scopeLabel = scopeCount == 1 ? "1 scope" : $"{scopeCount} scopes";
+        string unpinnedWarning = unpinnedCount > 0 ? $" · ⚠ {unpinnedCount} unanchored hunk{(unpinnedCount == 1 ? "" : "s")}" : "";
+
+        return $"Diff semantic hunk folding ({hunkLabel} across {scopeLabel} · {category}): {coverageScore:0.#}% pinned context ({pinnedCount} pinned · {foldableCount} foldable){unpinnedWarning}";
+    }
 }
 
 /// <summary>
@@ -3973,4 +4148,34 @@ public sealed record DiffChunkBoundaryAudit(
     IReadOnlyList<ChunkBoundaryInfo> Hunks,
     string AlignmentCategory,
     string Summary);
+
+/// <summary>
+/// Represents syntactic scope context and folding metrics for an individual diff hunk.
+/// </summary>
+public sealed record SemanticHunkScopeInfo(
+    int HunkIndex,
+    int StartRow,
+    int EndRow,
+    string ScopeHeader,
+    string ScopeKind,
+    int ScopeNestingLevel,
+    bool HasPinnedContext,
+    bool IsFoldable);
+
+/// <summary>
+/// Represents the result of an audit of diff hunk semantic folding, syntactic scope pinning,
+/// and unanchored diff deltas.
+/// </summary>
+public sealed record SemanticHunkFoldingAudit(
+    int TotalHunks,
+    int PinnedHunkCount,
+    int UnpinnedHunkCount,
+    int FoldableHunkCount,
+    int DistinctScopesCount,
+    double SemanticCoverageScore,
+    IReadOnlyList<SemanticHunkScopeInfo> Hunks,
+    IReadOnlyList<string> DiscoveredScopes,
+    string FoldingCategory,
+    string Summary);
+
 

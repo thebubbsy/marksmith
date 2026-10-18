@@ -4744,6 +4744,209 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Cyclic process audit ({stageLabel} · {closureStr} · {category}): {convergenceScore:0.#}% convergence score (Word balance variance {wordVariance:0.#}w){sinkStr}";
     }
+
+    /// <summary>
+    /// Audits organizational hierarchy tree outlines for span of control, branching factor standard deviation,
+    /// manager-to-report ratios, and identifies flat vs tall hierarchy bottlenecks.
+    /// </summary>
+    public HierarchySpanOfControlAudit AuditHierarchySpanOfControl(string? markdown = null)
+    {
+        string text = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            string emptySummary = "Hierarchy span of control audit: 0 nodes · Outline is empty";
+            StatusMessage = emptySummary;
+            return new HierarchySpanOfControlAudit(
+                0, 0, 0, 0, 0.0, 0.0, 0.0, 0, 0, 100.0,
+                Array.Empty<HierarchyNodeSpanInfo>(), "Empty Outline", emptySummary);
+        }
+
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var parsedNodes = new List<(int Level, string Title)>();
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("<!--") || trimmed.StartsWith("```") || trimmed.StartsWith(":::")) continue;
+
+            // Calculate indent level
+            int leadingSpaces = 0;
+            while (leadingSpaces < rawLine.Length && (rawLine[leadingSpaces] == ' ' || rawLine[leadingSpaces] == '\t'))
+            {
+                leadingSpaces += (rawLine[leadingSpaces] == '\t' ? 4 : 1);
+            }
+            int level = leadingSpaces / 2;
+
+            // Strip bullet markers
+            string clean = System.Text.RegularExpressions.Regex.Replace(trimmed, @"^([-*+]|\d+\.)\s*", "").Trim();
+            if (string.IsNullOrWhiteSpace(clean)) continue;
+
+            parsedNodes.Add((level, clean));
+        }
+
+        if (parsedNodes.Count == 0)
+        {
+            string emptySummary = "Hierarchy span of control audit: 0 nodes · Outline contains no hierarchical list items";
+            StatusMessage = emptySummary;
+            return new HierarchySpanOfControlAudit(
+                0, 0, 0, 0, 0.0, 0.0, 0.0, 0, 0, 100.0,
+                Array.Empty<HierarchyNodeSpanInfo>(), "Empty Outline", emptySummary);
+        }
+
+        // Build tree children using indent stack
+        int nTotal = parsedNodes.Count;
+        var childrenMap = new Dictionary<int, List<int>>();
+        for (int i = 0; i < nTotal; i++) childrenMap[i] = new List<int>();
+
+        var stack = new Stack<(int Level, int Index)>();
+        for (int i = 0; i < nTotal; i++)
+        {
+            int lvl = parsedNodes[i].Level;
+            while (stack.Count > 0 && stack.Peek().Level >= lvl)
+            {
+                stack.Pop();
+            }
+            if (stack.Count > 0)
+            {
+                childrenMap[stack.Peek().Index].Add(i);
+            }
+            stack.Push((lvl, i));
+        }
+
+        // Count descendant subtrees
+        int CountDescendants(int idx)
+        {
+            int count = childrenMap[idx].Count;
+            foreach (var ch in childrenMap[idx])
+            {
+                count += CountDescendants(ch);
+            }
+            return count;
+        }
+
+        var nodeSpanInfos = new List<HierarchyNodeSpanInfo>();
+        var managerSpans = new List<double>();
+        int overloadedCount = 0;
+        int underutilizedCount = 0;
+        int maxDepth = parsedNodes.Max(n => n.Level);
+
+        for (int i = 0; i < nTotal; i++)
+        {
+            var (lvl, title) = parsedNodes[i];
+            int directReports = childrenMap[i].Count;
+            int subtreeCount = CountDescendants(i);
+            bool isManager = directReports > 0;
+            bool isOverloaded = directReports > 8;
+            bool isUnderutilized = isManager && directReports < 3;
+
+            if (isManager)
+            {
+                managerSpans.Add(directReports);
+                if (isOverloaded) overloadedCount++;
+                if (isUnderutilized) underutilizedCount++;
+            }
+
+            nodeSpanInfos.Add(new HierarchyNodeSpanInfo(
+                lvl, title, directReports, subtreeCount, isManager, isOverloaded, isUnderutilized));
+        }
+
+        int managerCount = managerSpans.Count;
+        int icCount = nTotal - managerCount;
+        double meanSpan = managerCount > 0 ? Math.Round(managerSpans.Average(), 1) : 0.0;
+        double variance = managerCount > 1
+            ? managerSpans.Select(s => (s - meanSpan) * (s - meanSpan)).Average()
+            : 0.0;
+        double stdDev = Math.Round(Math.Sqrt(variance), 1);
+
+        double managerRatio = icCount > 0
+            ? Math.Round((double)managerCount / icCount, 2)
+            : (managerCount > 0 ? 1.0 : 0.0);
+
+        double balanceScore;
+        string category;
+
+        if (managerCount == 0)
+        {
+            balanceScore = 100.0;
+            category = nTotal == 1 ? "Solo Individual Contributor" : "Flat Non-Hierarchical List";
+        }
+        else
+        {
+            balanceScore = Math.Round(Math.Clamp(100.0 - (overloadedCount * 18.0) - (underutilizedCount * 10.0) - (stdDev * 3.0), 0.0, 100.0), 1);
+            if (overloadedCount > 0)
+            {
+                category = "Manager Bottlenecks (High Span of Control)";
+            }
+            else if (underutilizedCount > 0)
+            {
+                category = "Micro-Management Inefficiencies (Low Span)";
+            }
+            else if (balanceScore >= 80.0)
+            {
+                category = "Optimal Organizational Hierarchy Balance";
+            }
+            else
+            {
+                category = "Moderate Hierarchy Distribution";
+            }
+        }
+
+        string summary = FormatHierarchySpanSummary(
+            nTotal, managerCount, icCount, maxDepth, meanSpan, stdDev, managerRatio,
+            overloadedCount, underutilizedCount, balanceScore, category);
+
+        StatusMessage = summary;
+
+        return new HierarchySpanOfControlAudit(
+            nTotal,
+            managerCount,
+            icCount,
+            maxDepth,
+            meanSpan,
+            stdDev,
+            managerRatio,
+            overloadedCount,
+            underutilizedCount,
+            balanceScore,
+            nodeSpanInfos,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Static overload auditing organizational hierarchy span of control from raw markdown outline text.
+    /// </summary>
+    public static HierarchySpanOfControlAudit AuditHierarchySpanOfControl(string? markdown, bool isStatic)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditHierarchySpanOfControl(markdown);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of hierarchy span of control and manager-to-report ratios.
+    /// </summary>
+    public static string FormatHierarchySpanSummary(
+        int totalNodes, int managerCount, int icCount, int maxDepth, double meanSpan, double stdDev,
+        double ratio, int overloaded, int underutilized, double balanceScore, string category)
+    {
+        if (totalNodes == 0) return "Hierarchy span of control audit: 0 nodes · Outline is empty";
+
+        string nodeLabel = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+        string mgrLabel = managerCount == 1 ? "1 manager" : $"{managerCount} managers";
+        string icLabel = icCount == 1 ? "1 IC" : $"{icCount} ICs";
+
+        if (managerCount == 0)
+        {
+            return $"Hierarchy span of control audit ({nodeLabel} · {category}): All items at root depth 0";
+        }
+
+        string issues = "";
+        if (overloaded > 0) issues += $" · ⚠ {overloaded} overloaded manager{(overloaded == 1 ? "" : "s")} (>8 reports)";
+        if (underutilized > 0) issues += $" · ⚠ {underutilized} low-span manager{(underutilized == 1 ? "" : "s")} (<3 reports)";
+
+        return $"Hierarchy span of control audit ({nodeLabel} · {mgrLabel}, {icLabel} · Depth {maxDepth} · {category}): Span: ~{meanSpan:0.#} reports/mgr (Std dev {stdDev:0.#}) · Ratio: {ratio:0.##} mgr/IC · {balanceScore:0.#}% balance{issues}";
+    }
 }
 
 /// <summary>
@@ -5004,3 +5207,35 @@ public sealed record CyclicProcessConvergenceAudit(
     string ClosureMechanism,
     string ConvergenceCategory,
     string Summary);
+
+/// <summary>
+/// Represents span of control and hierarchy metrics for an individual node in an organizational hierarchy.
+/// </summary>
+public sealed record HierarchyNodeSpanInfo(
+    int Level,
+    string Title,
+    int DirectReportsCount,
+    int TotalSubtreeCount,
+    bool IsManager,
+    bool IsOverloaded,
+    bool IsUnderutilized);
+
+/// <summary>
+/// Represents the result of an audit of organizational hierarchy span of control, branching factor variance,
+/// and manager-to-report ratios.
+/// </summary>
+public sealed record HierarchySpanOfControlAudit(
+    int TotalNodes,
+    int ManagerCount,
+    int IndividualContributorCount,
+    int MaxDepth,
+    double MeanSpanOfControl,
+    double SpanStandardDeviation,
+    double ManagerToReportRatio,
+    int OverloadedManagerCount,
+    int UnderutilizedManagerCount,
+    double HierarchyBalanceScore,
+    IReadOnlyList<HierarchyNodeSpanInfo> NodeSpans,
+    string HierarchyCategory,
+    string Summary);
+
