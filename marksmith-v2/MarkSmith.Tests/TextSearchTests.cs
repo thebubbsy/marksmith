@@ -1108,6 +1108,55 @@ public class TextSearchTests
         Assert.Equal(100.0, fullAudit.TaggingCoveragePercentage);
         Assert.Equal("Fully Tagged (100%)", fullAudit.CoverageCategory);
     }
+
+    [Fact]
+    public void Run156_AuditListIndentationHierarchy()
+    {
+        // 1. Empty / whitespace document returns graceful defaults
+        var emptyAudit = TextSearch.AuditListIndentationHierarchy("");
+        Assert.Equal(0, emptyAudit.TotalListItems);
+        Assert.Equal(0, emptyAudit.OrderedItemCount);
+        Assert.Equal(0, emptyAudit.UnorderedItemCount);
+        Assert.Equal(0, emptyAudit.MaxDepth);
+        Assert.Equal(0.0, emptyAudit.AverageIndentSpaces);
+        Assert.Equal("No Lists", emptyAudit.StructureCategory);
+        Assert.Contains("0 list items", emptyAudit.Summary);
+
+        // 2. Multi-tier clean hierarchy with code fence immunity
+        var doc = """
+            # Project Plan
+            - Phase 1: Planning
+              - Requirement gathering
+              - Architecture blueprint
+            - Phase 2: Implementation
+              1. Backend API
+              2. Frontend UI
+            ```markdown
+            - This is inside a code fence and must be ignored
+              - Also ignored
+            ```
+            > - Callout list item
+            """;
+        var audit = TextSearch.AuditListIndentationHierarchy(doc);
+        Assert.Equal(7, audit.TotalListItems);
+        Assert.Equal(5, audit.UnorderedItemCount);
+        Assert.Equal(2, audit.OrderedItemCount);
+        Assert.Equal(1, audit.MaxDepth);
+        Assert.Equal(0, audit.InconsistentIndentCount);
+        Assert.Contains("avg indent", audit.Summary);
+        Assert.Equal(audit.Summary, TextSearch.FormatListIndentationSummary(doc));
+
+        // 3. Inconsistent indentation jumps (>4 spaces in single forward step)
+        var inconsistentDoc = """
+            - Root item
+                    - Deeply jumped child (8 spaces)
+            """;
+        var incAudit = TextSearch.AuditListIndentationHierarchy(inconsistentDoc);
+        Assert.Equal(2, incAudit.TotalListItems);
+        Assert.Equal(1, incAudit.InconsistentIndentCount);
+        Assert.Equal("Inconsistent Indentation", incAudit.StructureCategory);
+        Assert.Contains("1 indent jumps", incAudit.Summary);
+    }
 }
 
 

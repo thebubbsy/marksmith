@@ -676,6 +676,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditOcclusionItem" Text="Audit Z-order depth overlap &amp; occlusion" Click="OnSelectionAuditOcclusionClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71E;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditBoundaryBleedItem" Text="Audit canvas boundary margins &amp; bleed" Click="OnSelectionAuditBoundaryBleedClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7B5;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -3984,6 +3984,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditRadialAngularClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditRadialAngularSpacing();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4863,6 +4871,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditPeripheryEccentricityItem.Click += OnAuditPeripheryEccentricityClick;
             menu.Items.Add(auditPeripheryEccentricityItem);
+
+            var auditRadialAngularItem = new MenuFlyoutItem
+            {
+                Text = "Audit radial concentric rings & angular spacing",
+                Icon = new FontIcon { Glyph = "\uE790" }
+            };
+            auditRadialAngularItem.Click += OnAuditRadialAngularClick;
+            menu.Items.Add(auditRadialAngularItem);
 
             var fitItem = new MenuFlyoutItem
 

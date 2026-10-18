@@ -285,6 +285,9 @@
                                     <MenuFlyoutItem x:Name="AuditPeripheryEccentricityItem" Text="Audit leaf node depth &amp; periphery eccentricity" Click="OnAuditPeripheryEccentricityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditRadialAngularItem" Text="Audit radial concentric rings &amp; angular spacing" Click="OnAuditRadialAngularClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

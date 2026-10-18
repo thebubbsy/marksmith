@@ -1088,6 +1088,45 @@ public class SmartArtStudioPolishTests
         Assert.Equal("Highly Asymmetric (>65% CV)", auditAsym.SymmetryCategory);
         Assert.Contains("Worst: 'Root'", auditAsym.Summary);
     }
+
+    [Fact]
+    public void Run156_AuditLinearFlowMonotonicity()
+    {
+        // 1. Empty outline
+        var empty = SmartArtDesignStudioViewModel.AuditLinearFlowMonotonicity("");
+        Assert.Equal(0, empty.TotalSteps);
+        Assert.Equal("Empty Outline", empty.FlowCategory);
+        Assert.Contains("0 steps (Empty outline)", empty.Summary);
+
+        // 2. Strict monotonic progression (Step 1, Step 2, Step 3, Step 4)
+        var monotonicOutline = """
+            - Step 1: Ingest Data
+              - Validate payload
+            - Step 2: Transform Model
+            - Step 3: Verify Integrity
+            - Step 4: Export Deliverable
+            """;
+        var auditMono = SmartArtDesignStudioViewModel.AuditLinearFlowMonotonicity(monotonicOutline);
+        Assert.Equal(4, auditMono.TotalSteps);
+        Assert.Equal(4, auditMono.ExplicitlyNumberedSteps);
+        Assert.Equal(0, auditMono.InversionCount);
+        Assert.Equal("Strict Monotonic Progression", auditMono.FlowCategory);
+        Assert.Equal("Process / Steps", auditMono.RecommendedLayoutCategory);
+        Assert.Contains("Strict Monotonic Progression", auditMono.Summary);
+
+        // 3. Out-of-order inversions (Step 1, Step 3, Step 2)
+        var invertedOutline = """
+            - Step 1: Ingest Data
+            - Step 3: Verify Integrity
+            - Step 2: Transform Model
+            """;
+        var auditInv = SmartArtDesignStudioViewModel.AuditLinearFlowMonotonicity(invertedOutline);
+        Assert.Equal(3, auditInv.TotalSteps);
+        Assert.Equal(3, auditInv.ExplicitlyNumberedSteps);
+        Assert.Equal(1, auditInv.InversionCount);
+        Assert.Equal("Non-Monotonic (Out-of-Order Steps)", auditInv.FlowCategory);
+        Assert.Contains("1 out-of-order inversions", auditInv.Summary);
+    }
 }
 
 

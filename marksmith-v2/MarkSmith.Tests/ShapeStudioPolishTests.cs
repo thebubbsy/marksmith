@@ -1273,6 +1273,39 @@ public class ShapeStudioPolishTests
         Assert.Contains("75% covered", audit.Summary);
         Assert.Contains("1 heavily occluded shapes", audit.Summary);
     }
+
+    [Fact]
+    public void Run156_AuditBoundaryMarginsAndBleed()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditBoundaryMarginsAndBleed();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal("Empty Canvas", emptyAudit.SafetyCategory);
+        Assert.Contains("Canvas is empty", emptyAudit.Summary);
+
+        // 2. Safe canvas shapes (all within safe margin ≥ 24px)
+        vm.AddShapeAt("rect", 100, 100, 200, 100, "0000FF", "Centered Box");
+        var safeAudit = vm.AuditBoundaryMarginsAndBleed(safeMargin: 24.0, canvasWidth: 1200.0, canvasHeight: 800.0);
+        Assert.Equal(1, safeAudit.TotalShapes);
+        Assert.Equal(0, safeAudit.BleedingShapeCount);
+        Assert.Equal(0, safeAudit.TightMarginShapeCount);
+        Assert.Equal(1, safeAudit.SafeShapeCount);
+        Assert.Equal(100.0, safeAudit.MinObservedMargin);
+        Assert.Equal("Safe Printable Margins", safeAudit.SafetyCategory);
+        Assert.Contains("min margin 100px", safeAudit.Summary);
+
+        // 3. Bleeding shape (X = -10, protruding past left border)
+        vm.AddShapeAt("circle", -10, 50, 80, 80, "FF0000", "Bleeding Circle");
+        var bleedAudit = vm.AuditBoundaryMarginsAndBleed(safeMargin: 24.0, canvasWidth: 1200.0, canvasHeight: 800.0);
+        Assert.Equal(2, bleedAudit.TotalShapes);
+        Assert.Equal(1, bleedAudit.BleedingShapeCount);
+        Assert.Equal(-10.0, bleedAudit.MinObservedMargin);
+        Assert.Equal("Boundary Bleed (Clipped Shapes)", bleedAudit.SafetyCategory);
+        Assert.Contains("1 bleeding/clipped", bleedAudit.Summary);
+    }
 }
 
 

@@ -305,6 +305,9 @@
                                         <MenuFlyoutItem x:Name="AuditSiblingVarianceItem" Text="Audit sibling text length variance &amp; visual symmetry" Click="OnAuditSiblingVarianceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditLinearFlowMonotonicityItem" Text="Audit linear flow monotonicity &amp; step layout fit" Click="OnAuditLinearFlowMonotonicityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

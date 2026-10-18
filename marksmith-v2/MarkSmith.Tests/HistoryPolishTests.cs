@@ -1260,6 +1260,41 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("Added structured data tables and grid representations.", snippet2);
         Assert.Contains("- **New Features & Enhancements:** 2", snippet2);
     }
+
+    [Fact]
+    public void Run156_SynthesizeMultiChannelReleaseDigest()
+    {
+        // 1. Direct synthesis with custom parameters
+        var highlights = new[]
+        {
+            "Added list item hierarchy & indentation consistency audit",
+            "Added radial layout concentric rings & angular spacing audit"
+        };
+        var digest1 = LineDiff.SynthesizeMultiChannelReleaseDigest(
+            "1.6.0", "Ecosystem Launch", "Production",
+            highlights, featureCount: 2, fixCount: 0, docCount: 1,
+            new DateTime(2026, 10, 18, 0, 0, 0, DateTimeKind.Utc));
+
+        Assert.Contains("# 📢 MarkSmith Multi-Channel Release Digest — v1.6.0 (Ecosystem Launch)", digest1);
+        Assert.Contains("### 🟦 Microsoft Teams / GitHub Discussion Format", digest1);
+        Assert.Contains("### 🟨 Slack Format (mrkdwn)", digest1);
+        Assert.Contains("### 🟪 Discord Format", digest1);
+        Assert.Contains("*:rocket: MarkSmith v1.6.0 Released — Ecosystem Launch*", digest1);
+        Assert.Contains("### 🚀 MarkSmith v1.6.0 — Ecosystem Launch", digest1);
+        Assert.Contains("Added list item hierarchy", digest1);
+
+        // 2. Synthesis from diff rows
+        var oldDoc = "# Introduction\nOverview";
+        var newDoc = "# Introduction\nOverview\n# Vector Graphics\nNew shape tools\n```csharp\nvar x = 1;\n```";
+        var diff = LineDiff.Diff(oldDoc, newDoc);
+        var unified = LineDiff.BuildUnified(diff);
+
+        var digest2 = LineDiff.SynthesizeMultiChannelReleaseDigest(unified, "v2.2.0", "Core Tools", "GA", new DateTime(2026, 10, 18, 0, 0, 0, DateTimeKind.Utc));
+        Assert.Contains("v2.2.0", digest2);
+        Assert.Contains("Core Tools", digest2);
+        Assert.Contains("Added new section: **Vector Graphics**", digest2);
+        Assert.Contains("Added fenced code snippets", digest2);
+    }
 }
 
 

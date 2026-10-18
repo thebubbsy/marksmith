@@ -1974,6 +1974,44 @@ namespace MarkSmith.Tests
             Assert.Equal("Balanced Tree", audit.EccentricityCategory);
             Assert.Contains("Max depth 3 (top: 'Terminal Sensor')", audit.Summary);
         }
+
+        [Fact]
+        public void Run156_AuditRadialAngularSpacing()
+        {
+            // 1. Empty / 0-1 nodes
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            var emptyAudit = vm.AuditRadialAngularSpacing();
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal("Insufficient Nodes", emptyAudit.DispersionCategory);
+            Assert.Contains("Insufficient nodes", emptyAudit.Summary);
+
+            // 2. 4 symmetrically placed orthogonal branches around root (0°, 90°, 180°, 270°)
+            vm.Document.RootNodeId = "root";
+            var root = new MindMapNode { Id = "root", Title = "Core Hub", X = 0, Y = 0 };
+            var east = new MindMapNode { Id = "e", Title = "East Node", X = 100, Y = 0 };
+            var north = new MindMapNode { Id = "n", Title = "North Node", X = 0, Y = 100 };
+            var west = new MindMapNode { Id = "w", Title = "West Node", X = -100, Y = 0 };
+            var south = new MindMapNode { Id = "s", Title = "South Node", X = 0, Y = -100 };
+
+            vm.Nodes.Add(new MindMapNodeViewModel(root));
+            vm.Nodes.Add(new MindMapNodeViewModel(east));
+            vm.Nodes.Add(new MindMapNodeViewModel(north));
+            vm.Nodes.Add(new MindMapNodeViewModel(west));
+            vm.Nodes.Add(new MindMapNodeViewModel(south));
+
+            var audit = vm.AuditRadialAngularSpacing();
+            Assert.Equal(5, audit.TotalNodes);
+            Assert.Equal(4, audit.BranchCount);
+            Assert.Equal(90.0, audit.AverageGapDegrees);
+            Assert.Equal(90.0, audit.MinGapDegrees);
+            Assert.Equal(90.0, audit.MaxGapDegrees);
+            Assert.Equal(0.0, audit.GapStandardDeviation);
+            Assert.Equal("Uniform Radial Dispersion (≤15° SD)", audit.DispersionCategory);
+            Assert.Contains("avg gap 90°", audit.Summary);
+            Assert.Contains("Uniform Radial Dispersion", audit.Summary);
+        }
     }
 }
 

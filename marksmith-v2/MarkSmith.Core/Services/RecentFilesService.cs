@@ -1934,6 +1934,137 @@ public sealed class RecentFilesService
 
         return $"Format cluster matrix ({fileLabel} across {formatLabel} · {siloStatus}){breakdown} · Diversity: {diversityIndex:0.##}";
     }
+
+    /// <summary>
+    /// Audits companion export format coverage across recent files, evaluating whether Markdown (.md) documents
+    /// have compiled companion exports (.docx, .pdf, .html) and detecting single-format or uncompiled documents.
+    /// </summary>
+    public static CompanionFormatCoverageAudit AuditCompanionFormatCoverage(IEnumerable<string>? files)
+    {
+        var list = (files ?? Enumerable.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .ToList();
+
+        if (list.Count == 0)
+        {
+            return new CompanionFormatCoverageAudit(
+                0, 0, 0, 0, 0.0, "Empty Library",
+                Array.Empty<DocumentFamilyCoverageInfo>(),
+                "Companion format coverage: 0 document families (Empty library)");
+        }
+
+        var families = new Dictionary<string, DocumentFamilyCoverageInfo>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in list)
+        {
+            string dir = Path.GetDirectoryName(file) ?? "";
+            string nameWithoutExt = Path.GetFileNameWithoutExtension(file) ?? "";
+            string ext = Path.GetExtension(file)?.ToLowerInvariant() ?? "";
+
+            if (string.IsNullOrEmpty(nameWithoutExt)) continue;
+
+            string key = Path.Combine(dir, nameWithoutExt);
+            if (!families.TryGetValue(key, out var family))
+            {
+                family = new DocumentFamilyCoverageInfo(nameWithoutExt, dir, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                families[key] = family;
+            }
+
+            if (!string.IsNullOrEmpty(ext))
+            {
+                family.Extensions.Add(ext);
+            }
+        }
+
+        if (families.Count == 0)
+        {
+            return new CompanionFormatCoverageAudit(
+                0, 0, 0, 0, 0.0, "Empty Library",
+                Array.Empty<DocumentFamilyCoverageInfo>(),
+                "Companion format coverage: 0 document families (Empty library)");
+        }
+
+        int totalFamilies = families.Count;
+        int fullyCoveredCount = 0;
+        int sourceOnlyCount = 0;
+        int exportOnlyCount = 0;
+
+        var familyList = families.Values.ToList();
+
+        foreach (var f in familyList)
+        {
+            bool hasSource = f.Extensions.Contains(".md") || f.Extensions.Contains(".markdown");
+            bool hasCompiled = f.Extensions.Contains(".docx") || f.Extensions.Contains(".pdf") ||
+                               f.Extensions.Contains(".html") || f.Extensions.Contains(".epub") ||
+                               f.Extensions.Contains(".pptx");
+
+            if (hasSource && hasCompiled)
+            {
+                fullyCoveredCount++;
+            }
+            else if (hasSource && !hasCompiled)
+            {
+                sourceOnlyCount++;
+            }
+            else if (!hasSource && hasCompiled)
+            {
+                exportOnlyCount++;
+            }
+            else
+            {
+                sourceOnlyCount++;
+            }
+        }
+
+        double coveragePercent = totalFamilies > 0
+            ? Math.Round((double)fullyCoveredCount * 100.0 / totalFamilies, 1)
+            : 0.0;
+
+        string status;
+        if (coveragePercent >= 75.0)
+        {
+            status = "High Export Coverage (≥75%)";
+        }
+        else if (coveragePercent >= 40.0)
+        {
+            status = "Moderate Export Coverage (40–74%)";
+        }
+        else if (sourceOnlyCount > 0)
+        {
+            status = "Source-Heavy / Uncompiled (<40%)";
+        }
+        else
+        {
+            status = "Low Companion Coverage";
+        }
+
+        string summary = FormatCompanionFormatCoverageSummary(
+            totalFamilies, fullyCoveredCount, sourceOnlyCount, exportOnlyCount, coveragePercent, status);
+
+        return new CompanionFormatCoverageAudit(
+            totalFamilies,
+            fullyCoveredCount,
+            sourceOnlyCount,
+            exportOnlyCount,
+            coveragePercent,
+            status,
+            familyList,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of companion format coverage metrics.
+    /// </summary>
+    public static string FormatCompanionFormatCoverageSummary(
+        int totalFamilies, int fullyCovered, int sourceOnly, int exportOnly,
+        double coveragePercent, string status)
+    {
+        if (totalFamilies <= 0) return "Companion format coverage: 0 document families (Empty library)";
+        string familyLabel = totalFamilies == 1 ? "1 document family" : $"{totalFamilies} document families";
+        string breakdown = $"{fullyCovered} compiled companions, {sourceOnly} source-only, {exportOnly} export-only";
+
+        return $"Companion coverage ({familyLabel} [{breakdown}] · {status}): {coveragePercent:0.#}% companion rate";
+    }
 }
 
 /// <summary>
@@ -2011,3 +2142,37 @@ public sealed record FormatClusterMatrixAudit(
     string SiloStatus,
     IReadOnlyList<FormatClusterInfo> Formats,
     string Summary);
+
+/// <summary>
+/// Represents format coverage and companion files for an individual document family.
+/// </summary>
+public sealed class DocumentFamilyCoverageInfo
+{
+    public string BaseName { get; }
+    public string DirectoryPath { get; }
+    public HashSet<string> Extensions { get; }
+
+    public DocumentFamilyCoverageInfo(string baseName, string dir, HashSet<string> extensions)
+    {
+        BaseName = baseName;
+        DirectoryPath = dir;
+        Extensions = extensions;
+    }
+
+    public bool HasSource => Extensions.Contains(".md") || Extensions.Contains(".markdown");
+    public bool HasCompiled => Extensions.Contains(".docx") || Extensions.Contains(".pdf") || Extensions.Contains(".html") || Extensions.Contains(".epub") || Extensions.Contains(".pptx");
+}
+
+/// <summary>
+/// Represents the result of a companion export format coverage audit across recent documents.
+/// </summary>
+public sealed record CompanionFormatCoverageAudit(
+    int TotalFamilies,
+    int FullyCoveredFamilies,
+    int SourceOnlyFamilies,
+    int ExportOnlyFamilies,
+    double CoveragePercentage,
+    string CoverageStatus,
+    IReadOnlyList<DocumentFamilyCoverageInfo> Families,
+    string Summary);
+

@@ -4809,6 +4809,123 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         return $"Occlusion audit ({shapeLabel}, {pairLabel} overlapping · {category}): {occludedCount} heavily occluded shapes{worstStr}";
     }
+
+    /// <summary>
+    /// Audits canvas boundary margins and safe zone bleed across shapes, detecting clipped or edge-bleeding shapes.
+    /// Evaluates proximity to canvas edges against a safe printable margin (default 24px).
+    /// </summary>
+    public ShapeBoundaryBleedAudit AuditBoundaryMarginsAndBleed(
+        double safeMargin = 24.0,
+        double canvasWidth = 1200.0,
+        double canvasHeight = 800.0,
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = targetShapes != null || selected.Count >= 2;
+        string scopeStr = isSelection ? "Selected Shapes" : "Full Canvas";
+
+        if (targets.Count == 0)
+        {
+            string emptySummary = $"Boundary margin & bleed audit (0 shapes · {scopeStr}): Canvas is empty";
+            StatusMessage = emptySummary;
+            return new ShapeBoundaryBleedAudit(
+                0, 0, 0, 0, 0.0, "None", "Empty Canvas", isSelection, emptySummary);
+        }
+
+        int bleedingCount = 0;
+        int tightMarginCount = 0;
+        int safeCount = 0;
+        double minObservedMargin = double.MaxValue;
+        string worstShapeName = "None";
+
+        foreach (var shape in targets)
+        {
+            double left = shape.X;
+            double top = shape.Y;
+            double right = canvasWidth - (shape.X + shape.Width);
+            double bottom = canvasHeight - (shape.Y + shape.Height);
+
+            double shapeMinMargin = Math.Min(Math.Min(left, top), Math.Min(right, bottom));
+
+            bool isBleeding = left < 0 || top < 0 || (shape.X + shape.Width) > canvasWidth || (shape.Y + shape.Height) > canvasHeight;
+
+            if (isBleeding)
+            {
+                bleedingCount++;
+                if (shapeMinMargin < minObservedMargin)
+                {
+                    minObservedMargin = shapeMinMargin;
+                    worstShapeName = shape.DisplayName;
+                }
+            }
+            else if (shapeMinMargin < safeMargin)
+            {
+                tightMarginCount++;
+                if (shapeMinMargin < minObservedMargin)
+                {
+                    minObservedMargin = shapeMinMargin;
+                    worstShapeName = shape.DisplayName;
+                }
+            }
+            else
+            {
+                safeCount++;
+                if (shapeMinMargin < minObservedMargin)
+                {
+                    minObservedMargin = shapeMinMargin;
+                    if (worstShapeName == "None") worstShapeName = shape.DisplayName;
+                }
+            }
+        }
+
+        if (minObservedMargin == double.MaxValue) minObservedMargin = 0.0;
+        minObservedMargin = Math.Round(minObservedMargin, 1);
+
+        string category;
+        if (bleedingCount > 0)
+        {
+            category = "Boundary Bleed (Clipped Shapes)";
+        }
+        else if (tightMarginCount > 0)
+        {
+            category = "Tight Margins (<24px)";
+        }
+        else
+        {
+            category = "Safe Printable Margins";
+        }
+
+        string summary = FormatBoundaryMarginSummary(
+            targets.Count, bleedingCount, tightMarginCount, safeCount, minObservedMargin, worstShapeName, category, scopeStr);
+        StatusMessage = summary;
+
+        return new ShapeBoundaryBleedAudit(
+            targets.Count, bleedingCount, tightMarginCount, safeCount,
+            minObservedMargin, worstShapeName, category, isSelection, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of canvas boundary margins and safe zone bleed metrics.
+    /// </summary>
+    public static string FormatBoundaryMarginSummary(
+        int totalShapes, int bleedingCount, int tightCount, int safeCount,
+        double minMargin, string worstShape, string category, string scope = "Full Canvas")
+    {
+        if (totalShapes == 0) return $"Boundary margin audit (0 shapes · {scope}): Canvas is empty";
+        string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+
+        string worstStr = "";
+        if (worstShape != "None" && (bleedingCount > 0 || tightCount > 0))
+        {
+            worstStr = $" · Closest: '{worstShape}' ({minMargin:0.#}px from edge)";
+        }
+
+        string bleedNote = bleedingCount > 0 ? $" · ⚠ {bleedingCount} bleeding/clipped" : "";
+        string tightNote = tightCount > 0 ? $" · {tightCount} tight (<24px)" : "";
+
+        return $"Boundary margin audit ({shapeLabel} · {category}): min margin {minMargin:0.#}px{bleedNote}{tightNote}{worstStr}";
+    }
 }
 
 /// <summary>
@@ -4898,6 +5015,21 @@ public sealed record ShapeOcclusionAudit(
     string OcclusionCategory,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents the result of an audit of canvas boundary margins and safe zone bleed across shapes.
+/// </summary>
+public sealed record ShapeBoundaryBleedAudit(
+    int TotalShapes,
+    int BleedingShapeCount,
+    int TightMarginShapeCount,
+    int SafeShapeCount,
+    double MinObservedMargin,
+    string WorstShapeName,
+    string SafetyCategory,
+    bool IsSelectionScope,
+    string Summary);
+
 
 
 

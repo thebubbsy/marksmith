@@ -2278,6 +2278,68 @@ public class SuiteHubAndTourPolishTests
         Assert.True(audit.DiversityIndex > 0.4);
         Assert.Contains("Format cluster matrix (5 files across 3 formats", audit.Summary);
     }
+
+    [Fact]
+    public void Run156_Polish_Elements_Wired_Across_Surfaces()
+    {
+        // 1. Verify all UI elements & handlers across surfaces
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("listIndentationItem", mainCs);
+        Assert.Contains("FormatListIndentationSummary", mainCs);
+
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditRadialAngularItem", galaxyXaml);
+        Assert.Contains("OnAuditRadialAngularClick", galaxyXaml);
+        Assert.Contains("OnAuditRadialAngularClick", galaxyCs);
+        Assert.Contains("AuditRadialAngularSpacing", galaxyCs);
+
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditBoundaryBleedItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditBoundaryBleedClick", shapeXaml);
+        Assert.Contains("OnSelectionAuditBoundaryBleedClick", shapeCs);
+        Assert.Contains("AuditBoundaryMarginsAndBleed", shapeCs);
+
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditLinearFlowMonotonicityItem", smartArtXaml);
+        Assert.Contains("OnAuditLinearFlowMonotonicityClick", smartArtXaml);
+        Assert.Contains("OnAuditLinearFlowMonotonicityClick", smartArtCs);
+        Assert.Contains("AuditLinearFlowMonotonicity", smartArtCs);
+
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("synthesizeMultiChannelDigest", historyCs);
+        Assert.Contains("SynthesizeMultiChannelReleaseDigest", historyCs);
+
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyCompanionFormatCoverageItem", suiteXaml);
+        Assert.Contains("OnCopyCompanionFormatCoverageClick", suiteXaml);
+        Assert.Contains("OnCopyCompanionFormatCoverageClick", suiteCs);
+        Assert.Contains("AuditCompanionFormatCoverage", suiteCs);
+
+        // 2. Logic test for AuditCompanionFormatCoverage
+        var emptyAudit = RecentFilesService.AuditCompanionFormatCoverage(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFamilies);
+        Assert.Equal("Empty Library", emptyAudit.CoverageStatus);
+
+        var files = new[]
+        {
+            @"C:\Projects\Alpha\spec.md",
+            @"C:\Projects\Alpha\spec.docx",
+            @"C:\Projects\Alpha\spec.pdf",
+            @"C:\Projects\Alpha\notes.md",
+            @"C:\Projects\Beta\legacy.docx"
+        };
+        var audit = RecentFilesService.AuditCompanionFormatCoverage(files);
+        Assert.Equal(3, audit.TotalFamilies);
+        Assert.Equal(1, audit.FullyCoveredFamilies);
+        Assert.Equal(1, audit.SourceOnlyFamilies);
+        Assert.Equal(1, audit.ExportOnlyFamilies);
+        Assert.Equal(33.3, audit.CoveragePercentage);
+        Assert.Contains("Companion coverage (3 document families [1 compiled companions, 1 source-only, 1 export-only]", audit.Summary);
+    }
 }
 
 

@@ -3435,6 +3435,131 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Sibling text variance audit ({nodeLabel}, {groupLabel} · {symmetryCategory}): avg CV {avgCv * 100:0}%{worstStr}";
     }
+
+    /// <summary>
+    /// Audits linear flow monotonicity, step ordering, and sequential progression across outline steps.
+    /// Evaluates whether steps progress monotonically (e.g. numbered steps 1, 2, 3...) or have order inversions/regressions.
+    /// </summary>
+    public LinearFlowMonotonicityAudit AuditLinearFlowMonotonicity() => AuditLinearFlowMonotonicity(MarkdownText, SelectedCategory);
+
+    /// <summary>
+    /// Audits linear flow monotonicity and directional flow vector from markdown outline text.
+    /// </summary>
+    public static LinearFlowMonotonicityAudit AuditLinearFlowMonotonicity(string? markdownText, string? category = null)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new LinearFlowMonotonicityAudit(
+                0, 0, 0, 0, "None", "Empty Outline", "Process / Steps",
+                "Linear flow monotonicity audit: 0 steps (Empty outline)");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        var stepTitles = new List<string>();
+        var stepNumbers = new List<int>();
+
+        var stepNumRegex = new System.Text.RegularExpressions.Regex(@"(?:step|phase|stage|part|\b)\s*(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        foreach (var rawLine in lines)
+        {
+            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+            string trimmed = rawLine.TrimStart();
+            int indent = rawLine.Length - trimmed.Length;
+            if (indent >= 2) continue;
+
+            string text = trimmed.TrimStart('-', '*', '+', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', ' ')
+                                 .Trim();
+            if (string.IsNullOrEmpty(text)) continue;
+
+            stepTitles.Add(text);
+
+            var match = stepNumRegex.Match(trimmed);
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int num))
+            {
+                stepNumbers.Add(num);
+            }
+            else
+            {
+                stepNumbers.Add(-1);
+            }
+        }
+
+        if (stepTitles.Count == 0)
+        {
+            return new LinearFlowMonotonicityAudit(
+                0, 0, 0, 0, "None", "Empty Outline", "Process / Steps",
+                "Linear flow monotonicity audit: 0 steps (Empty outline)");
+        }
+
+        int explicitNumberedCount = stepNumbers.Count(n => n >= 0);
+        int outOfOrderInversions = 0;
+        int lastNum = -1;
+
+        if (explicitNumberedCount >= 2)
+        {
+            foreach (int num in stepNumbers)
+            {
+                if (num < 0) continue;
+                if (lastNum >= 0 && num <= lastNum)
+                {
+                    outOfOrderInversions++;
+                }
+                lastNum = num;
+            }
+        }
+
+        string flowCategory;
+        if (stepTitles.Count == 1)
+        {
+            flowCategory = "Single Step (Trivial Flow)";
+        }
+        else if (explicitNumberedCount >= 2 && outOfOrderInversions > 0)
+        {
+            flowCategory = "Non-Monotonic (Out-of-Order Steps)";
+        }
+        else if (explicitNumberedCount >= 2)
+        {
+            flowCategory = "Strict Monotonic Progression";
+        }
+        else
+        {
+            flowCategory = "Unnumbered Sequential Flow";
+        }
+
+        string recommendedCategory;
+        if (stepTitles.Count <= 2) recommendedCategory = "Hierarchy / Tree";
+        else if (stepTitles.Count <= 5) recommendedCategory = "Process / Steps";
+        else if (stepTitles.Count <= 8) recommendedCategory = "Timeline";
+        else recommendedCategory = "List / Clusters";
+
+        string summary = FormatLinearFlowSummary(
+            stepTitles.Count, explicitNumberedCount, outOfOrderInversions, flowCategory, recommendedCategory);
+
+        return new LinearFlowMonotonicityAudit(
+            stepTitles.Count,
+            explicitNumberedCount,
+            outOfOrderInversions,
+            stepTitles.Count,
+            stepTitles[0],
+            flowCategory,
+            recommendedCategory,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of linear flow monotonicity and step progression metrics.
+    /// </summary>
+    public static string FormatLinearFlowSummary(
+        int stepCount, int numberedCount, int inversionCount, string flowCategory, string recommendedLayout)
+    {
+        if (stepCount == 0) return "Linear flow monotonicity audit: 0 steps (Empty outline)";
+        string stepLabel = stepCount == 1 ? "1 step" : $"{stepCount} steps";
+
+        string invNote = inversionCount > 0 ? $" · ⚠ {inversionCount} out-of-order inversions" : "";
+        string numNote = numberedCount >= 2 ? $" ({numberedCount} numbered)" : "";
+
+        return $"Linear flow audit ({stepLabel}{numNote} · {flowCategory}): Recommended layout '{recommendedLayout}'{invNote}";
+    }
 }
 
 /// <summary>
@@ -3537,3 +3662,17 @@ public sealed record SiblingTextVarianceAudit(
     IReadOnlyList<SiblingGroupVariance> SiblingGroups,
     string SymmetryCategory,
     string Summary);
+
+/// <summary>
+/// Represents the result of an audit of linear flow monotonicity, step ordering, and layout fit across outline items.
+/// </summary>
+public sealed record LinearFlowMonotonicityAudit(
+    int TotalSteps,
+    int ExplicitlyNumberedSteps,
+    int InversionCount,
+    int SequentialStepCount,
+    string LeadingStepTitle,
+    string FlowCategory,
+    string RecommendedLayoutCategory,
+    string Summary);
+

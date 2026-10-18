@@ -2481,6 +2481,174 @@ public static class TextSearch
 
         return $"Code fence language coverage ({fencedLabel} [{tagBreakdown}], {inlineLabel} · {category}): {coveragePercent:0.#}% tagged ({totalCodeLines} code lines){langSummary}";
     }
+
+    /// <summary>
+    /// Audits markdown list item hierarchy, nesting depth, and indentation consistency.
+    /// Evaluates ordered vs unordered lists, indentation jumps, and structural balance with code fence immunity.
+    /// </summary>
+    public static ListIndentationAudit AuditListIndentationHierarchy(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new ListIndentationAudit(
+                0, 0, 0, 0, 0.0, 0, 0, "No Lists",
+                "List indentation hierarchy: 0 list items · Document contains no lists");
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        bool inFence = false;
+        string fenceMarker = "";
+
+        int totalItems = 0;
+        int orderedCount = 0;
+        int unorderedCount = 0;
+        int maxDepth = 0;
+        int totalIndentSpaces = 0;
+        int inconsistentJumps = 0;
+        int mixedTypeJumps = 0;
+
+        int prevIndent = -1;
+        bool prevWasOrdered = false;
+
+        var listRegex = new System.Text.RegularExpressions.Regex(@"^(\s*)([-*+]|\d+\.)\s+(.*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+
+            // Code fence handling
+            if (!inFence)
+            {
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inFence = true;
+                    fenceMarker = trimmed.Substring(0, 3);
+                    continue;
+                }
+            }
+            else
+            {
+                if (trimmed.StartsWith(fenceMarker))
+                {
+                    inFence = false;
+                }
+                continue;
+            }
+
+            // Strip leading blockquote markers
+            string cleanLine = rawLine;
+            while (cleanLine.TrimStart().StartsWith(">"))
+            {
+                int gtIdx = cleanLine.IndexOf('>');
+                cleanLine = cleanLine.Substring(gtIdx + 1);
+            }
+
+            var match = listRegex.Match(cleanLine);
+            if (match.Success)
+            {
+                totalItems++;
+                string indentStr = match.Groups[1].Value;
+                string marker = match.Groups[2].Value;
+
+                int indentSpaces = 0;
+                foreach (char c in indentStr)
+                {
+                    if (c == '\t') indentSpaces += 4;
+                    else indentSpaces++;
+                }
+
+                totalIndentSpaces += indentSpaces;
+                bool isOrdered = char.IsDigit(marker[0]);
+                if (isOrdered) orderedCount++;
+                else unorderedCount++;
+
+                int depth = indentSpaces >= 8 ? (indentSpaces / 4) : (indentSpaces / 2);
+                if (depth > maxDepth) maxDepth = depth;
+
+                if (prevIndent >= 0)
+                {
+                    if (indentSpaces > prevIndent + 4)
+                    {
+                        inconsistentJumps++;
+                    }
+
+                    if (indentSpaces > prevIndent && isOrdered != prevWasOrdered)
+                    {
+                        mixedTypeJumps++;
+                    }
+                }
+
+                prevIndent = indentSpaces;
+                prevWasOrdered = isOrdered;
+            }
+            else if (string.IsNullOrWhiteSpace(cleanLine))
+            {
+                prevIndent = -1;
+            }
+        }
+
+        if (totalItems == 0)
+        {
+            return new ListIndentationAudit(
+                0, 0, 0, 0, 0.0, 0, 0, "No Lists",
+                "List indentation hierarchy: 0 list items · Document contains no lists");
+        }
+
+        double avgIndent = Math.Round((double)totalIndentSpaces / totalItems, 1);
+
+        string category;
+        if (inconsistentJumps > 0)
+        {
+            category = "Inconsistent Indentation";
+        }
+        else if (maxDepth == 0)
+        {
+            category = "Flat List (Single Level)";
+        }
+        else if (mixedTypeJumps > 0)
+        {
+            category = "Mixed Ordered/Unordered Hierarchy";
+        }
+        else if (maxDepth >= 4)
+        {
+            category = "Deep Hierarchy (≥4 Levels)";
+        }
+        else
+        {
+            category = "Clean Multi-Tier Hierarchy";
+        }
+
+        string summary = FormatListIndentationSummary(
+            totalItems, orderedCount, unorderedCount, maxDepth, avgIndent, inconsistentJumps, mixedTypeJumps, category);
+
+        return new ListIndentationAudit(
+            totalItems, orderedCount, unorderedCount, maxDepth, avgIndent, inconsistentJumps, mixedTypeJumps, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown list indentation hierarchy.
+    /// </summary>
+    public static string FormatListIndentationSummary(string? markdownText)
+        => AuditListIndentationHierarchy(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of list indentation metrics.
+    /// </summary>
+    public static string FormatListIndentationSummary(
+        int totalItems, int orderedCount, int unorderedCount, int maxDepth, double avgIndent,
+        int inconsistentJumps, int mixedTypeJumps, string category)
+    {
+        if (totalItems == 0)
+            return "List indentation hierarchy: 0 list items · Document contains no lists";
+
+        string itemsLabel = totalItems == 1 ? "1 item" : $"{totalItems} items";
+        string breakdown = $"{unorderedCount} unordered, {orderedCount} ordered";
+        string depthLabel = maxDepth == 0 ? "flat" : $"max depth {maxDepth}";
+        string issueNote = inconsistentJumps > 0 ? $" · ⚠ {inconsistentJumps} indent jumps" : "";
+        string mixedNote = mixedTypeJumps > 0 ? $" · {mixedTypeJumps} mixed transitions" : "";
+
+        return $"List hierarchy ({itemsLabel} [{breakdown}], {depthLabel} · {category}): avg indent {avgIndent:0.#}sp{issueNote}{mixedNote}";
+    }
 }
 
 /// <summary>
@@ -2551,4 +2719,19 @@ public sealed record CodeFenceLanguageCoverageAudit(
     IReadOnlyDictionary<string, int> LanguageCounts,
     string CoverageCategory,
     string Summary);
+
+/// <summary>
+/// Represents the result of an audit of markdown list indentation hierarchy, nesting depth, and formatting consistency.
+/// </summary>
+public sealed record ListIndentationAudit(
+    int TotalListItems,
+    int OrderedItemCount,
+    int UnorderedItemCount,
+    int MaxDepth,
+    double AverageIndentSpaces,
+    int InconsistentIndentCount,
+    int MixedListTypeCount,
+    string StructureCategory,
+    string Summary);
+
 

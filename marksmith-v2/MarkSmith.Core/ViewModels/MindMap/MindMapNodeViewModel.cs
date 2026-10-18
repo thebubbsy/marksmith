@@ -62,6 +62,8 @@ namespace MarkSmith.ViewModels.MindMap
         [ObservableProperty]
         private string? _parentId;
 
+        public bool IsRoot => string.IsNullOrEmpty(ParentId);
+
         [ObservableProperty]
         private bool _isDimmed;
 

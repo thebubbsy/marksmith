@@ -3263,6 +3263,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice("Copied release announcement markdown snippet");
                 };
                 menu.Items.Add(synthesizeReleaseAnnouncement);
+
+                var synthesizeMultiChannelDigest = new MenuFlyoutItem
+                {
+                    Text = "Synthesize multi-channel release digest (Teams / Slack / Discord)",
+                    Icon = new FontIcon { Glyph = "\uE90A" }
+                };
+                synthesizeMultiChannelDigest.Click += (_, _) =>
+                {
+                    var digest = MarkSmith.Services.LineDiff.SynthesizeMultiChannelReleaseDigest(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(digest);
+                    _vm.ShowNotice("Copied multi-channel release digest");
+                };
+                menu.Items.Add(synthesizeMultiChannelDigest);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());
