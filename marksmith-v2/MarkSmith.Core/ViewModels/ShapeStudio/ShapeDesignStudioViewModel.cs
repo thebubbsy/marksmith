@@ -6292,6 +6292,119 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         return $"Grid snap audit ({scope}{shapeDesc} [{snapDesc}] · {category} · {conformanceScore:0.#}% conformance): ~{meanSnapError:0.##}px avg offset{driftDesc}";
     }
+
+    /// <summary>
+    /// Audits diagram visual weight distribution, computing the area-weighted optical centroid (center-of-gravity)
+    /// versus the geometric bounding box center, detecting directional bias and optical tilt.
+    /// </summary>
+    public DiagramVisualWeightAudit AuditVisualWeightAndOpticalCentroid(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count > 0 ? selected : Shapes)).ToList();
+        bool isSelection = (targetShapes != null) || (selected.Count > 0 && selected.Count < Shapes.Count);
+        string scopeStr = isSelection ? "Selected Shapes · " : "";
+
+        if (targets.Count == 0)
+        {
+            string emptySummary = "Diagram visual weight audit: Canvas contains 0 shapes";
+            StatusMessage = emptySummary;
+            return new DiagramVisualWeightAudit(
+                0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                "No Shapes", 100.0, Array.Empty<ShapeVisualWeightInfo>(), "Empty Canvas", isSelection, emptySummary);
+        }
+
+        var shapeInfos = new List<ShapeVisualWeightInfo>();
+        double totalWeight = 0.0;
+        double weightedX = 0.0;
+        double weightedY = 0.0;
+
+        double minX = double.MaxValue;
+        double maxX = double.MinValue;
+        double minY = double.MaxValue;
+        double maxY = double.MinValue;
+
+        foreach (var s in targets)
+        {
+            double area = Math.Max(1.0, s.Width * s.Height);
+            double weight = area;
+            double cx = s.X + s.Width / 2.0;
+            double cy = s.Y + s.Height / 2.0;
+
+            totalWeight += weight;
+            weightedX += weight * cx;
+            weightedY += weight * cy;
+
+            if (s.X < minX) minX = s.X;
+            if (s.X + s.Width > maxX) maxX = s.X + s.Width;
+            if (s.Y < minY) minY = s.Y;
+            if (s.Y + s.Height > maxY) maxY = s.Y + s.Height;
+
+            shapeInfos.Add(new ShapeVisualWeightInfo(
+                s.Id, s.Name, s.X, s.Y, s.Width, s.Height,
+                Math.Round(area, 1), Math.Round(weight, 1),
+                Math.Round(cx, 1), Math.Round(cy, 1)));
+        }
+
+        double geomCenterX = Math.Round((minX + maxX) / 2.0, 1);
+        double geomCenterY = Math.Round((minY + maxY) / 2.0, 1);
+
+        double optCenterX = Math.Round(weightedX / totalWeight, 1);
+        double optCenterY = Math.Round(weightedY / totalWeight, 1);
+
+        double deltaX = Math.Round(optCenterX - geomCenterX, 1);
+        double deltaY = Math.Round(optCenterY - geomCenterY, 1);
+
+        double spanX = Math.Max(1.0, maxX - minX);
+        double spanY = Math.Max(1.0, maxY - minY);
+        double spanDiag = Math.Sqrt(spanX * spanX + spanY * spanY);
+        double offsetDist = Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
+
+        double normOffsetPct = Math.Round((offsetDist / (spanDiag / 2.0)) * 100.0, 1);
+        double balanceScore = Math.Round(Math.Clamp(100.0 - normOffsetPct, 0.0, 100.0), 1);
+
+        string dirBias;
+        if (normOffsetPct < 2.5)
+        {
+            dirBias = "Perfect Optical Equilibrium";
+        }
+        else
+        {
+            var hBias = Math.Abs(deltaX) > spanX * 0.02 ? (deltaX > 0 ? "Right-Leaning" : "Left-Leaning") : "";
+            var vBias = Math.Abs(deltaY) > spanY * 0.02 ? (deltaY > 0 ? "Bottom-Heavy" : "Top-Heavy") : "";
+            dirBias = $"{hBias} {vBias}".Trim();
+            if (string.IsNullOrEmpty(dirBias)) dirBias = "Near Centered";
+        }
+
+        string category;
+        if (balanceScore >= 95.0)
+            category = "Equilibrium Centered (≥95%)";
+        else if (balanceScore >= 80.0)
+            category = "Well-Balanced Composition (80–94%)";
+        else if (balanceScore >= 60.0)
+            category = "Moderate Visual Tilt (60–79%)";
+        else
+            category = "Pronounced Optical Imbalance (<60%)";
+
+        string summary = FormatVisualWeightSummary(
+            targets.Count, deltaX, deltaY, normOffsetPct, balanceScore, dirBias, category, scopeStr);
+
+        StatusMessage = summary;
+
+        return new DiagramVisualWeightAudit(
+            targets.Count, geomCenterX, geomCenterY, optCenterX, optCenterY,
+            deltaX, deltaY, normOffsetPct, dirBias, balanceScore,
+            shapeInfos, category, isSelection, summary);
+    }
+
+    public static string FormatVisualWeightSummary(
+        int totalShapes, double deltaX, double deltaY, double normOffsetPct,
+        double balanceScore, string dirBias, string category, string scope = "")
+    {
+        if (totalShapes == 0) return $"Diagram visual weight audit ({scope}0 shapes): Canvas is empty";
+
+        string shapeDesc = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        return $"Diagram visual weight audit ({scope}{shapeDesc} · {category} · {balanceScore:0.#}% balance): Offset ΔX={deltaX:+0.#;-0.#;0}px, ΔY={deltaY:+0.#;-0.#;0}px ({dirBias})";
+    }
 }
 
 /// <summary>
@@ -6656,5 +6769,41 @@ public sealed record ShapeGridSnapAudit(
     string ConformanceCategory,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents calculated visual weight, area, and center coordinates for an individual shape.
+/// </summary>
+public sealed record ShapeVisualWeightInfo(
+    string ShapeId,
+    string Name,
+    double X,
+    double Y,
+    double Width,
+    double Height,
+    double Area,
+    double Weight,
+    double CenterX,
+    double CenterY);
+
+/// <summary>
+/// Represents the result of an audit of diagram visual weight, optical center-of-gravity versus geometric bounding box center,
+/// and directional optical balance.
+/// </summary>
+public sealed record DiagramVisualWeightAudit(
+    int TotalShapes,
+    double GeometricCenterX,
+    double GeometricCenterY,
+    double OpticalCentroidX,
+    double OpticalCentroidY,
+    double DeltaX,
+    double DeltaY,
+    double NormalizedOffsetPercent,
+    string DirectionalBias,
+    double OpticalBalanceScore,
+    IReadOnlyList<ShapeVisualWeightInfo> Shapes,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
 
 

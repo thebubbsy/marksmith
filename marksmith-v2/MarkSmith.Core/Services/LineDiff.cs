@@ -4203,6 +4203,182 @@ public static class LineDiff
 
         return $"Word-level diff audit ({pairLabel} [{tokenBreakdown}] · {category} · {resolutionScore:0.#}% resolution): ~{meanSimilarity * 100.0:0.#}% similarity{sample}";
     }
+
+    /// <summary>
+    /// Audits character-level edit distance using Damerau-Levenshtein distance across paired modified lines,
+    /// isolating single-character typos, character transpositions, and classifying edit granularity.
+    /// </summary>
+    public static LevenshteinDistanceAudit AuditCharacterLevenshteinEditDistance(
+        IReadOnlyList<UnifiedRow>? unifiedRows, int maxCharsPerLine = 300)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new LevenshteinDistanceAudit(
+                0, 0, 0.0, 0, 0, 0, 0, 0.0, "None",
+                Array.Empty<LevenshteinDiffPairInfo>(), "No Modified Lines",
+                "Levenshtein edit distance audit: 0 modified lines · No character-level diff pairs");
+        }
+
+        var pairs = new List<LevenshteinDiffPairInfo>();
+        int i = 0;
+        while (i < unifiedRows.Count)
+        {
+            if (unifiedRows[i].Kind == Kind.Removed)
+            {
+                var delLines = new List<UnifiedRow>();
+                while (i < unifiedRows.Count && unifiedRows[i].Kind == Kind.Removed)
+                {
+                    delLines.Add(unifiedRows[i]);
+                    i++;
+                }
+
+                var insLines = new List<UnifiedRow>();
+                while (i < unifiedRows.Count && unifiedRows[i].Kind == Kind.Added)
+                {
+                    insLines.Add(unifiedRows[i]);
+                    i++;
+                }
+
+                int pairCount = Math.Min(delLines.Count, insLines.Count);
+                for (int p = 0; p < pairCount; p++)
+                {
+                    var del = delLines[p];
+                    var ins = insLines[p];
+
+                    string s1 = del.Text ?? string.Empty;
+                    string s2 = ins.Text ?? string.Empty;
+
+                    var (dist, trans) = ComputeDamerauLevenshtein(s1, s2, maxCharsPerLine);
+                    int maxLen = Math.Max(1, Math.Max(s1.Length, s2.Length));
+                    double simPct = Math.Round(Math.Max(0.0, (1.0 - (double)dist / maxLen)) * 100.0, 1);
+
+                    string classification;
+                    if (dist <= 1) classification = "Single-Character Typo";
+                    else if (dist <= 4) classification = "Minor Spelling / Token Tweak";
+                    else if (dist <= 15) classification = "Moderate Line Revision";
+                    else classification = "Major Line Rewrite";
+
+                    string s1Snippet = s1.Length > 50 ? s1.Substring(0, 47) + "..." : s1;
+                    string s2Snippet = s2.Length > 50 ? s2.Substring(0, 47) + "..." : s2;
+
+                    pairs.Add(new LevenshteinDiffPairInfo(
+                        del.OldNumber ?? 0,
+                        ins.NewNumber ?? 0,
+                        s1Snippet,
+                        s2Snippet,
+                        dist,
+                        trans,
+                        simPct,
+                        classification));
+                }
+            }
+            else
+            {
+                i++;
+            }
+        }
+
+        if (pairs.Count == 0)
+        {
+            return new LevenshteinDistanceAudit(
+                0, 0, 0.0, 0, 0, 0, 0, 0.0, "None",
+                Array.Empty<LevenshteinDiffPairInfo>(), "No Modified Lines",
+                "Levenshtein edit distance audit: 0 modified lines · No character-level diff pairs");
+        }
+
+        int totalDist = pairs.Sum(p => p.EditDistance);
+        double meanDist = Math.Round((double)totalDist / pairs.Count, 1);
+
+        int typoCount = pairs.Count(p => p.EditClassification == "Single-Character Typo");
+        int minorCount = pairs.Count(p => p.EditClassification == "Minor Spelling / Token Tweak");
+        int modCount = pairs.Count(p => p.EditClassification == "Moderate Line Revision");
+        int rewriteCount = pairs.Count(p => p.EditClassification == "Major Line Rewrite");
+
+        double typoRatio = Math.Round((double)typoCount * 100.0 / pairs.Count, 1);
+
+        string dominant;
+        int maxBucket = Math.Max(Math.Max(typoCount, minorCount), Math.Max(modCount, rewriteCount));
+        if (maxBucket == typoCount) dominant = "Single-Character Typos";
+        else if (maxBucket == minorCount) dominant = "Minor Token Tweaks";
+        else if (maxBucket == modCount) dominant = "Moderate Revisions";
+        else dominant = "Major Rewrites";
+
+        string category;
+        if (typoRatio >= 60.0) category = "Typo & Polishing Heavy (≥60% Single-Char Fixes)";
+        else if ((typoCount + minorCount) * 100.0 / pairs.Count >= 60.0) category = "Micro-Edits & Phrasing Refinements";
+        else if (rewriteCount >= (pairs.Count + 1) / 2) category = "Structural Code / Text Rewrites";
+        else category = "Mixed Granularity Edits";
+
+        string summary = FormatLevenshteinDistanceSummary(
+            pairs.Count, totalDist, meanDist, typoCount, minorCount, modCount, rewriteCount,
+            typoRatio, dominant, category);
+
+        return new LevenshteinDistanceAudit(
+            pairs.Count, totalDist, meanDist, typoCount, minorCount, modCount, rewriteCount,
+            typoRatio, dominant, pairs, category, summary);
+    }
+
+    public static LevenshteinDistanceAudit AuditCharacterLevenshteinEditDistance(
+        string? before, string? after, int maxCharsPerLine = 300)
+    {
+        var diff = Diff(before ?? "", after ?? "");
+        var unified = BuildUnified(diff);
+        return AuditCharacterLevenshteinEditDistance(unified, maxCharsPerLine);
+    }
+
+    public static string FormatLevenshteinDistanceSummary(
+        int pairsCount, int totalDist, double meanDist, int typoCount, int minorCount,
+        int modCount, int rewriteCount, double typoRatio, string dominant, string category)
+    {
+        if (pairsCount == 0) return "Levenshtein edit distance audit: 0 modified lines · No character-level diff pairs";
+
+        string pairDesc = pairsCount == 1 ? "1 modified line" : $"{pairsCount} modified lines";
+        string breakdown = $"{typoCount} typos, {minorCount} minor, {modCount} mod, {rewriteCount} rewrites";
+
+        return $"Levenshtein edit distance audit ({pairDesc} [{breakdown}] · {category}): ~{meanDist:0.#} chars avg distance · Dominant: {dominant}";
+    }
+
+    private static (int distance, int transpositions) ComputeDamerauLevenshtein(string s, string t, int maxLen = 300)
+    {
+        if (s == t) return (0, 0);
+        if (s.Length > maxLen) s = s.Substring(0, maxLen);
+        if (t.Length > maxLen) t = t.Substring(0, maxLen);
+
+        int m = s.Length;
+        int n = t.Length;
+        if (m == 0) return (n, 0);
+        if (n == 0) return (m, 0);
+
+        int[,] d = new int[m + 1, n + 1];
+        int transCount = 0;
+
+        for (int i = 0; i <= m; i++) d[i, 0] = i;
+        for (int j = 0; j <= n; j++) d[0, j] = j;
+
+        for (int i = 1; i <= m; i++)
+        {
+            for (int j = 1; j <= n; j++)
+            {
+                int cost = (s[i - 1] == t[j - 1]) ? 0 : 1;
+
+                d[i, j] = Math.Min(
+                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                    d[i - 1, j - 1] + cost);
+
+                if (i > 1 && j > 1 && s[i - 1] == t[j - 2] && s[i - 2] == t[j - 1])
+                {
+                    int transDist = d[i - 2, j - 2] + cost;
+                    if (transDist < d[i, j])
+                    {
+                        d[i, j] = transDist;
+                        transCount++;
+                    }
+                }
+            }
+        }
+
+        return (d[m, n], transCount);
+    }
 }
 
 /// <summary>
@@ -4406,5 +4582,37 @@ public sealed record WordLevelDiffAudit(
     IReadOnlyList<WordDiffChunkInfo> WordChunks,
     string ResolutionCategory,
     string Summary);
+
+/// <summary>
+/// Represents calculated Levenshtein edit distance, character transpositions, and edit classification for a paired line modification.
+/// </summary>
+public sealed record LevenshteinDiffPairInfo(
+    int OldLineNumber,
+    int NewLineNumber,
+    string DeletedSnippet,
+    string AddedSnippet,
+    int EditDistance,
+    int TranspositionCount,
+    double SimilarityPercent,
+    string EditClassification);
+
+/// <summary>
+/// Represents the result of an audit of character-level edit distance (Damerau-Levenshtein),
+/// character transpositions, typo identification, and edit granularity.
+/// </summary>
+public sealed record LevenshteinDistanceAudit(
+    int TotalModifiedLinePairs,
+    int TotalEditDistance,
+    double MeanEditDistance,
+    int TypoCount,
+    int MinorTweakCount,
+    int ModerateRevisionCount,
+    int MajorRewriteCount,
+    double TypoConcentrationRatio,
+    string DominantEditType,
+    IReadOnlyList<LevenshteinDiffPairInfo> Pairs,
+    string GranularityCategory,
+    string Summary);
+
 
 

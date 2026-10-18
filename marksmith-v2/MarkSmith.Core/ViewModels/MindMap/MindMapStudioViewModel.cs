@@ -6068,6 +6068,223 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Graph betweenness centrality ({scopeStr}{nodeLabel}, {linkLabel} · {compLabel} · {category}): Peak chokepoint {maxBetweenness:0.###} (Mean {meanBetweenness:0.###}) · {bottleneckCount} critical bottlenecks: {bDesc}";
         }
+
+        public EigenvectorCentralityAudit AuditEigenvectorCentrality(bool selectionOnly = false)
+        {
+            var targetList = selectionOnly
+                ? Nodes.Where(n => n.IsSelected).ToList()
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && targetList.Count > 0 && targetList.Count < Nodes.Count;
+            if (targetList.Count == 0)
+            {
+                return new EigenvectorCentralityAudit(
+                    0, 0, 0, 0.0, 0, true, 0.0, 0.0,
+                    Array.Empty<NodeEigenvectorInfo>(),
+                    Array.Empty<string>(),
+                    "Empty Mindmap", isSelection,
+                    $"Graph eigenvector centrality ({(isSelection ? "Selected Nodes · " : "")}0 nodes): Empty mindmap");
+            }
+
+            var nodeSet = new HashSet<string>(targetList.Select(n => n.Id));
+            var linksInScope = Links.Where(l => nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId)).ToList();
+
+            int n = targetList.Count;
+            var idToIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < n; i++) idToIndex[targetList[i].Id] = i;
+
+            var adj = new List<int>[n];
+            for (int i = 0; i < n; i++) adj[i] = new List<int>();
+
+            foreach (var l in linksInScope)
+            {
+                if (idToIndex.TryGetValue(l.SourceNodeId, out int u) && idToIndex.TryGetValue(l.TargetNodeId, out int v))
+                {
+                    if (u != v)
+                    {
+                        adj[u].Add(v);
+                        adj[v].Add(u);
+                    }
+                }
+            }
+
+            // Connected components via BFS
+            var visited = new bool[n];
+            int componentCount = 0;
+            for (int i = 0; i < n; i++)
+            {
+                if (!visited[i])
+                {
+                    componentCount++;
+                    var q = new Queue<int>();
+                    q.Enqueue(i);
+                    visited[i] = true;
+                    while (q.Count > 0)
+                    {
+                        int cur = q.Dequeue();
+                        foreach (int nbr in adj[cur])
+                        {
+                            if (!visited[nbr])
+                            {
+                                visited[nbr] = true;
+                                q.Enqueue(nbr);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Power iteration for principal eigenvector
+            double[] x = new double[n];
+            double initVal = 1.0 / Math.Sqrt(n);
+            for (int i = 0; i < n; i++) x[i] = initVal;
+            double[] nextX = new double[n];
+
+            int maxIterations = 100;
+            double tolerance = 1e-6;
+            bool converged = false;
+            int iterationsRun = 0;
+
+            for (int it = 0; it < maxIterations; it++)
+            {
+                iterationsRun++;
+                double normSq = 0.0;
+                for (int i = 0; i < n; i++)
+                {
+                    double sum = 0.0;
+                    foreach (int nbr in adj[i])
+                    {
+                        sum += x[nbr];
+                    }
+                    // Self-loop regularization (lazy walk A + I) eliminates bipartite periodicity and guarantees rapid Perron-Frobenius convergence
+                    nextX[i] = sum + x[i];
+                    normSq += nextX[i] * nextX[i];
+                }
+
+                double norm = Math.Sqrt(normSq);
+                if (norm < 1e-12)
+                {
+                    break;
+                }
+
+                double maxDiff = 0.0;
+                for (int i = 0; i < n; i++)
+                {
+                    nextX[i] /= norm;
+                    double diff = Math.Abs(nextX[i] - x[i]);
+                    if (diff > maxDiff) maxDiff = diff;
+                    x[i] = nextX[i];
+                }
+
+                if (maxDiff < tolerance)
+                {
+                    converged = true;
+                    break;
+                }
+            }
+
+            double lambda = 0.0;
+            for (int i = 0; i < n; i++)
+            {
+                double rowSum = 0.0;
+                foreach (int nbr in adj[i]) rowSum += x[nbr];
+                lambda += x[i] * rowSum;
+            }
+            lambda = Math.Round(Math.Max(0.0, lambda), 3);
+
+            double sumX = x.Sum();
+            if (sumX <= 0.0) sumX = 1.0;
+
+            double maxInfluence = 0.0;
+            double entropy = 0.0;
+            var nodeInfos = new List<NodeEigenvectorInfo>();
+
+            for (int i = 0; i < n; i++)
+            {
+                double influencePct = Math.Round((x[i] / sumX) * 100.0, 1);
+                if (influencePct > maxInfluence) maxInfluence = influencePct;
+
+                double p = x[i] / sumX;
+                if (p > 1e-9)
+                {
+                    entropy -= p * Math.Log2(p);
+                }
+
+                string tier;
+                if (influencePct >= 25.0) tier = "Dominant Hub";
+                else if (influencePct >= 10.0) tier = "High Authority";
+                else if (influencePct >= 5.0) tier = "Moderate Influence";
+                else tier = "Peripheral Node";
+
+                nodeInfos.Add(new NodeEigenvectorInfo(
+                    targetList[i].Id,
+                    targetList[i].Title,
+                    adj[i].Count,
+                    Math.Round(x[i], 4),
+                    influencePct,
+                    tier,
+                    false));
+            }
+
+            entropy = Math.Round(entropy, 2);
+
+            double threshold = Math.Max(10.0, maxInfluence * 0.7);
+            var topTitles = new List<string>();
+            for (int i = 0; i < nodeInfos.Count; i++)
+            {
+                if (nodeInfos[i].NormalizedInfluencePercent >= threshold)
+                {
+                    nodeInfos[i] = nodeInfos[i] with { IsTopInfluencer = true };
+                    topTitles.Add(nodeInfos[i].Title);
+                }
+            }
+
+            string category;
+            if (n <= 2) category = "Trivial Graph";
+            else if (maxInfluence >= 50.0) category = "Monocentric Hub (>50% Influence)";
+            else if (maxInfluence >= 25.0) category = "Multi-Hub Core Network";
+            else if (entropy >= Math.Log2(n) * 0.85) category = "Equitably Distributed Mesh";
+            else category = "Hierarchical Influence Cascade";
+
+            string summary = FormatEigenvectorCentralitySummary(
+                targetList.Count, linksInScope.Count, componentCount, lambda, maxInfluence,
+                topTitles, topTitles.Count, category, isSelection);
+
+            return new EigenvectorCentralityAudit(
+                targetList.Count, linksInScope.Count, componentCount, lambda, iterationsRun, converged,
+                maxInfluence, entropy, nodeInfos, topTitles, category, isSelection, summary);
+        }
+
+        public static EigenvectorCentralityAudit AuditEigenvectorCentrality(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditEigenvectorCentrality();
+        }
+
+        public static string FormatEigenvectorCentralitySummary(
+            int nodeCount, int linkCount, int components, double lambda, double maxInfluence,
+            IReadOnlyList<string> topTitles, int topCount, string category, bool isSelection)
+        {
+            string scopeStr = isSelection ? "Selected Nodes · " : "";
+            if (nodeCount == 0) return $"Graph eigenvector centrality ({scopeStr}0 nodes): Empty mindmap";
+
+            string nodeLabel = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+            string linkLabel = linkCount == 1 ? "1 link" : $"{linkCount} links";
+            string compLabel = components == 1 ? "1 component" : $"{components} components";
+            string topDesc = topTitles.Count > 0 ? string.Join(", ", topTitles.Select(t => $"'{t}'")) : "None";
+
+            return $"Graph eigenvector centrality ({scopeStr}{nodeLabel}, {linkLabel} · {compLabel} · {category}): Eigenvalue λ={lambda:0.###} · Peak influence {maxInfluence:0.#}% · {topCount} authoritative hubs: {topDesc}";
+        }
     }
 
 
@@ -6433,6 +6650,37 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<NodeBetweennessInfo> NodeMetrics,
         IReadOnlyList<string> BottleneckNodeTitles,
         string BottleneckCategory,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents eigenvector centrality, influence propagation weight, and network authority tier for a mindmap node.
+    /// </summary>
+    public sealed record NodeEigenvectorInfo(
+        string NodeId,
+        string Title,
+        int Degree,
+        double RawEigenvectorScore,
+        double NormalizedInfluencePercent,
+        string InfluenceTier,
+        bool IsTopInfluencer);
+
+    /// <summary>
+    /// Represents the result of an audit of the mindmap's graph eigenvector centrality,
+    /// power iteration convergence, and influence propagation network structure.
+    /// </summary>
+    public sealed record EigenvectorCentralityAudit(
+        int TotalNodes,
+        int TotalLinks,
+        int ConnectedComponents,
+        double PrincipalEigenvalueEstimate,
+        int IterationsRun,
+        bool HasConverged,
+        double MaxInfluencePercent,
+        double InfluenceEntropy,
+        IReadOnlyList<NodeEigenvectorInfo> NodeMetrics,
+        IReadOnlyList<string> TopInfluencerTitles,
+        string NetworkStructureCategory,
         bool IsSelectionScope,
         string Summary);
 }

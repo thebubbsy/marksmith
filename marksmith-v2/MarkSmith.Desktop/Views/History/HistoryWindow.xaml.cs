@@ -3393,6 +3393,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditWordDiff);
+
+                var auditLevenshtein = new MenuFlyoutItem
+                {
+                    Text = "Audit character edit distance, transpositions & typo granularity",
+                    Icon = new FontIcon { Glyph = "\uE8D2" }
+                };
+                auditLevenshtein.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditCharacterLevenshteinEditDistance(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditLevenshtein);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

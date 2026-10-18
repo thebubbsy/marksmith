@@ -1681,6 +1681,59 @@ public class TextSearchTests
         Assert.True(raggedAudit.MeanAlignmentScore < 100.0);
         Assert.Equal("Minor Ragged Rows Detected", raggedAudit.Category);
     }
+
+    [Fact]
+    public void Run166_AuditDefinitionListConsistency_DetectsIndentsAndUniformity()
+    {
+        // 1. Empty document
+        var emptyAudit = TextSearch.AuditDefinitionListConsistency("");
+        Assert.Equal(0, emptyAudit.TotalLists);
+        Assert.Equal(100.0, emptyAudit.UniformityScore);
+        Assert.Equal("No Definition Lists", emptyAudit.Category);
+        Assert.Equal(emptyAudit.Summary, TextSearch.FormatDefinitionListSummary(""));
+
+        // 2. Uniform definition list (loose format)
+        var uniformDoc = string.Join("\n",
+            "Apple",
+            ":   A sweet red fruit with seeds inside",
+            "",
+            "Banana",
+            ":   A long yellow fruit rich in potassium");
+
+        var uniformAudit = TextSearch.AuditDefinitionListConsistency(uniformDoc);
+        Assert.True(uniformAudit.TotalLists >= 1);
+        Assert.Equal(2, uniformAudit.TotalDefinitions);
+        Assert.Equal(0, uniformAudit.IrregularIndentCount);
+        Assert.Equal(100.0, uniformAudit.UniformityScore);
+        Assert.Equal("Strict Uniform Indent (100%)", uniformAudit.Category);
+        Assert.Equal(uniformAudit.Summary, TextSearch.FormatDefinitionListSummary(uniformDoc));
+
+        // 3. Fenced block :::deflist
+        var fencedDoc = string.Join("\n",
+            ":::deflist",
+            "Term A",
+            ":   Standard definition text",
+            "Term B",
+            ":   Another standard definition",
+            ":::");
+
+        var fencedAudit = TextSearch.AuditDefinitionListConsistency(fencedDoc);
+        Assert.Equal(1, fencedAudit.TotalLists);
+        Assert.Equal(1, fencedAudit.FencedDefLists);
+        Assert.Equal(2, fencedAudit.TotalDefinitions);
+        Assert.Equal(100.0, fencedAudit.UniformityScore);
+
+        // 4. Irregular indent (1 space or 6 spaces)
+        var irregularDoc = string.Join("\n",
+            "Term C",
+            ": OneSpace",
+            "Term D",
+            ":      SixSpaces");
+
+        var irregularAudit = TextSearch.AuditDefinitionListConsistency(irregularDoc);
+        Assert.Equal(2, irregularAudit.IrregularIndentCount);
+        Assert.True(irregularAudit.UniformityScore < 100.0);
+    }
 }
 
 

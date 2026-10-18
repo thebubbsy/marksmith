@@ -1853,6 +1853,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyWorkspaceFileSizeDistributionAdvisorClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var audit = RecentFilesService.AuditWorkspaceFileSizeDistribution(files);
+            await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+            SetNotification($"Copied Storage Distribution advisor: {audit.StorageHealthCategory} · {audit.StorageCompactnessScore:0.#}% compactness", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit workspace file size distribution: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

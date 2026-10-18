@@ -4064,6 +4064,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditEigenvectorCentralityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditEigenvectorCentrality();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5023,6 +5031,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditBetweennessItem.Click += OnAuditBetweennessCentralityClick;
             menu.Items.Add(auditBetweennessItem);
+
+            var auditEigenvectorItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph eigenvector centrality & influence propagation",
+                Icon = new FontIcon { Glyph = "\uE81E" }
+            };
+            auditEigenvectorItem.Click += OnAuditEigenvectorCentralityClick;
+            menu.Items.Add(auditEigenvectorItem);
 
             var fitItem = new MenuFlyoutItem
 

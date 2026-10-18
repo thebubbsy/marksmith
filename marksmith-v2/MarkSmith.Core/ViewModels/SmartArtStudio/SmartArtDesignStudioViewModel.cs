@@ -5099,6 +5099,184 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Typography font-fit audit ({nodeDesc} [{fontDesc}] · {category} · {legibilityScore:0.#}% legibility){clipDesc}";
     }
+
+    /// <summary>
+    /// Audits SmartArt color hierarchy, depth gradient progression, and chromatic harmony across diagram nesting levels.
+    /// Evaluates monotonic perceived luminance progression and WCAG contrast fidelity between adjacent parent/child tiers.
+    /// </summary>
+    public SmartArtColorHierarchyAudit AuditColorHierarchyAndGradients(string? markdown = null, IReadOnlyList<string>? paletteHexes = null)
+    {
+        string text = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            string emptySummary = "SmartArt color hierarchy audit: 0 nodes · Outline is empty";
+            StatusMessage = emptySummary;
+            return new SmartArtColorHierarchyAudit(
+                0, 0, 1.0, 0, 100.0, true, "None",
+                Array.Empty<SmartArtDepthLevelMetrics>(), Array.Empty<string>(), "Empty Outline", emptySummary);
+        }
+
+        var defaultPalette = new[] { "#005FB8", "#2E75D3", "#6095E6", "#94B6F0", "#C7D8F9" };
+        var palette = (paletteHexes != null && paletteHexes.Count > 0) ? paletteHexes : defaultPalette;
+
+        var lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+        var depthCounts = new Dictionary<int, int>();
+        int totalNodes = 0;
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~")) continue;
+
+            int indent = 0;
+            while (indent < rawLine.Length && (rawLine[indent] == ' ' || rawLine[indent] == '\t'))
+            {
+                indent += (rawLine[indent] == '\t') ? 4 : 1;
+            }
+
+            int depth = indent / 2;
+            depthCounts[depth] = depthCounts.TryGetValue(depth, out int count) ? count + 1 : 1;
+            totalNodes++;
+        }
+
+        if (totalNodes == 0)
+        {
+            string emptySummary = "SmartArt color hierarchy audit: 0 nodes · Outline is empty";
+            StatusMessage = emptySummary;
+            return new SmartArtColorHierarchyAudit(
+                0, 0, 1.0, 0, 100.0, true, "None",
+                Array.Empty<SmartArtDepthLevelMetrics>(), Array.Empty<string>(), "Empty Outline", emptySummary);
+        }
+
+        int maxDepth = depthCounts.Keys.Max();
+        var depthLevels = new List<SmartArtDepthLevelMetrics>();
+        var issues = new List<string>();
+
+        double prevLuminance = -1.0;
+        int contrastDeficits = 0;
+        double totalContrast = 0.0;
+        int contrastEvaluations = 0;
+        bool isMonotonic = true;
+        int lastDirection = 0; // 1 = ascending, -1 = descending
+
+        for (int d = 0; d <= maxDepth; d++)
+        {
+            int count = depthCounts.TryGetValue(d, out int c) ? c : 0;
+            string hex = palette[d % palette.Count];
+            double lum = CalculatePerceivedLuminance(hex);
+
+            double contrastWithPrev;
+            if (prevLuminance < 0.0)
+            {
+                // Root tier vs white canvas background (L=1.0)
+                contrastWithPrev = Math.Round((1.0 + 0.05) / (lum + 0.05), 2);
+            }
+            else
+            {
+                double high = Math.Max(prevLuminance, lum);
+                double low = Math.Min(prevLuminance, lum);
+                contrastWithPrev = Math.Round((high + 0.05) / (low + 0.05), 2);
+
+                int dir = lum > prevLuminance ? 1 : (lum < prevLuminance ? -1 : 0);
+                if (lastDirection != 0 && dir != 0 && dir != lastDirection)
+                {
+                    isMonotonic = false;
+                }
+                if (dir != 0) lastDirection = dir;
+            }
+
+            totalContrast += contrastWithPrev;
+            contrastEvaluations++;
+
+            bool meetsAa = contrastWithPrev >= 3.0;
+            bool meetsAaa = contrastWithPrev >= 4.5;
+
+            if (d > 0 && contrastWithPrev < 1.25)
+            {
+                contrastDeficits++;
+                issues.Add($"Tier {d} ({hex}) has low contrast ratio ({contrastWithPrev:0.##}:1) with Tier {d - 1}");
+            }
+
+            depthLevels.Add(new SmartArtDepthLevelMetrics(
+                d, count, hex, Math.Round(lum, 4), contrastWithPrev, meetsAa, meetsAaa));
+
+            prevLuminance = lum;
+        }
+
+        double meanContrast = contrastEvaluations > 0 ? Math.Round(totalContrast / contrastEvaluations, 2) : 1.0;
+        string gradientDir = lastDirection > 0 ? "Ascending Luminance (Dark-to-Light)" : (lastDirection < 0 ? "Descending Luminance (Light-to-Dark)" : "Uniform Luminance");
+
+        double harmonyScore = 100.0;
+        harmonyScore -= contrastDeficits * 20.0;
+        if (!isMonotonic && maxDepth >= 2) harmonyScore -= 15.0;
+        harmonyScore = Math.Round(Math.Clamp(harmonyScore, 0.0, 100.0), 1);
+
+        string category;
+        if (contrastDeficits == 0 && isMonotonic)
+            category = "Optimal Monotonic Depth Gradient (100%)";
+        else if (harmonyScore >= 80.0)
+            category = "Harmonious Depth Gradient (≥80%)";
+        else if (harmonyScore >= 50.0)
+            category = "Moderate Depth Contrast Fluctuations";
+        else
+            category = "Low Contrast / Inverted Depth Gradient";
+
+        string summary = FormatColorHierarchySummary(
+            totalNodes, maxDepth, depthLevels.Count, meanContrast, contrastDeficits,
+            harmonyScore, isMonotonic, gradientDir, category);
+
+        StatusMessage = summary;
+
+        return new SmartArtColorHierarchyAudit(
+            totalNodes, maxDepth, meanContrast, contrastDeficits, harmonyScore,
+            isMonotonic, gradientDir, depthLevels, issues, category, summary);
+    }
+
+    public static SmartArtColorHierarchyAudit AuditColorHierarchyAndGradients(string? markdown, bool isStatic)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditColorHierarchyAndGradients(markdown);
+    }
+
+    public static string FormatColorHierarchySummary(
+        int totalNodes, int maxDepth, int depthTiers, double meanContrast, int contrastDeficits,
+        double harmonyScore, bool isMonotonic, string gradientDir, string category)
+    {
+        if (totalNodes == 0) return "SmartArt color hierarchy audit: 0 nodes · Outline is empty";
+
+        string nodeDesc = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+        string tierDesc = depthTiers == 1 ? "1 depth tier" : $"{depthTiers} depth tiers (max depth {maxDepth})";
+        string deficitDesc = contrastDeficits > 0 ? $" · ⚠ {contrastDeficits} contrast deficit{(contrastDeficits == 1 ? "" : "s")}" : "";
+
+        return $"SmartArt color hierarchy audit ({nodeDesc} [{tierDesc}] · {category} · {harmonyScore:0.#}% harmony): ~{meanContrast:0.#}:1 avg contrast · {gradientDir}{deficitDesc}";
+    }
+
+    private static double CalculatePerceivedLuminance(string hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return 0.5;
+        string clean = hex.Trim().TrimStart('#');
+        if (clean.Length == 3)
+        {
+            clean = $"{clean[0]}{clean[0]}{clean[1]}{clean[1]}{clean[2]}{clean[2]}";
+        }
+        if (clean.Length >= 6 &&
+            int.TryParse(clean.Substring(0, 2), System.Globalization.NumberStyles.HexNumber, null, out int r) &&
+            int.TryParse(clean.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, null, out int g) &&
+            int.TryParse(clean.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, null, out int b))
+        {
+            double rLin = LinearizeChannel(r / 255.0);
+            double gLin = LinearizeChannel(g / 255.0);
+            double bLin = LinearizeChannel(b / 255.0);
+            return 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
+        }
+        return 0.5;
+    }
+
+    private static double LinearizeChannel(double c)
+    {
+        return c <= 0.03928 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
+    }
 }
 
 /// <summary>
@@ -5420,4 +5598,34 @@ public sealed record SmartArtTypographyFontFitAudit(
     IReadOnlyList<SmartArtNodeTypographyInfo> Nodes,
     string LegibilityCategory,
     string Summary);
+
+/// <summary>
+/// Represents calculated perceived luminance, color contrast ratio, and WCAG compliance for a specific outline depth level.
+/// </summary>
+public sealed record SmartArtDepthLevelMetrics(
+    int DepthLevel,
+    int NodeCount,
+    string RepresentativeColorHex,
+    double PerceivedLuminance,
+    double ContrastRatioWithPreviousDepth,
+    bool MeetsWcagAa,
+    bool MeetsWcagAaa);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt color hierarchy, depth gradient progression,
+/// and chromatic harmony across diagram nesting levels.
+/// </summary>
+public sealed record SmartArtColorHierarchyAudit(
+    int TotalNodes,
+    int MaxDepth,
+    double MeanContrastRatio,
+    int ContrastDeficitCount,
+    double ChromaticHarmonyScore,
+    bool IsMonotonicProgression,
+    string GradientDirection,
+    IReadOnlyList<SmartArtDepthLevelMetrics> DepthLevels,
+    IReadOnlyList<string> Issues,
+    string Category,
+    string Summary);
+
 

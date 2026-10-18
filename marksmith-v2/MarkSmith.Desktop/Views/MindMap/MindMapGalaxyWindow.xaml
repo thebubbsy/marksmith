@@ -315,6 +315,9 @@
                                     <MenuFlyoutItem x:Name="AuditBetweennessCentralityItem" Text="Audit graph betweenness centrality, bottlenecks &amp; bridge concepts" Click="OnAuditBetweennessCentralityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE817;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditEigenvectorCentralityItem" Text="Audit graph eigenvector centrality &amp; influence propagation" Click="OnAuditEigenvectorCentralityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

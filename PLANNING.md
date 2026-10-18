@@ -11540,25 +11540,47 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #166 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+## Scheduled WinUI 3 Desktop Polish Routine — Run #166 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Definition List (`:::deflist` / `Term\n: Definition`) Syntax & Hanging Indent Consistency Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditDefinitionListConsistency(markdownText)`, `FormatDefinitionListSummary(...)`, records `DefinitionItemInfo`, and `DefinitionListAudit`. Evaluates CommonMark/Pandoc loose definition lists and fenced `:::deflist` blocks, auditing hanging indent uniformity (2-4 spaces), flagging irregular or ragged margins, missing colons, and calculating definition formatting fidelity score ($0-100\%$); wired to `definitionListConsistencyItem` (`\uE8D2`) in both `StatusSectionBreadcrumbButton_RightTapped` and `FindCountText_RightTapped` context flyouts with clipboard copy and toast announcement.
+    2. **MindMapGalaxyWindow Graph Eigenvector Centrality & Influence Propagation Network Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditEigenvectorCentrality()`, static overload, `FormatEigenvectorCentralitySummary(...)`, records `NodeEigenvectorInfo`, and `EigenvectorCentralityAudit`. Implements power iteration with self-loop regularization ($A + I$, lazy walk) to eliminate bipartite periodicity and guarantee Perron-Frobenius spectral convergence, calculates normalized influence percentages ($0-100\%$), Shannon influence entropy, and influence tier classification; wired to `AuditEigenvectorCentralityItem` (`\uE81E`) in `ArrangeDropDownButton.Flyout` and canvas right-tap context flyout.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Diagram Visual Weight & Centroid Optical Balance Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditVisualWeightAndOpticalCentroid(shapes)`, `FormatVisualWeightSummary(...)`, records `ShapeVisualWeightInfo`, and `DiagramVisualWeightAudit`. Computes area-weighted center of gravity (optical centroid) versus geometric bounding box center, measuring directional tilt vectors $(\Delta X, \Delta Y)$, visual offset percentages, and optical balance score ($0-100\%$); wired to `SelectionAuditVisualWeightItem` (`\uE7C5`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Color Hierarchy & Depth Gradient Chromatic Harmony Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditColorHierarchyAndGradients(markdown, paletteHexes)`, static overload, `FormatColorHierarchySummary(...)`, records `SmartArtDepthLevelMetrics`, and `SmartArtColorHierarchyAudit`. Evaluates hierarchical outline depth levels for monotonic luminance progression, computes linearized sRGB perceptual luminance contrast ratios, and verifies WCAG readability contrast fidelity; wired to `AuditColorHierarchyItem` (`\uE790`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Character-Level Levenshtein Edit Distance, Transposition & Typo Ratio Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditCharacterLevenshteinEditDistance(unifiedRows, maxCharsPerLine = 300)`, string overload, `FormatLevenshteinDistanceSummary(...)`, records `LevenshteinDiffPairInfo`, and `LevenshteinDistanceAudit`. Implements Damerau-Levenshtein distance (insertions, deletions, substitutions, transpositions) across paired modified diff lines, distinguishing surgical typo corrections from full line rewrites; wired to `auditLevenshtein` (`\uE8D2`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace Document File Size Distribution, Heavy Asset Bloat & Storage Quota Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceFileSizeDistribution(files, fileExistsProvider, fileLengthProvider)`, `FormatWorkspaceFileSizeDistributionSummary(...)`, records `WorkspaceFileSizeItem`, and `WorkspaceFileSizeDistributionAudit`. Scans workspace markdown and document payloads, identifies heavy asset outliers ($\ge 5\text{MB}$), computes payload tier histograms, and calculates storage compactness scores ($0-100\%$); wired to `CopyWorkspaceFileSizeDistributionAdvisorItem` (`\uE838`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `6/6` targeted Run #166 tests passing (`100%` pass rate).
+    - Verified full polish test suite: `840/840` tests passing (`100%` pass rate).
+    - Verified live `Marksmith.exe` smoke startup (`PID=25508, Responding=True, HasExited=False`).
+
+---
+
+### Run #167 Blueprint — Carried-Forward Refinements & Next Cycle Targets
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **Feature**: Markdown Definition List (`:::deflist` / `Term\n: Definition`) Syntax & Hanging Indent Consistency Auditor.
-   - **Deliverable**: Add `TextSearch.AuditDefinitionListConsistency(markdownText)` and `FormatDefinitionListSummary(...)`, checking definition syntax balance, colon indents, multi-line definition continuity, and glossary completeness. Wire to `StatusSectionBreadcrumbButton` and `FindCountText` context flyouts.
+   - **Feature**: Markdown Footnote and Reference Anchor Consistency, Bi-Directional Linking & Orphan Auditor.
+   - **Deliverable**: Add `TextSearch.AuditFootnoteAndReferenceConsistency(markdownText)` and `FormatFootnoteReferenceSummary(...)`, validating footnote definitions (`[^1]: ...`) against body anchors (`[^1]`), flagging unreferenced definitions, missing definitions, and duplicate anchors. Wire to `StatusSectionBreadcrumbButton` and `FindCountText` context flyouts.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **Feature**: Graph Eigenvector Centrality & Influence Propagation Network Auditor.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditEigenvectorCentrality()` and `FormatEigenvectorCentralitySummary(...)`, computing the principal eigenvector of the adjacency matrix to identify authoritative nodes connected to other influential hubs. Wire to `ArrangeDropDownButton.Flyout`.
+   - **Feature**: Graph Radial Layout Equidistant Spacing, Angular Sector Distribution & Concentric Ring Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditRadialLayoutAngularSpacing()` and `FormatRadialLayoutSummary(...)`, assessing angular sector separation and radial distance jitter across concentric depth rings from root nodes. Wire to `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **Feature**: Diagram Visual Weight & Centroid Optical Balance Auditor.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditVisualWeightAndOpticalCentroid(shapes)` and `FormatVisualWeightSummary(...)`, computing the area-weighted center of gravity versus geometric bounding box center, detecting optical imbalance or heavy bottom/side visual tilt. Wire to `SelectionBoundsBorder.ContextFlyout`.
+   - **Feature**: Connector Path Curvature Continuity, Bezier Tangent Alignment & Knot Smoothness Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditConnectorCurvatureAndTangents(shapes)` and `FormatConnectorCurvatureSummary(...)`, evaluating Bezier control point alignments and tangent continuity ($C^1/G^1$) on curved diagram connectors. Wire to `SelectionBoundsBorder.ContextFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **Feature**: SmartArt Color Hierarchy & Depth Gradient Chromatic Harmony Auditor.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditColorHierarchyAndGradients(markdown, palette)` and `FormatColorHierarchySummary(...)`, verifying that root and child node contrast levels match visual hierarchy depth and maintain WCAG AAA compliance across all tiers. Wire to `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #165 Block 3 Idea 5]**:
-   - **Refinement Target**: Levenshtein String Distance, Character Transposition & Typo Edit Distance Auditor.
-   - **Deliverable**: Add `LineDiff.AuditCharacterLevenshteinEditDistance(unifiedRows)` to quantify exact character edit distance, identify transposed characters (Damerau-Levenshtein), and classify typo fixes versus functional rewrites. Wire to `TimelineHeaderBorder` context flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #165 Block 3 Idea 6]**:
-   - **Refinement Target**: Workspace File Size Distribution, Heavy Asset Bloat & Storage Quota Advisor.
-   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceFileSizeDistribution(files)` to scan document and asset payload distributions, flag outlier files (>5MB) and oversized attachments, and compute workspace storage compactness score. Wire to `RecentDocsFlyout`.
+   - **Feature**: SmartArt Chevron / Linear Flow Arrowhead Aspect Ratio & Progression Rhythm Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditLinearFlowChevronRhythm(markdown)` and `FormatLinearFlowSummary(...)`, validating arrowhead apex angles, uniform notch clearances, and horizontal step pacing across sequential process diagrams. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #166 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Token Entropy, Shannon Information Density & Revision Drift Auditor.
+   - **Deliverable**: Add `LineDiff.AuditSemanticDiffTokenEntropy(unifiedRows)` to quantify token entropy change, identifying high-disorder refactors versus localized variable/identifier renames. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #166 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Asset Redundancy, Content Hash Deduplication & Archive Packaging Advisor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceAssetDeduplication(files)` to compute SHA-256 digests across media assets in the workspace, identifying identical duplicate images/attachments across folders to reclaim disk footprint. Wire to `RecentDocsFlyout`.
 
 
 

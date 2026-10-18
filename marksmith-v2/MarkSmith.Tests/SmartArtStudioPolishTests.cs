@@ -1565,6 +1565,43 @@ public class SmartArtStudioPolishTests
         Assert.True(verboseAudit.TypographicLegibilityScore < 100.0);
         Assert.Contains(verboseAudit.LegibilityCategory, new[] { "Text Overflow Risk Detected", "Tight Text Fitting", "Minor Text Overflow Risks" });
     }
+
+    [Fact]
+    public void Run166_AuditColorHierarchyAndGradients_EvaluatesDepthLuminanceProgression()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditColorHierarchyAndGradients("", isStatic: true);
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.ChromaticHarmonyScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+        Assert.Contains("Outline is empty", emptyAudit.Summary);
+
+        // 2. Monotonic multi-tier outline
+        var hierarchyMd = """
+            - Root Initiative
+              - Strategic Priority A
+                - Tactical Task 1
+                - Tactical Task 2
+              - Strategic Priority B
+            """;
+        var hierarchyAudit = SmartArtDesignStudioViewModel.AuditColorHierarchyAndGradients(hierarchyMd, isStatic: true);
+        Assert.Equal(5, hierarchyAudit.TotalNodes);
+        Assert.Equal(2, hierarchyAudit.MaxDepth);
+        Assert.Equal(3, hierarchyAudit.DepthLevels.Count);
+        Assert.True(hierarchyAudit.IsMonotonicProgression);
+        Assert.True(hierarchyAudit.ChromaticHarmonyScore >= 80.0);
+        Assert.Equal(hierarchyAudit.Summary, SmartArtDesignStudioViewModel.FormatColorHierarchySummary(
+            5, 2, 3, hierarchyAudit.MeanContrastRatio, hierarchyAudit.ContrastDeficitCount,
+            hierarchyAudit.ChromaticHarmonyScore, hierarchyAudit.IsMonotonicProgression,
+            hierarchyAudit.GradientDirection, hierarchyAudit.Category));
+
+        // 3. Contrast deficit check with low contrast palette
+        var lowContrastPalette = new[] { "#555555", "#565656", "#575757" };
+        var vm = new SmartArtDesignStudioViewModel();
+        var deficitAudit = vm.AuditColorHierarchyAndGradients(hierarchyMd, lowContrastPalette);
+        Assert.True(deficitAudit.ContrastDeficitCount >= 1);
+        Assert.True(deficitAudit.ChromaticHarmonyScore < 100.0);
+    }
 }
 
 

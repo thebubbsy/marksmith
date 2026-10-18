@@ -2488,6 +2488,49 @@ namespace MarkSmith.Tests
                 pathAudit.IsSelectionScope);
             Assert.Equal(pathAudit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run166_AuditEigenvectorCentrality_CalculatesPowerIterationAndInfluence()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditEigenvectorCentrality(Array.Empty<MindMapNode>(), null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0.0, emptyAudit.PrincipalEigenvalueEstimate);
+            Assert.Equal("Empty Mindmap", emptyAudit.NetworkStructureCategory);
+
+            // 2. Star graph with hub A and leaves B, C, D
+            var nodeA = new MindMapNode { Id = "hub", Title = "Central Hub A" };
+            var nodeB = new MindMapNode { Id = "b", Title = "Leaf B" };
+            var nodeC = new MindMapNode { Id = "c", Title = "Leaf C" };
+            var nodeD = new MindMapNode { Id = "d", Title = "Leaf D" };
+
+            var l1 = new MindMapLink { Id = "l1", SourceNodeId = "hub", TargetNodeId = "b" };
+            var l2 = new MindMapLink { Id = "l2", SourceNodeId = "hub", TargetNodeId = "c" };
+            var l3 = new MindMapLink { Id = "l3", SourceNodeId = "hub", TargetNodeId = "d" };
+
+            var starAudit = MindMapStudioViewModel.AuditEigenvectorCentrality(
+                new[] { nodeA, nodeB, nodeC, nodeD }, new[] { l1, l2, l3 });
+
+            Assert.Equal(4, starAudit.TotalNodes);
+            Assert.Equal(3, starAudit.TotalLinks);
+            Assert.Equal(1, starAudit.ConnectedComponents);
+            Assert.True(starAudit.HasConverged);
+            Assert.True(starAudit.MaxInfluencePercent > 25.0);
+            Assert.Contains("Central Hub A", starAudit.TopInfluencerTitles);
+
+            var hubMetric = starAudit.NodeMetrics.First(m => m.Title == "Central Hub A");
+            Assert.Equal(3, hubMetric.Degree);
+            Assert.True(hubMetric.NormalizedInfluencePercent > 35.0);
+            Assert.Equal("Dominant Hub", hubMetric.InfluenceTier);
+
+            // 3. Formatter test
+            string formatted = MindMapStudioViewModel.FormatEigenvectorCentralitySummary(
+                starAudit.TotalNodes, starAudit.TotalLinks, starAudit.ConnectedComponents,
+                starAudit.PrincipalEigenvalueEstimate, starAudit.MaxInfluencePercent,
+                starAudit.TopInfluencerTitles, starAudit.TopInfluencerTitles.Count,
+                starAudit.NetworkStructureCategory, starAudit.IsSelectionScope);
+            Assert.Equal(starAudit.Summary, formatted);
+        }
     }
 }
 

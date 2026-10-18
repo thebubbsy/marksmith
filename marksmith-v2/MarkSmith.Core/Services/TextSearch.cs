@@ -4745,6 +4745,212 @@ public static class TextSearch
         string firstIssue = issues.Count > 0 ? $" · {issues[0]}" : "";
         return $"Markdown table alignment audit ({tableDesc} [{colDesc}] · {category} · {meanScore:0.#}% score){firstIssue}";
     }
+
+    /// <summary>
+    /// Audits markdown definition list syntax (:::deflist blocks and standard Term\n: Definition pairs),
+    /// measuring hanging indent consistency, missing definitions, and structural uniformity.
+    /// </summary>
+    public static DefinitionListAudit AuditDefinitionListConsistency(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new DefinitionListAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DefinitionItemInfo>(),
+                Array.Empty<string>(),
+                "No Definition Lists",
+                "Markdown definition list audit: 0 definition lists · Document contains no definition lists");
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        bool inFence = false;
+        string fenceMarker = "";
+        bool inDefListBlock = false;
+
+        var items = new List<DefinitionItemInfo>();
+        var issues = new List<string>();
+        int totalLists = 0;
+        int fencedLists = 0;
+        int looseLists = 0;
+        int totalTerms = 0;
+        int totalDefinitions = 0;
+        int irregularIndents = 0;
+
+        string? pendingTerm = null;
+        bool listActive = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string rawLine = lines[i];
+            string trimmed = rawLine.Trim();
+            int lineNum = i + 1;
+
+            if (!inFence)
+            {
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inFence = true;
+                    fenceMarker = trimmed.Substring(0, 3);
+                    continue;
+                }
+            }
+            else
+            {
+                if (trimmed.StartsWith(fenceMarker))
+                {
+                    inFence = false;
+                }
+                continue;
+            }
+
+            if (trimmed.StartsWith(":::deflist", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("::: deflist", StringComparison.OrdinalIgnoreCase))
+            {
+                inDefListBlock = true;
+                fencedLists++;
+                totalLists++;
+                listActive = true;
+                continue;
+            }
+            if (inDefListBlock && trimmed == ":::")
+            {
+                inDefListBlock = false;
+                listActive = false;
+                pendingTerm = null;
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                continue;
+            }
+
+            bool isDefLine = (trimmed.StartsWith(":") || trimmed.StartsWith("~")) &&
+                             trimmed.Length > 1 &&
+                             (trimmed[1] == ' ' || trimmed[1] == '\t');
+
+            if (isDefLine)
+            {
+                totalDefinitions++;
+                string term = pendingTerm ?? "(anonymous term)";
+                if (pendingTerm == null)
+                {
+                    issues.Add($"Line {lineNum}: Definition found without preceding term");
+                }
+
+                int colonIdx = rawLine.IndexOfAny(new[] { ':', '~' });
+                int indentSpaces = 0;
+                if (colonIdx >= 0)
+                {
+                    int p = colonIdx + 1;
+                    while (p < rawLine.Length && (rawLine[p] == ' ' || rawLine[p] == '\t'))
+                    {
+                        indentSpaces += rawLine[p] == '\t' ? 4 : 1;
+                        p++;
+                    }
+                }
+
+                bool isIrregular = indentSpaces < 2 || indentSpaces > 4;
+                if (isIrregular)
+                {
+                    irregularIndents++;
+                    issues.Add($"Line {lineNum}: Irregular hanging indent ({indentSpaces} spaces) for term '{term}'");
+                }
+
+                string defSnippet = trimmed.Substring(1).Trim();
+                if (defSnippet.Length > 60) defSnippet = defSnippet.Substring(0, 57) + "...";
+
+                items.Add(new DefinitionItemInfo(
+                    lineNum,
+                    term,
+                    defSnippet,
+                    indentSpaces,
+                    inDefListBlock,
+                    isIrregular));
+
+                if (!listActive)
+                {
+                    looseLists++;
+                    totalLists++;
+                    listActive = true;
+                }
+            }
+            else
+            {
+                if (!trimmed.StartsWith("#") && !trimmed.StartsWith(">") && !trimmed.StartsWith("|") && !trimmed.StartsWith("- ") && !trimmed.StartsWith("* "))
+                {
+                    pendingTerm = trimmed;
+                    totalTerms++;
+                }
+                else
+                {
+                    pendingTerm = null;
+                    listActive = false;
+                }
+            }
+        }
+
+        if (totalLists == 0 && totalDefinitions == 0)
+        {
+            return new DefinitionListAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DefinitionItemInfo>(),
+                Array.Empty<string>(),
+                "No Definition Lists",
+                "Markdown definition list audit: 0 definition lists · Document contains no definition lists");
+        }
+
+        double uniformityScore = totalDefinitions > 0
+            ? Math.Max(0.0, Math.Round(100.0 - (irregularIndents * 25.0 / totalDefinitions), 1))
+            : 100.0;
+
+        string category;
+        if (irregularIndents == 0)
+            category = "Strict Uniform Indent (100%)";
+        else if (uniformityScore >= 80.0)
+            category = "High Consistency (≥80%)";
+        else if (uniformityScore >= 50.0)
+            category = "Moderate Indent Jumps (50–79%)";
+        else
+            category = "Ragged / Inconsistent Indents (<50%)";
+
+        string summary = FormatDefinitionListSummary(
+            totalLists, totalTerms, totalDefinitions, fencedLists, looseLists,
+            irregularIndents, uniformityScore, category, issues);
+
+        return new DefinitionListAudit(
+            totalLists, totalTerms, totalDefinitions, fencedLists, looseLists,
+            irregularIndents, uniformityScore, items, issues, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown definition list audit results from markdown text.
+    /// </summary>
+    public static string FormatDefinitionListSummary(string? markdownText)
+        => AuditDefinitionListConsistency(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of definition list consistency metrics.
+    /// </summary>
+    public static string FormatDefinitionListSummary(
+        int totalLists, int totalTerms, int totalDefinitions, int fencedLists, int looseLists,
+        int irregularIndents, double uniformityScore, string category, IReadOnlyList<string>? issues = null)
+    {
+        if (totalLists == 0 && totalDefinitions == 0)
+            return "Markdown definition list audit: 0 definition lists · Document contains no definition lists";
+
+        string listDesc = totalLists == 1 ? "1 definition list" : $"{totalLists} definition lists";
+        string breakdown = $"{totalTerms} terms, {totalDefinitions} definitions";
+        string typeDesc = fencedLists > 0 ? $"{fencedLists} fenced, {looseLists} loose" : $"{looseLists} loose";
+
+        if (irregularIndents == 0)
+        {
+            return $"Markdown definition list audit ({listDesc} [{breakdown}, {typeDesc}] · {category} · {uniformityScore:0.#}% score): Uniform hanging indents";
+        }
+
+        string firstIssue = (issues != null && issues.Count > 0) ? $" · {issues[0]}" : "";
+        return $"Markdown definition list audit ({listDesc} [{breakdown}, {typeDesc}] · {category} · {uniformityScore:0.#}% score){firstIssue}";
+    }
 }
 
 /// <summary>
@@ -5126,4 +5332,33 @@ public sealed record TableAlignmentAndSpacingAudit(
     IReadOnlyList<string> Issues,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents parsed metrics and indentation for an individual definition item.
+/// </summary>
+public sealed record DefinitionItemInfo(
+    int LineNumber,
+    string Term,
+    string DefinitionSnippet,
+    int HangingIndentSpaces,
+    bool IsInsideDefListBlock,
+    bool HasIrregularIndent);
+
+/// <summary>
+/// Represents the result of an audit of markdown definition list syntax,
+/// hanging indent uniformity, and structural consistency.
+/// </summary>
+public sealed record DefinitionListAudit(
+    int TotalLists,
+    int TotalTerms,
+    int TotalDefinitions,
+    int FencedDefLists,
+    int LooseDefLists,
+    int IrregularIndentCount,
+    double UniformityScore,
+    IReadOnlyList<DefinitionItemInfo> Items,
+    IReadOnlyList<string> Issues,
+    string Category,
+    string Summary);
+
 

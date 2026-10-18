@@ -7967,6 +7967,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(tableAlignmentSpacingItem);
 
+        var definitionListConsistencyItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown definition list syntax & indent consistency audit",
+            Icon = new FontIcon { Glyph = "\uE8D2" }
+        };
+        definitionListConsistencyItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatDefinitionListSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(definitionListConsistencyItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9433,6 +9447,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(tableAlignmentSpacingItem);
+
+        var definitionListConsistencyItem = new MenuFlyoutItem
+        {
+            Text = "Copy markdown definition list syntax & indent consistency audit",
+            Icon = new FontIcon { Glyph = "\uE8D2" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        definitionListConsistencyItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatDefinitionListSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(definitionListConsistencyItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

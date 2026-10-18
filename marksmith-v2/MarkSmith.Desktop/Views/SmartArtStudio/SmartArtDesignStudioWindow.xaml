@@ -335,6 +335,9 @@
                                         <MenuFlyoutItem x:Name="AuditTypographyFontFitItem" Text="Audit layout typography scaling, label font-fit &amp; text clipping" Click="OnAuditTypographyFontFitClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditColorHierarchyItem" Text="Audit SmartArt color hierarchy, depth gradients &amp; chromatic harmony" Click="OnAuditColorHierarchyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

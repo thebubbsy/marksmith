@@ -303,6 +303,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceTypographyAdvisorItem" Text="Copy workspace typography &amp; font fallback advisor" Click="OnCopyWorkspaceTypographyAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyWorkspaceFileSizeDistributionAdvisorItem" Text="Copy workspace file size distribution &amp; storage bloat advisor" Click="OnCopyWorkspaceFileSizeDistributionAdvisorClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE838;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

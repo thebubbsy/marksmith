@@ -1661,6 +1661,50 @@ public class ShapeStudioPolishTests
         Assert.True(driftAudit.MeanSnapErrorPixels > 0.0);
         Assert.True(driftAudit.GridSnapConformanceScore < 100.0);
     }
+
+    [Fact]
+    public void Run166_AuditVisualWeightAndOpticalCentroid_CalculatesCentroidAndOffset()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditVisualWeightAndOpticalCentroid();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.OpticalBalanceScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+
+        // 2. Symmetric centered layout: two identical shapes at left and right
+        var sLeft = new ShapeCanvasItemViewModel { Id = "s1", Text = "Left", X = 100, Y = 100, Width = 100, Height = 100 };
+        var sRight = new ShapeCanvasItemViewModel { Id = "s2", Text = "Right", X = 300, Y = 100, Width = 100, Height = 100 };
+        vm.Shapes.Add(sLeft);
+        vm.Shapes.Add(sRight);
+
+        var balancedAudit = vm.AuditVisualWeightAndOpticalCentroid();
+        Assert.Equal(2, balancedAudit.TotalShapes);
+        Assert.Equal(250.0, balancedAudit.GeometricCenterX);
+        Assert.Equal(250.0, balancedAudit.OpticalCentroidX);
+        Assert.Equal(0.0, balancedAudit.DeltaX);
+        Assert.Equal(100.0, balancedAudit.OpticalBalanceScore);
+        Assert.Equal("Equilibrium Centered (≥95%)", balancedAudit.Category);
+
+        // 3. Unbalanced heavy right side: huge shape on right
+        var sHeavy = new ShapeCanvasItemViewModel { Id = "s3", Text = "Heavy", X = 400, Y = 100, Width = 300, Height = 300 };
+        vm.Shapes.Add(sHeavy);
+
+        var unbalancedAudit = vm.AuditVisualWeightAndOpticalCentroid();
+        Assert.Equal(3, unbalancedAudit.TotalShapes);
+        Assert.True(unbalancedAudit.DeltaX > 0.0);
+        Assert.Contains("Right", unbalancedAudit.DirectionalBias);
+        Assert.True(unbalancedAudit.OpticalBalanceScore < 100.0);
+
+        // 4. Formatter test
+        string formatted = ShapeDesignStudioViewModel.FormatVisualWeightSummary(
+            unbalancedAudit.TotalShapes, unbalancedAudit.DeltaX, unbalancedAudit.DeltaY,
+            unbalancedAudit.NormalizedOffsetPercent, unbalancedAudit.OpticalBalanceScore,
+            unbalancedAudit.DirectionalBias, unbalancedAudit.Category);
+        Assert.Equal(unbalancedAudit.Summary, formatted);
+    }
 }
 
 

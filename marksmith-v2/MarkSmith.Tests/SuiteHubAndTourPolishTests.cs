@@ -3005,6 +3005,83 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("CopyWorkspaceTypographyAdvisorItem", suiteXaml);
         Assert.Contains("OnCopyWorkspaceTypographyAdvisorClick", suiteCs);
     }
+
+    [Fact]
+    public void Run166_WorkspaceFileSizeDistribution_And_CrossSurfaceWiring()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditWorkspaceFileSizeDistribution(null);
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(0, emptyAudit.TotalSizeBytes);
+        Assert.Equal(100.0, emptyAudit.StorageCompactnessScore);
+        Assert.Equal("Empty Workspace", emptyAudit.StorageHealthCategory);
+        Assert.Equal(emptyAudit.Summary, RecentFilesService.FormatWorkspaceFileSizeDistributionSummary(
+            0, 0, 0, 0, "None", 0, 100.0, "Empty Workspace"));
+
+        // 2. Mocked workspace with light files and heavy bloat
+        var fakeFiles = new[]
+        {
+            "C:\\docs\\notes.md",
+            "C:\\docs\\report.docx",
+            "C:\\docs\\video-presentation.mp4"
+        };
+
+        var lengths = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["C:\\docs\\notes.md"] = 12 * 1024,
+            ["C:\\docs\\report.docx"] = 250 * 1024,
+            ["C:\\docs\\video-presentation.mp4"] = 8 * 1024 * 1024
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceFileSizeDistribution(
+            fakeFiles,
+            fileExistsProvider: _ => true,
+            fileLengthProvider: p => lengths.TryGetValue(p, out var len) ? len : 1024);
+
+        Assert.Equal(3, audit.TotalFilesScanned);
+        Assert.Equal(1, audit.HeavyBloatCount);
+        Assert.Equal("video-presentation.mp4", audit.HeaviestFileName);
+        Assert.True(audit.StorageCompactnessScore < 100.0);
+        Assert.NotEmpty(audit.ExtensionCounts);
+        Assert.Equal(audit.Summary, RecentFilesService.FormatWorkspaceFileSizeDistributionSummary(
+            3, audit.TotalSizeBytes, audit.MeanSizeBytes, audit.MaxSizeBytes,
+            audit.HeaviestFileName, audit.HeavyBloatCount, audit.StorageCompactnessScore, audit.StorageHealthCategory));
+
+        // 3. Cross-surface XAML / C# wiring verification for Run #166 across all 6 surfaces:
+        // MainWindow: definitionListConsistencyItem
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("definitionListConsistencyItem", mainCs);
+        Assert.Contains("FormatDefinitionListSummary", mainCs);
+
+        // MindMapGalaxy: AuditEigenvectorCentralityItem
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditEigenvectorCentralityItem", galaxyXaml);
+        Assert.Contains("OnAuditEigenvectorCentralityClick", galaxyCs);
+
+        // ShapeStudio: SelectionAuditVisualWeightItem
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditVisualWeightItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditVisualWeightClick", shapeCs);
+
+        // SmartArtStudio: AuditColorHierarchyItem
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditColorHierarchyItem", smartArtXaml);
+        Assert.Contains("OnAuditColorHierarchyClick", smartArtCs);
+
+        // HistoryWindow: auditLevenshtein
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditLevenshtein", historyCs);
+        Assert.Contains("AuditCharacterLevenshteinEditDistance", historyCs);
+
+        // SuiteHubView: CopyWorkspaceFileSizeDistributionAdvisorItem
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceFileSizeDistributionAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceFileSizeDistributionAdvisorClick", suiteCs);
+    }
 }
 
 

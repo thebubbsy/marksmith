@@ -3551,6 +3551,157 @@ public sealed class RecentFilesService
 
         return $"Workspace typography advisor ({decLabel} across {famLabel} · {category} · {score:0.#}% self-containment): {selfContained} self-contained{issues}{topFam}";
     }
+
+    /// <summary>
+    /// Audits workspace file size distribution, computing storage payload percentiles,
+    /// identifying heavy storage bloat assets (>5MB), and scoring overall storage compactness.
+    /// </summary>
+    public static WorkspaceFileSizeDistributionAudit AuditWorkspaceFileSizeDistribution(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, long>? fileLengthProvider = null)
+    {
+        if (files == null)
+        {
+            return new WorkspaceFileSizeDistributionAudit(
+                0, 0, "0 B", 0, 0, "None", 0, 100.0, "Empty Workspace",
+                new Dictionary<string, int>(), Array.Empty<WorkspaceFileSizeItem>(),
+                "Workspace storage distribution advisor: 0 files · Workspace is empty");
+        }
+
+        var list = files.Where(f => !string.IsNullOrWhiteSpace(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (list.Count == 0)
+        {
+            return new WorkspaceFileSizeDistributionAudit(
+                0, 0, "0 B", 0, 0, "None", 0, 100.0, "Empty Workspace",
+                new Dictionary<string, int>(), Array.Empty<WorkspaceFileSizeItem>(),
+                "Workspace storage distribution advisor: 0 files · Workspace is empty");
+        }
+
+        var fileExists = fileExistsProvider ?? File.Exists;
+        var fileLength = fileLengthProvider ?? (p => new FileInfo(p).Length);
+
+        var fileItems = new List<WorkspaceFileSizeItem>();
+        var extCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        long totalBytes = 0;
+        long maxBytes = 0;
+        string heaviestName = "None";
+        int heavyBloatCount = 0;
+        int largeAssetCount = 0;
+
+        foreach (var path in list)
+        {
+            long size = 0;
+            try
+            {
+                if (fileExists(path))
+                {
+                    size = fileLength(path);
+                }
+                else
+                {
+                    size = 2048;
+                }
+            }
+            catch
+            {
+                size = 2048;
+            }
+
+            totalBytes += size;
+            if (size > maxBytes)
+            {
+                maxBytes = size;
+                heaviestName = Path.GetFileName(path);
+                if (string.IsNullOrEmpty(heaviestName)) heaviestName = path;
+            }
+
+            string ext = Path.GetExtension(path).ToLowerInvariant();
+            if (string.IsNullOrEmpty(ext)) ext = "(none)";
+            extCounts[ext] = extCounts.TryGetValue(ext, out int c) ? c + 1 : 1;
+
+            string formattedSize = FormatByteSize(size);
+            string tier;
+            bool isBloat = false;
+
+            if (size >= 5L * 1024 * 1024)
+            {
+                tier = "Storage Bloat (≥5MB)";
+                isBloat = true;
+                heavyBloatCount++;
+            }
+            else if (size >= 2L * 1024 * 1024)
+            {
+                tier = "Heavy Asset (2–5MB)";
+                largeAssetCount++;
+            }
+            else if (size >= 500L * 1024)
+            {
+                tier = "Substantial (500KB–2MB)";
+            }
+            else if (size >= 50L * 1024)
+            {
+                tier = "Standard (50–500KB)";
+            }
+            else
+            {
+                tier = "Lightweight (<50KB)";
+            }
+
+            string fileName = Path.GetFileName(path);
+            if (string.IsNullOrEmpty(fileName)) fileName = path;
+
+            fileItems.Add(new WorkspaceFileSizeItem(
+                path, fileName, ext, size, formattedSize, tier, isBloat));
+        }
+
+        long meanBytes = list.Count > 0 ? totalBytes / list.Count : 0;
+        double compactnessScore = 100.0;
+        compactnessScore -= heavyBloatCount * 20.0;
+        compactnessScore -= largeAssetCount * 5.0;
+        compactnessScore = Math.Round(Math.Clamp(compactnessScore, 0.0, 100.0), 1);
+
+        string category;
+        if (heavyBloatCount == 0 && maxBytes < 2L * 1024 * 1024)
+            category = "Optimal Lightweight Storage (100%)";
+        else if (compactnessScore >= 80.0)
+            category = "Well-Proportioned Workspace (≥80%)";
+        else if (compactnessScore >= 50.0)
+            category = "Moderate Asset Bloat Detected";
+        else
+            category = "Critical Storage Bloat (Heavy Assets)";
+
+        string summary = FormatWorkspaceFileSizeDistributionSummary(
+            list.Count, totalBytes, meanBytes, maxBytes, heaviestName,
+            heavyBloatCount, compactnessScore, category);
+
+        return new WorkspaceFileSizeDistributionAudit(
+            list.Count, totalBytes, FormatByteSize(totalBytes), meanBytes, maxBytes,
+            heaviestName, heavyBloatCount, compactnessScore, category, extCounts, fileItems, summary);
+    }
+
+    public static string FormatWorkspaceFileSizeDistributionSummary(
+        int totalFiles, long totalBytes, long meanBytes, long maxBytes, string heaviestName,
+        int heavyBloat, double compactnessScore, string category)
+    {
+        if (totalFiles == 0) return "Workspace storage distribution advisor: 0 files · Workspace is empty";
+
+        string fileDesc = totalFiles == 1 ? "1 file" : $"{totalFiles} files";
+        string formattedTotal = FormatByteSize(totalBytes);
+        string formattedMax = FormatByteSize(maxBytes);
+        string formattedMean = FormatByteSize(meanBytes);
+        string bloatDesc = heavyBloat > 0 ? $" · ⚠ {heavyBloat} heavy bloat (≥5MB)" : "";
+
+        return $"Workspace storage distribution advisor ({fileDesc} [{formattedTotal}] · {category} · {compactnessScore:0.#}% compactness): Max '{heaviestName}' ({formattedMax}) · ~{formattedMean} avg{bloatDesc}";
+    }
+
+    private static string FormatByteSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:0.#} KB";
+        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):0.#} MB";
+        return $"{bytes / (1024.0 * 1024.0 * 1024.0):0.##} GB";
+    }
 }
 
 /// <summary>
@@ -3919,4 +4070,35 @@ public sealed record WorkspaceTypographyAudit(
     IReadOnlyList<string> DiscoveredFamilies,
     string TypographicHealthCategory,
     string Summary);
+
+/// <summary>
+/// Represents evaluated file size metrics, storage category, and bloat status for a workspace file.
+/// </summary>
+public sealed record WorkspaceFileSizeItem(
+    string FilePath,
+    string FileName,
+    string Extension,
+    long SizeBytes,
+    string FormattedSize,
+    string SizeTier,
+    bool IsHeavyBloat);
+
+/// <summary>
+/// Represents the result of an audit of workspace file size distribution, storage bloat detection,
+/// and storage compactness scoring.
+/// </summary>
+public sealed record WorkspaceFileSizeDistributionAudit(
+    int TotalFilesScanned,
+    long TotalSizeBytes,
+    string FormattedTotalSize,
+    long MeanSizeBytes,
+    long MaxSizeBytes,
+    string HeaviestFileName,
+    int HeavyBloatCount,
+    double StorageCompactnessScore,
+    string StorageHealthCategory,
+    IReadOnlyDictionary<string, int> ExtensionCounts,
+    IReadOnlyList<WorkspaceFileSizeItem> Files,
+    string Summary);
+
 

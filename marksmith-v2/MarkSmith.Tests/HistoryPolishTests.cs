@@ -1708,6 +1708,42 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal(1, shiftAudit.TotalModifiedLinePairs);
         Assert.NotEmpty(shiftAudit.WordChunks);
     }
+
+    [Fact]
+    public void Run166_AuditCharacterLevenshteinEditDistance_CalculatesTypoAndEditDistances()
+    {
+        // 1. Empty diff
+        var emptyAudit = LineDiff.AuditCharacterLevenshteinEditDistance("", "");
+        Assert.Equal(0, emptyAudit.TotalModifiedLinePairs);
+        Assert.Equal(0, emptyAudit.TotalEditDistance);
+        Assert.Equal("No Modified Lines", emptyAudit.GranularityCategory);
+        Assert.Equal(emptyAudit.Summary, LineDiff.FormatLevenshteinDistanceSummary(0, 0, 0.0, 0, 0, 0, 0, 0.0, "None", "No Modified Lines"));
+
+        // 2. Single-character typo edit: "recived" -> "received"
+        var oldTypo = "int recivedCount = 5;";
+        var newTypo = "int receivedCount = 5;";
+        var typoAudit = LineDiff.AuditCharacterLevenshteinEditDistance(oldTypo, newTypo);
+
+        Assert.Equal(1, typoAudit.TotalModifiedLinePairs);
+        Assert.Equal(1, typoAudit.TotalEditDistance);
+        Assert.Equal(1, typoAudit.TypoCount);
+        Assert.Equal(100.0, typoAudit.TypoConcentrationRatio);
+        Assert.Equal("Single-Character Typos", typoAudit.DominantEditType);
+        Assert.NotEmpty(typoAudit.Pairs);
+        Assert.Equal(typoAudit.Summary, LineDiff.FormatLevenshteinDistanceSummary(
+            1, typoAudit.TotalEditDistance, typoAudit.MeanEditDistance, typoAudit.TypoCount,
+            typoAudit.MinorTweakCount, typoAudit.ModerateRevisionCount, typoAudit.MajorRewriteCount,
+            typoAudit.TypoConcentrationRatio, typoAudit.DominantEditType, typoAudit.GranularityCategory));
+
+        // 3. Major rewrite
+        var oldMajor = "int x = 42;";
+        var newMajor = "string formattedOutputSummaryReport = BuildDetailedWorkspaceReportHierarchy(model);";
+        var rewriteAudit = LineDiff.AuditCharacterLevenshteinEditDistance(oldMajor, newMajor);
+
+        Assert.Equal(1, rewriteAudit.TotalModifiedLinePairs);
+        Assert.Equal(1, rewriteAudit.MajorRewriteCount);
+        Assert.Equal("Major Rewrites", rewriteAudit.DominantEditType);
+    }
 }
 
 
