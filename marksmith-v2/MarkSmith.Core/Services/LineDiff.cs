@@ -2484,6 +2484,157 @@ public static class LineDiff
         return SynthesizeReleaseAnnouncementSnippet(
             versionTag, milestoneScope, status, highlights, feat, fix, doc, releaseDate);
     }
+
+    /// <summary>
+    /// Synthesizes a multi-channel release announcement digest supporting Teams, Slack, and Discord markdown formats.
+    /// Provides tailored formatting for cross-platform release announcements with channel-specific syntax rules.
+    /// </summary>
+    public static string SynthesizeMultiChannelReleaseDigest(
+        string? versionTag = null,
+        string? milestoneScope = null,
+        string? status = null,
+        IReadOnlyList<string>? highlights = null,
+        int featureCount = 0,
+        int fixCount = 0,
+        int docCount = 0,
+        DateTime? releaseDate = null)
+    {
+        string tag = string.IsNullOrWhiteSpace(versionTag) ? "v1.0.0" : versionTag.Trim();
+        if (!tag.StartsWith("v", StringComparison.OrdinalIgnoreCase) && !tag.StartsWith("["))
+        {
+            tag = $"v{tag}";
+        }
+
+        string milestone = string.IsNullOrWhiteSpace(milestoneScope) ? "General Release" : milestoneScope.Trim();
+        string stat = string.IsNullOrWhiteSpace(status) ? "Stable" : status.Trim();
+        string dateStr = (releaseDate ?? DateTime.UtcNow).ToString("yyyy-MM-dd");
+
+        var hl = highlights != null && highlights.Count > 0
+            ? highlights.Take(5).ToList()
+            : new List<string> { "Routine performance, reliability, and visual polish enhancements across desktop surfaces." };
+
+        var sb = new System.Text.StringBuilder();
+
+        sb.AppendLine($"# 📢 MarkSmith Multi-Channel Release Digest — {tag} ({milestone})");
+        sb.AppendLine($"> Generated {dateStr} · Status: **{stat}** · Telemetry: **{featureCount}** feat, **{fixCount}** fix, **{docCount}** docs");
+        sb.AppendLine();
+
+        // 1. Microsoft Teams / CommonMark Section
+        sb.AppendLine("### 🟦 Microsoft Teams / GitHub Discussion Format");
+        sb.AppendLine("```markdown");
+        sb.AppendLine($"## 🚀 MarkSmith {tag} Released — {milestone}");
+        sb.AppendLine($"> **Status:** {stat} | **Date:** {dateStr}");
+        sb.AppendLine();
+        sb.AppendLine("**Key Highlights:**");
+        foreach (var h in hl)
+        {
+            sb.AppendLine($"- {h}");
+        }
+        sb.AppendLine();
+        sb.AppendLine($"**Metrics:** {featureCount} features, {fixCount} fixes, {docCount} documentation updates.");
+        sb.AppendLine("```");
+        sb.AppendLine();
+
+        // 2. Slack (mrkdwn format: *bold*, • bullets, no # headers)
+        sb.AppendLine("### 🟨 Slack Format (mrkdwn)");
+        sb.AppendLine("```text");
+        sb.AppendLine($"*:rocket: MarkSmith {tag} Released — {milestone}*");
+        sb.AppendLine($"_Status:_ `{stat}` | _Date:_ `{dateStr}`");
+        sb.AppendLine();
+        sb.AppendLine("*Key Highlights:*");
+        foreach (var h in hl)
+        {
+            sb.AppendLine($"• {h}");
+        }
+        sb.AppendLine();
+        sb.AppendLine($"*Metrics:* {featureCount} features | {fixCount} fixes | {docCount} docs updates");
+        sb.AppendLine("```");
+        sb.AppendLine();
+
+        // 3. Discord Format (### headers, inline code, - bullets)
+        sb.AppendLine("### 🟪 Discord Format");
+        sb.AppendLine("```markdown");
+        sb.AppendLine($"### 🚀 MarkSmith {tag} — {milestone}");
+        sb.AppendLine($"**Status:** `{stat}` • **Date:** `{dateStr}`");
+        sb.AppendLine();
+        sb.AppendLine("**Highlights:**");
+        foreach (var h in hl)
+        {
+            sb.AppendLine($"- {h}");
+        }
+        sb.AppendLine();
+        sb.AppendLine($"📊 **Stats:** `{featureCount} feat` • `{fixCount} fix` • `{docCount} docs`");
+        sb.AppendLine("```");
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Synthesizes a multi-channel release digest from unified diff rows between version checkpoints.
+    /// </summary>
+    public static string SynthesizeMultiChannelReleaseDigest(
+        IReadOnlyList<UnifiedRow>? unifiedRows,
+        string? versionTag = null,
+        string? milestoneScope = null,
+        string? status = null,
+        DateTime? releaseDate = null)
+    {
+        int feat = 0;
+        int fix = 0;
+        int doc = 0;
+        var highlights = new List<string>();
+
+        if (unifiedRows != null && unifiedRows.Count > 0)
+        {
+            var addedHeadings = new List<string>();
+            bool addedTable = false;
+            bool addedCode = false;
+
+            foreach (var row in unifiedRows)
+            {
+                if (row.Kind == Kind.Added && !string.IsNullOrWhiteSpace(row.Text))
+                {
+                    string t = row.Text.Trim();
+                    if (t.StartsWith("#") && !t.StartsWith("####"))
+                    {
+                        string heading = t.TrimStart('#', ' ').Trim();
+                        if (!string.IsNullOrEmpty(heading) && !addedHeadings.Contains(heading))
+                        {
+                            addedHeadings.Add(heading);
+                        }
+                    }
+                    else if (t.StartsWith("|") && t.EndsWith("|"))
+                    {
+                        addedTable = true;
+                    }
+                    else if (t.StartsWith("```") || t.StartsWith("~~~"))
+                    {
+                        addedCode = true;
+                    }
+                }
+            }
+
+            foreach (var h in addedHeadings.Take(3))
+            {
+                highlights.Add($"Added new section: **{h}**");
+            }
+            if (addedTable)
+            {
+                highlights.Add("Added structured data tables and grid representations.");
+            }
+            if (addedCode)
+            {
+                highlights.Add("Added fenced code snippets and technical examples.");
+            }
+
+            feat = Math.Max(addedHeadings.Count, unifiedRows.Count(r => r.Kind == Kind.Added) > 0 ? 1 : 0);
+            fix = unifiedRows.Count(r => r.Kind == Kind.Removed);
+            doc = Math.Max(1, unifiedRows.Count(r => r.Kind == Kind.Added) / 20);
+        }
+
+        return SynthesizeMultiChannelReleaseDigest(
+            versionTag, milestoneScope, status, highlights, feat, fix, doc, releaseDate);
+    }
 }
 
 

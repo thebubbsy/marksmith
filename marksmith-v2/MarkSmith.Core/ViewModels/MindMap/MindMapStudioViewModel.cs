@@ -4245,6 +4245,153 @@ namespace MarkSmith.ViewModels.MindMap
             }
             return vm.AuditPeripheryEccentricity();
         }
+
+        /// <summary>
+        /// Audits radial layout concentric ring distribution, polar angles from root, and angular spacing uniformity.
+        /// Evaluates angular dispersion, detects clustered wedges vs balanced distribution across branches.
+        /// </summary>
+        public RadialAngularSpacingAudit AuditRadialAngularSpacing(IEnumerable<MindMapNodeViewModel>? targetNodes = null)
+        {
+            bool isSelection = false;
+            List<MindMapNodeViewModel> nodeList;
+
+            if (targetNodes != null)
+            {
+                nodeList = targetNodes.ToList();
+                isSelection = true;
+            }
+            else
+            {
+                var selected = Nodes.Where(n => n.IsSelected).ToList();
+                if (selected.Count >= 2)
+                {
+                    nodeList = selected;
+                    isSelection = true;
+                }
+                else
+                {
+                    nodeList = Nodes.ToList();
+                }
+            }
+
+            if (nodeList.Count < 2)
+            {
+                return new RadialAngularSpacingAudit(
+                    nodeList.Count, 0, 0.0, 0.0, 0.0, 0.0,
+                    Array.Empty<RadialNodePolarInfo>(), "Insufficient Nodes", isSelection,
+                    $"Radial angular spacing ({nodeList.Count} nodes): Insufficient nodes to audit angular dispersion (minimum 2 nodes required)");
+            }
+
+            // Determine root or anchor center
+            MindMapNodeViewModel? rootNode = null;
+            if (!string.IsNullOrEmpty(Document.RootNodeId))
+            {
+                rootNode = nodeList.FirstOrDefault(n => n.Id == Document.RootNodeId);
+            }
+            rootNode ??= nodeList[0];
+
+            double rootX = rootNode.X;
+            double rootY = rootNode.Y;
+
+            var polarList = new List<RadialNodePolarInfo>();
+            var angles = new List<double>();
+
+            foreach (var node in nodeList)
+            {
+                if (node.Id == rootNode.Id) continue;
+
+                double dx = node.X - rootX;
+                double dy = node.Y - rootY;
+                double radius = Math.Round(Math.Sqrt(dx * dx + dy * dy), 1);
+
+                // Compute angle in degrees [0, 360)
+                double rad = Math.Atan2(dy, dx);
+                double deg = rad * (180.0 / Math.PI);
+                if (deg < 0) deg += 360.0;
+                deg = Math.Round(deg, 1);
+
+                int ringBand = radius < 250.0 ? 1 : (radius < 500.0 ? 2 : 3);
+                polarList.Add(new RadialNodePolarInfo(node.Id, node.Title, radius, deg, ringBand));
+                angles.Add(deg);
+            }
+
+            if (angles.Count == 0)
+            {
+                return new RadialAngularSpacingAudit(
+                    nodeList.Count, 0, 0.0, 0.0, 0.0, 0.0,
+                    polarList, "Concentric Overlap", isSelection,
+                    $"Radial angular spacing ({nodeList.Count} nodes): All nodes coincident with root anchor");
+            }
+
+            angles.Sort();
+
+            // Compute circular angular gaps
+            var gaps = new List<double>();
+            for (int i = 0; i < angles.Count - 1; i++)
+            {
+                gaps.Add(angles[i + 1] - angles[i]);
+            }
+            // Wrap around gap from last to first
+            gaps.Add((360.0 - angles[angles.Count - 1]) + angles[0]);
+
+            double minGap = Math.Round(gaps.Min(), 1);
+            double maxGap = Math.Round(gaps.Max(), 1);
+            double avgGap = Math.Round(360.0 / angles.Count, 1);
+
+            // Standard deviation of gaps
+            double sumSqDiff = gaps.Sum(g => Math.Pow(g - avgGap, 2));
+            double stdDev = Math.Round(Math.Sqrt(sumSqDiff / gaps.Count), 1);
+
+            double maxRadius = polarList.Max(p => p.Radius);
+
+            string category;
+            if (angles.Count < 3)
+            {
+                category = "Bipolar Pair";
+            }
+            else if (stdDev <= 15.0)
+            {
+                category = "Uniform Radial Dispersion (≤15° SD)";
+            }
+            else if (stdDev <= 35.0)
+            {
+                category = "Moderate Angular Balance (16–35° SD)";
+            }
+            else if (maxGap >= 180.0)
+            {
+                category = "Hemispheric / One-Sided Cluster (≥180° Gap)";
+            }
+            else
+            {
+                category = "Clustered Wedges (>35° SD)";
+            }
+
+            string scopeTag = isSelection ? "Selection " : "";
+            string summary = $"Radial angular spacing ({scopeTag}{angles.Count} branches, root '{rootNode.Title}' · {category}): avg gap {avgGap:0.#}°, range {minGap:0.#}°–{maxGap:0.#}° (SD {stdDev:0.#}°, max R: {maxRadius:0.#}px)";
+
+            return new RadialAngularSpacingAudit(
+                nodeList.Count, angles.Count, avgGap, minGap, maxGap, stdDev,
+                polarList, category, isSelection, summary);
+        }
+
+        /// <summary>
+        /// Audits radial angular spacing across pure model nodes and links.
+        /// </summary>
+        public static RadialAngularSpacingAudit AuditRadialAngularSpacing(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditRadialAngularSpacing();
+        }
     }
 
     /// <summary>
@@ -4369,6 +4516,31 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<string> DeepestLeafTitles,
         int PeripheralNodeCount,
         string EccentricityCategory,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents polar coordinates and concentric ring band info for an individual node relative to root.
+    /// </summary>
+    public sealed record RadialNodePolarInfo(
+        string NodeId,
+        string Title,
+        double Radius,
+        double AngleDegrees,
+        int RingBand);
+
+    /// <summary>
+    /// Represents the result of a radial layout concentric ring and angular spacing uniformity audit.
+    /// </summary>
+    public sealed record RadialAngularSpacingAudit(
+        int TotalNodes,
+        int BranchCount,
+        double AverageGapDegrees,
+        double MinGapDegrees,
+        double MaxGapDegrees,
+        double GapStandardDeviation,
+        IReadOnlyList<RadialNodePolarInfo> PolarNodes,
+        string DispersionCategory,
         bool IsSelectionScope,
         string Summary);
 }

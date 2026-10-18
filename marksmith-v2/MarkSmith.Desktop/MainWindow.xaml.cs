@@ -7827,6 +7827,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(codeFenceCoverageItem);
 
+        var listIndentationItem = new MenuFlyoutItem
+        {
+            Text = "Copy list item hierarchy & indentation consistency audit",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        listIndentationItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatListIndentationSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(listIndentationItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9143,6 +9157,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(codeFenceCoverageItem);
+
+        var listIndentationItem = new MenuFlyoutItem
+        {
+            Text = "Copy list item hierarchy & indentation consistency audit",
+            Icon = new FontIcon { Glyph = "\uE8FD" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        listIndentationItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatListIndentationSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(listIndentationItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 
@@ -11134,6 +11163,78 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.ShowAt(anchor);
     }
 
+    private void OnStatusCopyMarkdownButtonClick(object sender, RoutedEventArgs e)
+    {
+        var selected = PasteTextBox?.SelectedText;
+        if (!string.IsNullOrEmpty(selected))
+        {
+            _ = Services.ClipboardWriter.TrySetTextAsync(selected);
+            AnnounceStatus($"Copied selection ({selected.Length:N0} chars) to clipboard");
+            return;
+        }
+
+        var md = EditorDocument();
+        if (string.IsNullOrWhiteSpace(md))
+        {
+            AnnounceStatus("Document is empty — nothing to copy");
+            return;
+        }
+
+        _ = Services.ClipboardWriter.TrySetTextAsync(md);
+        var stats = ViewModel.DocumentStats;
+        AnnounceStatus($"Copied Markdown ({stats.Words:N0} words, {stats.Lines:N0} lines) to clipboard");
+    }
+
+    private void OnStatusCopyMarkdownButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+
+        var menu = new MenuFlyout();
+
+        var copyMdItem = new MenuFlyoutItem
+        {
+            Text = "Copy Markdown source",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyMdItem.Click += (_, _) =>
+        {
+            var md = EditorDocument();
+            if (!string.IsNullOrWhiteSpace(md))
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(md);
+                AnnounceStatus($"Copied Markdown ({ViewModel.DocumentStats.Words:N0} words) to clipboard");
+            }
+        };
+        menu.Items.Add(copyMdItem);
+
+        var copyEmailItem = new MenuFlyoutItem
+        {
+            Text = "Copy as rich email (HTML + Text)",
+            Icon = new FontIcon { Glyph = "\uE715" }
+        };
+        copyEmailItem.Click += OnCopyAsEmailClick;
+        menu.Items.Add(copyEmailItem);
+
+        var copyStatsItem = new MenuFlyoutItem
+        {
+            Text = "Copy document metrics breakdown",
+            Icon = new FontIcon { Glyph = "\uE8D2" }
+        };
+        copyStatsItem.Click += (_, _) =>
+        {
+            var detail = ViewModel.DocumentStatsDetail;
+            if (!string.IsNullOrWhiteSpace(detail))
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(detail);
+                AnnounceStatus("Copied document statistics breakdown to clipboard");
+            }
+        };
+        menu.Items.Add(copyStatsItem);
+
+        menu.ShowAt(anchor);
+    }
+
     private void OnWordCountTextTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
         e.Handled = true;
@@ -11145,7 +11246,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var stats = ViewModel.DocumentStats;
         var flyout = new Flyout();
 
-        var root = new StackPanel { Width = 310, Spacing = 10, Padding = new Thickness(6, 4, 6, 4) };
+        var root = new StackPanel { Width = 330, Spacing = 10, Padding = new Thickness(6, 4, 6, 4) };
 
         var header = new Grid();
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -11156,6 +11257,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         titlePanel.Children.Add(new TextBlock { Text = "Document Metrics", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 14 });
         header.Children.Add(titlePanel);
 
+        var badgesRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
         var readingBadge = new Border
         {
             Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
@@ -11169,8 +11271,27 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Foreground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
             FontWeight = Microsoft.UI.Text.FontWeights.Medium
         };
-        Grid.SetColumn(readingBadge, 1);
-        header.Children.Add(readingBadge);
+        badgesRow.Children.Add(readingBadge);
+
+        int speakMinutes = stats.Words <= 0 ? 0 : Math.Max(1, (int)Math.Ceiling(stats.Words / 130.0));
+        string speakText = stats.Words <= 0 ? "0 min speak" : $"~{speakMinutes} min speak";
+        var speakingBadge = new Border
+        {
+            Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(6, 2, 6, 2)
+        };
+        speakingBadge.Child = new TextBlock
+        {
+            Text = speakText,
+            FontSize = 11,
+            Opacity = 0.85,
+            FontWeight = Microsoft.UI.Text.FontWeights.Medium
+        };
+        badgesRow.Children.Add(speakingBadge);
+
+        Grid.SetColumn(badgesRow, 1);
+        header.Children.Add(badgesRow);
         root.Children.Add(header);
 
         root.Children.Add(new MenuFlyoutSeparator { Margin = new Thickness(0, 2, 0, 4) });

@@ -2251,6 +2251,18 @@
                                Tapped="OnWordCountTextTapped" RightTapped="OnWordCountTextRightTapped" DoubleTapped="OnWordCountTextDoubleTapped"
                                ToolTipService.ToolTip="{Binding DocumentStatsDetail}" />
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                    <HyperlinkButton x:Name="StatusCopyMarkdownButton"
+                                     Click="OnStatusCopyMarkdownButtonClick"
+                                     RightTapped="OnStatusCopyMarkdownButtonRightTapped"
+                                     Padding="5,1" FontSize="11.5" Opacity="0.85"
+                                     ToolTipService.ToolTip="Copy Markdown (or active selection) to clipboard · Right-click for rich email &amp; metrics copy options"
+                                     AutomationProperties.Name="Copy Markdown to clipboard">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE8C8;" FontSize="11" />
+                            <TextBlock x:Name="StatusCopyMarkdownText" Text="Copy MD" />
+                        </StackPanel>
+                    </HyperlinkButton>
+                    <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1" VerticalAlignment="Center"
                                FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
                                Tapped="OnCursorPosTextTapped" DoubleTapped="OnCursorPosTextDoubleTapped"
