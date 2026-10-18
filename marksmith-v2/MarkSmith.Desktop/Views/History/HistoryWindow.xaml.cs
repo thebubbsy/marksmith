@@ -3328,6 +3328,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {semver.Summary}");
                 };
                 menu.Items.Add(synthesizeSemanticVersion);
+
+                var synthesizeReleaseNotes = new MenuFlyoutItem
+                {
+                    Text = "Synthesize release notes & migration checklist",
+                    Icon = new FontIcon { Glyph = "\uE8D2" }
+                };
+                synthesizeReleaseNotes.Click += (_, _) =>
+                {
+                    var notes = MarkSmith.Services.LineDiff.SynthesizeReleaseNotesAndMigrationGuide(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(notes.ReleaseNotesMarkdown);
+                    _vm.ShowNotice($"✓ {notes.Summary}");
+                };
+                menu.Items.Add(synthesizeReleaseNotes);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

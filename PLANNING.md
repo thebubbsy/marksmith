@@ -11433,23 +11433,46 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #161 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+## Scheduled WinUI 3 Desktop Polish Routine — Run #161 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Document Table of Contents (TOC) Depth Hierarchy Consistency, Heading Anchor Slug Collisions, and Self-Referential Link Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditTocDepthAndAnchorCollisions(markdownText)`, `FormatTocAnchorSummary(...)`, records `HeadingAnchorItem`, `TocLinkItem`, and `TocAnchorAudit`. Audits Markdown heading structures (`#` through `######`), calculates heading slug collisions (GitHub/CommonMark anchors, e.g. `#my-heading-1`), validates TOC links against existing anchors, detects skipped heading levels (e.g. H1 to H3), and identifies broken or unresolvable internal jump links; wired to `tocDepthAnchorItem` (`\uE8A4`) in both `StatusSectionBreadcrumbButton_RightTapped` and `FindCountText_RightTapped` context flyouts with clipboard export and status announcement.
+    2. **MindMapGalaxyWindow Network Spanning Backbone & Redundant Chords Auditor using Kruskal's Algorithm (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditNetworkSpanningBackboneAndRedundancy()`, static overload, records `NetworkLinkRoleInfo`, and `NetworkSpanningBackboneAudit`. Implements Kruskal's Minimum Spanning Tree algorithm using Euclidean distance edge weights and a disjoint-set (Union-Find) forest to classify all connections into essential network backbone links vs. redundant cyclic chords, calculating network redundancy percentage and structural sparsification opportunities; wired to `AuditNetworkSpanningBackboneItem` (`\uE9E9`) in `ArrangeDropDownButton.Flyout` and right-tap context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow 30°/60° Isometric Grid Alignment, Axonometric Projection Fidelity, and Depth Stacking Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditIsometricGridAlignment(targetShapes)`, `FormatIsometricSummary(...)`, `ShapeIsometricPairInfo`, and `IsometricGridAlignmentAudit`. Evaluates pairwise center-to-center angular vectors against standard isometric projection axes ($30^\circ, 90^\circ, 150^\circ, 210^\circ, 270^\circ, 330^\circ$), computes mean angular error and isometric fidelity score (0–100%), and checks 2.5D depth stacking consistency (ensuring shapes positioned higher up visually do not improperly occlude foreground shapes at lower Y coordinates); wired to `SelectionAuditIsometricItem` (`\uE746`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow Venn Diagram & Euler Set Overlap Completeness & Disjoint Partitioning Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditVennDiagramCompleteness(markdown)`, static overload, `FormatVennSummary(...)`, `VennPartitionInfo`, and `VennDiagramCompletenessAudit`. Analyzes 2-set and 3-set Venn/Euler diagram markdown outlines, parses set definitions and subset intersections ($A \cap B$, $A \cap C$, $B \cap C$, $A \cap B \cap C$), measures partition balance and completeness percentage, and flags empty or missing overlap regions; wired to `AuditVennCompletenessItem` (`\uE790`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Automated Production Release Notes & Migration Guide Synthesizer (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.SynthesizeReleaseNotesAndMigrationGuide(unifiedRows, currentVersion)`, text overloads, and record `ReleaseNotesAndMigrationAudit`. Extracts additions, removals, and structural diff deltas, categorizes changes into `Features & Enhancements`, `Bug Fixes & Hardening`, `Breaking Changes & Deprecations`, `Documentation & Content`, and `Chores & Maintenance`, generates human-readable release notes, and synthesizes step-by-step upgrade migration actions when breaking changes or deprecations are detected; wired to `synthesizeReleaseNotes` (`\uE8D2`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace File Extension Diversity, MIME Type Distribution, and Non-Standard Markdown Variant Auditor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditFileExtensionDiversity(files)`, `FormatFileExtensionDiversitySummary(...)`, `ExtensionDistributionInfo`, and `WorkspaceExtensionDiversityAudit`. Classifies workspace files by file extension, detects non-standard markdown variants (`.markdown`, `.mdown`, `.mdx`, `.mkd`, `.mkdn`), maps extensions to MIME families (Markdown, Text, Data, Web, Media, Executable/Binary), and calculates the Shannon entropy diversity index of the file collection; wired to `CopyExtensionDiversityItem` (`\uE7C3`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified `54/54` targeted Run #161 and command icon tests passing (`100%` pass rate).
+    - Verified full test suite passing: `5105/5105` tests passing (`100%` pass rate, 1 skipped).
+    - Verified live `Marksmith.exe` smoke startup (`PID=27992, Responding=True, HasExited=False`).
+
+---
+
+### Run #162 Blueprint — Carried-Forward Refinements & Next Cycle Targets
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **Feature**: Document Table of Contents (TOC) Depth Consistency, Heading Anchor Slug Collisions, and Self-Referential Link Auditor.
-   - **Deliverable**: Add `TextSearch.AuditTocDepthAndAnchorCollisions(markdownText)` and `FormatTocAnchorSummary(...)`, validating heading anchors, slug uniqueness, and TOC hierarchy fidelity. Wire to `StatusSectionBreadcrumbButton` and `FindCountText` context flyouts.
+   - **Feature**: Markdown Footnote Definition-Reference Referential Integrity & Orphaned Footnote Def Auditor.
+   - **Deliverable**: Add `TextSearch.AuditFootnoteIntegrity(markdownText)` and `FormatFootnoteIntegritySummary(...)`, validating inline `[^label]` anchors against `[^label]: ...` definitions, detecting orphan footnotes, unreferenced definitions, duplicate definitions, and numbering/naming consistency. Wire to `StatusSectionBreadcrumbButton` and `FindCountText` context flyouts.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **Feature**: Minimum Spanning Tree (Kruskal/Prim) and Network Redundancy/Backbone Optimization Auditor.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditMinimumSpanningTreeAndRedundancy()` and `FormatMstSummary(...)`, identifying the core minimal backbone edges and non-essential redundant chords in cyclic mindmaps. Wire to `ArrangeDropDownButton.Flyout`.
+   - **Feature**: Graph Community Detection & Louvain/Label-Propagation Modularity Cluster Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphModularityAndCommunities()` and `FormatCommunitySummary(...)`, identifying densely interconnected node clusters, modularity scores ($Q$), and inter-cluster bridging links in complex vaults. Wire to `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **Feature**: Shape Group Isometric Grid Alignment, 30°/60° Axonometric Projection Fidelity, and Depth Stacking Auditor.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditIsometricGridAlignment(shapes)` and `FormatIsometricSummary(...)`, evaluating 30°/60° isometric plane snapping and z-order consistency. Wire to `SelectionBoundsBorder.ContextFlyout`.
+   - **Feature**: Diagram Symmetry, Bilateral Reflection Axis, and Rotational Symmetry Order Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditDiagramSymmetry(shapes)` and `FormatSymmetrySummary(...)`, assessing horizontal/vertical reflection axes, rotational symmetry orders ($C_2, C_4$), and symmetry deviation tolerances. Wire to `SelectionBoundsBorder.ContextFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **Feature**: Venn Diagram and Euler Set Overlap Completeness and Disjoint Partitioning Auditor.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditVennDiagramCompleteness(markdown)` and `FormatVennSummary(...)`, auditing 2-circle and 3-circle Venn outlines, intersection labels, and non-empty sub-partition presence. Wire to `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #160 Idea 5]**:
-   - **Refinement Target**: Automated Release Notes & Migration Guide Synthesizer with breaking change code examples and deprecation notices derived from diff AST/heading deltas.
-   - **Deliverable**: Add `LineDiff.SynthesizeReleaseNotesAndMigrationGuide(unifiedRows, currentVersion)` and wire to `TimelineHeaderBorder` context flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #160 Idea 6]**:
-   - **Refinement Target**: Workspace File Extension Diversity, MIME Type Distribution, and Non-Standard Markdown Variant Auditor (`.md`, `.markdown`, `.mdown`, `.mdx`).
-   - **Deliverable**: Add `RecentFilesService.AuditFileExtensionDiversity(files)` and wire to `RecentDocsFlyout`.
+   - **Feature**: Horizontal & Vertical Flow Timeline Milestones, Chronological Monotonicity & Date Format Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditTimelineMilestoneChronology(markdown)` and `FormatTimelineChronologySummary(...)`, verifying that timeline stages and milestone nodes follow strictly ascending chronological dates, consistent date format strings, and balanced phase intervals. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #161 Idea 5]**:
+   - **Refinement Target**: Git Commit Churn Hotspot, Volatility Index & High-Frequency Modified Block Analyzer.
+   - **Deliverable**: Add `LineDiff.AuditCommitChurnHotspots(unifiedRows)` to identify high-volatility lines, calculate change concentration entropy, and highlight unstable sections prone to regression. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #161 Idea 6]**:
+   - **Refinement Target**: Workspace Dead-Link, Orphan Asset, and Missing Cross-Reference Detector.
+   - **Deliverable**: Add `RecentFilesService.AuditDeadLinksAndOrphanAssets(files)` to cross-reference document links and embedded asset paths against workspace files, flagging broken internal links and unreferenced media files. Wire to `RecentDocsFlyout`.
+
 

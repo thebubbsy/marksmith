@@ -7897,6 +7897,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(frontmatterSchemaItem);
 
+        var tocDepthAnchorItem = new MenuFlyoutItem
+        {
+            Text = "Copy Table of Contents & heading anchor audit",
+            Icon = new FontIcon { Glyph = "\uE8A4" }
+        };
+        tocDepthAnchorItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatTocAnchorSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(tocDepthAnchorItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9288,6 +9302,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(frontmatterSchemaItem);
+
+        var tocDepthAnchorItem = new MenuFlyoutItem
+        {
+            Text = "Copy Table of Contents & heading anchor audit",
+            Icon = new FontIcon { Glyph = "\uE8A4" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        tocDepthAnchorItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatTocAnchorSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(tocDepthAnchorItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 

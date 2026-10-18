@@ -1306,7 +1306,71 @@ public class SmartArtStudioPolishTests
         Assert.Equal(3, uniformAudit.StageCount);
         Assert.Equal("Uniform Slices (Balanced Hierarchy)", uniformAudit.ProportionalityCategory);
     }
+
+    [Fact]
+    public void Run161_AuditVennDiagramCompleteness_Evaluates2And3SetVennOutlines()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditVennDiagramCompleteness("");
+        Assert.Equal(0, emptyAudit.PrimarySetCount);
+        Assert.Equal("Empty Outline", emptyAudit.CompletenessCategory);
+
+        // 2. Complete 2-set Venn (3/3 partitions)
+        var twoSetMd = """
+            - Frontend Development
+              - React
+              - TypeScript
+            - Backend Services
+              - C# .NET
+              - PostgreSQL
+            - Fullstack Overlap (Both)
+              - Node API
+              - End-to-end integration
+            """;
+        var twoSetAudit = SmartArtDesignStudioViewModel.AuditVennDiagramCompleteness(twoSetMd);
+        Assert.Equal(2, twoSetAudit.PrimarySetCount);
+        Assert.Equal(3, twoSetAudit.ExpectedRegions);
+        Assert.Equal(3, twoSetAudit.DefinedRegions);
+        Assert.Equal(0, twoSetAudit.MissingRegionsCount);
+        Assert.Equal(100.0, twoSetAudit.CompletenessPercentage);
+        Assert.Equal("Complete 2-Set Venn (3/3 Partitions)", twoSetAudit.CompletenessCategory);
+        Assert.Contains("Complete", twoSetAudit.Summary);
+
+        // 3. Partial 2-set Venn (missing overlap)
+        var partialTwoSetMd = """
+            - Design Systems
+            - Engineering Team
+            """;
+        var partialTwoAudit = SmartArtDesignStudioViewModel.AuditVennDiagramCompleteness(partialTwoSetMd);
+        Assert.Equal(2, partialTwoAudit.PrimarySetCount);
+        Assert.Equal(3, partialTwoAudit.ExpectedRegions);
+        Assert.Equal(2, partialTwoAudit.DefinedRegions);
+        Assert.Equal(1, partialTwoAudit.MissingRegionsCount);
+        Assert.Equal("Partial 2-Set Venn (Missing Overlap)", partialTwoAudit.CompletenessCategory);
+        Assert.NotEmpty(partialTwoAudit.MissingPartitions);
+
+        // 4. Complete 3-set Venn (7/7 partitions)
+        var threeSetMd = """
+            - Set Alpha: Usability
+            - Set Beta: Viability
+            - Set Gamma: Feasibility
+            - Overlap Alpha & Beta
+            - Overlap Beta & Gamma
+            - Overlap Alpha & Gamma
+            - Core Intersection (All Three Sets)
+            """;
+        var vm = new SmartArtDesignStudioViewModel();
+        vm.MarkdownText = threeSetMd;
+        var threeAudit = vm.AuditVennDiagramCompleteness();
+        Assert.Equal(3, threeAudit.PrimarySetCount);
+        Assert.Equal(7, threeAudit.ExpectedRegions);
+        Assert.Equal(7, threeAudit.DefinedRegions);
+        Assert.Equal(0, threeAudit.MissingRegionsCount);
+        Assert.Equal(100.0, threeAudit.CompletenessPercentage);
+        Assert.Equal("Complete 3-Set Venn (7/7 Partitions)", threeAudit.CompletenessCategory);
+    }
 }
+
 
 
 

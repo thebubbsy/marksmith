@@ -4024,6 +4024,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditNetworkSpanningBackboneClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditNetworkSpanningBackboneAndRedundancy();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -4943,6 +4951,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditGraphVulnerabilityItem.Click += OnAuditGraphVulnerabilityClick;
             menu.Items.Add(auditGraphVulnerabilityItem);
+
+            var auditNetworkBackboneItem = new MenuFlyoutItem
+            {
+                Text = "Audit network spanning backbone & redundant chords",
+                Icon = new FontIcon { Glyph = "\uE9E9" }
+            };
+            auditNetworkBackboneItem.Click += OnAuditNetworkSpanningBackboneClick;
+            menu.Items.Add(auditNetworkBackboneItem);
 
             var fitItem = new MenuFlyoutItem
 

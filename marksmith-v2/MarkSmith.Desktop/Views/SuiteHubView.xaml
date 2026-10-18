@@ -288,6 +288,9 @@
                                     <MenuFlyoutItem x:Name="CopyPathLengthAuditItem" Text="Copy path length &amp; MAX_PATH (260 char) safety audit" Click="OnCopyPathLengthAuditClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyExtensionDiversityItem" Text="Copy file extension diversity &amp; format distribution audit" Click="OnCopyExtensionDiversityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C3;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

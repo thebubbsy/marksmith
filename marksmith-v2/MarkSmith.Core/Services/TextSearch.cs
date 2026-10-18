@@ -3324,6 +3324,219 @@ public static class TextSearch
 
         return $"YAML frontmatter schema ({propLabel} · {category} · {completeness:0.#}% complete){issues}";
     }
+
+    /// <summary>
+    /// Audits document Table of Contents (TOC) depth hierarchy consistency, heading anchor slug collisions,
+    /// and internal markdown anchor link validity (#anchor).
+    /// </summary>
+    public static TocAnchorAudit AuditTocDepthAndAnchorCollisions(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new TocAnchorAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 0,
+                Array.Empty<HeadingAnchorItem>(),
+                Array.Empty<TocLinkItem>(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                "Empty Document", 100.0,
+                "TOC & anchor audit: 0 headings · Document contains no headings or anchor links");
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        bool inCodeBlock = false;
+        var headings = new List<HeadingAnchorItem>();
+        var slugOccurrences = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var definedSlugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var duplicateSlugs = new List<string>();
+
+        int prevLevel = 0;
+        int hierarchyJumps = 0;
+
+        // Pass 1: Parse headings and compute GitHub-style anchor slugs
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeBlock = !inCodeBlock;
+                continue;
+            }
+
+            if (inCodeBlock) continue;
+
+            // Match ATX heading (# to ######)
+            var headingMatch = System.Text.RegularExpressions.Regex.Match(trimmed, @"^(#{1,6})\s+(.+)$");
+            if (headingMatch.Success)
+            {
+                int level = headingMatch.Groups[1].Length;
+                string rawTitle = headingMatch.Groups[2].Value.TrimEnd('#').Trim();
+
+                // Strip markdown formatting for slug generation
+                string cleanTitle = System.Text.RegularExpressions.Regex.Replace(rawTitle, @"\[(.*?)\]\(.*?\)", "$1");
+                cleanTitle = System.Text.RegularExpressions.Regex.Replace(cleanTitle, @"[*_`~]", "");
+
+                // GitHub slugify: lowercase, strip punctuation, replace whitespace with hyphens
+                string baseSlug = System.Text.RegularExpressions.Regex.Replace(cleanTitle.ToLowerInvariant(), @"[^\w\s-]", "");
+                baseSlug = System.Text.RegularExpressions.Regex.Replace(baseSlug, @"\s+", "-").Trim('-');
+                if (string.IsNullOrEmpty(baseSlug)) baseSlug = "section";
+
+                string finalSlug;
+                if (!slugOccurrences.TryGetValue(baseSlug, out int count))
+                {
+                    slugOccurrences[baseSlug] = 1;
+                    finalSlug = baseSlug;
+                }
+                else
+                {
+                    slugOccurrences[baseSlug] = count + 1;
+                    finalSlug = $"{baseSlug}-{count}";
+                    if (count == 1) duplicateSlugs.Add(baseSlug);
+                }
+
+                definedSlugs.Add(finalSlug);
+
+                bool hasJump = false;
+                int jumpFrom = prevLevel;
+                if (prevLevel > 0 && level > prevLevel + 1)
+                {
+                    hasJump = true;
+                    hierarchyJumps++;
+                }
+
+                prevLevel = level;
+                headings.Add(new HeadingAnchorItem(i + 1, level, rawTitle, finalSlug, hasJump, jumpFrom));
+            }
+        }
+
+        // Pass 2: Parse internal anchor links [text](#slug)
+        inCodeBlock = false;
+        var anchorLinks = new List<TocLinkItem>();
+        var brokenSlugs = new List<string>();
+        int selfReferentialCount = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeBlock = !inCodeBlock;
+                continue;
+            }
+
+            if (inCodeBlock) continue;
+
+            var linkMatches = System.Text.RegularExpressions.Regex.Matches(line, @"\[([^\]]+)\]\(#([a-zA-Z0-9_\-]+)\)");
+            foreach (System.Text.RegularExpressions.Match match in linkMatches)
+            {
+                string linkText = match.Groups[1].Value;
+                string targetSlug = match.Groups[2].Value;
+
+                bool isValid = definedSlugs.Contains(targetSlug);
+                if (!isValid && !brokenSlugs.Contains(targetSlug, StringComparer.OrdinalIgnoreCase))
+                {
+                    brokenSlugs.Add(targetSlug);
+                }
+
+                // Check self-referential (heading linking to itself)
+                bool isSelfRef = false;
+                var currentHeading = headings.FirstOrDefault(h => h.LineNumber == i + 1);
+                if (currentHeading != null && string.Equals(currentHeading.Slug, targetSlug, StringComparison.OrdinalIgnoreCase))
+                {
+                    isSelfRef = true;
+                    selfReferentialCount++;
+                }
+
+                anchorLinks.Add(new TocLinkItem(i + 1, linkText, targetSlug, isValid, isSelfRef));
+            }
+        }
+
+        int totalHeadings = headings.Count;
+        int minLevel = totalHeadings > 0 ? headings.Min(h => h.Level) : 0;
+        int maxLevel = totalHeadings > 0 ? headings.Max(h => h.Level) : 0;
+        int totalLinks = anchorLinks.Count;
+        int validLinks = anchorLinks.Count(l => l.IsValidHeadingTarget);
+        int brokenLinks = anchorLinks.Count(l => !l.IsValidHeadingTarget);
+
+        double integrity;
+        if (totalHeadings == 0 && totalLinks == 0)
+        {
+            integrity = 100.0;
+        }
+        else if (totalLinks == 0)
+        {
+            integrity = Math.Max(0.0, 100.0 - (hierarchyJumps * 15.0) - (duplicateSlugs.Count * 10.0));
+        }
+        else
+        {
+            double linkRatio = (double)validLinks / totalLinks * 100.0;
+            integrity = Math.Max(0.0, linkRatio - (hierarchyJumps * 10.0) - (duplicateSlugs.Count * 5.0));
+        }
+        integrity = Math.Round(Math.Clamp(integrity, 0.0, 100.0), 1);
+
+        string category;
+        if (totalHeadings == 0)
+        {
+            category = "No Headings Found";
+        }
+        else if (brokenLinks > 0)
+        {
+            category = "Broken Anchor References Detected";
+        }
+        else if (hierarchyJumps > 0)
+        {
+            category = "Skipped Depth Levels Detected";
+        }
+        else if (duplicateSlugs.Count > 0)
+        {
+            category = "Heading Anchor Slug Collisions";
+        }
+        else
+        {
+            category = "Consistent Hierarchy (100% Valid)";
+        }
+
+        string summary = FormatTocAnchorSummary(
+            totalHeadings, minLevel, maxLevel, hierarchyJumps, totalLinks, validLinks,
+            brokenLinks, selfReferentialCount, duplicateSlugs.Count, category, integrity, brokenSlugs);
+
+        return new TocAnchorAudit(
+            totalHeadings, minLevel, maxLevel, hierarchyJumps, totalLinks, validLinks,
+            brokenLinks, selfReferentialCount, duplicateSlugs.Count,
+            headings, anchorLinks, brokenSlugs, duplicateSlugs,
+            category, integrity, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of document TOC depth and heading anchor validity.
+    /// </summary>
+    public static string FormatTocAnchorSummary(string? markdownText)
+        => AuditTocDepthAndAnchorCollisions(markdownText).Summary;
+
+    public static string FormatTocAnchorSummary(
+        int totalHeadings, int minLevel, int maxLevel, int hierarchyJumps,
+        int totalLinks, int validLinks, int brokenLinks, int selfRefLinks,
+        int duplicateSlugs, string category, double integrity, IReadOnlyList<string> brokenSlugs)
+    {
+        if (totalHeadings == 0 && totalLinks == 0)
+            return "TOC & anchor audit: 0 headings · Document contains no headings or anchor links";
+
+        string headingDesc = totalHeadings == 1 ? "1 heading" : $"{totalHeadings} headings";
+        string depthSpan = totalHeadings > 0 ? $" (H{minLevel}-H{maxLevel})" : "";
+        string linkDesc = totalLinks > 0 ? $", {totalLinks} anchor links ({validLinks} valid, {brokenLinks} broken)" : "";
+        string issues = "";
+
+        if (hierarchyJumps > 0) issues += $" · ⚠ {hierarchyJumps} skipped levels";
+        if (brokenLinks > 0) issues += $" · ⚠ {brokenLinks} broken targets ({string.Join(", ", brokenSlugs.Take(2))})";
+        if (duplicateSlugs > 0) issues += $" · {duplicateSlugs} duplicate slugs";
+        if (selfRefLinks > 0) issues += $" · {selfRefLinks} self-referential";
+
+        return $"TOC & anchor audit: {headingDesc}{depthSpan}{linkDesc} · {category} · {integrity:0.#}% integrity{issues}";
+    }
 }
 
 /// <summary>
@@ -3521,4 +3734,48 @@ public sealed record FrontmatterSchemaAudit(
     string SchemaHealthCategory,
     double CompletenessPercentage,
     string Summary);
+
+/// <summary>
+/// Represents an individual parsed markdown heading with its outline level, title, and generated anchor slug.
+/// </summary>
+public sealed record HeadingAnchorItem(
+    int LineNumber,
+    int Level,
+    string Title,
+    string Slug,
+    bool HasHierarchyJump,
+    int JumpFromLevel);
+
+/// <summary>
+/// Represents an internal markdown in-document anchor link [text](#slug).
+/// </summary>
+public sealed record TocLinkItem(
+    int LineNumber,
+    string LinkText,
+    string TargetSlug,
+    bool IsValidHeadingTarget,
+    bool IsSelfReferential);
+
+/// <summary>
+/// Represents the result of an audit of document Table of Contents (TOC) depth hierarchy consistency,
+/// heading anchor slug collisions, and in-document anchor link validity.
+/// </summary>
+public sealed record TocAnchorAudit(
+    int TotalHeadings,
+    int MinHeadingLevel,
+    int MaxHeadingLevel,
+    int HierarchyJumpCount,
+    int TotalAnchorLinks,
+    int ValidAnchorLinks,
+    int BrokenAnchorLinks,
+    int SelfReferentialLinks,
+    int DuplicateSlugCount,
+    IReadOnlyList<HeadingAnchorItem> Headings,
+    IReadOnlyList<TocLinkItem> AnchorLinks,
+    IReadOnlyList<string> BrokenTargetSlugs,
+    IReadOnlyList<string> DuplicateSlugs,
+    string HealthCategory,
+    double IntegrityPercentage,
+    string Summary);
+
 

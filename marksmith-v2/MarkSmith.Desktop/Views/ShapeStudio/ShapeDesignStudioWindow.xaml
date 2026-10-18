@@ -691,6 +691,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditColorHarmonyItem" Text="Audit color palette harmony &amp; chromatic coherence" Click="OnSelectionAuditColorHarmonyClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE771;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditIsometricItem" Text="Audit 30°/60° isometric grid alignment &amp; depth stacking" Click="OnSelectionAuditIsometricClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE746;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

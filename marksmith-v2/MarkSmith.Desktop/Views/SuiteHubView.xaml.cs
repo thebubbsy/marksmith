@@ -1758,6 +1758,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyExtensionDiversityClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var audit = RecentFilesService.AuditFileExtensionDiversity(files);
+            await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+            SetNotification($"Copied extension diversity audit: {audit.DiversityCategory} · {audit.UniqueExtensions} formats across {audit.TotalFiles} files", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit extension diversity: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

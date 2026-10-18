@@ -1478,7 +1478,53 @@ public class HistoryPolishTests : IDisposable
         Assert.True(majorRes.HasBreakingChanges);
         Assert.Contains("### Breaking Changes", majorRes.ChangelogMarkdown);
     }
+
+    [Fact]
+    public void Run161_SynthesizeReleaseNotesAndMigrationGuide_ExtractsFeaturesFixesAndMigrationSteps()
+    {
+        // 1. Minor feature additions
+        var beforeFeat = "# Base Doc\nExisting content";
+        var afterFeat = """
+            # Base Doc
+            Existing content
+
+            # New Feature Module
+            feat: Add interactive chart rendering support.
+            fix: Fix tooltip clipping on small viewports.
+            """;
+        var featNotes = LineDiff.SynthesizeReleaseNotesAndMigrationGuide(beforeFeat, afterFeat, "1.4.2");
+        Assert.Equal("1.4.2", featNotes.CurrentVersion);
+        Assert.Equal("1.5.0", featNotes.RecommendedVersion);
+        Assert.Equal("Minor (Feature Enhancements)", featNotes.RiskTier);
+        Assert.True(featNotes.FeatureCount >= 1);
+        Assert.True(featNotes.FixCount >= 1);
+        Assert.Equal(0, featNotes.BreakingCount);
+        Assert.Contains("Zero breaking changes", featNotes.MigrationSteps[0]);
+        Assert.Contains("# Release Notes — v1.5.0", featNotes.ReleaseNotesMarkdown);
+        Assert.Contains("Features & Enhancements", featNotes.ReleaseNotesMarkdown);
+
+        // 2. Breaking changes with migration guide
+        var beforeBreak = """
+            # Legacy Authentication API
+            | Param | Value |
+            | --- | --- |
+            | token | string |
+            """;
+        var afterBreak = """
+            BREAKING CHANGE: Removed legacy auth endpoint in favor of OAuth2.
+            feat: Added OAuth2 authorization flows.
+            """;
+        var breakNotes = LineDiff.SynthesizeReleaseNotesAndMigrationGuide(beforeBreak, afterBreak, "1.4.2");
+        Assert.Equal("1.4.2", breakNotes.CurrentVersion);
+        Assert.Equal("2.0.0", breakNotes.RecommendedVersion);
+        Assert.Equal("Major (Breaking Changes)", breakNotes.RiskTier);
+        Assert.True(breakNotes.BreakingCount >= 1);
+        Assert.NotEmpty(breakNotes.MigrationSteps);
+        Assert.Contains("Migration Guide", breakNotes.ReleaseNotesMarkdown);
+        Assert.Contains("Release notes", breakNotes.Summary);
+    }
 }
+
 
 
 

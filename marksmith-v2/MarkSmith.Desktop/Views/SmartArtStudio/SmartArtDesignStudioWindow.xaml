@@ -320,6 +320,9 @@
                                         <MenuFlyoutItem x:Name="AuditPyramidProportionalityItem" Text="Audit pyramid / funnel stage area proportionality &amp; taper" Click="OnAuditPyramidProportionalityClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditVennCompletenessItem" Text="Audit Venn diagram set overlap completeness &amp; intersections" Click="OnAuditVennCompletenessClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

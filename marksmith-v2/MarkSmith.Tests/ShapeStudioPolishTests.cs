@@ -1454,7 +1454,46 @@ public class ShapeStudioPolishTests
         Assert.Equal("Monochrome Neutral Anchors", neutralAudit.HarmonyType);
         Assert.Equal(100.0, neutralAudit.HarmonyCoherenceScore);
     }
+
+    [Fact]
+    public void Run161_AuditIsometricGridAlignment_DetectsIsometricAnglesAndDepthStacking()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Empty canvas (<2 shapes)
+        var emptyAudit = vm.AuditIsometricGridAlignment();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal("Empty Canvas", emptyAudit.AlignmentCategory);
+
+        // 2. 1 shape
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Text = "Base", X = 100, Y = 100, Width = 40, Height = 40 };
+        vm.Shapes.Add(s1);
+        var singleAudit = vm.AuditIsometricGridAlignment();
+        Assert.Equal(1, singleAudit.TotalShapesEvaluated);
+        Assert.Equal("Insufficient Shapes (<2)", singleAudit.AlignmentCategory);
+
+        // 3. Strict 30° isometric alignment (dx=100, dy=57.7 => angle 30°)
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Text = "Iso Block", X = 200, Y = 157.7, Width = 40, Height = 40 };
+        vm.Shapes.Add(s2);
+
+        var isoAudit = vm.AuditIsometricGridAlignment();
+        Assert.Equal(2, isoAudit.TotalShapesEvaluated);
+        Assert.Equal(1, isoAudit.EvaluatedPairCount);
+        Assert.Equal(1, isoAudit.AlignedPairCount);
+        Assert.Equal(0, isoAudit.DepthStackingConflictCount);
+        Assert.True(isoAudit.IsometricFidelityScore >= 80.0);
+        Assert.Contains("Isometric", isoAudit.AlignmentCategory);
+        Assert.Contains("Fidelity:", isoAudit.Summary);
+
+        // 4. Depth stacking conflict (A is above B on screen, but has higher ZIndex)
+        var sConflict = new ShapeCanvasItemViewModel { Id = "s3", Text = "Conflict", X = 100, Y = 50, Width = 40, Height = 40 };
+        vm.Shapes.Add(sConflict);
+        var conflictAudit = vm.AuditIsometricGridAlignment();
+        Assert.True(conflictAudit.DepthStackingConflictCount > 0);
+    }
 }
+
 
 
 

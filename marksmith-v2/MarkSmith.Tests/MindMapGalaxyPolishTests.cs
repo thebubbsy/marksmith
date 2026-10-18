@@ -2232,6 +2232,57 @@ namespace MarkSmith.Tests
             Assert.Equal(0.0, meshAudit.StructuralFragilityIndex);
             Assert.Equal("Robust Resilient Mesh (0 Single Points of Failure)", meshAudit.VulnerabilityCategory);
         }
+
+        [Fact]
+        public void Run161_AuditNetworkSpanningBackboneAndRedundancy_ComputesBackboneAndRedundantChords()
+        {
+            // 1. Empty map
+            var emptyAudit = MindMapStudioViewModel.AuditNetworkSpanningBackboneAndRedundancy(
+                Array.Empty<MindMapNode>(), Array.Empty<MindMapLink>());
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalLinks);
+            Assert.Equal("Empty MindMap", emptyAudit.TopologyCategory);
+
+            // 2. Pure tree hierarchy (0% redundancy)
+            var nRoot = new MindMapNode { Id = "root", Title = "Central Concept", X = 0, Y = 0 };
+            var n1 = new MindMapNode { Id = "n1", Title = "Branch Alpha", X = 100, Y = 0 };
+            var n2 = new MindMapNode { Id = "n2", Title = "Branch Beta", X = 0, Y = 100 };
+
+            var l1 = new MindMapLink { Id = "l1", SourceNodeId = "root", TargetNodeId = "n1" };
+            var l2 = new MindMapLink { Id = "l2", SourceNodeId = "root", TargetNodeId = "n2" };
+
+            var treeAudit = MindMapStudioViewModel.AuditNetworkSpanningBackboneAndRedundancy(
+                new[] { nRoot, n1, n2 }, new[] { l1, l2 });
+            Assert.Equal(3, treeAudit.TotalNodes);
+            Assert.Equal(2, treeAudit.TotalLinks);
+            Assert.Equal(2, treeAudit.BackboneLinkCount);
+            Assert.Equal(0, treeAudit.RedundantChordCount);
+            Assert.Equal(0.0, treeAudit.RedundancyPercentage);
+            Assert.Equal("Optimal Tree (0% Redundancy)", treeAudit.TopologyCategory);
+
+            // 3. Triangle mesh with redundant chord
+            var l3 = new MindMapLink { Id = "l3", SourceNodeId = "n1", TargetNodeId = "n2" }; // Hypotenuse ~141.4px
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            vm.Nodes.Add(new MindMapNodeViewModel(nRoot));
+            vm.Nodes.Add(new MindMapNodeViewModel(n1));
+            vm.Nodes.Add(new MindMapNodeViewModel(n2));
+            vm.Links.Add(new MindMapLinkViewModel(l1));
+            vm.Links.Add(new MindMapLinkViewModel(l2));
+            vm.Links.Add(new MindMapLinkViewModel(l3));
+
+            var meshAudit = vm.AuditNetworkSpanningBackboneAndRedundancy();
+            Assert.Equal(3, meshAudit.TotalNodes);
+            Assert.Equal(3, meshAudit.TotalLinks);
+            Assert.Equal(2, meshAudit.BackboneLinkCount);
+            Assert.Equal(1, meshAudit.RedundantChordCount);
+            Assert.True(meshAudit.RedundancyPercentage > 30.0);
+            Assert.True(meshAudit.BackboneLength < meshAudit.TotalNetworkLength);
+            Assert.Contains(meshAudit.Links, l => l.LinkId == "l3" && l.IsRedundantChord);
+            Assert.Contains(meshAudit.Links, l => l.LinkId == "l1" && l.IsBackbone);
+            Assert.Contains("redundant chord", meshAudit.Summary);
+        }
     }
 }
 

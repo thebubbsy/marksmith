@@ -4120,6 +4120,189 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             calibratedStages.Count, calibratedStages, avgTaperRatio, isMonotonic,
             proportionalityScore, category, summary);
     }
+
+    /// <summary>
+    /// Audits the active SmartArt outline for Venn diagram and Euler set overlap completeness,
+    /// disjoint partitioning, and missing intersection regions.
+    /// </summary>
+    public VennDiagramCompletenessAudit AuditVennDiagramCompleteness()
+    {
+        var result = AuditVennDiagramCompleteness(MarkdownText);
+        StatusMessage = result.Summary;
+        return result;
+    }
+
+    /// <summary>
+    /// Audits markdown outline text for Venn diagram set overlap completeness and intersection partitions.
+    /// </summary>
+    public static VennDiagramCompletenessAudit AuditVennDiagramCompleteness(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = "Venn completeness audit: 0 sets · Outline is empty";
+            return new VennDiagramCompletenessAudit(
+                0, 0, 0, 0, 0.0, Array.Empty<string>(),
+                Array.Empty<VennPartitionInfo>(), "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Replace("\r", "").Split('\n');
+        var partitions = new List<VennPartitionInfo>();
+        var currentItems = new List<string>();
+        string currentTitle = "";
+        bool currentIsIntersection = false;
+        bool inFence = false;
+
+        void CommitCurrent()
+        {
+            if (!string.IsNullOrWhiteSpace(currentTitle))
+            {
+                string pType = currentIsIntersection ? "Intersection / Overlap" : "Primary Set";
+                partitions.Add(new VennPartitionInfo(
+                    currentTitle, pType, currentItems.Count, currentItems.ToList(), currentIsIntersection));
+                currentItems.Clear();
+                currentTitle = "";
+            }
+        }
+
+        var intersectionKeywords = new[] { "overlap", "intersection", "both", "shared", "common", "∩", "all three", "triple", "center", "core", "universal" };
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence || string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            int leadWs = 0;
+            while (leadWs < rawLine.Length && (rawLine[leadWs] == ' ' || rawLine[leadWs] == '\t')) leadWs++;
+
+            bool isBullet = trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ") ||
+                            System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^\d+[\.\)]\s+");
+
+            if (isBullet)
+            {
+                int depth = 1 + (leadWs >= 2 ? (leadWs / 2) : 0);
+                string content = System.Text.RegularExpressions.Regex.Replace(trimmed, @"^[-*+\d\.\)]+\s*", "").Trim();
+
+                if (depth == 1)
+                {
+                    CommitCurrent();
+                    currentTitle = content;
+                    string lower = content.ToLowerInvariant();
+                    currentIsIntersection = intersectionKeywords.Any(k => lower.Contains(k)) ||
+                                            (lower.Contains("&") && !lower.Contains("&&")) ||
+                                            (lower.Contains(" and ") && (lower.Contains("set") || lower.Contains("group")));
+                }
+                else
+                {
+                    if (!string.IsNullOrWhiteSpace(content))
+                    {
+                        currentItems.Add(content);
+                    }
+                }
+            }
+        }
+        CommitCurrent();
+
+        if (partitions.Count == 0)
+        {
+            string noPartitionsSummary = "Venn completeness audit: 0 sets · No outline bullets found";
+            return new VennDiagramCompletenessAudit(
+                0, 0, 0, 0, 0.0, Array.Empty<string>(),
+                Array.Empty<VennPartitionInfo>(), "No Sets Found", noPartitionsSummary);
+        }
+
+        var primarySets = partitions.Where(p => !p.IsIntersection).ToList();
+        var intersections = partitions.Where(p => p.IsIntersection).ToList();
+
+        int primaryCount = primarySets.Count;
+        int expectedRegions;
+        var missingRegions = new List<string>();
+
+        if (primaryCount == 2)
+        {
+            expectedRegions = 3; // Set A, Set B, A∩B
+            if (intersections.Count == 0)
+            {
+                missingRegions.Add($"Overlap between '{primarySets[0].PartitionName}' and '{primarySets[1].PartitionName}'");
+            }
+        }
+        else if (primaryCount == 3)
+        {
+            expectedRegions = 7; // A, B, C, AB, BC, AC, ABC
+            int expectedIntersections = 4;
+            int missingCount = Math.Max(0, expectedIntersections - intersections.Count);
+            if (missingCount > 0)
+            {
+                if (!intersections.Any(i => i.PartitionName.ToLowerInvariant().Contains("all") || i.PartitionName.ToLowerInvariant().Contains("three") || i.PartitionName.ToLowerInvariant().Contains("triple")))
+                {
+                    missingRegions.Add("Triple Central Overlap (All Three Sets)");
+                }
+                if (missingRegions.Count < missingCount)
+                {
+                    missingRegions.Add($"{missingCount} Pairwise/Triple Intersection Overlaps");
+                }
+            }
+        }
+        else if (primaryCount <= 1)
+        {
+            expectedRegions = 1;
+        }
+        else
+        {
+            expectedRegions = (int)Math.Min(15, Math.Pow(2, primaryCount) - 1);
+            if (intersections.Count == 0) missingRegions.Add("Intersection Overlaps");
+        }
+
+        int definedRegions = partitions.Count;
+        int missingRegionsCount = Math.Max(0, expectedRegions - definedRegions);
+        double completeness = expectedRegions > 0
+            ? Math.Round(Math.Clamp((double)definedRegions / expectedRegions * 100.0, 0.0, 100.0), 1)
+            : 0.0;
+
+        string category;
+        if (primaryCount <= 1)
+        {
+            category = "Single Set / Non-Venn Outline";
+        }
+        else if (primaryCount == 2)
+        {
+            category = intersections.Count >= 1 ? "Complete 2-Set Venn (3/3 Partitions)" : "Partial 2-Set Venn (Missing Overlap)";
+        }
+        else if (primaryCount == 3)
+        {
+            if (definedRegions >= 7) category = "Complete 3-Set Venn (7/7 Partitions)";
+            else if (intersections.Count > 0) category = $"Partial 3-Set Venn ({definedRegions}/7 Partitions)";
+            else category = "Disjoint 3-Set Outline (Zero Overlaps)";
+        }
+        else
+        {
+            category = $"Multi-Set Euler Diagram ({primaryCount} Sets)";
+        }
+
+        string summary = FormatVennSummary(
+            primaryCount, definedRegions, expectedRegions, missingRegionsCount, completeness, category);
+
+        return new VennDiagramCompletenessAudit(
+            primaryCount, expectedRegions, definedRegions, missingRegionsCount, completeness,
+            missingRegions, partitions, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of Venn diagram set overlap completeness.
+    /// </summary>
+    public static string FormatVennSummary(
+        int primaryCount, int definedRegions, int expectedRegions, int missingCount,
+        double completeness, string category)
+    {
+        if (primaryCount == 0) return "Venn completeness audit: 0 sets · Outline is empty";
+        string setsLabel = primaryCount == 1 ? "1 set" : $"{primaryCount} sets";
+        string missingNote = missingCount > 0 ? $" · ⚠ {missingCount} missing regions" : " · Complete";
+        return $"Venn completeness audit ({setsLabel} · {category}): {definedRegions}/{expectedRegions} regions ({completeness:0.#}% complete){missingNote}";
+    }
 }
 
 /// <summary>
@@ -4301,4 +4484,30 @@ public sealed record PyramidProportionalityAudit(
     double ProportionalityScore,
     string ProportionalityCategory,
     string Summary);
+
+/// <summary>
+/// Represents parsed set info and item count for an individual Venn diagram partition.
+/// </summary>
+public sealed record VennPartitionInfo(
+    string PartitionName,
+    string PartitionType,
+    int ItemCount,
+    IReadOnlyList<string> Items,
+    bool IsIntersection);
+
+/// <summary>
+/// Represents the result of an audit of Venn diagram set overlap completeness,
+/// disjoint partitioning, and missing intersection regions.
+/// </summary>
+public sealed record VennDiagramCompletenessAudit(
+    int PrimarySetCount,
+    int ExpectedRegions,
+    int DefinedRegions,
+    int MissingRegionsCount,
+    double CompletenessPercentage,
+    IReadOnlyList<string> MissingPartitions,
+    IReadOnlyList<VennPartitionInfo> Partitions,
+    string CompletenessCategory,
+    string Summary);
+
 

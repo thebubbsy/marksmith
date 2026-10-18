@@ -4973,6 +4973,196 @@ namespace MarkSmith.ViewModels.MindMap
             }
             return vm.AuditGraphBridgesAndArticulationPoints();
         }
+
+        /// <summary>
+        /// Audits the mindmap graph's actual network links using Kruskal's algorithm to identify the
+        /// core minimal spanning backbone edges versus non-essential redundant chords in cyclic mindmaps.
+        /// </summary>
+        public NetworkSpanningBackboneAudit AuditNetworkSpanningBackboneAndRedundancy(IEnumerable<MindMapNodeViewModel>? targetNodes = null)
+        {
+            bool isSelection = false;
+            var nodes = targetNodes?.ToList();
+            if (nodes == null)
+            {
+                var selectedNodes = Nodes.Where(n => n.IsSelected).ToList();
+                if (selectedNodes.Count > 1)
+                {
+                    nodes = selectedNodes;
+                    isSelection = true;
+                }
+                else
+                {
+                    nodes = Nodes.ToList();
+                }
+            }
+
+            string scopeStr = isSelection ? "Selected Nodes · " : "";
+
+            if (nodes.Count == 0)
+            {
+                string emptySummary = $"Network spanning backbone ({scopeStr}0 nodes): Empty mindmap";
+                StatusMessage = emptySummary;
+                return new NetworkSpanningBackboneAudit(
+                    0, 0, 0, 0, 0, 0.0, 0.0, 0.0,
+                    Array.Empty<NetworkLinkRoleInfo>(),
+                    "Empty MindMap", isSelection, emptySummary);
+            }
+
+            var nodeMap = nodes.ToDictionary(n => n.Id, StringComparer.Ordinal);
+            var relevantLinks = Links
+                .Where(l => nodeMap.ContainsKey(l.SourceNodeId) && nodeMap.ContainsKey(l.TargetNodeId))
+                .ToList();
+
+            // Disjoint Set Union (Union-Find)
+            var parent = new Dictionary<string, string>(StringComparer.Ordinal);
+            var rank = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var n in nodes)
+            {
+                parent[n.Id] = n.Id;
+                rank[n.Id] = 0;
+            }
+
+            string Find(string i)
+            {
+                if (parent[i] == i) return i;
+                return parent[i] = Find(parent[i]);
+            }
+
+            void Union(string rootX, string rootY)
+            {
+                if (rank[rootX] < rank[rootY]) parent[rootX] = rootY;
+                else if (rank[rootX] > rank[rootY]) parent[rootY] = rootX;
+                else { parent[rootY] = rootX; rank[rootX]++; }
+            }
+
+            // Calculate link lengths based on node coordinates
+            var evaluatedLinks = relevantLinks.Select(l =>
+            {
+                var s = nodeMap[l.SourceNodeId];
+                var t = nodeMap[l.TargetNodeId];
+                double dx = t.X - s.X;
+                double dy = t.Y - s.Y;
+                double dist = Math.Round(Math.Sqrt(dx * dx + dy * dy), 1);
+                string sTitle = string.IsNullOrWhiteSpace(s.Title) ? s.Id : s.Title;
+                string tTitle = string.IsNullOrWhiteSpace(t.Title) ? t.Id : t.Title;
+                return new { Link = l, SourceTitle = sTitle, TargetTitle = tTitle, Distance = dist };
+            }).OrderBy(x => x.Distance).ToList();
+
+            var linkRoles = new List<NetworkLinkRoleInfo>();
+            int backboneCount = 0;
+            int chordCount = 0;
+            double totalLength = 0.0;
+            double backboneLength = 0.0;
+
+            foreach (var item in evaluatedLinks)
+            {
+                totalLength += item.Distance;
+                string rootSrc = Find(item.Link.SourceNodeId);
+                string rootTgt = Find(item.Link.TargetNodeId);
+
+                bool isBackbone = false;
+                bool isChord = false;
+
+                if (rootSrc != rootTgt)
+                {
+                    Union(rootSrc, rootTgt);
+                    isBackbone = true;
+                    backboneCount++;
+                    backboneLength += item.Distance;
+                }
+                else
+                {
+                    isChord = true;
+                    chordCount++;
+                }
+
+                linkRoles.Add(new NetworkLinkRoleInfo(
+                    item.Link.Id, item.SourceTitle, item.TargetTitle,
+                    item.Distance, isBackbone, isChord));
+            }
+
+            totalLength = Math.Round(totalLength, 1);
+            backboneLength = Math.Round(backboneLength, 1);
+
+            int componentCount = nodes.Select(n => Find(n.Id)).Distinct(StringComparer.Ordinal).Count();
+            double redundancyPct = evaluatedLinks.Count > 0
+                ? Math.Round(((double)chordCount / evaluatedLinks.Count) * 100.0, 1)
+                : 0.0;
+
+            string category;
+            if (nodes.Count <= 1)
+            {
+                category = "Degenerate / Single Node";
+            }
+            else if (componentCount > 1)
+            {
+                category = $"Disconnected Forest ({componentCount} components)";
+            }
+            else if (chordCount == 0)
+            {
+                category = "Optimal Tree (0% Redundancy)";
+            }
+            else if (redundancyPct <= 25.0)
+            {
+                category = "Sparsely Redundant Mesh (Low Chordality)";
+            }
+            else if (redundancyPct <= 50.0)
+            {
+                category = "Balanced Network Mesh (Moderate Redundancy)";
+            }
+            else
+            {
+                category = "Dense Multi-Ring Mesh (High Redundancy)";
+            }
+
+            string summary = FormatNetworkSpanningBackboneSummary(
+                nodes.Count, evaluatedLinks.Count, componentCount, backboneCount, chordCount,
+                totalLength, backboneLength, redundancyPct, category, isSelection);
+
+            StatusMessage = summary;
+
+            return new NetworkSpanningBackboneAudit(
+                nodes.Count, evaluatedLinks.Count, componentCount, backboneCount, chordCount,
+                totalLength, backboneLength, redundancyPct, linkRoles, category, isSelection, summary);
+        }
+
+        /// <summary>
+        /// Audits network spanning backbone and redundant chords across pure model nodes and links.
+        /// </summary>
+        public static NetworkSpanningBackboneAudit AuditNetworkSpanningBackboneAndRedundancy(IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditNetworkSpanningBackboneAndRedundancy();
+        }
+
+        /// <summary>
+        /// Formats a human-readable summary of network spanning backbone and chord metrics.
+        /// </summary>
+        public static string FormatNetworkSpanningBackboneSummary(
+            int nodeCount, int linkCount, int componentCount, int backboneCount, int chordCount,
+            double totalLength, double backboneLength, double redundancyPct, string category, bool isSelection)
+        {
+            string scopeStr = isSelection ? "Selected Nodes · " : "";
+            if (nodeCount == 0) return $"Network spanning backbone ({scopeStr}0 nodes): Empty mindmap";
+
+            string nodeLabel = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+            string linkLabel = linkCount == 1 ? "1 link" : $"{linkCount} links";
+            string compStr = componentCount > 1 ? $" · {componentCount} components" : "";
+            string chordStr = chordCount > 0 ? $" · {chordCount} redundant chords ({redundancyPct:0.#}%)" : " · 0 redundant chords";
+            string wireStr = linkCount > 0 ? $" · Wire: {backboneLength:N0}px backbone / {totalLength:N0}px total" : "";
+
+            return $"Network backbone audit ({scopeStr}{nodeLabel}, {linkLabel}{compStr} · {category}): {backboneCount} backbone edges{chordStr}{wireStr}";
+        }
     }
 
     /// <summary>
@@ -5197,6 +5387,34 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<string> ArticulationNodeTitles,
         double StructuralFragilityIndex,
         string VulnerabilityCategory,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents the role of an evaluated link in the network spanning backbone (tree edge vs redundant chord).
+    /// </summary>
+    public sealed record NetworkLinkRoleInfo(
+        string LinkId,
+        string SourceTitle,
+        string TargetTitle,
+        double Distance,
+        bool IsBackbone,
+        bool IsRedundantChord);
+
+    /// <summary>
+    /// Represents the result of an audit of the mindmap's network spanning backbone and redundant chords.
+    /// </summary>
+    public sealed record NetworkSpanningBackboneAudit(
+        int TotalNodes,
+        int TotalLinks,
+        int ComponentCount,
+        int BackboneLinkCount,
+        int RedundantChordCount,
+        double TotalNetworkLength,
+        double BackboneLength,
+        double RedundancyPercentage,
+        IReadOnlyList<NetworkLinkRoleInfo> Links,
+        string TopologyCategory,
         bool IsSelectionScope,
         string Summary);
 }

@@ -1404,7 +1404,75 @@ public class TextSearchTests
         Assert.False(unclosedAudit.IsClosed);
         Assert.Equal("Unclosed Frontmatter", unclosedAudit.SchemaHealthCategory);
     }
+
+    [Fact]
+    public void Run161_AuditTocDepthAndAnchorCollisions_ValidatesHeadingsSlugsAndInternalLinks()
+    {
+        // 1. Empty document
+        var emptyAudit = TextSearch.AuditTocDepthAndAnchorCollisions("");
+        Assert.Equal(0, emptyAudit.TotalHeadings);
+        Assert.Equal("Empty Document", emptyAudit.HealthCategory);
+        Assert.Equal(100.0, emptyAudit.IntegrityPercentage);
+
+        // 2. Valid hierarchy with anchors
+        var validDoc = string.Join("\n",
+            "# Executive Summary",
+            "",
+            "See [Architecture](#system-architecture) and [Overview](#overview).",
+            "",
+            "## System Architecture",
+            "Details here.",
+            "",
+            "### Overview",
+            "Core overview notes.");
+
+        var validAudit = TextSearch.AuditTocDepthAndAnchorCollisions(validDoc);
+        Assert.Equal(3, validAudit.TotalHeadings);
+        Assert.Equal(1, validAudit.MinHeadingLevel);
+        Assert.Equal(3, validAudit.MaxHeadingLevel);
+        Assert.Equal(0, validAudit.HierarchyJumpCount);
+        Assert.Equal(2, validAudit.TotalAnchorLinks);
+        Assert.Equal(2, validAudit.ValidAnchorLinks);
+        Assert.Equal(0, validAudit.BrokenAnchorLinks);
+        Assert.Equal("Consistent Hierarchy (100% Valid)", validAudit.HealthCategory);
+        Assert.Equal(100.0, validAudit.IntegrityPercentage);
+        Assert.Equal(validAudit.Summary, TextSearch.FormatTocAnchorSummary(validDoc));
+
+        // 3. Hierarchy jump (H1 -> H3)
+        var jumpDoc = string.Join("\n",
+            "# Root Heading",
+            "### Skipped Deep Subsection");
+        var jumpAudit = TextSearch.AuditTocDepthAndAnchorCollisions(jumpDoc);
+        Assert.Equal(2, jumpAudit.TotalHeadings);
+        Assert.Equal(1, jumpAudit.HierarchyJumpCount);
+        Assert.Equal("Skipped Depth Levels Detected", jumpAudit.HealthCategory);
+        Assert.True(jumpAudit.Headings[1].HasHierarchyJump);
+
+        // 4. Broken anchor link target
+        var brokenDoc = string.Join("\n",
+            "# Heading One",
+            "Link to [Ghost Target](#non-existent-section).");
+        var brokenAudit = TextSearch.AuditTocDepthAndAnchorCollisions(brokenDoc);
+        Assert.Equal(1, brokenAudit.TotalHeadings);
+        Assert.Equal(1, brokenAudit.TotalAnchorLinks);
+        Assert.Equal(1, brokenAudit.BrokenAnchorLinks);
+        Assert.Contains("non-existent-section", brokenAudit.BrokenTargetSlugs);
+        Assert.Equal("Broken Anchor References Detected", brokenAudit.HealthCategory);
+
+        // 5. Duplicate heading slugs
+        var dupDoc = string.Join("\n",
+            "# Section",
+            "## Section",
+            "### Section");
+        var dupAudit = TextSearch.AuditTocDepthAndAnchorCollisions(dupDoc);
+        Assert.Equal(3, dupAudit.TotalHeadings);
+        Assert.Equal("section", dupAudit.Headings[0].Slug);
+        Assert.Equal("section-1", dupAudit.Headings[1].Slug);
+        Assert.Equal("section-2", dupAudit.Headings[2].Slug);
+        Assert.Contains("section", dupAudit.DuplicateSlugs);
+    }
 }
+
 
 
 

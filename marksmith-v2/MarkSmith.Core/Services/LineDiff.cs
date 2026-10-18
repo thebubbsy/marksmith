@@ -3218,6 +3218,207 @@ public static class LineDiff
         var unified = BuildUnified(diff);
         return SynthesizeSemanticVersionRecommendation(unified, currentVersion, before);
     }
+
+    /// <summary>
+    /// Synthesizes comprehensive production-grade release notes, categorized change groups,
+    /// and a targeted migration guide with breaking change checklists from diff deltas.
+    /// </summary>
+    public static ReleaseNotesAndMigrationAudit SynthesizeReleaseNotesAndMigrationGuide(
+        IEnumerable<UnifiedRow>? unifiedRows, string currentVersion = "1.0.0")
+    {
+        var rows = (unifiedRows as IReadOnlyList<UnifiedRow>) ?? unifiedRows?.ToList() ?? (IReadOnlyList<UnifiedRow>)Array.Empty<UnifiedRow>();
+
+        int addedCount = 0;
+        int removedCount = 0;
+        var features = new List<string>();
+        var fixes = new List<string>();
+        var breakingChanges = new List<string>();
+        var deprecations = new List<string>();
+        var maintenance = new List<string>();
+
+        foreach (var r in rows)
+        {
+            if (r.IsGap) continue;
+            if (r.Kind == Kind.Added) addedCount++;
+            else if (r.Kind == Kind.Removed) removedCount++;
+
+            string text = (r.Text ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(text)) continue;
+
+            if (r.Kind == Kind.Added)
+            {
+                if (text.StartsWith("BREAKING CHANGE:", StringComparison.OrdinalIgnoreCase) || text.Contains("!:"))
+                {
+                    breakingChanges.Add(text.Replace("BREAKING CHANGE:", "").Trim());
+                }
+                else if (text.StartsWith("#"))
+                {
+                    string heading = text.TrimStart('#').Trim();
+                    if (!string.IsNullOrWhiteSpace(heading))
+                    {
+                        features.Add($"Add section: **{heading}**");
+                    }
+                }
+                else if (System.Text.RegularExpressions.Regex.IsMatch(text, @"\b(?:feat|feature)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                {
+                    features.Add(text.TrimStart('-', '*', '+', ' '));
+                }
+                else if (System.Text.RegularExpressions.Regex.IsMatch(text, @"\b(?:fix|bug|patch|resolve)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                {
+                    fixes.Add(text.TrimStart('-', '*', '+', ' '));
+                }
+                else if (System.Text.RegularExpressions.Regex.IsMatch(text, @"\b(?:deprecat|obsolete)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                {
+                    deprecations.Add(text.TrimStart('-', '*', '+', ' '));
+                }
+                else if (System.Text.RegularExpressions.Regex.IsMatch(text, @"\b(?:refactor|perf|chore|doc|test)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                {
+                    maintenance.Add(text.TrimStart('-', '*', '+', ' '));
+                }
+            }
+            else if (r.Kind == Kind.Removed)
+            {
+                if (text.StartsWith("#") && !text.StartsWith("####"))
+                {
+                    string heading = text.TrimStart('#').Trim();
+                    if (!string.IsNullOrWhiteSpace(heading))
+                    {
+                        breakingChanges.Add($"Removed section or API: **{heading}**");
+                    }
+                }
+            }
+        }
+
+        // Default fallbacks if diff has changes but no explicit commit tags
+        if (features.Count == 0 && addedCount > 0)
+        {
+            features.Add($"Integrated {addedCount} lines of content and functional enhancements.");
+        }
+        if (fixes.Count == 0 && removedCount > 0 && breakingChanges.Count == 0)
+        {
+            fixes.Add($"Refined and pruned {removedCount} obsolete or redundant lines.");
+        }
+
+        // Determine recommended version bump
+        string curVer = string.IsNullOrWhiteSpace(currentVersion) ? "1.0.0" : currentVersion.TrimStart('v', 'V');
+        var parts = curVer.Split('.');
+        int major = parts.Length > 0 && int.TryParse(parts[0], out int mj) ? mj : 1;
+        int minor = parts.Length > 1 && int.TryParse(parts[1], out int mn) ? mn : 0;
+        int patch = parts.Length > 2 && int.TryParse(parts[2], out int pt) ? pt : 0;
+
+        string nextVer;
+        string riskTier;
+        if (breakingChanges.Count > 0)
+        {
+            nextVer = $"{major + 1}.0.0";
+            riskTier = "Major (Breaking Changes)";
+        }
+        else if (features.Count > 0)
+        {
+            nextVer = $"{major}.{minor + 1}.0";
+            riskTier = "Minor (Feature Enhancements)";
+        }
+        else
+        {
+            nextVer = $"{major}.{minor}.{patch + 1}";
+            riskTier = "Patch (Maintenance & Fixes)";
+        }
+
+        // Synthesize Migration Checklist
+        var migrationSteps = new List<string>();
+        if (breakingChanges.Count > 0)
+        {
+            migrationSteps.Add("Audit affected downstream consumers and templates for removed structures or APIs.");
+            foreach (var b in breakingChanges.Take(3))
+            {
+                migrationSteps.Add($"Migrate references to '{b}' according to the new specification.");
+            }
+            migrationSteps.Add("Execute full automated regression tests to verify backward compatibility.");
+        }
+        else
+        {
+            migrationSteps.Add("Zero breaking changes detected. Fully backward-compatible drop-in upgrade.");
+        }
+
+        var categories = new List<ReleaseNoteCategory>();
+        if (features.Count > 0) categories.Add(new ReleaseNoteCategory("🚀 Features & Enhancements", features));
+        if (fixes.Count > 0) categories.Add(new ReleaseNoteCategory("🐛 Bug Fixes & Stability", fixes));
+        if (breakingChanges.Count > 0) categories.Add(new ReleaseNoteCategory("⚠️ Breaking Changes", breakingChanges));
+        if (deprecations.Count > 0) categories.Add(new ReleaseNoteCategory("⏳ Deprecation Notices", deprecations));
+        if (maintenance.Count > 0) categories.Add(new ReleaseNoteCategory("🛠 Maintenance & Chores", maintenance));
+
+        // Build Markdown Output
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"# Release Notes — v{nextVer}");
+        sb.AppendLine($"> **Scope:** {riskTier} · **Baseline:** v{curVer} · **Delta:** +{addedCount} / -{removedCount} lines");
+        sb.AppendLine();
+
+        sb.AppendLine("## Highlights");
+        if (features.Count > 0) sb.AppendLine($"- {features[0]}");
+        if (fixes.Count > 0) sb.AppendLine($"- {fixes[0]}");
+        if (breakingChanges.Count > 0) sb.AppendLine($"- ⚠ Attention: Contains {breakingChanges.Count} breaking changes requiring manual migration.");
+        sb.AppendLine();
+
+        foreach (var cat in categories)
+        {
+            sb.AppendLine($"## {cat.CategoryName}");
+            foreach (var item in cat.Items.Take(6))
+            {
+                sb.AppendLine($"- {item}");
+            }
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("## 📋 Migration Guide");
+        foreach (var step in migrationSteps)
+        {
+            sb.AppendLine($"- [ ] {step}");
+        }
+        sb.AppendLine();
+        sb.AppendLine("---");
+        sb.AppendLine("*Generated automatically by MarkSmith Studio History & Version Control.*");
+
+        string releaseNotesMd = sb.ToString();
+        string summary = FormatReleaseNotesSummary(
+            nextVer, curVer, riskTier, features.Count, fixes.Count, breakingChanges.Count, addedCount, removedCount);
+
+        return new ReleaseNotesAndMigrationAudit(
+            curVer, nextVer, riskTier, features.Count, fixes.Count, breakingChanges.Count,
+            addedCount + removedCount, categories, migrationSteps, releaseNotesMd, summary);
+    }
+
+    /// <summary>
+    /// Evaluates diff line changes to synthesize release notes and migration guide.
+    /// </summary>
+    public static ReleaseNotesAndMigrationAudit SynthesizeReleaseNotesAndMigrationGuide(
+        IEnumerable<Line>? diffLines, string currentVersion = "1.0.0")
+    {
+        var lineList = (diffLines as IReadOnlyList<Line>) ?? diffLines?.ToList() ?? (IReadOnlyList<Line>)Array.Empty<Line>();
+        var unified = BuildUnified(lineList);
+        return SynthesizeReleaseNotesAndMigrationGuide(unified, currentVersion);
+    }
+
+    /// <summary>
+    /// Evaluates raw text diff to synthesize release notes and migration guide.
+    /// </summary>
+    public static ReleaseNotesAndMigrationAudit SynthesizeReleaseNotesAndMigrationGuide(
+        string? before, string? after, string currentVersion = "1.0.0")
+    {
+        var diff = Diff(before ?? "", after ?? "");
+        var unified = BuildUnified(diff);
+        return SynthesizeReleaseNotesAndMigrationGuide(unified, currentVersion);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of synthesized release notes and migration scope.
+    /// </summary>
+    public static string FormatReleaseNotesSummary(
+        string nextVer, string curVer, string riskTier, int featCount, int fixCount,
+        int breakCount, int addedLines, int removedLines)
+    {
+        string breakNote = breakCount > 0 ? $" · ⚠ {breakCount} breaking" : "";
+        return $"Release notes (v{nextVer} · {riskTier}): {featCount} feat, {fixCount} fix{breakNote} · +{addedLines}/-{removedLines} lines";
+    }
 }
 
 /// <summary>
@@ -3285,5 +3486,29 @@ public sealed record SemanticVersionBumpAudit(
     bool HasBreakingChanges,
     string ChangelogMarkdown,
     string Summary);
+
+/// <summary>
+/// Represents an individual categorized grouping of release changes.
+/// </summary>
+public sealed record ReleaseNoteCategory(
+    string CategoryName,
+    IReadOnlyList<string> Items);
+
+/// <summary>
+/// Represents the result of an automated release notes and migration guide synthesis from diff deltas.
+/// </summary>
+public sealed record ReleaseNotesAndMigrationAudit(
+    string CurrentVersion,
+    string RecommendedVersion,
+    string RiskTier,
+    int FeatureCount,
+    int FixCount,
+    int BreakingCount,
+    int TotalChanges,
+    IReadOnlyList<ReleaseNoteCategory> Categories,
+    IReadOnlyList<string> MigrationSteps,
+    string ReleaseNotesMarkdown,
+    string Summary);
+
 
 

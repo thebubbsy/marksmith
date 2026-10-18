@@ -2549,6 +2549,161 @@ public sealed class RecentFilesService
 
         return $"Workspace path length audit ({fileLabel} · {category}): Max length: {maxLen} chars (avg {avgLen:0.#}), Max depth: {maxDepth} tiers (avg {avgDepth:0.#}){alerts}";
     }
+
+    /// <summary>
+    /// Audits workspace file extension diversity, MIME type distribution, and detects non-standard markdown variants
+    /// (.markdown, .mdown, .mdx) with Shannon entropy analysis.
+    /// </summary>
+    public static WorkspaceExtensionDiversityAudit AuditFileExtensionDiversity(IEnumerable<string>? files)
+    {
+        var list = files?.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).ToList() ?? new List<string>();
+        if (list.Count == 0)
+        {
+            return new WorkspaceExtensionDiversityAudit(
+                0, 0, 0.0, 0, 0, 0, 0, 0,
+                Array.Empty<string>(), Array.Empty<ExtensionDistributionInfo>(),
+                "Empty Library", "Extension diversity audit: 0 files · Workspace is empty");
+        }
+
+        var extGroups = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in list)
+        {
+            string ext = "";
+            try
+            {
+                ext = Path.GetExtension(f);
+            }
+            catch
+            {
+                int dotIdx = f.LastIndexOf('.');
+                int sepIdx = Math.Max(f.LastIndexOf('/'), f.LastIndexOf('\\'));
+                if (dotIdx > sepIdx && dotIdx >= 0)
+                {
+                    ext = f.Substring(dotIdx);
+                }
+            }
+
+            if (string.IsNullOrEmpty(ext)) ext = "(none)";
+            else ext = ext.ToLowerInvariant();
+
+            if (!extGroups.TryGetValue(ext, out var group))
+            {
+                group = new List<string>();
+                extGroups[ext] = group;
+            }
+            group.Add(f);
+        }
+
+        int stdMd = 0;
+        int nonStdMd = 0;
+        int officeDocs = 0;
+        int webData = 0;
+        int assets = 0;
+        int others = 0;
+        var nonStdFiles = new List<string>();
+
+        var distributions = new List<ExtensionDistributionInfo>();
+        double entropy = 0.0;
+        int total = list.Count;
+
+        foreach (var kvp in extGroups.OrderByDescending(g => g.Value.Count))
+        {
+            string ext = kvp.Key;
+            int count = kvp.Value.Count;
+            double pct = Math.Round((double)count / total * 100.0, 1);
+            double p = (double)count / total;
+            entropy -= p * Math.Log2(p);
+
+            string category;
+            if (ext == ".md")
+            {
+                category = "Standard Markdown";
+                stdMd += count;
+            }
+            else if (ext is ".markdown" or ".mdown" or ".mkd" or ".mdx" or ".mkdn" or ".mdwn")
+            {
+                category = "Non-Standard Markdown Variant";
+                nonStdMd += count;
+                nonStdFiles.AddRange(kvp.Value);
+            }
+            else if (ext is ".docx" or ".doc" or ".dotx" or ".xlsx" or ".pptx" or ".pdf" or ".epub")
+            {
+                category = "Office & Publishing Document";
+                officeDocs += count;
+            }
+            else if (ext is ".html" or ".htm" or ".json" or ".yaml" or ".yml" or ".xml" or ".css" or ".js" or ".ts" or ".cs")
+            {
+                category = "Web & Structured Data";
+                webData += count;
+            }
+            else if (ext is ".png" or ".jpg" or ".jpeg" or ".gif" or ".svg" or ".webp" or ".ico")
+            {
+                category = "Media & Vector Asset";
+                assets += count;
+            }
+            else
+            {
+                category = "Other / Binary";
+                others += count;
+            }
+
+            distributions.Add(new ExtensionDistributionInfo(ext, category, count, pct));
+        }
+
+        entropy = Math.Round(Math.Max(0.0, entropy), 2);
+
+        string summaryCategory;
+        if ((double)stdMd / total >= 0.85)
+        {
+            summaryCategory = "Standard Markdown Centric (≥85% .md)";
+        }
+        else if (nonStdMd > 0)
+        {
+            summaryCategory = $"Irregular Markdown Variants Present ({nonStdMd} files)";
+        }
+        else if ((double)officeDocs / total >= 0.35)
+        {
+            summaryCategory = "Office & Export Companion Heavy";
+        }
+        else if ((double)assets / total >= 0.35)
+        {
+            summaryCategory = "Asset & Graphic Rich Documentation";
+        }
+        else if (entropy >= 2.0)
+        {
+            summaryCategory = "High Format Diversity (Polyglot Repo)";
+        }
+        else
+        {
+            summaryCategory = "Balanced Mixed-Format Workspace";
+        }
+
+        string summary = FormatFileExtensionDiversitySummary(
+            total, extGroups.Count, entropy, stdMd, nonStdMd, officeDocs, webData, assets, summaryCategory, distributions);
+
+        return new WorkspaceExtensionDiversityAudit(
+            total, extGroups.Count, entropy, stdMd, nonStdMd, officeDocs, webData, assets,
+            nonStdFiles, distributions, summaryCategory, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of workspace file extension diversity.
+    /// </summary>
+    public static string FormatFileExtensionDiversitySummary(IEnumerable<string>? files)
+        => AuditFileExtensionDiversity(files).Summary;
+
+    public static string FormatFileExtensionDiversitySummary(
+        int totalFiles, int uniqueExts, double entropy, int stdMd, int nonStdMd,
+        int officeDocs, int webData, int assets, string category, IReadOnlyList<ExtensionDistributionInfo> distributions)
+    {
+        if (totalFiles == 0) return "Extension diversity audit: 0 files · Workspace is empty";
+
+        string fileLabel = totalFiles == 1 ? "1 file" : $"{totalFiles} files";
+        string topFormats = string.Join(", ", distributions.Take(3).Select(d => $"{d.Extension} ({d.Percentage:0.#}%)"));
+        string nonStdAlert = nonStdMd > 0 ? $" · ⚠ {nonStdMd} non-standard markdown variants" : "";
+
+        return $"Extension diversity audit ({fileLabel} · {category}): {uniqueExts} formats (H={entropy:0.00} bits) · Top: {topFormats}{nonStdAlert}";
+    }
 }
 
 /// <summary>
@@ -2770,4 +2925,31 @@ public sealed record WorkspacePathLengthAudit(
     IReadOnlyList<PathLengthMetricInfo> PathMetrics,
     string SafetyCategory,
     string Summary);
+
+/// <summary>
+/// Represents file extension count and percentage distribution within the workspace.
+/// </summary>
+public sealed record ExtensionDistributionInfo(
+    string Extension,
+    string Category,
+    int FileCount,
+    double Percentage);
+
+/// <summary>
+/// Represents the result of an audit of workspace file extension diversity, format distribution, and markdown variants.
+/// </summary>
+public sealed record WorkspaceExtensionDiversityAudit(
+    int TotalFiles,
+    int UniqueExtensions,
+    double ShannonEntropy,
+    int StandardMarkdownCount,
+    int NonStandardMarkdownCount,
+    int OfficeDocumentCount,
+    int WebAndDataCount,
+    int AssetCount,
+    IReadOnlyList<string> NonStandardMarkdownFiles,
+    IReadOnlyList<ExtensionDistributionInfo> Distributions,
+    string DiversityCategory,
+    string Summary);
+
 

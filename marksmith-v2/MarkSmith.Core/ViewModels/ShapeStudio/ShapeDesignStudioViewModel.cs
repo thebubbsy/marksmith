@@ -5487,6 +5487,148 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string dominant = dominantNames.Count > 0 ? $" · Dominant: {string.Join(", ", dominantNames)}" : "";
         return $"Color palette harmony ({scope}{shapeLabel} · {harmonyType}): Coherence: {coherenceScore:0.#}% · Mean Hue: {meanHue:0.#}° (σ={hueStdDev:0.#}°){dominant}";
     }
+
+    /// <summary>
+    /// Audits shapes for 30°/60° isometric grid alignment, axonometric projection fidelity,
+    /// and depth-stacking (Z-order) consistency in 2.5D layouts.
+    /// </summary>
+    public IsometricGridAlignmentAudit AuditIsometricGridAlignment(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = targetShapes != null || selected.Count >= 2;
+        string scopeStr = isSelection ? "Selected Shapes · " : "";
+
+        if (targets.Count < 2)
+        {
+            string emptySummary = targets.Count == 0
+                ? "Isometric grid audit: 0 shapes · Canvas is empty"
+                : "Isometric grid audit: 1 shape · At least 2 shapes required for axonometric projection analysis";
+            StatusMessage = emptySummary;
+            return new IsometricGridAlignmentAudit(
+                targets.Count, 0, 0, 0, 0.0, 0.0,
+                Array.Empty<ShapeIsometricPairInfo>(),
+                targets.Count == 0 ? "Empty Canvas" : "Insufficient Shapes (<2)",
+                isSelection, emptySummary);
+        }
+
+        var isometricAxes = new double[] { 30.0, 90.0, 150.0, 210.0, 270.0, 330.0 };
+        var pairs = new List<ShapeIsometricPairInfo>();
+        int alignedCount = 0;
+        double sumAngleDelta = 0.0;
+        int depthConflicts = 0;
+
+        var shapeZ = new Dictionary<ShapeCanvasItemViewModel, int>();
+        for (int idx = 0; idx < Shapes.Count; idx++)
+        {
+            shapeZ[Shapes[idx]] = idx;
+        }
+        int GetZ(ShapeCanvasItemViewModel s, int fallback) => shapeZ.TryGetValue(s, out int z) ? z : fallback;
+
+        // Evaluate pairwise spatial vectors between shapes
+        for (int i = 0; i < targets.Count; i++)
+        {
+            var a = targets[i];
+            double acx = a.X + a.Width / 2.0;
+            double acy = a.Y + a.Height / 2.0;
+
+            for (int j = i + 1; j < targets.Count; j++)
+            {
+                var b = targets[j];
+                double bcx = b.X + b.Width / 2.0;
+                double bcy = b.Y + b.Height / 2.0;
+
+                double dx = bcx - acx;
+                double dy = bcy - acy;
+                double dist = Math.Sqrt(dx * dx + dy * dy);
+                if (dist < 1.0) continue;
+
+                double angleRad = Math.Atan2(dy, dx);
+                double angleDeg = (angleRad * 180.0 / Math.PI + 360.0) % 360.0;
+
+                double minDelta = double.MaxValue;
+                double nearestAxis = 30.0;
+                foreach (var axis in isometricAxes)
+                {
+                    double diff = Math.Abs(angleDeg - axis);
+                    if (diff > 180.0) diff = 360.0 - diff;
+                    if (diff < minDelta)
+                    {
+                        minDelta = diff;
+                        nearestAxis = axis;
+                    }
+                }
+
+                bool isAligned = minDelta <= 8.5; // Within ~8.5° tolerance of isometric axis
+                if (isAligned) alignedCount++;
+                sumAngleDelta += minDelta;
+
+                // Check depth stacking: if A is above B (acy < bcy - 10), A should be behind B (zA <= zB)
+                int zA = GetZ(a, i);
+                int zB = GetZ(b, j);
+                if (acy < bcy - 10.0 && zA > zB)
+                {
+                    depthConflicts++;
+                }
+                else if (bcy < acy - 10.0 && zB > zA)
+                {
+                    depthConflicts++;
+                }
+
+                pairs.Add(new ShapeIsometricPairInfo(
+                    a.Id, b.Id, Math.Round(angleDeg, 1), nearestAxis,
+                    Math.Round(minDelta, 1), isAligned));
+            }
+        }
+
+        int totalPairs = pairs.Count;
+        double meanAngleError = totalPairs > 0 ? Math.Round(sumAngleDelta / totalPairs, 1) : 0.0;
+        double alignmentRatio = totalPairs > 0 ? (double)alignedCount / totalPairs : 0.0;
+
+        double fidelity = 0.0;
+        if (totalPairs > 0)
+        {
+            double baseScore = alignmentRatio * 80.0 + Math.Max(0.0, 20.0 - (meanAngleError * 1.5));
+            double penalty = depthConflicts * 5.0;
+            fidelity = Math.Round(Math.Clamp(baseScore - penalty, 0.0, 100.0), 1);
+        }
+
+        string category;
+        if (fidelity >= 85.0)
+        {
+            category = "Strict Isometric Projection (30°/60°)";
+        }
+        else if (fidelity >= 55.0 || alignedCount >= totalPairs / 2)
+        {
+            category = "Near-Isometric Axonometric Alignment";
+        }
+        else
+        {
+            category = "Arbitrary 2D Freeform Layout";
+        }
+
+        string summary = FormatIsometricSummary(
+            targets.Count, totalPairs, alignedCount, depthConflicts, meanAngleError, fidelity, category, scopeStr);
+
+        StatusMessage = summary;
+        return new IsometricGridAlignmentAudit(
+            targets.Count, totalPairs, alignedCount, depthConflicts, meanAngleError,
+            fidelity, pairs, category, isSelection, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of isometric grid alignment and projection fidelity.
+    /// </summary>
+    public static string FormatIsometricSummary(
+        int totalShapes, int totalPairs, int alignedPairs, int depthConflicts,
+        double meanAngleError, double fidelity, string category, string scope = "")
+    {
+        if (totalShapes < 2) return "Isometric grid audit: Insufficient shapes (<2) · At least 2 shapes required";
+
+        string shapeLabel = $"{totalShapes} shapes";
+        string conflictStr = depthConflicts > 0 ? $" · ⚠ {depthConflicts} depth conflicts" : "";
+        return $"Isometric grid audit ({scope}{shapeLabel} · {category}): Fidelity: {fidelity:0.#}% · {alignedPairs}/{totalPairs} aligned pairs (error ±{meanAngleError:0.#}°){conflictStr}";
+    }
 }
 
 /// <summary>
@@ -5702,5 +5844,33 @@ public sealed record ShapeColorHarmonyAudit(
     string SummaryCategory,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated pairwise angular metrics between two shapes relative to isometric axes.
+/// </summary>
+public sealed record ShapeIsometricPairInfo(
+    string SourceShapeId,
+    string TargetShapeId,
+    double AngleDegrees,
+    double NearestAxisDegrees,
+    double AngleDelta,
+    bool IsIsometricAligned);
+
+/// <summary>
+/// Represents the result of an audit of shape isometric 30°/60° grid alignment, axonometric fidelity,
+/// and depth stacking consistency.
+/// </summary>
+public sealed record IsometricGridAlignmentAudit(
+    int TotalShapesEvaluated,
+    int EvaluatedPairCount,
+    int AlignedPairCount,
+    int DepthStackingConflictCount,
+    double MeanAngleError,
+    double IsometricFidelityScore,
+    IReadOnlyList<ShapeIsometricPairInfo> Pairs,
+    string AlignmentCategory,
+    bool IsSelectionScope,
+    string Summary);
+
 
 

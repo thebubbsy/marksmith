@@ -2635,7 +2635,63 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("MAX_PATH violations", riskAudit.Summary);
         Assert.Equal(riskAudit.Summary, RecentFilesService.FormatPathLengthsSummary(riskFiles));
     }
+
+    [Fact]
+    public void Run161_AuditFileExtensionDiversity_ClassifiesExtensionsAndComputesEntropy()
+    {
+        // 1. Empty files
+        var emptyAudit = RecentFilesService.AuditFileExtensionDiversity(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFiles);
+        Assert.Equal("Empty Library", emptyAudit.DiversityCategory);
+
+        // 2. Pure markdown files
+        var pureMdFiles = new[]
+        {
+            @"C:\Repo\readme.md",
+            @"C:\Repo\architecture.md",
+            @"C:\Repo\spec.md"
+        };
+        var pureAudit = RecentFilesService.AuditFileExtensionDiversity(pureMdFiles);
+        Assert.Equal(3, pureAudit.TotalFiles);
+        Assert.Equal(1, pureAudit.UniqueExtensions);
+        Assert.Equal(3, pureAudit.StandardMarkdownCount);
+        Assert.Equal(0, pureAudit.NonStandardMarkdownCount);
+        Assert.Equal(0.0, pureAudit.ShannonEntropy);
+        Assert.Equal("Standard Markdown Centric (≥85% .md)", pureAudit.DiversityCategory);
+        Assert.Equal(pureAudit.Summary, RecentFilesService.FormatFileExtensionDiversitySummary(pureMdFiles));
+
+        // 3. Non-standard markdown variants
+        var variantFiles = new[]
+        {
+            @"C:\Docs\readme.md",
+            @"C:\Docs\notes.markdown",
+            @"C:\Docs\article.mdown",
+            @"C:\Docs\component.mdx"
+        };
+        var variantAudit = RecentFilesService.AuditFileExtensionDiversity(variantFiles);
+        Assert.Equal(4, variantAudit.TotalFiles);
+        Assert.Equal(1, variantAudit.StandardMarkdownCount);
+        Assert.Equal(3, variantAudit.NonStandardMarkdownCount);
+        Assert.Contains("Irregular Markdown Variants Present", variantAudit.DiversityCategory);
+        Assert.Equal(3, variantAudit.NonStandardMarkdownFiles.Count);
+
+        // 4. Polyglot workspace
+        var polyglotFiles = new[]
+        {
+            @"C:\Repo\readme.md",
+            @"C:\Repo\report.docx",
+            @"C:\Repo\index.html",
+            @"C:\Repo\config.json",
+            @"C:\Repo\diagram.png"
+        };
+        var polyAudit = RecentFilesService.AuditFileExtensionDiversity(polyglotFiles);
+        Assert.Equal(5, polyAudit.TotalFiles);
+        Assert.Equal(5, polyAudit.UniqueExtensions);
+        Assert.True(polyAudit.ShannonEntropy >= 2.0);
+        Assert.Contains("High Format Diversity", polyAudit.DiversityCategory);
+    }
 }
+
 
 
 
