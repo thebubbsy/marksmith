@@ -7082,6 +7082,293 @@ public static class TextSearch
         return $"Footnote reference pairing ({totalRefs} refs [{uniqueRefs} unique], {totalDefs} defs [{uniqueDefs} unique] · {category} · {score:0.#}% score): " +
                $"{matched} matched {(matched == 1 ? "pair" : "pairs")}{alertSuffix}";
     }
+
+    /// <summary>
+    /// Audits document image embeds (![alt](src) and &lt;img ...&gt;) for alt-text quality, meaningful descriptions,
+    /// empty caption violations, generic placeholder descriptors, and WCAG 2.1 Non-Text Content accessibility compliance,
+    /// with code-fence immunity.
+    /// </summary>
+    public static DocumentImageAltTextAccessibilityAudit AuditDocumentImageAltTextAndAccessibility(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new DocumentImageAltTextAccessibilityAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DocumentImageAltItem>(),
+                "Zero Images (Accessible Baseline)",
+                "Image alt-text WCAG audit: 0 images · Document contains no image embeds");
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        bool inFence = false;
+        string fenceMarker = "";
+
+        var items = new List<DocumentImageAltItem>();
+        int lineNumber = 0;
+
+        var mdImgRegex = new System.Text.RegularExpressions.Regex(@"!\[(?<alt>[^\]]*)\]\((?<src>[^)]+)\)", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var htmlImgRegex = new System.Text.RegularExpressions.Regex(@"<img\b(?<attrs>[^>]*)>", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+        var altAttrRegex = new System.Text.RegularExpressions.Regex(@"\balt\s*=\s*[""'](?<alt>[^""']*)[""']", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+        var srcAttrRegex = new System.Text.RegularExpressions.Regex(@"\bsrc\s*=\s*[""'](?<src>[^""']*)[""']", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        var genericNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "image", "photo", "pic", "picture", "screenshot", "screen shot", "diagram",
+            "figure", "graphic", "untitled", "img", "placeholder", "icon", "drawing",
+            "illustration", "banner", "thumbnail", "preview", "asset"
+        };
+
+        var redundantPrefixes = new[]
+        {
+            "image of", "photo of", "picture of", "graphic of", "screenshot of",
+            "icon of", "drawing of", "illustration of", "banner of"
+        };
+
+        foreach (var rawLine in lines)
+        {
+            lineNumber++;
+            string trimmed = rawLine.Trim();
+
+            if (!inFence)
+            {
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inFence = true;
+                    fenceMarker = trimmed.Substring(0, 3);
+                    continue;
+                }
+            }
+            else
+            {
+                if (trimmed.StartsWith(fenceMarker))
+                {
+                    inFence = false;
+                }
+                continue;
+            }
+
+            string cleanLine = rawLine;
+            while (cleanLine.TrimStart().StartsWith(">"))
+            {
+                cleanLine = cleanLine.TrimStart().Substring(1);
+            }
+
+            // Outside code fences, strip inline backtick code spans before matching images
+            string strippedLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"`[^`]*`", "");
+
+            // 1. Markdown images: ![alt](src)
+            var mdMatches = mdImgRegex.Matches(strippedLine);
+            foreach (System.Text.RegularExpressions.Match match in mdMatches)
+            {
+                string rawAlt = match.Groups["alt"].Value;
+                string rawSrc = match.Groups["src"].Value.Trim();
+
+                // Strip optional title from src e.g. "path/to/img.png" "Title"
+                string cleanSrc = rawSrc;
+                int quoteIdx = cleanSrc.IndexOfAny(new[] { '"', '\'' });
+                if (quoteIdx > 0)
+                {
+                    cleanSrc = cleanSrc.Substring(0, quoteIdx).Trim();
+                }
+
+                items.Add(EvaluateImageAltItem(lineNumber, rawAlt, cleanSrc, genericNames, redundantPrefixes));
+            }
+
+            // 2. HTML images: <img ... />
+            var htmlMatches = htmlImgRegex.Matches(strippedLine);
+            foreach (System.Text.RegularExpressions.Match match in htmlMatches)
+            {
+                string attrs = match.Groups["attrs"].Value;
+                var altMatch = altAttrRegex.Match(attrs);
+                var srcMatch = srcAttrRegex.Match(attrs);
+
+                string altText = altMatch.Success ? altMatch.Groups["alt"].Value : "";
+                string srcText = srcMatch.Success ? srcMatch.Groups["src"].Value.Trim() : "";
+
+                items.Add(EvaluateImageAltItem(lineNumber, altText, srcText, genericNames, redundantPrefixes));
+            }
+        }
+
+        if (items.Count == 0)
+        {
+            return new DocumentImageAltTextAccessibilityAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DocumentImageAltItem>(),
+                "Zero Images (Accessible Baseline)",
+                "Image alt-text WCAG audit: 0 images · Document contains no image embeds");
+        }
+
+        int totalImages = items.Count;
+        int descriptiveCount = items.Count(i => i.QualityTier == "Descriptive Alt Text");
+        int emptyCount = items.Count(i => i.IsEmpty);
+        int genericCount = items.Count(i => i.IsGenericPlaceholder);
+        int redundantPrefixCount = items.Count(i => i.HasRedundantPrefix);
+        int overlyLongCount = items.Count(i => i.IsOverlyLong);
+        int dataUriCount = items.Count(i => i.IsDataUri);
+
+        // Score formula: rewards descriptive descriptions, penalizes empty alt, generic placeholders, and redundant prefixes
+        double rawScore = 100.0 * (descriptiveCount * 1.0 + (items.Count - descriptiveCount - emptyCount - genericCount - redundantPrefixCount) * 0.8
+            + redundantPrefixCount * 0.5 - emptyCount * 1.0 - genericCount * 0.8) / totalImages;
+        double complianceScore = Math.Max(0.0, Math.Min(100.0, Math.Round(rawScore, 1)));
+
+        string category = complianceScore switch
+        {
+            >= 95.0 => "Full WCAG 2.1 Accessibility Compliance",
+            >= 80.0 => "Good Alt-Text Accessibility",
+            >= 60.0 => "Moderate Accessibility (Improve Descriptions)",
+            _ => "Poor Accessibility (Missing or Generic Alt-Text)"
+        };
+
+        string summary = FormatImageAltTextAccessibilitySummary(
+            totalImages, descriptiveCount, emptyCount, genericCount, redundantPrefixCount,
+            overlyLongCount, dataUriCount, complianceScore, category);
+
+        return new DocumentImageAltTextAccessibilityAudit(
+            totalImages, descriptiveCount, emptyCount, genericCount, redundantPrefixCount,
+            overlyLongCount, dataUriCount, complianceScore, items, category, summary);
+    }
+
+    private static DocumentImageAltItem EvaluateImageAltItem(
+        int lineNumber,
+        string rawAlt,
+        string cleanSrc,
+        HashSet<string> genericNames,
+        string[] redundantPrefixes)
+    {
+        string alt = rawAlt.Trim();
+        bool isEmpty = string.IsNullOrWhiteSpace(alt);
+        bool isDataUri = cleanSrc.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase);
+
+        string fileName = "";
+        try
+        {
+            fileName = Path.GetFileName(cleanSrc);
+        }
+        catch
+        {
+            fileName = cleanSrc;
+        }
+
+        string fileNameWithoutExt = "";
+        try
+        {
+            fileNameWithoutExt = Path.GetFileNameWithoutExtension(cleanSrc);
+        }
+        catch
+        {
+            fileNameWithoutExt = cleanSrc;
+        }
+
+        bool isGeneric = false;
+        if (!isEmpty)
+        {
+            if (genericNames.Contains(alt))
+            {
+                isGeneric = true;
+            }
+            else if (!string.IsNullOrEmpty(fileName) && string.Equals(alt, fileName, StringComparison.OrdinalIgnoreCase))
+            {
+                isGeneric = true;
+            }
+            else if (!string.IsNullOrEmpty(fileNameWithoutExt) && string.Equals(alt, fileNameWithoutExt, StringComparison.OrdinalIgnoreCase))
+            {
+                isGeneric = true;
+            }
+            else if (System.Text.RegularExpressions.Regex.IsMatch(alt, @"^(?:image|img|screenshot|pic|figure)[_\-\s0-9]+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            {
+                isGeneric = true;
+            }
+        }
+
+        bool hasRedundantPrefix = false;
+        if (!isEmpty)
+        {
+            foreach (var prefix in redundantPrefixes)
+            {
+                if (alt.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    hasRedundantPrefix = true;
+                    break;
+                }
+            }
+        }
+
+        bool isOverlyLong = alt.Length > 150;
+
+        string qualityTier;
+        string status;
+
+        if (isEmpty)
+        {
+            qualityTier = "Missing / Empty Alt Text";
+            status = "⚠ Missing alt-text violates WCAG 1.1.1 Non-Text Content";
+        }
+        else if (isGeneric)
+        {
+            qualityTier = "Generic Placeholder Alt Text";
+            status = "⚠ Placeholder alt-text provides non-descriptive context";
+        }
+        else if (hasRedundantPrefix)
+        {
+            qualityTier = "Redundant Prefix Phrasing";
+            status = "⚠ Screen readers announce image role automatically; drop 'image of'";
+        }
+        else if (isOverlyLong)
+        {
+            qualityTier = "Overly Long Alt Text";
+            status = "ℹ Alt text exceeds 150 chars; consider moving detailed narrative to caption";
+        }
+        else if (alt.Length >= 8)
+        {
+            qualityTier = "Descriptive Alt Text";
+            status = "✓ Meaningful, descriptive accessible alternative text";
+        }
+        else
+        {
+            qualityTier = "Concise Alt Text";
+            status = "✓ Concise accessible description";
+        }
+
+        return new DocumentImageAltItem(
+            lineNumber,
+            rawAlt,
+            cleanSrc,
+            isEmpty,
+            isGeneric,
+            hasRedundantPrefix,
+            isOverlyLong,
+            isDataUri,
+            qualityTier,
+            status);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of image alt-text accessibility from markdown text.
+    /// </summary>
+    public static string FormatImageAltTextAccessibilitySummary(string? markdownText)
+        => AuditDocumentImageAltTextAndAccessibility(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of image alt-text WCAG accessibility metrics.
+    /// </summary>
+    public static string FormatImageAltTextAccessibilitySummary(
+        int totalImages, int descriptive, int empty, int generic, int redundantPrefix,
+        int overlyLong, int dataUri, double score, string category)
+    {
+        if (totalImages == 0)
+            return "Image alt-text WCAG audit: 0 images · Document contains no image embeds";
+
+        string imageLabel = totalImages == 1 ? "1 image" : $"{totalImages} images";
+        var alerts = new List<string>();
+        if (empty > 0) alerts.Add($"⚠ {empty} empty");
+        if (generic > 0) alerts.Add($"{generic} generic");
+        if (redundantPrefix > 0) alerts.Add($"{redundantPrefix} redundant prefix");
+        if (overlyLong > 0) alerts.Add($"{overlyLong} overly long (>150 chars)");
+        if (dataUri > 0) alerts.Add($"{dataUri} data URI");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% descriptive alt text";
+        return $"Image alt-text WCAG audit ({imageLabel} · {category} · {score:0.#}% score): {descriptive} descriptive{details}";
+    }
 }
 
 /// <summary>
@@ -7781,6 +8068,38 @@ public sealed record FootnoteReferencePairingAudit(
     int MatchedPairs,
     double PairingIntegrityScore,
     IReadOnlyList<FootnoteReferencePairingItem> Items,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated alt-text metrics, quality tier, and accessibility compliance for an individual markdown or HTML image embed.
+/// </summary>
+public sealed record DocumentImageAltItem(
+    int LineNumber,
+    string AltText,
+    string ImageSource,
+    bool IsEmpty,
+    bool IsGenericPlaceholder,
+    bool HasRedundantPrefix,
+    bool IsOverlyLong,
+    bool IsDataUri,
+    string QualityTier,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of document image embeds for alt-text quality, meaningful descriptions,
+/// empty caption violations, generic placeholder descriptors, and WCAG 2.1 Non-Text Content accessibility compliance.
+/// </summary>
+public sealed record DocumentImageAltTextAccessibilityAudit(
+    int TotalImages,
+    int DescriptiveCount,
+    int EmptyCount,
+    int GenericPlaceholderCount,
+    int RedundantPrefixCount,
+    int OverlyLongCount,
+    int DataUriCount,
+    double AccessibilityComplianceScore,
+    IReadOnlyList<DocumentImageAltItem> Images,
     string Category,
     string Summary);
 

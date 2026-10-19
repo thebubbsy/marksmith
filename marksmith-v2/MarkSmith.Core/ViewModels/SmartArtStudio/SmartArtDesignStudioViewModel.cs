@@ -7189,6 +7189,169 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"Funnel/Pyramid progression audit ({stageLabel} [{totalWords} words] · {category} · {score:0.#}% score): " +
                $"avg {meanWords:0.#}w (±{stdDev:0.#}w){alertSuffix}";
     }
+
+    public SmartArtVennRadialAudit AuditVennRadialIntersectionBalance(string? markdown = null, string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtVennRadialAudit(
+                0, 0, 0, 0.0, 0.0, 100.0,
+                Array.Empty<VennRadialSetItem>(),
+                "Empty Venn/Radial Diagram",
+                "Venn/Radial intersection balance audit: 0 sets · Outline contains no set data");
+        }
+
+        var lines = input.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var setItems = new List<VennRadialSetItem>();
+        int setIdx = 0;
+
+        string currentTitle = "";
+        int currentWords = 0;
+        int currentChars = 0;
+        int currentSubitems = 0;
+        bool isCurrentIntersection = false;
+
+        void CommitCurrent()
+        {
+            if (string.IsNullOrWhiteSpace(currentTitle)) return;
+            setIdx++;
+            string status = isCurrentIntersection
+                ? $"Intersection ({currentWords} words, {currentSubitems} subitems)"
+                : $"Primary Set ({currentWords} words, {currentSubitems} subitems)";
+
+            setItems.Add(new VennRadialSetItem(
+                setIdx, currentTitle, currentWords, currentChars, currentSubitems, isCurrentIntersection, status));
+
+            currentTitle = "";
+            currentWords = 0;
+            currentChars = 0;
+            currentSubitems = 0;
+            isCurrentIntersection = false;
+        }
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("```") || trimmed.StartsWith(":::")) continue;
+
+            int indent = rawLine.TakeWhile(char.IsWhiteSpace).Count();
+
+            // Detect top-level bullet: * Item or - Item or 1. Item
+            if (indent < 2 && (trimmed.StartsWith("* ") || trimmed.StartsWith("- ") || System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^\d+\.\s+")))
+            {
+                CommitCurrent();
+                string title = trimmed.Substring(trimmed.IndexOf(' ') + 1).Trim();
+                currentTitle = title;
+                int words = title.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                currentWords += words;
+                currentChars += title.Length;
+
+                if (title.Contains("∩", StringComparison.OrdinalIgnoreCase) ||
+                    title.Contains("intersection", StringComparison.OrdinalIgnoreCase) ||
+                    title.Contains("shared", StringComparison.OrdinalIgnoreCase) ||
+                    title.Contains("overlap", StringComparison.OrdinalIgnoreCase) ||
+                    title.Contains("both", StringComparison.OrdinalIgnoreCase) ||
+                    title.Contains("common", StringComparison.OrdinalIgnoreCase))
+                {
+                    isCurrentIntersection = true;
+                }
+            }
+            else if (indent >= 2 && (trimmed.StartsWith("* ") || trimmed.StartsWith("- ")))
+            {
+                // Sub-bullet
+                string subText = trimmed.Substring(2).Trim();
+                int words = subText.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                currentWords += words;
+                currentChars += subText.Length;
+                currentSubitems++;
+
+                if (subText.Contains("∩", StringComparison.OrdinalIgnoreCase) ||
+                    subText.Contains("intersection", StringComparison.OrdinalIgnoreCase) ||
+                    subText.Contains("shared", StringComparison.OrdinalIgnoreCase))
+                {
+                    isCurrentIntersection = true;
+                }
+            }
+        }
+        CommitCurrent();
+
+        if (setItems.Count == 0)
+        {
+            return new SmartArtVennRadialAudit(
+                0, 0, 0, 0.0, 0.0, 100.0,
+                Array.Empty<VennRadialSetItem>(),
+                "Empty Venn/Radial Diagram",
+                "Venn/Radial intersection balance audit: 0 sets · Outline contains no set items");
+        }
+
+        int primarySetCount = setItems.Count(s => !s.IsIntersection);
+        int intersectionCount = setItems.Count(s => s.IsIntersection);
+        int totalWords = setItems.Sum(s => s.WordCount);
+
+        var primarySets = setItems.Where(s => !s.IsIntersection).ToList();
+        double meanWords = primarySets.Count > 0 ? primarySets.Average(s => s.WordCount) : 0.0;
+        double variance = primarySets.Count > 1
+            ? primarySets.Sum(s => Math.Pow(s.WordCount - meanWords, 2)) / (primarySets.Count - 1)
+            : 0.0;
+        double stdDev = Math.Round(Math.Sqrt(variance), 1);
+        double cv = meanWords > 0 ? stdDev / meanWords : 0.0;
+
+        // Balance scoring:
+        double baseScore = 100.0 * Math.Max(0.0, 1.0 - Math.Min(1.0, cv));
+        if (primarySetCount >= 2 && intersectionCount == 0 && (layoutName != null && layoutName.Contains("venn", StringComparison.OrdinalIgnoreCase)))
+        {
+            baseScore -= 25.0; // Penalty for missing intersection in a Venn layout
+        }
+        double balanceScore = Math.Round(Math.Clamp(baseScore, 10.0, 100.0), 1);
+
+        string category;
+        if (primarySetCount <= 1)
+        {
+            category = "Single Set / Non-Venn Outline";
+        }
+        else if (balanceScore >= 85.0)
+        {
+            category = intersectionCount > 0 ? "Harmonious Venn/Radial Overlap Balance" : "Balanced Radial Hub Distribution";
+        }
+        else if (balanceScore >= 60.0)
+        {
+            category = "Moderate Overlap Symmetry";
+        }
+        else
+        {
+            category = "Skewed / Asymmetric Set Word Volume";
+        }
+
+        string summary = FormatVennRadialBalanceSummary(
+            primarySetCount, intersectionCount, totalWords, meanWords, stdDev, balanceScore, category);
+
+        return new SmartArtVennRadialAudit(
+            primarySetCount, intersectionCount, totalWords, meanWords, stdDev, balanceScore, setItems, category, summary);
+    }
+
+    public static SmartArtVennRadialAudit AuditVennRadialIntersectionBalance(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditVennRadialIntersectionBalance(markdown, layoutName);
+    }
+
+    public static string FormatVennRadialBalanceSummary(
+        int totalSets, int intersections, int totalWords, double meanWords, double stdDev, double score, string category)
+    {
+        if (totalSets == 0)
+            return "Venn/Radial intersection balance audit: 0 sets · Outline contains no set data";
+
+        string setLabel = totalSets == 1 ? "1 primary set" : $"{totalSets} primary sets";
+        var alerts = new List<string>();
+        if (intersections > 0) alerts.Add($"{intersections} {(intersections == 1 ? "intersection" : "intersections")}");
+        else alerts.Add("0 intersections");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
+        return $"Venn/Radial intersection balance audit ({setLabel} [{totalWords} words] · {category} · {score:0.#}% score): " +
+               $"avg {meanWords:0.#}w (±{stdDev:0.#}w){details}";
+    }
 }
 
 /// <summary>
@@ -7851,6 +8014,33 @@ public sealed record SmartArtFunnelPyramidAudit(
     bool IsMonotonicProgression,
     double TaperUniformityScore,
     IReadOnlyList<FunnelPyramidStageItem> Stages,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, word density, character volume, and intersection status for a Venn/Radial set item.
+/// </summary>
+public sealed record VennRadialSetItem(
+    int SetIndex,
+    string Title,
+    int WordCount,
+    int CharacterCount,
+    int ChildItemCount,
+    bool IsIntersection,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt radial and Venn diagram overlap area, intersection balance,
+/// word density variance, and set symmetry across primary sets and intersection regions.
+/// </summary>
+public sealed record SmartArtVennRadialAudit(
+    int TotalSets,
+    int TotalIntersections,
+    int TotalWords,
+    double MeanSetWords,
+    double WordCountStdDev,
+    double BalanceScore,
+    IReadOnlyList<VennRadialSetItem> Sets,
     string Category,
     string Summary);
 

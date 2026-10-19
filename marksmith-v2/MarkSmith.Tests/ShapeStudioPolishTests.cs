@@ -2338,6 +2338,52 @@ public class ShapeStudioPolishTests
             auditUniform.Category, auditUniform.IsSelectionScope);
         Assert.Equal(auditUniform.Summary, formatted);
     }
+
+    [Fact]
+    public void Run178_AuditShapeZIndexLayeringAndOcclusion()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        var emptyAudit = vm.AuditShapeZIndexLayeringAndOcclusion();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(100.0, emptyAudit.StackingClarityScore);
+        Assert.Contains("0 shapes", emptyAudit.Summary);
+
+        // 2 non-overlapping shapes: s1 at (10, 10, 100, 100), s2 at (200, 10, 100, 100)
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Shape 1", X = 10, Y = 10, Width = 100, Height = 100 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Shape 2", X = 200, Y = 10, Width = 100, Height = 100 };
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+
+        var cleanAudit = vm.AuditShapeZIndexLayeringAndOcclusion();
+        Assert.Equal(2, cleanAudit.TotalShapesEvaluated);
+        Assert.Equal(0, cleanAudit.OverlapPairsCount);
+        Assert.Equal(100.0, cleanAudit.StackingClarityScore);
+        Assert.Equal("Pristine Layering & Zero Occlusion", cleanAudit.Category);
+
+        // Add s3 heavily occluding s1: (20, 20, 100, 100) -> overlaps s1 significantly
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Name = "Shape 3", X = 20, Y = 20, Width = 100, Height = 100 };
+        vm.Shapes.Add(s3);
+
+        var occludedAudit = vm.AuditShapeZIndexLayeringAndOcclusion();
+        Assert.Equal(3, occludedAudit.TotalShapesEvaluated);
+        Assert.Equal(1, occludedAudit.OverlapPairsCount);
+        Assert.Equal(1, occludedAudit.MajorOcclusionsCount);
+        Assert.True(occludedAudit.StackingClarityScore < 100.0);
+
+        // Add s4 duplicate coincident to s2: (200, 10, 100, 100)
+        var s4 = new ShapeCanvasItemViewModel { Id = "s4", Name = "Shape 4", X = 200, Y = 10, Width = 100, Height = 100 };
+        vm.Shapes.Add(s4);
+
+        var dupAudit = vm.AuditShapeZIndexLayeringAndOcclusion();
+        Assert.Equal(1, dupAudit.DuplicateCoincidentsCount);
+        Assert.Contains("Duplicate", dupAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatZIndexOcclusionSummary(
+            cleanAudit.TotalShapesEvaluated, cleanAudit.OverlapPairsCount, cleanAudit.MajorOcclusionsCount,
+            cleanAudit.ModerateOverlapsCount, cleanAudit.DuplicateCoincidentsCount, cleanAudit.ContainerNestingCount,
+            cleanAudit.StackingClarityScore, cleanAudit.Category, cleanAudit.IsSelectionScope);
+        Assert.Equal(cleanAudit.Summary, formatted);
+    }
 }
 
 

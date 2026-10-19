@@ -2089,6 +2089,48 @@ public class SmartArtStudioPolishTests
             smoothAudit.Category);
         Assert.Equal(smoothAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run178_AuditVennRadialIntersectionBalance()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditVennRadialIntersectionBalance("");
+        Assert.Equal(0, emptyAudit.TotalSets);
+        Assert.Equal(100.0, emptyAudit.BalanceScore);
+        Assert.Contains("0 sets", emptyAudit.Summary);
+
+        // Balanced 2-set Venn diagram with intersection
+        string balancedVenn = string.Join("\n",
+            "* Business Strategy",
+            "  * Market Analysis",
+            "* Technology Innovation",
+            "  * Platform Architecture",
+            "* Shared Goals & Synergies Intersection"
+        );
+
+        var balancedAudit = SmartArtDesignStudioViewModel.AuditVennRadialIntersectionBalance(balancedVenn, "venn-2");
+        Assert.Equal(2, balancedAudit.TotalSets);
+        Assert.Equal(1, balancedAudit.TotalIntersections);
+        Assert.Equal("Harmonious Venn/Radial Overlap Balance", balancedAudit.Category);
+        Assert.True(balancedAudit.BalanceScore >= 80.0);
+
+        // Skewed set volume
+        string skewedVenn = string.Join("\n",
+            "* Set Alpha",
+            "* Set Beta With Extremely Disproportionate Verbose Details Containing Far Too Many Extraneous Descriptions That Unbalance The Diagram"
+        );
+
+        var skewedAudit = SmartArtDesignStudioViewModel.AuditVennRadialIntersectionBalance(skewedVenn, "venn-2");
+        Assert.Equal(2, skewedAudit.TotalSets);
+        Assert.Equal(0, skewedAudit.TotalIntersections);
+        Assert.Contains("Skewed", skewedAudit.Category);
+        Assert.True(skewedAudit.BalanceScore < 80.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatVennRadialBalanceSummary(
+            balancedAudit.TotalSets, balancedAudit.TotalIntersections, balancedAudit.TotalWords,
+            balancedAudit.MeanSetWords, balancedAudit.WordCountStdDev, balancedAudit.BalanceScore,
+            balancedAudit.Category);
+        Assert.Equal(balancedAudit.Summary, formatted);
+    }
 }
 
 

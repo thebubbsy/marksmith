@@ -8586,6 +8586,213 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Graph degree distribution & hub centrality audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% score): " +
                    $"mean degree {meanDegree:0.##} (±{stdDev:0.##}), skewness {skewness:0.##}, max {maxDegree}{alertSuffix}";
         }
+
+        public GraphArticulationPointsAudit AuditArticulationPointsAndBiconnectivity(bool selectionOnly = false)
+        {
+            var targetNodes = (selectionOnly && HasSelection)
+                ? Nodes.Where(n => n.IsSelected).ToList()
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && HasSelection;
+            var targetNodeIds = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+
+            var targetLinks = Links.Where(l =>
+                targetNodeIds.Contains(l.SourceNodeId) && targetNodeIds.Contains(l.TargetNodeId)).ToList();
+
+            string scope = isSelection ? "Selection · " : "";
+            if (targetNodes.Count == 0)
+            {
+                return new GraphArticulationPointsAudit(
+                    0, 0, 0, 0, 0, 0, 100.0,
+                    Array.Empty<GraphCutVertexInfo>(),
+                    Array.Empty<GraphBridgeInfo>(),
+                    "Empty Map",
+                    isSelection,
+                    $"Graph biconnectivity & articulation points audit ({scope}0 nodes): Empty map");
+            }
+
+            var nodeMap = targetNodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+
+            // Build undirected multigraph with unique edge identifiers
+            var adj = new Dictionary<string, List<(string targetId, int edgeIndex)>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in targetNodes) adj[n.Id] = new List<(string, int)>();
+
+            for (int i = 0; i < targetLinks.Count; i++)
+            {
+                var l = targetLinks[i];
+                if (string.Equals(l.SourceNodeId, l.TargetNodeId, StringComparison.OrdinalIgnoreCase)) continue; // ignore self-loops
+                if (adj.ContainsKey(l.SourceNodeId) && adj.ContainsKey(l.TargetNodeId))
+                {
+                    adj[l.SourceNodeId].Add((l.TargetNodeId, i));
+                    adj[l.TargetNodeId].Add((l.SourceNodeId, i));
+                }
+            }
+
+            int timer = 0;
+            var discovery = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var low = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var cutVertexSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var cutBranches = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var bridgeList = new List<GraphBridgeInfo>();
+            int connectedComponents = 0;
+            int biconnectedBlockCount = 0;
+            var edgeStack = new Stack<int>();
+
+            void Dfs(string u, int parentEdgeIndex)
+            {
+                discovery[u] = low[u] = ++timer;
+                int children = 0;
+
+                foreach (var (v, edgeIndex) in adj[u])
+                {
+                    if (edgeIndex == parentEdgeIndex) continue;
+
+                    if (discovery.ContainsKey(v))
+                    {
+                        // Back edge
+                        low[u] = Math.Min(low[u], discovery[v]);
+                        if (discovery[v] < discovery[u])
+                        {
+                            edgeStack.Push(edgeIndex);
+                        }
+                    }
+                    else
+                    {
+                        // Tree edge
+                        children++;
+                        edgeStack.Push(edgeIndex);
+                        Dfs(v, edgeIndex);
+                        low[u] = Math.Min(low[u], low[v]);
+
+                        // Check articulation point condition for non-root
+                        if (parentEdgeIndex != -1 && low[v] >= discovery[u])
+                        {
+                            cutVertexSet.Add(u);
+                            cutBranches[u] = cutBranches.GetValueOrDefault(u) + 1;
+                        }
+
+                        // Check bridge condition
+                        if (low[v] > discovery[u])
+                        {
+                            string srcTitle = nodeMap.TryGetValue(u, out var sn) ? (sn.Title ?? u) : u;
+                            string tgtTitle = nodeMap.TryGetValue(v, out var tn) ? (tn.Title ?? v) : v;
+                            bridgeList.Add(new GraphBridgeInfo(u, srcTitle, v, tgtTitle, "⚠ Critical Bridge: Edge removal partitions graph"));
+                        }
+
+                        // Biconnected component block pop
+                        if (low[v] >= discovery[u])
+                        {
+                            biconnectedBlockCount++;
+                            while (edgeStack.Count > 0)
+                            {
+                                int popped = edgeStack.Pop();
+                                if (popped == edgeIndex) break;
+                            }
+                        }
+                    }
+                }
+
+                // Check articulation point condition for root
+                if (parentEdgeIndex == -1 && children >= 2)
+                {
+                    cutVertexSet.Add(u);
+                    cutBranches[u] = children;
+                }
+            }
+
+            foreach (var n in targetNodes)
+            {
+                if (!discovery.ContainsKey(n.Id))
+                {
+                    connectedComponents++;
+                    Dfs(n.Id, -1);
+                    if (edgeStack.Count > 0)
+                    {
+                        biconnectedBlockCount++;
+                        edgeStack.Clear();
+                    }
+                }
+            }
+
+            var cutVertexInfos = cutVertexSet.Select(id =>
+            {
+                var n = nodeMap[id];
+                int deg = adj.TryGetValue(id, out var list) ? list.Count : 0;
+                int branches = cutBranches.GetValueOrDefault(id, 1);
+                string role = branches >= 3 ? "Major Articulation Hub" : "Articulation Cut Vertex";
+                return new GraphCutVertexInfo(id, n.Title ?? id, deg, branches, role);
+            }).OrderByDescending(c => c.SubgraphBranches).ThenByDescending(c => c.Degree).ToList();
+
+            int nNodes = targetNodes.Count;
+            int nEdges = targetLinks.Count;
+            double cutRatio = nNodes > 2 ? (double)cutVertexSet.Count / (nNodes - 2) : 0.0;
+            double bridgeRatio = nEdges > 0 ? (double)bridgeList.Count / nEdges : 0.0;
+
+            double rawScore;
+            if (nNodes <= 2)
+            {
+                rawScore = 100.0;
+            }
+            else
+            {
+                rawScore = 100.0 * (1.0 - 0.45 * cutRatio - 0.55 * bridgeRatio);
+            }
+            double faultToleranceScore = Math.Max(0.0, Math.Min(100.0, Math.Round(rawScore, 1)));
+
+            string category = (cutVertexSet.Count == 0 && bridgeList.Count == 0)
+                ? "2-Connected Fault Tolerant (No Single Points of Failure)"
+                : faultToleranceScore >= 75.0
+                    ? "Resilient Topology (Few Bridges)"
+                    : faultToleranceScore >= 45.0
+                        ? "Moderate Fragility (Noticeable Cut Vertices)"
+                        : "High Topological Fragility (Tree / Chain Dominated)";
+
+            string summary = FormatArticulationPointsSummary(
+                nNodes, nEdges, connectedComponents, cutVertexSet.Count, bridgeList.Count,
+                biconnectedBlockCount, faultToleranceScore, category, isSelection);
+
+            return new GraphArticulationPointsAudit(
+                nNodes, nEdges, connectedComponents, cutVertexSet.Count, bridgeList.Count,
+                biconnectedBlockCount, faultToleranceScore, cutVertexInfos, bridgeList,
+                category, isSelection, summary);
+        }
+
+        public static GraphArticulationPointsAudit AuditArticulationPointsAndBiconnectivity(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditArticulationPointsAndBiconnectivity();
+        }
+
+        public static string FormatArticulationPointsSummary(
+            int totalNodes, int totalEdges, int components, int cutVertices, int bridges,
+            int biconnectedBlocks, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph biconnectivity & articulation points audit ({scope}0 nodes): Empty map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string edgeStr = totalEdges == 1 ? "1 edge" : $"{totalEdges} edges";
+
+            var alerts = new List<string>();
+            if (cutVertices > 0) alerts.Add($"⚠ {cutVertices} cut {(cutVertices == 1 ? "vertex" : "vertices")}");
+            if (bridges > 0) alerts.Add($"⚠ {bridges} {(bridges == 1 ? "bridge" : "bridges")}");
+            if (components > 1) alerts.Add($"{components} components");
+            if (biconnectedBlocks > 0) alerts.Add($"{biconnectedBlocks} 2-connected {(biconnectedBlocks == 1 ? "block" : "blocks")}");
+
+            string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% biconnected, 0 single points of failure";
+            return $"Graph biconnectivity & articulation points audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% fault tolerance): {cutVertices} cut vertices, {bridges} bridges{details}";
+        }
     }
 
 
@@ -9316,7 +9523,46 @@ namespace MarkSmith.ViewModels.MindMap
         string Category,
         bool IsSelectionScope,
         string Summary);
+
+    /// <summary>
+    /// Represents evaluated articulation point metrics, connected branch count, degree, and topological role for a mind map node.
+    /// </summary>
+    public sealed record GraphCutVertexInfo(
+        string NodeId,
+        string Title,
+        int Degree,
+        int SubgraphBranches,
+        string Role);
+
+    /// <summary>
+    /// Represents a critical bridge edge whose removal partitions the mind map graph into disconnected components.
+    /// </summary>
+    public sealed record GraphBridgeInfo(
+        string SourceId,
+        string SourceTitle,
+        string TargetId,
+        string TargetTitle,
+        string Status);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph biconnected components, articulation points (cut vertices),
+    /// bridge edges, and structural fault tolerance against single-point-of-failure node/edge partitions.
+    /// </summary>
+    public sealed record GraphArticulationPointsAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int ConnectedComponents,
+        int CutVertexCount,
+        int BridgeCount,
+        int BiconnectedBlockCount,
+        double FaultToleranceScore,
+        IReadOnlyList<GraphCutVertexInfo> CutVertices,
+        IReadOnlyList<GraphBridgeInfo> Bridges,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
 }
+
 
 
 

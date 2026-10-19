@@ -6146,6 +6146,176 @@ public static class LineDiff
         return $"Inline modification intensity audit ({pairLabel} · {category} · {score:0.#}% score): " +
                $"{microEdits} micro, {subtle} subtle, {moderate} moderate, {rewrites} rewrite · avg similarity {meanSimilarity:0.##}";
     }
+
+    /// <summary>
+    /// Audits version diff change hunk locality, contiguous change cluster compactness,
+    /// inter-hunk gap distances, and spatial fragmentation entropy across unified diff rows.
+    /// </summary>
+    public static DiffHunkLocalityAudit AuditDiffHunkLocalityAndFragmentation(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new DiffHunkLocalityAudit(
+                0, 0, 0, 0, 0, 0, 1.0, 0.0, 0, 0.0, 100.0,
+                Array.Empty<DiffHunkItem>(),
+                "Pristine Unmodified Document",
+                "Diff hunk locality audit: 0 diff rows · Document unchanged");
+        }
+
+        var hunks = new List<DiffHunkItem>();
+        int hunkIndex = 0;
+        int currentStart = -1;
+        int currentAdded = 0;
+        int currentDeleted = 0;
+        int currentModified = 0;
+
+        void CommitHunk(int endRow)
+        {
+            if (currentStart == -1) return;
+            hunkIndex++;
+            int totalLines = currentAdded + currentDeleted + currentModified;
+            string type = (currentAdded > 0 && currentDeleted == 0 && currentModified == 0)
+                ? "Pure Additions"
+                : (currentDeleted > 0 && currentAdded == 0 && currentModified == 0)
+                    ? "Pure Deletions"
+                    : "Mixed Modifications";
+
+            hunks.Add(new DiffHunkItem(hunkIndex, currentStart + 1, endRow + 1, currentAdded, currentDeleted, currentModified, totalLines, type));
+            currentStart = -1;
+            currentAdded = 0;
+            currentDeleted = 0;
+            currentModified = 0;
+        }
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var row = unifiedRows[i];
+            bool isChange = !row.IsGap && (row.IsAdded || row.IsRemoved);
+
+            if (isChange)
+            {
+                if (currentStart == -1) currentStart = i;
+                if (row.IsAdded) currentAdded++;
+                else if (row.IsRemoved) currentDeleted++;
+            }
+            else
+            {
+                if (currentStart != -1)
+                {
+                    CommitHunk(i - 1);
+                }
+            }
+        }
+        if (currentStart != -1)
+        {
+            CommitHunk(unifiedRows.Count - 1);
+        }
+
+        if (hunks.Count == 0)
+        {
+            return new DiffHunkLocalityAudit(
+                unifiedRows.Count, 0, 0, 0, 0, 0, 1.0, 0.0, 0, 0.0, 100.0,
+                Array.Empty<DiffHunkItem>(),
+                "Zero Change Hunks (Identical Content)",
+                $"Diff hunk locality audit ({unifiedRows.Count} rows): 0 change hunks · Document unchanged");
+        }
+
+        int totalModifiedLines = hunks.Sum(h => h.TotalLines);
+        int firstChangedRow = hunks[0].StartRow;
+        int lastChangedRow = hunks[^1].EndRow;
+        int spanLength = Math.Max(1, lastChangedRow - firstChangedRow + 1);
+        double localityRatio = Math.Round(Math.Clamp((double)totalModifiedLines / spanLength, 0.0, 1.0), 3);
+
+        var gaps = new List<int>();
+        for (int i = 1; i < hunks.Count; i++)
+        {
+            int gap = hunks[i].StartRow - hunks[i - 1].EndRow - 1;
+            if (gap >= 0) gaps.Add(gap);
+        }
+
+        double meanGap = gaps.Count > 0 ? Math.Round(gaps.Average(), 1) : 0.0;
+        int maxGap = gaps.Count > 0 ? gaps.Max() : 0;
+
+        // Spatial entropy calculation
+        double spatialEntropy = 0.0;
+        if (hunks.Count > 1 && totalModifiedLines > 0)
+        {
+            double sumPLogP = 0.0;
+            foreach (var h in hunks)
+            {
+                double p = (double)h.TotalLines / totalModifiedLines;
+                if (p > 0.0) sumPLogP += p * Math.Log2(p);
+            }
+            spatialEntropy = Math.Round(-sumPLogP / Math.Log2(hunks.Count), 3);
+        }
+
+        double rawScore;
+        if (hunks.Count == 1)
+        {
+            rawScore = 100.0;
+        }
+        else
+        {
+            double hunkPenalty = (hunks.Count - 1) * 3.5;
+            double spanPenalty = (1.0 - localityRatio) * 25.0;
+            double entropyPenalty = spatialEntropy * 15.0;
+            rawScore = 100.0 - hunkPenalty - spanPenalty - entropyPenalty;
+        }
+        double localityScore = Math.Round(Math.Clamp(rawScore, 10.0, 100.0), 1);
+
+        string category;
+        if (hunks.Count == 1)
+        {
+            category = "Unified Single-Hunk (High Locality)";
+        }
+        else if (localityScore >= 80.0)
+        {
+            category = "Clustered Multi-Hunk (Good Locality)";
+        }
+        else if (localityScore >= 55.0)
+        {
+            category = "Moderate Spatial Dispersion";
+        }
+        else
+        {
+            category = "Scattered Spatial Fragmentation (High Entropy)";
+        }
+
+        string summary = FormatDiffHunkLocalitySummary(
+            unifiedRows.Count, hunks.Count, totalModifiedLines, spanLength, localityRatio,
+            meanGap, maxGap, spatialEntropy, localityScore, category);
+
+        return new DiffHunkLocalityAudit(
+            unifiedRows.Count, hunks.Count, totalModifiedLines, firstChangedRow, lastChangedRow,
+            spanLength, localityRatio, meanGap, maxGap, spatialEntropy, localityScore, hunks, category, summary);
+    }
+
+    public static DiffHunkLocalityAudit AuditDiffHunkLocalityAndFragmentation(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditDiffHunkLocalityAndFragmentation(unified);
+    }
+
+    public static string FormatDiffHunkLocalitySummary(
+        int totalRows, int hunkCount, int modifiedLines, int spanLength, double localityRatio,
+        double meanGap, int maxGap, double entropy, double score, string category)
+    {
+        if (hunkCount == 0)
+            return "Diff hunk locality audit: 0 change hunks · Document unchanged";
+
+        string hunkLabel = hunkCount == 1 ? "1 change hunk" : $"{hunkCount} change hunks";
+        string lineLabel = modifiedLines == 1 ? "1 modified line" : $"{modifiedLines} modified lines";
+
+        if (hunkCount == 1)
+        {
+            return $"Diff hunk locality audit ({hunkLabel}, {lineLabel} · {category} · {score:0.#}% score): " +
+                   $"100% concentrated in single contiguous block";
+        }
+
+        return $"Diff hunk locality audit ({hunkLabel}, {lineLabel} across span of {spanLength} rows · {category} · {score:0.#}% score): " +
+               $"avg gap {meanGap:0.#} rows (max {maxGap}), locality ratio {localityRatio:0.##}";
+    }
 }
 
 /// <summary>
@@ -6668,5 +6838,39 @@ public sealed record InlineModificationIntensityAudit(
     IReadOnlyList<InlineModificationPair> Pairs,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated row range, line counts, and change type for a contiguous modification hunk.
+/// </summary>
+public sealed record DiffHunkItem(
+    int HunkIndex,
+    int StartRow,
+    int EndRow,
+    int AddedLines,
+    int DeletedLines,
+    int ModifiedLines,
+    int TotalLines,
+    string HunkType);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff change hunk locality, contiguous change cluster compactness,
+/// inter-hunk gap distances, and spatial fragmentation entropy.
+/// </summary>
+public sealed record DiffHunkLocalityAudit(
+    int TotalRows,
+    int HunkCount,
+    int ModifiedLinesCount,
+    int FirstChangedRow,
+    int LastChangedRow,
+    int SpanLength,
+    double LocalityRatio,
+    double MeanGapLines,
+    int MaxGapLines,
+    double SpatialEntropy,
+    double LocalityScore,
+    IReadOnlyList<DiffHunkItem> Hunks,
+    string Category,
+    string Summary);
+
 
 

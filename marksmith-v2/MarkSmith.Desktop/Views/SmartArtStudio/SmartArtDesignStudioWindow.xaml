@@ -371,6 +371,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelPyramidProgressionItem" Text="Audit funnel/pyramid progression volume &amp; stage ingestion taper" Click="OnOutlineStatsAuditFunnelPyramidProgressionClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditVennRadialBalanceItem" Text="Audit SmartArt radial / Venn diagram overlap area &amp; intersection balance" Click="OnOutlineStatsAuditVennRadialBalanceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

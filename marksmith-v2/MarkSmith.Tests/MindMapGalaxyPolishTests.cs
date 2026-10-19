@@ -3048,6 +3048,52 @@ namespace MarkSmith.Tests
                 starAudit.IsolatedCount, starAudit.ScaleFreeFitScore, starAudit.Category, starAudit.IsSelectionScope);
             Assert.Equal(starAudit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run178_AuditArticulationPointsAndBiconnectivity()
+        {
+            var emptyAudit = MindMapStudioViewModel.AuditArticulationPointsAndBiconnectivity(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.FaultToleranceScore);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2-connected cycle graph: n1-n2-n3-n1
+            var n1 = new MindMapNode { Id = "n1", Title = "Alpha" };
+            var n2 = new MindMapNode { Id = "n2", Title = "Beta" };
+            var n3 = new MindMapNode { Id = "n3", Title = "Gamma" };
+            var e1 = new MindMapLink { SourceNodeId = "n1", TargetNodeId = "n2" };
+            var e2 = new MindMapLink { SourceNodeId = "n2", TargetNodeId = "n3" };
+            var e3 = new MindMapLink { SourceNodeId = "n3", TargetNodeId = "n1" };
+
+            var cycleAudit = MindMapStudioViewModel.AuditArticulationPointsAndBiconnectivity(
+                new[] { n1, n2, n3 },
+                new[] { e1, e2, e3 });
+
+            Assert.Equal(3, cycleAudit.TotalNodes);
+            Assert.Equal(3, cycleAudit.TotalEdges);
+            Assert.Equal(0, cycleAudit.CutVertexCount);
+            Assert.Equal(0, cycleAudit.BridgeCount);
+            Assert.Equal(100.0, cycleAudit.FaultToleranceScore);
+            Assert.Contains("2-Connected Fault Tolerant", cycleAudit.Category);
+
+            // Tree / Chain: n1-n2-n3 (n2 is articulation point, both e1 & e2 are bridges)
+            var chainAudit = MindMapStudioViewModel.AuditArticulationPointsAndBiconnectivity(
+                new[] { n1, n2, n3 },
+                new[] { e1, e2 });
+
+            Assert.Equal(3, chainAudit.TotalNodes);
+            Assert.Equal(2, chainAudit.TotalEdges);
+            Assert.Equal(1, chainAudit.CutVertexCount);
+            Assert.Equal(2, chainAudit.BridgeCount);
+            Assert.Equal("n2", chainAudit.CutVertices[0].NodeId);
+            Assert.True(chainAudit.FaultToleranceScore < 100.0);
+
+            string formatted = MindMapStudioViewModel.FormatArticulationPointsSummary(
+                cycleAudit.TotalNodes, cycleAudit.TotalEdges, cycleAudit.ConnectedComponents,
+                cycleAudit.CutVertexCount, cycleAudit.BridgeCount, cycleAudit.BiconnectedBlockCount,
+                cycleAudit.FaultToleranceScore, cycleAudit.Category, cycleAudit.IsSelectionScope);
+            Assert.Equal(cycleAudit.Summary, formatted);
+        }
     }
 }
 

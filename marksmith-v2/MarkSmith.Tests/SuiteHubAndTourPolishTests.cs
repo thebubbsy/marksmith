@@ -4108,6 +4108,109 @@ Some paragraph in between.
         Assert.Contains("OnCopyWorkspaceCodeFenceLanguageAdvisorClick", suiteCs);
         Assert.Contains("AuditWorkspaceCodeFenceLanguageTags", suiteCs);
     }
+
+    [Fact]
+    public void Run178_AuditWorkspaceFrontmatterMetadata()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceFrontmatterMetadata(
+            Array.Empty<string>(),
+            _ => true,
+            _ => "");
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(100.0, emptyAudit.CompletenessScore);
+        Assert.Contains("0 documents", emptyAudit.Summary);
+
+        var files = new[] { "C:\\doc1.md", "C:\\doc2.md", "C:\\doc3.md" };
+        var contents = new Dictionary<string, string>
+        {
+            ["C:\\doc1.md"] = string.Join("\n",
+                "---",
+                "title: Document One",
+                "date: 2026-10-19",
+                "author: Matthew Bubb",
+                "tags: [guide, docs]",
+                "description: A comprehensive guide",
+                "---",
+                "# Heading 1"
+            ),
+            ["C:\\doc2.md"] = string.Join("\n",
+                "+++",
+                "title = \"Document Two\"",
+                "date = \"2026-10-19\"",
+                "+++",
+                "# Heading 2"
+            ),
+            ["C:\\doc3.md"] = string.Join("\n",
+                "# Plain document without frontmatter",
+                "Content paragraph here."
+            )
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceFrontmatterMetadata(
+            files,
+            p => contents.ContainsKey(p),
+            p => contents[p]);
+
+        Assert.Equal(3, audit.TotalDocumentsEvaluated);
+        Assert.Equal(2, audit.DocumentsWithFrontmatter);
+        Assert.Equal(1, audit.DocumentsMissingFrontmatter);
+        Assert.Equal(1, audit.YamlFrontmatterCount);
+        Assert.Equal(1, audit.TomlFrontmatterCount);
+        Assert.Equal(0, audit.MalformedFrontmatterCount);
+        Assert.Equal(2, audit.TitleCoverageCount);
+        Assert.Equal(2, audit.DateCoverageCount);
+        Assert.True(audit.CompletenessScore >= 50.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceFrontmatterSummary(
+            audit.TotalDocumentsEvaluated, audit.DocumentsWithFrontmatter, audit.DocumentsMissingFrontmatter,
+            audit.YamlFrontmatterCount, audit.TomlFrontmatterCount, audit.MalformedFrontmatterCount,
+            audit.TitleCoverageCount, audit.DateCoverageCount, audit.AuthorCoverageCount,
+            audit.TagsCoverageCount, audit.DescriptionCoverageCount, audit.CompletenessScore,
+            audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run178_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Image alt-text quality & WCAG accessibility auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditImageAltTextAccessibilityItem", mainCs);
+        Assert.Contains("AuditDocumentImageAltTextAndAccessibility", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph biconnected components, cut vertices & bridge fragility auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphArticulationPointsItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphArticulationPointsClick", galaxyCs);
+        Assert.Contains("AuditArticulationPointsAndBiconnectivity", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Shape z-index stacking layering & overlap occlusion auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditZIndexOcclusionItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditZIndexOcclusionClick", shapeCs);
+        Assert.Contains("AuditShapeZIndexLayeringAndOcclusion", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt radial / Venn diagram overlap area & intersection balance auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditVennRadialBalanceItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditVennRadialBalanceClick", smartArtCs);
+        Assert.Contains("AuditVennRadialIntersectionBalance", smartArtCs);
+
+        // Surface 5: HistoryWindow - Diff hunk locality & spatial fragmentation entropy auditor
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditHunkLocality", historyCs);
+        Assert.Contains("AuditDiffHunkLocalityAndFragmentation", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace markdown frontmatter schema completeness & metadata consistency advisor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceFrontmatterAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceFrontmatterAdvisorClick", suiteCs);
+        Assert.Contains("AuditWorkspaceFrontmatterMetadata", suiteCs);
+    }
 }
 
 

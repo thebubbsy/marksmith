@@ -4345,6 +4345,217 @@ public sealed class RecentFilesService
     }
 
     /// <summary>
+    /// Audits markdown documents across the workspace for frontmatter metadata blocks (YAML '---' or TOML '+++'),
+    /// schema field completeness (title, date, author, tags/categories, description/summary), and malformed syntax.
+    /// </summary>
+    public static WorkspaceFrontmatterMetadataAudit AuditWorkspaceFrontmatterMetadata(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var fileList = (files ?? Enumerable.Empty<string>()).ToList();
+        var exists = fileExistsProvider ?? File.Exists;
+        var reader = contentReader ?? File.ReadAllText;
+
+        if (fileList.Count == 0)
+        {
+            return new WorkspaceFrontmatterMetadataAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceFrontmatterDocItem>(),
+                "Workspace Empty",
+                "Workspace frontmatter metadata advisor: 0 documents · Workspace is empty");
+        }
+
+        var docItems = new List<WorkspaceFrontmatterDocItem>();
+        int docsWithFrontmatter = 0;
+        int yamlCount = 0;
+        int tomlCount = 0;
+        int malformedCount = 0;
+        int titleCount = 0;
+        int dateCount = 0;
+        int authorCount = 0;
+        int tagsCount = 0;
+        int descCount = 0;
+
+        foreach (var path in fileList)
+        {
+            if (string.IsNullOrWhiteSpace(path)) continue;
+            string ext = Path.GetExtension(path);
+            if (!string.Equals(ext, ".md", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(ext, ".markdown", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(ext, ".mdx", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!exists(path)) continue;
+
+            string content;
+            try
+            {
+                content = reader(path);
+            }
+            catch
+            {
+                continue;
+            }
+
+            string fileName = Path.GetFileName(path);
+            var (hasFm, format, isMalformed, hasTitle, hasDate, hasAuthor, hasTags, hasDesc, fieldsFound, status) =
+                EvaluateDocumentFrontmatter(content);
+
+            if (hasFm) docsWithFrontmatter++;
+            if (format == "YAML") yamlCount++;
+            else if (format == "TOML") tomlCount++;
+            if (isMalformed) malformedCount++;
+            if (hasTitle) titleCount++;
+            if (hasDate) dateCount++;
+            if (hasAuthor) authorCount++;
+            if (hasTags) tagsCount++;
+            if (hasDesc) descCount++;
+
+            docItems.Add(new WorkspaceFrontmatterDocItem(
+                path, fileName, hasFm, format, isMalformed, hasTitle, hasDate, hasAuthor, hasTags, hasDesc, fieldsFound, status));
+        }
+
+        if (docItems.Count == 0)
+        {
+            return new WorkspaceFrontmatterMetadataAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceFrontmatterDocItem>(),
+                "No Markdown Documents",
+                "Workspace frontmatter metadata advisor: 0 markdown documents found");
+        }
+
+        int totalDocs = docItems.Count;
+        int missingCount = totalDocs - docsWithFrontmatter;
+        int totalExpectedFields = totalDocs * 5; // 5 schema fields: title, date, author, tags, description
+        int totalFoundFields = titleCount + dateCount + authorCount + tagsCount + descCount;
+
+        double fmRatio = (double)docsWithFrontmatter / totalDocs;
+        double fieldRatio = (double)totalFoundFields / totalExpectedFields;
+        double malformedPenalty = malformedCount * 15.0;
+
+        double rawScore = (fmRatio * 40.0) + (fieldRatio * 60.0) - malformedPenalty;
+        double completenessScore = Math.Round(Math.Clamp(rawScore, 0.0, 100.0), 1);
+
+        string category = completenessScore switch
+        {
+            >= 90.0 => "Comprehensive Frontmatter Schema Consistency",
+            >= 75.0 => "Good Frontmatter Coverage",
+            >= 50.0 => "Moderate Frontmatter Consistency (Partial Schema)",
+            _ => "Low Frontmatter Coverage / Missing Metadata"
+        };
+
+        string summary = FormatWorkspaceFrontmatterSummary(
+            totalDocs, docsWithFrontmatter, missingCount, yamlCount, tomlCount, malformedCount,
+            titleCount, dateCount, authorCount, tagsCount, descCount, completenessScore, category);
+
+        return new WorkspaceFrontmatterMetadataAudit(
+            totalDocs, docsWithFrontmatter, missingCount, yamlCount, tomlCount, malformedCount,
+            titleCount, dateCount, authorCount, tagsCount, descCount, completenessScore,
+            docItems, category, summary);
+    }
+
+    private static (bool HasFm, string Format, bool IsMalformed, bool HasTitle, bool HasDate, bool HasAuthor, bool HasTags, bool HasDesc, int FieldsFound, string Status)
+        EvaluateDocumentFrontmatter(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return (false, "None", false, false, false, false, false, false, 0, "Empty document");
+        }
+
+        string trimmed = content.TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
+        var lines = trimmed.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        if (lines.Length == 0)
+        {
+            return (false, "None", false, false, false, false, false, false, 0, "Empty document");
+        }
+
+        string firstLine = lines[0].Trim();
+        bool isYaml = firstLine == "---";
+        bool isToml = firstLine == "+++";
+
+        if (!isYaml && !isToml)
+        {
+            return (false, "None", false, false, false, false, false, false, 0, "Missing frontmatter");
+        }
+
+        string delimiter = isYaml ? "---" : "+++";
+        string format = isYaml ? "YAML" : "TOML";
+
+        int closingIdx = -1;
+        for (int i = 1; i < lines.Length; i++)
+        {
+            if (lines[i].Trim() == delimiter)
+            {
+                closingIdx = i;
+                break;
+            }
+        }
+
+        if (closingIdx == -1)
+        {
+            return (true, format, true, false, false, false, false, false, 0, $"⚠ Malformed {format} frontmatter: Unclosed delimiter");
+        }
+
+        var fmBodyLines = lines.Skip(1).Take(closingIdx - 1).ToList();
+        bool hasTitle = false;
+        bool hasDate = false;
+        bool hasAuthor = false;
+        bool hasTags = false;
+        bool hasDesc = false;
+
+        foreach (var rawFmLine in fmBodyLines)
+        {
+            string l = rawFmLine.Trim();
+            if (string.IsNullOrEmpty(l) || l.StartsWith("#")) continue;
+
+            if (l.StartsWith("title:", StringComparison.OrdinalIgnoreCase) || l.StartsWith("title =", StringComparison.OrdinalIgnoreCase)) hasTitle = true;
+            else if (l.StartsWith("date:", StringComparison.OrdinalIgnoreCase) || l.StartsWith("date =", StringComparison.OrdinalIgnoreCase)) hasDate = true;
+            else if (l.StartsWith("author:", StringComparison.OrdinalIgnoreCase) || l.StartsWith("author =", StringComparison.OrdinalIgnoreCase)) hasAuthor = true;
+            else if (l.StartsWith("tags:", StringComparison.OrdinalIgnoreCase) || l.StartsWith("tags =", StringComparison.OrdinalIgnoreCase) ||
+                     l.StartsWith("categories:", StringComparison.OrdinalIgnoreCase) || l.StartsWith("categories =", StringComparison.OrdinalIgnoreCase)) hasTags = true;
+            else if (l.StartsWith("description:", StringComparison.OrdinalIgnoreCase) || l.StartsWith("description =", StringComparison.OrdinalIgnoreCase) ||
+                     l.StartsWith("summary:", StringComparison.OrdinalIgnoreCase) || l.StartsWith("summary =", StringComparison.OrdinalIgnoreCase)) hasDesc = true;
+        }
+
+        int fieldsFound = (hasTitle ? 1 : 0) + (hasDate ? 1 : 0) + (hasAuthor ? 1 : 0) + (hasTags ? 1 : 0) + (hasDesc ? 1 : 0);
+        string status = $"Valid {format} ({fieldsFound}/5 schema fields)";
+
+        return (true, format, false, hasTitle, hasDate, hasAuthor, hasTags, hasDesc, fieldsFound, status);
+    }
+
+    public static WorkspaceFrontmatterMetadataAudit AuditWorkspaceFrontmatterMetadata(
+        string filePath,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        return AuditWorkspaceFrontmatterMetadata(new[] { filePath }, fileExistsProvider, contentReader);
+    }
+
+    public static string FormatWorkspaceFrontmatterSummary(
+        int totalDocs, int withFm, int missingFm, int yamlCount, int tomlCount, int malformedCount,
+        int titleCount, int dateCount, int authorCount, int tagsCount, int descCount,
+        double score, string category)
+    {
+        if (totalDocs == 0) return "Workspace frontmatter metadata advisor: 0 documents · Workspace is empty";
+
+        string docLabel = totalDocs == 1 ? "1 document" : $"{totalDocs} documents";
+        var alerts = new List<string>();
+        if (missingFm > 0) alerts.Add($"⚠ {missingFm} missing frontmatter");
+        if (malformedCount > 0) alerts.Add($"⚠ {malformedCount} malformed");
+        if (yamlCount > 0) alerts.Add($"{yamlCount} YAML");
+        if (tomlCount > 0) alerts.Add($"{tomlCount} TOML");
+
+        string schemaOverview = $"title {titleCount}/{totalDocs}, date {dateCount}/{totalDocs}, tags {tagsCount}/{totalDocs}";
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% frontmatter coverage";
+
+        return $"Workspace frontmatter metadata advisor ({docLabel} · {category} · {score:0.#}% score): " +
+               $"{withFm} with frontmatter [{schemaOverview}]{details}";
+    }
+
+    /// <summary>
     /// Audits workspace markdown documents for local and external media link integrity, detecting broken relative paths,
     /// missing image/video/audio assets, portability risks (absolute paths, unencoded spaces), and data URIs.
     /// </summary>
@@ -6476,5 +6687,44 @@ public sealed record WorkspaceMediaAccessibilityAudit(
     IReadOnlyList<WorkspaceMediaAccessibilityItem> MediaItems,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated frontmatter presence, format (YAML/TOML), schema field completeness, and status for a workspace document.
+/// </summary>
+public sealed record WorkspaceFrontmatterDocItem(
+    string FilePath,
+    string FileName,
+    bool HasFrontmatter,
+    string FrontmatterFormat,
+    bool IsMalformed,
+    bool HasTitle,
+    bool HasDate,
+    bool HasAuthor,
+    bool HasTags,
+    bool HasDescription,
+    int SchemaFieldsFound,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown documents for frontmatter metadata blocks (YAML/TOML),
+/// schema completeness (title, date, author, tags, description), and consistency across workspace files.
+/// </summary>
+public sealed record WorkspaceFrontmatterMetadataAudit(
+    int TotalDocumentsEvaluated,
+    int DocumentsWithFrontmatter,
+    int DocumentsMissingFrontmatter,
+    int YamlFrontmatterCount,
+    int TomlFrontmatterCount,
+    int MalformedFrontmatterCount,
+    int TitleCoverageCount,
+    int DateCoverageCount,
+    int AuthorCoverageCount,
+    int TagsCoverageCount,
+    int DescriptionCoverageCount,
+    double CompletenessScore,
+    IReadOnlyList<WorkspaceFrontmatterDocItem> Documents,
+    string Category,
+    string Summary);
+
 
 

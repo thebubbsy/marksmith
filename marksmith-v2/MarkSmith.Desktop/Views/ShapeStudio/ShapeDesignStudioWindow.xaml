@@ -742,6 +742,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditCornerRadiusConsistencyItem" Text="Audit shape corner radius consistency &amp; rounded rectangle harmony" Click="OnSelectionAuditCornerRadiusConsistencyClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditZIndexOcclusionItem" Text="Audit shape z-index stacking layering &amp; overlap occlusion" Click="OnSelectionAuditZIndexOcclusionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

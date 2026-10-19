@@ -3549,6 +3549,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditInlineIntensity);
+
+                var auditHunkLocality = new MenuFlyoutItem
+                {
+                    Text = "Audit diff hunk locality & spatial fragmentation entropy",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditHunkLocality.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditDiffHunkLocalityAndFragmentation(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditHunkLocality);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

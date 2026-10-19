@@ -8391,6 +8391,176 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Shape corner radius consistency audit ({scopeStr}{shapeLabel} [{detailStr}] · {category} · {score:0.#}% score): " +
                $"{subtleCount} subtle, {mediumCount} medium, {pillCount} pill";
     }
+
+    public DiagramZIndexOcclusionAudit AuditShapeZIndexLayeringAndOcclusion(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = (targetShapes != null) || (selected.Count >= 2);
+
+        var audit = AuditShapeZIndexLayeringAndOcclusion(targets, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramZIndexOcclusionAudit AuditShapeZIndexLayeringAndOcclusion(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes, bool isSelection = false)
+    {
+        var list = (shapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        var validShapes = list.Where(s =>
+            s.Width >= 4.0 && s.Height >= 4.0 &&
+            !(s.ShapeType != null && s.ShapeType.Contains("line", StringComparison.OrdinalIgnoreCase))).ToList();
+
+        if (validShapes.Count <= 1)
+        {
+            return new DiagramZIndexOcclusionAudit(
+                validShapes.Count, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ShapeOcclusionPairItem>(),
+                "Pristine Layering",
+                isSelection,
+                $"Diagram Z-index stacking & occlusion audit ({scopeStr}{validShapes.Count} {(validShapes.Count == 1 ? "shape" : "shapes")}): No overlapping pairs to evaluate");
+        }
+
+        var pairs = new List<ShapeOcclusionPairItem>();
+        int majorOcclusionCount = 0;
+        int moderateOverlapCount = 0;
+        int duplicateCoincidentCount = 0;
+        int containerNestingCount = 0;
+
+        // Iterate through all pairs (i < j), where j is higher in Z-order
+        for (int i = 0; i < validShapes.Count; i++)
+        {
+            var lower = validShapes[i];
+            double x1 = lower.X;
+            double y1 = lower.Y;
+            double w1 = lower.Width;
+            double h1 = lower.Height;
+            double a1 = w1 * h1;
+
+            for (int j = i + 1; j < validShapes.Count; j++)
+            {
+                var higher = validShapes[j];
+                double x2 = higher.X;
+                double y2 = higher.Y;
+                double w2 = higher.Width;
+                double h2 = higher.Height;
+                double a2 = w2 * h2;
+
+                double xLeft = Math.Max(x1, x2);
+                double xRight = Math.Min(x1 + w1, x2 + w2);
+                double yTop = Math.Max(y1, y2);
+                double yBottom = Math.Min(y1 + h1, y2 + h2);
+
+                if (xRight > xLeft && yBottom > yTop)
+                {
+                    double overlapW = xRight - xLeft;
+                    double overlapH = yBottom - yTop;
+                    double overlapArea = overlapW * overlapH;
+                    double minArea = Math.Min(a1, a2);
+                    double coverageRatio = minArea > 0 ? overlapArea / minArea : 0.0;
+
+                    bool isDuplicate = Math.Abs(x1 - x2) <= 3.0 && Math.Abs(y1 - y2) <= 3.0 &&
+                                       Math.Abs(w1 - w2) <= 3.0 && Math.Abs(h1 - h2) <= 3.0;
+
+                    bool isContainerNesting = !isDuplicate &&
+                        ((a1 >= 2.5 * a2 && x2 >= x1 - 1.0 && y2 >= y1 - 1.0 && x2 + w2 <= x1 + w1 + 1.0) ||
+                         (a2 >= 2.5 * a1 && x1 >= x2 - 1.0 && y1 >= y2 - 1.0 && x1 + w1 <= x2 + w2 + 1.0));
+
+                    string tier;
+                    string status;
+
+                    if (isDuplicate)
+                    {
+                        duplicateCoincidentCount++;
+                        tier = "Duplicate Coincident Shape Hazard";
+                        status = "⚠ Duplicate stacked shape: Coincident coordinates and bounds";
+                    }
+                    else if (isContainerNesting)
+                    {
+                        containerNestingCount++;
+                        tier = "Intentional Container Nesting";
+                        status = "✓ Clean hierarchical container enclosing child shape";
+                    }
+                    else if (coverageRatio >= 0.70)
+                    {
+                        majorOcclusionCount++;
+                        tier = "Major / Complete Occlusion";
+                        status = $"⚠ Severe occlusion ({coverageRatio * 100:0.#}% overlap covers background content)";
+                    }
+                    else if (coverageRatio >= 0.25)
+                    {
+                        moderateOverlapCount++;
+                        tier = "Moderate Overlap Occlusion";
+                        status = $"⚠ Moderate overlap ({coverageRatio * 100:0.#}% bounding box intersection)";
+                    }
+                    else
+                    {
+                        tier = "Minor Touch / Edge Overlap";
+                        status = $"ℹ Subtle edge overlap ({coverageRatio * 100:0.#}% intersection)";
+                    }
+
+                    pairs.Add(new ShapeOcclusionPairItem(
+                        lower.Id, lower.Name, higher.Id, higher.Name,
+                        overlapArea, coverageRatio, isDuplicate, isContainerNesting, tier, status));
+                }
+            }
+        }
+
+        int totalPossiblePairs = validShapes.Count * (validShapes.Count - 1) / 2;
+        double penalty = (duplicateCoincidentCount * 30.0 + majorOcclusionCount * 20.0 + moderateOverlapCount * 8.0) / Math.Max(1, totalPossiblePairs) * 100.0;
+        double stackingScore = Math.Round(Math.Clamp(100.0 - penalty, 0.0, 100.0), 1);
+
+        string category;
+        if (pairs.Count == 0 || (pairs.Count == containerNestingCount && majorOcclusionCount == 0 && duplicateCoincidentCount == 0))
+        {
+            category = "Pristine Layering & Zero Occlusion";
+        }
+        else if (duplicateCoincidentCount > 0)
+        {
+            category = $"Duplicate Coincident Shape Conflict ({duplicateCoincidentCount} Duplicates)";
+        }
+        else if (majorOcclusionCount > 0)
+        {
+            category = $"Severe Overlap Occlusion ({majorOcclusionCount} Major Occlusions)";
+        }
+        else if (stackingScore >= 80.0)
+        {
+            category = "Good Stacking Clarity";
+        }
+        else
+        {
+            category = "Cluttered Stacking Layering";
+        }
+
+        string summary = FormatZIndexOcclusionSummary(
+            validShapes.Count, pairs.Count, majorOcclusionCount, moderateOverlapCount,
+            duplicateCoincidentCount, containerNestingCount, stackingScore, category, isSelection);
+
+        return new DiagramZIndexOcclusionAudit(
+            validShapes.Count, pairs.Count, majorOcclusionCount, moderateOverlapCount,
+            duplicateCoincidentCount, containerNestingCount, stackingScore, pairs, category, isSelection, summary);
+    }
+
+    public static string FormatZIndexOcclusionSummary(
+        int totalShapes, int totalOverlaps, int majorOcclusions, int moderateOverlaps,
+        int duplicates, int containerNestings, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        if (totalShapes <= 1)
+            return $"Diagram Z-index stacking & occlusion audit ({scopeStr}{shapeLabel}): No overlapping pairs to evaluate";
+
+        var alerts = new List<string>();
+        if (duplicates > 0) alerts.Add($"⚠ {duplicates} duplicate coincident {(duplicates == 1 ? "hazard" : "hazards")}");
+        if (majorOcclusions > 0) alerts.Add($"⚠ {majorOcclusions} major {(majorOcclusions == 1 ? "occlusion" : "occlusions")}");
+        if (moderateOverlaps > 0) alerts.Add($"{moderateOverlaps} moderate {(moderateOverlaps == 1 ? "overlap" : "overlaps")}");
+        if (containerNestings > 0) alerts.Add($"{containerNestings} container {(containerNestings == 1 ? "nesting" : "nestings")}");
+
+        string details = alerts.Count > 0 ? $" [{string.Join(", ", alerts)}]" : " · 100% clean visual separation";
+        return $"Diagram Z-index stacking & occlusion audit ({scopeStr}{shapeLabel}, {totalOverlaps} overlap {(totalOverlaps == 1 ? "pair" : "pairs")} · {category} · {score:0.#}% score){details}";
+    }
 }
 
 /// <summary>
@@ -9144,6 +9314,38 @@ public sealed record ShapeCornerRadiusConsistencyAudit(
     double DominantRadius,
     double UniformityScore,
     IReadOnlyList<ShapeCornerRadiusItem> Shapes,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated bounding box intersection metrics, coverage ratio, and occlusion tier for a pair of overlapping shapes.
+/// </summary>
+public sealed record ShapeOcclusionPairItem(
+    string LowerShapeId,
+    string LowerShapeName,
+    string HigherShapeId,
+    string HigherShapeName,
+    double OverlapArea,
+    double CoverageRatio,
+    bool IsDuplicateCoincident,
+    bool IsContainerNesting,
+    string OcclusionTier,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape Z-index stacking layering, pairwise overlap occlusion,
+/// duplicate coincident shapes, and intentional container nesting.
+/// </summary>
+public sealed record DiagramZIndexOcclusionAudit(
+    int TotalShapesEvaluated,
+    int OverlapPairsCount,
+    int MajorOcclusionsCount,
+    int ModerateOverlapsCount,
+    int DuplicateCoincidentsCount,
+    int ContainerNestingCount,
+    double StackingClarityScore,
+    IReadOnlyList<ShapeOcclusionPairItem> OverlapPairs,
     string Category,
     bool IsSelectionScope,
     string Summary);

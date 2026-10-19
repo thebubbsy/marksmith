@@ -2174,6 +2174,38 @@ public class HistoryPolishTests : IDisposable
             typoAudit.MeanSimilarity, typoAudit.InlineRefinementScore, typoAudit.Category);
         Assert.Equal(typoAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run178_AuditDiffHunkLocalityAndFragmentation()
+    {
+        var emptyAudit = LineDiff.AuditDiffHunkLocalityAndFragmentation("", "");
+        Assert.Equal(0, emptyAudit.HunkCount);
+        Assert.Equal(100.0, emptyAudit.LocalityScore);
+        Assert.Contains("0 change hunks", emptyAudit.Summary);
+
+        // Single contiguous hunk
+        string beforeSingle = "line 1\nline 2\nline 3\nline 4\nline 5";
+        string afterSingle = "line 1\nline 2 modified\nline 3 modified\nline 4\nline 5";
+        var singleAudit = LineDiff.AuditDiffHunkLocalityAndFragmentation(beforeSingle, afterSingle);
+        Assert.Equal(1, singleAudit.HunkCount);
+        Assert.Equal(100.0, singleAudit.LocalityScore);
+        Assert.Equal("Unified Single-Hunk (High Locality)", singleAudit.Category);
+
+        // Multiple scattered hunks across document
+        string beforeMulti = "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10";
+        string afterMulti = "line 1 modified\nline 2\nline 3\nline 4\nline 5 modified\nline 6\nline 7\nline 8\nline 9\nline 10 modified";
+        var multiAudit = LineDiff.AuditDiffHunkLocalityAndFragmentation(beforeMulti, afterMulti);
+        Assert.Equal(3, multiAudit.HunkCount);
+        Assert.True(multiAudit.SpanLength >= 8);
+        Assert.True(multiAudit.LocalityScore < 90.0);
+
+        string formatted = LineDiff.FormatDiffHunkLocalitySummary(
+            singleAudit.TotalRows, singleAudit.HunkCount, singleAudit.ModifiedLinesCount,
+            singleAudit.SpanLength, singleAudit.LocalityRatio, singleAudit.MeanGapLines,
+            singleAudit.MaxGapLines, singleAudit.SpatialEntropy, singleAudit.LocalityScore,
+            singleAudit.Category);
+        Assert.Equal(singleAudit.Summary, formatted);
+    }
 }
 
 

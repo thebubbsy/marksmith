@@ -348,6 +348,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionItem" Text="Audit node degree distribution skewness, hub centrality &amp; scale-free network" Click="OnAuditGraphDegreeDistributionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphArticulationPointsItem" Text="Audit graph biconnected components, cut vertices &amp; bridge fragility" Click="OnAuditGraphArticulationPointsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

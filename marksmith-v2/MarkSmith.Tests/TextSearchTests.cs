@@ -2290,6 +2290,52 @@ public class TextSearchTests
             validAudit.PairingIntegrityScore, validAudit.Category);
         Assert.Equal(validAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run178_AuditDocumentImageAltTextAndAccessibility()
+    {
+        var emptyAudit = TextSearch.AuditDocumentImageAltTextAndAccessibility("");
+        Assert.Equal(0, emptyAudit.TotalImages);
+        Assert.Equal(100.0, emptyAudit.AccessibilityComplianceScore);
+        Assert.Contains("0 images", emptyAudit.Summary);
+
+        string validDoc = string.Join("\n",
+            "# Accessibility Guide",
+            "![System architecture diagram illustrating API endpoints](diagram.png)",
+            "```markdown",
+            "![code fence demo image](code.png)",
+            "```",
+            "<img src=\"chart.svg\" alt=\"Quarterly financial revenue bar chart showing 15 percent growth\" />"
+        );
+
+        var validAudit = TextSearch.AuditDocumentImageAltTextAndAccessibility(validDoc);
+        Assert.Equal(2, validAudit.TotalImages);
+        Assert.Equal(2, validAudit.DescriptiveCount);
+        Assert.Equal(0, validAudit.EmptyCount);
+        Assert.Equal(0, validAudit.GenericPlaceholderCount);
+        Assert.Equal(100.0, validAudit.AccessibilityComplianceScore);
+        Assert.Equal("Full WCAG 2.1 Accessibility Compliance", validAudit.Category);
+
+        string flawedDoc = string.Join("\n",
+            "![](missing.png)",
+            "![screenshot](screenshot.png)",
+            "![image of user profile avatar badge](user.jpg)"
+        );
+
+        var flawedAudit = TextSearch.AuditDocumentImageAltTextAndAccessibility(flawedDoc);
+        Assert.Equal(3, flawedAudit.TotalImages);
+        Assert.Equal(1, flawedAudit.EmptyCount);
+        Assert.Equal(1, flawedAudit.GenericPlaceholderCount);
+        Assert.Equal(1, flawedAudit.RedundantPrefixCount);
+        Assert.True(flawedAudit.AccessibilityComplianceScore < 60.0);
+
+        string formatted = TextSearch.FormatImageAltTextAccessibilitySummary(
+            validAudit.TotalImages, validAudit.DescriptiveCount, validAudit.EmptyCount,
+            validAudit.GenericPlaceholderCount, validAudit.RedundantPrefixCount,
+            validAudit.OverlyLongCount, validAudit.DataUriCount,
+            validAudit.AccessibilityComplianceScore, validAudit.Category);
+        Assert.Equal(validAudit.Summary, formatted);
+    }
 }
 
 
