@@ -1868,6 +1868,39 @@ public class HistoryPolishTests : IDisposable
         Assert.True(orphanAudit.ConflictBlocks[0].IsMalformed);
         Assert.Equal("Malformed / Corrupted Git Conflict Markers", orphanAudit.Category);
     }
+
+    [Fact]
+    public void Run170_AuditSemanticDiffCoChangeClusters_DetectsCoupledHunksAndClusters()
+    {
+        // 1. Empty rows
+        var emptyAudit = LineDiff.AuditSemanticDiffCoChangeClusters(Array.Empty<LineDiff.UnifiedRow>());
+        Assert.Equal(0, emptyAudit.TotalChangedLines);
+        Assert.Equal(0, emptyAudit.ClusterCount);
+        Assert.Equal(100.0, emptyAudit.SemanticCouplingScore);
+        Assert.Equal("Identical Versions", emptyAudit.CouplingCategory);
+
+        // 2. Diff with two hunks sharing identifier tokens (e.g. UserService and Authenticate)
+        var r1 = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 10, "public class UserService : IUserService", "+ ");
+        var r2 = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 11, "    public bool Authenticate(string user, string pass)", "+ ");
+        var r3 = new LineDiff.UnifiedRow(LineDiff.Kind.Same, 12, 12, "    {", "  ");
+        var r4 = new LineDiff.UnifiedRow(LineDiff.Kind.Same, 13, 13, "        // context line", "  ");
+        var r5 = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 40, "var userToken = UserService.Authenticate(user, pass);", "+ ");
+
+        var audit = LineDiff.AuditSemanticDiffCoChangeClusters(new[] { r1, r2, r3, r4, r5 });
+        Assert.Equal(3, audit.TotalChangedLines);
+        Assert.True(audit.ClusterCount >= 1);
+        Assert.True(audit.ClusteredLineCount >= 1);
+        Assert.True(audit.SemanticCouplingScore >= 70.0);
+        Assert.NotEmpty(audit.Clusters);
+        Assert.True(audit.Clusters[0].PrimaryIdentifier == "UserService" || audit.Clusters[0].AssociatedTokens.Contains("UserService"));
+
+        // 3. Formatter test
+        string formatted = LineDiff.FormatCoChangeClusterSummary(
+            audit.TotalDiffLines, audit.TotalChangedLines, audit.ClusterCount,
+            audit.ClusteredLineCount, audit.IsolatedLineCount,
+            audit.SemanticCouplingScore, audit.CouplingCategory);
+        Assert.Equal(audit.Summary, formatted);
+    }
 }
 
 

@@ -11689,6 +11689,48 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
    - **Refinement Target**: Workspace Image and Media Asset Relative Path Resolution & Missing Link Auditor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceMediaLinkIntegrity(files)` to resolve all image and link target paths across all workspace documents against the local filesystem, detecting missing/broken referenced media files. Wire to `RecentDocsFlyout`.
 
+---
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #170 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown LaTeX Math Delimiter Pairing, KaTeX Macro Syntax & Currency Disambiguation Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditMathDelimiterAndMacroIntegrity(markdownText)`, `FormatMathDelimiterSummary(...)`, records `MathDelimiterItem`, and `MathDelimiterAndMacroAudit`. Audits inline `$math$` and display `$$math$$`, `\(...\)` / `\[...\]` delimiters, KaTeX standard macro syntax, unbalanced curly braces, spacing hazards, and disambiguates lone currency amounts (`$50`, `$100`); wired to `auditMathDelimitersItem` (`\uE947`) in `StatusCopyLinksButton` context menu with clipboard copy and toast announcement.
+    2. **MindMapGalaxyWindow Graph Biconnected Components, Articulation Points (Cut Vertices) & Bridge Edge Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditBiconnectedComponentsAndBridges()`, static overload, `FormatBiconnectivitySummary(...)`, records `NodeArticulationInfo`, `BridgeEdgeInfo`, `BiconnectedBlockInfo`, and `GraphBiconnectivityAudit`. Implements Tarjan/Hopcroft biconnectivity decomposition using DFS discovery and low-point traversal, isolating single-point failure bottleneck nodes (cut vertices), bridge edges, and decomposing connected components into 2-connected biconnected blocks; wired to `AuditBiconnectivityItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Orthogonal Connector Obstacle Collision Avoidance & Routing Clearance Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditConnectorObstacleCollisions(shapes)`, `FormatConnectorCollisionSummary(...)`, records `ConnectorCollisionItem`, and `ConnectorObstacleCollisionAudit`. Checks 2D connector path segments against non-connected shape bounding boxes using Cohen-Sutherland line clipping and segment intersection math, detects visual collisions, near-miss grazing hazards ($\le 12\text{px}$), and calculates routing clearance score ($0-100\%$); wired to `SelectionAuditConnectorObstaclesItem` (`\uE81E`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt 2x2 Matrix / SWOT Quadrant Symmetry & Axis Distribution Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditMatrixQuadrantSymmetry(markdown)`, static overload, `FormatMatrixQuadrantSummary(...)`, records `MatrixQuadrantItem`, and `SmartArtMatrixQuadrantAudit`. Verifies 4-quadrant balance, axis label symmetry, item count variance across quadrants (Q1-Q4), detects sparse/overloaded quadrant traps, and scores matrix layout balance ($0-100\%$); wired to `OutlineStatsAuditMatrixQuadrantSymmetryItem` (`\uF158`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Diff Co-Change Clusters, Identifier Coupling & Cross-Hunk Propagation Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditSemanticDiffCoChangeClusters(unifiedRows)`, static string overload, `FormatCoChangeClusterSummary(...)`, records `CoChangeClusterItem`, and `SemanticCoChangeClusterAudit`. Identifies and clusters related added/deleted lines across distant hunks sharing common identifier tokens (e.g. types, methods, fields), detects cross-cutting co-change propagation, and scores semantic coupling coherence ($0-100\%$); wired to `auditSemanticCoChange` (`\uE8B9`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace Image & Media Link Relative Path Resolution, Missing File & Portability Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceMediaLinkIntegrity(files, fileExistsProvider, contentReader)`, `FormatWorkspaceMediaLinkSummary(...)`, records `WorkspaceMediaLinkItem`, and `WorkspaceMediaLinkIntegrityAudit`. Audits all markdown image/media links across the active workspace, resolves relative local paths against document parent folders, flags missing files, absolute path portability hazards, and calculates workspace asset link integrity score ($0-100\%$); wired to `CopyWorkspaceMediaLinksAdvisorItem` (`\uEB9F`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified all `5162/5162` tests in `MarkSmith.Tests.csproj` passing (1 skipped) with `100%` pass rate.
+    - Verified clean live launch of `Marksmith.exe` with zero startup crashes.
+
+---
+
+### Run #171 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Document Reading Time, Syllable Flesch-Kincaid Grade Level & Comprehension Auditor.
+   - **Deliverable**: Add `TextSearch.AuditDocumentReadingEaseAndGradeLevel(markdownText)` and `FormatReadingEaseSummary(...)`, computing syllable counts, Flesch Reading Ease score ($0-100$), Flesch-Kincaid Grade Level, average sentence length, and estimated reading/speaking time in minutes. Wire to `StatusSectionBreadcrumbButton` and `FindCountText` context flyouts.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Core-Periphery Structure, K-Core Decomposition & Shell Index Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditKCoreDecompositionAndShells()` and `FormatKCoreSummary(...)`, recursively pruning nodes by vertex degree to compute the coreness/shell index of each concept node, distinguishing the dense conceptual nucleus ($k$-core maximum) from peripheral leaves. Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Shape Grouping Hierarchy, Nested Compound Bounds & Depth Stacking Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditCompoundGroupBoundsAndStacking(shapes)` and `FormatGroupBoundsSummary(...)`, auditing parent group visual containment, child shape overflow beyond group bounding boxes, and z-index depth order monotonicity. Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Venn Diagram Set Intersection, Overlap Chord Area & Semantic Set Inclusion Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditVennDiagramOverlapAndSetBalance(markdown)` and `FormatVennDiagramSummary(...)`, evaluating 2-set and 3-set circular overlap areas, lens chord geometry, label distribution across intersection regions, and detecting empty intersection traps. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #170 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Hunk Coupling & Cross-File Change Propagation Auditor.
+   - **Deliverable**: Add `LineDiff.AuditSemanticHunkCoupling(diffHunks)` to detect coupled changes where modifying an interface or data structure requires coordinated edits in downstream consumer hunks. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #170 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Broken Internal Anchor Cross-Reference Link Integrity Advisor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceCrossDocumentAnchors(files)` to resolve cross-file relative anchor links (`[Doc](other.md#heading-slug)`), verifying that target heading slugs exist in the destination document. Wire to `RecentDocsFlyout`.
+
 
 
 

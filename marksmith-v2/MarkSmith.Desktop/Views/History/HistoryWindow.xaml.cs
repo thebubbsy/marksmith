@@ -3445,6 +3445,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditGitConflictMarkers);
+
+                var auditSemanticCoChange = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff co-change clusters & coupled hunk density",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditSemanticCoChange.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditSemanticDiffCoChangeClusters(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditSemanticCoChange);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

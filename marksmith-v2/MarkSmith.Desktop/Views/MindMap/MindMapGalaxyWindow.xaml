@@ -327,6 +327,9 @@
                                     <MenuFlyoutItem x:Name="AuditSpectralBisectionItem" Text="Audit spectral bisection &amp; algebraic connectivity" Click="OnAuditSpectralBisectionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE91B;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditBiconnectivityItem" Text="Audit biconnected blocks, articulation points &amp; bridges" Click="OnAuditBiconnectivityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

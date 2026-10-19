@@ -3324,6 +3324,102 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("CopyWorkspaceCodeFenceAdvisorItem", suiteXaml);
         Assert.Contains("OnCopyWorkspaceCodeFenceAdvisorClick", suiteCs);
     }
+
+    [Fact]
+    public void Run170_AuditWorkspaceMediaLinkIntegrity_ValidatesMediaAndCrossSurfaceWiring()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditWorkspaceMediaLinkIntegrity(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(0, emptyAudit.TotalMediaLinksFound);
+        Assert.Equal(100.0, emptyAudit.IntegrityScore);
+        Assert.Equal("Pristine", emptyAudit.Category);
+
+        // 2. Mock documents with local valid, local missing, external, insecure, and data URIs
+        var doc1 = string.Join("\n",
+            "# Media Document",
+            "![Valid Banner](images/banner.png)",
+            "![Missing Image](images/missing.png)",
+            "![Remote Logo](https://example.com/logo.png)",
+            "![Insecure CDN](http://insecure.example.com/asset.png)",
+            "<img src=\"data:image/png;base64,iVBORw0KGgo=\" />",
+            "```markdown",
+            "![Fenced Code Ignored](images/broken.png)",
+            "```"
+        );
+
+        var docFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\mock\doc1.md"] = doc1
+        };
+
+        var existingFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            @"C:\mock\doc1.md",
+            @"C:\mock\images\banner.png"
+        };
+
+        bool MockFileExists(string p) => existingFiles.Contains(p);
+        string MockContentReader(string p) => docFiles.TryGetValue(p, out var content) ? content : "";
+
+        var audit = RecentFilesService.AuditWorkspaceMediaLinkIntegrity(
+            new[] { @"C:\mock\doc1.md" },
+            MockFileExists,
+            MockContentReader);
+
+        Assert.Equal(1, audit.TotalDocumentsEvaluated);
+        Assert.Equal(5, audit.TotalMediaLinksFound);
+        Assert.Equal(1, audit.ValidLocalMediaCount);
+        Assert.Equal(1, audit.MissingLocalMediaCount);
+        Assert.Equal(2, audit.ExternalMediaCount);
+        Assert.Equal(1, audit.DataUriCount);
+        Assert.True(audit.PortabilityWarningCount >= 1);
+        Assert.Equal(50.0, audit.IntegrityScore);
+        Assert.Contains(@"images\missing.png", audit.MissingPaths[0]);
+
+        // Formatter test
+        string formatted = RecentFilesService.FormatWorkspaceMediaLinkSummary(
+            audit.TotalDocumentsEvaluated, audit.TotalMediaLinksFound,
+            audit.ValidLocalMediaCount, audit.MissingLocalMediaCount,
+            audit.ExternalMediaCount, audit.PortabilityWarningCount,
+            audit.IntegrityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Cross-surface XAML / C# wiring verification for Run #170 across all 6 surfaces:
+        // Surface 1: MainWindow - auditMathDelimitersItem
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditMathDelimitersItem", mainCs);
+        Assert.Contains("FormatMathDelimiterSummary", mainCs);
+
+        // Surface 2: MindMapGalaxy - AuditBiconnectivityItem
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditBiconnectivityItem", galaxyXaml);
+        Assert.Contains("OnAuditBiconnectivityClick", galaxyCs);
+
+        // Surface 3: ShapeStudio - SelectionAuditConnectorObstaclesItem
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditConnectorObstaclesItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditConnectorObstaclesClick", shapeCs);
+
+        // Surface 4: SmartArtStudio - OutlineStatsAuditMatrixQuadrantSymmetryItem
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditMatrixQuadrantSymmetryItem", smartArtXaml);
+        Assert.Contains("OnAuditMatrixQuadrantSymmetryClick", smartArtCs);
+
+        // Surface 5: HistoryWindow - auditSemanticCoChange
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditSemanticCoChange", historyCs);
+        Assert.Contains("AuditSemanticDiffCoChangeClusters", historyCs);
+
+        // Surface 6: SuiteHubView - CopyWorkspaceMediaLinksAdvisorItem
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceMediaLinksAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceMediaLinksAdvisorClick", suiteCs);
+    }
 }
 
 

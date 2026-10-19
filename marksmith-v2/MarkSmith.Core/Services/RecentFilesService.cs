@@ -4343,6 +4343,352 @@ public sealed class RecentFilesService
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% highlighted";
         return $"Workspace code fence language advisor ({docLabel}, {fenceLabel} · {category} · {score:0.#}% score){details}";
     }
+
+    /// <summary>
+    /// Audits workspace markdown documents for local and external media link integrity, detecting broken relative paths,
+    /// missing image/video/audio assets, portability risks (absolute paths, unencoded spaces), and data URIs.
+    /// </summary>
+    public static WorkspaceMediaLinkIntegrityAudit AuditWorkspaceMediaLinkIntegrity(
+        IEnumerable<string>? workspaceFilePaths,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var paths = workspaceFilePaths?.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct().ToList() ?? new List<string>();
+        if (paths.Count == 0)
+        {
+            return new WorkspaceMediaLinkIntegrityAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceMediaLinkItem>(),
+                Array.Empty<string>(),
+                "Pristine",
+                "Workspace media link integrity advisor: 0 documents · Workspace is empty");
+        }
+
+        var allLinks = new List<WorkspaceMediaLinkItem>();
+        var missingPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int docsEvaluated = 0;
+        int validLocalCount = 0;
+        int missingLocalCount = 0;
+        int externalCount = 0;
+        int dataUriCount = 0;
+        int portabilityWarningCount = 0;
+
+        var imageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp", ".ico", ".tiff", ".tif", ".avif"
+        };
+        var videoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".mp4", ".webm", ".ogv", ".mov", ".mkv", ".avi", ".wmv"
+        };
+        var audioExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac", ".wma"
+        };
+        var docExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".pdf", ".eps", ".ai", ".psd", ".drawio"
+        };
+
+        foreach (var docPath in paths)
+        {
+            bool exists = fileExistsProvider != null ? fileExistsProvider(docPath) : File.Exists(docPath);
+            if (!exists) continue;
+
+            string content;
+            try
+            {
+                content = contentReader != null ? contentReader(docPath) : File.ReadAllText(docPath);
+            }
+            catch
+            {
+                continue;
+            }
+
+            docsEvaluated++;
+            string docDir = Path.GetDirectoryName(docPath) ?? "";
+            string docFileName = Path.GetFileName(docPath);
+
+            var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            bool inCodeFence = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                var trimmed = line.TrimStart();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inCodeFence = !inCodeFence;
+                    continue;
+                }
+                if (inCodeFence) continue;
+
+                // 1. Markdown image syntax: ![alt](url)
+                var mdMatches = Regex.Matches(line, @"!\[(?<alt>[^\]]*)\]\((?<target>[^)]+)\)");
+                foreach (Match m in mdMatches)
+                {
+                    ProcessMediaTarget(m.Groups["target"].Value.Trim(), docPath, docFileName, docDir, i + 1, allLinks, missingPaths,
+                        ref validLocalCount, ref missingLocalCount, ref externalCount, ref dataUriCount, ref portabilityWarningCount,
+                        imageExtensions, videoExtensions, audioExtensions, docExtensions, fileExistsProvider);
+                }
+
+                // 2. Wiki-style embeds: ![[target]] or ![[target|caption]]
+                var wikiMatches = Regex.Matches(line, @"!\[\[(?<target>[^\]|]+)(?:\|[^\]]*)?\]\]");
+                foreach (Match m in wikiMatches)
+                {
+                    ProcessMediaTarget(m.Groups["target"].Value.Trim(), docPath, docFileName, docDir, i + 1, allLinks, missingPaths,
+                        ref validLocalCount, ref missingLocalCount, ref externalCount, ref dataUriCount, ref portabilityWarningCount,
+                        imageExtensions, videoExtensions, audioExtensions, docExtensions, fileExistsProvider);
+                }
+
+                // 3. HTML image tags: <img ... src="..." ...>
+                var imgMatches = Regex.Matches(line, @"<img\s+[^>]*src=[""'](?<target>[^""']+)[""'][^>]*>", RegexOptions.IgnoreCase);
+                foreach (Match m in imgMatches)
+                {
+                    ProcessMediaTarget(m.Groups["target"].Value.Trim(), docPath, docFileName, docDir, i + 1, allLinks, missingPaths,
+                        ref validLocalCount, ref missingLocalCount, ref externalCount, ref dataUriCount, ref portabilityWarningCount,
+                        imageExtensions, videoExtensions, audioExtensions, docExtensions, fileExistsProvider);
+                }
+
+                // 4. HTML video/audio/source tags: <video/audio/source ... src="..." ...>
+                var mediaMatches = Regex.Matches(line, @"<(?:video|audio|source)\s+[^>]*src=[""'](?<target>[^""']+)[""'][^>]*>", RegexOptions.IgnoreCase);
+                foreach (Match m in mediaMatches)
+                {
+                    ProcessMediaTarget(m.Groups["target"].Value.Trim(), docPath, docFileName, docDir, i + 1, allLinks, missingPaths,
+                        ref validLocalCount, ref missingLocalCount, ref externalCount, ref dataUriCount, ref portabilityWarningCount,
+                        imageExtensions, videoExtensions, audioExtensions, docExtensions, fileExistsProvider);
+                }
+            }
+        }
+
+        int totalFound = allLinks.Count;
+        int localEvaluated = validLocalCount + missingLocalCount;
+        double integrityScore = localEvaluated == 0 ? 100.0 : Math.Round((double)validLocalCount / localEvaluated * 100.0, 1);
+
+        string category;
+        if (missingLocalCount == 0 && portabilityWarningCount == 0)
+        {
+            category = "Pristine";
+        }
+        else if (missingLocalCount == 0 && portabilityWarningCount > 0)
+        {
+            category = "Solid";
+        }
+        else if (integrityScore >= 75.0)
+        {
+            category = "At Risk";
+        }
+        else
+        {
+            category = "Broken";
+        }
+
+        string summary = FormatWorkspaceMediaLinkSummary(
+            docsEvaluated, totalFound, validLocalCount, missingLocalCount, externalCount, portabilityWarningCount, integrityScore, category);
+
+        return new WorkspaceMediaLinkIntegrityAudit(
+            docsEvaluated,
+            totalFound,
+            validLocalCount,
+            missingLocalCount,
+            externalCount,
+            dataUriCount,
+            portabilityWarningCount,
+            integrityScore,
+            allLinks,
+            missingPaths.OrderBy(p => p).ToList(),
+            category,
+            summary);
+    }
+
+    private static void ProcessMediaTarget(
+        string rawTarget,
+        string docPath,
+        string docFileName,
+        string docDir,
+        int lineNumber,
+        List<WorkspaceMediaLinkItem> allLinks,
+        HashSet<string> missingPaths,
+        ref int validLocalCount,
+        ref int missingLocalCount,
+        ref int externalCount,
+        ref int dataUriCount,
+        ref int portabilityWarningCount,
+        HashSet<string> imageExts,
+        HashSet<string> videoExts,
+        HashSet<string> audioExts,
+        HashSet<string> docExts,
+        Func<string, bool>? fileExistsProvider)
+    {
+        if (string.IsNullOrWhiteSpace(rawTarget))
+        {
+            missingLocalCount++;
+            allLinks.Add(new WorkspaceMediaLinkItem(
+                docPath, docFileName, lineNumber, rawTarget, "", "Unknown",
+                false, false, false, false, false, "Empty media path"));
+            return;
+        }
+
+        string cleanTarget = rawTarget;
+        bool hasAngleBrackets = false;
+        if (cleanTarget.StartsWith("<") && cleanTarget.EndsWith(">") && cleanTarget.Length >= 2)
+        {
+            hasAngleBrackets = true;
+            cleanTarget = cleanTarget.Substring(1, cleanTarget.Length - 2).Trim();
+        }
+        else
+        {
+            int firstSpace = cleanTarget.IndexOfAny(new[] { ' ', '\t' });
+            if (firstSpace > 0)
+            {
+                string remainder = cleanTarget.Substring(firstSpace).Trim();
+                if ((remainder.StartsWith("\"") && remainder.EndsWith("\"")) || (remainder.StartsWith("'") && remainder.EndsWith("'")))
+                {
+                    cleanTarget = cleanTarget.Substring(0, firstSpace).Trim();
+                }
+            }
+        }
+
+        if (cleanTarget.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+        {
+            dataUriCount++;
+            string mediaType = DetectMediaType(cleanTarget, imageExts, videoExts, audioExts, docExts);
+            allLinks.Add(new WorkspaceMediaLinkItem(
+                docPath, docFileName, lineNumber, rawTarget, cleanTarget, mediaType,
+                false, true, true, false, false, null));
+            return;
+        }
+
+        if (cleanTarget.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            cleanTarget.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            cleanTarget.StartsWith("//") ||
+            cleanTarget.StartsWith("ftp://", StringComparison.OrdinalIgnoreCase))
+        {
+            externalCount++;
+            string mediaType = DetectMediaType(cleanTarget, imageExts, videoExts, audioExts, docExts);
+            bool isInsecure = cleanTarget.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
+            if (isInsecure) portabilityWarningCount++;
+            allLinks.Add(new WorkspaceMediaLinkItem(
+                docPath, docFileName, lineNumber, rawTarget, cleanTarget, mediaType,
+                true, false, true, false, false, isInsecure ? "Insecure HTTP protocol (prefer HTTPS)" : null));
+            return;
+        }
+
+        // Local file path
+        bool isAbsolute = Path.IsPathRooted(cleanTarget) && (cleanTarget.Length >= 2 && (cleanTarget[1] == ':' || cleanTarget.StartsWith("\\\\")));
+        bool hasUnencodedSpaces = !hasAngleBrackets && cleanTarget.Contains(' ');
+
+        if (isAbsolute) portabilityWarningCount++;
+        if (hasUnencodedSpaces) portabilityWarningCount++;
+
+        string filePathPart = cleanTarget;
+        int qIdx = filePathPart.IndexOf('?');
+        if (qIdx >= 0) filePathPart = filePathPart.Substring(0, qIdx);
+        int hIdx = filePathPart.IndexOf('#');
+        if (hIdx >= 0) filePathPart = filePathPart.Substring(0, hIdx);
+
+        // Normalize slashes for consistency
+        filePathPart = filePathPart.Replace('/', Path.DirectorySeparatorChar);
+
+        string resolvedPath;
+        try
+        {
+            if (Path.IsPathRooted(filePathPart))
+            {
+                resolvedPath = Path.GetFullPath(filePathPart);
+            }
+            else
+            {
+                resolvedPath = string.IsNullOrEmpty(docDir) ? filePathPart : Path.GetFullPath(Path.Combine(docDir, filePathPart));
+            }
+        }
+        catch
+        {
+            resolvedPath = filePathPart;
+        }
+
+        bool exists = fileExistsProvider != null ? fileExistsProvider(resolvedPath) : File.Exists(resolvedPath);
+        if (exists)
+        {
+            validLocalCount++;
+        }
+        else
+        {
+            missingLocalCount++;
+            missingPaths.Add(resolvedPath);
+        }
+
+        var issues = new List<string>();
+        if (!exists) issues.Add("Missing local asset file");
+        if (isAbsolute) issues.Add("Non-portable absolute path");
+        if (hasUnencodedSpaces) issues.Add("Unencoded spaces in path");
+
+        string? issueDescription = issues.Count > 0 ? string.Join("; ", issues) : null;
+        string localMediaType = DetectMediaType(cleanTarget, imageExts, videoExts, audioExts, docExts);
+
+        allLinks.Add(new WorkspaceMediaLinkItem(
+            docPath, docFileName, lineNumber, rawTarget, resolvedPath, localMediaType,
+            false, false, exists, isAbsolute, hasUnencodedSpaces, issueDescription));
+    }
+
+    private static string DetectMediaType(
+        string path,
+        HashSet<string> imageExts,
+        HashSet<string> videoExts,
+        HashSet<string> audioExts,
+        HashSet<string> docExts)
+    {
+        if (path.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase)) return "Image";
+        if (path.StartsWith("data:video/", StringComparison.OrdinalIgnoreCase)) return "Video";
+        if (path.StartsWith("data:audio/", StringComparison.OrdinalIgnoreCase)) return "Audio";
+        if (path.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) return "Data";
+
+        string clean = path;
+        int q = clean.IndexOf('?');
+        if (q >= 0) clean = clean.Substring(0, q);
+        int h = clean.IndexOf('#');
+        if (h >= 0) clean = clean.Substring(0, h);
+
+        string ext = Path.GetExtension(clean);
+        if (imageExts.Contains(ext)) return "Image";
+        if (videoExts.Contains(ext)) return "Video";
+        if (audioExts.Contains(ext)) return "Audio";
+        if (docExts.Contains(ext)) return "Document";
+
+        return "Other";
+    }
+
+    /// <summary>
+    /// Audits a single markdown file for media link integrity.
+    /// </summary>
+    public static WorkspaceMediaLinkIntegrityAudit AuditWorkspaceMediaLinkIntegrity(
+        string filePath,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        return AuditWorkspaceMediaLinkIntegrity(new[] { filePath }, fileExistsProvider, contentReader);
+    }
+
+    public static string FormatWorkspaceMediaLinkSummary(
+        int totalDocs, int totalLinks, int validLocal, int missingLocal,
+        int externalCount, int portabilityWarnings, double score, string category)
+    {
+        if (totalDocs == 0) return "Workspace media link integrity advisor: 0 documents · Workspace is empty";
+        if (totalLinks == 0) return $"Workspace media link integrity advisor ({totalDocs} docs): 0 media links found";
+
+        string docLabel = totalDocs == 1 ? "1 document" : $"{totalDocs} documents";
+        string linkLabel = totalLinks == 1 ? "1 media link" : $"{totalLinks} media links";
+
+        var alerts = new List<string>();
+        if (missingLocal > 0) alerts.Add($"⚠ {missingLocal} missing local asset{(missingLocal == 1 ? "" : "s")}");
+        if (portabilityWarnings > 0) alerts.Add($"{portabilityWarnings} portability warning{(portabilityWarnings == 1 ? "" : "s")}");
+        if (validLocal > 0) alerts.Add($"{validLocal} local verified");
+        if (externalCount > 0) alerts.Add($"{externalCount} external");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% verified";
+        return $"Workspace media link integrity advisor ({docLabel}, {linkLabel} · {category} · {score:0.#}% integrity){details}";
+    }
 }
 
 /// <summary>
@@ -4831,4 +5177,40 @@ public sealed record WorkspaceCodeFenceLanguageAudit(
     IReadOnlyDictionary<string, int> LanguageDistribution,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated media link details, path resolution, resource categorization, and portability checks.
+/// </summary>
+public sealed record WorkspaceMediaLinkItem(
+    string FilePath,
+    string FileName,
+    int LineNumber,
+    string RawLink,
+    string ResolvedPath,
+    string MediaType,
+    bool IsExternal,
+    bool IsDataUri,
+    bool Exists,
+    bool IsAbsoluteLocal,
+    bool HasUnencodedSpaces,
+    string? IssueDescription);
+
+/// <summary>
+/// Represents the result of an audit of workspace media link integrity, missing local assets,
+/// data URIs, and cross-platform portability warnings.
+/// </summary>
+public sealed record WorkspaceMediaLinkIntegrityAudit(
+    int TotalDocumentsEvaluated,
+    int TotalMediaLinksFound,
+    int ValidLocalMediaCount,
+    int MissingLocalMediaCount,
+    int ExternalMediaCount,
+    int DataUriCount,
+    int PortabilityWarningCount,
+    double IntegrityScore,
+    IReadOnlyList<WorkspaceMediaLinkItem> MediaLinks,
+    IReadOnlyList<string> MissingPaths,
+    string Category,
+    string Summary);
+
 

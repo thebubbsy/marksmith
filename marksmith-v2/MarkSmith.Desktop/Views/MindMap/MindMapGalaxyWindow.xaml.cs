@@ -4096,6 +4096,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditBiconnectivityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditBiconnectedComponentsAndBridges();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5087,6 +5095,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditSpectralBisectionItem.Click += OnAuditSpectralBisectionClick;
             menu.Items.Add(auditSpectralBisectionItem);
+
+            var auditBiconnectivityItem = new MenuFlyoutItem
+            {
+                Text = "Audit biconnected blocks, articulation points & bridges",
+                Icon = new FontIcon { Glyph = "\uE8B9" }
+            };
+            auditBiconnectivityItem.Click += OnAuditBiconnectivityClick;
+            menu.Items.Add(auditBiconnectivityItem);
 
             var fitItem = new MenuFlyoutItem
 

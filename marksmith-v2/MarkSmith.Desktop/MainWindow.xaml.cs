@@ -11655,6 +11655,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditImageLinksItem);
 
+        var auditMathDelimitersItem = new MenuFlyoutItem
+        {
+            Text = "Audit LaTeX Math Delimiter & KaTeX Macro Integrity",
+            Icon = new FontIcon { Glyph = "\uE947" }
+        };
+        auditMathDelimitersItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.FormatMathDelimiterSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditMathDelimitersItem);
+
         menu.ShowAt(anchor);
     }
 

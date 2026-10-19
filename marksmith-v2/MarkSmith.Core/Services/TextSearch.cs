@@ -5630,6 +5630,475 @@ public static class TextSearch
 
         return $"Markdown image accessibility audit ({imgLabel} · {category} · {score:0.#}% compliance){alertSuffix}";
     }
+
+    /// <summary>
+    /// Audits markdown text for LaTeX math delimiters ($...$, $$...$$, \(...\), \[...\]),
+    /// delimiter pairing, unbalanced curly braces, KaTeX macro syntax, and spacing compliance.
+    /// Excludes fenced and inline code blocks to prevent false positive code variables.
+    /// </summary>
+    public static MathDelimiterAndMacroAudit AuditMathDelimiterAndMacroIntegrity(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new MathDelimiterAndMacroAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MathDelimiterItem>(),
+                Array.Empty<string>(),
+                "No Math Formulas",
+                "LaTeX math delimiter & macro audit: 0 formulas · Document contains no math notation");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        var maskedLines = new string[lines.Length];
+        bool inFence = false;
+        string fenceMarker = string.Empty;
+
+        // Step 1: Mask fenced code blocks and inline code spans preserving line numbers and column offsets
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                string tag = trimmed.Length >= 3 ? trimmed.Substring(0, 3) : trimmed;
+                if (!inFence)
+                {
+                    inFence = true;
+                    fenceMarker = tag;
+                }
+                else if (tag == fenceMarker || trimmed == ":::")
+                {
+                    inFence = false;
+                    fenceMarker = string.Empty;
+                }
+                maskedLines[i] = new string(' ', line.Length);
+                continue;
+            }
+
+            if (inFence)
+            {
+                maskedLines[i] = new string(' ', line.Length);
+                continue;
+            }
+
+            // Mask inline code spans `...`
+            var maskedChars = line.ToCharArray();
+            bool inBacktick = false;
+            for (int c = 0; c < maskedChars.Length; c++)
+            {
+                if (maskedChars[c] == '`')
+                {
+                    inBacktick = !inBacktick;
+                    maskedChars[c] = ' ';
+                }
+                else if (inBacktick)
+                {
+                    maskedChars[c] = ' ';
+                }
+            }
+            maskedLines[i] = new string(maskedChars);
+        }
+
+        var mathItems = new List<MathDelimiterItem>();
+        var globalIssues = new List<string>();
+        int inlineCount = 0;
+        int displayCount = 0;
+        int unbalancedDelims = 0;
+        int unbalancedBracesTotal = 0;
+        int invalidSpacingCount = 0;
+        int unknownMacroTotal = 0;
+
+        // Known standard KaTeX / LaTeX macros and symbols
+        var knownMacros = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "frac", "dfrac", "tfrac", "sqrt", "sum", "int", "iint", "iiint", "oint", "prod", "coprod",
+            "alpha", "beta", "gamma", "delta", "epsilon", "varepsilon", "zeta", "eta", "theta", "vartheta",
+            "iota", "kappa", "lambda", "mu", "nu", "xi", "pi", "varpi", "rho", "varrho", "sigma", "varsigma",
+            "tau", "upsilon", "phi", "varphi", "chi", "psi", "omega",
+            "Gamma", "Delta", "Theta", "Lambda", "Xi", "Pi", "Sigma", "Upsilon", "Phi", "Psi", "Omega",
+            "partial", "infty", "pm", "mp", "times", "div", "ast", "star", "circ", "bullet", "cdot",
+            "cap", "cup", "uplus", "sqcap", "sqcup", "vee", "wedge", "setminus", "wr", "diamond",
+            "leq", "le", "geq", "ge", "equiv", "models", "prec", "succ", "sim", "perp", "preceq", "succeq",
+            "approx", "parallel", "subset", "supset", "subseteq", "supseteq", "in", "ni", "notin",
+            "to", "rightarrow", "leftarrow", "Rightarrow", "Leftarrow", "leftrightarrow", "Leftrightarrow",
+            "mapsto", "hookleftarrow", "hookrightarrow", "nearrow", "searrow", "swarrow", "nwarrow",
+            "left", "right", "big", "Big", "bigg", "Bigg", "bigl", "bigr", "Bigl", "Bigr",
+            "mathbf", "mathit", "mathrm", "mathsf", "mathtt", "mathbb", "mathcal", "mathscr", "mathfrak",
+            "text", "textbf", "textit", "textrm", "textsf", "texttt",
+            "vec", "hat", "check", "tilde", "acute", "grave", "dot", "ddot", "breve", "bar",
+            "overbrace", "underbrace", "overline", "underline", "widehat", "widetilde",
+            "sin", "cos", "tan", "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh",
+            "cot", "coth", "sec", "csc", "log", "ln", "lg", "exp", "lim", "liminf", "limsup",
+            "min", "max", "inf", "sup", "det", "dim", "gcd", "hom", "ker", "deg", "arg",
+            "begin", "end", "ce", "pu", "color", "textcolor", "over", "atop", "ldots", "cdots", "vdots", "ddots",
+            "quad", "qquad", "phantom", "hphantom", "vphantom", "hspace", "vspace", "rule",
+            "substack", "binom", "dbinom", "tbinom", "operatorname", "bmod", "pmod",
+            "nabla", "forall", "exists", "nexists", "neg", "angle", "hbar", "ell", "Re", "Im", "aleph",
+            "matrix", "pmatrix", "bmatrix", "Bmatrix", "vmatrix", "Vmatrix", "array", "aligned", "cases"
+        };
+
+        // Combine masked lines for multi-line display math scanning ($$...$$ and \[...\])
+        string fullMasked = string.Join("\n", maskedLines);
+
+        // Regex for Display Math: $$...$$ and \[...\]
+        var displayRegex = new Regex(@"(?<!\\)(?:\$\$(.*?)\$\$|\\\[(.*?)\\\])", RegexOptions.Singleline);
+        var displayMatches = displayRegex.Matches(fullMasked);
+        var maskedForInlineChars = fullMasked.ToCharArray();
+
+        foreach (Match match in displayMatches)
+        {
+            displayCount++;
+            int startIdx = match.Index;
+            int lineNumber = fullMasked.Substring(0, startIdx).Count(c => c == '\n') + 1;
+            string rawContent = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
+            string delimType = match.Value.StartsWith("$$") ? "$$...$$" : "\\[...\\]";
+
+            // Mask out matched display math so inline scanner won't see it
+            for (int k = match.Index; k < match.Index + match.Length; k++)
+            {
+                maskedForInlineChars[k] = ' ';
+            }
+
+            var itemIssues = new List<string>();
+            var unrecMacros = new List<string>();
+
+            // Check curly brace balance inside math
+            int braceDepth = 0;
+            for (int b = 0; b < rawContent.Length; b++)
+            {
+                if (rawContent[b] == '\\' && b + 1 < rawContent.Length && (rawContent[b + 1] == '{' || rawContent[b + 1] == '}'))
+                {
+                    b++; // escaped brace
+                    continue;
+                }
+                if (rawContent[b] == '{') braceDepth++;
+                else if (rawContent[b] == '}')
+                {
+                    braceDepth--;
+                    if (braceDepth < 0)
+                    {
+                        itemIssues.Add("Extra closing curly brace '}' without opening '{'");
+                    }
+                }
+            }
+
+            if (braceDepth != 0)
+            {
+                unbalancedBracesTotal++;
+                itemIssues.Add($"Unbalanced curly braces (depth delta: {braceDepth})");
+            }
+
+            // Inspect macros inside rawContent
+            var macroMatches = Regex.Matches(rawContent, @"\\([a-zA-Z]+)");
+            foreach (Match mm in macroMatches)
+            {
+                string mName = mm.Groups[1].Value;
+                if (!knownMacros.Contains(mName) && !unrecMacros.Contains(mName))
+                {
+                    unrecMacros.Add(mName);
+                }
+            }
+
+            if (unrecMacros.Count > 0)
+            {
+                unknownMacroTotal += unrecMacros.Count;
+                itemIssues.Add($"Unrecognized macro(s): {string.Join(", ", unrecMacros.Select(m => "\\" + m))}");
+            }
+
+            // Check environment matching (\begin{x} ... \end{x})
+            var envBegins = Regex.Matches(rawContent, @"\\begin\{([a-zA-Z*]+)\}");
+            var envEnds = Regex.Matches(rawContent, @"\\end\{([a-zA-Z*]+)\}");
+            if (envBegins.Count != envEnds.Count)
+            {
+                itemIssues.Add($"Mismatched LaTeX environments (\\begin count: {envBegins.Count}, \\end count: {envEnds.Count})");
+            }
+
+            bool isBalanced = itemIssues.Count == 0;
+            string snippet = rawContent.Trim().Replace('\n', ' ');
+            if (snippet.Length > 40) snippet = snippet.Substring(0, 37) + "…";
+
+            mathItems.Add(new MathDelimiterItem(
+                LineNumber: lineNumber,
+                DelimiterType: delimType,
+                Snippet: snippet,
+                IsBalanced: isBalanced,
+                CurlyBraceDepth: braceDepth,
+                HasInvalidSpacing: false,
+                UnrecognizedMacros: unrecMacros,
+                Issues: itemIssues));
+        }
+
+        // Check for unclosed $$ or \[
+        string remainingAfterDisplay = new string(maskedForInlineChars);
+        int unclosedDoubleDollar = Regex.Matches(remainingAfterDisplay, @"(?<!\\)\$\$").Count;
+        if (unclosedDoubleDollar > 0)
+        {
+            unbalancedDelims += unclosedDoubleDollar;
+            globalIssues.Add($"Unclosed display math delimiter ($$ count: {unclosedDoubleDollar})");
+        }
+        int unclosedBracketMath = Regex.Matches(remainingAfterDisplay, @"(?<!\\)\\\[").Count;
+        if (unclosedBracketMath > 0)
+        {
+            unbalancedDelims += unclosedBracketMath;
+            globalIssues.Add($"Unclosed LaTeX display math bracket (\\[)");
+        }
+
+        // Step 2: Scan inline math on remaining text line-by-line: \(...\) and $...$
+        var remainingLines = remainingAfterDisplay.Split('\n');
+        for (int i = 0; i < remainingLines.Length; i++)
+        {
+            string line = remainingLines[i];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            // 2A: LaTeX \(...\) inline math
+            var parenRegex = new Regex(@"(?<!\\)\\\((.*?)(?<!\\)\\\)");
+            var parenMatches = parenRegex.Matches(line);
+            foreach (Match m in parenMatches)
+            {
+                inlineCount++;
+                string content = m.Groups[1].Value;
+                var itemIssues = new List<string>();
+                var unrecMacros = new List<string>();
+
+                int braceDepth = 0;
+                for (int b = 0; b < content.Length; b++)
+                {
+                    if (content[b] == '\\' && b + 1 < content.Length && (content[b + 1] == '{' || content[b + 1] == '}'))
+                    {
+                        b++;
+                        continue;
+                    }
+                    if (content[b] == '{') braceDepth++;
+                    else if (content[b] == '}') braceDepth--;
+                }
+                if (braceDepth != 0)
+                {
+                    unbalancedBracesTotal++;
+                    itemIssues.Add($"Unbalanced curly braces in \\(...\\)");
+                }
+
+                var macroMatches = Regex.Matches(content, @"\\([a-zA-Z]+)");
+                foreach (Match mm in macroMatches)
+                {
+                    string mName = mm.Groups[1].Value;
+                    if (!knownMacros.Contains(mName) && !unrecMacros.Contains(mName))
+                    {
+                        unrecMacros.Add(mName);
+                    }
+                }
+                if (unrecMacros.Count > 0)
+                {
+                    unknownMacroTotal += unrecMacros.Count;
+                    itemIssues.Add($"Unrecognized macro(s): {string.Join(", ", unrecMacros.Select(m => "\\" + m))}");
+                }
+
+                string snippet = content.Trim();
+                if (snippet.Length > 30) snippet = snippet.Substring(0, 27) + "…";
+
+                mathItems.Add(new MathDelimiterItem(
+                    LineNumber: i + 1,
+                    DelimiterType: "\\(...\\)",
+                    Snippet: snippet,
+                    IsBalanced: itemIssues.Count == 0,
+                    CurlyBraceDepth: braceDepth,
+                    HasInvalidSpacing: false,
+                    UnrecognizedMacros: unrecMacros,
+                    Issues: itemIssues));
+            }
+
+            // Check unclosed \(
+            int unclosedParenMath = Regex.Matches(parenRegex.Replace(line, " "), @"(?<!\\)\\\(").Count;
+            if (unclosedParenMath > 0)
+            {
+                unbalancedDelims += unclosedParenMath;
+                globalIssues.Add($"Line {i + 1}: Unclosed LaTeX inline math parenthesis (\\()");
+            }
+
+            // 2B: Single dollar $...$ inline math
+            // KaTeX standard: opening $ cannot be followed by space, closing $ cannot be preceded by space.
+            // Also ignore currency patterns like $100 or $50.00 followed by space or punctuation.
+            var lineWithoutParens = parenRegex.Replace(line, " ");
+            int idx = 0;
+            while (idx < lineWithoutParens.Length)
+            {
+                int openIdx = lineWithoutParens.IndexOf('$', idx);
+                if (openIdx == -1) break;
+
+                // Check if escaped: \$
+                if (openIdx > 0 && lineWithoutParens[openIdx - 1] == '\\')
+                {
+                    idx = openIdx + 1;
+                    continue;
+                }
+
+                // KaTeX rule: space cannot immediately follow opening $
+                bool openSpace = openIdx + 1 < lineWithoutParens.Length && lineWithoutParens[openIdx + 1] == ' ';
+
+                // Find closing $ (cannot be preceded by \, cannot be immediately followed by digit)
+                int closeIdx = -1;
+                for (int c = openIdx + 1; c < lineWithoutParens.Length; c++)
+                {
+                    if (lineWithoutParens[c] == '$' && lineWithoutParens[c - 1] != '\\')
+                    {
+                        // A closing $ cannot be immediately followed by a digit (KaTeX/Pandoc currency disambiguation)
+                        if (c + 1 < lineWithoutParens.Length && char.IsDigit(lineWithoutParens[c + 1]))
+                        {
+                            continue;
+                        }
+                        closeIdx = c;
+                        break;
+                    }
+                }
+
+                if (closeIdx == -1)
+                {
+                    // If opening $ is immediately followed by a digit, it is a standalone currency amount (e.g. $50, $100)
+                    if (openIdx + 1 < lineWithoutParens.Length && char.IsDigit(lineWithoutParens[openIdx + 1]))
+                    {
+                        idx = openIdx + 1;
+                        continue;
+                    }
+
+                    // Unclosed single dollar
+                    unbalancedDelims++;
+                    globalIssues.Add($"Line {i + 1}: Unclosed inline math dollar ($)");
+                    break;
+                }
+
+                bool closeSpace = closeIdx > openIdx + 1 && lineWithoutParens[closeIdx - 1] == ' ';
+                bool invalidSpacing = openSpace || closeSpace;
+                if (invalidSpacing) invalidSpacingCount++;
+
+                inlineCount++;
+                string content = lineWithoutParens.Substring(openIdx + 1, closeIdx - openIdx - 1);
+                var itemIssues = new List<string>();
+                var unrecMacros = new List<string>();
+
+                if (invalidSpacing)
+                {
+                    itemIssues.Add("Invalid spacing (opening $ followed by space, or closing $ preceded by space)");
+                }
+
+                int braceDepth = 0;
+                for (int b = 0; b < content.Length; b++)
+                {
+                    if (content[b] == '\\' && b + 1 < content.Length && (content[b + 1] == '{' || content[b + 1] == '}'))
+                    {
+                        b++;
+                        continue;
+                    }
+                    if (content[b] == '{') braceDepth++;
+                    else if (content[b] == '}') braceDepth--;
+                }
+                if (braceDepth != 0)
+                {
+                    unbalancedBracesTotal++;
+                    itemIssues.Add($"Unbalanced curly braces in $...$");
+                }
+
+                var macroMatches = Regex.Matches(content, @"\\([a-zA-Z]+)");
+                foreach (Match mm in macroMatches)
+                {
+                    string mName = mm.Groups[1].Value;
+                    if (!knownMacros.Contains(mName) && !unrecMacros.Contains(mName))
+                    {
+                        unrecMacros.Add(mName);
+                    }
+                }
+                if (unrecMacros.Count > 0)
+                {
+                    unknownMacroTotal += unrecMacros.Count;
+                    itemIssues.Add($"Unrecognized macro(s): {string.Join(", ", unrecMacros.Select(m => "\\" + m))}");
+                }
+
+                string snippet = content.Trim();
+                if (snippet.Length > 25) snippet = snippet.Substring(0, 22) + "…";
+
+                mathItems.Add(new MathDelimiterItem(
+                    LineNumber: i + 1,
+                    DelimiterType: "$...$",
+                    Snippet: snippet,
+                    IsBalanced: itemIssues.Count == 0,
+                    CurlyBraceDepth: braceDepth,
+                    HasInvalidSpacing: invalidSpacing,
+                    UnrecognizedMacros: unrecMacros,
+                    Issues: itemIssues));
+
+                idx = closeIdx + 1;
+            }
+        }
+
+        int totalSpans = mathItems.Count;
+        int validSpans = mathItems.Count(m => m.IsBalanced);
+        int syntaxIssues = mathItems.Count(m => !m.IsBalanced) + globalIssues.Count;
+
+        double baseScore = totalSpans > 0
+            ? (100.0 * validSpans / totalSpans)
+            : (syntaxIssues > 0 ? 50.0 : 100.0);
+
+        double penalty = (unbalancedDelims * 20.0) + (unbalancedBracesTotal * 10.0) +
+                         (unknownMacroTotal * 5.0) + (invalidSpacingCount * 5.0);
+
+        double score = Math.Round(Math.Clamp(baseScore - penalty, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 when syntaxIssues == 0 => "Full KaTeX & MathML Render Fidelity",
+            >= 80.0 => "Good Interoperability with Minor Warnings",
+            >= 60.0 => "Syntax Warnings Requiring Review",
+            _ => "Critical Delimiter or Macro Render Hazards"
+        };
+
+        string summary = FormatMathDelimiterSummary(
+            totalSpans, inlineCount, displayCount, validSpans, syntaxIssues,
+            unbalancedDelims, unbalancedBracesTotal, invalidSpacingCount, unknownMacroTotal, score, category);
+
+        return new MathDelimiterAndMacroAudit(
+            TotalMathSpans: totalSpans,
+            InlineMathCount: inlineCount,
+            DisplayMathCount: displayCount,
+            ValidMathCount: validSpans,
+            SyntaxIssueCount: syntaxIssues,
+            UnbalancedDelimiters: unbalancedDelims,
+            UnbalancedBraces: unbalancedBracesTotal,
+            InvalidSpacingCount: invalidSpacingCount,
+            UnknownMacroCount: unknownMacroTotal,
+            KaTeXInteropScore: Math.Round(score, 1),
+            MathItems: mathItems,
+            GlobalIssues: globalIssues,
+            CompatibilityCategory: category,
+            Summary: summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of LaTeX math delimiter and KaTeX macro integrity metrics.
+    /// </summary>
+    public static string FormatMathDelimiterSummary(string? markdownText)
+        => AuditMathDelimiterAndMacroIntegrity(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of LaTeX math delimiter and KaTeX macro integrity metrics.
+    /// </summary>
+    public static string FormatMathDelimiterSummary(
+        int totalSpans, int inlineCount, int displayCount, int validCount, int syntaxIssues,
+        int unbalancedDelims, int unbalancedBraces, int invalidSpacing, int unknownMacros,
+        double score, string category)
+    {
+        if (totalSpans == 0 && syntaxIssues == 0)
+            return "LaTeX math delimiter & macro audit: 0 formulas · Document contains no math notation";
+
+        string formulaLabel = totalSpans == 1 ? "1 formula" : $"{totalSpans} formulas";
+        var alerts = new List<string>();
+        if (unbalancedDelims > 0) alerts.Add($"🚨 {unbalancedDelims} unclosed delimiter(s)");
+        if (unbalancedBraces > 0) alerts.Add($"⚠ {unbalancedBraces} unbalanced brace(s)");
+        if (invalidSpacing > 0) alerts.Add($"📐 {invalidSpacing} invalid spacing");
+        if (unknownMacros > 0) alerts.Add($"🔍 {unknownMacros} unknown macro(s)");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% KaTeX syntax parity";
+
+        return $"LaTeX math delimiter audit ({formulaLabel} · {displayCount} display, {inlineCount} inline · {category} · {score:0.#}% interop){alertSuffix}";
+    }
 }
 
 /// <summary>
@@ -6149,4 +6618,38 @@ public sealed record ImageAccessibilityAudit(
     IReadOnlyList<string> Issues,
     string ComplianceCategory,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, delimiter pairing, and macro syntax for an individual LaTeX math span.
+/// </summary>
+public sealed record MathDelimiterItem(
+    int LineNumber,
+    string DelimiterType,
+    string Snippet,
+    bool IsBalanced,
+    int CurlyBraceDepth,
+    bool HasInvalidSpacing,
+    IReadOnlyList<string> UnrecognizedMacros,
+    IReadOnlyList<string> Issues);
+
+/// <summary>
+/// Represents the result of an audit of markdown LaTeX math delimiters ($...$, $$...$$, \(...\), \[...\]),
+/// delimiter pairing, unbalanced curly braces, KaTeX macro syntax, and spacing compliance.
+/// </summary>
+public sealed record MathDelimiterAndMacroAudit(
+    int TotalMathSpans,
+    int InlineMathCount,
+    int DisplayMathCount,
+    int ValidMathCount,
+    int SyntaxIssueCount,
+    int UnbalancedDelimiters,
+    int UnbalancedBraces,
+    int InvalidSpacingCount,
+    int UnknownMacroCount,
+    double KaTeXInteropScore,
+    IReadOnlyList<MathDelimiterItem> MathItems,
+    IReadOnlyList<string> GlobalIssues,
+    string CompatibilityCategory,
+    string Summary);
+
 

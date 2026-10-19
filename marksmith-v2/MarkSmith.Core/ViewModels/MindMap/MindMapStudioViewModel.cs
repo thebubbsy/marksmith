@@ -7072,6 +7072,307 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Spectral bisection audit ({scope} · {nodeStr}, {linkStr} · λ₂={lambda2:0.###} · {category} · Cut: {cutStr}, {conductance:0.###} cond · {partASize} vs {partBSize} bisection · {compStr})";
         }
+
+        /// <summary>
+        /// Audits the mindmap graph for biconnected components (maximal 2-connected blocks),
+        /// articulation points (cut vertices), and bridge edges using the Hopcroft-Tarjan DFS algorithm.
+        /// </summary>
+        public GraphBiconnectivityAudit AuditBiconnectedComponentsAndBridges(bool selectionOnly = false)
+        {
+            var targetNodes = (selectionOnly
+                ? Nodes.Where(n => n.IsSelected && !n.IsDimmed).ToList()
+                : Nodes.Where(n => !n.IsDimmed).ToList());
+
+            bool isSelection = selectionOnly && Nodes.Any(n => n.IsSelected);
+            string scope = isSelection ? "Selection" : "Galaxy";
+
+            if (targetNodes.Count == 0)
+            {
+                string emptySummary = $"Biconnectivity audit ({scope}): 0 nodes · Empty map";
+                StatusMessage = emptySummary;
+                return new GraphBiconnectivityAudit(
+                    0, 0, 0, 0, 0, 0, 100.0,
+                    Array.Empty<NodeArticulationInfo>(),
+                    Array.Empty<BridgeEdgeInfo>(),
+                    Array.Empty<BiconnectedBlockInfo>(),
+                    "Empty Graph", isSelection, emptySummary);
+            }
+
+            var nodeSet = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+            var titleMap = targetNodes.ToDictionary(n => n.Id, n => string.IsNullOrWhiteSpace(n.Title) ? n.Id : n.Title.Trim(), StringComparer.OrdinalIgnoreCase);
+
+            if (targetNodes.Count == 1)
+            {
+                var single = targetNodes[0];
+                string singleSummary = $"Biconnectivity audit ({scope} · 1 node): 0 articulation points, 0 bridges · 1 block · '{(string.IsNullOrWhiteSpace(single.Title) ? single.Id : single.Title)}'";
+                StatusMessage = singleSummary;
+                return new GraphBiconnectivityAudit(
+                    1, 0, 1, 0, 0, 1, 100.0,
+                    new[] { new NodeArticulationInfo(single.Id, titleMap[single.Id], 0, false, 1, 0) },
+                    Array.Empty<BridgeEdgeInfo>(),
+                    new[] { new BiconnectedBlockInfo(1, 1, 0, new[] { titleMap[single.Id] }, false) },
+                    "Single Node (Trivially Biconnected)", isSelection, singleSummary);
+            }
+
+            // Build undirected adjacency list
+            var adj = new Dictionary<string, List<(string neighborId, string linkId)>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in targetNodes) adj[n.Id] = new List<(string neighborId, string linkId)>();
+
+            var relevantLinks = Links.Where(l => !string.IsNullOrEmpty(l.SourceNodeId) &&
+                                                 !string.IsNullOrEmpty(l.TargetNodeId) &&
+                                                 nodeSet.Contains(l.SourceNodeId) &&
+                                                 nodeSet.Contains(l.TargetNodeId)).ToList();
+
+            var addedEdges = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var l in relevantLinks)
+            {
+                string u = l.SourceNodeId!;
+                string v = l.TargetNodeId!;
+                if (u.Equals(v, StringComparison.OrdinalIgnoreCase)) continue; // skip self-loops
+
+                adj[u].Add((v, l.Id));
+                adj[v].Add((u, l.Id));
+                string key = string.Compare(u, v, StringComparison.OrdinalIgnoreCase) < 0 ? $"{u}--{v}" : $"{v}--{u}";
+                addedEdges.Add(key);
+            }
+
+            // Fallback for hierarchical ParentId relationships when no explicit link exists
+            int parentLinkIndex = 0;
+            foreach (var n in targetNodes)
+            {
+                if (!string.IsNullOrEmpty(n.ParentId) && nodeSet.Contains(n.ParentId))
+                {
+                    string u = n.ParentId;
+                    string v = n.Id;
+                    string key = string.Compare(u, v, StringComparison.OrdinalIgnoreCase) < 0 ? $"{u}--{v}" : $"{v}--{u}";
+                    if (addedEdges.Add(key))
+                    {
+                        string syntheticLinkId = $"hier_{++parentLinkIndex}";
+                        adj[u].Add((v, syntheticLinkId));
+                        adj[v].Add((u, syntheticLinkId));
+                    }
+                }
+            }
+
+            int timer = 0;
+            int connectedComponents = 0;
+            var discovery = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var low = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var parent = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            var isArtPoint = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var bridges = new List<BridgeEdgeInfo>();
+            var edgeStack = new Stack<(string u, string v, string linkId)>();
+            var blocks = new List<BiconnectedBlockInfo>();
+            var nodeBlockCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in targetNodes) nodeBlockCount[n.Id] = 0;
+
+            void Dfs(string u, string? p)
+            {
+                discovery[u] = low[u] = ++timer;
+                parent[u] = p;
+                int children = 0;
+
+                foreach (var (v, linkId) in adj[u])
+                {
+                    if (v.Equals(p, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    if (discovery.ContainsKey(v))
+                    {
+                        // Back edge
+                        low[u] = Math.Min(low[u], discovery[v]);
+                        if (discovery[v] < discovery[u])
+                        {
+                            edgeStack.Push((u, v, linkId));
+                        }
+                    }
+                    else
+                    {
+                        // Tree edge
+                        children++;
+                        edgeStack.Push((u, v, linkId));
+                        Dfs(v, u);
+
+                        low[u] = Math.Min(low[u], low[v]);
+
+                        // Check articulation point condition
+                        if (p == null && children > 1)
+                        {
+                            isArtPoint.Add(u);
+                        }
+                        if (p != null && low[v] >= discovery[u])
+                        {
+                            isArtPoint.Add(u);
+                        }
+
+                        // Check bridge condition
+                        if (low[v] > discovery[u])
+                        {
+                            bridges.Add(new BridgeEdgeInfo(linkId, titleMap[u], titleMap[v], true));
+                        }
+
+                        // Extract biconnected component (block)
+                        if ((p == null && children > 0) || (p != null && low[v] >= discovery[u]))
+                        {
+                            var blockNodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            var blockEdges = new List<(string u, string v, string linkId)>();
+
+                            while (edgeStack.Count > 0)
+                            {
+                                var edge = edgeStack.Pop();
+                                blockEdges.Add(edge);
+                                blockNodeIds.Add(edge.u);
+                                blockNodeIds.Add(edge.v);
+                                if (edge.u.Equals(u, StringComparison.OrdinalIgnoreCase) &&
+                                    edge.v.Equals(v, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    break;
+                                }
+                            }
+
+                            if (blockNodeIds.Count > 0)
+                            {
+                                foreach (var nid in blockNodeIds)
+                                {
+                                    if (nodeBlockCount.ContainsKey(nid)) nodeBlockCount[nid]++;
+                                }
+
+                                bool isCycleOrDense = blockEdges.Count >= blockNodeIds.Count && blockNodeIds.Count >= 3;
+                                var titles = blockNodeIds.Select(nid => titleMap[nid]).OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList();
+                                blocks.Add(new BiconnectedBlockInfo(blocks.Count + 1, blockNodeIds.Count, blockEdges.Count, titles, isCycleOrDense));
+                            }
+                        }
+                    }
+                }
+            }
+
+            foreach (var n in targetNodes)
+            {
+                if (!discovery.ContainsKey(n.Id))
+                {
+                    connectedComponents++;
+                    Dfs(n.Id, null);
+
+                    // If any remaining edges on stack for this component (e.g. single block tree edge)
+                    if (edgeStack.Count > 0)
+                    {
+                        var blockNodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        var blockEdges = new List<(string u, string v, string linkId)>();
+                        while (edgeStack.Count > 0)
+                        {
+                            var edge = edgeStack.Pop();
+                            blockEdges.Add(edge);
+                            blockNodeIds.Add(edge.u);
+                            blockNodeIds.Add(edge.v);
+                        }
+                        if (blockNodeIds.Count > 0)
+                        {
+                            foreach (var nid in blockNodeIds)
+                            {
+                                if (nodeBlockCount.ContainsKey(nid)) nodeBlockCount[nid]++;
+                            }
+                            bool isCycleOrDense = blockEdges.Count >= blockNodeIds.Count && blockNodeIds.Count >= 3;
+                            var titles = blockNodeIds.Select(nid => titleMap[nid]).OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList();
+                            blocks.Add(new BiconnectedBlockInfo(blocks.Count + 1, blockNodeIds.Count, blockEdges.Count, titles, isCycleOrDense));
+                        }
+                    }
+
+                    // Isolated single node in multi-node graph
+                    if (adj[n.Id].Count == 0 && nodeBlockCount[n.Id] == 0)
+                    {
+                        blocks.Add(new BiconnectedBlockInfo(blocks.Count + 1, 1, 0, new[] { titleMap[n.Id] }, false));
+                        nodeBlockCount[n.Id] = 1;
+                    }
+                }
+            }
+
+            var nodeArticulationInfos = targetNodes.Select(n =>
+            {
+                bool isCut = isArtPoint.Contains(n.Id);
+                int deg = adj[n.Id].Count;
+                int bCount = nodeBlockCount[n.Id];
+                int disconnectedIfRemoved = isCut ? Math.Max(1, bCount) : 0;
+                return new NodeArticulationInfo(n.Id, titleMap[n.Id], deg, isCut, bCount, disconnectedIfRemoved);
+            }).OrderByDescending(a => a.IsArticulationPoint).ThenByDescending(a => a.Degree).ToList();
+
+            int artCount = isArtPoint.Count;
+            int bridgeCount = bridges.Count;
+            int blockCount = blocks.Count;
+            int totalLinksCalculated = addedEdges.Count;
+
+            string category;
+            if (connectedComponents > 1)
+                category = $"Disconnected Multi-Component Graph ({connectedComponents} components)";
+            else if (artCount == 0 && targetNodes.Count >= 3)
+                category = "Robust 2-Connected Mesh (Zero Bottlenecks)";
+            else if (bridgeCount == targetNodes.Count - 1 && targetNodes.Count >= 2)
+                category = "Acyclic Tree Hierarchy (All Edges are Bridges)";
+            else if (artCount > 0)
+                category = $"Articulated Topology ({artCount} Single-Point Failure Bottlenecks)";
+            else
+                category = "Single Biconnected Block";
+
+            double artRatio = (double)artCount / targetNodes.Count;
+            double bridgeRatio = totalLinksCalculated > 0 ? (double)bridgeCount / totalLinksCalculated : 0.0;
+            double rawScore = 100.0 - (artRatio * 45.0) - (bridgeRatio * 35.0);
+            if (connectedComponents > 1) rawScore -= (connectedComponents - 1) * 10.0;
+            double biconnectivityScore = Math.Round(Math.Clamp(rawScore, 10.0, 100.0), 1);
+            if (artCount == 0 && connectedComponents == 1) biconnectivityScore = 100.0;
+
+            string summary = FormatBiconnectivitySummary(
+                targetNodes.Count, totalLinksCalculated, connectedComponents, artCount, bridgeCount, blockCount,
+                biconnectivityScore, category, isSelection);
+
+            StatusMessage = summary;
+
+            return new GraphBiconnectivityAudit(
+                targetNodes.Count,
+                totalLinksCalculated,
+                connectedComponents,
+                artCount,
+                bridgeCount,
+                blockCount,
+                biconnectivityScore,
+                nodeArticulationInfos,
+                bridges,
+                blocks,
+                category,
+                isSelection,
+                summary);
+        }
+
+        public static GraphBiconnectivityAudit AuditBiconnectedComponentsAndBridges(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditBiconnectedComponentsAndBridges();
+        }
+
+        public static string FormatBiconnectivitySummary(
+            int nodeCount, int linkCount, int components, int artCount, int bridgeCount, int blockCount,
+            double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection" : "Galaxy";
+            if (nodeCount == 0) return $"Biconnectivity audit ({scope}): 0 nodes · Empty map";
+
+            string nodeStr = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+            string linkStr = linkCount == 1 ? "1 link" : $"{linkCount} links";
+            string artStr = artCount == 1 ? "1 cut-vertex" : $"{artCount} cut-vertices";
+            string bridgeStr = bridgeCount == 1 ? "1 bridge" : $"{bridgeCount} bridges";
+            string blockStr = blockCount == 1 ? "1 block" : $"{blockCount} blocks";
+
+            return $"Biconnectivity audit ({scope} · {nodeStr}, {linkStr} · {category} · {artStr}, {bridgeStr} · {blockStr} · {score:0.#}% robustness)";
+        }
     }
 
 
@@ -7571,6 +7872,55 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<string> BoundaryBridgeNodeTitles,
         string SpectralRobustnessCategory,
         double SpectralFidelityScore,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents degree, articulation point status, and block participation for an individual mindmap node.
+    /// </summary>
+    public sealed record NodeArticulationInfo(
+        string NodeId,
+        string Title,
+        int Degree,
+        bool IsArticulationPoint,
+        int BlockCount,
+        int DisconnectedComponentsIfRemoved);
+
+    /// <summary>
+    /// Represents bridge (cut-edge) status and endpoints for an evaluated link.
+    /// </summary>
+    public sealed record BridgeEdgeInfo(
+        string LinkId,
+        string SourceTitle,
+        string TargetTitle,
+        bool IsBridge);
+
+    /// <summary>
+    /// Represents a maximal 2-connected biconnected component (block) in the graph.
+    /// </summary>
+    public sealed record BiconnectedBlockInfo(
+        int BlockId,
+        int NodeCount,
+        int EdgeCount,
+        IReadOnlyList<string> NodeTitles,
+        bool IsCycleOrDense);
+
+    /// <summary>
+    /// Represents the result of an audit of graph biconnected components, articulation points (cut vertices),
+    /// and bridge edges using the Hopcroft-Tarjan algorithm.
+    /// </summary>
+    public sealed record GraphBiconnectivityAudit(
+        int TotalNodes,
+        int TotalLinks,
+        int ConnectedComponents,
+        int ArticulationPointCount,
+        int BridgeEdgeCount,
+        int BiconnectedBlockCount,
+        double BiconnectivityScore,
+        IReadOnlyList<NodeArticulationInfo> ArticulationNodes,
+        IReadOnlyList<BridgeEdgeInfo> Bridges,
+        IReadOnlyList<BiconnectedBlockInfo> Blocks,
+        string TopologyCategory,
         bool IsSelectionScope,
         string Summary);
 }

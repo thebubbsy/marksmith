@@ -347,6 +347,9 @@
                                         <MenuFlyoutItem x:Name="AuditPyramidTaperingItem" Text="Audit pyramid &amp; funnel layer mass tapering &amp; apex overload" Click="OnAuditPyramidTaperingClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantSymmetryItem" Text="Audit 2x2 matrix quadrant axis symmetry &amp; item distribution" Click="OnAuditMatrixQuadrantSymmetryClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF158;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

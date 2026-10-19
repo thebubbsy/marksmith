@@ -1878,6 +1878,80 @@ public class TextSearchTests
         Assert.True(mixedAudit.AccessibilityScore < 100.0);
         Assert.Equal(mixedAudit.Summary, TextSearch.FormatImageAccessibilitySummary(mixedDoc));
     }
+
+    [Fact]
+    public void AuditMathDelimiterAndMacroIntegrity_ValidMath_Returns100Score()
+    {
+        // Null or empty
+        var emptyAudit = TextSearch.AuditMathDelimiterAndMacroIntegrity("");
+        Assert.Equal(0, emptyAudit.TotalMathSpans);
+        Assert.Equal(100.0, emptyAudit.KaTeXInteropScore);
+        Assert.Contains("0 formulas", emptyAudit.Summary);
+
+        // Clean document with inline and display math
+        var cleanDoc = string.Join("\n",
+            "# Math Formulas",
+            "Euler's identity is $e^{i\\pi} + 1 = 0$ in inline form.",
+            "Display equations:",
+            "$$",
+            "\\sum_{k=1}^n k = \\frac{n(n+1)}{2}",
+            "$$",
+            "Alternative brackets: \\[E = mc^2\\] and \\(\\alpha + \\beta = \\gamma\\)."
+        );
+
+        var audit = TextSearch.AuditMathDelimiterAndMacroIntegrity(cleanDoc);
+        Assert.Equal(4, audit.TotalMathSpans);
+        Assert.Equal(2, audit.InlineMathCount);
+        Assert.Equal(2, audit.DisplayMathCount);
+        Assert.Equal(4, audit.ValidMathCount);
+        Assert.Equal(0, audit.SyntaxIssueCount);
+        Assert.Equal(0, audit.UnbalancedDelimiters);
+        Assert.Equal(0, audit.UnbalancedBraces);
+        Assert.Equal(100.0, audit.KaTeXInteropScore);
+        Assert.Equal("Full KaTeX & MathML Render Fidelity", audit.CompatibilityCategory);
+        Assert.Equal(audit.Summary, TextSearch.FormatMathDelimiterSummary(cleanDoc));
+    }
+
+    [Fact]
+    public void AuditMathDelimiterAndMacroIntegrity_SyntaxHazards_DetectsIssues()
+    {
+        var invalidDoc = string.Join("\n",
+            "Invalid spacing: $ x = 5 $ has spaces around delimiters.",
+            "Unbalanced braces: $\\frac{a}{b$",
+            "Unknown macro: $\\bogusmacro{123}$",
+            "Unclosed display math:",
+            "$$",
+            "\\int_0^1 x dx"
+        );
+
+        var audit = TextSearch.AuditMathDelimiterAndMacroIntegrity(invalidDoc);
+        Assert.True(audit.SyntaxIssueCount > 0);
+        Assert.True(audit.InvalidSpacingCount > 0);
+        Assert.True(audit.UnbalancedBraces > 0);
+        Assert.True(audit.UnknownMacroCount > 0);
+        Assert.True(audit.UnbalancedDelimiters > 0);
+        Assert.True(audit.KaTeXInteropScore < 80.0);
+    }
+
+    [Fact]
+    public void AuditMathDelimiterAndMacroIntegrity_ExcludesCodeFencesAndCurrency()
+    {
+        var doc = string.Join("\n",
+            "```markdown",
+            "$not_math_in_code_fence$",
+            "$$",
+            "\\sum in code block",
+            "$$",
+            "```",
+            "Inline code: `$also_ignored$`",
+            "Cost is $50 and $100 today."
+        );
+
+        var audit = TextSearch.AuditMathDelimiterAndMacroIntegrity(doc);
+        Assert.Equal(0, audit.TotalMathSpans);
+        Assert.Equal(0, audit.SyntaxIssueCount);
+        Assert.Equal(100.0, audit.KaTeXInteropScore);
+    }
 }
 
 

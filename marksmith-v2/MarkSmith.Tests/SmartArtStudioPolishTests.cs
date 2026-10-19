@@ -1723,6 +1723,71 @@ public class SmartArtStudioPolishTests
         Assert.True(funnelAudit.IsInverted);
         Assert.Equal(3, funnelAudit.TotalTiers);
     }
+
+    [Fact]
+    public void Run170_AuditMatrixQuadrantBalance_EvaluatesSymmetryAndDetectsTraps()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantSymmetry("");
+        Assert.Equal(0, emptyAudit.TotalItems);
+        Assert.Equal(100.0, emptyAudit.SymmetryBalanceScore);
+        Assert.Equal("Empty Matrix", emptyAudit.SymmetryCategory);
+
+        // 2. Harmonic balanced 4-quadrant outline (e.g. SWOT analysis)
+        var balancedMd = string.Join("\n",
+            "- Strengths",
+            "  - Fast performance",
+            "  - Robust type system",
+            "- Weaknesses",
+            "  - High memory usage",
+            "  - Complex configuration",
+            "- Opportunities",
+            "  - Cloud native expansion",
+            "  - Cross platform reach",
+            "- Threats",
+            "  - Legacy technical debt",
+            "  - Emerging competition"
+        );
+
+        var balancedAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantSymmetry(balancedMd);
+        Assert.Equal(4, balancedAudit.TotalQuadrants);
+        Assert.Equal(8, balancedAudit.TotalItems);
+        Assert.Equal(0, balancedAudit.Quadrants.Count(q => q.IsEmpty));
+        Assert.Equal(0, balancedAudit.Quadrants.Count(q => q.IsOverloaded));
+        Assert.True(balancedAudit.SymmetryBalanceScore >= 90.0);
+        Assert.Equal("Harmonic 4-Quadrant Symmetry", balancedAudit.SymmetryCategory);
+        Assert.Contains("4/4 quadrants populated", balancedAudit.Summary);
+
+        // 3. Imbalanced matrix: 1 huge overloaded quadrant and 2 empty quadrants
+        var imbalancedMd = string.Join("\n",
+            "- Mega Quadrant With Many Items And Verbose Detailed Descriptions Explaining Everything In Huge Length And Text Mass",
+            "  - Item one",
+            "  - Item two",
+            "  - Item three",
+            "  - Item four",
+            "  - Item five",
+            "- Tiny Quadrant",
+            "  - Brief item"
+        );
+
+        var imbalancedAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantSymmetry(imbalancedMd);
+        Assert.Equal(4, imbalancedAudit.TotalQuadrants);
+        Assert.Equal(2, imbalancedAudit.Quadrants.Count(q => q.IsEmpty));
+        Assert.True(imbalancedAudit.Quadrants.Any(q => q.IsOverloaded));
+        Assert.True(imbalancedAudit.SymmetryBalanceScore < 70.0);
+        Assert.Contains("Critical Matrix Imbalance", imbalancedAudit.SymmetryCategory);
+
+        // 4. Formatter test
+        string formatted = SmartArtDesignStudioViewModel.FormatMatrixQuadrantSummary(
+            imbalancedAudit.Quadrants.Count(q => !q.IsEmpty),
+            imbalancedAudit.TotalItems,
+            imbalancedAudit.TotalWords,
+            imbalancedAudit.Quadrants.Count(q => q.IsEmpty),
+            imbalancedAudit.Quadrants.Count(q => q.IsOverloaded),
+            imbalancedAudit.SymmetryBalanceScore,
+            imbalancedAudit.SymmetryCategory);
+        Assert.Equal(imbalancedAudit.Summary, formatted);
+    }
 }
 
 

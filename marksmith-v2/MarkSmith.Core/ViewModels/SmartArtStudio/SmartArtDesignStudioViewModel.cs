@@ -5791,6 +5791,228 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Pyramid & funnel tapering audit ({tierLabel} [{totalWords} words · {modeLabel}] · {category} · {score:0.#}% score){trapAlert}";
     }
+
+    /// <summary>
+    /// Audits SmartArt 2x2 matrix diagrams for 4-quadrant balance, axis label alignment,
+    /// item distribution, word count symmetry, and empty/overloaded quadrant traps.
+    /// </summary>
+    public SmartArtMatrixQuadrantAudit AuditMatrixQuadrantSymmetry(string? markdown = null, string? layoutName = null)
+    {
+        string text = markdown ?? MarkdownText ?? string.Empty;
+        string layout = layoutName ?? SelectedLayout?.Alias ?? "matrix";
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            string emptySummary = "Matrix quadrant audit: 0 quadrants · Outline is empty";
+            return new SmartArtMatrixQuadrantAudit(
+                0, 0, 0, 0.0, 0.0, 0.0, 0.0, 100.0,
+                Array.Empty<MatrixQuadrantItem>(),
+                Array.Empty<string>(),
+                "Empty Matrix", emptySummary);
+        }
+
+        var lines = text.Replace("\r", "").Split('\n');
+        var parsedBuckets = new List<(string Header, List<string> Items)>();
+        (string Header, List<string> Items)? currentBucket = null;
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            int leadingSpaces = rawLine.TakeWhile(c => c == ' ').Count();
+            bool isRootBullet = (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ")) && leadingSpaces <= 1;
+            bool isHeading = trimmed.StartsWith("#");
+
+            if (isRootBullet || isHeading)
+            {
+                if (currentBucket != null)
+                {
+                    parsedBuckets.Add(currentBucket.Value);
+                }
+                string headerText = trimmed.TrimStart('#', '-', '*', '+', ' ');
+                currentBucket = (headerText, new List<string>());
+            }
+            else
+            {
+                string itemText = trimmed.TrimStart('-', '*', '+', ' ');
+                if (currentBucket != null)
+                {
+                    currentBucket.Value.Items.Add(itemText);
+                }
+                else
+                {
+                    currentBucket = (itemText, new List<string>());
+                }
+            }
+        }
+
+        if (currentBucket != null)
+        {
+            parsedBuckets.Add(currentBucket.Value);
+        }
+
+        if (parsedBuckets.Count == 0)
+        {
+            string emptySummary = "Matrix quadrant audit: 0 quadrants · No outline items found";
+            return new SmartArtMatrixQuadrantAudit(
+                0, 0, 0, 0.0, 0.0, 0.0, 0.0, 100.0,
+                Array.Empty<MatrixQuadrantItem>(),
+                Array.Empty<string>(),
+                "Empty Matrix", emptySummary);
+        }
+
+        string[] defaultQuadrantNames = new[]
+        {
+            "Quadrant 1 (Top-Left)",
+            "Quadrant 2 (Top-Right)",
+            "Quadrant 3 (Bottom-Left)",
+            "Quadrant 4 (Bottom-Right)"
+        };
+
+        var quadrantItems = new List<MatrixQuadrantItem>();
+        var balanceAlerts = new List<string>();
+        int totalItemsAcrossAll = 0;
+        int totalWordsAcrossAll = 0;
+
+        var evaluatedBuckets = new (string Header, List<string> Items)[4];
+        for (int i = 0; i < 4; i++)
+        {
+            if (i < parsedBuckets.Count)
+            {
+                evaluatedBuckets[i] = parsedBuckets[i];
+                int itemsCount = parsedBuckets[i].Items.Count;
+                int words = CountWords(parsedBuckets[i].Header) + parsedBuckets[i].Items.Sum(CountWords);
+                totalItemsAcrossAll += itemsCount;
+                totalWordsAcrossAll += words;
+            }
+            else
+            {
+                evaluatedBuckets[i] = (string.Empty, new List<string>());
+            }
+        }
+
+        if (parsedBuckets.Count > 4)
+        {
+            balanceAlerts.Add($"Outline contains {parsedBuckets.Count} root nodes ({parsedBuckets.Count - 4} overflow beyond standard 2x2 grid)");
+        }
+
+        int emptyQuadrantsCount = 0;
+        int overloadedQuadrantsCount = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            var (header, items) = evaluatedBuckets[i];
+            string qName = defaultQuadrantNames[i];
+            bool isEmpty = string.IsNullOrWhiteSpace(header) && items.Count == 0;
+            if (isEmpty) emptyQuadrantsCount++;
+
+            int itemCount = items.Count;
+            int words = CountWords(header) + items.Sum(CountWords);
+            int chars = header.Length + items.Sum(it => it.Length);
+            double wordPct = totalWordsAcrossAll > 0 ? (double)words / totalWordsAcrossAll * 100.0 : 0.0;
+
+            bool isOverloaded = (totalWordsAcrossAll > 10 && wordPct > 50.0) ||
+                                (totalItemsAcrossAll >= 4 && itemCount > totalItemsAcrossAll * 0.50);
+            if (isOverloaded)
+            {
+                overloadedQuadrantsCount++;
+                balanceAlerts.Add($"{qName} '{header}' is overloaded ({wordPct:0.#}% of text volume)");
+            }
+
+            if (isEmpty && parsedBuckets.Count > 0)
+            {
+                balanceAlerts.Add($"{qName} is empty (lacks content)");
+            }
+
+            quadrantItems.Add(new MatrixQuadrantItem(
+                QuadrantIndex: i + 1,
+                QuadrantName: qName,
+                Header: header,
+                ItemCount: itemCount,
+                WordCount: words,
+                CharacterCount: chars,
+                WordPercentage: Math.Round(wordPct, 1),
+                IsEmpty: isEmpty,
+                IsOverloaded: isOverloaded));
+        }
+
+        double meanItems = (double)totalItemsAcrossAll / 4.0;
+        double meanWords = (double)totalWordsAcrossAll / 4.0;
+
+        double sumItemSqDiff = quadrantItems.Sum(q => Math.Pow(q.ItemCount - meanItems, 2));
+        double itemStdDev = Math.Round(Math.Sqrt(sumItemSqDiff / 4.0), 2);
+
+        double sumWordSqDiff = quadrantItems.Sum(q => Math.Pow(q.WordCount - meanWords, 2));
+        double wordStdDev = Math.Round(Math.Sqrt(sumWordSqDiff / 4.0), 2);
+
+        double penalty = (emptyQuadrantsCount * 22.0) + (overloadedQuadrantsCount * 18.0);
+        if (meanWords > 0)
+        {
+            double cvWords = wordStdDev / meanWords;
+            penalty += Math.Min(30.0, cvWords * 15.0);
+        }
+        if (parsedBuckets.Count > 4)
+        {
+            penalty += (parsedBuckets.Count - 4) * 8.0;
+        }
+
+        double score = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 when emptyQuadrantsCount == 0 && overloadedQuadrantsCount == 0 => "Harmonic 4-Quadrant Symmetry",
+            >= 80.0 => "Balanced 2x2 Matrix with Minor Pacing Variance",
+            >= 60.0 => "Asymmetric Quadrant Distribution (Unequal Density)",
+            _ => "Critical Matrix Imbalance (Empty or Overloaded Quadrants)"
+        };
+
+        string summary = FormatMatrixQuadrantSummary(
+            quadrantItems.Count(q => !q.IsEmpty), totalItemsAcrossAll, totalWordsAcrossAll,
+            emptyQuadrantsCount, overloadedQuadrantsCount, score, category);
+
+        return new SmartArtMatrixQuadrantAudit(
+            TotalQuadrants: 4,
+            TotalItems: totalItemsAcrossAll,
+            TotalWords: totalWordsAcrossAll,
+            MeanItemsPerQuadrant: Math.Round(meanItems, 1),
+            MeanWordsPerQuadrant: Math.Round(meanWords, 1),
+            ItemStandardDeviation: itemStdDev,
+            WordStandardDeviation: wordStdDev,
+            SymmetryBalanceScore: score,
+            Quadrants: quadrantItems,
+            BalanceAlerts: balanceAlerts,
+            SymmetryCategory: category,
+            Summary: summary);
+    }
+
+    public static SmartArtMatrixQuadrantAudit AuditMatrixQuadrantSymmetry(string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditMatrixQuadrantSymmetry(markdown, layoutName);
+    }
+
+    public static string FormatMatrixQuadrantSummary(
+        int populatedQuadrants, int totalItems, int totalWords, int emptyCount, int overloadedCount,
+        double score, string category)
+    {
+        if (populatedQuadrants == 0 && totalWords == 0) return "Matrix quadrant audit: 0 quadrants · Outline is empty";
+
+        string quadLabel = $"{populatedQuadrants}/4 quadrants populated";
+        var alerts = new List<string>();
+        if (emptyCount > 0) alerts.Add($"⚠ {emptyCount} empty");
+        if (overloadedCount > 0) alerts.Add($"⚠ {overloadedCount} overloaded");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 4-quadrant balance aligned";
+
+        return $"2x2 Matrix symmetry audit ({quadLabel} [{totalItems} items, {totalWords} words] · {category} · {score:0.#}% symmetry){alertSuffix}";
+    }
+
+    private static int CountWords(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return 0;
+        return text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Length;
+    }
 }
 
 /// <summary>
@@ -6224,4 +6446,37 @@ public sealed record SmartArtPyramidTaperingAudit(
     IReadOnlyList<PyramidTierInfo> Tiers,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated item count, word count, density, and overloading for an individual 2x2 matrix quadrant.
+/// </summary>
+public sealed record MatrixQuadrantItem(
+    int QuadrantIndex,
+    string QuadrantName,
+    string Header,
+    int ItemCount,
+    int WordCount,
+    int CharacterCount,
+    double WordPercentage,
+    bool IsEmpty,
+    bool IsOverloaded);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt 2x2 matrix diagrams for 4-quadrant balance,
+/// item distribution, word count symmetry, and empty/overloaded quadrant traps.
+/// </summary>
+public sealed record SmartArtMatrixQuadrantAudit(
+    int TotalQuadrants,
+    int TotalItems,
+    int TotalWords,
+    double MeanItemsPerQuadrant,
+    double MeanWordsPerQuadrant,
+    double ItemStandardDeviation,
+    double WordStandardDeviation,
+    double SymmetryBalanceScore,
+    IReadOnlyList<MatrixQuadrantItem> Quadrants,
+    IReadOnlyList<string> BalanceAlerts,
+    string SymmetryCategory,
+    string Summary);
+
 

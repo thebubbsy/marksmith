@@ -2673,6 +2673,55 @@ namespace MarkSmith.Tests
             Assert.True(connectedAudit.Conductance > 0.0);
             Assert.NotEmpty(connectedAudit.BoundaryBridgeNodeTitles);
         }
+
+        [Fact]
+        public void Run170_AuditBiconnectedComponentsAndBridges_DecomposesBCCsAndDetectsCutVertices()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditBiconnectedComponentsAndBridges(Array.Empty<MindMapNode>(), null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.BiconnectivityScore);
+            Assert.Equal("Empty Graph", emptyAudit.TopologyCategory);
+
+            // 2. Cycle graph (Triangle): A - B - C - A (2-connected, 0 cut-vertices, 0 bridges)
+            var nA = new MindMapNode { Id = "a", Title = "Node A" };
+            var nB = new MindMapNode { Id = "b", Title = "Node B" };
+            var nC = new MindMapNode { Id = "c", Title = "Node C" };
+            var lAB = new MindMapLink { Id = "l1", SourceNodeId = "a", TargetNodeId = "b" };
+            var lBC = new MindMapLink { Id = "l2", SourceNodeId = "b", TargetNodeId = "c" };
+            var lCA = new MindMapLink { Id = "l3", SourceNodeId = "c", TargetNodeId = "a" };
+
+            var cycleAudit = MindMapStudioViewModel.AuditBiconnectedComponentsAndBridges(
+                new[] { nA, nB, nC }, new[] { lAB, lBC, lCA });
+
+            Assert.Equal(3, cycleAudit.TotalNodes);
+            Assert.Equal(3, cycleAudit.TotalLinks);
+            Assert.Equal(1, cycleAudit.ConnectedComponents);
+            Assert.Equal(0, cycleAudit.ArticulationPointCount);
+            Assert.Equal(0, cycleAudit.BridgeEdgeCount);
+            Assert.Equal(1, cycleAudit.BiconnectedBlockCount);
+            Assert.Equal("Robust 2-Connected Mesh (Zero Bottlenecks)", cycleAudit.TopologyCategory);
+            Assert.Equal(100.0, cycleAudit.BiconnectivityScore);
+
+            // 3. Tree graph: A - B - C (B is cut-vertex, l1 and l2 are bridges)
+            var treeAudit = MindMapStudioViewModel.AuditBiconnectedComponentsAndBridges(
+                new[] { nA, nB, nC }, new[] { lAB, lBC });
+
+            Assert.Equal(3, treeAudit.TotalNodes);
+            Assert.Equal(2, treeAudit.TotalLinks);
+            Assert.Equal(1, treeAudit.ArticulationPointCount);
+            Assert.Contains(treeAudit.ArticulationNodes, a => a.Title == "Node B");
+            Assert.Equal(2, treeAudit.BridgeEdgeCount);
+            Assert.Equal(2, treeAudit.BiconnectedBlockCount);
+            Assert.Contains("Acyclic Tree Hierarchy (All Edges are Bridges)", treeAudit.TopologyCategory);
+
+            // 4. Formatter test
+            string formatted = MindMapStudioViewModel.FormatBiconnectivitySummary(
+                treeAudit.TotalNodes, treeAudit.TotalLinks, treeAudit.ConnectedComponents,
+                treeAudit.ArticulationPointCount, treeAudit.BridgeEdgeCount, treeAudit.BiconnectedBlockCount,
+                treeAudit.BiconnectivityScore, treeAudit.TopologyCategory, treeAudit.IsSelectionScope);
+            Assert.Equal(treeAudit.Summary, formatted);
+        }
     }
 }
 

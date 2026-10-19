@@ -6904,6 +6904,250 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
         return $"Shape stroke & corner audit ({scopeStr}{shapeLabel} · {category} · {score:0.#}% score · Mean {meanStrokePt:0.#}pt){details}";
     }
+
+    /// <summary>
+    /// Audits connector routing and polyline paths for shape bounding box collisions and near-miss clearance violations.
+    /// Excludes connected source and target shapes from being reported as obstacles.
+    /// </summary>
+    public ConnectorObstacleCollisionAudit AuditConnectorObstacleCollisions(IEnumerable<ShapeCanvasItemViewModel>? targetItems = null)
+    {
+        var selected = SelectedItems.ToList();
+        var rawTargets = targetItems?.ToList() ?? (selected.Count > 0 ? selected : Shapes.ToList());
+        bool isSelection = targetItems != null || selected.Count > 0;
+        var audit = AuditConnectorObstacleCollisions(rawTargets, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static ConnectorObstacleCollisionAudit AuditConnectorObstacleCollisions(
+        IReadOnlyList<ShapeCanvasItemViewModel> items,
+        bool isSelection = false)
+    {
+        if (items == null || items.Count == 0)
+        {
+            string emptySummary = FormatConnectorCollisionSummary(0, 0, 0, 0, 0, 0, 100.0, "Empty Canvas", isSelection);
+            return new ConnectorObstacleCollisionAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ConnectorCollisionItem>(),
+                Array.Empty<string>(),
+                "Empty Canvas", isSelection, emptySummary);
+        }
+
+        // Separate connectors (lines) from obstacle shapes
+        var connectors = items.Where(i => i.IsLine).ToList();
+        var obstacles = items.Where(i => !i.IsLine && i.Width > 0 && i.Height > 0).ToList();
+
+        if (connectors.Count == 0)
+        {
+            string noConnSummary = FormatConnectorCollisionSummary(0, obstacles.Count, 0, 0, 0, 0, 100.0, "No Connectors", isSelection);
+            return new ConnectorObstacleCollisionAudit(
+                0, obstacles.Count, 0, 0, 0, 0, 100.0,
+                Array.Empty<ConnectorCollisionItem>(),
+                Array.Empty<string>(),
+                "No Connectors Present", isSelection, noConnSummary);
+        }
+
+        const double clearanceMargin = 8.0;
+        var connectorItems = new List<ConnectorCollisionItem>();
+        var criticalCollisions = new List<string>();
+        int clearConnectors = 0;
+        int collidedConnectors = 0;
+        int nearMissConnectors = 0;
+        int totalCollisionsCount = 0;
+
+        foreach (var conn in connectors)
+        {
+            // Build absolute canvas points for this connector
+            var pts = new List<(double X, double Y)>();
+            if (conn.PathPoints != null && conn.PathPoints.Count >= 2)
+            {
+                foreach (var p in conn.PathPoints)
+                {
+                    double ax = conn.X + (p.X * conn.Width / 100.0);
+                    double ay = conn.Y + (p.Y * conn.Height / 100.0);
+                    pts.Add((ax, ay));
+                }
+            }
+            else
+            {
+                pts.Add((conn.X, conn.Y));
+                pts.Add((conn.X + conn.Width, conn.Y + conn.Height));
+            }
+
+            var startPt = pts[0];
+            var endPt = pts[^1];
+
+            // Identify source and target shapes to exclude from obstacle checks
+            var connectedShapeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            ShapeCanvasItemViewModel? sourceShape = null;
+            ShapeCanvasItemViewModel? targetShape = null;
+
+            foreach (var s in obstacles)
+            {
+                if (PointTouchesBox(startPt.X, startPt.Y, s.X, s.Y, s.Width, s.Height, 8.0))
+                {
+                    connectedShapeIds.Add(s.Id);
+                    sourceShape ??= s;
+                }
+                if (PointTouchesBox(endPt.X, endPt.Y, s.X, s.Y, s.Width, s.Height, 8.0))
+                {
+                    connectedShapeIds.Add(s.Id);
+                    targetShape ??= s;
+                }
+            }
+
+            string sourceName = sourceShape?.Name ?? (sourceShape?.Text?.Trim() is { Length: > 0 } st ? st : "Start Point");
+            string targetName = targetShape?.Name ?? (targetShape?.Text?.Trim() is { Length: > 0 } tt ? tt : "End Point");
+
+            var candidateObstacles = obstacles.Where(o => !connectedShapeIds.Contains(o.Id)).ToList();
+            var collidedShapeNames = new List<string>();
+            var nearMissShapeNames = new List<string>();
+            int segmentCount = pts.Count - 1;
+
+            for (int seg = 0; seg < pts.Count - 1; seg++)
+            {
+                var p1 = pts[seg];
+                var p2 = pts[seg + 1];
+
+                foreach (var obs in candidateObstacles)
+                {
+                    string obsName = string.IsNullOrWhiteSpace(obs.Name)
+                        ? (string.IsNullOrWhiteSpace(obs.Text) ? $"Shape_{obs.Id}" : obs.Text.Trim())
+                        : obs.Name.Trim();
+
+                    // Check direct intersection
+                    if (SegmentIntersectsAabb(p1.X, p1.Y, p2.X, p2.Y, obs.X, obs.Y, obs.Width, obs.Height))
+                    {
+                        if (!collidedShapeNames.Contains(obsName))
+                        {
+                            collidedShapeNames.Add(obsName);
+                            criticalCollisions.Add($"{conn.Name} penetrating '{obsName}'");
+                        }
+                    }
+                    // Check near-miss intersection (expanded by clearanceMargin)
+                    else if (SegmentIntersectsAabb(p1.X, p1.Y, p2.X, p2.Y,
+                        obs.X - clearanceMargin, obs.Y - clearanceMargin,
+                        obs.Width + clearanceMargin * 2, obs.Height + clearanceMargin * 2))
+                    {
+                        if (!nearMissShapeNames.Contains(obsName) && !collidedShapeNames.Contains(obsName))
+                        {
+                            nearMissShapeNames.Add(obsName);
+                        }
+                    }
+                }
+            }
+
+            int collisions = collidedShapeNames.Count;
+            int nearMisses = nearMissShapeNames.Count;
+            totalCollisionsCount += collisions;
+
+            string severity = collisions > 0 ? "Critical Collision" : (nearMisses > 0 ? "Near-Miss Hazard" : "Clear Routing");
+
+            if (collisions > 0) collidedConnectors++;
+            else if (nearMisses > 0) nearMissConnectors++;
+            else clearConnectors++;
+
+            connectorItems.Add(new ConnectorCollisionItem(
+                ConnectorId: conn.Id,
+                ConnectorName: conn.Name,
+                SourceShapeName: sourceName,
+                TargetShapeName: targetName,
+                SegmentCount: segmentCount,
+                CollisionCount: collisions,
+                NearMissCount: nearMisses,
+                CollidedShapeNames: collidedShapeNames,
+                NearMissShapeNames: nearMissShapeNames,
+                ClearanceMarginPixels: clearanceMargin,
+                Severity: severity));
+        }
+
+        double penalty = (collidedConnectors * 35.0) + (nearMissConnectors * 15.0);
+        double score = Math.Clamp(100.0 - (penalty / connectors.Count), 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 when collidedConnectors == 0 && nearMissConnectors == 0 => "Clear Channel Orthogonal Routing",
+            >= 80.0 => "Good Routing with Minor Near-Miss Grazing",
+            >= 60.0 => "Routing Obstacle Warnings",
+            _ => "Critical Shape Collision & Obscuration Hazards"
+        };
+
+        string summary = FormatConnectorCollisionSummary(
+            connectors.Count, obstacles.Count, clearConnectors, collidedConnectors, nearMissConnectors,
+            totalCollisionsCount, score, category, isSelection);
+
+        return new ConnectorObstacleCollisionAudit(
+            TotalConnectors: connectors.Count,
+            TotalObstacleShapes: obstacles.Count,
+            ClearConnectors: clearConnectors,
+            CollidedConnectors: collidedConnectors,
+            NearMissConnectors: nearMissConnectors,
+            TotalCollisions: totalCollisionsCount,
+            RoutingClearanceScore: Math.Round(score, 1),
+            Connectors: connectorItems,
+            CriticalCollisions: criticalCollisions,
+            ClearanceCategory: category,
+            IsSelectionScope: isSelection,
+            Summary: summary);
+    }
+
+    private static bool PointTouchesBox(double px, double py, double bx, double by, double bw, double bh, double margin)
+    {
+        return px >= bx - margin && px <= bx + bw + margin &&
+               py >= by - margin && py <= by + bh + margin;
+    }
+
+    private static bool SegmentIntersectsAabb(double x1, double y1, double x2, double y2, double rx, double ry, double rw, double rh)
+    {
+        double rRight = rx + rw;
+        double rBottom = ry + rh;
+
+        // Quick AABB rejection
+        if (Math.Max(x1, x2) < rx || Math.Min(x1, x2) > rRight ||
+            Math.Max(y1, y2) < ry || Math.Min(y1, y2) > rBottom)
+        {
+            return false;
+        }
+
+        // Point inside box check
+        if ((x1 >= rx && x1 <= rRight && y1 >= ry && y1 <= rBottom) ||
+            (x2 >= rx && x2 <= rRight && y2 >= ry && y2 <= rBottom))
+        {
+            return true;
+        }
+
+        // Segment vs 4 box segments
+        return LineSegmentsIntersect(x1, y1, x2, y2, rx, ry, rRight, ry) ||
+               LineSegmentsIntersect(x1, y1, x2, y2, rRight, ry, rRight, rBottom) ||
+               LineSegmentsIntersect(x1, y1, x2, y2, rRight, rBottom, rx, rBottom) ||
+               LineSegmentsIntersect(x1, y1, x2, y2, rx, rBottom, rx, ry);
+    }
+
+    private static bool LineSegmentsIntersect(double x1, double y1, double x2, double y2, double x3, double y3, double x4, double y4)
+    {
+        static double Ccw(double ax, double ay, double bx, double by, double cx, double cy) =>
+            (cy - ay) * (bx - ax) > (by - ay) * (cx - ax) ? 1.0 : -1.0;
+
+        return (Ccw(x1, y1, x3, y3, x4, y4) != Ccw(x2, y2, x3, y3, x4, y4)) &&
+               (Ccw(x1, y1, x2, y2, x3, y3) != Ccw(x1, y1, x2, y2, x4, y4));
+    }
+
+    public static string FormatConnectorCollisionSummary(
+        int totalConnectors, int obstacleCount, int clearCount, int collidedCount, int nearMissCount,
+        int totalCollisions, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalConnectors == 0) return $"Connector collision audit ({scopeStr}0 connectors): No lines to route";
+
+        string connLabel = totalConnectors == 1 ? "1 connector" : $"{totalConnectors} connectors";
+        var alerts = new List<string>();
+        if (collidedCount > 0) alerts.Add($"🚨 {collidedCount} collided");
+        if (nearMissCount > 0) alerts.Add($"⚠ {nearMissCount} near-miss");
+        if (clearCount > 0) alerts.Add($"✓ {clearCount} clear");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
+        return $"Connector obstacle collision audit ({scopeStr}{connLabel} vs {obstacleCount} shapes · {category} · {score:0.#}% clearance){details}";
+    }
 }
 
 /// <summary>
@@ -7400,4 +7644,39 @@ public sealed record DiagramStrokeCornerAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated collision, grazing, and clearance metrics for an individual diagram connector.
+/// </summary>
+public sealed record ConnectorCollisionItem(
+    string ConnectorId,
+    string ConnectorName,
+    string SourceShapeName,
+    string TargetShapeName,
+    int SegmentCount,
+    int CollisionCount,
+    int NearMissCount,
+    IReadOnlyList<string> CollidedShapeNames,
+    IReadOnlyList<string> NearMissShapeNames,
+    double ClearanceMarginPixels,
+    string Severity);
+
+/// <summary>
+/// Represents the result of an audit of connector routing obstacle avoidance, bounding box collisions,
+/// and near-miss grazing hazards.
+/// </summary>
+public sealed record ConnectorObstacleCollisionAudit(
+    int TotalConnectors,
+    int TotalObstacleShapes,
+    int ClearConnectors,
+    int CollidedConnectors,
+    int NearMissConnectors,
+    int TotalCollisions,
+    double RoutingClearanceScore,
+    IReadOnlyList<ConnectorCollisionItem> Connectors,
+    IReadOnlyList<string> CriticalCollisions,
+    string ClearanceCategory,
+    bool IsSelectionScope,
+    string Summary);
+
 

@@ -4829,6 +4829,233 @@ public static class LineDiff
 
         return $"Git conflict marker audit ({lineLabel} · {category} · {score:0.#}% score): {string.Join(", ", alerts)}";
     }
+
+    /// <summary>
+    /// Audits unified diff rows for semantic line grouping and co-change clusters based on shared identifier token analysis.
+    /// Groups related additions and deletions across distant hunks into coherent logical change concepts.
+    /// </summary>
+    public static SemanticCoChangeClusterAudit AuditSemanticDiffCoChangeClusters(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            string emptySummary = "Semantic co-change audit: 0 rows · Empty diff (Identical versions)";
+            return new SemanticCoChangeClusterAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<CoChangeClusterItem>(),
+                Array.Empty<string>(),
+                "Identical Versions", emptySummary);
+        }
+
+        var changedRows = new List<(int Index, int LineNum, Kind Kind, string Text)>();
+        int totalRows = unifiedRows.Count;
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var r = unifiedRows[i];
+            if (r.IsGap) continue;
+            if (r.Kind == Kind.Added || r.Kind == Kind.Removed)
+            {
+                if (!string.IsNullOrWhiteSpace(r.Text))
+                {
+                    int lineNum = r.NewNumber ?? r.OldNumber ?? (i + 1);
+                    changedRows.Add((i, lineNum, r.Kind, r.Text));
+                }
+            }
+        }
+
+        if (changedRows.Count == 0)
+        {
+            string cleanSummary = FormatCoChangeClusterSummary(totalRows, 0, 0, 0, 0, 100.0, "No Changed Content");
+            return new SemanticCoChangeClusterAudit(
+                totalRows, 0, 0, 0, 0, 100.0,
+                Array.Empty<CoChangeClusterItem>(),
+                Array.Empty<string>(),
+                "No Line Modifications", cleanSummary);
+        }
+
+        var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "the", "and", "for", "this", "that", "with", "from", "have", "are", "were", "will", "been",
+            "var", "let", "const", "return", "public", "private", "protected", "static", "void", "class",
+            "struct", "record", "true", "false", "null", "string", "int", "bool", "double", "float",
+            "import", "export", "using", "namespace", "async", "await", "task", "get", "set", "new",
+            "function", "if", "else", "switch", "case", "break", "continue", "default", "try", "catch",
+            "finally", "throw", "typeof", "sizeof", "override", "virtual", "abstract", "sealed", "readonly"
+        };
+
+        var rowTokens = new List<HashSet<string>>();
+        var tokenToRows = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
+
+        for (int rIdx = 0; rIdx < changedRows.Count; rIdx++)
+        {
+            var (_, _, _, text) = changedRows[rIdx];
+            var tokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var matches = Regex.Matches(text, @"\b[a-zA-Z_][a-zA-Z0-9_]{2,}\b");
+            foreach (Match m in matches)
+            {
+                string token = m.Value;
+                if (!stopWords.Contains(token))
+                {
+                    tokens.Add(token);
+                    if (!tokenToRows.TryGetValue(token, out var rowList))
+                    {
+                        rowList = new List<int>();
+                        tokenToRows[token] = rowList;
+                    }
+                    rowList.Add(rIdx);
+                }
+            }
+            rowTokens.Add(tokens);
+        }
+
+        // Keep significant tokens that appear in >= 2 changed rows
+        var significantTokens = tokenToRows.Where(kv => kv.Value.Count >= 2).Select(kv => kv.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Build adjacency between changed rows
+        var adj = new Dictionary<int, HashSet<int>>();
+        for (int i = 0; i < changedRows.Count; i++) adj[i] = new HashSet<int>();
+
+        foreach (var tok in significantTokens)
+        {
+            var rowsWithToken = tokenToRows[tok];
+            for (int a = 0; a < rowsWithToken.Count; a++)
+            {
+                for (int b = a + 1; b < rowsWithToken.Count; b++)
+                {
+                    int u = rowsWithToken[a];
+                    int v = rowsWithToken[b];
+                    adj[u].Add(v);
+                    adj[v].Add(u);
+                }
+            }
+        }
+
+        // Find connected components (clusters) of changed rows
+        var visited = new HashSet<int>();
+        var clusterItems = new List<CoChangeClusterItem>();
+        var keyConcepts = new List<string>();
+        int clusteredRowsCount = 0;
+
+        for (int i = 0; i < changedRows.Count; i++)
+        {
+            if (visited.Contains(i) || adj[i].Count == 0) continue;
+
+            var component = new List<int>();
+            var queue = new Queue<int>();
+            queue.Enqueue(i);
+            visited.Add(i);
+
+            while (queue.Count > 0)
+            {
+                int curr = queue.Dequeue();
+                component.Add(curr);
+
+                foreach (var neighbor in adj[curr])
+                {
+                    if (visited.Add(neighbor))
+                    {
+                        queue.Enqueue(neighbor);
+                    }
+                }
+            }
+
+            if (component.Count >= 2)
+            {
+                clusteredRowsCount += component.Count;
+
+                var tokenFreq = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                int addedInCluster = 0;
+                int deletedInCluster = 0;
+                var lineNumbers = new List<int>();
+
+                foreach (var rIdx in component)
+                {
+                    var (_, lineNum, kind, _) = changedRows[rIdx];
+                    lineNumbers.Add(lineNum);
+                    if (kind == Kind.Added) addedInCluster++;
+                    else if (kind == Kind.Removed) deletedInCluster++;
+
+                    foreach (var tok in rowTokens[rIdx])
+                    {
+                        if (significantTokens.Contains(tok))
+                        {
+                            tokenFreq[tok] = tokenFreq.GetValueOrDefault(tok, 0) + 1;
+                        }
+                    }
+                }
+
+                var sortedTokens = tokenFreq.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).Select(kv => kv.Key).ToList();
+                string primaryId = sortedTokens.FirstOrDefault() ?? "CoChangeGroup";
+                if (!keyConcepts.Contains(primaryId)) keyConcepts.Add(primaryId);
+
+                double cohesion = component.Count > 0 && tokenFreq.Count > 0
+                    ? Math.Round(Math.Clamp((double)tokenFreq.Values.Sum() / (component.Count * tokenFreq.Count), 0.1, 1.0), 2)
+                    : 1.0;
+
+                string desc = $"Co-change cluster around '{primaryId}' (+{addedInCluster}/-{deletedInCluster} lines across {component.Count} sites)";
+
+                clusterItems.Add(new CoChangeClusterItem(
+                    ClusterId: clusterItems.Count + 1,
+                    PrimaryIdentifier: primaryId,
+                    AssociatedTokens: sortedTokens.Take(5).ToList(),
+                    ModifiedLineCount: component.Count,
+                    AddedLines: addedInCluster,
+                    DeletedLines: deletedInCluster,
+                    LineNumbers: lineNumbers.Distinct().OrderBy(l => l).Take(8).ToList(),
+                    CohesionScore: cohesion,
+                    Description: desc));
+            }
+        }
+
+        int isolatedRowsCount = changedRows.Count - clusteredRowsCount;
+        double couplingScore = changedRows.Count > 0
+            ? Math.Round((double)clusteredRowsCount / changedRows.Count * 100.0, 1)
+            : 100.0;
+
+        string category = couplingScore switch
+        {
+            >= 80.0 => "High Semantic Cohesion (Structured Domain Refactor)",
+            >= 50.0 => "Moderate Semantic Coupling (Multi-Topic Edits)",
+            >= 20.0 => "Dispersed Line Changes with Weak Co-Change Clusters",
+            _ => "Uncorrelated Diff Lines / Diffuse Line Churn"
+        };
+
+        string summary = FormatCoChangeClusterSummary(
+            totalRows, changedRows.Count, clusterItems.Count, clusteredRowsCount, isolatedRowsCount,
+            couplingScore, category);
+
+        return new SemanticCoChangeClusterAudit(
+            TotalDiffLines: totalRows,
+            TotalChangedLines: changedRows.Count,
+            ClusterCount: clusterItems.Count,
+            ClusteredLineCount: clusteredRowsCount,
+            IsolatedLineCount: isolatedRowsCount,
+            SemanticCouplingScore: couplingScore,
+            Clusters: clusterItems,
+            KeyCoChangeConcepts: keyConcepts,
+            CouplingCategory: category,
+            Summary: summary);
+    }
+
+    public static SemanticCoChangeClusterAudit AuditSemanticDiffCoChangeClusters(string? oldText, string? newText)
+    {
+        var diff = Diff(oldText ?? string.Empty, newText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditSemanticDiffCoChangeClusters(unified);
+    }
+
+    public static string FormatCoChangeClusterSummary(
+        int totalRows, int changedCount, int clusterCount, int clusteredCount, int isolatedCount,
+        double score, string category)
+    {
+        if (changedCount == 0) return $"Semantic co-change audit ({totalRows:N0} rows): Zero changed lines (Clean snapshot)";
+
+        string lineLabel = changedCount == 1 ? "1 modified line" : $"{changedCount} modified lines";
+        string clusterLabel = clusterCount == 1 ? "1 co-change cluster" : $"{clusterCount} co-change clusters";
+
+        return $"Semantic diff co-change audit ({clusterLabel} · {lineLabel} [{clusteredCount} grouped, {isolatedCount} isolated] · {category} · {score:0.#}% coupling)";
+    }
 }
 
 /// <summary>
@@ -5146,4 +5373,34 @@ public sealed record GitConflictMarkerAudit(
     IReadOnlyList<ConflictBlockInfo> ConflictBlocks,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated co-change identifier tokens, affected line counts, and cohesion for a semantic change cluster.
+/// </summary>
+public sealed record CoChangeClusterItem(
+    int ClusterId,
+    string PrimaryIdentifier,
+    IReadOnlyList<string> AssociatedTokens,
+    int ModifiedLineCount,
+    int AddedLines,
+    int DeletedLines,
+    IReadOnlyList<int> LineNumbers,
+    double CohesionScore,
+    string Description);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff line grouping and co-change clusters across document versions.
+/// </summary>
+public sealed record SemanticCoChangeClusterAudit(
+    int TotalDiffLines,
+    int TotalChangedLines,
+    int ClusterCount,
+    int ClusteredLineCount,
+    int IsolatedLineCount,
+    double SemanticCouplingScore,
+    IReadOnlyList<CoChangeClusterItem> Clusters,
+    IReadOnlyList<string> KeyCoChangeConcepts,
+    string CouplingCategory,
+    string Summary);
+
 

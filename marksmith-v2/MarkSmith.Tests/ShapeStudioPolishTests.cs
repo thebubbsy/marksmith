@@ -1852,6 +1852,58 @@ public class ShapeStudioPolishTests
         Assert.True(mixedAudit.MiterSpikeRiskCount >= 1);
         Assert.True(mixedAudit.StrokeFidelityScore < 100.0);
     }
+
+    [Fact]
+    public void Run170_AuditConnectorObstacleCollisions_DetectsCollidingObstacles()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.ClearAll();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditConnectorObstacleCollisions();
+        Assert.Equal(0, emptyAudit.TotalConnectors);
+        Assert.Equal(100.0, emptyAudit.RoutingClearanceScore);
+        Assert.Equal("Empty Canvas", emptyAudit.ClearanceCategory);
+
+        // 2. Clear connector between Shape A and Shape B
+        var sA = new ShapeCanvasItemViewModel { Id = "sA", Text = "Source", X = 0, Y = 0, Width = 50, Height = 50 };
+        var sB = new ShapeCanvasItemViewModel { Id = "sB", Text = "Target", X = 200, Y = 0, Width = 50, Height = 50 };
+        var conn = new ShapeCanvasItemViewModel { Id = "c1", Prst = "line", X = 50, Y = 25, Width = 150, Height = 0 };
+        var sFar = new ShapeCanvasItemViewModel { Id = "sFar", Text = "Far Obstacle", X = 100, Y = 100, Width = 50, Height = 50 };
+
+        vm.Shapes.Add(sA);
+        vm.Shapes.Add(sB);
+        vm.Shapes.Add(conn);
+        vm.Shapes.Add(sFar);
+
+        var clearAudit = vm.AuditConnectorObstacleCollisions();
+        Assert.Equal(1, clearAudit.TotalConnectors);
+        Assert.Equal(3, clearAudit.TotalObstacleShapes);
+        Assert.Equal(1, clearAudit.ClearConnectors);
+        Assert.Equal(0, clearAudit.CollidedConnectors);
+        Assert.Equal(100.0, clearAudit.RoutingClearanceScore);
+        Assert.Contains("Clear Channel Orthogonal Routing", clearAudit.ClearanceCategory);
+
+        // 3. Move obstacle to intersect connector line directly
+        sFar.X = 100;
+        sFar.Y = 10;
+        sFar.Height = 30; // Y from 10 to 40, crosses Y=25
+
+        var collisionAudit = vm.AuditConnectorObstacleCollisions();
+        Assert.Equal(1, collisionAudit.TotalConnectors);
+        Assert.Equal(1, collisionAudit.CollidedConnectors);
+        Assert.True(collisionAudit.TotalCollisions >= 1);
+        Assert.True(collisionAudit.RoutingClearanceScore < 80.0);
+        Assert.NotEmpty(collisionAudit.Connectors);
+
+        // 4. Formatter test
+        string formatted = ShapeDesignStudioViewModel.FormatConnectorCollisionSummary(
+            collisionAudit.TotalConnectors, collisionAudit.TotalObstacleShapes,
+            collisionAudit.ClearConnectors, collisionAudit.CollidedConnectors,
+            collisionAudit.NearMissConnectors, collisionAudit.TotalCollisions,
+            collisionAudit.RoutingClearanceScore, collisionAudit.ClearanceCategory, collisionAudit.IsSelectionScope);
+        Assert.Equal(collisionAudit.Summary, formatted);
+    }
 }
 
 
