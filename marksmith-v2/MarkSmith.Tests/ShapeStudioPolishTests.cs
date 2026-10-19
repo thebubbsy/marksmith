@@ -2089,6 +2089,48 @@ public class ShapeStudioPolishTests
         Assert.True(crowdedAudit.EdgeCrowdingHazards >= 1);
         Assert.True(crowdedAudit.SpatialBalanceScore < 100.0);
     }
+
+    [Fact]
+    public void Run174_AuditShapeCollinearityAndSpacing_CalculatesCollinearGroupsAndJitter()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        var empty = vm.AuditShapeCollinearityAndSpacing();
+        Assert.Equal(0, empty.TotalShapesEvaluated);
+        Assert.Equal(100.0, empty.CollinearityAndSpacingScore);
+        Assert.Equal("Insufficient Shapes", empty.Category);
+
+        // 3 horizontally collinear boxes aligned at Y=100
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Box 1", X = 100, Y = 100, Width = 80, Height = 50 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Box 2", X = 200, Y = 100, Width = 80, Height = 50 };
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Name = "Box 3", X = 300, Y = 100, Width = 80, Height = 50 };
+
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+        vm.Shapes.Add(s3);
+
+        var alignedAudit = vm.AuditShapeCollinearityAndSpacing();
+        Assert.Equal(3, alignedAudit.TotalShapesEvaluated);
+        Assert.True(alignedAudit.CollinearGroupCount >= 1);
+        Assert.Equal(0, alignedAudit.NearMissJitterHazards);
+        Assert.True(alignedAudit.UniformSpacingSequences >= 1);
+        Assert.Equal(100.0, alignedAudit.CollinearityAndSpacingScore);
+        Assert.Equal("Precision Collinear & Uniform Spacing", alignedAudit.Category);
+
+        // Add a box with slight sub-pixel/sub-grid jitter: Y=102 (within tolerance 3.0px)
+        var s4 = new ShapeCanvasItemViewModel { Id = "s4", Name = "Jitter Box", X = 400, Y = 102, Width = 80, Height = 50 };
+        vm.Shapes.Add(s4);
+
+        var jitterAudit = vm.AuditShapeCollinearityAndSpacing();
+        Assert.Equal(4, jitterAudit.TotalShapesEvaluated);
+        Assert.True(jitterAudit.NearMissJitterHazards >= 1);
+        Assert.True(jitterAudit.CollinearityAndSpacingScore < 100.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatCollinearitySummary(
+            alignedAudit.TotalShapesEvaluated, alignedAudit.CollinearGroupCount, alignedAudit.NearMissJitterHazards,
+            alignedAudit.UniformSpacingSequences, alignedAudit.IrregularSpacingSequences,
+            alignedAudit.CollinearityAndSpacingScore, alignedAudit.Category, alignedAudit.IsSelectionScope);
+        Assert.Equal(alignedAudit.Summary, formatted);
+    }
 }
 
 

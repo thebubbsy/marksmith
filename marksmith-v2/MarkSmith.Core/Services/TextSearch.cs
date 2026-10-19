@@ -6278,6 +6278,196 @@ public static class TextSearch
         return $"Document reading ease ({wordLabel}, {sentenceLabel} · {category}): " +
                $"Flesch score {readingEase:0.#}/100 · Grade Level {gradeLevel:0.#} · ~{readingTimeMins:0.#} min read";
     }
+
+    /// <summary>
+    /// Audits markdown definition lists and glossary terms (Term\n: Definition or <dt>/<dd>),
+    /// validating colon prefixes, irregular indentations, orphaned terms, and multi-definition syntax.
+    /// </summary>
+    public static DefinitionListAndGlossaryAudit AuditDefinitionListsAndGlossaryTerms(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new DefinitionListAndGlossaryAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DefinitionListItem>(),
+                "No Definition Lists",
+                "Markdown definition lists & glossary terms: 0 terms · Document contains no definition lists");
+        }
+
+        // Strip fenced code blocks
+        string cleaned = System.Text.RegularExpressions.Regex.Replace(
+            markdownText,
+            @"(?m)^(?<fence>`{3,}|~{3,})[^\r\n]*\r?\n[\s\S]*?^\k<fence>\s*$",
+            "",
+            System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        // Strip HTML comment blocks
+        cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"<!--[\s\S]*?-->", "");
+
+        var lines = cleaned.Replace("\r", "").Split('\n');
+        var terms = new List<DefinitionListItem>();
+
+        int totalDefs = 0;
+        int orphaned = 0;
+        int multiDef = 0;
+        int standardIndent = 0;
+        int irregularIndent = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            // Skip empty lines, headings, blockquotes, lists, tables
+            if (string.IsNullOrWhiteSpace(trimmed) ||
+                trimmed.StartsWith("#") ||
+                trimmed.StartsWith(">") ||
+                trimmed.StartsWith("- ") ||
+                trimmed.StartsWith("* ") ||
+                trimmed.StartsWith("+ ") ||
+                trimmed.StartsWith("|") ||
+                (trimmed.Length > 2 && char.IsDigit(trimmed[0]) && trimmed[1] == '.'))
+            {
+                continue;
+            }
+
+            // Check if the next line is a definition prefix (starts with ':' or '~')
+            if (i + 1 < lines.Length)
+            {
+                string nextLine = lines[i + 1].Trim();
+                if (nextLine.StartsWith(":") || nextLine.StartsWith("~"))
+                {
+                    string termName = trimmed;
+                    int termLineNumber = i + 1;
+                    var defs = new List<string>();
+                    bool hasProperColon = true;
+                    bool hasBlankLineBefore = (i == 0 || string.IsNullOrWhiteSpace(lines[i - 1]));
+
+                    int j = i + 1;
+                    while (j < lines.Length)
+                    {
+                        string dLine = lines[j];
+                        string dTrim = dLine.Trim();
+                        if (dTrim.StartsWith(":") || dTrim.StartsWith("~"))
+                        {
+                            char prefix = dTrim[0];
+                            string rest = dTrim.Substring(1);
+                            if (rest.StartsWith(" ") || rest.StartsWith("\t"))
+                            {
+                                standardIndent++;
+                            }
+                            else
+                            {
+                                irregularIndent++;
+                                hasProperColon = false;
+                            }
+                            defs.Add(rest.Trim());
+                            j++;
+                        }
+                        else if (defs.Count > 0 && (dLine.StartsWith("    ") || dLine.StartsWith("\t")))
+                        {
+                            // Indented continuation line of definition
+                            defs[defs.Count - 1] += " " + dTrim;
+                            j++;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+
+                    if (defs.Count > 1) multiDef++;
+                    totalDefs += defs.Count;
+
+                    string status = hasProperColon ? "Valid Definition Syntax" : "Irregular Colon Indentation";
+                    terms.Add(new DefinitionListItem(
+                        termLineNumber,
+                        termName,
+                        defs,
+                        hasProperColon,
+                        hasBlankLineBefore,
+                        defs.Count > 1,
+                        status));
+
+                    i = j - 1; // Advance past definitions
+                }
+            }
+        }
+
+        // Also check HTML <dl><dt><dd> tags
+        var dtMatches = System.Text.RegularExpressions.Regex.Matches(
+            cleaned, @"<dt>(?<term>[^<]+)</dt>\s*<dd>(?<def>[^<]+)</dd>",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        foreach (System.Text.RegularExpressions.Match m in dtMatches)
+        {
+            string t = m.Groups["term"].Value.Trim();
+            string d = m.Groups["def"].Value.Trim();
+            totalDefs++;
+            standardIndent++;
+            terms.Add(new DefinitionListItem(
+                1, t, new[] { d }, true, true, false, "HTML <dl> List Definition"));
+        }
+
+        if (terms.Count == 0)
+        {
+            return new DefinitionListAndGlossaryAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DefinitionListItem>(),
+                "No Definition Lists",
+                "Markdown definition lists & glossary terms: 0 terms · Document contains no definition lists");
+        }
+
+        double penalty = (orphaned * 25.0) + (irregularIndent * 10.0);
+        double score = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 when orphaned == 0 && irregularIndent == 0 => "Pristine Definition List Syntax",
+            >= 80.0 => "Well-Structured Glossary Terms",
+            >= 60.0 => "Minor Glossary Formatting Defects",
+            _ => "Malformed Definition List Syntax"
+        };
+
+        string summary = FormatDefinitionListsAndGlossarySummary(
+            terms.Count, totalDefs, orphaned, multiDef, irregularIndent, score, category);
+
+        return new DefinitionListAndGlossaryAudit(
+            terms.Count,
+            totalDefs,
+            orphaned,
+            multiDef,
+            standardIndent,
+            irregularIndent,
+            score,
+            terms,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown definition lists and glossary terms.
+    /// </summary>
+    public static string FormatDefinitionListsAndGlossarySummary(string? markdownText)
+        => AuditDefinitionListsAndGlossaryTerms(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of definition list metrics.
+    /// </summary>
+    public static string FormatDefinitionListsAndGlossarySummary(
+        int totalTerms, int totalDefs, int orphaned, int multiDef, int irregular, double score, string category)
+    {
+        if (totalTerms == 0)
+            return "Markdown definition lists & glossary terms: 0 terms · Document contains no definition lists";
+
+        string termsLabel = totalTerms == 1 ? "1 term" : $"{totalTerms} terms";
+        string breakdown = multiDef > 0 ? $"{multiDef} multi-definition" : "single-definition";
+        var alerts = new List<string>();
+        if (orphaned > 0) alerts.Add($"⚠ {orphaned} orphaned");
+        if (irregular > 0) alerts.Add($"⚠ {irregular} irregular indent");
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · syntax aligned";
+
+        return $"Definition lists & glossary terms ({termsLabel} [{totalDefs} defs, {breakdown}] · {category} · {score:0.#}% score){alertSuffix}";
+    }
 }
 
 /// <summary>
@@ -6860,5 +7050,30 @@ public sealed record DocumentReadingEaseAudit(
     string ReadabilityCategory,
     string Summary);
 
+/// <summary>
+/// Represents evaluated metrics, colon prefix validity, and indentation for an individual definition list term.
+/// </summary>
+public sealed record DefinitionListItem(
+    int LineNumber,
+    string Term,
+    IReadOnlyList<string> Definitions,
+    bool HasProperColonPrefix,
+    bool HasBlankLineBefore,
+    bool HasMultipleDefinitions,
+    string SyntaxStatus);
 
-
+/// <summary>
+/// Represents the result of an audit of markdown definition lists and glossary terms (Term\n: Definition),
+/// colon prefixes, irregular indentations, orphaned terms, and multi-definition syntax.
+/// </summary>
+public sealed record DefinitionListAndGlossaryAudit(
+    int TotalTerms,
+    int TotalDefinitions,
+    int OrphanedTerms,
+    int MultiDefinitionTerms,
+    int StandardIndentationCount,
+    int IrregularIndentationCount,
+    double GlossaryConsistencyScore,
+    IReadOnlyList<DefinitionListItem> Terms,
+    string Category,
+    string Summary);

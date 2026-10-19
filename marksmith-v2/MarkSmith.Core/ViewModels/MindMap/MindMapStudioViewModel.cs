@@ -7775,6 +7775,229 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Graph assortativity audit ({scope} · {nodeLabel}, {edgeLabel} · r={rSign}{r:0.##} [{category}] · Resilience: {resilienceScore:0.#}%): " +
                    $"{hubDetails}{topHubs}";
         }
+
+        /// <summary>
+        /// Audits mind map graph community modularity (Newman-Girvan Q), partition density,
+        /// intra-cluster cohesiveness, and inter-cluster bridge edge distribution.
+        /// </summary>
+        public GraphCommunityModularityAudit AuditCommunityModularityAndClusters(bool selectionOnly = false)
+        {
+            var targetNodes = (selectionOnly && HasSelection)
+                ? Nodes.Where(n => n.IsSelected).ToList()
+                : Nodes.ToList();
+
+            if (targetNodes.Count == 0)
+            {
+                string emptySummary = FormatModularitySummary(0, 0, 0, 0.0, 0, 0, 100.0, "Empty Galaxy", selectionOnly);
+                return new GraphCommunityModularityAudit(
+                    0, 0, 0, 0.0, 0, 0, 100.0,
+                    Array.Empty<CommunityClusterInfo>(), "Empty Galaxy", selectionOnly, emptySummary);
+            }
+
+            var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+            var nodeMap = targetNodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+
+            // Adjacency graph
+            var adj = targetNodes.ToDictionary(n => n.Id, _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+            int totalEdges = 0;
+
+            // 1. Hierarchy links (parent-child)
+            foreach (var n in targetNodes)
+            {
+                if (!string.IsNullOrEmpty(n.ParentId) && nodeIds.Contains(n.ParentId) && n.ParentId != n.Id)
+                {
+                    if (adj[n.Id].Add(n.ParentId))
+                    {
+                        adj[n.ParentId].Add(n.Id);
+                        totalEdges++;
+                    }
+                }
+            }
+
+            // 2. Explicit links
+            foreach (var l in Links)
+            {
+                if (!string.IsNullOrEmpty(l.SourceNodeId) && !string.IsNullOrEmpty(l.TargetNodeId) &&
+                    nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId) &&
+                    l.SourceNodeId != l.TargetNodeId)
+                {
+                    if (adj[l.SourceNodeId].Add(l.TargetNodeId))
+                    {
+                        adj[l.TargetNodeId].Add(l.SourceNodeId);
+                        totalEdges++;
+                    }
+                }
+            }
+
+            // Community partitioning: Group by ColorHex or Connected Component
+            var distinctColors = targetNodes.Select(n => n.ColorHex).Where(c => !string.IsNullOrEmpty(c)).Distinct().ToList();
+            var communityGroups = new Dictionary<string, List<MindMapNodeViewModel>>(StringComparer.OrdinalIgnoreCase);
+
+            if (distinctColors.Count > 1)
+            {
+                foreach (var n in targetNodes)
+                {
+                    string key = string.IsNullOrEmpty(n.ColorHex) ? "Default" : n.ColorHex;
+                    if (!communityGroups.TryGetValue(key, out var list))
+                    {
+                        list = new List<MindMapNodeViewModel>();
+                        communityGroups[key] = list;
+                    }
+                    list.Add(n);
+                }
+            }
+            else
+            {
+                // Group by root branches or connected components via BFS
+                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                int compIdx = 1;
+                foreach (var n in targetNodes)
+                {
+                    if (!visited.Contains(n.Id))
+                    {
+                        var compList = new List<MindMapNodeViewModel>();
+                        var q = new Queue<string>();
+                        q.Enqueue(n.Id);
+                        visited.Add(n.Id);
+                        while (q.Count > 0)
+                        {
+                            var curr = q.Dequeue();
+                            if (nodeMap.TryGetValue(curr, out var vm)) compList.Add(vm);
+                            foreach (var nbr in adj[curr])
+                            {
+                                if (visited.Add(nbr)) q.Enqueue(nbr);
+                            }
+                        }
+                        communityGroups[$"Cluster {compIdx++}"] = compList;
+                    }
+                }
+            }
+
+            // Compute Newman-Girvan Modularity Q
+            // Q = sum_c [ e_c / m - (K_c / (2m))^2 ]
+            double Q = 0.0;
+            int intraEdges = 0;
+            int bridgeEdges = 0;
+            var communityInfos = new List<CommunityClusterInfo>();
+
+            if (totalEdges > 0)
+            {
+                double m = totalEdges;
+                double twoM = 2.0 * m;
+
+                foreach (var (cid, cNodes) in communityGroups)
+                {
+                    var cSet = new HashSet<string>(cNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+                    int e_c = 0;
+                    int k_c = 0;
+
+                    foreach (var n in cNodes)
+                    {
+                        int deg = adj[n.Id].Count;
+                        k_c += deg;
+                        foreach (var nbr in adj[n.Id])
+                        {
+                            if (cSet.Contains(nbr) && string.Compare(n.Id, nbr, StringComparison.OrdinalIgnoreCase) < 0)
+                            {
+                                e_c++;
+                            }
+                        }
+                    }
+
+                    intraEdges += e_c;
+                    double term1 = e_c / m;
+                    double term2 = Math.Pow(k_c / twoM, 2);
+                    double deltaQ = term1 - term2;
+                    Q += deltaQ;
+
+                    double maxPossibleEdges = cNodes.Count * (cNodes.Count - 1) / 2.0;
+                    double density = maxPossibleEdges > 0 ? (e_c / maxPossibleEdges) * 100.0 : 100.0;
+                    string label = cNodes.Count == 1 ? cNodes[0].Title : $"{cid} ({cNodes.Count} nodes)";
+
+                    communityInfos.Add(new CommunityClusterInfo(
+                        cid,
+                        label,
+                        cNodes.Count,
+                        e_c,
+                        k_c,
+                        Math.Round(density, 1),
+                        Math.Round(deltaQ, 4)));
+                }
+
+                bridgeEdges = totalEdges - intraEdges;
+            }
+            else
+            {
+                // No edges in graph
+                Q = 0.0;
+                foreach (var (cid, cNodes) in communityGroups)
+                {
+                    communityInfos.Add(new CommunityClusterInfo(
+                        cid, cid, cNodes.Count, 0, 0, 100.0, 0.0));
+                }
+            }
+
+            Q = Math.Round(Math.Clamp(Q, -1.0, 1.0), 3);
+            double healthScore = totalEdges == 0
+                ? 100.0
+                : Math.Round(Math.Clamp((Q + 0.2) / 0.7 * 100.0, 10.0, 100.0), 1);
+
+            string category;
+            if (totalEdges == 0) category = "Unconnected Nodes (0 Edges)";
+            else if (Q >= 0.4) category = "Strong Community Modularity";
+            else if (Q >= 0.2) category = "Moderate Cluster Partitioning";
+            else if (Q >= 0.0) category = "Weak Community Structure";
+            else category = "Anti-Community / Tangled Mixing";
+
+            string summary = FormatModularitySummary(
+                targetNodes.Count, totalEdges, communityGroups.Count, Q,
+                intraEdges, bridgeEdges, healthScore, category, selectionOnly);
+
+            return new GraphCommunityModularityAudit(
+                targetNodes.Count,
+                totalEdges,
+                communityGroups.Count,
+                Q,
+                intraEdges,
+                bridgeEdges,
+                healthScore,
+                communityInfos,
+                category,
+                selectionOnly,
+                summary);
+        }
+
+        public static GraphCommunityModularityAudit AuditCommunityModularityAndClusters(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditCommunityModularityAndClusters();
+        }
+
+        public static string FormatModularitySummary(
+            int totalNodes, int totalEdges, int communityCount, double Q,
+            int intraEdges, int bridgeEdges, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph community modularity ({scope}0 nodes): Empty map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string edgeStr = totalEdges == 1 ? "1 edge" : $"{totalEdges} edges";
+            string qSign = Q >= 0 ? "+" : "";
+
+            return $"Graph community modularity ({scope}{nodeStr}, {edgeStr} across {communityCount} clusters · Q={qSign}{Q:0.###} [{category}] · {score:0.#}% score): " +
+                   $"{intraEdges} intra-cluster edges, {bridgeEdges} bridge edges";
+        }
     }
 
 
@@ -8383,6 +8606,35 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<NodeDegreeAssortativityInfo> Nodes,
         string NetworkMixingCategory,
         double NetworkResilienceScore,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated cluster metrics, internal edge count, density, and modularity contribution for a concept community.
+    /// </summary>
+    public sealed record CommunityClusterInfo(
+        string CommunityId,
+        string ClusterLabel,
+        int NodeCount,
+        int InternalEdges,
+        int TotalDegree,
+        double InternalDensity,
+        double CommunityModularityContribution);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph community modularity (Newman-Girvan Q),
+    /// cluster partition density, intra-cluster cohesiveness, and inter-cluster bridge edge distribution.
+    /// </summary>
+    public sealed record GraphCommunityModularityAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int CommunityCount,
+        double NewmanGirvanModularityQ,
+        int IntraCommunityEdges,
+        int InterCommunityBridgeEdges,
+        double ModularityHealthScore,
+        IReadOnlyList<CommunityClusterInfo> Communities,
+        string ModularityCategory,
         bool IsSelectionScope,
         string Summary);
 }

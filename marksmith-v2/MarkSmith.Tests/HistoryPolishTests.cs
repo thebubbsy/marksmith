@@ -2010,6 +2010,60 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal("resultCount", audit.Transitions[0].Identifier);
         Assert.True(audit.ScopeStabilityScore < 100.0);
     }
+
+    [Fact]
+    public void Run174_AuditBlockRelocationAndMoves_DetectsMovedCodeBlocks()
+    {
+        var empty = LineDiff.AuditBlockRelocationAndMoves(Array.Empty<LineDiff.UnifiedRow>());
+        Assert.Equal(0, empty.TotalDiffRows);
+        Assert.Equal(0, empty.RelocatedBlocksCount);
+        Assert.Equal("Zero Diffs (Unchanged)", empty.Category);
+
+        // 1. Direct UnifiedRow relocation verification
+        var r1 = new LineDiff.UnifiedRow(LineDiff.Kind.Removed, 10, null, "Step 1: Download installer from GitHub.", "- ");
+        var r2 = new LineDiff.UnifiedRow(LineDiff.Kind.Removed, 11, null, "Step 2: Run the setup wizard to complete.", "- ");
+        var r3 = new LineDiff.UnifiedRow(LineDiff.Kind.Same, 12, 1, "Unchanged anchor documentation section.", "  ");
+        var r4 = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 20, "Step 1: Download installer from GitHub.", "+ ");
+        var r5 = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 21, "Step 2: Run the setup wizard to complete.", "+ ");
+
+        var directAudit = LineDiff.AuditBlockRelocationAndMoves(new[] { r1, r2, r3, r4, r5 });
+        Assert.Equal(5, directAudit.TotalDiffRows);
+        Assert.Equal(1, directAudit.RelocatedBlocksCount);
+        Assert.Equal(2, directAudit.RelocatedLinesCount);
+        Assert.Equal("Exact Block Move", directAudit.RelocatedBlocks[0].RelocationType);
+        Assert.Equal(10, directAudit.RelocatedBlocks[0].OldStartLine);
+        Assert.Equal(20, directAudit.RelocatedBlocks[0].NewStartLine);
+
+        // 2. High-level markdown before/after diff relocation
+        string before = string.Join("\n",
+            "### Section Alpha Features",
+            "Alpha feature documentation paragraph one.",
+            "Alpha feature documentation paragraph two.",
+            "### Section Beta Features",
+            "Beta feature documentation paragraph one.",
+            "Beta feature documentation paragraph two."
+        );
+
+        string after = string.Join("\n",
+            "### Section Beta Features",
+            "Beta feature documentation paragraph one.",
+            "Beta feature documentation paragraph two.",
+            "### Section Alpha Features",
+            "Alpha feature documentation paragraph one.",
+            "Alpha feature documentation paragraph two."
+        );
+
+        var textAudit = LineDiff.AuditBlockRelocationAndMoves(before, after);
+        Assert.True(textAudit.TotalDiffRows > 0);
+        Assert.True(textAudit.RelocatedBlocksCount >= 1);
+        Assert.True(textAudit.RelocatedLinesCount >= 3);
+        Assert.Equal("Exact Block Move", textAudit.RelocatedBlocks[0].RelocationType);
+
+        string formatted = LineDiff.FormatBlockRelocationSummary(
+            directAudit.TotalDiffRows, directAudit.RelocatedBlocksCount, directAudit.RelocatedLinesCount,
+            directAudit.NetGenuineChurnLines, directAudit.RelocationClarityScore, directAudit.Category);
+        Assert.Equal(directAudit.Summary, formatted);
+    }
 }
 
 

@@ -3497,6 +3497,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditScopeTransitions);
+
+                var auditBlockRelocation = new MenuFlyoutItem
+                {
+                    Text = "Audit structural block relocations & method movement",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditBlockRelocation.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditBlockRelocationAndMoves(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditBlockRelocation);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

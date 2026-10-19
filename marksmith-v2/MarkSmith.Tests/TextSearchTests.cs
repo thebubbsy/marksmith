@@ -2089,6 +2089,48 @@ public class TextSearchTests
         Assert.True(mixedAudit.MaxNestingDepth >= 3);
         Assert.True(mixedAudit.ParityScore < 100.0);
     }
+
+    [Fact]
+    public void Run174_AuditDefinitionListsAndGlossaryTerms_ValidatesColonSyntaxAndGlossary()
+    {
+        var empty = TextSearch.AuditDefinitionListsAndGlossaryTerms("");
+        Assert.Equal(0, empty.TotalTerms);
+        Assert.Equal(0, empty.TotalDefinitions);
+        Assert.Equal(100.0, empty.GlossaryConsistencyScore);
+        Assert.Equal("No Definition Lists", empty.Category);
+        Assert.Equal(empty.Summary, TextSearch.FormatDefinitionListsAndGlossarySummary(""));
+
+        string validDoc = string.Join("\n",
+            "Markdown",
+            ": A lightweight markup language with plain text formatting syntax.",
+            "",
+            "KaTeX",
+            ": Fast math typesetting library for the web.",
+            ": Built by Khan Academy."
+        );
+        var validAudit = TextSearch.AuditDefinitionListsAndGlossaryTerms(validDoc);
+        Assert.Equal(2, validAudit.TotalTerms);
+        Assert.Equal(3, validAudit.TotalDefinitions);
+        Assert.Equal(1, validAudit.MultiDefinitionTerms);
+        Assert.Equal(0, validAudit.IrregularIndentationCount);
+        Assert.Equal(100.0, validAudit.GlossaryConsistencyScore);
+        Assert.Equal("Pristine Definition List Syntax", validAudit.Category);
+
+        string irregularDoc = string.Join("\n",
+            "TermOne",
+            ":NoSpaceAfterColon",
+            "",
+            "<dl>",
+            "  <dt>HTML Term</dt>",
+            "  <dd>Definition inside HTML tag.</dd>",
+            "</dl>"
+        );
+        var irregularAudit = TextSearch.AuditDefinitionListsAndGlossaryTerms(irregularDoc);
+        Assert.Equal(2, irregularAudit.TotalTerms);
+        Assert.Equal(2, irregularAudit.TotalDefinitions);
+        Assert.Equal(1, irregularAudit.IrregularIndentationCount);
+        Assert.True(irregularAudit.GlossaryConsistencyScore < 100.0);
+    }
 }
 
 

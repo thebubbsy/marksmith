@@ -2855,6 +2855,45 @@ namespace MarkSmith.Tests
             Assert.Equal(100.0, triAudit.GlobalTransitivity);
             Assert.Equal(100.0, triAudit.MeanClusteringCoefficient);
         }
+
+        [Fact]
+        public void Run174_AuditCommunityModularityAndClusters_EvaluatesNewmanGirvanModularity()
+        {
+            var emptyAudit = MindMapStudioViewModel.AuditCommunityModularityAndClusters(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalEdges);
+            Assert.Equal(0.0, emptyAudit.NewmanGirvanModularityQ);
+            Assert.Equal(100.0, emptyAudit.ModularityHealthScore);
+            Assert.Equal("Empty Galaxy", emptyAudit.ModularityCategory);
+
+            // Two distinct communities with colors #FF0000 and #0000FF
+            var a1 = new MindMapNode { Id = "a1", Title = "Cluster A1", ColorHex = "#FF0000" };
+            var a2 = new MindMapNode { Id = "a2", Title = "Cluster A2", ColorHex = "#FF0000" };
+            var b1 = new MindMapNode { Id = "b1", Title = "Cluster B1", ColorHex = "#0000FF" };
+            var b2 = new MindMapNode { Id = "b2", Title = "Cluster B2", ColorHex = "#0000FF" };
+
+            var eA = new MindMapLink { Id = "ea", SourceNodeId = "a1", TargetNodeId = "a2" };
+            var eB = new MindMapLink { Id = "eb", SourceNodeId = "b1", TargetNodeId = "b2" };
+            var eBridge = new MindMapLink { Id = "ebridge", SourceNodeId = "a1", TargetNodeId = "b1" };
+
+            var audit = MindMapStudioViewModel.AuditCommunityModularityAndClusters(
+                new[] { a1, a2, b1, b2 },
+                new[] { eA, eB, eBridge });
+
+            Assert.Equal(4, audit.TotalNodes);
+            Assert.Equal(3, audit.TotalEdges);
+            Assert.Equal(2, audit.CommunityCount);
+            Assert.Equal(2, audit.IntraCommunityEdges);
+            Assert.Equal(1, audit.InterCommunityBridgeEdges);
+            Assert.True(audit.NewmanGirvanModularityQ > 0.0);
+            Assert.Contains("intra-cluster edges", audit.Summary);
+
+            string formatted = MindMapStudioViewModel.FormatModularitySummary(
+                audit.TotalNodes, audit.TotalEdges, audit.CommunityCount, audit.NewmanGirvanModularityQ,
+                audit.IntraCommunityEdges, audit.InterCommunityBridgeEdges, audit.ModularityHealthScore,
+                audit.ModularityCategory, audit.IsSelectionScope);
+            Assert.Equal(audit.Summary, formatted);
+        }
     }
 }
 

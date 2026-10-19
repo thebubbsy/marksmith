@@ -4120,6 +4120,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditCommunityModularityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditCommunityModularityAndClusters();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5135,6 +5143,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditAssortativityItem.Click += OnAuditGraphAssortativityClick;
             menu.Items.Add(auditAssortativityItem);
+
+            var auditCommunityModularityItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph community modularity & cluster density",
+                Icon = new FontIcon { Glyph = "\uE8B9" }
+            };
+            auditCommunityModularityItem.Click += OnAuditCommunityModularityClick;
+            menu.Items.Add(auditCommunityModularityItem);
 
             var fitItem = new MenuFlyoutItem
 

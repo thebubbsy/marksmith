@@ -5176,6 +5176,209 @@ public sealed class RecentFilesService
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% compliant";
         return $"Workspace table formatting advisor ({docLabel}, {tableLabel} · {category} · {score:0.#}% score){details}";
     }
+
+    /// <summary>
+    /// Audits workspace markdown cross-document link graph, computing in-degree and out-degree centrality,
+    /// identifying central hub documents, and detecting isolated orphaned markdown notes.
+    /// </summary>
+    public static WorkspaceDocumentGraphAudit AuditWorkspaceDocumentGraphAndOrphans(
+        IReadOnlyList<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var exists = fileExistsProvider ?? File.Exists;
+        var reader = contentReader ?? File.ReadAllText;
+
+        var mdFiles = (files ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) &&
+                        (f.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
+                         f.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (mdFiles.Count == 0)
+        {
+            return new WorkspaceDocumentGraphAudit(
+                0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<WorkspaceDocumentGraphNode>(),
+                Array.Empty<WorkspaceDocumentGraphEdge>(),
+                "Empty Workspace",
+                "Workspace document linking graph advisor: 0 documents · Workspace contains no markdown files");
+        }
+
+        var fileNameToPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in mdFiles)
+        {
+            string fn = Path.GetFileName(p);
+            if (!string.IsNullOrEmpty(fn) && !fileNameToPath.ContainsKey(fn))
+            {
+                fileNameToPath[fn] = p;
+            }
+        }
+
+        var inDegrees = mdFiles.ToDictionary(f => f, _ => 0, StringComparer.OrdinalIgnoreCase);
+        var outDegrees = mdFiles.ToDictionary(f => f, _ => 0, StringComparer.OrdinalIgnoreCase);
+        var edges = new List<WorkspaceDocumentGraphEdge>();
+
+        // Regex for Markdown links [text](target) and Wikilinks [[target]]
+        var mdLinkRegex = new System.Text.RegularExpressions.Regex(
+            @"\[([^\]]+)\]\(([^)]+)\)", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var wikiLinkRegex = new System.Text.RegularExpressions.Regex(
+            @"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        foreach (var srcPath in mdFiles)
+        {
+            if (!exists(srcPath)) continue;
+            string content;
+            try { content = reader(srcPath); }
+            catch { continue; }
+
+            // Strip code fences
+            string cleaned = System.Text.RegularExpressions.Regex.Replace(
+                content,
+                @"(?m)^(?<fence>`{3,}|~{3,})[^\r\n]*\r?\n[\s\S]*?^\k<fence>\s*$",
+                "",
+                System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            string srcFileName = Path.GetFileName(srcPath);
+            var lines = cleaned.Replace("\r", "").Split('\n');
+
+            for (int lineIdx = 0; lineIdx < lines.Length; lineIdx++)
+            {
+                string line = lines[lineIdx];
+
+                // 1. Standard Markdown links
+                foreach (System.Text.RegularExpressions.Match m in mdLinkRegex.Matches(line))
+                {
+                    string rawTarget = m.Groups[2].Value.Trim().Trim('"', '\'');
+                    if (rawTarget.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                        rawTarget.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                        rawTarget.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ||
+                        rawTarget.StartsWith("#"))
+                    {
+                        continue; // Skip external links and self-anchors
+                    }
+
+                    string targetWithoutAnchor = rawTarget.Split('#')[0].Trim();
+                    string targetFileName = Path.GetFileName(targetWithoutAnchor);
+
+                    if (fileNameToPath.TryGetValue(targetFileName, out var resolvedTarget) &&
+                        !resolvedTarget.Equals(srcPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        outDegrees[srcPath]++;
+                        inDegrees[resolvedTarget]++;
+                        edges.Add(new WorkspaceDocumentGraphEdge(srcFileName, targetFileName, rawTarget, lineIdx + 1));
+                    }
+                }
+
+                // 2. Wikilinks [[target]]
+                foreach (System.Text.RegularExpressions.Match m in wikiLinkRegex.Matches(line))
+                {
+                    string rawTarget = m.Groups[1].Value.Trim();
+                    string targetFileName = rawTarget.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+                        ? rawTarget
+                        : rawTarget + ".md";
+
+                    if (fileNameToPath.TryGetValue(targetFileName, out var resolvedTarget) &&
+                        !resolvedTarget.Equals(srcPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        outDegrees[srcPath]++;
+                        inDegrees[resolvedTarget]++;
+                        edges.Add(new WorkspaceDocumentGraphEdge(srcFileName, targetFileName, rawTarget, lineIdx + 1));
+                    }
+                }
+            }
+        }
+
+        var nodes = new List<WorkspaceDocumentGraphNode>();
+        int orphans = 0;
+        int hubs = 0;
+
+        foreach (var p in mdFiles)
+        {
+            int inDeg = inDegrees[p];
+            int outDeg = outDegrees[p];
+            string fn = Path.GetFileName(p);
+
+            string role;
+            bool isOrphan = false;
+
+            if (inDeg == 0 && outDeg == 0)
+            {
+                role = "Isolated Orphan";
+                isOrphan = true;
+                orphans++;
+            }
+            else if (inDeg >= 3)
+            {
+                role = "Central Hub";
+                hubs++;
+            }
+            else if (inDeg == 0 && outDeg > 0)
+            {
+                role = "Source Leaf";
+            }
+            else if (inDeg > 0 && outDeg == 0)
+            {
+                role = "Sink Leaf";
+            }
+            else
+            {
+                role = "Transit Node";
+            }
+
+            nodes.Add(new WorkspaceDocumentGraphNode(p, fn, inDeg, outDeg, role, isOrphan));
+        }
+
+        int n = mdFiles.Count;
+        double maxPossibleEdges = n > 1 ? n * (n - 1) : 1;
+        double density = Math.Round((edges.Count / maxPossibleEdges) * 100.0, 1);
+
+        double penalty = orphans * 20.0;
+        double score = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 when orphans == 0 => "Highly Connected Cross-Referenced Knowledge Graph",
+            >= 80.0 => "Well-Linked Workspace with Few Isolated Pages",
+            >= 60.0 => "Moderate Linkage with Scattered Orphaned Notes",
+            _ => "Fragmented Workspace with High Orphaned Note Debt"
+        };
+
+        string summary = FormatWorkspaceDocumentGraphSummary(
+            mdFiles.Count, edges.Count, orphans, hubs, density, score, category);
+
+        return new WorkspaceDocumentGraphAudit(
+            mdFiles.Count,
+            edges.Count,
+            orphans,
+            hubs,
+            density,
+            score,
+            nodes,
+            edges,
+            category,
+            summary);
+    }
+
+    public static string FormatWorkspaceDocumentGraphSummary(
+        int totalDocs, int totalEdges, int orphans, int hubs, double density, double score, string category)
+    {
+        if (totalDocs == 0) return "Workspace document linking graph advisor: 0 documents · Workspace contains no markdown files";
+
+        string docLabel = totalDocs == 1 ? "1 document" : $"{totalDocs} documents";
+        string edgeLabel = totalEdges == 1 ? "1 internal link" : $"{totalEdges} internal links";
+
+        var alerts = new List<string>();
+        if (orphans > 0) alerts.Add($"🚨 {orphans} orphaned (0 in/out links)");
+        if (hubs > 0) alerts.Add($"★ {hubs} central hubs (in-deg >= 3)");
+        alerts.Add($"density {density:0.#}%");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% interconnected";
+
+        return $"Workspace document linking graph advisor ({docLabel}, {edgeLabel} · {category} · {score:0.#}% score){alertSuffix}";
+    }
+
 }
 
 /// <summary>
@@ -5764,5 +5967,41 @@ public sealed record WorkspaceTableFormattingAudit(
     double TabularIntegrityScore,
     IReadOnlyList<WorkspaceTableItem> Tables,
     IReadOnlyList<string> FormattingAlerts,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated in-degree, out-degree, role, and orphan status for an individual workspace document node.
+/// </summary>
+public sealed record WorkspaceDocumentGraphNode(
+    string FilePath,
+    string FileName,
+    int InDegree,
+    int OutDegree,
+    string NodeRole,
+    bool IsOrphan);
+
+/// <summary>
+/// Represents a directed cross-document link from a source document to a target document.
+/// </summary>
+public sealed record WorkspaceDocumentGraphEdge(
+    string SourceFileName,
+    string TargetFileName,
+    string RawLinkTarget,
+    int LineNumber);
+
+/// <summary>
+/// Represents the result of an audit of the workspace markdown cross-document link graph,
+/// degree centrality, hub identification, and isolated orphaned note detection.
+/// </summary>
+public sealed record WorkspaceDocumentGraphAudit(
+    int TotalDocumentsEvaluated,
+    int TotalLinksFound,
+    int OrphanedDocumentCount,
+    int HubDocumentCount,
+    double GraphDensity,
+    double CrossReferenceScore,
+    IReadOnlyList<WorkspaceDocumentGraphNode> Nodes,
+    IReadOnlyList<WorkspaceDocumentGraphEdge> Edges,
     string Category,
     string Summary);

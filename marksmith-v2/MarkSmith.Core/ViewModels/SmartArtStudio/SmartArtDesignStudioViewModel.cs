@@ -6541,6 +6541,218 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"Hierarchy tree balance audit ({nodeLabel} [{dimLabel}] · {category} · {score:0.#}% balance){alertSuffix}";
     }
 
+    /// <summary>
+    /// Audits SmartArt timeline milestone chronology, date monotonicity, milestone duration intervals,
+    /// and out-of-order temporal event hazards across timeline and roadmap outlines.
+    /// </summary>
+    public SmartArtTimelineChronologyAudit AuditTimelineMilestoneChronologyAndSpacing(string? markdown = null, string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtTimelineChronologyAudit(
+                0, 0, 0, 0.0, 100.0,
+                Array.Empty<TimelineMilestoneItem>(),
+                Array.Empty<string>(),
+                "Empty Timeline",
+                "Timeline milestone chronology audit: 0 milestones · Outline is empty");
+        }
+
+        var lines = input.Replace("\r", "").Split('\n')
+            .Select(l => l.Trim())
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .ToList();
+
+        var items = new List<TimelineMilestoneItem>();
+        int index = 1;
+
+        // Parse milestone items from outline
+        foreach (var line in lines)
+        {
+            string clean = line.TrimStart('-', '*', '+', '#').Trim();
+            if (clean.Length > 2 && char.IsDigit(clean[0]) && clean[1] == '.')
+            {
+                clean = clean.Substring(2).Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(clean)) continue;
+
+            // Attempt date parsing
+            double epoch = 0.0;
+            bool hasDate = false;
+
+            // Regex 1: ISO Date yyyy-MM-dd
+            var mIso = System.Text.RegularExpressions.Regex.Match(clean, @"\b(?<y>19\d\d|20\d\d|21\d\d)[-/](?<m>\d{1,2})[-/](?<d>\d{1,2})\b");
+            if (mIso.Success)
+            {
+                int y = int.Parse(mIso.Groups["y"].Value);
+                int m = int.Parse(mIso.Groups["m"].Value);
+                int d = int.Parse(mIso.Groups["d"].Value);
+                epoch = (y - 2000) * 365.25 + m * 30.5 + d;
+                hasDate = true;
+            }
+            else
+            {
+                // Regex 2: Quarters Q1 2026 or 2026 Q1
+                var mQ = System.Text.RegularExpressions.Regex.Match(clean, @"\b(?:Q(?<q>[1-4])\s*(?<y>19\d\d|20\d\d|21\d\d)|(?<y>19\d\d|20\d\d|21\d\d)\s*Q(?<q>[1-4]))\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (mQ.Success)
+                {
+                    int y = int.Parse(mQ.Groups["y"].Value);
+                    int q = int.Parse(mQ.Groups["q"].Value);
+                    epoch = (y - 2000) * 365.25 + (q - 1) * 91.25;
+                    hasDate = true;
+                }
+                else
+                {
+                    // Regex 3: Year-Month yyyy-MM
+                    var mYm = System.Text.RegularExpressions.Regex.Match(clean, @"\b(?<y>19\d\d|20\d\d|21\d\d)[-/](?<m>\d{1,2})\b");
+                    if (mYm.Success)
+                    {
+                        int y = int.Parse(mYm.Groups["y"].Value);
+                        int m = int.Parse(mYm.Groups["m"].Value);
+                        epoch = (y - 2000) * 365.25 + m * 30.5;
+                        hasDate = true;
+                    }
+                    else
+                    {
+                        // Regex 4: Standalone Year 2026
+                        var mY = System.Text.RegularExpressions.Regex.Match(clean, @"\b(?<y>19\d\d|20\d\d|21\d\d)\b");
+                        if (mY.Success)
+                        {
+                            int y = int.Parse(mY.Groups["y"].Value);
+                            epoch = (y - 2000) * 365.25;
+                            hasDate = true;
+                        }
+                        else
+                        {
+                            // Regex 5: Sequential Phase / Sprint / Stage / Milestone
+                            var mPhase = System.Text.RegularExpressions.Regex.Match(clean, @"\b(?:Phase|Sprint|Stage|Milestone|M)\s*(?<num>\d+)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            if (mPhase.Success)
+                            {
+                                int p = int.Parse(mPhase.Groups["num"].Value);
+                                epoch = 10000 + p * 30.0;
+                                hasDate = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            items.Add(new TimelineMilestoneItem(
+                index++,
+                line,
+                clean,
+                epoch,
+                hasDate,
+                false,
+                null));
+        }
+
+        if (items.Count == 0)
+        {
+            return new SmartArtTimelineChronologyAudit(
+                0, 0, 0, 0.0, 100.0,
+                Array.Empty<TimelineMilestoneItem>(),
+                Array.Empty<string>(),
+                "Empty Timeline",
+                "Timeline milestone chronology audit: 0 milestones · Outline is empty");
+        }
+
+        // Check for chronological inversions
+        int datedCount = items.Count(i => i.HasExplicitDate);
+        int inversions = 0;
+        var alerts = new List<string>();
+        var updatedItems = new List<TimelineMilestoneItem>();
+
+        double prevEpoch = double.MinValue;
+        var intervals = new List<double>();
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+            bool isOutOfOrder = false;
+            string? alert = null;
+
+            if (item.HasExplicitDate)
+            {
+                if (prevEpoch != double.MinValue)
+                {
+                    if (item.EpochScore < prevEpoch)
+                    {
+                        inversions++;
+                        isOutOfOrder = true;
+                        alert = $"Out of chronological order (earlier than preceding milestone)";
+                        alerts.Add($"Milestone {item.Index} ('{item.ParsedLabel}') is out of order");
+                    }
+                    else
+                    {
+                        intervals.Add(item.EpochScore - prevEpoch);
+                    }
+                }
+                prevEpoch = item.EpochScore;
+            }
+
+            updatedItems.Add(new TimelineMilestoneItem(
+                item.Index,
+                item.RawText,
+                item.ParsedLabel,
+                item.EpochScore,
+                item.HasExplicitDate,
+                isOutOfOrder,
+                alert));
+        }
+
+        double meanInterval = intervals.Count > 0 ? Math.Round(intervals.Average(), 1) : 0.0;
+        double penalty = inversions * 25.0;
+        if (datedCount > 0 && datedCount < items.Count / 2) penalty += 15.0;
+        double score = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 when inversions == 0 => "Strict Monotonic Chronological Progression",
+            >= 80.0 => "Chronologically Ordered Timeline with Undated Milestones",
+            >= 60.0 => "Chronology Anomalies Detected (Out-of-Order Events)",
+            _ => "Severely Inverted / Non-Chronological Milestones"
+        };
+
+        string summary = FormatTimelineChronologyAndSpacingSummary(
+            items.Count, datedCount, inversions, meanInterval, score, category);
+
+        return new SmartArtTimelineChronologyAudit(
+            items.Count,
+            datedCount,
+            inversions,
+            meanInterval,
+            score,
+            updatedItems,
+            alerts,
+            category,
+            summary);
+    }
+
+    public static SmartArtTimelineChronologyAudit AuditTimelineMilestoneChronologyAndSpacing(string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditTimelineMilestoneChronologyAndSpacing(markdown, layoutName);
+    }
+
+    public static string FormatTimelineChronologyAndSpacingSummary(
+        int totalMilestones, int datedMilestones, int inversions, double meanIntervalDays, double score, string category)
+    {
+        if (totalMilestones == 0) return "Timeline milestone chronology audit: 0 milestones · Outline is empty";
+
+        string mLabel = totalMilestones == 1 ? "1 milestone" : $"{totalMilestones} milestones";
+        string dateLabel = $"{datedMilestones}/{totalMilestones} dated";
+
+        var alerts = new List<string>();
+        if (inversions > 0) alerts.Add($"⚠ {inversions} chronological inversions");
+        if (meanIntervalDays > 0) alerts.Add($"~{meanIntervalDays:0.#} days avg interval");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · Monotonic timeline order";
+
+        return $"Timeline milestone chronology audit ({mLabel} [{dateLabel}] · {category} · {score:0.#}% chronology){alertSuffix}";
+    }
+
 }
 
 /// <summary>
@@ -7094,5 +7306,32 @@ public sealed record SmartArtHierarchyBranchingAudit(
     double HierarchyBalanceScore,
     IReadOnlyList<HierarchyLevelInfo> LevelDistribution,
     IReadOnlyList<string> StructuralAlerts,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, parsed date label, epoch score, and chronology alerts for an individual timeline milestone.
+/// </summary>
+public sealed record TimelineMilestoneItem(
+    int Index,
+    string RawText,
+    string ParsedLabel,
+    double EpochScore,
+    bool HasExplicitDate,
+    bool IsOutOfOrder,
+    string? ChronologyAlert);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt timeline milestone chronology, date monotonicity,
+/// milestone duration intervals, and out-of-order temporal event hazards.
+/// </summary>
+public sealed record SmartArtTimelineChronologyAudit(
+    int TotalMilestones,
+    int DatedMilestones,
+    int ChronologyInversions,
+    double MeanIntervalDays,
+    double ChronologyMonotonicityScore,
+    IReadOnlyList<TimelineMilestoneItem> Milestones,
+    IReadOnlyList<string> ChronologyAlerts,
     string Category,
     string Summary);

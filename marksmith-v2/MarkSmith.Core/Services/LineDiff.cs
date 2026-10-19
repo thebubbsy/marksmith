@@ -5596,6 +5596,158 @@ public static class LineDiff
         return $"Identifier scope transitions audit ({totalRows} diff rows [{transLabel}] · {category} · {score:0.#}% stability) · {string.Join(", ", alerts)}";
     }
 
+    /// <summary>
+    /// Audits semantic diff structural block relocations, section moves, and method repositioning,
+    /// detecting identical or near-identical moved code blocks across diff hunks.
+    /// </summary>
+    public static SemanticBlockRelocationAudit AuditBlockRelocationAndMoves(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new SemanticBlockRelocationAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<RelocatedBlockItem>(),
+                "Zero Diffs (Unchanged)",
+                "Semantic block relocation audit: 0 diff rows · Document unchanged");
+        }
+
+        // Extract contiguous blocks of Removed lines (>= 2 lines) and Added lines (>= 2 lines)
+        var removedBlocks = new List<(int Start, int End, List<string> Lines)>();
+        var addedBlocks = new List<(int Start, int End, List<string> Lines)>();
+
+        int i = 0;
+        while (i < unifiedRows.Count)
+        {
+            var r = unifiedRows[i];
+            if (r.IsRemoved)
+            {
+                int startLine = r.OldNumber ?? (i + 1);
+                var blockLines = new List<string>();
+                int endLine = startLine;
+                while (i < unifiedRows.Count && unifiedRows[i].IsRemoved)
+                {
+                    blockLines.Add(unifiedRows[i].Text ?? string.Empty);
+                    if (unifiedRows[i].OldNumber.HasValue) endLine = unifiedRows[i].OldNumber!.Value;
+                    i++;
+                }
+                if (blockLines.Count >= 2 && blockLines.Any(l => !string.IsNullOrWhiteSpace(l)))
+                {
+                    removedBlocks.Add((startLine, endLine, blockLines));
+                }
+            }
+            else if (r.IsAdded)
+            {
+                int startLine = r.NewNumber ?? (i + 1);
+                var blockLines = new List<string>();
+                int endLine = startLine;
+                while (i < unifiedRows.Count && unifiedRows[i].IsAdded)
+                {
+                    blockLines.Add(unifiedRows[i].Text ?? string.Empty);
+                    if (unifiedRows[i].NewNumber.HasValue) endLine = unifiedRows[i].NewNumber!.Value;
+                    i++;
+                }
+                if (blockLines.Count >= 2 && blockLines.Any(l => !string.IsNullOrWhiteSpace(l)))
+                {
+                    addedBlocks.Add((startLine, endLine, blockLines));
+                }
+            }
+            else
+            {
+                i++;
+            }
+        }
+
+        var relocatedList = new List<RelocatedBlockItem>();
+        var matchedAdded = new HashSet<int>();
+
+        foreach (var rem in removedBlocks)
+        {
+            string remNorm = string.Join("\n", rem.Lines.Select(l => l.Trim()));
+
+            for (int a = 0; a < addedBlocks.Count; a++)
+            {
+                if (matchedAdded.Contains(a)) continue;
+                var add = addedBlocks[a];
+                string addNorm = string.Join("\n", add.Lines.Select(l => l.Trim()));
+
+                bool isExact = remNorm == addNorm;
+                bool isNear = false;
+
+                if (!isExact && rem.Lines.Count == add.Lines.Count && rem.Lines.Count >= 3)
+                {
+                    // Check near match
+                    int matchingLines = 0;
+                    for (int k = 0; k < rem.Lines.Count; k++)
+                    {
+                        if (rem.Lines[k].Trim() == add.Lines[k].Trim()) matchingLines++;
+                    }
+                    if ((double)matchingLines / rem.Lines.Count >= 0.75)
+                    {
+                        isNear = true;
+                    }
+                }
+
+                if (isExact || isNear)
+                {
+                    matchedAdded.Add(a);
+                    int displacement = Math.Abs(add.Start - rem.Start);
+                    string snippet = rem.Lines.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim() ?? "Code Block";
+                    if (snippet.Length > 40) snippet = snippet.Substring(0, 37) + "...";
+
+                    relocatedList.Add(new RelocatedBlockItem(
+                        rem.Start,
+                        rem.End,
+                        add.Start,
+                        add.End,
+                        rem.Lines.Count,
+                        displacement,
+                        snippet,
+                        isExact ? "Exact Block Move" : "Relocated with Minor Edits"));
+                    break;
+                }
+            }
+        }
+
+        int totalRelocatedLines = relocatedList.Sum(r => r.LineCount);
+        int totalChanged = unifiedRows.Count(r => r.IsAdded || r.IsRemoved);
+        int netGenuine = Math.Max(0, totalChanged - (totalRelocatedLines * 2));
+
+        double score = totalChanged == 0 ? 100.0 : Math.Round(Math.Clamp(100.0 - (relocatedList.Count > 0 ? 0 : 5.0), 10.0, 100.0), 1);
+        string category = relocatedList.Count > 0
+            ? $"Detected {relocatedList.Count} Relocated Block{(relocatedList.Count == 1 ? "" : "s")} ({totalRelocatedLines} lines moved)"
+            : "Linear Edits (No Structural Block Moves Detected)";
+
+        string summary = FormatBlockRelocationSummary(
+            unifiedRows.Count, relocatedList.Count, totalRelocatedLines, netGenuine, score, category);
+
+        return new SemanticBlockRelocationAudit(
+            unifiedRows.Count,
+            relocatedList.Count,
+            totalRelocatedLines,
+            netGenuine,
+            score,
+            relocatedList,
+            category,
+            summary);
+    }
+
+    public static SemanticBlockRelocationAudit AuditBlockRelocationAndMoves(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditBlockRelocationAndMoves(unified);
+    }
+
+    public static string FormatBlockRelocationSummary(
+        int totalRows, int relocatedBlocks, int relocatedLines, int netGenuine, double score, string category)
+    {
+        if (totalRows == 0) return "Semantic block relocation audit: 0 diff rows · Document unchanged";
+        if (relocatedBlocks == 0) return $"Semantic block relocation audit ({totalRows} diff rows · {category} · {score:0.#}% score): No relocated code blocks";
+
+        string blockLabel = relocatedBlocks == 1 ? "1 relocated block" : $"{relocatedBlocks} relocated blocks";
+        return $"Semantic block relocation audit ({totalRows} diff rows [{blockLabel}, {relocatedLines} lines moved] · {category} · {score:0.#}% score): Net genuine churn {netGenuine} lines";
+    }
+
 }
 
 /// <summary>
@@ -6028,5 +6180,32 @@ public sealed record IdentifierScopeTransitionsAudit(
     int LateralMoves,
     double ScopeStabilityScore,
     IReadOnlyList<IdentifierScopeTransition> Transitions,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, line boundaries, and displacement for a relocated code or markdown block.
+/// </summary>
+public sealed record RelocatedBlockItem(
+    int OldStartLine,
+    int OldEndLine,
+    int NewStartLine,
+    int NewEndLine,
+    int LineCount,
+    int LineDisplacement,
+    string BlockSnippet,
+    string RelocationType);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff structural block relocations, section moves,
+/// method repositioning, and net genuine churn reduction.
+/// </summary>
+public sealed record SemanticBlockRelocationAudit(
+    int TotalDiffRows,
+    int RelocatedBlocksCount,
+    int RelocatedLinesCount,
+    int NetGenuineChurnLines,
+    double RelocationClarityScore,
+    IReadOnlyList<RelocatedBlockItem> RelocatedBlocks,
     string Category,
     string Summary);

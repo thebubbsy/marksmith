@@ -1926,6 +1926,45 @@ public class SmartArtStudioPolishTests
         Assert.True(chainAudit.SingleChildChains >= 4);
         Assert.True(chainAudit.HierarchyBalanceScore < 90.0);
     }
+
+    [Fact]
+    public void Run174_AuditTimelineMilestoneChronology_ValidatesMonotonicProgression()
+    {
+        var empty = SmartArtDesignStudioViewModel.AuditTimelineMilestoneChronologyAndSpacing("");
+        Assert.Equal(0, empty.TotalMilestones);
+        Assert.Equal(0, empty.DatedMilestones);
+        Assert.Equal(100.0, empty.ChronologyMonotonicityScore);
+        Assert.Equal("Empty Timeline", empty.Category);
+
+        string orderedTimeline = string.Join("\n",
+            "- 2026-01-15: Architecture Blueprint Kickoff",
+            "- 2026-03-31: Alpha Engine Integration Complete",
+            "- 2026-06-30: Beta Production Hardening",
+            "- 2026-09-15: General Availability Launch"
+        );
+        var orderedAudit = SmartArtDesignStudioViewModel.AuditTimelineMilestoneChronologyAndSpacing(orderedTimeline);
+        Assert.Equal(4, orderedAudit.TotalMilestones);
+        Assert.Equal(4, orderedAudit.DatedMilestones);
+        Assert.Equal(0, orderedAudit.ChronologyInversions);
+        Assert.True(orderedAudit.MeanIntervalDays > 0.0);
+        Assert.True(orderedAudit.ChronologyMonotonicityScore >= 95.0);
+        Assert.Equal("Strict Monotonic Chronological Progression", orderedAudit.Category);
+
+        string invertedTimeline = string.Join("\n",
+            "- 2026-06-30: Beta Testing Phase",
+            "- 2026-01-15: Architecture Design Kickoff"
+        );
+        var invertedAudit = SmartArtDesignStudioViewModel.AuditTimelineMilestoneChronologyAndSpacing(invertedTimeline);
+        Assert.Equal(2, invertedAudit.TotalMilestones);
+        Assert.Equal(2, invertedAudit.DatedMilestones);
+        Assert.Equal(1, invertedAudit.ChronologyInversions);
+        Assert.True(invertedAudit.ChronologyMonotonicityScore < 95.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatTimelineChronologyAndSpacingSummary(
+            orderedAudit.TotalMilestones, orderedAudit.DatedMilestones, orderedAudit.ChronologyInversions,
+            orderedAudit.MeanIntervalDays, orderedAudit.ChronologyMonotonicityScore, orderedAudit.Category);
+        Assert.Equal(orderedAudit.Summary, formatted);
+    }
 }
 
 

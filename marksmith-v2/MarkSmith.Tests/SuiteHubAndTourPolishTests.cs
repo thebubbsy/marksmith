@@ -3732,6 +3732,88 @@ Some paragraph in between.
         Assert.Contains("CopyWorkspaceFileSizeAdvisorItem", suiteXaml);
         Assert.Contains("OnCopyWorkspaceFileSizeAdvisorClick", suiteCs);
     }
+
+    [Fact]
+    public void Run174_AuditWorkspaceDocumentGraphAndOrphans()
+    {
+        var empty = RecentFilesService.AuditWorkspaceDocumentGraphAndOrphans(Array.Empty<string>());
+        Assert.Equal(0, empty.TotalDocumentsEvaluated);
+        Assert.Equal(100.0, empty.CrossReferenceScore);
+        Assert.Equal("Empty Workspace", empty.Category);
+
+        var files = new[]
+        {
+            @"C:\Docs\index.md",
+            @"C:\Docs\guide.md",
+            @"C:\Docs\orphan.md"
+        };
+
+        var contents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { @"C:\Docs\index.md", "# Index\n\nRead the [User Guide](guide.md) or [[guide]]." },
+            { @"C:\Docs\guide.md", "# Guide\n\nReturn to [Index](index.md)." },
+            { @"C:\Docs\orphan.md", "# Standalone Note\n\nThis note has zero links in or out." }
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceDocumentGraphAndOrphans(
+            files,
+            fileExistsProvider: _ => true,
+            contentReader: path => contents.TryGetValue(path, out var text) ? text : string.Empty);
+
+        Assert.Equal(3, audit.TotalDocumentsEvaluated);
+        Assert.Equal(3, audit.TotalLinksFound);
+        Assert.Equal(1, audit.OrphanedDocumentCount);
+        Assert.True(audit.Nodes.First(n => n.FileName == "orphan.md").IsOrphan);
+        Assert.Equal("Isolated Orphan", audit.Nodes.First(n => n.FileName == "orphan.md").NodeRole);
+        Assert.False(audit.Nodes.First(n => n.FileName == "index.md").IsOrphan);
+
+        string formatted = RecentFilesService.FormatWorkspaceDocumentGraphSummary(
+            audit.TotalDocumentsEvaluated, audit.TotalLinksFound, audit.OrphanedDocumentCount, audit.HubDocumentCount,
+            audit.GraphDensity, audit.CrossReferenceScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run174_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Definition list & glossary term audit
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditDefinitionListsItem", mainCs);
+        Assert.Contains("AuditDefinitionListsAndGlossaryTerms", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Community modularity Q audit
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditCommunityModularityItem", galaxyXaml);
+        Assert.Contains("OnAuditCommunityModularityClick", galaxyCs);
+        Assert.Contains("AuditCommunityModularityAndClusters", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Collinearity & distribution spacing audit
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditShapeCollinearityItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditShapeCollinearityClick", shapeCs);
+        Assert.Contains("AuditShapeCollinearityAndSpacing", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - Timeline milestone chronology & spacing audit
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditTimelineChronologyItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditTimelineChronologyClick", smartArtCs);
+        Assert.Contains("AuditTimelineMilestoneChronologyAndSpacing", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic code block relocation audit
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditBlockRelocation", historyCs);
+        Assert.Contains("AuditBlockRelocationAndMoves", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace document linking graph & orphan advisor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceDocumentGraphAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceDocumentGraphAdvisorClick", suiteCs);
+        Assert.Contains("AuditWorkspaceDocumentGraphAndOrphans", suiteCs);
+    }
 }
 
 

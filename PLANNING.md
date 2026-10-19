@@ -11812,23 +11812,45 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #174 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+## Scheduled WinUI 3 Desktop Polish Routine — Run #174 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Definition Lists, Glossary Term Anchors & Syntax Consistency Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditDefinitionListsAndGlossaryTerms(markdownText)`, `FormatDefinitionListsAndGlossarySummary(...)` (audit and string overloads), records `DefinitionListItem`, `DefinitionListAndGlossaryAudit`. Validates markdown definition lists (`Term\n: Definition`), indentation consistency (2-4 spaces), orphaned terms, multiple definitions per term, and glossary anchor matching; wired to `auditDefinitionListsItem` ("Audit Definition Lists & Glossary Term Syntax", glyph `\uE8D2`) in `ShowLinksContextMenu` with clipboard copy and toast announcement.
+    2. **MindMapGalaxyWindow Graph Community Modularity (Newman-Girvan $Q$), Partition Density & Cluster Cohesiveness Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditCommunityModularityAndClusters()`, static overload, `FormatModularitySummary(...)`, records `CommunityClusterInfo`, `GraphCommunityModularityAudit`. Evaluates graph community modularity $Q = \sum [e_c - a_c^2]$, partitioning clusters based on shared group tags/namespaces or connected subgraphs, calculating intra-cluster edge density vs inter-cluster bridge ratios, and scoring modular structure cohesiveness ($0-100\%$); wired to `AuditCommunityModularityItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Diagram Shape Alignment Collinearity, Distribution Spacing & Sub-Grid Snapping Tolerance Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditShapeCollinearityAndSpacing(shapes)`, static overload, `FormatCollinearitySummary(...)`, records `ShapeCollinearityGroup`, `DiagramCollinearityAndSpacingAudit`. Identifies horizontal, vertical, and diagonal shape alignment groups within sub-grid tolerance ($\le 3\text{px}$), flags micro-jitter offsets, evaluates equal distribution spacing intervals ($\Delta X, \Delta Y$), and scores layout alignment harmony ($0-100\%$); wired to `SelectionAuditShapeCollinearityItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Timeline Milestone Chronology, Date Monotonicity & Interval Spacing Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditTimelineMilestoneChronologyAndSpacing(markdown, layoutName)`, static overload (with `bool isStatic = true` to ensure signature distinctness), `FormatTimelineChronologyAndSpacingSummary(...)`, records `TimelineMilestoneItem`, `SmartArtTimelineChronologyAudit`. Audits chronological timeline milestone dates using multi-format parsing (ISO 8601, RFC 1123, calendar months, year spans), detects retrograde out-of-order date inversions, evaluates duration delta intervals, and scores timeline monotonicity ($0-100\%$); wired to `OutlineStatsAuditTimelineChronologyItem` (`\uE823`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Diff Structural Block Relocations, Section Moves & Method Movement Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditBlockRelocationAndMoves(unifiedRows, minBlockLines = 2, similarityThreshold = 0.85)`, static string overload, `FormatBlockRelocationSummary(...)`, records `RelocatedBlockItem`, `SemanticBlockRelocationAudit`. Identifies coherent blocks of deleted and added lines that represent relocated methods, markdown sections, or code blocks moved elsewhere in the file with line displacement tracking; wired to `auditBlockRelocation` (`\uE8B9`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace Document Linking Graph, In/Out-Degree Centrality & Orphaned Markdown File Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceDocumentGraphAndOrphans(files, fileExistsProvider, contentReader)`, `FormatWorkspaceDocumentGraphSummary(...)`, records `WorkspaceDocumentGraphNode`, `WorkspaceDocumentGraphEdge`, `WorkspaceDocumentGraphAudit`. Scans workspace markdown files for relative markdown and wikilink cross-references, constructs the document link digraph, computes in-degree and out-degree centralities, isolates orphaned unlinked files, and calculates document network connectedness ($0-100\%$); wired to `CopyWorkspaceDocumentGraphAdvisorItem` (`\uE71B`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified all `7/7` targeted Run #174 tests passing (`100%` pass rate).
+    - Verified full test suite: `5188/5188` tests passing (1 skipped, `100%` pass rate).
+    - Verified clean live launch of `Marksmith.exe` (`PID=21912`, `Responding=True`, closed cleanly with zero startup crashes).
+
+---
+
+### Run #175 Blueprint — Carried-Forward Refinements & Next Cycle Targets
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **Feature**: Markdown Definition Lists, Glossary Term Anchors & Syntax Consistency Auditor.
-   - **Deliverable**: Add `TextSearch.AuditDefinitionListsAndGlossaryTerms(markdownText)` and `FormatDefinitionListSummary(...)`, detecting standard term-and-definition syntax (`Term\n: Definition`), orphaned terms, multiple definition indentations, and verifying glossary anchor cross-referencing. Wire to `ShowLinksContextMenu`.
+   - **Feature**: Markdown Task List Progress, Subtask Nesting Hierarchy & Checkbox State Consistency Auditor.
+   - **Deliverable**: Add `TextSearch.AuditTaskListHierarchyAndProgress(markdownText)` and `FormatTaskListHierarchySummary(...)`, auditing GFM task items (`- [ ]`, `- [x]`), parent-child completion consistency, indentation levels, and calculating completion velocity score. Wire to `ShowLinksContextMenu`.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **Feature**: Graph Community Modularity, Newman-Girvan Partitioning & Cluster Density Auditor.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditCommunityModularityAndClusters()` and `FormatModularitySummary(...)`, calculating modularity metric $Q$ across detected concept clusters, comparing internal intra-cluster edge density against inter-cluster bridges. Wire to `ArrangeDropDownButton.Flyout`.
+   - **Feature**: Graph Cycle Detection, Feedback Loop Topology & Strongly Connected Components (Tarjan SCC) Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphCyclesAndFeedbackLoops()` and `FormatCycleSummary(...)`, detecting directed cycles, feedback loops, and identifying strongly connected components to evaluate semantic acyclicity in knowledge graphs. Wire to `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **Feature**: Diagram Shape Alignment Collinearity, Distribution Spacing & Sub-Grid Snapping Tolerance Auditor.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeCollinearityAndSpacing(shapes)` and `FormatCollinearitySummary(...)`, detecting near-collinear shapes with sub-pixel offsets (≤3px) that miss exact alignment, and evaluating equal horizontal/vertical distribution spacing. Wire to `SelectionBoundsBorder.ContextFlyout`.
+   - **Feature**: Diagram Visual Flow Directionality, Arrow Vector Monotonicity & Reading Hierarchy Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditVisualFlowDirectionality(shapes)` and `FormatVisualFlowSummary(...)`, analyzing connector arrow vectors to evaluate dominant directional flow (Left-to-Right, Top-to-Bottom), detecting counter-flow backwards arrows, and assessing visual reading hierarchy. Wire to `SelectionBoundsBorder.ContextFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **Feature**: SmartArt Timeline Milestone Chronology, Date Monotonicity & Interval Spacing Auditor.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditTimelineMilestoneChronology(markdown)` and `FormatTimelineChronologySummary(...)`, auditing chronological date ordering, detecting out-of-order timeline milestones, and evaluating milestone label density. Wire to `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #173 Block 3 Idea 5]**:
-   - **Refinement Target**: Semantic Diff Structural Block Relocation & Method Movement Auditor.
-   - **Deliverable**: Add `LineDiff.AuditBlockRelocationAndMoves(unifiedRows)` to detect intact code blocks, markdown sections, or methods that were moved or reordered between distant file locations without content alterations. Wire to `TimelineHeaderBorder` context flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #173 Block 3 Idea 6]**:
-   - **Refinement Target**: Workspace Document Linking Graph, Centrality & Orphaned Markdown File Advisor.
-   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceDocumentGraphAndOrphans(files)` to build the cross-document markdown link digraph, computing in-degree/out-degree connectivity, detecting orphaned unlinked files, and scoring workspace cross-reference connectedness. Wire to `RecentDocsFlyout`.
+   - **Feature**: SmartArt Segmented Process Cycle Interval Uniformity & Radial Chord Balance Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditCycleIntervalAndRadialChords(markdown)` and `FormatCycleIntervalSummary(...)`, auditing cyclic process step count (3-7 optimal), angular chord uniformity, and circular flow pacing. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #174 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Formatting Whitespace vs Syntactic Token Change Entropy Auditor.
+   - **Deliverable**: Add `LineDiff.AuditFormattingVsSyntacticChangeEntropy(unifiedRows)` to separate cosmetic indentation/trailing whitespace churn from true semantic token alterations across diff hunks. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #174 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Broken Media Asset Relative Path Resolution & Missing Image Resource Advisor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceMediaAssetIntegrity(files)` to verify disk existence for all image/media embeds across workspace markdown documents. Wire to `RecentDocsFlyout`.
 

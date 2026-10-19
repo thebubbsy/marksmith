@@ -7685,6 +7685,179 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Canvas spatial balance audit ({scopeStr}{shapeLabel} [{width:0}x{height:0}] · {category} · {score:0.#}% balance): Centroid ({cx:0.#}, {cy:0.#}){alertSuffix}";
     }
 
+    /// <summary>
+    /// Audits diagram shape alignment collinearity (horizontal and vertical center/edge alignment),
+    /// sub-pixel snapping jitter (tolerance <= 3px), and distribution spacing uniformity across adjacent shapes.
+    /// </summary>
+    public DiagramCollinearityAndSpacingAudit AuditShapeCollinearityAndSpacing(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null, double tolerancePx = 3.0)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = (targetShapes != null) || (selected.Count >= 2);
+
+        var audit = AuditShapeCollinearityAndSpacing(targets, tolerancePx, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramCollinearityAndSpacingAudit AuditShapeCollinearityAndSpacing(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes, double tolerancePx = 3.0, bool isSelection = false)
+    {
+        var list = (shapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        if (list.Count < 2)
+        {
+            string emptySummary = $"Shape collinearity audit ({scopeStr}0 shapes): Insufficient shapes (<2) · Minimum 2 shapes required";
+            return new DiagramCollinearityAndSpacingAudit(
+                list.Count, 0, 0, 0, 0, 100.0,
+                Array.Empty<ShapeCollinearityGroup>(),
+                "Insufficient Shapes",
+                isSelection,
+                emptySummary);
+        }
+
+        var groups = new List<ShapeCollinearityGroup>();
+        int nearMissHazards = 0;
+        int uniformSequences = 0;
+        int irregularSequences = 0;
+
+        // 1. Horizontal Collinearity (Top Y and Center Y)
+        var yTopGroups = ClusterByCoordinate(list, s => s.Y, tolerancePx, "Horizontal Top (Y)");
+        var yCenterGroups = ClusterByCoordinate(list, s => s.Y + s.Height / 2.0, tolerancePx, "Horizontal Center (Y)");
+
+        // 2. Vertical Collinearity (Left X and Center X)
+        var xLeftGroups = ClusterByCoordinate(list, s => s.X, tolerancePx, "Vertical Left (X)");
+        var xCenterGroups = ClusterByCoordinate(list, s => s.X + s.Width / 2.0, tolerancePx, "Vertical Center (X)");
+
+        foreach (var g in yTopGroups.Concat(yCenterGroups).Concat(xLeftGroups).Concat(xCenterGroups))
+        {
+            if (g.ShapeIds.Count >= 2)
+            {
+                groups.Add(g);
+                if (!g.IsExactCollinear) nearMissHazards++;
+            }
+        }
+
+        // 3. Spacing distribution: Sort by X for horizontal flow, and by Y for vertical flow
+        if (list.Count >= 3)
+        {
+            // Horizontal sequence
+            var sortedX = list.OrderBy(s => s.X).ToList();
+            var gapsX = new List<double>();
+            for (int i = 0; i < sortedX.Count - 1; i++)
+            {
+                double gap = sortedX[i + 1].X - (sortedX[i].X + sortedX[i].Width);
+                gapsX.Add(gap);
+            }
+            double stdDevX = ComputeStdDev(gapsX);
+            if (stdDevX <= 1.5) uniformSequences++;
+            else if (stdDevX > 5.0) irregularSequences++;
+
+            // Vertical sequence
+            var sortedY = list.OrderBy(s => s.Y).ToList();
+            var gapsY = new List<double>();
+            for (int i = 0; i < sortedY.Count - 1; i++)
+            {
+                double gap = sortedY[i + 1].Y - (sortedY[i].Y + sortedY[i].Height);
+                gapsY.Add(gap);
+            }
+            double stdDevY = ComputeStdDev(gapsY);
+            if (stdDevY <= 1.5) uniformSequences++;
+            else if (stdDevY > 5.0) irregularSequences++;
+        }
+
+        double penalty = (nearMissHazards * 12.0) + (irregularSequences * 10.0);
+        double score = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 when nearMissHazards == 0 => "Precision Collinear & Uniform Spacing",
+            >= 80.0 => "Aligned Layout with Minor Sub-Grid Drift",
+            >= 60.0 => "Sub-Pixel Alignment Jitter Detected",
+            _ => "Disorganized / Misaligned Primitives"
+        };
+
+        string summary = FormatCollinearitySummary(
+            list.Count, groups.Count, nearMissHazards, uniformSequences, irregularSequences, score, category, isSelection);
+
+        return new DiagramCollinearityAndSpacingAudit(
+            list.Count,
+            groups.Count,
+            nearMissHazards,
+            uniformSequences,
+            irregularSequences,
+            score,
+            groups,
+            category,
+            isSelection,
+            summary);
+    }
+
+    private static List<ShapeCollinearityGroup> ClusterByCoordinate(
+        List<ShapeCanvasItemViewModel> shapes, Func<ShapeCanvasItemViewModel, double> coordSelector,
+        double tolerance, string axisName)
+    {
+        var result = new List<ShapeCollinearityGroup>();
+        var sorted = shapes.Select(s => (Shape: s, Coord: coordSelector(s))).OrderBy(x => x.Coord).ToList();
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            if (used.Contains(sorted[i].Shape.Id)) continue;
+            var cluster = new List<(ShapeCanvasItemViewModel Shape, double Coord)> { sorted[i] };
+            for (int j = i + 1; j < sorted.Count; j++)
+            {
+                if (Math.Abs(sorted[j].Coord - sorted[i].Coord) <= tolerance)
+                {
+                    cluster.Add(sorted[j]);
+                }
+            }
+
+            if (cluster.Count >= 2)
+            {
+                foreach (var c in cluster) used.Add(c.Shape.Id);
+                double minC = cluster.Min(c => c.Coord);
+                double maxC = cluster.Max(c => c.Coord);
+                double jitter = Math.Round(maxC - minC, 2);
+                bool isExact = jitter == 0.0;
+                result.Add(new ShapeCollinearityGroup(
+                    axisName,
+                    Math.Round(minC, 1),
+                    cluster.Select(c => c.Shape.Id).ToList(),
+                    cluster.Select(c => c.Shape.Name).ToList(),
+                    isExact,
+                    jitter));
+            }
+        }
+
+        return result;
+    }
+
+    private static double ComputeStdDev(List<double> values)
+    {
+        if (values.Count < 2) return 0.0;
+        double avg = values.Average();
+        double sum = values.Sum(v => Math.Pow(v - avg, 2));
+        return Math.Round(Math.Sqrt(sum / (values.Count - 1)), 2);
+    }
+
+    public static string FormatCollinearitySummary(
+        int shapeCount, int groupCount, int jitterHazards, int uniformSeq, int irregularSeq,
+        double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        string shapeLabel = shapeCount == 1 ? "1 shape" : $"{shapeCount} shapes";
+
+        var alerts = new List<string>();
+        if (jitterHazards > 0) alerts.Add($"⚠ {jitterHazards} alignment jitter (<=3px)");
+        if (irregularSeq > 0) alerts.Add($"⚠ {irregularSeq} irregular spacing gaps");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · Collinear alignment verified";
+
+        return $"Shape collinearity audit ({scopeStr}{shapeLabel} [{groupCount} aligned groups] · {category} · {score:0.#}% score){alertSuffix}";
+    }
+
 }
 
 /// <summary>
@@ -8309,6 +8482,33 @@ public sealed record CanvasSpatialBalanceAudit(
     double MinMargin,
     int EdgeCrowdingHazards,
     double SpatialBalanceScore,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics and participating shape identifiers for a collinear alignment group.
+/// </summary>
+public sealed record ShapeCollinearityGroup(
+    string AlignmentAxis,
+    double Coordinate,
+    IReadOnlyList<string> ShapeIds,
+    IReadOnlyList<string> ShapeNames,
+    bool IsExactCollinear,
+    double MaxCoordinateJitter);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape alignment collinearity, sub-pixel snapping jitter,
+/// and distribution spacing uniformity across adjacent shapes.
+/// </summary>
+public sealed record DiagramCollinearityAndSpacingAudit(
+    int TotalShapesEvaluated,
+    int CollinearGroupCount,
+    int NearMissJitterHazards,
+    int UniformSpacingSequences,
+    int IrregularSpacingSequences,
+    double CollinearityAndSpacingScore,
+    IReadOnlyList<ShapeCollinearityGroup> CollinearGroups,
     string Category,
     bool IsSelectionScope,
     string Summary);

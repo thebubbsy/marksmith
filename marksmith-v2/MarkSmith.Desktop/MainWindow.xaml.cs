@@ -11711,6 +11711,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditBlockquoteCalloutsItem);
 
+        var auditDefinitionListsItem = new MenuFlyoutItem
+        {
+            Text = "Audit Definition Lists & Glossary Term Syntax",
+            Icon = new FontIcon { Glyph = "\uE8D2" }
+        };
+        auditDefinitionListsItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditDefinitionListsAndGlossaryTerms(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditDefinitionListsItem);
+
         menu.ShowAt(anchor);
     }
 

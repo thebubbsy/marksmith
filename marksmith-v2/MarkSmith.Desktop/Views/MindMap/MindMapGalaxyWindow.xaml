@@ -336,6 +336,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphAssortativityItem" Text="Audit graph assortative mixing &amp; hub-degree correlation" Click="OnAuditGraphAssortativityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditCommunityModularityItem" Text="Audit graph community modularity &amp; cluster density" Click="OnAuditCommunityModularityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>
