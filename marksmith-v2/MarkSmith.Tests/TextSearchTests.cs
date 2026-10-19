@@ -2433,6 +2433,48 @@ public class TextSearchTests
             audit.NestedDeepCount, audit.ErgonomicsScore, audit.Category);
         Assert.Equal(audit.Summary, summary);
     }
+
+    [Fact]
+    public void Run181_AuditDefinitionListContinuityAndSpacing_EvaluatesSpacingAndIntegrity()
+    {
+        // 1. Empty / null input
+        var emptyAudit = TextSearch.AuditDefinitionListContinuityAndSpacing(null);
+        Assert.Equal(0, emptyAudit.TotalTerms);
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(100.0, emptyAudit.ContinuityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 terms", emptyAudit.Summary);
+
+        // 2. Structured definition lists with terms and definitions
+        var doc = string.Join("\n",
+            "# Glossary",
+            "",
+            "Apple",
+            ": A sweet pomaceous fruit.",
+            ": Also a technology company.",
+            "",
+            "Banana",
+            ": A long curved fruit with yellow skin.",
+            "  Rich in potassium and vitamins.",
+            "",
+            "```markdown",
+            "Ignored",
+            ": Not a def list inside fence",
+            "```"
+        );
+
+        var audit = TextSearch.AuditDefinitionListContinuityAndSpacing(doc);
+        Assert.Equal(2, audit.TotalTerms);
+        Assert.Equal(3, audit.TotalDefinitions);
+        Assert.Equal(1, audit.MultilineDefinitions);
+        Assert.True(audit.ContinuityScore >= 90.0);
+        Assert.Equal("Optimal", audit.Category);
+
+        string summary = TextSearch.FormatDefinitionListContinuitySummary(
+            audit.TotalTerms, audit.TotalDefinitions, audit.OrphanTerms,
+            audit.MultilineDefinitions, audit.SpacingIssues, audit.ContinuityScore, audit.Category);
+        Assert.Equal(audit.Summary, summary);
+    }
 }
 
 

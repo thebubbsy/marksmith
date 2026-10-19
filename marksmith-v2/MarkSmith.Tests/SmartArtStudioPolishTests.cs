@@ -2203,6 +2203,39 @@ public class SmartArtStudioPolishTests
             audit.FlowHarmonyScore, audit.Category);
         Assert.Equal(audit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run181_AuditHierarchyIndentationAndChildBalance_EvaluatesTreeSymmetry()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditHierarchyIndentationAndChildBalance("");
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.HierarchyBalanceScore);
+        Assert.Contains("0 nodes", emptyAudit.Summary);
+
+        string hierarchyMd = string.Join("\n",
+            "- Executive Leadership",
+            "  - Engineering Directorate",
+            "    - Frontend Core Team",
+            "    - Platform Services",
+            "  - Product Management",
+            "    - UX Design Group",
+            "    - Market Research"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditHierarchyIndentationAndChildBalance(hierarchyMd);
+        Assert.Equal(7, audit.TotalNodes);
+        Assert.Equal(2, audit.MaxDepth);
+        Assert.Equal(0, audit.LopsidedParentCount);
+        Assert.Equal(0, audit.DeeplyNestedCount);
+        Assert.True(audit.HierarchyBalanceScore >= 90.0);
+        Assert.Equal("Balanced Hierarchy", audit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatHierarchyBalanceSummary(
+            audit.TotalNodes, audit.MaxDepth, audit.AverageBranchingFactor,
+            audit.LopsidedParentCount, audit.DeeplyNestedCount, audit.BranchingFactorVariance,
+            audit.HierarchyBalanceScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
 }
 
 

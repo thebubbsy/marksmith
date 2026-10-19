@@ -2497,6 +2497,37 @@ public class ShapeStudioPolishTests
             uniformAudit.OutlineHarmonyScore, uniformAudit.Category, uniformAudit.IsSelectionScope);
         Assert.Equal(uniformAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run181_AuditFillColorPaletteHarmony_EvaluatesWcagContrastAndPaletteUniformity()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        var emptyAudit = vm.AuditFillColorPaletteHarmony();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(100.0, emptyAudit.PaletteHarmonyScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Box 1", Fill = "4A90E2" };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Box 2", Fill = "4A90E2" };
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Name = "Box 3", Fill = "357ABD" };
+
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+        vm.Shapes.Add(s3);
+
+        var audit = vm.AuditFillColorPaletteHarmony();
+        Assert.Equal(3, audit.TotalShapesEvaluated);
+        Assert.Equal(2, audit.UniqueColorsCount);
+        Assert.Equal(3, audit.WcagAaCompliantCount);
+        Assert.Equal(0, audit.LowContrastCount);
+        Assert.True(audit.PaletteHarmonyScore >= 90.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatColorPaletteHarmonySummary(
+            audit.TotalShapesEvaluated, audit.UniqueColorsCount, audit.WcagAaCompliantCount,
+            audit.LowContrastCount, audit.DominantColorFamily, audit.DominantColorCount,
+            audit.PaletteHarmonyScore, audit.Category, audit.IsSelectionScope ? "Selection · " : "");
+        Assert.Equal(audit.Summary, formatted);
+    }
 }
 
 

@@ -6697,6 +6697,191 @@ public static class LineDiff
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · compatible evolution";
         return $"Method signature drift audit ({sigStr} · {category} · {score:0.#}% stability): {details.TrimStart(' ', '·', ' ')}";
     }
+
+    /// <summary>
+    /// Audits semantic diff token-level identifier renaming patterns, detecting co-located token replacements,
+    /// calculating mutation scope entropy, and scoring change cohesion.
+    /// </summary>
+    public static DiffIdentifierRenamingAudit AuditIdentifierRenamingEntropy(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new DiffIdentifierRenamingAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<IdentifierRenamePairItem>(),
+                "Pristine Unmodified Document",
+                "Diff identifier renaming & scope entropy audit: 0 rows · Document unchanged");
+        }
+
+        var keywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "public", "private", "protected", "internal", "static", "readonly", "class", "record", "struct",
+            "interface", "enum", "void", "int", "string", "bool", "double", "float", "long", "var", "new",
+            "return", "if", "else", "foreach", "for", "while", "do", "switch", "case", "break", "continue",
+            "null", "true", "false", "this", "base", "get", "set", "init", "using", "namespace", "async",
+            "await", "task", "override", "virtual", "sealed", "partial", "abstract", "const", "in", "out",
+            "ref", "is", "as", "throw", "try", "catch", "finally", "typeof", "sizeof", "default"
+        };
+
+        var identRegex = new Regex(@"\b[a-zA-Z_][a-zA-Z0-9_]*\b", RegexOptions.Compiled);
+
+        var removedCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        var addedCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        int totalRemovedTokens = 0;
+        int totalAddedTokens = 0;
+
+        foreach (var row in unifiedRows)
+        {
+            if (row.IsGap || string.IsNullOrWhiteSpace(row.Text)) continue;
+
+            if (row.Kind == Kind.Removed)
+            {
+                var matches = identRegex.Matches(row.Text);
+                foreach (Match m in matches)
+                {
+                    string id = m.Value;
+                    if (keywords.Contains(id) || id.Length <= 1) continue;
+                    removedCounts[id] = removedCounts.GetValueOrDefault(id, 0) + 1;
+                    totalRemovedTokens++;
+                }
+            }
+            else if (row.Kind == Kind.Added)
+            {
+                var matches = identRegex.Matches(row.Text);
+                foreach (Match m in matches)
+                {
+                    string id = m.Value;
+                    if (keywords.Contains(id) || id.Length <= 1) continue;
+                    addedCounts[id] = addedCounts.GetValueOrDefault(id, 0) + 1;
+                    totalAddedTokens++;
+                }
+            }
+        }
+
+        if (totalRemovedTokens == 0 && totalAddedTokens == 0)
+        {
+            return new DiffIdentifierRenamingAudit(
+                unifiedRows.Count, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<IdentifierRenamePairItem>(),
+                "No Identifier Drift",
+                "Diff identifier renaming & scope entropy audit: 0 identifier mutations · Stable naming");
+        }
+
+        var disappeared = removedCounts.Keys.Where(k => !addedCounts.ContainsKey(k)).ToList();
+        var appeared = addedCounts.Keys.Where(k => !removedCounts.ContainsKey(k)).ToList();
+
+        var candidatePairs = new List<IdentifierRenamePairItem>();
+        var renameFrequencies = new List<int>();
+
+        var matchedAppeared = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var oldId in disappeared.OrderByDescending(k => removedCounts[k]))
+        {
+            int oldCount = removedCounts[oldId];
+            string? bestMatch = null;
+            int bestDelta = int.MaxValue;
+
+            foreach (var newId in appeared)
+            {
+                if (matchedAppeared.Contains(newId)) continue;
+                int newCount = addedCounts[newId];
+                int delta = Math.Abs(oldCount - newCount);
+                if (delta < bestDelta)
+                {
+                    bestDelta = delta;
+                    bestMatch = newId;
+                    if (delta == 0) break;
+                }
+            }
+
+            if (bestMatch != null && bestDelta <= Math.Max(2, oldCount / 2))
+            {
+                matchedAppeared.Add(bestMatch);
+                int freq = Math.Min(oldCount, addedCounts[bestMatch]);
+                double conf = Math.Round(1.0 - (double)bestDelta / Math.Max(1, Math.Max(oldCount, addedCounts[bestMatch])), 2);
+                conf = Math.Max(0.5, conf);
+
+                candidatePairs.Add(new IdentifierRenamePairItem(
+                    oldId, bestMatch, freq, conf,
+                    $"✓ {oldId} → {bestMatch} ({freq}x, {conf * 100:0}% confidence)"));
+                renameFrequencies.Add(freq);
+            }
+        }
+
+        int dominantFreq = renameFrequencies.Count > 0 ? renameFrequencies.Max() : 0;
+        int sumFreq = renameFrequencies.Sum();
+
+        double entropy = 0.0;
+        if (sumFreq > 0)
+        {
+            foreach (var f in renameFrequencies)
+            {
+                double p = (double)f / sumFreq;
+                if (p > 0.0)
+                {
+                    entropy -= p * Math.Log2(p);
+                }
+            }
+        }
+        entropy = Math.Round(entropy, 2);
+
+        double score;
+        if (candidatePairs.Count <= 1)
+        {
+            score = 100.0;
+        }
+        else
+        {
+            double entropyPenalty = entropy * 18.0;
+            score = Math.Clamp(100.0 - entropyPenalty, 0.0, 100.0);
+            score = Math.Round(score, 1);
+        }
+
+        string category = score switch
+        {
+            >= 90.0 => "Cohesive Focused Renaming",
+            >= 75.0 => "Consistent Refactor",
+            >= 60.0 => "Moderate Multi-Rename",
+            >= 40.0 => "Fragmented Drift",
+            _ => "Chaotic Token Mutation"
+        };
+
+        string summary = FormatIdentifierRenamingSummary(
+            unifiedRows.Count, totalRemovedTokens, totalAddedTokens, candidatePairs.Count,
+            dominantFreq, entropy, score, category, candidatePairs);
+
+        return new DiffIdentifierRenamingAudit(
+            unifiedRows.Count, totalRemovedTokens, totalAddedTokens, candidatePairs.Count,
+            dominantFreq, entropy, score, candidatePairs, category, summary);
+    }
+
+    public static DiffIdentifierRenamingAudit AuditIdentifierRenamingEntropy(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditIdentifierRenamingEntropy(unified);
+    }
+
+    public static string FormatIdentifierRenamingSummary(
+        int totalRows, int totalRemoved, int totalAdded, int candidatePairs,
+        int dominantFreq, double entropy, double score, string category,
+        IReadOnlyList<IdentifierRenamePairItem>? pairs = null)
+    {
+        if (totalRemoved == 0 && totalAdded == 0)
+            return "Diff identifier renaming & scope entropy audit: 0 identifier mutations · Stable naming";
+
+        string pairStr = candidatePairs == 1 ? "1 rename pair" : $"{candidatePairs} rename pairs";
+        var parts = new List<string>();
+        parts.Add($"entropy {entropy:0.##}");
+        if (candidatePairs > 0 && pairs != null && pairs.Count > 0)
+        {
+            var top = pairs.OrderByDescending(p => p.Frequency).Take(2)
+                .Select(p => $"{p.RemovedIdentifier}→{p.AddedIdentifier} ({p.Frequency}x)");
+            parts.Add(string.Join(", ", top));
+        }
+
+        string details = parts.Count > 0 ? $" · {string.Join(" · ", parts)}" : "";
+        return $"Diff identifier renaming audit ({pairStr} · {category} · {score:0.#}% clarity){details}";
+    }
 }
 
 /// <summary>
@@ -7312,6 +7497,33 @@ public sealed record DiffMethodSignatureDriftAudit(
     IReadOnlyList<MethodSignatureMutationItem> Mutations,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated candidate identifier rename frequency, confidence score, and mutation status across diff hunks.
+/// </summary>
+public sealed record IdentifierRenamePairItem(
+    string RemovedIdentifier,
+    string AddedIdentifier,
+    int Frequency,
+    double ConfidenceScore,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff token-level identifier renaming patterns,
+/// mutation scope entropy, and change cohesion.
+/// </summary>
+public sealed record DiffIdentifierRenamingAudit(
+    int TotalUnifiedRows,
+    int TotalRemovedTokens,
+    int TotalAddedTokens,
+    int CandidateRenamePairs,
+    int DominantRenameFrequency,
+    double ScopeEntropy,
+    double MutationClarityScore,
+    IReadOnlyList<IdentifierRenamePairItem> Pairs,
+    string Category,
+    string Summary);
+
 
 
 

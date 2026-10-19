@@ -751,6 +751,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditStrokeWeightAndDashItem" Text="Audit shape stroke weight consistency &amp; border dash uniformity" Click="OnSelectionAuditStrokeWeightAndDashClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditFillColorPaletteHarmonyItem" Text="Audit shape fill color harmony &amp; WCAG contrast uniformity" Click="OnSelectionAuditFillColorPaletteHarmonyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

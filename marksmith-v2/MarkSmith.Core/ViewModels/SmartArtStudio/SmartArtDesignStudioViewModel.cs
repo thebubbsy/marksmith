@@ -7685,6 +7685,176 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = cues.Count > 0 ? $" · {string.Join(", ", cues)}" : " · sequential flow";
         return $"Process step flow & transition audit ({stepStr} · {category} · {score:0.#}% flow score): avg title {avgTitleWc:0.#}w (±{stdDev:0.#}w){details}";
     }
+
+    /// <summary>
+    /// Audits SmartArt outline hierarchy indentation levels, parent-child sibling balance,
+    /// branching factor variance, and deep tree nesting ergonomics.
+    /// </summary>
+    public SmartArtHierarchyBalanceAudit AuditHierarchyIndentationAndChildBalance(string? markdown = null, string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtHierarchyBalanceAudit(
+                0, 0, 0.0, 0, 0, 0.0, 100.0,
+                Array.Empty<HierarchyNodeBalanceItem>(),
+                "Empty Outline",
+                "Hierarchy tree balance audit: 0 nodes · Outline contains no items");
+        }
+
+        var lines = input.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var parsedNodes = new List<(int LineNumber, int Level, string Text, int ParentIndex)>();
+        var parentStack = new List<(int Level, int NodeIndex)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            int indent = 0;
+            while (indent < line.Length && (line[indent] == ' ' || line[indent] == '\t'))
+            {
+                indent += line[indent] == '\t' ? 4 : 1;
+            }
+
+            string trimmed = line.Trim();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+                continue;
+
+            int level = indent / 2;
+            string nodeText = trimmed;
+
+            if (trimmed.StartsWith('#'))
+            {
+                int hashCount = trimmed.TakeWhile(c => c == '#').Count();
+                level = Math.Max(0, hashCount - 1);
+                nodeText = trimmed.TrimStart('#').Trim();
+            }
+            else if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ "))
+            {
+                nodeText = trimmed.Substring(2).Trim();
+            }
+            else
+            {
+                var numMatch = System.Text.RegularExpressions.Regex.Match(trimmed, @"^\d+[.)]\s+(.*)$");
+                if (numMatch.Success)
+                {
+                    nodeText = numMatch.Groups[1].Value.Trim();
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(nodeText)) continue;
+
+            while (parentStack.Count > 0 && parentStack[parentStack.Count - 1].Level >= level)
+            {
+                parentStack.RemoveAt(parentStack.Count - 1);
+            }
+
+            int parentIdx = parentStack.Count > 0 ? parentStack[parentStack.Count - 1].NodeIndex : -1;
+            int currentNodeIdx = parsedNodes.Count;
+            parsedNodes.Add((i + 1, level, nodeText, parentIdx));
+            parentStack.Add((level, currentNodeIdx));
+        }
+
+        if (parsedNodes.Count == 0)
+        {
+            return new SmartArtHierarchyBalanceAudit(
+                0, 0, 0.0, 0, 0, 0.0, 100.0,
+                Array.Empty<HierarchyNodeBalanceItem>(),
+                "Empty Outline",
+                "Hierarchy tree balance audit: 0 nodes · Outline contains no items");
+        }
+
+        int totalNodes = parsedNodes.Count;
+        int maxDepth = parsedNodes.Max(n => n.Level);
+
+        var childCounts = new Dictionary<int, int>();
+        for (int i = 0; i < parsedNodes.Count; i++)
+        {
+            int p = parsedNodes[i].ParentIndex;
+            if (p >= 0)
+            {
+                childCounts[p] = childCounts.GetValueOrDefault(p, 0) + 1;
+            }
+        }
+
+        var branchingFactors = childCounts.Values.ToList();
+        double avgBranching = branchingFactors.Count > 0 ? Math.Round(branchingFactors.Average(), 2) : 0.0;
+        double branchingVariance = branchingFactors.Count > 1
+            ? Math.Round(branchingFactors.Select(b => Math.Pow(b - avgBranching, 2)).Average(), 2)
+            : 0.0;
+
+        int lopsidedParents = 0;
+        int deeplyNestedCount = 0;
+        var items = new List<HierarchyNodeBalanceItem>();
+
+        for (int i = 0; i < parsedNodes.Count; i++)
+        {
+            var node = parsedNodes[i];
+            int children = childCounts.GetValueOrDefault(i, 0);
+
+            bool isLopsided = children > 6 || (children == 1 && avgBranching > 3.0);
+            if (isLopsided) lopsidedParents++;
+
+            bool isDeep = node.Level > 3;
+            if (isDeep) deeplyNestedCount++;
+
+            string status = isLopsided ? $"⚠ Lopsided branch ({children} children)" :
+                            isDeep ? $"⚠ Deeply nested (level {node.Level})" :
+                            children > 0 ? $"✓ {children} children" : "✓ Leaf item";
+
+            items.Add(new HierarchyNodeBalanceItem(
+                node.LineNumber, node.Text, node.Level, children, isLopsided, isDeep, status));
+        }
+
+        double penalty = (lopsidedParents * 12.0) + (deeplyNestedCount * 8.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Balanced Hierarchy",
+            >= 75.0 => "Consistent Tree",
+            >= 60.0 => "Moderate Depth Skew",
+            >= 40.0 => "Lopsided Branching",
+            _ => "Deeply Nested Outlier"
+        };
+
+        string summary = FormatHierarchyBalanceSummary(
+            totalNodes, maxDepth, avgBranching, lopsidedParents, deeplyNestedCount,
+            branchingVariance, score, category);
+
+        StatusMessage = summary;
+
+        return new SmartArtHierarchyBalanceAudit(
+            totalNodes, maxDepth, avgBranching, lopsidedParents, deeplyNestedCount,
+            branchingVariance, score, items, category, summary);
+    }
+
+    public static SmartArtHierarchyBalanceAudit AuditHierarchyIndentationAndChildBalance(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditHierarchyIndentationAndChildBalance(markdown, layoutName);
+    }
+
+    public static string FormatHierarchyBalanceSummary(
+        int totalNodes, int maxDepth, double avgBranching, int lopsidedParents,
+        int deeplyNestedCount, double branchingVariance, double score, string category)
+    {
+        if (totalNodes == 0)
+            return "Hierarchy tree balance audit: 0 nodes · Outline contains no items";
+
+        string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+        var alerts = new List<string>();
+        alerts.Add($"max depth {maxDepth}");
+        alerts.Add($"avg branch {avgBranching:0.#}");
+        if (lopsidedParents > 0) alerts.Add($"⚠ {lopsidedParents} lopsided {(lopsidedParents == 1 ? "parent" : "parents")}");
+        if (deeplyNestedCount > 0) alerts.Add($"⚠ {deeplyNestedCount} deep (level > 3)");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · balanced branches";
+        return $"Hierarchy tree balance audit ({nodeStr} · {category} · {score:0.#}% balance){details}";
+    }
 }
 
 /// <summary>
@@ -8436,5 +8606,34 @@ public sealed record SmartArtProcessStepFlowAudit(
     IReadOnlyList<ProcessStepTransitionItem> Steps,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, indentation level, child count, and balance status for an individual hierarchy outline item.
+/// </summary>
+public sealed record HierarchyNodeBalanceItem(
+    int LineNumber,
+    string Text,
+    int Level,
+    int ChildCount,
+    bool IsLopsidedParent,
+    bool IsDeeplyNested,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt hierarchy level indentation depth, sibling child count balance,
+/// branching factor variance, and tree ergonomics.
+/// </summary>
+public sealed record SmartArtHierarchyBalanceAudit(
+    int TotalNodes,
+    int MaxDepth,
+    double AverageBranchingFactor,
+    int LopsidedParentCount,
+    int DeeplyNestedCount,
+    double BranchingFactorVariance,
+    double HierarchyBalanceScore,
+    IReadOnlyList<HierarchyNodeBalanceItem> Items,
+    string Category,
+    string Summary);
+
 
 

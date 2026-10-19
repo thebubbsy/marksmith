@@ -8899,6 +8899,160 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% uniform solid stroke";
         return $"Stroke weight & dash uniformity audit ({scopeStr}{shapeStr} · {category} · {harmonyScore:0.#}% harmony): avg {avgWeight:0.##}pt (±{stdDev:0.##}pt){details}";
     }
+
+    /// <summary>
+    /// Audits diagram shape fill color harmony, WCAG 2.1 non-text contrast ratios against canvas background,
+    /// and palette consistency across vector shapes.
+    /// </summary>
+    public DiagramFillColorHarmonyAudit AuditFillColorPaletteHarmony(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = targetShapes?.ToList() ?? (selected.Count > 0 ? selected : Shapes.ToList());
+        bool isSelection = targetShapes != null || (selected.Count > 0 && targets.Count < Shapes.Count);
+        var audit = AuditFillColorPaletteHarmony(targets, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramFillColorHarmonyAudit AuditFillColorPaletteHarmony(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes,
+        bool isSelection = false)
+    {
+        var list = shapes?.ToList() ?? new List<ShapeCanvasItemViewModel>();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        if (list.Count == 0)
+        {
+            return new DiagramFillColorHarmonyAudit(
+                0, 0, 0, 0, "None", 0, 100.0,
+                Array.Empty<ShapeColorHarmonyItem>(),
+                "Empty Canvas", isSelection,
+                $"Diagram fill color harmony audit ({scopeStr}0 shapes): Canvas is empty");
+        }
+
+        var items = new List<ShapeColorHarmonyItem>();
+        var colorCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var familyCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        int compliantCount = 0;
+        int lowContrastCount = 0;
+
+        string bgHex = ShapeDesignStudioViewModel.CanvasBackgroundHex;
+
+        foreach (var shape in list)
+        {
+            string rawFill = shape.Fill ?? ShapeDesignStudioViewModel.ThemeAccentHex();
+            string cleanFill = rawFill.Trim().TrimStart('#');
+            if (cleanFill.Length != 6) cleanFill = "4A90E2";
+
+            double luminance = Math.Round(Services.ContrastGuard.GetLuminance(cleanFill), 3);
+            double contrast = Math.Round(Services.ContrastGuard.GetContrastRatio(cleanFill, bgHex), 2);
+            bool meetsWcag = contrast >= 3.0;
+
+            if (meetsWcag) compliantCount++;
+            else lowContrastCount++;
+
+            colorCounts[cleanFill] = colorCounts.GetValueOrDefault(cleanFill, 0) + 1;
+
+            int r = int.Parse(cleanFill.Substring(0, 2), System.Globalization.NumberStyles.HexNumber);
+            int g = int.Parse(cleanFill.Substring(2, 2), System.Globalization.NumberStyles.HexNumber);
+            int b = int.Parse(cleanFill.Substring(4, 2), System.Globalization.NumberStyles.HexNumber);
+
+            int max = Math.Max(r, Math.Max(g, b));
+            int min = Math.Min(r, Math.Min(g, b));
+
+            string family;
+            if (max - min < 24)
+            {
+                if (r > 200) family = "White/Light Gray";
+                else if (r < 60) family = "Black/Dark Gray";
+                else family = "Neutral Gray";
+            }
+            else if (r >= g && r >= b)
+            {
+                if (g > b * 1.4) family = "Orange/Amber";
+                else if (b > g * 1.4) family = "Magenta/Pink";
+                else family = "Red/Crimson";
+            }
+            else if (g >= r && g >= b)
+            {
+                if (b > r * 1.4) family = "Cyan/Teal";
+                else if (r > b * 1.4) family = "Lime/Chartreuse";
+                else family = "Green/Emerald";
+            }
+            else
+            {
+                if (r > g * 1.4) family = "Purple/Violet";
+                else if (g > r * 1.4) family = "Cyan/Azure";
+                else family = "Blue/Cobalt";
+            }
+
+            familyCounts[family] = familyCounts.GetValueOrDefault(family, 0) + 1;
+
+            string status = meetsWcag
+                ? $"✓ {contrast:0.#}:1 ratio (Pass WCAG AA)"
+                : $"⚠ {contrast:0.#}:1 ratio (Low contrast < 3:1)";
+
+            items.Add(new ShapeColorHarmonyItem(
+                shape.Id, shape.Name ?? "Shape", $"#{cleanFill}",
+                luminance, contrast, meetsWcag, family, status));
+        }
+
+        string dominantFamily = familyCounts.OrderByDescending(kv => kv.Value).FirstOrDefault().Key ?? "None";
+        int dominantCount = familyCounts.GetValueOrDefault(dominantFamily, 0);
+
+        int uniqueColors = colorCounts.Count;
+        double compliancePct = (double)compliantCount / list.Count;
+
+        double penalty = (1.0 - compliancePct) * 50.0;
+        if (familyCounts.Count > 4 && list.Count <= 12)
+        {
+            penalty += (familyCounts.Count - 4) * 8.0;
+        }
+
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Harmonious & Accessible (≥90%)",
+            >= 75.0 => "Cohesive Palette (75–89%)",
+            >= 60.0 => "Moderate Variety (60–74%)",
+            >= 40.0 => "Low Contrast / Discordant (40–59%)",
+            _ => "High Clutter / Accessibility Alert (<40%)"
+        };
+
+        string summary = FormatColorPaletteHarmonySummary(
+            list.Count, uniqueColors, compliantCount, lowContrastCount, dominantFamily, dominantCount,
+            score, category, scopeStr);
+
+        return new DiagramFillColorHarmonyAudit(
+            list.Count, uniqueColors, compliantCount, lowContrastCount, dominantFamily, dominantCount,
+            score, items, category, isSelection, summary);
+    }
+
+    public static string FormatColorPaletteHarmonySummary(
+        int totalShapes, int uniqueColors, int compliantCount, int lowContrastCount,
+        string dominantFamily, int dominantCount, double harmonyScore, string category,
+        string scopeStr = "")
+    {
+        if (totalShapes == 0) return $"Diagram fill color harmony audit ({scopeStr}0 shapes): Canvas is empty";
+
+        string shapeStr = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        var alerts = new List<string>();
+        alerts.Add($"{uniqueColors} unique {(uniqueColors == 1 ? "color" : "colors")}");
+        alerts.Add($"dominant: {dominantFamily} ({dominantCount})");
+        if (lowContrastCount > 0)
+        {
+            alerts.Add($"⚠ {lowContrastCount} low contrast (<3:1)");
+        }
+        else
+        {
+            alerts.Add("100% WCAG 2.1 AA");
+        }
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
+        return $"Fill color harmony audit ({scopeStr}{shapeStr} · {category} · {harmonyScore:0.#}% harmony){details}";
+    }
 }
 
 /// <summary>
@@ -9751,5 +9905,35 @@ public sealed record DiagramStrokeWeightAndDashAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated fill color, luminance, WCAG contrast ratio, and color family for an individual shape.
+/// </summary>
+public sealed record ShapeColorHarmonyItem(
+    string ShapeId,
+    string ShapeName,
+    string FillColor,
+    double RelativeLuminance,
+    double ContrastRatio,
+    bool MeetsWcagAa,
+    string ColorFamily,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape fill color harmony, WCAG contrast ratios, and palette uniformity.
+/// </summary>
+public sealed record DiagramFillColorHarmonyAudit(
+    int TotalShapesEvaluated,
+    int UniqueColorsCount,
+    int WcagAaCompliantCount,
+    int LowContrastCount,
+    string DominantColorFamily,
+    int DominantColorCount,
+    double PaletteHarmonyScore,
+    IReadOnlyList<ShapeColorHarmonyItem> Shapes,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
 
 

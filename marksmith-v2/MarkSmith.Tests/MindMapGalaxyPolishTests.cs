@@ -3172,6 +3172,44 @@ namespace MarkSmith.Tests
                 audit.TopBottleneckTitle, audit.TopBottleneckScore, audit.Category, audit.IsSelectionScope);
             Assert.Equal(audit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run181_AuditDegreeDistributionAndHubDominance_EvaluatesConnectivityAndTopologyScore()
+        {
+            var emptyAudit = MindMapStudioViewModel.AuditDegreeDistributionAndHubDominance(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.TopologyBalanceScore);
+            Assert.Equal("Empty Map", emptyAudit.Category);
+
+            var hub = new MindMapNode { Id = "hub", Title = "Central Hub" };
+            var n1 = new MindMapNode { Id = "n1", Title = "Leaf 1" };
+            var n2 = new MindMapNode { Id = "n2", Title = "Leaf 2" };
+            var n3 = new MindMapNode { Id = "n3", Title = "Leaf 3" };
+            var iso = new MindMapNode { Id = "iso", Title = "Isolated" };
+
+            var l1 = new MindMapLink { SourceNodeId = "hub", TargetNodeId = "n1" };
+            var l2 = new MindMapLink { SourceNodeId = "hub", TargetNodeId = "n2" };
+            var l3 = new MindMapLink { SourceNodeId = "hub", TargetNodeId = "n3" };
+
+            var audit = MindMapStudioViewModel.AuditDegreeDistributionAndHubDominance(
+                new[] { hub, n1, n2, n3, iso },
+                new[] { l1, l2, l3 });
+
+            Assert.Equal(5, audit.TotalNodes);
+            Assert.Equal(3, audit.TotalEdges);
+            Assert.Equal(3, audit.MaxDegree);
+            Assert.Equal("hub", audit.TopHubNodeId);
+            Assert.Equal(1, audit.IsolatedCount);
+            Assert.Equal(3, audit.LeafCount);
+            Assert.True(audit.HubCount >= 1);
+            Assert.True(audit.TopologyBalanceScore < 100.0);
+
+            string formatted = MindMapStudioViewModel.FormatDegreeDistributionSummary(
+                audit.TotalNodes, audit.TotalEdges, audit.AverageDegree, audit.MaxDegree,
+                audit.HubCount, audit.LeafCount, audit.IsolatedCount, audit.HubDominanceRatio,
+                audit.TopologyBalanceScore, audit.TopHubTitle, audit.Category, audit.IsSelectionScope);
+            Assert.Equal(audit.Summary, formatted);
+        }
     }
 }
 

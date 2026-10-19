@@ -380,6 +380,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditProcessStepFlowItem" Text="Audit SmartArt process step flow, directionality &amp; transition sequence" Click="OnOutlineStatsAuditProcessStepFlowClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyBalanceItem" Text="Audit SmartArt hierarchy level indentation depth &amp; sibling balance" Click="OnOutlineStatsAuditHierarchyBalanceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

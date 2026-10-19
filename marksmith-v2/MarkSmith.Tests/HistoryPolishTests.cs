@@ -2302,6 +2302,41 @@ public class HistoryPolishTests : IDisposable
             audit.InterfaceStabilityScore, audit.Category);
         Assert.Equal(audit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run181_AuditIdentifierRenamingEntropy_EvaluatesTokenRenamesAndEntropy()
+    {
+        var emptyAudit = LineDiff.AuditIdentifierRenamingEntropy("", "");
+        Assert.Equal(0, emptyAudit.CandidateRenamePairs);
+        Assert.Equal(100.0, emptyAudit.MutationClarityScore);
+        Assert.Contains("0 identifier mutations", emptyAudit.Summary);
+
+        string beforeCode = string.Join("\n",
+            "var customerRecord = GetRecord();",
+            "ProcessCustomer(customerRecord);",
+            "SaveCustomer(customerRecord);"
+        );
+
+        string afterCode = string.Join("\n",
+            "var clientEntity = GetRecord();",
+            "ProcessCustomer(clientEntity);",
+            "SaveCustomer(clientEntity);"
+        );
+
+        var audit = LineDiff.AuditIdentifierRenamingEntropy(beforeCode, afterCode);
+        Assert.Equal(1, audit.CandidateRenamePairs);
+        Assert.Equal("customerRecord", audit.Pairs[0].RemovedIdentifier);
+        Assert.Equal("clientEntity", audit.Pairs[0].AddedIdentifier);
+        Assert.Equal(3, audit.Pairs[0].Frequency);
+        Assert.Equal(100.0, audit.MutationClarityScore);
+        Assert.Equal("Cohesive Focused Renaming", audit.Category);
+
+        string formatted = LineDiff.FormatIdentifierRenamingSummary(
+            audit.TotalUnifiedRows, audit.TotalRemovedTokens, audit.TotalAddedTokens,
+            audit.CandidateRenamePairs, audit.DominantRenameFrequency, audit.ScopeEntropy,
+            audit.MutationClarityScore, audit.Category, audit.Pairs);
+        Assert.Equal(audit.Summary, formatted);
+    }
 }
 
 

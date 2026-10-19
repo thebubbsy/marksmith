@@ -357,6 +357,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphBetweennessCentralityItem" Text="Audit graph node betweenness centrality &amp; gateway bottlenecks" Click="OnAuditGraphBetweennessCentralityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionAndHubDominanceItem" Text="Audit graph node degree distribution &amp; hub dominance" Click="OnAuditGraphDegreeDistributionAndHubDominanceClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

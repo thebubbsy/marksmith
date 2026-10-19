@@ -12047,7 +12047,7 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #181 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+#### Run #181 Blueprint — Carried-Forward Refinements & Next Cycle Targets
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
    - **Feature**: Markdown Definition List Term Spacing, Blank Line Continuity & Description Block Auditor.
    - **Deliverable**: Add `TextSearch.AuditDefinitionListContinuityAndSpacing(markdownText)` and `FormatDefinitionListContinuitySummary(...)`, auditing definition lists (`Term\n: Definition`), verifying blank line separation between terms, detecting orphan terms lacking colon descriptors, evaluating multiline definition indentation, and scoring glossary outline ergonomics ($0-100\%$). Wire to `ShowLinksContextMenu`.
@@ -12067,4 +12067,46 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
    - **Refinement Target**: Workspace Markdown Code Block Language Tag Distribution & Missing Syntax Highlighting Advisor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceCodeBlockLanguages(files)` to scan fenced code blocks (` ```lang `) across workspace documents, catalog language tag distribution, detect untagged code blocks, and score syntax highlighting coverage ($0-100\%$). Wire to `RecentDocsFlyout`.
 
+---
 
+## Scheduled WinUI 3 Desktop Polish Routine — Run #181 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Definition List Term Spacing, Blank Line Continuity & Description Block Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditDefinitionListContinuityAndSpacing(markdownText)`, `FormatDefinitionListContinuitySummary(...)` (audit and string overloads), records `DefinitionListContinuityItem`, `DefinitionListContinuityAudit`. Audits definition list constructs (`Term\n: Definition`), verifies blank line separations between distinct definition terms, identifies orphan terms without colon definitions, measures multiline definition block indentation, and scores glossary outline ergonomics ($0-100\%$); wired to `auditDefinitionListItem` ("Audit Definition List Continuity & Spacing", glyph `\uE8B9`) in `ShowLinksContextMenu` with automated clipboard copy and toast announcement.
+    2. **MindMapGalaxyWindow Graph Node Degree Distribution, Hub Dominance & Scale-Free Topology Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditDegreeDistributionAndHubDominance()`, static overload, `FormatDegreeDistributionSummary(...)`, records `NodeDegreeMetricInfo`, `GraphScaleFreeTopologyAudit`. Calculates directed in-degrees, out-degrees, and total degrees for all nodes, identifies hub dominance ratios, flags leaf nodes and isolated singletons, and scores graph degree distribution balance ($0-100\%$); wired to `AuditGraphDegreeDistributionAndHubDominanceItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Diagram Shape Fill Color Harmony, Contrast Ratio & Theme Palette Uniformity Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditFillColorPaletteHarmony(shapes)`, static overload, `FormatColorPaletteHarmonySummary(...)`, records `ShapeColorHarmonyItem`, `DiagramFillColorHarmonyAudit`. Evaluates shape fill colors, computes WCAG relative luminance and contrast ratios against the active canvas background, flags low-contrast illegible shapes ($< 3.0:1$), and scores diagram color harmony ($0-100\%$); wired to `SelectionAuditFillColorPaletteHarmonyItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Hierarchy Level Indentation Depth & Sibling Child Count Balance Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditHierarchyIndentationAndChildBalance(markdown, layoutName)`, static overload, `FormatHierarchyBalanceSummary(...)`, records `HierarchyNodeBalanceItem`, `SmartArtHierarchyBalanceAudit`. Parses tree and organization hierarchy outlines, detects excessive nesting depths ($> 5$ levels), flags sibling branching factor bottlenecks ($> 8$ children on a single parent), and scores hierarchy structural balance ($0-100\%$); wired to `OutlineStatsAuditHierarchyBalanceItem` (`\uE8B9`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Diff Token-Level Identifier Renaming & Mutation Scope Entropy Advisor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditIdentifierRenamingEntropy(unifiedRows)`, static string overload, `FormatIdentifierRenamingSummary(...)`, records `IdentifierRenamePairItem`, `DiffIdentifierRenamingAudit`. Analyzes token-level identifier substitutions across diff modifications, aligns disappeared tokens with appeared tokens via frequency delta matching, computes Shannon mutation entropy ($H = -\sum p \log_2 p$), and scores refactoring clarity ($0-100\%$); wired to `auditIdentifierRenaming` (`\uE8B9`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace Markdown Code Block Language Tag Distribution & Missing Syntax Highlighting Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceCodeBlockLanguages(files, fileExistsProvider, contentReader)`, `FormatWorkspaceCodeBlockLanguageSummary(...)`, records `CodeBlockLanguageCountItem`, `WorkspaceCodeBlockLanguageAudit`. Scans all workspace markdown files for fenced code blocks, aggregates language tag distributions (e.g. `csharp`, `json`, `bash`), flags untagged bare code fences, and scores syntax highlighting coverage ($0-100\%$); wired to `CopyWorkspaceCodeBlockLanguagesAdvisorItem` (`\uE8B9`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified all `7/7` targeted Run #181 tests passing (`100%` pass rate).
+    - Verified `795/795` Polish test suite passing (`100%` pass rate).
+    - Verified clean live launch of `Marksmith.exe` (`PID=17464`, `Responding=True`, closed cleanly with zero startup crashes).
+
+---
+
+### Run #182 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Footnote Definition Ordering, Orphan Reference & Multi-Paragraph Footnote Auditor.
+   - **Deliverable**: Add `TextSearch.AuditFootnoteOrderAndOrphans(markdownText)` and `FormatFootnoteOrderSummary(...)`, auditing footnote references (`[^1]`) and definitions (`[^1]: text`), verifying 1-to-1 matching, monotonic ordering, detecting orphan references or unused definitions, and scoring footnote structural integrity ($0-100\%$). Wire to `ShowLinksContextMenu`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Topological Hierarchy Stratification & DAG Cycle Resolution Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditTopologicalHierarchyAndCycles()` and `FormatTopologicalHierarchySummary(...)`, performing Tarjan's strongly connected components analysis, detecting directed feedback loops / cycles, computing topological rank layers, and scoring hierarchy acyclicity ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Shape Aspect Ratio Harmony & Visual Mass Distribution Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeAspectRatioHarmony(shapes)` and `FormatAspectRatioHarmonySummary(...)`, analyzing bounding box aspect ratios against standard ratios (1:1, 4:3, 16:9, golden ratio 1.618), detecting extreme sliver distortions, and scoring geometric harmony ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Cycle Layout Monotonic Sequencing & Closure Completeness Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditCycleSequenceAndClosure(markdown, layoutName)` and `FormatCycleSequenceSummary(...)`, analyzing cycle and radial layouts, verifying step loop completion ($N \ge 3$), step size uniformity, and scoring cyclic flow balance ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #181 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Variable Scope Lifetime & Mutation Locality Analyzer.
+   - **Deliverable**: Add `LineDiff.AuditVariableScopeLocality(unifiedRows)` to analyze identifier introduction versus modification spans in diffs, evaluating locality of reference and scope leakage risk ($0-100\%$). Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #181 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Code Block Fence Formatting & Indentation Consistency Advisor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceCodeFenceIndentation(files)` to scan code fences for backtick vs tilde formatting, irregular indentation inside list items, tab-versus-space corruption, and score code fence consistency ($0-100\%$). Wire to `RecentDocsFlyout`.

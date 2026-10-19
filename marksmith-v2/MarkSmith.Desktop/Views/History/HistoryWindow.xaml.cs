@@ -3588,6 +3588,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditMethodSignatureDrift);
+
+                var auditIdentifierRenaming = new MenuFlyoutItem
+                {
+                    Text = "Audit token-level identifier renaming patterns & mutation scope entropy",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditIdentifierRenaming.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditIdentifierRenamingEntropy(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditIdentifierRenaming);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

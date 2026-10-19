@@ -11809,6 +11809,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditBlockquoteNestingItem);
 
+        var auditDefinitionListItem = new MenuFlyoutItem
+        {
+            Text = "Audit Definition List Spacing & Description Continuity",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditDefinitionListItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditDefinitionListContinuityAndSpacing(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditDefinitionListItem);
+
         menu.ShowAt(anchor);
     }
 

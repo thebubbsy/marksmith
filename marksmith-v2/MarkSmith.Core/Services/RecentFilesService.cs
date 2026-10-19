@@ -6427,6 +6427,184 @@ public sealed class RecentFilesService
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% verified links & anchors";
         return $"Workspace hyperlink & anchor advisor ({docStr} [{extStr} across {domStr}] · {category} · {score:0.#}% score){details}";
     }
+
+    /// <summary>
+    /// Audits workspace markdown documents for fenced code block language tags,
+    /// detecting untagged code blocks, language distribution, and syntax highlighting coverage.
+    /// </summary>
+    public static WorkspaceCodeBlockLanguageAudit AuditWorkspaceCodeBlockLanguages(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var checkExists = fileExistsProvider ?? File.Exists;
+        var readContent = contentReader ?? File.ReadAllText;
+
+        var list = files?.Where(f => !string.IsNullOrWhiteSpace(f)).ToList() ?? new List<string>();
+        var mdFiles = list.Where(f =>
+        {
+            var ext = Path.GetExtension(f);
+            return string.Equals(ext, ".md", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(ext, ".markdown", StringComparison.OrdinalIgnoreCase);
+        }).ToList();
+
+        if (mdFiles.Count == 0 && list.Count > 0)
+        {
+            mdFiles = list;
+        }
+
+        if (mdFiles.Count == 0)
+        {
+            return new WorkspaceCodeBlockLanguageAudit(
+                0, 0, 0, 0, "None", 100.0,
+                Array.Empty<CodeBlockLanguageCountItem>(),
+                "Empty Workspace",
+                "Workspace code block language advisor: 0 documents · Workspace contains no files");
+        }
+
+        int totalCodeBlocks = 0;
+        int untaggedBlocks = 0;
+        var languageBlockCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var languageLineCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        var codeBlockRegex = new Regex(@"(?m)^(?<fence>`{3,}|~{3,})(?<lang>[^\r\n]*)\r?\n(?<body>[\s\S]*?)^\k<fence>\s*$", RegexOptions.Compiled);
+
+        var normalizations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "cs", "csharp" },
+            { "c#", "csharp" },
+            { "js", "javascript" },
+            { "ts", "typescript" },
+            { "py", "python" },
+            { "ps1", "powershell" },
+            { "sh", "bash" },
+            { "shell", "bash" },
+            { "zsh", "bash" },
+            { "yml", "yaml" },
+            { "htm", "html" },
+            { "md", "markdown" },
+            { "rb", "ruby" },
+            { "rs", "rust" },
+            { "golang", "go" }
+        };
+
+        foreach (var file in mdFiles)
+        {
+            if (!checkExists(file)) continue;
+
+            string content;
+            try
+            {
+                content = readContent(file);
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            var matches = codeBlockRegex.Matches(content);
+            foreach (Match m in matches)
+            {
+                totalCodeBlocks++;
+                string rawLang = m.Groups["lang"].Value.Trim();
+                string body = m.Groups["body"].Value;
+                int lineCount = body.Split('\n').Length;
+
+                if (string.IsNullOrWhiteSpace(rawLang))
+                {
+                    untaggedBlocks++;
+                    languageBlockCounts["(untagged)"] = languageBlockCounts.GetValueOrDefault("(untagged)", 0) + 1;
+                    languageLineCounts["(untagged)"] = languageLineCounts.GetValueOrDefault("(untagged)", 0) + lineCount;
+                }
+                else
+                {
+                    string cleaned = rawLang.Split(new[] { ' ', '\t', '{', ':' })[0].ToLowerInvariant();
+                    string norm = normalizations.GetValueOrDefault(cleaned, cleaned);
+
+                    languageBlockCounts[norm] = languageBlockCounts.GetValueOrDefault(norm, 0) + 1;
+                    languageLineCounts[norm] = languageLineCounts.GetValueOrDefault(norm, 0) + lineCount;
+                }
+            }
+        }
+
+        if (totalCodeBlocks == 0)
+        {
+            return new WorkspaceCodeBlockLanguageAudit(
+                mdFiles.Count, 0, 0, 0, "None", 100.0,
+                Array.Empty<CodeBlockLanguageCountItem>(),
+                "No Code Blocks",
+                $"Workspace code block language advisor ({mdFiles.Count} docs): 0 code blocks · Clean baseline");
+        }
+
+        var items = new List<CodeBlockLanguageCountItem>();
+        foreach (var kvp in languageBlockCounts.OrderByDescending(kv => kv.Value))
+        {
+            string lang = kvp.Key;
+            int count = kvp.Value;
+            int lines = languageLineCounts.GetValueOrDefault(lang, 0);
+            double pct = Math.Round((double)count / totalCodeBlocks * 100.0, 1);
+            bool isNorm = lang != "(untagged)";
+
+            string status = isNorm
+                ? $"✓ {count} blocks ({pct}%)"
+                : $"⚠ {count} untagged blocks (Missing syntax highlighting)";
+
+            items.Add(new CodeBlockLanguageCountItem(lang, count, lines, pct, isNorm, status));
+        }
+
+        string dominantLang = items.FirstOrDefault(i => i.IsNormalized)?.LanguageTag ?? (untaggedBlocks > 0 ? "(untagged)" : "None");
+        int uniqueLangs = languageBlockCounts.Keys.Count(k => k != "(untagged)");
+
+        double coveragePct = (double)(totalCodeBlocks - untaggedBlocks) / totalCodeBlocks * 100.0;
+        double score = Math.Round(coveragePct, 1);
+
+        string category = score switch
+        {
+            >= 95.0 => "Complete Syntax Coverage",
+            >= 80.0 => "High Coverage",
+            >= 60.0 => "Moderate Tagging",
+            >= 40.0 => "Partial Highlighting",
+            _ => "Untagged Code Risk"
+        };
+
+        string summary = FormatWorkspaceCodeBlockLanguageSummary(
+            mdFiles.Count, totalCodeBlocks, untaggedBlocks, uniqueLangs, dominantLang, score, category, items);
+
+        return new WorkspaceCodeBlockLanguageAudit(
+            mdFiles.Count, totalCodeBlocks, untaggedBlocks, uniqueLangs, dominantLang,
+            score, items, category, summary);
+    }
+
+    public static WorkspaceCodeBlockLanguageAudit AuditWorkspaceCodeBlockLanguages(
+        string filePath,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        return AuditWorkspaceCodeBlockLanguages(new[] { filePath }, fileExistsProvider, contentReader);
+    }
+
+    public static string FormatWorkspaceCodeBlockLanguageSummary(
+        int totalDocs, int totalBlocks, int untagged, int uniqueLangs,
+        string dominantLang, double score, string category,
+        IReadOnlyList<CodeBlockLanguageCountItem>? languages = null)
+    {
+        if (totalDocs == 0) return "Workspace code block language advisor: 0 documents · Workspace is empty";
+        if (totalBlocks == 0) return $"Workspace code block language advisor ({totalDocs} docs): 0 code blocks · Clean baseline";
+
+        string docStr = totalDocs == 1 ? "1 document" : $"{totalDocs} documents";
+        string blockStr = totalBlocks == 1 ? "1 code block" : $"{totalBlocks} code blocks";
+        string langStr = uniqueLangs == 1 ? "1 language" : $"{uniqueLangs} languages";
+
+        var alerts = new List<string>();
+        if (uniqueLangs > 0) alerts.Add($"dominant: {dominantLang}");
+        if (untagged > 0) alerts.Add($"⚠ {untagged} untagged");
+        else alerts.Add("100% tagged");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
+        return $"Workspace code block language advisor ({docStr} [{blockStr} in {langStr}] · {category} · {score:0.#}% coverage){details}";
+    }
 }
 
 /// <summary>
@@ -7219,6 +7397,33 @@ public sealed record WorkspaceHyperlinkDomainsAudit(
     IReadOnlyList<LocalAnchorReferenceItem> LocalAnchors,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated code block count, line volume, percentage, and alias normalization for a specific programming language tag.
+/// </summary>
+public sealed record CodeBlockLanguageCountItem(
+    string LanguageTag,
+    int BlockCount,
+    int LineCount,
+    double Percentage,
+    bool IsNormalized,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown fenced code block language tags,
+/// missing syntax highlighting coverage, and language distribution.
+/// </summary>
+public sealed record WorkspaceCodeBlockLanguageAudit(
+    int TotalDocumentsEvaluated,
+    int TotalCodeBlocksFound,
+    int UntaggedBlocksCount,
+    int UniqueLanguagesCount,
+    string DominantLanguage,
+    double SyntaxHighlightingCoverageScore,
+    IReadOnlyList<CodeBlockLanguageCountItem> Languages,
+    string Category,
+    string Summary);
+
 
 
 

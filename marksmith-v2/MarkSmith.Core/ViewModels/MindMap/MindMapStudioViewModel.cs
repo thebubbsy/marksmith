@@ -9223,6 +9223,155 @@ namespace MarkSmith.ViewModels.MindMap
             string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · distributed traffic";
             return $"Graph betweenness & gateway audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% decentralization): avg betweenness {avgBetweenness:0.##}{details}";
         }
+
+        /// <summary>
+        /// Audits mind map graph node degree distribution, hub dominance, leaf connectivity, and scale-free topology balance.
+        /// </summary>
+        public GraphScaleFreeTopologyAudit AuditDegreeDistributionAndHubDominance(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0) ? selected : Nodes.ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+            string scope = isSelection ? "Selection · " : "";
+
+            if (targetNodes.Count == 0)
+            {
+                return new GraphScaleFreeTopologyAudit(
+                    0, 0, 0.0, 0, 0, 0, 0, 0.0, 100.0, "", "",
+                    Array.Empty<NodeDegreeMetricInfo>(),
+                    "Empty Map", isSelection,
+                    $"Graph degree distribution & hub dominance audit ({scope}0 nodes): Empty map");
+            }
+
+            var nodeSet = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var targetLinks = Links.Where(l => nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId)).ToList();
+
+            var inDegrees = new Dictionary<string, int>();
+            var outDegrees = new Dictionary<string, int>();
+            foreach (var nd in targetNodes)
+            {
+                inDegrees[nd.Id] = 0;
+                outDegrees[nd.Id] = 0;
+            }
+
+            foreach (var link in targetLinks)
+            {
+                if (outDegrees.ContainsKey(link.SourceNodeId)) outDegrees[link.SourceNodeId]++;
+                if (inDegrees.ContainsKey(link.TargetNodeId)) inDegrees[link.TargetNodeId]++;
+            }
+
+            int n = targetNodes.Count;
+            int totalEdges = targetLinks.Count;
+            int maxDegree = 0;
+            int isolatedCount = 0;
+            int leafCount = 0;
+            int hubCount = 0;
+            double avgDegree = n > 0 ? (double)(totalEdges * 2) / n : 0.0;
+            avgDegree = Math.Round(avgDegree, 2);
+
+            int hubThreshold = Math.Max(3, (int)Math.Ceiling(avgDegree * 1.5));
+
+            string topHubId = "";
+            string topHubTitle = "";
+
+            var nodeMetrics = new List<NodeDegreeMetricInfo>();
+
+            foreach (var node in targetNodes)
+            {
+                int inD = inDegrees[node.Id];
+                int outD = outDegrees[node.Id];
+                int totD = inD + outD;
+
+                if (totD > maxDegree)
+                {
+                    maxDegree = totD;
+                    topHubId = node.Id;
+                    topHubTitle = string.IsNullOrWhiteSpace(node.Title) ? node.Id : node.Title;
+                }
+
+                if (totD == 0) isolatedCount++;
+                else if (totD == 1) leafCount++;
+                else if (totD >= hubThreshold) hubCount++;
+
+                string role = totD == 0 ? "Isolated Node" :
+                              totD == 1 ? "Leaf Node" :
+                              totD >= hubThreshold ? "Dominant Hub" : "Connector Node";
+
+                bool isDominantHub = totD >= hubThreshold;
+
+                nodeMetrics.Add(new NodeDegreeMetricInfo(
+                    node.Id,
+                    string.IsNullOrWhiteSpace(node.Title) ? node.Id : node.Title,
+                    inD, outD, totD, isDominantHub, role));
+            }
+
+            double hubDominanceRatio = totalEdges > 0
+                ? Math.Round(Math.Min(1.0, (double)maxDegree / Math.Max(1, totalEdges * 2)), 2)
+                : 0.0;
+
+            double balanceScore;
+            if (n <= 2)
+            {
+                balanceScore = 100.0;
+            }
+            else
+            {
+                double starPenalty = hubDominanceRatio > 0.35 ? (hubDominanceRatio - 0.35) * 50.0 : 0.0;
+                double isolatePenalty = (double)isolatedCount / n * 30.0;
+                balanceScore = Math.Clamp(100.0 - starPenalty - isolatePenalty, 0.0, 100.0);
+                balanceScore = Math.Round(balanceScore, 1);
+            }
+
+            string category = balanceScore switch
+            {
+                >= 85.0 => "Balanced Topology",
+                >= 70.0 => "Moderately Distributed",
+                >= 50.0 => "Hierarchical Tree",
+                >= 30.0 => "Hub-Centric",
+                _ => "Extreme Star Topology"
+            };
+
+            string summary = FormatDegreeDistributionSummary(
+                n, totalEdges, avgDegree, maxDegree, hubCount, leafCount, isolatedCount,
+                hubDominanceRatio, balanceScore, topHubTitle, category, isSelection);
+
+            return new GraphScaleFreeTopologyAudit(
+                n, totalEdges, avgDegree, maxDegree, hubCount, leafCount, isolatedCount,
+                hubDominanceRatio, balanceScore, topHubId, topHubTitle, nodeMetrics,
+                category, isSelection, summary);
+        }
+
+        public static GraphScaleFreeTopologyAudit AuditDegreeDistributionAndHubDominance(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null) foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            if (links != null) foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            return vm.AuditDegreeDistributionAndHubDominance();
+        }
+
+        public static string FormatDegreeDistributionSummary(
+            int totalNodes, int totalEdges, double avgDegree, int maxDegree, int hubCount,
+            int leafCount, int isolatedCount, double hubRatio, double balanceScore,
+            string topHubTitle, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph degree distribution & hub dominance audit ({scope}0 nodes): Empty map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string edgeStr = totalEdges == 1 ? "1 edge" : $"{totalEdges} edges";
+
+            var alerts = new List<string>();
+            if (hubCount > 0) alerts.Add($"{hubCount} {(hubCount == 1 ? "hub" : "hubs")}");
+            if (leafCount > 0) alerts.Add($"{leafCount} {(leafCount == 1 ? "leaf" : "leaves")}");
+            if (isolatedCount > 0) alerts.Add($"⚠ {isolatedCount} isolated");
+            if (!string.IsNullOrEmpty(topHubTitle)) alerts.Add($"top hub: \"{topHubTitle}\" (deg {maxDegree})");
+
+            string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · uniform degrees";
+            return $"Graph degree distribution & hub dominance audit ({scope}{nodeStr}, {edgeStr} · {category} · {balanceScore:0.#}% balance): avg deg {avgDegree:0.##}{details}";
+        }
     }
 
 
@@ -10052,6 +10201,39 @@ namespace MarkSmith.ViewModels.MindMap
         string TopBottleneckTitle,
         double TopBottleneckScore,
         IReadOnlyList<NodeBetweennessMetricInfo> NodeMetrics,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated degree metrics, role tier, and hub characteristics for an individual mind map node.
+    /// </summary>
+    public sealed record NodeDegreeMetricInfo(
+        string NodeId,
+        string Title,
+        int InDegree,
+        int OutDegree,
+        int TotalDegree,
+        bool IsDominantHub,
+        string RoleTier);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph node degree distribution, hub dominance,
+    /// scale-free network characteristics, and topology balance.
+    /// </summary>
+    public sealed record GraphScaleFreeTopologyAudit(
+        int TotalNodes,
+        int TotalEdges,
+        double AverageDegree,
+        int MaxDegree,
+        int HubCount,
+        int LeafCount,
+        int IsolatedCount,
+        double HubDominanceRatio,
+        double TopologyBalanceScore,
+        string TopHubNodeId,
+        string TopHubTitle,
+        IReadOnlyList<NodeDegreeMetricInfo> Items,
         string Category,
         bool IsSelectionScope,
         string Summary);

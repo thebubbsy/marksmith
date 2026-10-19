@@ -4397,6 +4397,99 @@ Some paragraph in between.
         Assert.Contains("OnCopyWorkspaceHyperlinkDomainsAdvisorClick", suiteCs);
         Assert.Contains("AuditWorkspaceHyperlinkDomainsAndAnchors", suiteCs);
     }
+
+    [Fact]
+    public void Run181_AuditWorkspaceCodeBlockLanguages_EvaluatesLanguageDistribution()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceCodeBlockLanguages(
+            Array.Empty<string>(),
+            _ => true,
+            _ => "");
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(100.0, emptyAudit.SyntaxHighlightingCoverageScore);
+        Assert.Contains("0 documents", emptyAudit.Summary);
+
+        var doc1 = string.Join("\n",
+            "# Code Samples",
+            "```csharp",
+            "Console.WriteLine(\"Hello\");",
+            "```",
+            "```cs",
+            "int x = 42;",
+            "```"
+        );
+
+        var doc2 = string.Join("\n",
+            "# Untagged Code",
+            "```",
+            "generic code without lang",
+            "```",
+            "```python",
+            "print('Hello from python')",
+            "```"
+        );
+
+        var files = new[] { @"C:\test\doc1.md", @"C:\test\doc2.md" };
+        var audit = RecentFilesService.AuditWorkspaceCodeBlockLanguages(
+            files,
+            _ => true,
+            f => f.Contains("doc1") ? doc1 : doc2);
+
+        Assert.Equal(2, audit.TotalDocumentsEvaluated);
+        Assert.Equal(4, audit.TotalCodeBlocksFound);
+        Assert.Equal(1, audit.UntaggedBlocksCount);
+        Assert.Equal(2, audit.UniqueLanguagesCount);
+        Assert.Equal("csharp", audit.DominantLanguage);
+        Assert.Equal(75.0, audit.SyntaxHighlightingCoverageScore);
+
+        string formatted = RecentFilesService.FormatWorkspaceCodeBlockLanguageSummary(
+            audit.TotalDocumentsEvaluated, audit.TotalCodeBlocksFound, audit.UntaggedBlocksCount,
+            audit.UniqueLanguagesCount, audit.DominantLanguage, audit.SyntaxHighlightingCoverageScore,
+            audit.Category, audit.Languages);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run181_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Definition List Term Spacing, Blank Line Continuity & Description Block Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditDefinitionListItem", mainCs);
+        Assert.Contains("AuditDefinitionListContinuityAndSpacing", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Node Degree Distribution, Hub Dominance & Scale-Free Topology Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphDegreeDistributionItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphDegreeDistributionClick", galaxyCs);
+        Assert.Contains("AuditDegreeDistributionAndHubDominance", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Fill Color Harmony, Contrast Ratio & Theme Palette Uniformity Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditFillColorPaletteHarmonyItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditFillColorPaletteHarmonyClick", shapeCs);
+        Assert.Contains("AuditFillColorPaletteHarmony", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Hierarchy Level Indentation Depth & Sibling Child Count Balance Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditHierarchyBalanceItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditHierarchyBalanceClick", smartArtCs);
+        Assert.Contains("AuditHierarchyIndentationAndChildBalance", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Token-Level Identifier Renaming & Mutation Scope Entropy Advisor
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditIdentifierRenaming", historyCs);
+        Assert.Contains("AuditIdentifierRenamingEntropy", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Code Block Language Tag Distribution & Missing Syntax Highlighting Advisor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceCodeBlockLanguagesAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceCodeBlockLanguagesAdvisorClick", suiteCs);
+        Assert.Contains("AuditWorkspaceCodeBlockLanguages", suiteCs);
+    }
 }
 
 

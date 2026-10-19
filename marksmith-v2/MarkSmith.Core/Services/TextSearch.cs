@@ -7737,6 +7737,268 @@ public static class TextSearch
         string prefix = $"Markdown blockquote & callout audit ({lineLabel} in {blockLabel} · Max depth {maxDepth} · {category} · {score:0.#}% score)";
         return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} · Structured quotes";
     }
+
+    /// <summary>
+    /// Audits markdown text for definition lists (Term\n: Definition), verifying term separation,
+    /// colon spacing compliance, multiline continuation indentation, and orphan term detection.
+    /// Excludes fenced code blocks and frontmatter.
+    /// </summary>
+    public static DefinitionListContinuityAudit AuditDefinitionListContinuityAndSpacing(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new DefinitionListContinuityAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DefinitionListContinuityItem>(),
+                "Clean Baseline",
+                "Markdown definition list audit: 0 terms · Document contains no definition lists");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        var maskedLines = new string[lines.Length];
+        bool inFence = false;
+        string fenceMarker = string.Empty;
+        bool inFrontmatter = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+
+            if (i == 0 && (trimmed == "---" || trimmed == "+++"))
+            {
+                inFrontmatter = true;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            if (inFrontmatter)
+            {
+                if (trimmed == "---" || trimmed == "+++") inFrontmatter = false;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                string tag = trimmed.Length >= 3 ? trimmed.Substring(0, 3) : trimmed;
+                if (!inFence)
+                {
+                    inFence = true;
+                    fenceMarker = tag;
+                }
+                else if (tag == fenceMarker || trimmed == ":::")
+                {
+                    inFence = false;
+                    fenceMarker = string.Empty;
+                }
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            if (inFence)
+            {
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            maskedLines[i] = line;
+        }
+
+        var items = new List<DefinitionListContinuityItem>();
+        int totalTerms = 0;
+        int totalDefinitions = 0;
+        int orphanTerms = 0;
+        int multilineDefs = 0;
+        int spacingIssues = 0;
+
+        for (int i = 0; i < maskedLines.Length; i++)
+        {
+            var line = maskedLines[i];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var trimmed = line.Trim();
+            // Check if this line is a definition line (: def or ~ def)
+            bool isDef = (trimmed.StartsWith(":") || trimmed.StartsWith("~")) &&
+                         !trimmed.StartsWith(":::") &&
+                         !Regex.IsMatch(trimmed, @"^\[\^?[^\]]+\]:");
+
+            if (isDef)
+            {
+                // Orphan definition with no term above
+                spacingIssues++;
+                continue;
+            }
+
+            // Check if next non-empty line is a definition line
+            int nextNonEmpty = -1;
+            for (int k = i + 1; k < maskedLines.Length; k++)
+            {
+                if (!string.IsNullOrWhiteSpace(maskedLines[k]))
+                {
+                    nextNonEmpty = k;
+                    break;
+                }
+            }
+
+            if (nextNonEmpty != -1)
+            {
+                var nextTrimmed = maskedLines[nextNonEmpty].Trim();
+                bool nextIsDef = (nextTrimmed.StartsWith(":") || nextTrimmed.StartsWith("~")) &&
+                                 !nextTrimmed.StartsWith(":::") &&
+                                 !Regex.IsMatch(nextTrimmed, @"^\[\^?[^\]]+\]:");
+
+                if (nextIsDef)
+                {
+                    // Line i is a Term!
+                    totalTerms++;
+                    string termText = trimmed;
+                    int termLineNumber = i + 1;
+
+                    bool hasPrecedingBlank = (i == 0) || string.IsNullOrWhiteSpace(maskedLines[i - 1]) ||
+                                             maskedLines[i - 1].Trim().StartsWith("#");
+
+                    if (!hasPrecedingBlank)
+                    {
+                        spacingIssues++;
+                    }
+
+                    int defCount = 0;
+                    bool hasValidContinuation = true;
+                    int cur = nextNonEmpty;
+
+                    while (cur < maskedLines.Length)
+                    {
+                        var curLine = maskedLines[cur];
+                        if (string.IsNullOrWhiteSpace(curLine))
+                        {
+                            // Check if next line continues the definition list
+                            int peek = cur + 1;
+                            while (peek < maskedLines.Length && string.IsNullOrWhiteSpace(maskedLines[peek])) peek++;
+                            if (peek < maskedLines.Length)
+                            {
+                                var peekTrim = maskedLines[peek].Trim();
+                                if ((peekTrim.StartsWith(":") || peekTrim.StartsWith("~")) && !peekTrim.StartsWith(":::"))
+                                {
+                                    cur = peek;
+                                    continue;
+                                }
+                            }
+                            break;
+                        }
+
+                        var curTrim = curLine.Trim();
+                        if ((curTrim.StartsWith(":") || curTrim.StartsWith("~")) && !curTrim.StartsWith(":::"))
+                        {
+                            defCount++;
+                            totalDefinitions++;
+
+                            // Check space after colon/tilde: e.g. ": text"
+                            if (curTrim.Length > 1 && !char.IsWhiteSpace(curTrim[1]))
+                            {
+                                spacingIssues++;
+                            }
+
+                            // Check subsequent lines for indentation continuation
+                            int cont = cur + 1;
+                            while (cont < maskedLines.Length && !string.IsNullOrWhiteSpace(maskedLines[cont]))
+                            {
+                                var contLine = maskedLines[cont];
+                                var contTrim = contLine.Trim();
+                                if ((contTrim.StartsWith(":") || contTrim.StartsWith("~")) && !contTrim.StartsWith(":::"))
+                                    break;
+
+                                int leadingSpaces = contLine.TakeWhile(c => c == ' ' || c == '\t').Count();
+                                bool isIndented = leadingSpaces >= 2 || contLine.StartsWith("\t");
+                                if (isIndented)
+                                {
+                                    multilineDefs++;
+                                }
+                                else
+                                {
+                                    hasValidContinuation = false;
+                                    spacingIssues++;
+                                }
+                                cont++;
+                            }
+                            cur = cont;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+
+                    string status = hasPrecedingBlank && hasValidContinuation
+                        ? $"✓ {defCount} {(defCount == 1 ? "definition" : "definitions")}"
+                        : $"⚠ Spacing/continuation alert ({defCount} defs)";
+
+                    items.Add(new DefinitionListContinuityItem(
+                        termLineNumber, termText, defCount, hasPrecedingBlank, hasValidContinuation, status));
+
+                    i = cur - 1;
+                }
+            }
+        }
+
+        if (totalTerms == 0)
+        {
+            return new DefinitionListContinuityAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DefinitionListContinuityItem>(),
+                "Clean Baseline",
+                "Markdown definition list audit: 0 terms · Document contains no definition lists");
+        }
+
+        double penalty = (spacingIssues * 8.0) + (orphanTerms * 15.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Optimal",
+            >= 75.0 => "Consistent",
+            >= 60.0 => "Fair",
+            >= 40.0 => "Irregular",
+            _ => "Fragmented"
+        };
+
+        string summary = FormatDefinitionListContinuitySummary(
+            totalTerms, totalDefinitions, orphanTerms, multilineDefs, spacingIssues, score, category);
+
+        return new DefinitionListContinuityAudit(
+            totalTerms, totalDefinitions, orphanTerms, multilineDefs, spacingIssues,
+            score, items, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of definition list continuity from markdown text.
+    /// </summary>
+    public static string FormatDefinitionListContinuitySummary(string? markdownText)
+        => AuditDefinitionListContinuityAndSpacing(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of definition list continuity metrics.
+    /// </summary>
+    public static string FormatDefinitionListContinuitySummary(
+        int totalTerms, int totalDefinitions, int orphanTerms, int multilineDefs,
+        int spacingIssues, double score, string category)
+    {
+        if (totalTerms == 0)
+            return "Markdown definition list audit: 0 terms · Document contains no definition lists";
+
+        string termStr = totalTerms == 1 ? "1 term" : $"{totalTerms} terms";
+        string defStr = totalDefinitions == 1 ? "1 definition" : $"{totalDefinitions} definitions";
+
+        var parts = new List<string>();
+        if (multilineDefs > 0) parts.Add($"{multilineDefs} multiline");
+        if (spacingIssues > 0) parts.Add($"⚠ {spacingIssues} spacing {(spacingIssues == 1 ? "alert" : "alerts")}");
+        if (orphanTerms > 0) parts.Add($"⚠ {orphanTerms} orphan");
+
+        string details = parts.Count > 0 ? $" · {string.Join(", ", parts)}" : "";
+        string prefix = $"Markdown definition list audit ({termStr}, {defStr} · {category} · {score:0.#}% score)";
+        return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} · Structured definitions";
+    }
 }
 
 /// <summary>
@@ -8533,3 +8795,29 @@ public sealed record BlockquoteNestingAndCalloutAudit(
     IReadOnlyList<BlockquoteCalloutItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, definition count, indentation, and spacing compliance for an individual definition list term.
+/// </summary>
+public sealed record DefinitionListContinuityItem(
+    int TermLineNumber,
+    string Term,
+    int DefinitionCount,
+    bool HasPrecedingBlankLine,
+    bool HasValidContinuation,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown definition list term spacing, blank line continuity, and description block integrity.
+/// </summary>
+public sealed record DefinitionListContinuityAudit(
+    int TotalTerms,
+    int TotalDefinitions,
+    int OrphanTerms,
+    int MultilineDefinitions,
+    int SpacingIssues,
+    double ContinuityScore,
+    IReadOnlyList<DefinitionListContinuityItem> Items,
+    string Category,
+    string Summary);
+

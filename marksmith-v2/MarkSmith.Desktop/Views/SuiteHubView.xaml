@@ -348,6 +348,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceHyperlinkDomainsAdvisorItem" Text="Copy workspace markdown external hyperlink domain distribution &amp; broken anchor reference advisor" Click="OnCopyWorkspaceHyperlinkDomainsAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyWorkspaceCodeBlockLanguagesAdvisorItem" Text="Copy workspace markdown code block language tag distribution &amp; missing syntax highlighting advisor" Click="OnCopyWorkspaceCodeBlockLanguagesAdvisorClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
