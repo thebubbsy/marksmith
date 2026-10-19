@@ -12210,6 +12210,173 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.ShowAt(anchor);
     }
 
+    private List<(bool IsCompleted, string TaskText, int LineNumber, string RawLine)> ExtractMarkdownTaskItems()
+    {
+        var md = EditorDocument();
+        var tasks = new List<(bool IsCompleted, string TaskText, int LineNumber, string RawLine)>();
+        if (string.IsNullOrWhiteSpace(md)) return tasks;
+
+        var lines = md.Split('\n').Select(l => l.TrimEnd('\r')).ToList();
+        bool inFence = false;
+
+        for (int i = 0; i < lines.Count; i++)
+        {
+            var raw = lines[i];
+            var trimmed = raw.TrimStart();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence) continue;
+
+            var match = System.Text.RegularExpressions.Regex.Match(
+                trimmed,
+                @"^(?:[-*+]|\d+\.)\s+\[(?<state>[ xX])\]\s+(?<text>.+)$");
+            if (match.Success)
+            {
+                bool completed = !string.Equals(match.Groups["state"].Value, " ", StringComparison.Ordinal);
+                string text = match.Groups["text"].Value.Trim();
+                tasks.Add((completed, text, i + 1, raw));
+            }
+        }
+
+        return tasks;
+    }
+
+    private void OnStatusCopyTasksButtonClick(object sender, RoutedEventArgs e)
+    {
+        var tasks = ExtractMarkdownTaskItems();
+        if (tasks.Count == 0)
+        {
+            AnnounceStatus("No Markdown task list items (- [ ] / - [x]) found in document");
+            return;
+        }
+
+        int done = tasks.Count(t => t.IsCompleted);
+        int pct = (int)Math.Round(done * 100.0 / tasks.Count);
+        var combined = string.Join(Environment.NewLine, tasks.Select(t => t.RawLine));
+        _ = Services.ClipboardWriter.TrySetTextAsync(combined);
+        AnnounceStatus($"Copied {tasks.Count:N0} task(s) ({done:N0}/{tasks.Count:N0} completed · {pct}%) to clipboard");
+    }
+
+    private void OnStatusCopyTasksButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+
+        var menu = new MenuFlyout();
+
+        var copyAllItem = new MenuFlyoutItem
+        {
+            Text = "Copy all task list items",
+            Icon = new FontIcon { Glyph = "\uE73A" }
+        };
+        copyAllItem.Click += (_, _) => OnStatusCopyTasksButtonClick(sender, new RoutedEventArgs());
+        menu.Items.Add(copyAllItem);
+
+        var copyPendingItem = new MenuFlyoutItem
+        {
+            Text = "Copy open / pending tasks only (- [ ])",
+            Icon = new FontIcon { Glyph = "\uE739" }
+        };
+        copyPendingItem.Click += (_, _) =>
+        {
+            var pending = ExtractMarkdownTaskItems().Where(t => !t.IsCompleted).ToList();
+            if (pending.Count == 0)
+            {
+                AnnounceStatus("No open/pending task list items found in document");
+                return;
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine, pending.Select(t => t.RawLine)));
+            AnnounceStatus($"Copied {pending.Count:N0} open/pending task(s) to clipboard");
+        };
+        menu.Items.Add(copyPendingItem);
+
+        var copyCompletedItem = new MenuFlyoutItem
+        {
+            Text = "Copy completed tasks only (- [x])",
+            Icon = new FontIcon { Glyph = "\uE73E" }
+        };
+        copyCompletedItem.Click += (_, _) =>
+        {
+            var completed = ExtractMarkdownTaskItems().Where(t => t.IsCompleted).ToList();
+            if (completed.Count == 0)
+            {
+                AnnounceStatus("No completed task list items found in document");
+                return;
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine, completed.Select(t => t.RawLine)));
+            AnnounceStatus($"Copied {completed.Count:N0} completed task(s) to clipboard");
+        };
+        menu.Items.Add(copyCompletedItem);
+
+        var copySummaryTableItem = new MenuFlyoutItem
+        {
+            Text = "Copy Task Progress Summary Table (Markdown)",
+            Icon = new FontIcon { Glyph = "\uE9D9" }
+        };
+        copySummaryTableItem.Click += (_, _) =>
+        {
+            var tasks = ExtractMarkdownTaskItems();
+            if (tasks.Count == 0)
+            {
+                AnnounceStatus("No Markdown task list items found in document");
+                return;
+            }
+            int done = tasks.Count(t => t.IsCompleted);
+            int pct = (int)Math.Round(done * 100.0 / tasks.Count);
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"**Task Progress**: {done:N0} / {tasks.Count:N0} completed ({pct}%)");
+            sb.AppendLine();
+            sb.AppendLine("| Status | Line | Task Description |");
+            sb.AppendLine("| :---: | ---: | :--- |");
+            foreach (var t in tasks)
+            {
+                var statusBadge = t.IsCompleted ? "Done" : "Open";
+                var safeText = t.TaskText.Replace("|", "\\|");
+                sb.AppendLine($"| {statusBadge} | Ln {t.LineNumber} | {safeText} |");
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
+            AnnounceStatus($"Copied Task Progress Summary ({done:N0}/{tasks.Count:N0} · {pct}%) to clipboard");
+        };
+        menu.Items.Add(copySummaryTableItem);
+
+        var insertSummaryTableItem = new MenuFlyoutItem
+        {
+            Text = "Insert Task Progress Summary at cursor",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertSummaryTableItem.Click += (_, _) =>
+        {
+            var tasks = ExtractMarkdownTaskItems();
+            if (tasks.Count == 0)
+            {
+                AnnounceStatus("No Markdown task list items found in document");
+                return;
+            }
+            int done = tasks.Count(t => t.IsCompleted);
+            int pct = (int)Math.Round(done * 100.0 / tasks.Count);
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"## Task Progress Summary ({done:N0}/{tasks.Count:N0} · {pct}%)");
+            sb.AppendLine();
+            sb.AppendLine("| Status | Line | Task Description |");
+            sb.AppendLine("| :---: | ---: | :--- |");
+            foreach (var t in tasks)
+            {
+                var statusBadge = t.IsCompleted ? "Done" : "Open";
+                var safeText = t.TaskText.Replace("|", "\\|");
+                sb.AppendLine($"| {statusBadge} | Ln {t.LineNumber} | {safeText} |");
+            }
+            sb.AppendLine();
+            InsertMarkdown(sb.ToString());
+            AnnounceStatus($"Inserted Task Progress Summary ({tasks.Count:N0} tasks) at cursor");
+        };
+        menu.Items.Add(insertSummaryTableItem);
+
+        menu.ShowAt(anchor);
+    }
+
     private void OnStatusCopyMarkdownButtonClick(object sender, RoutedEventArgs e)
     {
         var selected = PasteTextBox?.SelectedText;
