@@ -4168,6 +4168,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditGraphBetweennessCentralityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditBetweennessCentralityAndGateways();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5231,6 +5239,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditClosenessCentralityItem.Click += OnAuditGraphClosenessCentralityClick;
             menu.Items.Add(auditClosenessCentralityItem);
+
+            var auditBetweennessCentralityItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph node betweenness centrality & gateway bottlenecks",
+                Icon = new FontIcon { Glyph = "\uE8B9" }
+            };
+            auditBetweennessCentralityItem.Click += OnAuditGraphBetweennessCentralityClick;
+            menu.Items.Add(auditBetweennessCentralityItem);
 
             var fitItem = new MenuFlyoutItem
 

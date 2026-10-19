@@ -7530,6 +7530,161 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"List item text density balance audit ({itemStr} [{totalWords} words] · {category} · {score:0.#}% score): " +
                $"avg {meanWords:0.#}w (±{stdDev:0.#}w), avg {meanLines:0.#} lines{details}";
     }
+
+    /// <summary>
+    /// Audits SmartArt process and workflow steps for sequential progression, transition cues (Next, Then, Finally),
+    /// title length variance, and transition harmony.
+    /// </summary>
+    public SmartArtProcessStepFlowAudit AuditProcessStepFlowAndTransitions(string? markdown = null, string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtProcessStepFlowAudit(
+                0, 0, 0, 0, 0.0, 0.0, 100.0,
+                Array.Empty<ProcessStepTransitionItem>(), "Empty Outline",
+                FormatProcessStepFlowSummary(0, 0, 0, 0, 0.0, 0.0, 100.0, "Empty Outline"));
+        }
+
+        var lines = input.Split('\n').Select(l => l.TrimEnd('\r')).ToList();
+        var rawSteps = new List<(string Title, List<string> Sublines)>();
+        (string Title, List<string> Sublines)? currentStep = null;
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::")) continue;
+
+            bool isTopItem = trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ") ||
+                             System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^\d+[\.\)]\s+");
+
+            if (isTopItem)
+            {
+                if (currentStep != null) rawSteps.Add(currentStep.Value);
+                string cleanTitle = System.Text.RegularExpressions.Regex.Replace(trimmed, @"^([-*+]|\d+[\.\)])\s+", "").Trim();
+                currentStep = (cleanTitle, new List<string>());
+            }
+            else
+            {
+                if (currentStep != null)
+                {
+                    currentStep.Value.Sublines.Add(trimmed.TrimStart('-', '*', '+', ' '));
+                }
+                else
+                {
+                    currentStep = (trimmed, new List<string>());
+                }
+            }
+        }
+        if (currentStep != null) rawSteps.Add(currentStep.Value);
+
+        if (rawSteps.Count == 0)
+        {
+            return new SmartArtProcessStepFlowAudit(
+                0, 0, 0, 0, 0.0, 0.0, 100.0,
+                Array.Empty<ProcessStepTransitionItem>(), "No Steps Detected",
+                FormatProcessStepFlowSummary(0, 0, 0, 0, 0.0, 0.0, 100.0, "No Steps Detected"));
+        }
+
+        string[] transitionCues = new[] { "First", "Next", "Then", "After", "Subsequently", "Following", "Finally", "Lastly", "Step", "Phase", "Stage" };
+
+        var items = new List<ProcessStepTransitionItem>();
+        int cueCount = 0;
+        int numCount = 0;
+        var titleLengths = new List<int>();
+
+        for (int i = 0; i < rawSteps.Count; i++)
+        {
+            var s = rawSteps[i];
+            var titleWords = s.Title.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            int titleWc = titleWords.Length;
+            titleLengths.Add(titleWc);
+
+            int descWc = s.Sublines.Sum(sub => sub.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length);
+
+            bool hasCue = false;
+            string matchedCue = "";
+            foreach (var cue in transitionCues)
+            {
+                if (s.Title.StartsWith(cue, StringComparison.OrdinalIgnoreCase))
+                {
+                    hasCue = true;
+                    matchedCue = cue;
+                    break;
+                }
+            }
+            if (hasCue) cueCount++;
+
+            bool hasSeqNum = System.Text.RegularExpressions.Regex.IsMatch(s.Title, @"^(Step\s+\d+|Phase\s+\d+|\d+[\.:\)])", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                             (i + 1).ToString() == s.Title.Split(' ', '.')[0];
+            if (hasSeqNum) numCount++;
+
+            string directionality = i == 0 ? "Initial / Entry" :
+                                    i == rawSteps.Count - 1 ? "Terminal / Exit" :
+                                    "Forward Transition";
+
+            string status = hasCue ? $"Transition Cue ({matchedCue})" :
+                            hasSeqNum ? "Sequential Step" :
+                            "Standard Step";
+
+            items.Add(new ProcessStepTransitionItem(
+                i + 1, s.Title, titleWc, descWc, hasCue, matchedCue, hasSeqNum, directionality, status));
+        }
+
+        double avgTitleWc = titleLengths.Average();
+        double variance = titleLengths.Sum(l => Math.Pow(l - avgTitleWc, 2)) / titleLengths.Count;
+        double stdDev = Math.Round(Math.Sqrt(variance), 2);
+
+        int outlierSteps = items.Count(item => Math.Abs(item.TitleWordCount - avgTitleWc) > Math.Max(3.0, 1.8 * stdDev));
+
+        double lengthConsistency = Math.Clamp(100.0 - (stdDev * 10.0) - (outlierSteps * 8.0), 0.0, 100.0);
+        double flowSignaling = rawSteps.Count > 1
+            ? Math.Clamp(50.0 + ((cueCount + numCount) * 25.0 / rawSteps.Count), 50.0, 100.0)
+            : 100.0;
+        double harmonyScore = Math.Round((lengthConsistency * 0.6) + (flowSignaling * 0.4), 1);
+
+        string category = harmonyScore switch
+        {
+            >= 90.0 => "Seamless Forward Flow",
+            >= 75.0 => "Balanced Sequential Process",
+            >= 60.0 => "Moderate Step Length Variance",
+            >= 40.0 => "Irregular Transition Pacing",
+            _ => "Asymmetric Flow Disparity"
+        };
+
+        string summary = FormatProcessStepFlowSummary(
+            rawSteps.Count, cueCount, numCount, outlierSteps, Math.Round(avgTitleWc, 1),
+            stdDev, harmonyScore, category);
+
+        return new SmartArtProcessStepFlowAudit(
+            rawSteps.Count, cueCount, numCount, outlierSteps, Math.Round(avgTitleWc, 1),
+            stdDev, harmonyScore, items, category, summary);
+    }
+
+    public static SmartArtProcessStepFlowAudit AuditProcessStepFlowAndTransitions(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditProcessStepFlowAndTransitions(markdown, layoutName);
+    }
+
+    public static string FormatProcessStepFlowSummary(
+        int totalSteps, int cueCount, int numCount, int outliers, double avgTitleWc,
+        double stdDev, double score, string category)
+    {
+        if (totalSteps == 0)
+            return "Process step flow & transition audit: 0 steps · Outline contains no steps";
+
+        string stepStr = totalSteps == 1 ? "1 step" : $"{totalSteps} steps";
+        var cues = new List<string>();
+        if (numCount > 0) cues.Add($"{numCount} numbered");
+        if (cueCount > 0) cues.Add($"{cueCount} with transition cues");
+        if (outliers > 0) cues.Add($"⚠ {outliers} title length {(outliers == 1 ? "outlier" : "outliers")}");
+
+        string details = cues.Count > 0 ? $" · {string.Join(", ", cues)}" : " · sequential flow";
+        return $"Process step flow & transition audit ({stepStr} · {category} · {score:0.#}% flow score): avg title {avgTitleWc:0.#}w (±{stdDev:0.#}w){details}";
+    }
 }
 
 /// <summary>
@@ -8249,6 +8404,36 @@ public sealed record SmartArtListTextDensityAudit(
     int OutlierCount,
     double DensityBalanceScore,
     IReadOnlyList<ListItemDensityInfo> Items,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, sequential ordering, transition cues, and directionality for an individual SmartArt process step.
+/// </summary>
+public sealed record ProcessStepTransitionItem(
+    int StepIndex,
+    string StepTitle,
+    int TitleWordCount,
+    int DescriptionWordCount,
+    bool HasTransitionCue,
+    string TransitionCueWord,
+    bool HasSequentialNumber,
+    string Directionality,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt process step flow, monotonic sequence numbering,
+/// transition cue phrases, and step description balance.
+/// </summary>
+public sealed record SmartArtProcessStepFlowAudit(
+    int TotalSteps,
+    int StepsWithTransitionCues,
+    int SequentiallyNumberedSteps,
+    int OutlierStepCount,
+    double AverageTitleWordCount,
+    double TitleWordVariance,
+    double FlowHarmonyScore,
+    IReadOnlyList<ProcessStepTransitionItem> Steps,
     string Category,
     string Summary);
 

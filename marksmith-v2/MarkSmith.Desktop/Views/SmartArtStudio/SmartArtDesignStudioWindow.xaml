@@ -377,6 +377,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditListTextDensityBalanceItem" Text="Audit SmartArt list item text density &amp; line count balance" Click="OnOutlineStatsAuditListTextDensityBalanceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditProcessStepFlowItem" Text="Audit SmartArt process step flow, directionality &amp; transition sequence" Click="OnOutlineStatsAuditProcessStepFlowClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

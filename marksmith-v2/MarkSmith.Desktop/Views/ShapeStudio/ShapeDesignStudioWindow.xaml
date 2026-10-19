@@ -748,6 +748,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditConnectorArrowheadUniformityItem" Text="Audit connector arrowhead style uniformity &amp; endpoint attachment" Click="OnSelectionAuditConnectorArrowheadUniformityClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditStrokeWeightAndDashItem" Text="Audit shape stroke weight consistency &amp; border dash uniformity" Click="OnSelectionAuditStrokeWeightAndDashClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

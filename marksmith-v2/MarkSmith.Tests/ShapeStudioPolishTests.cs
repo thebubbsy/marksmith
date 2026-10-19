@@ -2452,6 +2452,51 @@ public class ShapeStudioPolishTests
             uniformAudit.OverallConnectorHarmonyScore, uniformAudit.Category, uniformAudit.IsSelectionScope);
         Assert.Equal(uniformAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run180_AuditStrokeWeightAndDashUniformity_CalculatesOutlinesAndHarmony()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        var emptyAudit = vm.AuditStrokeWeightAndDashUniformity();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(100.0, emptyAudit.OutlineHarmonyScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Shape 1", StrokeWidthPt = 1.5, DashStyle = "Solid" };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Shape 2", StrokeWidthPt = 1.5, DashStyle = "Solid" };
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Name = "Shape 3", StrokeWidthPt = 1.5, DashStyle = "Solid" };
+
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+        vm.Shapes.Add(s3);
+
+        var uniformAudit = vm.AuditStrokeWeightAndDashUniformity();
+        Assert.Equal(3, uniformAudit.TotalShapesEvaluated);
+        Assert.Equal(3, uniformAudit.SolidStrokeCount);
+        Assert.Equal(0, uniformAudit.DashedStrokeCount);
+        Assert.Equal(3, uniformAudit.StandardStrokeCount);
+        Assert.Equal(1.5, uniformAudit.AverageStrokeThickness);
+        Assert.Equal(0.0, uniformAudit.StrokeThicknessStdDev);
+        Assert.Equal(100.0, uniformAudit.OutlineHarmonyScore);
+        Assert.Equal("Harmonious Outlines", uniformAudit.Category);
+
+        var s4 = new ShapeCanvasItemViewModel { Id = "s4", Name = "Shape 4", StrokeWidthPt = 6.0, DashStyle = "Dashed" };
+        vm.Shapes.Add(s4);
+
+        var mixedAudit = vm.AuditStrokeWeightAndDashUniformity();
+        Assert.Equal(4, mixedAudit.TotalShapesEvaluated);
+        Assert.Equal(1, mixedAudit.DashedStrokeCount);
+        Assert.Equal(1, mixedAudit.HeavyStrokeCount);
+        Assert.True(mixedAudit.StrokeThicknessStdDev > 0);
+        Assert.True(mixedAudit.OutlineHarmonyScore < 100.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatStrokeWeightUniformitySummary(
+            uniformAudit.TotalShapesEvaluated, uniformAudit.SolidStrokeCount, uniformAudit.DashedStrokeCount,
+            uniformAudit.DottedStrokeCount, uniformAudit.HeavyStrokeCount, uniformAudit.StandardStrokeCount,
+            uniformAudit.HairlineStrokeCount, uniformAudit.AverageStrokeThickness, uniformAudit.StrokeThicknessStdDev,
+            uniformAudit.OutlineHarmonyScore, uniformAudit.Category, uniformAudit.IsSelectionScope);
+        Assert.Equal(uniformAudit.Summary, formatted);
+    }
 }
 
 

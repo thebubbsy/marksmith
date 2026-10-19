@@ -6505,6 +6505,198 @@ public static class LineDiff
         return $"Diff hunk clustering audit ({hunkStr} in {clusterStr} · {category} · {score:0.#}% score): " +
                $"avg gap {meanGap:0.#} rows (min {minGap}, max {maxGap}){details}";
     }
+
+    /// <summary>
+    /// Audits diff unified rows for method and function signature interface drift, parameter mutations,
+    /// and public API surface compatibility.
+    /// </summary>
+    public static DiffMethodSignatureDriftAudit AuditMethodSignatureAndParameterDrift(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new DiffMethodSignatureDriftAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MethodSignatureMutationItem>(), "No Changes",
+                FormatMethodSignatureDriftSummary(0, 0, 0, 0, 0, 0, 100.0, "No Changes"));
+        }
+
+        static bool TryParseSignature(string line, out string methodName, out List<string> parameters, out string rawSig)
+        {
+            methodName = string.Empty;
+            parameters = new List<string>();
+            rawSig = string.Empty;
+
+            string trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) return false;
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*") || trimmed.StartsWith("#")) return false;
+
+            int openParen = trimmed.IndexOf('(');
+            int closeParen = trimmed.LastIndexOf(')');
+            if (openParen <= 0 || closeParen <= openParen) return false;
+
+            string beforeParen = trimmed[..openParen].Trim();
+            string[] controlKeywords = { "if", "while", "for", "foreach", "switch", "catch", "using", "lock", "fixed", "elif", "except" };
+            var tokens = beforeParen.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length == 0) return false;
+
+            string lastToken = tokens[^1].Trim();
+            if (controlKeywords.Contains(lastToken, StringComparer.OrdinalIgnoreCase)) return false;
+
+            string[] declKeywords = { "public", "private", "protected", "internal", "static", "virtual", "override", "async", "void", "def", "fn", "func", "function", "Task", "string", "int", "bool", "class", "record" };
+            bool hasDeclIndicator = tokens.Any(t => declKeywords.Contains(t, StringComparer.OrdinalIgnoreCase)) ||
+                                    tokens.Length >= 2;
+
+            if (!hasDeclIndicator) return false;
+
+            methodName = lastToken;
+            rawSig = trimmed[..Math.Min(trimmed.Length, closeParen + 1)];
+
+            string paramBody = trimmed.Substring(openParen + 1, closeParen - openParen - 1).Trim();
+            if (!string.IsNullOrWhiteSpace(paramBody))
+            {
+                parameters = paramBody.Split(',').Select(p => p.Trim()).Where(p => !string.IsNullOrEmpty(p)).ToList();
+            }
+
+            return true;
+        }
+
+        var deletedSigs = new List<(int RowIndex, string Method, List<string> Params, string Raw)>();
+        var insertedSigs = new List<(int RowIndex, string Method, List<string> Params, string Raw)>();
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var row = unifiedRows[i];
+            if (row.IsRemoved)
+            {
+                if (TryParseSignature(row.Text, out var m, out var p, out var raw))
+                {
+                    deletedSigs.Add((i + 1, m, p, raw));
+                }
+            }
+            else if (row.IsAdded)
+            {
+                if (TryParseSignature(row.Text, out var m, out var p, out var raw))
+                {
+                    insertedSigs.Add((i + 1, m, p, raw));
+                }
+            }
+        }
+
+        var mutations = new List<MethodSignatureMutationItem>();
+        int breakingCount = 0;
+        int nonBreakingCount = 0;
+        int paramsAdded = 0;
+        int paramsRemoved = 0;
+
+        var matchedInserts = new HashSet<int>();
+
+        foreach (var del in deletedSigs)
+        {
+            int matchIdx = insertedSigs.FindIndex(ins => !matchedInserts.Contains(ins.RowIndex) &&
+                                                         string.Equals(ins.Method, del.Method, StringComparison.OrdinalIgnoreCase));
+
+            if (matchIdx >= 0)
+            {
+                var ins = insertedSigs[matchIdx];
+                matchedInserts.Add(ins.RowIndex);
+
+                int delta = ins.Params.Count - del.Params.Count;
+                bool isBreaking = false;
+                string mutType = "SignatureModified";
+
+                if (delta > 0)
+                {
+                    paramsAdded += delta;
+                    mutType = "ParameterAdded";
+                    bool allHaveDefaults = ins.Params.Skip(del.Params.Count).All(p => p.Contains('='));
+                    isBreaking = !allHaveDefaults;
+                }
+                else if (delta < 0)
+                {
+                    paramsRemoved += Math.Abs(delta);
+                    mutType = "ParameterRemoved";
+                    isBreaking = true;
+                }
+                else
+                {
+                    mutType = "SignatureTypeOrModifierShift";
+                    isBreaking = !string.Equals(del.Raw, ins.Raw, StringComparison.Ordinal);
+                }
+
+                if (isBreaking) breakingCount++;
+                else nonBreakingCount++;
+
+                string status = isBreaking ? $"Breaking Change ({mutType})" : $"Compatible ({mutType})";
+                mutations.Add(new MethodSignatureMutationItem(
+                    ins.RowIndex, del.Method, mutType, del.Raw, ins.Raw, delta, isBreaking, status));
+            }
+            else
+            {
+                breakingCount++;
+                paramsRemoved += del.Params.Count;
+                mutations.Add(new MethodSignatureMutationItem(
+                    del.RowIndex, del.Method, "DeletedDeclaration", del.Raw, string.Empty, -del.Params.Count, true, "Breaking (Removed Method)"));
+            }
+        }
+
+        foreach (var ins in insertedSigs)
+        {
+            if (!matchedInserts.Contains(ins.RowIndex))
+            {
+                nonBreakingCount++;
+                paramsAdded += ins.Params.Count;
+                mutations.Add(new MethodSignatureMutationItem(
+                    ins.RowIndex, ins.Method, "NewDeclaration", string.Empty, ins.Raw, ins.Params.Count, false, "Compatible (New Method)"));
+            }
+        }
+
+        int totalModified = mutations.Count;
+        double penalty = (breakingCount * 20.0) + (nonBreakingCount * 4.0);
+        double stabilityScore = totalModified == 0 ? 100.0 : Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        stabilityScore = Math.Round(stabilityScore, 1);
+
+        string category = stabilityScore switch
+        {
+            >= 90.0 => "High Interface Stability",
+            >= 75.0 => "Compatible Evolution",
+            >= 50.0 => "Moderate Interface Drift",
+            >= 30.0 => "Significant Breaking Drift",
+            _ => "High Severity API Surface Break"
+        };
+
+        string summary = FormatMethodSignatureDriftSummary(
+            unifiedRows.Count, totalModified, breakingCount, nonBreakingCount,
+            paramsAdded, paramsRemoved, stabilityScore, category);
+
+        return new DiffMethodSignatureDriftAudit(
+            unifiedRows.Count, totalModified, breakingCount, nonBreakingCount,
+            paramsAdded, paramsRemoved, stabilityScore, mutations, category, summary);
+    }
+
+    public static DiffMethodSignatureDriftAudit AuditMethodSignatureAndParameterDrift(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditMethodSignatureAndParameterDrift(unified);
+    }
+
+    public static string FormatMethodSignatureDriftSummary(
+        int totalRows, int totalModified, int breaking, int nonBreaking, int paramsAdded,
+        int paramsRemoved, double score, string category)
+    {
+        if (totalModified == 0)
+            return "Method signature drift audit: 0 signature mutations · Stable API surface";
+
+        string sigStr = totalModified == 1 ? "1 signature mutation" : $"{totalModified} signature mutations";
+        var alerts = new List<string>();
+        if (breaking > 0) alerts.Add($"⚠ {breaking} breaking {(breaking == 1 ? "change" : "changes")}");
+        if (nonBreaking > 0) alerts.Add($"{nonBreaking} compatible");
+        if (paramsAdded > 0) alerts.Add($"+{paramsAdded} params");
+        if (paramsRemoved > 0) alerts.Add($"-{paramsRemoved} params");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · compatible evolution";
+        return $"Method signature drift audit ({sigStr} · {category} · {score:0.#}% stability): {details.TrimStart(' ', '·', ' ')}";
+    }
 }
 
 /// <summary>
@@ -7089,6 +7281,35 @@ public sealed record DiffHunkClusteringAudit(
     int MaxGapDistance,
     double ClusteringCoherenceScore,
     IReadOnlyList<DiffHunkClusterItem> Clusters,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated method signature mutation, parameter changes, and API breaking status in a diff hunk.
+/// </summary>
+public sealed record MethodSignatureMutationItem(
+    int LineNumber,
+    string MethodName,
+    string MutationType,
+    string BeforeSignature,
+    string AfterSignature,
+    int ParameterDelta,
+    bool IsBreakingChange,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff method and block signature interface drift,
+/// parameter mutations, and public API surface compatibility.
+/// </summary>
+public sealed record DiffMethodSignatureDriftAudit(
+    int TotalUnifiedRows,
+    int TotalSignaturesModified,
+    int BreakingChangeCount,
+    int NonBreakingChangeCount,
+    int ParametersAdded,
+    int ParametersRemoved,
+    double InterfaceStabilityScore,
+    IReadOnlyList<MethodSignatureMutationItem> Mutations,
     string Category,
     string Summary);
 

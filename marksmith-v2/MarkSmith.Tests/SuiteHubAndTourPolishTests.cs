@@ -4300,6 +4300,103 @@ Some paragraph in between.
         Assert.Contains("OnCopyWorkspaceHeadingHierarchyAdvisorClick", suiteCs);
         Assert.Contains("AuditWorkspaceHeadingHierarchy", suiteCs);
     }
+
+    [Fact]
+    public void Run180_AuditWorkspaceHyperlinkDomainsAndAnchors()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceHyperlinkDomainsAndAnchors(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(100.0, emptyAudit.LinkingHealthScore);
+        Assert.Equal("No Markdown Documents", emptyAudit.Category);
+
+        var files = new[]
+        {
+            @"C:\Workspace\doc1.md",
+            @"C:\Workspace\doc2.md"
+        };
+
+        var contents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            {
+                @"C:\Workspace\doc1.md",
+                string.Join("\n",
+                    "# Guide Overview",
+                    "Here is an [External Link](https://onyachamp.com/docs).",
+                    "Here is an [Insecure Link](http://example.com/api).",
+                    "Jump to [Overview Anchor](#guide-overview).",
+                    "Jump to [Missing Anchor](#does-not-exist)."
+                )
+            },
+            {
+                @"C:\Workspace\doc2.md",
+                string.Join("\n",
+                    "# API Reference",
+                    "Visit <https://github.com/microsoft/winui3> directly."
+                )
+            }
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceHyperlinkDomainsAndAnchors(
+            files,
+            filePath => contents.ContainsKey(filePath),
+            filePath => contents[filePath]);
+
+        Assert.Equal(2, audit.TotalDocumentsEvaluated);
+        Assert.Equal(3, audit.TotalExternalLinks);
+        Assert.Equal(2, audit.TotalInternalAnchors);
+        Assert.Equal(3, audit.UniqueDomainsCount);
+        Assert.Equal(1, audit.InsecureHttpCount);
+        Assert.Equal(1, audit.BrokenAnchorCount);
+        Assert.True(audit.LinkingHealthScore < 100.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceHyperlinkSummary(
+            audit.TotalDocumentsEvaluated, audit.TotalExternalLinks, audit.TotalInternalAnchors,
+            audit.UniqueDomainsCount, audit.InsecureHttpCount, audit.BrokenAnchorCount,
+            audit.LinkingHealthScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run180_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Blockquote Nesting Depth, Attributed Citation Syntax & Callout Block Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditBlockquoteNestingItem", mainCs);
+        Assert.Contains("AuditBlockquoteNestingAndCallouts", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Node Betweenness Centrality, Shortest Path Stress & Bottleneck Gateway Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphBetweennessCentralityItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphBetweennessCentralityClick", galaxyCs);
+        Assert.Contains("AuditBetweennessCentralityAndGateways", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Stroke Weight Consistency, Border Dash Style & Outline Harmony Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditStrokeWeightAndDashItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditStrokeWeightAndDashClick", shapeCs);
+        Assert.Contains("AuditStrokeWeightAndDashUniformity", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Process Step Sequence Arrow Directionality & Step Transition Flow Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditProcessStepFlowItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditProcessStepFlowClick", smartArtCs);
+        Assert.Contains("AuditProcessStepFlowAndTransitions", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Method & Block Signature Interface Drift & Parameter Mutation Auditor
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditMethodSignatureDrift", historyCs);
+        Assert.Contains("AuditMethodSignatureAndParameterDrift", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown External Hyperlink Domain Distribution & Broken Anchor Reference Advisor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceHyperlinkDomainsAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceHyperlinkDomainsAdvisorClick", suiteCs);
+        Assert.Contains("AuditWorkspaceHyperlinkDomainsAndAnchors", suiteCs);
+    }
 }
 
 

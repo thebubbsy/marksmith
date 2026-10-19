@@ -7542,6 +7542,201 @@ public static class TextSearch
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% balanced formatting";
         return $"Markdown strikethrough & highlight audit ({spanLabel} [{typeDist}] · {category} · {score:0.#}% score): {balanced} balanced{details}";
     }
+
+    /// <summary>
+    /// Audits markdown blockquote nesting depth (>), GitHub-style alert callouts (> [!NOTE], > [!TIP], etc.),
+    /// attribution citations (> -- Author), and structural ergonomics.
+    /// </summary>
+    public static BlockquoteNestingAndCalloutAudit AuditBlockquoteNestingAndCallouts(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new BlockquoteNestingAndCalloutAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<BlockquoteCalloutItem>(), "Optimal",
+                FormatBlockquoteNestingSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100.0, "Optimal"));
+        }
+
+        var lines = markdownText.Split('\n').Select(l => l.TrimEnd('\r')).ToList();
+        var items = new List<BlockquoteCalloutItem>();
+        bool inFence = false;
+        int totalBlocks = 0;
+        bool inQuoteBlock = false;
+        int maxDepth = 0;
+        int noteAlerts = 0, tipAlerts = 0, importantAlerts = 0, warningAlerts = 0, cautionAlerts = 0;
+        int citations = 0;
+        int nestedDeep = 0;
+
+        for (int i = 0; i < lines.Count; i++)
+        {
+            var rawLine = lines[i];
+            var trimmed = rawLine.TrimStart();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                inFence = !inFence;
+                if (inQuoteBlock) inQuoteBlock = false;
+                continue;
+            }
+
+            if (inFence) continue;
+
+            if (trimmed.StartsWith('>'))
+            {
+                if (!inQuoteBlock)
+                {
+                    inQuoteBlock = true;
+                    totalBlocks++;
+                }
+
+                int depth = 0;
+                int idx = 0;
+                while (idx < trimmed.Length)
+                {
+                    if (trimmed[idx] == '>')
+                    {
+                        depth++;
+                        idx++;
+                    }
+                    else if (char.IsWhiteSpace(trimmed[idx]))
+                    {
+                        idx++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                if (depth > maxDepth) maxDepth = depth;
+                if (depth > 2) nestedDeep++;
+
+                string inner = idx < trimmed.Length ? trimmed[idx..].Trim() : string.Empty;
+                bool isAlert = false;
+                string alertType = "None";
+                bool isCitation = false;
+                bool isEmpty = string.IsNullOrWhiteSpace(inner);
+
+                if (!isEmpty)
+                {
+                    if (inner.StartsWith("[!NOTE]", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isAlert = true;
+                        alertType = "NOTE";
+                        noteAlerts++;
+                    }
+                    else if (inner.StartsWith("[!TIP]", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isAlert = true;
+                        alertType = "TIP";
+                        tipAlerts++;
+                    }
+                    else if (inner.StartsWith("[!IMPORTANT]", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isAlert = true;
+                        alertType = "IMPORTANT";
+                        importantAlerts++;
+                    }
+                    else if (inner.StartsWith("[!WARNING]", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isAlert = true;
+                        alertType = "WARNING";
+                        warningAlerts++;
+                    }
+                    else if (inner.StartsWith("[!CAUTION]", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isAlert = true;
+                        alertType = "CAUTION";
+                        cautionAlerts++;
+                    }
+                    else if (inner.StartsWith("--") || inner.StartsWith("—") || inner.StartsWith("–"))
+                    {
+                        isCitation = true;
+                        citations++;
+                    }
+                }
+
+                string status = isAlert ? $"Alert ({alertType})" :
+                                isCitation ? "Attributed Citation" :
+                                isEmpty ? "Empty Quote Separator" :
+                                depth > 2 ? $"Deep Nesting (Level {depth})" :
+                                $"Quote (Level {depth})";
+
+                items.Add(new BlockquoteCalloutItem(
+                    i + 1, depth, inner, isAlert, alertType, isCitation, isEmpty, status));
+            }
+            else
+            {
+                if (inQuoteBlock && !string.IsNullOrWhiteSpace(trimmed))
+                {
+                    inQuoteBlock = false;
+                }
+            }
+        }
+
+        int totalQuoteLines = items.Count;
+        double penalty = (nestedDeep * 6.0);
+        if (maxDepth > 4) penalty += (maxDepth - 4) * 10.0;
+        double score = totalQuoteLines == 0 ? 100.0 : Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Optimal",
+            >= 75.0 => "Balanced",
+            >= 60.0 => "Moderate",
+            >= 40.0 => "Complex",
+            _ => "Excessive Nesting"
+        };
+
+        string summary = FormatBlockquoteNestingSummary(
+            totalQuoteLines, totalBlocks, maxDepth, noteAlerts, tipAlerts, importantAlerts,
+            warningAlerts, cautionAlerts, citations, nestedDeep, score, category);
+
+        return new BlockquoteNestingAndCalloutAudit(
+            totalQuoteLines, totalBlocks, maxDepth, noteAlerts, tipAlerts, importantAlerts,
+            warningAlerts, cautionAlerts, citations, nestedDeep, score, items, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of blockquote nesting and callouts from markdown text.
+    /// </summary>
+    public static string FormatBlockquoteNestingSummary(string? markdownText)
+        => AuditBlockquoteNestingAndCallouts(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of blockquote nesting and callout metrics.
+    /// </summary>
+    public static string FormatBlockquoteNestingSummary(
+        int totalQuoteLines, int totalBlocks, int maxDepth, int noteAlerts, int tipAlerts,
+        int importantAlerts, int warningAlerts, int cautionAlerts, int citations,
+        int nestedDeep, double score, string category)
+    {
+        if (totalQuoteLines == 0)
+            return "Markdown blockquote & callout audit: 0 quote lines · Clean baseline";
+
+        string lineLabel = totalQuoteLines == 1 ? "1 line" : $"{totalQuoteLines} lines";
+        string blockLabel = totalBlocks == 1 ? "1 block" : $"{totalBlocks} blocks";
+        int totalAlerts = noteAlerts + tipAlerts + importantAlerts + warningAlerts + cautionAlerts;
+
+        var parts = new List<string>();
+        if (totalAlerts > 0)
+        {
+            var alertTypes = new List<string>();
+            if (noteAlerts > 0) alertTypes.Add($"{noteAlerts} Note");
+            if (tipAlerts > 0) alertTypes.Add($"{tipAlerts} Tip");
+            if (importantAlerts > 0) alertTypes.Add($"{importantAlerts} Important");
+            if (warningAlerts > 0) alertTypes.Add($"{warningAlerts} Warning");
+            if (cautionAlerts > 0) alertTypes.Add($"{cautionAlerts} Caution");
+            parts.Add($"{totalAlerts} alert {(totalAlerts == 1 ? "callout" : "callouts")} [{string.Join(", ", alertTypes)}]");
+        }
+        if (citations > 0) parts.Add($"{citations} {(citations == 1 ? "citation" : "citations")}");
+        if (nestedDeep > 0) parts.Add($"⚠ {nestedDeep} deep (depth > 2)");
+
+        string details = parts.Count > 0 ? $" · {string.Join(", ", parts)}" : "";
+        string prefix = $"Markdown blockquote & callout audit ({lineLabel} in {blockLabel} · Max depth {maxDepth} · {category} · {score:0.#}% score)";
+        return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} · Structured quotes";
+    }
 }
 
 /// <summary>
@@ -8303,5 +8498,38 @@ public sealed record StrikethroughHighlightFormattingAudit(
     int EmptySpanCount,
     double FormattingBalanceScore,
     IReadOnlyList<StrikethroughHighlightSpanItem> Spans,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, nesting level, alert type, and citation status for an individual blockquote line.
+/// </summary>
+public sealed record BlockquoteCalloutItem(
+    int LineNumber,
+    int NestingDepth,
+    string Text,
+    bool IsAlertCallout,
+    string AlertType,
+    bool IsCitationFooter,
+    bool HasTrailingEmptyQuote,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown blockquote nesting depth, GitHub-style alert callouts ([!NOTE], [!TIP], etc.),
+/// citation footers, and structural ergonomics across the document.
+/// </summary>
+public sealed record BlockquoteNestingAndCalloutAudit(
+    int TotalQuoteLines,
+    int TotalQuoteBlocks,
+    int MaxNestingDepth,
+    int NoteAlertCount,
+    int TipAlertCount,
+    int ImportantAlertCount,
+    int WarningAlertCount,
+    int CautionAlertCount,
+    int CitationCount,
+    int NestedDeepCount,
+    double ErgonomicsScore,
+    IReadOnlyList<BlockquoteCalloutItem> Items,
     string Category,
     string Summary);

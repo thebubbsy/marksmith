@@ -2173,6 +2173,36 @@ public class SmartArtStudioPolishTests
             balancedAudit.OutlierCount, balancedAudit.DensityBalanceScore, balancedAudit.Category);
         Assert.Equal(balancedAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run180_AuditProcessStepFlowAndTransitions()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditProcessStepFlowAndTransitions("");
+        Assert.Equal(0, emptyAudit.TotalSteps);
+        Assert.Equal(100.0, emptyAudit.FlowHarmonyScore);
+        Assert.Contains("0 steps", emptyAudit.Summary);
+
+        string sequentialMarkdown = string.Join("\n",
+            "- Step 1: Initial Discovery Phase",
+            "- Step 2: System Architecture Design",
+            "- Step 3: Production Code Implementation",
+            "- Step 4: Final Verification and Deployment"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditProcessStepFlowAndTransitions(sequentialMarkdown);
+        Assert.Equal(4, audit.TotalSteps);
+        Assert.Equal(4, audit.SequentiallyNumberedSteps);
+        Assert.Equal(0, audit.OutlierStepCount);
+        Assert.True(audit.FlowHarmonyScore >= 80.0);
+        Assert.Contains("Initial / Entry", audit.Steps[0].Directionality);
+        Assert.Contains("Terminal / Exit", audit.Steps[^1].Directionality);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatProcessStepFlowSummary(
+            audit.TotalSteps, audit.StepsWithTransitionCues, audit.SequentiallyNumberedSteps,
+            audit.OutlierStepCount, audit.AverageTitleWordCount, audit.TitleWordVariance,
+            audit.FlowHarmonyScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
 }
 
 

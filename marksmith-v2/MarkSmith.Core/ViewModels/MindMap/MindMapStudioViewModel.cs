@@ -9002,6 +9002,227 @@ namespace MarkSmith.ViewModels.MindMap
             string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
             return $"Graph closeness & harmonic centrality audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% broadcast efficiency): avg harmonic {avgHarmonic:0.###}{details}";
         }
+
+        public GraphBetweennessCentralityAudit AuditBetweennessCentralityAndGateways(bool selectionOnly = false)
+        {
+            var targetNodes = selectionOnly && HasSelection
+                ? Nodes.Where(n => n.IsSelected).ToList()
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && HasSelection;
+            var targetNodeIds = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var targetLinks = Links.Where(l => targetNodeIds.Contains(l.SourceNodeId) && targetNodeIds.Contains(l.TargetNodeId)).ToList();
+
+            int n = targetNodes.Count;
+            int totalEdges = targetLinks.Count;
+
+            if (n == 0)
+            {
+                return new GraphBetweennessCentralityAudit(
+                    0, 0, 0, 0, 0.0, 0.0, 100.0,
+                    string.Empty, string.Empty, 0.0,
+                    Array.Empty<NodeBetweennessMetricInfo>(), "Empty",
+                    isSelection, FormatBetweennessCentralitySummary(0, 0, 0, 0, 0.0, 100.0, string.Empty, 0.0, "Empty", isSelection));
+            }
+
+            var adj = new Dictionary<string, List<string>>();
+            foreach (var node in targetNodes) adj[node.Id] = new List<string>();
+            foreach (var link in targetLinks)
+            {
+                if (adj.ContainsKey(link.SourceNodeId) && adj.ContainsKey(link.TargetNodeId))
+                {
+                    if (!adj[link.SourceNodeId].Contains(link.TargetNodeId)) adj[link.SourceNodeId].Add(link.TargetNodeId);
+                    if (!adj[link.TargetNodeId].Contains(link.SourceNodeId)) adj[link.TargetNodeId].Add(link.SourceNodeId);
+                }
+            }
+
+            var cb = new Dictionary<string, double>();
+            foreach (var node in targetNodes) cb[node.Id] = 0.0;
+
+            foreach (var s in targetNodes)
+            {
+                var stack = new Stack<string>();
+                var pred = new Dictionary<string, List<string>>();
+                var sigma = new Dictionary<string, double>();
+                var dist = new Dictionary<string, int>();
+
+                foreach (var node in targetNodes)
+                {
+                    pred[node.Id] = new List<string>();
+                    sigma[node.Id] = 0.0;
+                    dist[node.Id] = -1;
+                }
+
+                sigma[s.Id] = 1.0;
+                dist[s.Id] = 0;
+
+                var queue = new Queue<string>();
+                queue.Enqueue(s.Id);
+
+                while (queue.Count > 0)
+                {
+                    var v = queue.Dequeue();
+                    stack.Push(v);
+
+                    foreach (var w in adj[v])
+                    {
+                        if (dist[w] < 0)
+                        {
+                            dist[w] = dist[v] + 1;
+                            queue.Enqueue(w);
+                        }
+                        if (dist[w] == dist[v] + 1)
+                        {
+                            sigma[w] += sigma[v];
+                            pred[w].Add(v);
+                        }
+                    }
+                }
+
+                var delta = new Dictionary<string, double>();
+                foreach (var node in targetNodes) delta[node.Id] = 0.0;
+
+                while (stack.Count > 0)
+                {
+                    var w = stack.Pop();
+                    foreach (var v in pred[w])
+                    {
+                        if (sigma[w] > 0)
+                        {
+                            delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w]);
+                        }
+                    }
+                    if (w != s.Id)
+                    {
+                        cb[w] += delta[w];
+                    }
+                }
+            }
+
+            foreach (var k in targetNodes.Select(node => node.Id))
+            {
+                cb[k] /= 2.0;
+            }
+
+            double normFactor = (n > 2) ? 2.0 / ((double)(n - 1) * (n - 2)) : 1.0;
+            double maxBetweenness = cb.Values.Count > 0 ? cb.Values.Max() : 0.0;
+            double avgBetweenness = cb.Values.Count > 0 ? cb.Values.Average() : 0.0;
+
+            int components = 0;
+            var visited = new HashSet<string>();
+            foreach (var node in targetNodes)
+            {
+                if (!visited.Contains(node.Id))
+                {
+                    components++;
+                    var q = new Queue<string>();
+                    q.Enqueue(node.Id);
+                    visited.Add(node.Id);
+                    while (q.Count > 0)
+                    {
+                        var curr = q.Dequeue();
+                        foreach (var nbr in adj[curr])
+                        {
+                            if (!visited.Contains(nbr))
+                            {
+                                visited.Add(nbr);
+                                q.Enqueue(nbr);
+                            }
+                        }
+                    }
+                }
+            }
+
+            int gatewayCount = 0;
+            var nodeMetrics = new List<NodeBetweennessMetricInfo>();
+            string topBottleneckId = "";
+            string topBottleneckTitle = "";
+            double topBottleneckScore = -1.0;
+
+            foreach (var node in targetNodes)
+            {
+                double raw = cb[node.Id];
+                double norm = n > 2 ? raw * normFactor : (raw > 0 ? 1.0 : 0.0);
+                norm = Math.Round(Math.Clamp(norm, 0.0, 1.0), 4);
+                bool isGateway = (n >= 4 && (norm >= 0.20 || (avgBetweenness > 0 && raw >= 2.0 * avgBetweenness)));
+                if (isGateway) gatewayCount++;
+
+                if (raw > topBottleneckScore)
+                {
+                    topBottleneckScore = raw;
+                    topBottleneckId = node.Id;
+                    topBottleneckTitle = node.Title;
+                }
+
+                string tier = norm switch
+                {
+                    >= 0.40 => "Critical Bottleneck",
+                    >= 0.20 => "Gateway Bridge",
+                    >= 0.05 => "Transit Node",
+                    _ => "Peripheral / Leaf"
+                };
+
+                nodeMetrics.Add(new NodeBetweennessMetricInfo(
+                    node.Id, node.Title, adj[node.Id].Count, Math.Round(raw, 2), norm, isGateway, tier));
+            }
+
+            double decentralization = 100.0;
+            if (n > 2)
+            {
+                double maxNorm = cb.Values.Max() * normFactor;
+                double sumDiff = targetNodes.Sum(node => maxNorm - (cb[node.Id] * normFactor));
+                double freemanCentralization = sumDiff / (n - 1);
+                decentralization = Math.Clamp(100.0 * (1.0 - freemanCentralization), 0.0, 100.0);
+            }
+            decentralization = Math.Round(decentralization, 1);
+
+            string category = decentralization switch
+            {
+                >= 85.0 => "Highly Decentralized",
+                >= 70.0 => "Balanced Mesh",
+                >= 50.0 => "Moderate Hierarchy",
+                >= 30.0 => "Centralized Bottleneck",
+                _ => "Star Topology Bottleneck"
+            };
+
+            string summary = FormatBetweennessCentralitySummary(
+                n, totalEdges, components, gatewayCount, avgBetweenness, decentralization,
+                topBottleneckTitle, topBottleneckScore, category, isSelection);
+
+            return new GraphBetweennessCentralityAudit(
+                n, totalEdges, components, gatewayCount, Math.Round(maxBetweenness, 2),
+                Math.Round(avgBetweenness, 2), decentralization, topBottleneckId, topBottleneckTitle,
+                Math.Round(topBottleneckScore, 2), nodeMetrics, category, isSelection, summary);
+        }
+
+        public static GraphBetweennessCentralityAudit AuditBetweennessCentralityAndGateways(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null) foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            if (links != null) foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            return vm.AuditBetweennessCentralityAndGateways();
+        }
+
+        public static string FormatBetweennessCentralitySummary(
+            int totalNodes, int totalEdges, int components, int gatewayCount, double avgBetweenness,
+            double score, string topBottleneckTitle, double topScore, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph betweenness & gateway audit ({scope}0 nodes): Empty map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string edgeStr = totalEdges == 1 ? "1 edge" : $"{totalEdges} edges";
+
+            var alerts = new List<string>();
+            if (gatewayCount > 0) alerts.Add($"⚠ {gatewayCount} gateway {(gatewayCount == 1 ? "bottleneck" : "bottlenecks")}");
+            if (!string.IsNullOrEmpty(topBottleneckTitle)) alerts.Add($"top bridge: \"{topBottleneckTitle}\" ({topScore:0.#})");
+
+            string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · distributed traffic";
+            return $"Graph betweenness & gateway audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% decentralization): avg betweenness {avgBetweenness:0.##}{details}";
+        }
     }
 
 
@@ -9799,6 +10020,38 @@ namespace MarkSmith.ViewModels.MindMap
         string TopHubNodeTitle,
         double TopHubHarmonicScore,
         IReadOnlyList<NodeCentralityMetricInfo> NodeCentralities,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents betweenness centrality, shortest-path traffic stress, and gateway bottleneck status for an individual mind map node.
+    /// </summary>
+    public sealed record NodeBetweennessMetricInfo(
+        string NodeId,
+        string Title,
+        int Degree,
+        double BetweennessCentrality,
+        double NormalizedBetweenness,
+        bool IsGatewayBottleneck,
+        string CentralityTier);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph node betweenness centrality using Brandes' algorithm,
+    /// identifying critical routing bottlenecks, gateway bridges, and graph decentralization score.
+    /// </summary>
+    public sealed record GraphBetweennessCentralityAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int ConnectedComponents,
+        int GatewayBottleneckCount,
+        double MaxBetweenness,
+        double AverageBetweenness,
+        double DecentralizationScore,
+        string TopBottleneckNodeId,
+        string TopBottleneckTitle,
+        double TopBottleneckScore,
+        IReadOnlyList<NodeBetweennessMetricInfo> NodeMetrics,
         string Category,
         bool IsSelectionScope,
         string Summary);

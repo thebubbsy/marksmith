@@ -2254,6 +2254,54 @@ public class HistoryPolishTests : IDisposable
             closeAudit.Category);
         Assert.Equal(closeAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run180_AuditMethodSignatureAndParameterDrift()
+    {
+        var emptyAudit = LineDiff.AuditMethodSignatureAndParameterDrift("", "");
+        Assert.Equal(0, emptyAudit.TotalSignaturesModified);
+        Assert.Equal(100.0, emptyAudit.InterfaceStabilityScore);
+        Assert.Contains("0 signature mutations", emptyAudit.Summary);
+
+        string beforeCode = string.Join("\n",
+            "public class DataService",
+            "{",
+            "    public void ProcessData(string input)",
+            "    {",
+            "    }",
+            "    public int CalculateSum(int a, int b)",
+            "    {",
+            "    }",
+            "}"
+        );
+
+        string afterCode = string.Join("\n",
+            "public class DataService",
+            "{",
+            "    public void ProcessData(string input, bool flag)",
+            "    {",
+            "    }",
+            "    public int CalculateSum(int a, int b)",
+            "    {",
+            "    }",
+            "    public string FetchToken()",
+            "    {",
+            "    }",
+            "}"
+        );
+
+        var audit = LineDiff.AuditMethodSignatureAndParameterDrift(beforeCode, afterCode);
+        Assert.True(audit.TotalSignaturesModified >= 2);
+        Assert.True(audit.BreakingChangeCount >= 1);
+        Assert.True(audit.NonBreakingChangeCount >= 1);
+        Assert.True(audit.InterfaceStabilityScore < 100.0);
+
+        string formatted = LineDiff.FormatMethodSignatureDriftSummary(
+            audit.TotalUnifiedRows, audit.TotalSignaturesModified, audit.BreakingChangeCount,
+            audit.NonBreakingChangeCount, audit.ParametersAdded, audit.ParametersRemoved,
+            audit.InterfaceStabilityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
 }
 
 

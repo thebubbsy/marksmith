@@ -6216,6 +6216,217 @@ public sealed class RecentFilesService
 
         return $"Workspace media alt-text accessibility advisor ({docLabel}, {mediaLabel} · {category} · {score:0.#}% score){alertSuffix}";
     }
+
+    /// <summary>
+    /// Audits workspace markdown documents for external hyperlink domains, internal heading anchors (#anchor),
+    /// protocol security (HTTPS vs HTTP), and broken anchor references.
+    /// </summary>
+    public static WorkspaceHyperlinkDomainsAudit AuditWorkspaceHyperlinkDomainsAndAnchors(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var exists = fileExistsProvider ?? File.Exists;
+        var readAll = contentReader ?? File.ReadAllText;
+
+        if (files == null)
+        {
+            return new WorkspaceHyperlinkDomainsAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ExternalDomainLinkItem>(), Array.Empty<LocalAnchorReferenceItem>(),
+                "Empty Workspace",
+                FormatWorkspaceHyperlinkSummary(0, 0, 0, 0, 0, 0, 100.0, "Empty Workspace"));
+        }
+
+        var mdFiles = files.Where(f =>
+            !string.IsNullOrWhiteSpace(f) &&
+            (f.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
+             f.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase))).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        if (mdFiles.Count == 0)
+        {
+            return new WorkspaceHyperlinkDomainsAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ExternalDomainLinkItem>(), Array.Empty<LocalAnchorReferenceItem>(),
+                "No Markdown Documents",
+                FormatWorkspaceHyperlinkSummary(0, 0, 0, 0, 0, 0, 100.0, "No Markdown Documents"));
+        }
+
+        var linkRegex = new Regex(@"(?<!!)\[(?<text>[^\]]*?)\]\((?<url>[^)]+?)\)", RegexOptions.Compiled);
+        var autoLinkRegex = new Regex(@"<(?<url>https?://[^>]+)>", RegexOptions.Compiled);
+        var headingRegex = new Regex(@"^(#{1,6})\s+(?<title>.+)$", RegexOptions.Compiled);
+
+        var domainDict = new Dictionary<string, (int Count, bool IsHttps, List<string> Samples)>(StringComparer.OrdinalIgnoreCase);
+        var localAnchorItems = new List<LocalAnchorReferenceItem>();
+        int totalExternal = 0;
+        int totalInternal = 0;
+        int insecureHttp = 0;
+        int brokenAnchors = 0;
+
+        foreach (var docPath in mdFiles)
+        {
+            if (!exists(docPath)) continue;
+            string content;
+            try { content = readAll(docPath); }
+            catch { continue; }
+
+            string docName = Path.GetFileName(docPath);
+            var lines = content.Split('\n').Select(l => l.TrimEnd('\r')).ToList();
+
+            var headingSlugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var line in lines)
+            {
+                var hMatch = headingRegex.Match(line.Trim());
+                if (hMatch.Success)
+                {
+                    string hTitle = hMatch.Groups["title"].Value.Trim();
+                    var slugBuilder = new System.Text.StringBuilder();
+                    foreach (char c in hTitle.ToLowerInvariant())
+                    {
+                        if (char.IsLetterOrDigit(c)) slugBuilder.Append(c);
+                        else if (char.IsWhiteSpace(c) || c == '-' || c == '_') slugBuilder.Append('-');
+                    }
+                    string slug = slugBuilder.ToString().Trim('-');
+                    if (!string.IsNullOrEmpty(slug)) headingSlugs.Add(slug);
+                }
+            }
+
+            bool inFence = false;
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var line = lines[i];
+                var trimmed = line.TrimStart();
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inFence = !inFence;
+                    continue;
+                }
+                if (inFence) continue;
+
+                var matches = linkRegex.Matches(line);
+                foreach (Match m in matches)
+                {
+                    string rawUrl = m.Groups["url"].Value.Trim();
+                    string linkText = m.Groups["text"].Value.Trim();
+
+                    ProcessUrl(rawUrl, linkText, docName, i + 1, headingSlugs, domainDict, localAnchorItems, ref totalExternal, ref totalInternal, ref insecureHttp, ref brokenAnchors);
+                }
+
+                var autoMatches = autoLinkRegex.Matches(line);
+                foreach (Match m in autoMatches)
+                {
+                    string rawUrl = m.Groups["url"].Value.Trim();
+                    ProcessUrl(rawUrl, rawUrl, docName, i + 1, headingSlugs, domainDict, localAnchorItems, ref totalExternal, ref totalInternal, ref insecureHttp, ref brokenAnchors);
+                }
+            }
+        }
+
+        static void ProcessUrl(
+            string rawUrl, string linkText, string docName, int lineNum, HashSet<string> headingSlugs,
+            Dictionary<string, (int Count, bool IsHttps, List<string> Samples)> domainDict,
+            List<LocalAnchorReferenceItem> localAnchors,
+            ref int totalExternal, ref int totalInternal, ref int insecureHttp, ref int brokenAnchors)
+        {
+            if (rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                totalExternal++;
+                bool isHttps = rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+                if (!isHttps) insecureHttp++;
+
+                string host = "";
+                try
+                {
+                    var uri = new Uri(rawUrl);
+                    host = uri.Host;
+                }
+                catch
+                {
+                    int start = rawUrl.IndexOf("://", StringComparison.Ordinal) + 3;
+                    int slash = rawUrl.IndexOf('/', start);
+                    host = slash > start ? rawUrl[start..slash] : rawUrl[start..];
+                }
+
+                if (!string.IsNullOrEmpty(host))
+                {
+                    if (!domainDict.TryGetValue(host, out var entry))
+                    {
+                        entry = (0, isHttps, new List<string>());
+                    }
+                    entry.Count++;
+                    if (!isHttps) entry.IsHttps = false;
+                    if (entry.Samples.Count < 3 && !entry.Samples.Contains(rawUrl)) entry.Samples.Add(rawUrl);
+                    domainDict[host] = entry;
+                }
+            }
+            else if (rawUrl.StartsWith('#'))
+            {
+                totalInternal++;
+                string anchorSlug = rawUrl.TrimStart('#').Trim();
+                bool resolved = headingSlugs.Contains(anchorSlug);
+                if (!resolved) brokenAnchors++;
+
+                string status = resolved ? "Valid Local Heading Anchor" : "⚠ Broken Anchor (Target heading not found)";
+                localAnchors.Add(new LocalAnchorReferenceItem(docName, lineNum, linkText, anchorSlug, resolved, status));
+            }
+        }
+
+        var domainItems = new List<ExternalDomainLinkItem>();
+        foreach (var (host, data) in domainDict.OrderByDescending(kv => kv.Value.Count))
+        {
+            string status = data.IsHttps ? "Secure HTTPS Domain" : "⚠ Insecure HTTP Protocol";
+            domainItems.Add(new ExternalDomainLinkItem(host, data.Count, data.IsHttps, data.Samples, status));
+        }
+
+        double penalty = (brokenAnchors * 12.0) + (insecureHttp * 4.0);
+        double healthScore = (totalExternal + totalInternal) == 0 ? 100.0 : Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        healthScore = Math.Round(healthScore, 1);
+
+        string category = healthScore switch
+        {
+            >= 90.0 => "High Link Health",
+            >= 75.0 => "Solid Linking Baseline",
+            >= 55.0 => "Moderate Broken / Insecure Links",
+            >= 35.0 => "Significant Anchor Hazards",
+            _ => "Degraded Hyperlink Integrity"
+        };
+
+        string summary = FormatWorkspaceHyperlinkSummary(
+            mdFiles.Count, totalExternal, totalInternal, domainDict.Count,
+            insecureHttp, brokenAnchors, healthScore, category);
+
+        return new WorkspaceHyperlinkDomainsAudit(
+            mdFiles.Count, totalExternal, totalInternal, domainDict.Count,
+            insecureHttp, brokenAnchors, healthScore, domainItems, localAnchorItems,
+            category, summary);
+    }
+
+    public static WorkspaceHyperlinkDomainsAudit AuditWorkspaceHyperlinkDomainsAndAnchors(
+        string filePath,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        return AuditWorkspaceHyperlinkDomainsAndAnchors(new[] { filePath }, fileExistsProvider, contentReader);
+    }
+
+    public static string FormatWorkspaceHyperlinkSummary(
+        int totalDocs, int externalLinks, int internalAnchors, int uniqueDomains,
+        int insecureHttp, int brokenAnchors, double score, string category)
+    {
+        if (totalDocs == 0) return "Workspace hyperlink & anchor advisor: 0 documents · Workspace is empty";
+
+        string docStr = totalDocs == 1 ? "1 document" : $"{totalDocs} documents";
+        string extStr = externalLinks == 1 ? "1 external link" : $"{externalLinks} external links";
+        string domStr = uniqueDomains == 1 ? "1 host domain" : $"{uniqueDomains} host domains";
+
+        var alerts = new List<string>();
+        if (internalAnchors > 0) alerts.Add($"{internalAnchors} internal {(internalAnchors == 1 ? "anchor" : "anchors")}");
+        if (brokenAnchors > 0) alerts.Add($"🚨 {brokenAnchors} broken {(brokenAnchors == 1 ? "anchor" : "anchors")}");
+        if (insecureHttp > 0) alerts.Add($"⚠ {insecureHttp} insecure HTTP");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% verified links & anchors";
+        return $"Workspace hyperlink & anchor advisor ({docStr} [{extStr} across {domStr}] · {category} · {score:0.#}% score){details}";
+    }
 }
 
 /// <summary>
@@ -6968,6 +7179,44 @@ public sealed record WorkspaceHeadingHierarchyAudit(
     int MaxDepthAcrossWorkspace,
     double ErgonomicsScore,
     IReadOnlyList<WorkspaceDocumentHeadingItem> Documents,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents domain name, link count, protocol security, and sample links for an external host domain.
+/// </summary>
+public sealed record ExternalDomainLinkItem(
+    string Domain,
+    int LinkCount,
+    bool IsSecureHttps,
+    IReadOnlyList<string> SampleUrls,
+    string Status);
+
+/// <summary>
+/// Represents an internal anchor reference (#anchor), its target document, resolved status, and line number.
+/// </summary>
+public sealed record LocalAnchorReferenceItem(
+    string DocumentName,
+    int LineNumber,
+    string AnchorText,
+    string TargetAnchor,
+    bool IsResolved,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown external hyperlink domains, internal heading anchors (#anchor),
+/// protocol security, and link integrity.
+/// </summary>
+public sealed record WorkspaceHyperlinkDomainsAudit(
+    int TotalDocumentsEvaluated,
+    int TotalExternalLinks,
+    int TotalInternalAnchors,
+    int UniqueDomainsCount,
+    int InsecureHttpCount,
+    int BrokenAnchorCount,
+    double LinkingHealthScore,
+    IReadOnlyList<ExternalDomainLinkItem> ExternalDomains,
+    IReadOnlyList<LocalAnchorReferenceItem> LocalAnchors,
     string Category,
     string Summary);
 

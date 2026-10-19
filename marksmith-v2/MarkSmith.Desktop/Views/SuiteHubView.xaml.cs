@@ -2119,6 +2119,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyWorkspaceHyperlinkDomainsAdvisorClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var audit = RecentFilesService.AuditWorkspaceHyperlinkDomainsAndAnchors(files);
+            await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+            SetNotification($"Copied Hyperlink Domains advisor: {audit.Category} · {audit.LinkingHealthScore:0.#}% score", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit workspace hyperlinks: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

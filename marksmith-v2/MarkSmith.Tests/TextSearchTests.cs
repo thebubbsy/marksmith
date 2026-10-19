@@ -2387,6 +2387,52 @@ public class TextSearchTests
             validAudit.FormattingBalanceScore, validAudit.Category);
         Assert.Equal(validAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void AuditBlockquoteNestingAndCallouts_CalculatesDepthAlertsAndErgonomicsCorrectly()
+    {
+        var emptyAudit = TextSearch.AuditBlockquoteNestingAndCallouts(null);
+        Assert.Equal(0, emptyAudit.TotalQuoteLines);
+        Assert.Equal(100.0, emptyAudit.ErgonomicsScore);
+        Assert.Equal("Optimal", emptyAudit.Category);
+
+        string doc = string.Join("\n",
+            "# Document Title",
+            "> [!NOTE]",
+            "> This is a note alert.",
+            ">",
+            "> [!TIP]",
+            "> Here is an actionable tip.",
+            "> -- Famous Author",
+            "",
+            "Paragraph in between.",
+            "",
+            ">> Nested quote level 2",
+            ">>> Nested quote level 3",
+            ">>>> Nested quote level 4",
+            "",
+            "```markdown",
+            "> [!WARNING] inside fence is ignored",
+            "```"
+        );
+
+        var audit = TextSearch.AuditBlockquoteNestingAndCallouts(doc);
+        Assert.True(audit.TotalQuoteLines >= 9);
+        Assert.Equal(2, audit.TotalQuoteBlocks);
+        Assert.Equal(4, audit.MaxNestingDepth);
+        Assert.Equal(1, audit.NoteAlertCount);
+        Assert.Equal(1, audit.TipAlertCount);
+        Assert.Equal(1, audit.CitationCount);
+        Assert.True(audit.NestedDeepCount >= 2);
+        Assert.True(audit.ErgonomicsScore < 100.0);
+
+        string summary = TextSearch.FormatBlockquoteNestingSummary(
+            audit.TotalQuoteLines, audit.TotalQuoteBlocks, audit.MaxNestingDepth,
+            audit.NoteAlertCount, audit.TipAlertCount, audit.ImportantAlertCount,
+            audit.WarningAlertCount, audit.CautionAlertCount, audit.CitationCount,
+            audit.NestedDeepCount, audit.ErgonomicsScore, audit.Category);
+        Assert.Equal(audit.Summary, summary);
+    }
 }
 
 

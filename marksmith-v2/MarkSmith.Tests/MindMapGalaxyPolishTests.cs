@@ -3134,6 +3134,44 @@ namespace MarkSmith.Tests
                 starAudit.TopHubNodeTitle, starAudit.TopHubHarmonicScore, starAudit.Category, starAudit.IsSelectionScope);
             Assert.Equal(starAudit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run180_AuditBetweennessCentralityAndGateways_IdentifiesBottlenecksAndDecentralizationScore()
+        {
+            var emptyAudit = MindMapStudioViewModel.AuditBetweennessCentralityAndGateways(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.DecentralizationScore);
+            Assert.Equal("Empty", emptyAudit.Category);
+
+            var a = new MindMapNode { Id = "a", Title = "Node A" };
+            var b = new MindMapNode { Id = "b", Title = "Node B" };
+            var c = new MindMapNode { Id = "c", Title = "Node C (Bridge)" };
+            var d = new MindMapNode { Id = "d", Title = "Node D" };
+            var e = new MindMapNode { Id = "e", Title = "Node E" };
+
+            var e1 = new MindMapLink { SourceNodeId = "a", TargetNodeId = "b" };
+            var e2 = new MindMapLink { SourceNodeId = "b", TargetNodeId = "c" };
+            var e3 = new MindMapLink { SourceNodeId = "c", TargetNodeId = "d" };
+            var e4 = new MindMapLink { SourceNodeId = "d", TargetNodeId = "e" };
+
+            var audit = MindMapStudioViewModel.AuditBetweennessCentralityAndGateways(
+                new[] { a, b, c, d, e },
+                new[] { e1, e2, e3, e4 });
+
+            Assert.Equal(5, audit.TotalNodes);
+            Assert.Equal(4, audit.TotalEdges);
+            Assert.Equal(1, audit.ConnectedComponents);
+            Assert.Equal("c", audit.TopBottleneckNodeId);
+            Assert.Equal("Node C (Bridge)", audit.TopBottleneckTitle);
+            Assert.True(audit.TopBottleneckScore > 0);
+            Assert.True(audit.GatewayBottleneckCount >= 1);
+
+            string formatted = MindMapStudioViewModel.FormatBetweennessCentralitySummary(
+                audit.TotalNodes, audit.TotalEdges, audit.ConnectedComponents,
+                audit.GatewayBottleneckCount, audit.AverageBetweenness, audit.DecentralizationScore,
+                audit.TopBottleneckTitle, audit.TopBottleneckScore, audit.Category, audit.IsSelectionScope);
+            Assert.Equal(audit.Summary, formatted);
+        }
     }
 }
 

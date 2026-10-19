@@ -3575,6 +3575,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditHunkClustering);
+
+                var auditMethodSignatureDrift = new MenuFlyoutItem
+                {
+                    Text = "Audit method signature interface drift & parameter mutations",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditMethodSignatureDrift.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditMethodSignatureAndParameterDrift(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditMethodSignatureDrift);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

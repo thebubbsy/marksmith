@@ -345,6 +345,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceHeadingHierarchyAdvisorItem" Text="Copy workspace markdown heading hierarchy depth &amp; document outline ergonomics advisor" Click="OnCopyWorkspaceHeadingHierarchyAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyWorkspaceHyperlinkDomainsAdvisorItem" Text="Copy workspace markdown external hyperlink domain distribution &amp; broken anchor reference advisor" Click="OnCopyWorkspaceHyperlinkDomainsAdvisorClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

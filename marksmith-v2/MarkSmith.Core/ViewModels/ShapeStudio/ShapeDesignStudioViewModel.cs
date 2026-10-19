@@ -76,6 +76,9 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     [ObservableProperty]
     private string _arrowheadEnd = "FilledTriangle";
 
+    [ObservableProperty]
+    private string _dashStyle = "Solid";
+
     /// <summary>Curved-stroke polyline (0..100 local space) for sketch/trace lines.</summary>
     public System.Collections.Generic.List<(double X, double Y)>? PathPoints { get; set; }
 
@@ -8777,6 +8780,125 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Connector arrowhead uniformity & attachment audit ({scopeStr}{connStr} · {category} · {harmonyScore:0.#}% score): " +
                $"{dominantType} arrowheads ({uniformityScore:0.#}% uniform), {attachedEndpoints} attached endpoints ({attachmentScore:0.#}% docked){details}";
     }
+
+    /// <summary>
+    /// Audits diagram shapes for stroke weight consistency (1pt, 2pt, etc.), border dash style uniformity (Solid, Dashed, Dotted),
+    /// and overall outline harmony.
+    /// </summary>
+    public DiagramStrokeWeightAndDashAudit AuditStrokeWeightAndDashUniformity(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = (targetShapes != null) || (selected.Count >= 2);
+
+        var audit = AuditStrokeWeightAndDashUniformity(targets, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramStrokeWeightAndDashAudit AuditStrokeWeightAndDashUniformity(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes, bool isSelection = false)
+    {
+        var list = (shapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        if (list.Count == 0)
+        {
+            return new DiagramStrokeWeightAndDashAudit(
+                0, 0, 0, 0, 0, 0, 0, 0.0, 0.0, 100.0,
+                Array.Empty<ShapeStrokeOutlineItem>(), "Empty Canvas", isSelection,
+                FormatStrokeWeightUniformitySummary(0, 0, 0, 0, 0, 0, 0, 0.0, 0.0, 100.0, "Empty Canvas", isSelection));
+        }
+
+        var items = new List<ShapeStrokeOutlineItem>();
+        int solidCount = 0, dashedCount = 0, dottedCount = 0;
+        int hairlineCount = 0, standardCount = 0, heavyCount = 0;
+
+        var weights = new List<double>();
+        var dashCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var s in list)
+        {
+            double weight = s.StrokeWidthPt;
+            weights.Add(weight);
+
+            string dash = string.IsNullOrWhiteSpace(s.DashStyle) ? "Solid" : s.DashStyle;
+            dashCounts[dash] = dashCounts.GetValueOrDefault(dash, 0) + 1;
+
+            if (dash.Equals("Dashed", StringComparison.OrdinalIgnoreCase)) dashedCount++;
+            else if (dash.Equals("Dotted", StringComparison.OrdinalIgnoreCase)) dottedCount++;
+            else solidCount++;
+
+            if (weight < 1.0) hairlineCount++;
+            else if (weight <= 3.0) standardCount++;
+            else heavyCount++;
+        }
+
+        double avgWeight = weights.Average();
+        double sumSq = weights.Sum(w => (w - avgWeight) * (w - avgWeight));
+        double stdDev = Math.Round(Math.Sqrt(sumSq / weights.Count), 2);
+
+        int dominantDashCount = dashCounts.Values.Max();
+        double dashUniformity = Math.Round((double)dominantDashCount / list.Count * 100.0, 1);
+        double weightUniformity = Math.Clamp(100.0 - (stdDev * 25.0), 0.0, 100.0);
+
+        foreach (var s in list)
+        {
+            double weight = s.StrokeWidthPt;
+            string dash = string.IsNullOrWhiteSpace(s.DashStyle) ? "Solid" : s.DashStyle;
+            bool isOutlier = Math.Abs(weight - avgWeight) > Math.Max(1.0, 1.5 * stdDev);
+            string status = isOutlier ? $"Outlier Stroke ({weight:0.##}pt)" :
+                            $"{dash} Outline ({weight:0.##}pt)";
+
+            items.Add(new ShapeStrokeOutlineItem(
+                s.Id, s.Name, weight, dash, s.Fill, isOutlier, status));
+        }
+
+        double harmonyScore = Math.Round((dashUniformity * 0.45) + (weightUniformity * 0.55), 1);
+
+        string category = harmonyScore switch
+        {
+            >= 90.0 => "Harmonious Outlines",
+            >= 75.0 => "Consistent Strokes",
+            >= 60.0 => "Moderate Outline Variance",
+            >= 40.0 => "Mixed Stroke Weights & Dashes",
+            _ => "Fragmented Outline Hierarchy"
+        };
+
+        string summary = FormatStrokeWeightUniformitySummary(
+            list.Count, solidCount, dashedCount, dottedCount, heavyCount, standardCount,
+            hairlineCount, Math.Round(avgWeight, 2), stdDev, harmonyScore, category, isSelection);
+
+        return new DiagramStrokeWeightAndDashAudit(
+            list.Count, solidCount, dashedCount, dottedCount, heavyCount, standardCount,
+            hairlineCount, Math.Round(avgWeight, 2), stdDev, harmonyScore, items, category,
+            isSelection, summary);
+    }
+
+    public static string FormatStrokeWeightUniformitySummary(
+        int totalShapes, int solidCount, int dashedCount, int dottedCount, int heavyCount,
+        int standardCount, int hairlineCount, double avgWeight, double stdDev, double harmonyScore,
+        string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Stroke weight & dash uniformity audit ({scopeStr}0 shapes): Canvas is empty";
+
+        string shapeStr = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        var alerts = new List<string>();
+        if (dashedCount > 0 || dottedCount > 0)
+        {
+            var styles = new List<string>();
+            if (solidCount > 0) styles.Add($"{solidCount} solid");
+            if (dashedCount > 0) styles.Add($"{dashedCount} dashed");
+            if (dottedCount > 0) styles.Add($"{dottedCount} dotted");
+            alerts.Add(string.Join(", ", styles));
+        }
+        if (heavyCount > 0) alerts.Add($"{heavyCount} heavy (>3pt)");
+        if (hairlineCount > 0) alerts.Add($"{hairlineCount} hairline (<1pt)");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% uniform solid stroke";
+        return $"Stroke weight & dash uniformity audit ({scopeStr}{shapeStr} · {category} · {harmonyScore:0.#}% harmony): avg {avgWeight:0.##}pt (±{stdDev:0.##}pt){details}";
+    }
 }
 
 /// <summary>
@@ -9595,6 +9717,37 @@ public sealed record DiagramConnectorArrowheadAudit(
     double EndpointAttachmentScore,
     double OverallConnectorHarmonyScore,
     IReadOnlyList<ConnectorArrowheadItem> Connectors,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated stroke thickness, dash pattern, and visual balance for an individual diagram shape.
+/// </summary>
+public sealed record ShapeStrokeOutlineItem(
+    string ShapeId,
+    string ShapeName,
+    double StrokeThickness,
+    string DashStyle,
+    string StrokeColor,
+    bool IsOutlierWeight,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape stroke weight consistency, border dash style uniformity, and overall outline harmony.
+/// </summary>
+public sealed record DiagramStrokeWeightAndDashAudit(
+    int TotalShapesEvaluated,
+    int SolidStrokeCount,
+    int DashedStrokeCount,
+    int DottedStrokeCount,
+    int HeavyStrokeCount,
+    int StandardStrokeCount,
+    int HairlineStrokeCount,
+    double AverageStrokeThickness,
+    double StrokeThicknessStdDev,
+    double OutlineHarmonyScore,
+    IReadOnlyList<ShapeStrokeOutlineItem> Shapes,
     string Category,
     bool IsSelectionScope,
     string Summary);
