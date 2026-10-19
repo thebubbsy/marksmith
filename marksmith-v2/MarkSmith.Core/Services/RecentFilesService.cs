@@ -5379,6 +5379,196 @@ public sealed class RecentFilesService
         return $"Workspace document linking graph advisor ({docLabel}, {edgeLabel} · {category} · {score:0.#}% score){alertSuffix}";
     }
 
+    /// <summary>
+    /// Audits workspace markdown documents for embedded media asset references (![alt](path) and <img src="path">),
+    /// resolving local relative and absolute paths against physical disk existence, and identifying broken image hazards.
+    /// </summary>
+    public static WorkspaceMediaAssetAudit AuditWorkspaceMediaAssetIntegrity(
+        IReadOnlyList<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var exists = fileExistsProvider ?? File.Exists;
+        var reader = contentReader ?? File.ReadAllText;
+
+        var mdFiles = (files ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && (f.EndsWith(".md", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (mdFiles.Count == 0)
+        {
+            return new WorkspaceMediaAssetAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceMediaItem>(),
+                Array.Empty<string>(),
+                "Empty Workspace",
+                "Workspace media asset integrity advisor: 0 documents · Workspace contains no markdown files");
+        }
+
+        var mdImageRegex = new System.Text.RegularExpressions.Regex(@"!\[(.*?)\]\((.*?)\)");
+        var htmlImageRegex = new System.Text.RegularExpressions.Regex(@"<img[^>]+src=[""'](.*?)[""']", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        var mediaItems = new List<WorkspaceMediaItem>();
+        var missingPaths = new List<string>();
+        int webRemoteCount = 0;
+        int localCheckedCount = 0;
+        int validLocalCount = 0;
+        int missingLocalCount = 0;
+
+        foreach (var docPath in mdFiles)
+        {
+            string docName = Path.GetFileName(docPath);
+            string docDir = Path.GetDirectoryName(docPath) ?? string.Empty;
+
+            string content;
+            try
+            {
+                content = reader(docPath) ?? string.Empty;
+            }
+            catch
+            {
+                continue;
+            }
+
+            // Strip code fences
+            var stripped = System.Text.RegularExpressions.Regex.Replace(content, @"(?s)(```.*?```|~~~.*?~~~|:::.*?:::)", " ");
+
+            // Check markdown images
+            var mdMatches = mdImageRegex.Matches(stripped);
+            foreach (System.Text.RegularExpressions.Match m in mdMatches)
+            {
+                string alt = m.Groups[1].Value.Trim();
+                string rawTarget = m.Groups[2].Value.Trim();
+                EvaluateMediaTarget(docPath, docName, docDir, alt, rawTarget);
+            }
+
+            // Check html images
+            var htmlMatches = htmlImageRegex.Matches(stripped);
+            foreach (System.Text.RegularExpressions.Match m in htmlMatches)
+            {
+                string rawTarget = m.Groups[1].Value.Trim();
+                EvaluateMediaTarget(docPath, docName, docDir, "HTML Image", rawTarget);
+            }
+        }
+
+        void EvaluateMediaTarget(string docPath, string docName, string docDir, string alt, string rawTarget)
+        {
+            if (string.IsNullOrWhiteSpace(rawTarget)) return;
+
+            // Strip any image title e.g. "path/to/img.png "title""
+            string cleanTarget = rawTarget;
+            int spaceIdx = cleanTarget.IndexOf(' ');
+            if (spaceIdx > 0)
+            {
+                cleanTarget = cleanTarget.Substring(0, spaceIdx).Trim('"', '\'');
+            }
+
+            bool isRemote = cleanTarget.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                            cleanTarget.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                            cleanTarget.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+                            cleanTarget.StartsWith("//", StringComparison.OrdinalIgnoreCase);
+
+            if (isRemote)
+            {
+                webRemoteCount++;
+                mediaItems.Add(new WorkspaceMediaItem(
+                    docPath, docName, alt, cleanTarget, IsRemote: true, Exists: true, cleanTarget, null));
+            }
+            else
+            {
+                localCheckedCount++;
+                string resolvedPath;
+                try
+                {
+                    resolvedPath = Path.IsPathRooted(cleanTarget)
+                        ? cleanTarget
+                        : Path.GetFullPath(Path.Combine(docDir, cleanTarget));
+                }
+                catch
+                {
+                    resolvedPath = cleanTarget;
+                }
+
+                bool fileExists = exists(resolvedPath);
+                if (fileExists)
+                {
+                    validLocalCount++;
+                    mediaItems.Add(new WorkspaceMediaItem(
+                        docPath, docName, alt, cleanTarget, IsRemote: false, Exists: true, resolvedPath, null));
+                }
+                else
+                {
+                    missingLocalCount++;
+                    missingPaths.Add(resolvedPath);
+                    mediaItems.Add(new WorkspaceMediaItem(
+                        docPath, docName, alt, cleanTarget, IsRemote: false, Exists: false, resolvedPath,
+                        $"Missing local media file: {cleanTarget}"));
+                }
+            }
+        }
+
+        int totalMedia = webRemoteCount + localCheckedCount;
+        double integrityScore;
+        if (localCheckedCount == 0)
+        {
+            integrityScore = 100.0;
+        }
+        else
+        {
+            double penalty = ((double)missingLocalCount / localCheckedCount) * 100.0;
+            integrityScore = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+        }
+
+        string category;
+        if (totalMedia == 0)
+            category = "No Media Embeds";
+        else if (missingLocalCount == 0)
+            category = "Pristine Media Asset Integrity (100% Assets Verified)";
+        else if (integrityScore >= 75.0)
+            category = $"Minor Broken Media References ({missingLocalCount} Missing Asset{(missingLocalCount == 1 ? "" : "s")})";
+        else
+            category = $"High Broken Media Debt ({missingLocalCount} Missing Asset{(missingLocalCount == 1 ? "" : "s")} Detected)";
+
+        string summary = FormatWorkspaceMediaAssetSummary(
+            mdFiles.Count, totalMedia, localCheckedCount, validLocalCount, missingLocalCount,
+            webRemoteCount, integrityScore, category);
+
+        return new WorkspaceMediaAssetAudit(
+            mdFiles.Count,
+            totalMedia,
+            localCheckedCount,
+            validLocalCount,
+            missingLocalCount,
+            webRemoteCount,
+            integrityScore,
+            mediaItems,
+            missingPaths,
+            category,
+            summary);
+    }
+
+    public static string FormatWorkspaceMediaAssetSummary(
+        int totalDocs, int totalMedia, int localChecked, int validLocal, int missingLocal,
+        int webRemote, double score, string category)
+    {
+        if (totalDocs == 0)
+            return "Workspace media asset integrity advisor: 0 documents · Workspace contains no markdown files";
+        if (totalMedia == 0)
+            return $"Workspace media asset integrity advisor ({totalDocs} documents): 0 media embeds detected (Pure text documents)";
+
+        string docLabel = totalDocs == 1 ? "1 document" : $"{totalDocs} documents";
+        string mediaLabel = totalMedia == 1 ? "1 media embed" : $"{totalMedia} media embeds";
+
+        var alerts = new List<string>();
+        if (missingLocal > 0) alerts.Add($"🚨 {missingLocal} missing local assets");
+        if (webRemote > 0) alerts.Add($"{webRemote} remote/web assets");
+        if (validLocal > 0) alerts.Add($"{validLocal} local verified");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · all assets verified";
+
+        return $"Workspace media asset integrity advisor ({docLabel}, {mediaLabel} · {category} · {score:0.#}% score){alertSuffix}";
+    }
 }
 
 /// <summary>
@@ -6005,3 +6195,33 @@ public sealed record WorkspaceDocumentGraphAudit(
     IReadOnlyList<WorkspaceDocumentGraphEdge> Edges,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated path resolution, alt-text, and physical existence for an individual media asset reference.
+/// </summary>
+public sealed record WorkspaceMediaItem(
+    string DocumentPath,
+    string DocumentName,
+    string AltText,
+    string RawSource,
+    bool IsRemote,
+    bool Exists,
+    string ResolvedFullPath,
+    string? IssueDescription);
+
+/// <summary>
+/// Represents the result of an audit of workspace media asset references, local path resolution, and missing image hazards.
+/// </summary>
+public sealed record WorkspaceMediaAssetAudit(
+    int TotalDocumentsEvaluated,
+    int TotalMediaReferences,
+    int LocalAssetsChecked,
+    int ValidLocalAssets,
+    int MissingLocalAssets,
+    int WebRemoteAssets,
+    double MediaIntegrityScore,
+    IReadOnlyList<WorkspaceMediaItem> MediaItems,
+    IReadOnlyList<string> MissingAssetPaths,
+    string Category,
+    string Summary);
+

@@ -2894,6 +2894,56 @@ namespace MarkSmith.Tests
                 audit.ModularityCategory, audit.IsSelectionScope);
             Assert.Equal(audit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run175_AuditGraphCyclesAndFeedbackLoops_EvaluatesTarjanSCC()
+        {
+            var emptyAudit = MindMapStudioViewModel.AuditGraphCyclesAndFeedbackLoops(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalEdges);
+            Assert.True(emptyAudit.IsPureDAG);
+            Assert.Equal(0, emptyAudit.CyclicComponentCount);
+            Assert.Equal(100.0, emptyAudit.AcyclicityScore);
+            Assert.Equal("Empty Galaxy", emptyAudit.TopologyCategory);
+
+            // Acyclic DAG: n1 -> n2 -> n3
+            var n1 = new MindMapNode { Id = "n1", Title = "Root Conception" };
+            var n2 = new MindMapNode { Id = "n2", Title = "Architecture Spec" };
+            var n3 = new MindMapNode { Id = "n3", Title = "Implementation Task" };
+            var l1 = new MindMapLink { Id = "l1", SourceNodeId = "n1", TargetNodeId = "n2" };
+            var l2 = new MindMapLink { Id = "l2", SourceNodeId = "n2", TargetNodeId = "n3" };
+
+            var dagAudit = MindMapStudioViewModel.AuditGraphCyclesAndFeedbackLoops(
+                new[] { n1, n2, n3 },
+                new[] { l1, l2 });
+            Assert.Equal(3, dagAudit.TotalNodes);
+            Assert.Equal(2, dagAudit.TotalEdges);
+            Assert.True(dagAudit.IsPureDAG);
+            Assert.Equal(0, dagAudit.CyclicComponentCount);
+            Assert.Equal(100.0, dagAudit.AcyclicityScore);
+            Assert.Equal("Pure Directed Acyclic Graph (DAG)", dagAudit.TopologyCategory);
+
+            // Add feedback loop: n3 -> n1
+            var lCycle = new MindMapLink { Id = "lcycle", SourceNodeId = "n3", TargetNodeId = "n1" };
+            var cyclicAudit = MindMapStudioViewModel.AuditGraphCyclesAndFeedbackLoops(
+                new[] { n1, n2, n3 },
+                new[] { l1, l2, lCycle });
+
+            Assert.Equal(3, cyclicAudit.TotalNodes);
+            Assert.Equal(3, cyclicAudit.TotalEdges);
+            Assert.False(cyclicAudit.IsPureDAG);
+            Assert.Equal(1, cyclicAudit.CyclicComponentCount);
+            Assert.Equal(3, cyclicAudit.TotalNodesInCycles);
+            Assert.Equal(3, cyclicAudit.LongestCycleNodeCount);
+            Assert.True(cyclicAudit.AcyclicityScore < 100.0);
+            Assert.Contains("3-node directed cycle", cyclicAudit.CyclicComponents[0].CycleDescription);
+
+            string formatted = MindMapStudioViewModel.FormatCycleSummary(
+                dagAudit.TotalNodes, dagAudit.TotalEdges, dagAudit.TotalSCCCount, dagAudit.CyclicComponentCount,
+                dagAudit.TotalNodesInCycles, dagAudit.LongestCycleNodeCount, dagAudit.AcyclicityScore,
+                dagAudit.TopologyCategory, dagAudit.IsSelectionScope);
+            Assert.Equal(dagAudit.Summary, formatted);
+        }
     }
 }
 

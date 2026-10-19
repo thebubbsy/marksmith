@@ -6468,6 +6468,205 @@ public static class TextSearch
 
         return $"Definition lists & glossary terms ({termsLabel} [{totalDefs} defs, {breakdown}] · {category} · {score:0.#}% score){alertSuffix}";
     }
+
+    /// <summary>
+    /// Audits markdown task list progress, subtask nesting hierarchy, completion velocity,
+    /// and parent-child checkbox state consistency (GFM task lists: - [ ], - [x], * [ ], 1. [ ]).
+    /// Strips code fences prior to evaluation to prevent false positives from code blocks.
+    /// </summary>
+    public static TaskListHierarchyAudit AuditTaskListHierarchyAndProgress(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new TaskListHierarchyAudit(
+                0, 0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<TaskListHierarchyItem>(),
+                "No Task Lists",
+                "Task list progress & hierarchy: 0 tasks (Empty document) · No GFM task lists detected");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        bool inFence = false;
+        var taskRegex = new System.Text.RegularExpressions.Regex(@"^(\s*)(?:[-*+]|\d+\.)\s+\[([ xX\-])\]\s*(.*)$");
+
+        var rawTasks = new List<(int LineNumber, int IndentSpaces, bool IsCompleted, string TaskText)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence) continue;
+
+            var match = taskRegex.Match(line);
+            if (match.Success)
+            {
+                int indentSpaces = match.Groups[1].Value.Length;
+                string checkChar = match.Groups[2].Value;
+                bool isCompleted = checkChar.Equals("x", StringComparison.OrdinalIgnoreCase);
+                string text = match.Groups[3].Value.Trim();
+                rawTasks.Add((i + 1, indentSpaces, isCompleted, text));
+            }
+        }
+
+        if (rawTasks.Count == 0)
+        {
+            return new TaskListHierarchyAudit(
+                0, 0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<TaskListHierarchyItem>(),
+                "No Task Lists",
+                "Task list progress & hierarchy: 0 tasks · Document contains no GFM task lists");
+        }
+
+        // Build hierarchical relationships using indentation levels
+        var stack = new Stack<(int indent, int taskIndex)>();
+        var subtaskCounts = new int[rawTasks.Count];
+        var completedSubtaskCounts = new int[rawTasks.Count];
+        var indentLevels = new int[rawTasks.Count];
+        var parentIndices = new int[rawTasks.Count];
+        for (int i = 0; i < parentIndices.Length; i++) parentIndices[i] = -1;
+
+        for (int i = 0; i < rawTasks.Count; i++)
+        {
+            int currentIndent = rawTasks[i].IndentSpaces;
+            while (stack.Count > 0 && stack.Peek().indent >= currentIndent)
+            {
+                stack.Pop();
+            }
+
+            if (stack.Count > 0)
+            {
+                int parentIdx = stack.Peek().taskIndex;
+                parentIndices[i] = parentIdx;
+                subtaskCounts[parentIdx]++;
+                if (rawTasks[i].IsCompleted)
+                {
+                    completedSubtaskCounts[parentIdx]++;
+                }
+                indentLevels[i] = stack.Count;
+            }
+            else
+            {
+                indentLevels[i] = 0;
+            }
+
+            stack.Push((currentIndent, i));
+        }
+
+        var items = new List<TaskListHierarchyItem>();
+        int inconsistentParentCount = 0;
+
+        for (int i = 0; i < rawTasks.Count; i++)
+        {
+            var task = rawTasks[i];
+            int subCount = subtaskCounts[i];
+            int compSubCount = completedSubtaskCounts[i];
+            bool hasInconsistency = false;
+            string status = "Aligned";
+
+            if (subCount > 0)
+            {
+                if (task.IsCompleted && compSubCount < subCount)
+                {
+                    hasInconsistency = true;
+                    inconsistentParentCount++;
+                    status = $"Inconsistent (Parent marked done, but {subCount - compSubCount} subtasks open)";
+                }
+                else if (!task.IsCompleted && compSubCount == subCount)
+                {
+                    hasInconsistency = true;
+                    inconsistentParentCount++;
+                    status = "Inconsistent (All subtasks completed, parent remains open)";
+                }
+                else if (task.IsCompleted)
+                {
+                    status = "Fully Completed Parent";
+                }
+                else
+                {
+                    status = $"In Progress Parent ({compSubCount}/{subCount} subtasks done)";
+                }
+            }
+            else
+            {
+                status = task.IsCompleted ? "Completed Task" : "Open Task";
+            }
+
+            items.Add(new TaskListHierarchyItem(
+                task.LineNumber,
+                task.TaskText,
+                indentLevels[i],
+                task.IsCompleted,
+                subCount,
+                compSubCount,
+                hasInconsistency,
+                status));
+        }
+
+        int totalTasks = rawTasks.Count;
+        int completedTasks = rawTasks.Count(t => t.IsCompleted);
+        int rootTasks = indentLevels.Count(l => l == 0);
+        int nestedSubtasks = totalTasks - rootTasks;
+        int maxNestingDepth = indentLevels.Max();
+
+        double completionPercentage = Math.Round((double)completedTasks / totalTasks * 100.0, 1);
+        double penalty = (inconsistentParentCount * 25.0) + (maxNestingDepth > 3 ? (maxNestingDepth - 3) * 10.0 : 0.0);
+        double hierarchyScore = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category;
+        if (inconsistentParentCount == 0 && completedTasks == totalTasks)
+            category = "All Tasks Completed (100% Monotonic Harmony)";
+        else if (inconsistentParentCount == 0)
+            category = "Coherent Task Hierarchy (In-Progress)";
+        else
+            category = $"Hierarchy Inconsistency ({inconsistentParentCount} Parent-Child Discrepanc{(inconsistentParentCount == 1 ? "y" : "ies")})";
+
+        string summary = FormatTaskListHierarchySummary(
+            totalTasks, completedTasks, rootTasks, nestedSubtasks, inconsistentParentCount,
+            completionPercentage, hierarchyScore, category);
+
+        return new TaskListHierarchyAudit(
+            totalTasks,
+            completedTasks,
+            rootTasks,
+            nestedSubtasks,
+            inconsistentParentCount,
+            maxNestingDepth,
+            completionPercentage,
+            hierarchyScore,
+            items,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown task list hierarchy and progress.
+    /// </summary>
+    public static string FormatTaskListHierarchySummary(string? markdownText)
+        => AuditTaskListHierarchyAndProgress(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of task list progress and hierarchy metrics.
+    /// </summary>
+    public static string FormatTaskListHierarchySummary(
+        int totalTasks, int completedTasks, int rootTasks, int nestedSubtasks, int inconsistentParents,
+        double completionPct, double hierarchyScore, string category)
+    {
+        if (totalTasks == 0)
+            return "Task list progress & hierarchy: 0 tasks · Document contains no GFM task lists";
+
+        string tasksLabel = totalTasks == 1 ? "1 task" : $"{totalTasks} tasks";
+        var alerts = new List<string>();
+        if (inconsistentParents > 0) alerts.Add($"⚠ {inconsistentParents} inconsistent parent-child states");
+        if (nestedSubtasks > 0) alerts.Add($"{nestedSubtasks} subtasks");
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · flat root checklist";
+
+        return $"Task list progress & hierarchy ({completedTasks}/{tasksLabel} [{completionPct:0.#}% done] · {category} · {hierarchyScore:0.#}% hierarchy score){alertSuffix}";
+    }
 }
 
 /// <summary>
@@ -7077,3 +7276,34 @@ public sealed record DefinitionListAndGlossaryAudit(
     IReadOnlyList<DefinitionListItem> Terms,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, indentation level, checkbox state, and hierarchy consistency for an individual markdown task list item.
+/// </summary>
+public sealed record TaskListHierarchyItem(
+    int LineNumber,
+    string TaskText,
+    int IndentLevel,
+    bool IsCompleted,
+    int SubtaskCount,
+    int CompletedSubtaskCount,
+    bool HasInconsistentHierarchy,
+    string HierarchyStatus);
+
+/// <summary>
+/// Represents the result of an audit of markdown task list progress, subtask nesting hierarchy,
+/// completion velocity, and parent-child checkbox state consistency.
+/// </summary>
+public sealed record TaskListHierarchyAudit(
+    int TotalTasks,
+    int CompletedTasks,
+    int RootTasks,
+    int NestedSubtasks,
+    int InconsistentParentCount,
+    int MaxNestingDepth,
+    double CompletionPercentage,
+    double HierarchyConsistencyScore,
+    IReadOnlyList<TaskListHierarchyItem> Tasks,
+    string Category,
+    string Summary);
+

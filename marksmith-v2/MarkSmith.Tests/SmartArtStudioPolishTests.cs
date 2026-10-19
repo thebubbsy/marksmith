@@ -1965,6 +1965,45 @@ public class SmartArtStudioPolishTests
             orderedAudit.MeanIntervalDays, orderedAudit.ChronologyMonotonicityScore, orderedAudit.Category);
         Assert.Equal(orderedAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run175_AuditCycleIntervalAndRadialChords_EvaluatesProcessStepsAndChordBalance()
+    {
+        var empty = SmartArtDesignStudioViewModel.AuditCycleIntervalAndRadialChords("");
+        Assert.Equal(0, empty.TotalSteps);
+        Assert.Equal(100.0, empty.RadialHarmonyScore);
+        Assert.Equal("Empty Cycle", empty.Category);
+
+        string harmonicCycle = string.Join("\n",
+            "- Concept Discovery & Requirements Gathering",
+            "- Rapid MVP Prototype Validation Sprint",
+            "- Production Hardening & CI Automation",
+            "- Telemetry Analysis & Iteration Blueprint"
+        );
+        var harmonicAudit = SmartArtDesignStudioViewModel.AuditCycleIntervalAndRadialChords(harmonicCycle);
+        Assert.Equal(4, harmonicAudit.TotalSteps);
+        Assert.Equal(90.0, harmonicAudit.AngularChordDegrees);
+        Assert.Equal(0, harmonicAudit.OvercrowdedStepsCount);
+        Assert.True(harmonicAudit.MeanWordsPerStep > 0.0);
+        Assert.True(harmonicAudit.RadialHarmonyScore >= 90.0);
+        Assert.Equal("Harmonic Radial Cycle (Optimal 3-7 Steps & Uniform Chords)", harmonicAudit.Category);
+
+        string degenerateCycle = string.Join("\n",
+            "- Step One Kickoff",
+            "- Step Two Completion"
+        );
+        var degenerateAudit = SmartArtDesignStudioViewModel.AuditCycleIntervalAndRadialChords(degenerateCycle);
+        Assert.Equal(2, degenerateAudit.TotalSteps);
+        Assert.Equal(180.0, degenerateAudit.AngularChordDegrees);
+        Assert.True(degenerateAudit.RadialHarmonyScore < 90.0);
+        Assert.Contains("Degenerate", degenerateAudit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatCycleIntervalSummary(
+            harmonicAudit.TotalSteps, harmonicAudit.AngularChordDegrees, harmonicAudit.MeanWordsPerStep,
+            harmonicAudit.WordCountStdDev, harmonicAudit.OvercrowdedStepsCount, harmonicAudit.RadialHarmonyScore,
+            harmonicAudit.Category);
+        Assert.Equal(harmonicAudit.Summary, formatted);
+    }
 }
 
 

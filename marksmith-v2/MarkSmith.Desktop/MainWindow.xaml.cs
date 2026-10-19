@@ -11725,6 +11725,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditDefinitionListsItem);
 
+        var auditTaskListHierarchyItem = new MenuFlyoutItem
+        {
+            Text = "Audit Task List Progress & Subtask Hierarchy",
+            Icon = new FontIcon { Glyph = "\uE823" }
+        };
+        auditTaskListHierarchyItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditTaskListHierarchyAndProgress(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditTaskListHierarchyItem);
+
         menu.ShowAt(anchor);
     }
 

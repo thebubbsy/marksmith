@@ -7858,6 +7858,199 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Shape collinearity audit ({scopeStr}{shapeLabel} [{groupCount} aligned groups] · {category} · {score:0.#}% score){alertSuffix}";
     }
 
+    /// <summary>
+    /// Audits diagram visual flow directionality, connector arrow vector monotonicity,
+    /// dominant visual reading axes (Left-to-Right, Top-to-Bottom), and retrograde backward flow hazards.
+    /// </summary>
+    public DiagramVisualFlowAudit AuditVisualFlowDirectionality(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = (targetShapes != null) || (selected.Count >= 2);
+
+        var audit = AuditVisualFlowDirectionality(targets, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramVisualFlowAudit AuditVisualFlowDirectionality(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes, bool isSelection = false)
+    {
+        var list = (shapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        if (list.Count == 0)
+        {
+            string emptySummary = $"Visual flow directionality audit ({scopeStr}0 shapes): Canvas is empty";
+            return new DiagramVisualFlowAudit(
+                0, 0, 0, 0, 0, 0, "None", 100.0,
+                Array.Empty<ConnectorVectorFlowItem>(),
+                "Empty Canvas", isSelection, emptySummary);
+        }
+
+        var connectors = list.Where(i => i.IsLine).ToList();
+        if (connectors.Count == 0)
+        {
+            string noConnSummary = $"Visual flow directionality audit ({scopeStr}{list.Count} shapes): 0 connectors present (Static shape canvas)";
+            return new DiagramVisualFlowAudit(
+                list.Count, 0, 0, 0, 0, 0, "No Connectors", 100.0,
+                Array.Empty<ConnectorVectorFlowItem>(),
+                "No Connectors Present", isSelection, noConnSummary);
+        }
+
+        var vectorItems = new List<ConnectorVectorFlowItem>();
+        int ltrCount = 0;
+        int ttbCount = 0;
+        int rtlCount = 0;
+        int bttCount = 0;
+
+        foreach (var conn in connectors)
+        {
+            var pts = new List<(double X, double Y)>();
+            if (conn.PathPoints != null && conn.PathPoints.Count >= 2)
+            {
+                foreach (var p in conn.PathPoints)
+                {
+                    double ax = conn.X + (p.X * conn.Width / 100.0);
+                    double ay = conn.Y + (p.Y * conn.Height / 100.0);
+                    pts.Add((ax, ay));
+                }
+            }
+            else
+            {
+                pts.Add((conn.X, conn.Y));
+                pts.Add((conn.X + conn.Width, conn.Y + conn.Height));
+            }
+
+            var startPt = pts[0];
+            var endPt = pts[^1];
+
+            double dx = endPt.X - startPt.X;
+            double dy = endPt.Y - startPt.Y;
+            double len = Math.Sqrt(dx * dx + dy * dy);
+
+            double angleDeg = 0.0;
+            if (len >= 0.1)
+            {
+                double rad = Math.Atan2(dy, dx);
+                angleDeg = rad * (180.0 / Math.PI);
+                if (angleDeg < 0) angleDeg += 360.0;
+            }
+
+            string dirCategory;
+            bool isMonotonic;
+            bool isRetrograde;
+
+            // Classify reading direction based on standard LTR / TTB layout conventions
+            if (angleDeg <= 45.0 || angleDeg >= 315.0)
+            {
+                dirCategory = "Left-to-Right (Horizontal LTR)";
+                isMonotonic = true;
+                isRetrograde = false;
+                ltrCount++;
+            }
+            else if (angleDeg > 45.0 && angleDeg < 135.0)
+            {
+                dirCategory = "Top-to-Bottom (Vertical TTB)";
+                isMonotonic = true;
+                isRetrograde = false;
+                ttbCount++;
+            }
+            else if (angleDeg >= 135.0 && angleDeg <= 225.0)
+            {
+                dirCategory = "Right-to-Left (Retrograde RTL)";
+                isMonotonic = false;
+                isRetrograde = true;
+                rtlCount++;
+            }
+            else
+            {
+                dirCategory = "Bottom-to-Top (Upward BTT)";
+                isMonotonic = false;
+                isRetrograde = true;
+                bttCount++;
+            }
+
+            vectorItems.Add(new ConnectorVectorFlowItem(
+                conn.Id,
+                conn.Name ?? "Connector",
+                startPt.X,
+                startPt.Y,
+                endPt.X,
+                endPt.Y,
+                dx,
+                dy,
+                Math.Round(len, 1),
+                Math.Round(angleDeg, 1),
+                dirCategory,
+                isMonotonic,
+                isRetrograde));
+        }
+
+        int totalConn = connectors.Count;
+        int monotonicCount = ltrCount + ttbCount;
+        int retrogradeCount = rtlCount + bttCount;
+
+        string dominantAxis;
+        if (ltrCount >= ttbCount * 2 && ltrCount > 0)
+            dominantAxis = "Left-to-Right Dominant (Horizontal Flow)";
+        else if (ttbCount >= ltrCount * 2 && ttbCount > 0)
+            dominantAxis = "Top-to-Bottom Dominant (Vertical Flow)";
+        else if (monotonicCount > 0)
+            dominantAxis = "Orthogonal Balanced Reading Flow";
+        else
+            dominantAxis = "Reverse / Retrograde Flow";
+
+        double penalty = (retrogradeCount * 30.0) / totalConn * 100.0;
+        double flowScore = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category;
+        if (retrogradeCount == 0 && (ltrCount > 0 || ttbCount > 0))
+            category = "Strict Monotonic Reading Flow";
+        else if (retrogradeCount == 0)
+            category = "Pure Forward Directionality";
+        else if (flowScore >= 70.0)
+            category = "Coherent Reading Flow (Controlled Feedback Arrows)";
+        else
+            category = $"High Visual Friction ({retrogradeCount} Retrograde Arrow Vectors Detected)";
+
+        string summary = FormatVisualFlowSummary(
+            list.Count, totalConn, ltrCount, ttbCount, rtlCount, bttCount,
+            dominantAxis, flowScore, category, isSelection);
+
+        return new DiagramVisualFlowAudit(
+            list.Count,
+            totalConn,
+            ltrCount,
+            ttbCount,
+            rtlCount,
+            bttCount,
+            dominantAxis,
+            flowScore,
+            vectorItems,
+            category,
+            isSelection,
+            summary);
+    }
+
+    public static string FormatVisualFlowSummary(
+        int totalShapes, int totalConnectors, int ltr, int ttb, int rtl, int btt,
+        string dominantAxis, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        if (totalConnectors == 0) return $"Visual flow directionality audit ({scopeStr}{shapeLabel}): 0 connectors present";
+
+        string connLabel = totalConnectors == 1 ? "1 connector" : $"{totalConnectors} connectors";
+        var alerts = new List<string>();
+        if (rtl > 0) alerts.Add($"⚠ {rtl} retrograde RTL");
+        if (btt > 0) alerts.Add($"⚠ {btt} upward BTT");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% forward flow";
+
+        return $"Visual flow directionality audit ({scopeStr}{connLabel} [{dominantAxis}] · {category} · {score:0.#}% score): " +
+               $"{ltr} LTR, {ttb} TTB{alertSuffix}";
+    }
 }
 
 /// <summary>
@@ -8512,3 +8705,40 @@ public sealed record DiagramCollinearityAndSpacingAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated vector direction, angle, length, and reading monotonicity for an individual connector line.
+/// </summary>
+public sealed record ConnectorVectorFlowItem(
+    string ConnectorId,
+    string ConnectorName,
+    double StartX,
+    double StartY,
+    double EndX,
+    double EndY,
+    double DeltaX,
+    double DeltaY,
+    double Length,
+    double AngleDegrees,
+    string DirectionCategory,
+    bool IsMonotonicFlow,
+    bool IsRetrograde);
+
+/// <summary>
+/// Represents the result of an audit of diagram visual flow directionality, connector arrow vector monotonicity,
+/// dominant visual reading axes, and retrograde backward flow hazards.
+/// </summary>
+public sealed record DiagramVisualFlowAudit(
+    int TotalShapesEvaluated,
+    int TotalConnectors,
+    int LeftToRightCount,
+    int TopToBottomCount,
+    int RightToLeftRetrogradeCount,
+    int BottomToTopUpwardCount,
+    string DominantFlowAxis,
+    double FlowMonotonicityScore,
+    IReadOnlyList<ConnectorVectorFlowItem> Connectors,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+

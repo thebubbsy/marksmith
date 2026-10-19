@@ -733,6 +733,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditShapeCollinearityItem" Text="Audit shape alignment collinearity &amp; distribution spacing" Click="OnSelectionAuditShapeCollinearityClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditVisualFlowDirectionalityItem" Text="Audit diagram visual flow directionality &amp; arrow vector hierarchy" Click="OnSelectionAuditVisualFlowDirectionalityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

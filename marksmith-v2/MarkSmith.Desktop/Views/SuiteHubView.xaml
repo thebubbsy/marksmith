@@ -330,6 +330,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceDocumentGraphAdvisorItem" Text="Copy workspace document linking graph, hubs &amp; orphan advisor" Click="OnCopyWorkspaceDocumentGraphAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71B;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyWorkspaceMediaAssetAdvisorItem" Text="Copy workspace media asset integrity &amp; broken image advisor" Click="OnCopyWorkspaceMediaAssetAdvisorClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

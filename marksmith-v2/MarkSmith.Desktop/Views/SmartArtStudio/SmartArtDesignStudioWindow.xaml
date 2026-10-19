@@ -362,6 +362,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditTimelineChronologyItem" Text="Audit timeline milestone chronology, monotonicity &amp; interval spacing" Click="OnOutlineStatsAuditTimelineChronologyClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditCycleIntervalItem" Text="Audit cycle process interval uniformity &amp; radial chord balance" Click="OnOutlineStatsAuditCycleIntervalClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -2131,6 +2131,71 @@ public class ShapeStudioPolishTests
             alignedAudit.CollinearityAndSpacingScore, alignedAudit.Category, alignedAudit.IsSelectionScope);
         Assert.Equal(alignedAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run175_AuditVisualFlowDirectionality_CalculatesConnectorVectorsAndMonotonicity()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        var empty = vm.AuditVisualFlowDirectionality();
+        Assert.Equal(0, empty.TotalShapesEvaluated);
+        Assert.Equal(0, empty.TotalConnectors);
+        Assert.Equal(100.0, empty.FlowMonotonicityScore);
+        Assert.Equal("Empty Canvas", empty.Category);
+
+        // 2 boxes and 0 connectors
+        var b1 = new ShapeCanvasItemViewModel { Id = "b1", Name = "Box 1", X = 100, Y = 100, Width = 80, Height = 50, Prst = "rect" };
+        var b2 = new ShapeCanvasItemViewModel { Id = "b2", Name = "Box 2", X = 300, Y = 100, Width = 80, Height = 50, Prst = "rect" };
+        vm.Shapes.Add(b1);
+        vm.Shapes.Add(b2);
+
+        var noConnAudit = vm.AuditVisualFlowDirectionality();
+        Assert.Equal(2, noConnAudit.TotalShapesEvaluated);
+        Assert.Equal(0, noConnAudit.TotalConnectors);
+        Assert.Equal(100.0, noConnAudit.FlowMonotonicityScore);
+        Assert.Equal("No Connectors Present", noConnAudit.Category);
+
+        // Add 1 LTR connector (100, 100) -> (300, 100) (dx=200, dy=0)
+        var c1 = new ShapeCanvasItemViewModel { Id = "c1", Name = "Conn 1", X = 100, Y = 100, Width = 200, Height = 0, Prst = "line" };
+        vm.Shapes.Add(c1);
+
+        var ltrAudit = vm.AuditVisualFlowDirectionality();
+        Assert.Equal(3, ltrAudit.TotalShapesEvaluated);
+        Assert.Equal(1, ltrAudit.TotalConnectors);
+        Assert.Equal(1, ltrAudit.LeftToRightCount);
+        Assert.Equal(0, ltrAudit.RightToLeftRetrogradeCount);
+        Assert.Equal(100.0, ltrAudit.FlowMonotonicityScore);
+        Assert.Equal("Strict Monotonic Reading Flow", ltrAudit.Category);
+
+        // Add 1 retrograde connector: (300, 100) back to (100, 100) via PathPoints
+        var c2 = new ShapeCanvasItemViewModel
+        {
+            Id = "c2",
+            Name = "Retrograde Conn",
+            X = 0,
+            Y = 0,
+            Width = 100,
+            Height = 100,
+            Prst = "line",
+            PathPoints = new List<(double X, double Y)>
+            {
+                (300, 100),
+                (100, 100)
+            }
+        };
+        vm.Shapes.Add(c2);
+
+        var retroAudit = vm.AuditVisualFlowDirectionality();
+        Assert.Equal(4, retroAudit.TotalShapesEvaluated);
+        Assert.Equal(2, retroAudit.TotalConnectors);
+        Assert.Equal(1, retroAudit.RightToLeftRetrogradeCount);
+        Assert.True(retroAudit.FlowMonotonicityScore < 100.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatVisualFlowSummary(
+            ltrAudit.TotalShapesEvaluated, ltrAudit.TotalConnectors, ltrAudit.LeftToRightCount,
+            ltrAudit.TopToBottomCount, ltrAudit.RightToLeftRetrogradeCount, ltrAudit.BottomToTopUpwardCount,
+            ltrAudit.DominantFlowAxis, ltrAudit.FlowMonotonicityScore, ltrAudit.Category, ltrAudit.IsSelectionScope);
+        Assert.Equal(ltrAudit.Summary, formatted);
+    }
 }
 
 

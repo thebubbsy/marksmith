@@ -3510,6 +3510,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditBlockRelocation);
+
+                var auditEntropy = new MenuFlyoutItem
+                {
+                    Text = "Audit formatting whitespace vs syntactic token change entropy",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditEntropy.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditFormattingVsSyntacticChangeEntropy(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditEntropy);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

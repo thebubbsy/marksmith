@@ -11834,23 +11834,45 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #175 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+## Scheduled WinUI 3 Desktop Polish Routine — Run #175 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Task List Progress, Subtask Nesting Hierarchy & Checkbox State Consistency Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditTaskListHierarchyAndProgress(markdownText)`, `FormatTaskListHierarchySummary(...)` (audit and string overloads), records `TaskListHierarchyItem`, `TaskListHierarchyAudit`. Audits GFM task lists (`- [ ]`, `- [x]`), parent-child completion consistency (detects open parents with done children or completed parents with open children), indentation nesting depth, and completion velocity score ($0-100\%$); wired to `auditTaskListHierarchyItem` ("Audit Task List Progress & Subtask Hierarchy", glyph `\uE823`) in `ShowLinksContextMenu` with clipboard copy and toast announcement.
+    2. **MindMapGalaxyWindow Graph Cycle Detection, Feedback Loop Topology & Strongly Connected Components (Tarjan SCC) Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditGraphCyclesAndFeedbackLoops()`, static overload, `FormatCycleSummary(...)`, records `GraphCycleComponentInfo`, `GraphCycleAndFeedbackAudit`. Implements Tarjan's Strongly Connected Components algorithm to identify nontrivial SCC feedback loops and circular dependency clusters, scoring semantic acyclicity ($0-100\%$); wired to `AuditGraphCyclesFeedbackItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Diagram Visual Flow Directionality, Arrow Vector Monotonicity & Reading Hierarchy Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditVisualFlowDirectionality(shapes)`, static overload, `FormatVisualFlowSummary(...)`, records `ConnectorVectorFlowItem`, `DiagramVisualFlowAudit`. Evaluates directional connector vectors ($dx, dy$) across 4 quadrant axes (Left-to-Right, Top-to-Bottom, Right-to-Left retrograde, Bottom-to-Top upward), detects counter-flow reading direction hazards, and scores overall diagram reading flow monotonicity ($0-100\%$); wired to `SelectionAuditVisualFlowDirectionalityItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Segmented Process Cycle Interval Uniformity & Radial Chord Balance Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditCycleIntervalAndRadialChords(markdown, layoutName)`, static overload, `FormatCycleIntervalSummary(...)`, records `CycleSegmentItem`, `SmartArtCycleIntervalAudit`. Audits cyclic process step counts ($3-7$ optimal), calculates angular separation intervals ($\Delta \theta$), standard deviation ($\sigma_\theta$), and radial chord length balance ($0-100\%$); wired to `OutlineStatsAuditCycleIntervalItem` (`\uE8B9`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Diff Formatting Whitespace vs Syntactic Token Change Entropy Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditFormattingVsSyntacticChangeEntropy(unifiedRows)`, static string overload, `FormatFormattingVsSyntacticEntropySummary(...)`, record `FormattingVsSyntacticEntropyAudit`. Separates pure formatting/whitespace modifications (indentation adjustments, trailing whitespace trimming, blank line insertion) from substantive syntactic code modifications, computing change entropy and syntactic ratio ($0-100\%$); wired to `auditEntropy` (`\uE8B9`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace Broken Media Asset Relative Path Resolution & Missing Image Resource Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceMediaAssetIntegrity(files, fileExistsProvider, contentReader)`, `FormatWorkspaceMediaAssetSummary(...)`, records `WorkspaceMediaItem`, `WorkspaceMediaAssetAudit`. Resolves markdown image embeds (`![alt](path)`) and HTML `<img>` tags across workspace documents against physical disk paths (ignoring web/HTTP remote URLs and code fences), detecting broken image hazards and missing assets; wired to `CopyWorkspaceMediaAssetAdvisorItem` (`\uEB9F`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified all `7/7` targeted Run #175 tests passing (`100%` pass rate).
+    - Verified clean live launch of `Marksmith.exe` (stayed alive and closed cleanly with zero startup crashes).
+
+---
+
+### Run #176 Blueprint — Carried-Forward Refinements & Next Cycle Targets
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **Feature**: Markdown Task List Progress, Subtask Nesting Hierarchy & Checkbox State Consistency Auditor.
-   - **Deliverable**: Add `TextSearch.AuditTaskListHierarchyAndProgress(markdownText)` and `FormatTaskListHierarchySummary(...)`, auditing GFM task items (`- [ ]`, `- [x]`), parent-child completion consistency, indentation levels, and calculating completion velocity score. Wire to `ShowLinksContextMenu`.
+   - **Feature**: Markdown Table Column Alignment & Header Delimiter Syntax Auditor.
+   - **Deliverable**: Add `TextSearch.AuditTableColumnAlignmentSyntax(markdownText)` and `FormatTableColumnAlignmentSummary(...)`, validating GFM table header delimiter syntax (`|:---|:---:|---:|`), detecting missing pipes, mismatched column alignment specifiers, and scoring column formatting consistency. Wire to `ShowLinksContextMenu`.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **Feature**: Graph Cycle Detection, Feedback Loop Topology & Strongly Connected Components (Tarjan SCC) Auditor.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphCyclesAndFeedbackLoops()` and `FormatCycleSummary(...)`, detecting directed cycles, feedback loops, and identifying strongly connected components to evaluate semantic acyclicity in knowledge graphs. Wire to `ArrangeDropDownButton.Flyout`.
+   - **Feature**: Graph Diameter, Average Path Length & Small-World Phenomenon Index Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphDiameterAndSmallWorld()` and `FormatSmallWorldSummary(...)`, computing shortest paths between all pairs of nodes (BFS/Dijkstra), graph diameter, and characteristic path length to evaluate small-world navigation efficiency. Wire to `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **Feature**: Diagram Visual Flow Directionality, Arrow Vector Monotonicity & Reading Hierarchy Auditor.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditVisualFlowDirectionality(shapes)` and `FormatVisualFlowSummary(...)`, analyzing connector arrow vectors to evaluate dominant directional flow (Left-to-Right, Top-to-Bottom), detecting counter-flow backwards arrows, and assessing visual reading hierarchy. Wire to `SelectionBoundsBorder.ContextFlyout`.
+   - **Feature**: Shape Aspect Ratio Consistency & Golden Ratio ($\phi \approx 1.618$) Adherence Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeAspectRatioAndGoldenRatio(shapes)` and `FormatAspectRatioSummary(...)`, evaluating width-to-height aspect ratios against standard design proportions (1:1 square, 4:3, 16:9, and $\phi \approx 1.61803$ golden ratio) and scoring layout aesthetic harmony. Wire to `SelectionBoundsBorder.ContextFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **Feature**: SmartArt Segmented Process Cycle Interval Uniformity & Radial Chord Balance Auditor.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditCycleIntervalAndRadialChords(markdown)` and `FormatCycleIntervalSummary(...)`, auditing cyclic process step count (3-7 optimal), angular chord uniformity, and circular flow pacing. Wire to `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #174 Block 3 Idea 5]**:
-   - **Refinement Target**: Semantic Diff Formatting Whitespace vs Syntactic Token Change Entropy Auditor.
-   - **Deliverable**: Add `LineDiff.AuditFormattingVsSyntacticChangeEntropy(unifiedRows)` to separate cosmetic indentation/trailing whitespace churn from true semantic token alterations across diff hunks. Wire to `TimelineHeaderBorder` context flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #174 Block 3 Idea 6]**:
-   - **Refinement Target**: Workspace Broken Media Asset Relative Path Resolution & Missing Image Resource Advisor.
-   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceMediaAssetIntegrity(files)` to verify disk existence for all image/media embeds across workspace markdown documents. Wire to `RecentDocsFlyout`.
+   - **Feature**: SmartArt Matrix / Quadrant 2x2 Grid Balance & Diagonal Symmetry Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditQuadrantGridBalance(markdown)` and `FormatQuadrantBalanceSummary(...)`, checking 4-cell quadrant balance, diagonal text volume symmetry, and quadrant header distribution. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #175 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Line Addition/Deletion Balance & Code Churn Volatility Index.
+   - **Deliverable**: Add `LineDiff.AuditCodeChurnVolatilityIndex(unifiedRows)` to analyze addition-to-deletion asymmetry, hunk distribution volatility, and classify refactors vs net-new expansions. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #175 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Media Alt-Text Quality, Accessibility & Empty Caption Advisor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceMediaAccessibility(files)` to evaluate accessibility compliance for embedded workspace media, detecting empty `![]()` or generic alt captions (`image.png`, `diagram`) and scoring WCAG alt-text quality. Wire to `RecentDocsFlyout`.
+
 

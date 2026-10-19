@@ -7998,6 +7998,207 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Graph community modularity ({scope}{nodeStr}, {edgeStr} across {communityCount} clusters · Q={qSign}{Q:0.###} [{category}] · {score:0.#}% score): " +
                    $"{intraEdges} intra-cluster edges, {bridgeEdges} bridge edges";
         }
+
+        /// <summary>
+        /// Audits directed cycles, feedback loop topology, and strongly connected components (Tarjan SCC)
+        /// to evaluate semantic acyclicity and directed loop hazards in the knowledge graph.
+        /// </summary>
+        public GraphCycleAndFeedbackAudit AuditGraphCyclesAndFeedbackLoops(bool selectionOnly = false)
+        {
+            var targetNodes = (selectionOnly && HasSelection)
+                ? Nodes.Where(n => n.IsSelected).ToList()
+                : Nodes.ToList();
+
+            if (targetNodes.Count == 0)
+            {
+                string emptyScope = selectionOnly ? "Selection · " : "";
+                string emptySummary = $"Graph cycle & feedback loop audit ({emptyScope}0 nodes): Empty map";
+                return new GraphCycleAndFeedbackAudit(
+                    0, 0, 0, 0, 0, 0, true, 100.0,
+                    Array.Empty<GraphCycleComponentInfo>(),
+                    "Empty Galaxy",
+                    selectionOnly,
+                    emptySummary);
+            }
+
+            var nodeMap = targetNodes.ToDictionary(n => n.Id, n => n);
+            var targetLinks = Links.Where(l => nodeMap.ContainsKey(l.SourceNodeId) && nodeMap.ContainsKey(l.TargetNodeId)).ToList();
+
+            var adj = new Dictionary<string, List<string>>();
+            var selfLoops = new HashSet<string>();
+            foreach (var n in targetNodes)
+            {
+                adj[n.Id] = new List<string>();
+            }
+
+            foreach (var l in targetLinks)
+            {
+                if (l.SourceNodeId == l.TargetNodeId)
+                {
+                    selfLoops.Add(l.SourceNodeId);
+                }
+                else if (adj.ContainsKey(l.SourceNodeId))
+                {
+                    adj[l.SourceNodeId].Add(l.TargetNodeId);
+                }
+            }
+
+            // Tarjan SCC Algorithm
+            int index = 0;
+            var indices = new Dictionary<string, int>();
+            var lowlinks = new Dictionary<string, int>();
+            var stack = new Stack<string>();
+            var onStack = new HashSet<string>();
+            var sccs = new List<List<string>>();
+
+            void StrongConnect(string v)
+            {
+                indices[v] = index;
+                lowlinks[v] = index;
+                index++;
+                stack.Push(v);
+                onStack.Add(v);
+
+                if (adj.TryGetValue(v, out var neighbors))
+                {
+                    foreach (var w in neighbors)
+                    {
+                        if (!indices.ContainsKey(w))
+                        {
+                            StrongConnect(w);
+                            lowlinks[v] = Math.Min(lowlinks[v], lowlinks[w]);
+                        }
+                        else if (onStack.Contains(w))
+                        {
+                            lowlinks[v] = Math.Min(lowlinks[v], indices[w]);
+                        }
+                    }
+                }
+
+                if (lowlinks[v] == indices[v])
+                {
+                    var scc = new List<string>();
+                    string w;
+                    do
+                    {
+                        w = stack.Pop();
+                        onStack.Remove(w);
+                        scc.Add(w);
+                    } while (w != v);
+                    sccs.Add(scc);
+                }
+            }
+
+            foreach (var n in targetNodes)
+            {
+                if (!indices.ContainsKey(n.Id))
+                {
+                    StrongConnect(n.Id);
+                }
+            }
+
+            var cyclicComponents = new List<GraphCycleComponentInfo>();
+            int nodesInCycles = 0;
+            int longestCycle = 0;
+            int cycleIdCounter = 1;
+
+            foreach (var scc in sccs)
+            {
+                bool isSelfLoop = scc.Count == 1 && selfLoops.Contains(scc[0]);
+                bool isCycle = scc.Count > 1 || isSelfLoop;
+
+                if (isCycle)
+                {
+                    nodesInCycles += scc.Count;
+                    if (scc.Count > longestCycle) longestCycle = scc.Count;
+
+                    var titles = scc.Select(id => nodeMap.TryGetValue(id, out var node) ? node.Title : id).ToList();
+                    string desc = isSelfLoop
+                        ? $"Self-loop feedback on node '{titles[0]}'"
+                        : $"{scc.Count}-node directed cycle: {string.Join(" ➔ ", titles)} ➔ {titles[0]}";
+
+                    cyclicComponents.Add(new GraphCycleComponentInfo(
+                        $"SCC-{cycleIdCounter++}",
+                        scc.Count,
+                        isSelfLoop,
+                        scc,
+                        titles,
+                        desc));
+                }
+            }
+
+            int totalNodes = targetNodes.Count;
+            int totalEdges = targetLinks.Count;
+            int totalSccs = sccs.Count;
+            int cyclicCount = cyclicComponents.Count;
+            bool isPureDag = cyclicCount == 0;
+
+            double penalty = isPureDag ? 0.0 : ((double)nodesInCycles / totalNodes * 70.0) + (cyclicCount * 10.0);
+            double acyclicScore = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+            string category;
+            if (isPureDag)
+                category = "Pure Directed Acyclic Graph (DAG)";
+            else if (cyclicCount == 1 && longestCycle <= 3)
+                category = "Controlled Feedback Loop (1 Small Cycle)";
+            else
+                category = $"Cyclic Graph Topology ({cyclicCount} Feedback Loops Detected)";
+
+            string summary = FormatCycleSummary(
+                totalNodes, totalEdges, totalSccs, cyclicCount, nodesInCycles, longestCycle,
+                acyclicScore, category, selectionOnly);
+
+            return new GraphCycleAndFeedbackAudit(
+                totalNodes,
+                totalEdges,
+                totalSccs,
+                cyclicCount,
+                nodesInCycles,
+                longestCycle,
+                isPureDag,
+                acyclicScore,
+                cyclicComponents,
+                category,
+                selectionOnly,
+                summary);
+        }
+
+        public static GraphCycleAndFeedbackAudit AuditGraphCyclesAndFeedbackLoops(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditGraphCyclesAndFeedbackLoops();
+        }
+
+        public static string FormatCycleSummary(
+            int totalNodes, int totalEdges, int totalSccs, int cyclicCount, int nodesInCycles, int longestCycle,
+            double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph cycle & feedback loop audit ({scope}0 nodes): Empty map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string edgeStr = totalEdges == 1 ? "1 edge" : $"{totalEdges} edges";
+
+            if (cyclicCount == 0)
+            {
+                return $"Graph cycle & feedback loop audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% acyclic score): 0 directed cycles (Pure DAG across {totalSccs} components)";
+            }
+
+            string cycleLabel = cyclicCount == 1 ? "1 cycle" : $"{cyclicCount} cycles";
+            return $"Graph cycle & feedback loop audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% acyclic score): " +
+                   $"{cycleLabel} involving {nodesInCycles} node(s) (longest: {longestCycle} nodes)";
+        }
     }
 
 
@@ -8637,6 +8838,35 @@ namespace MarkSmith.ViewModels.MindMap
         string ModularityCategory,
         bool IsSelectionScope,
         string Summary);
+
+    /// <summary>
+    /// Represents evaluated metrics and cycle participation for a strongly connected component in the graph.
+    /// </summary>
+    public sealed record GraphCycleComponentInfo(
+        string ComponentId,
+        int NodeCount,
+        bool IsSelfLoop,
+        IReadOnlyList<string> NodeIds,
+        IReadOnlyList<string> NodeTitles,
+        string CycleDescription);
+
+    /// <summary>
+    /// Represents the result of an audit of directed graph cycles, feedback loops, and strongly connected components (Tarjan SCC).
+    /// </summary>
+    public sealed record GraphCycleAndFeedbackAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int TotalSCCCount,
+        int CyclicComponentCount,
+        int TotalNodesInCycles,
+        int LongestCycleNodeCount,
+        bool IsPureDAG,
+        double AcyclicityScore,
+        IReadOnlyList<GraphCycleComponentInfo> CyclicComponents,
+        string TopologyCategory,
+        bool IsSelectionScope,
+        string Summary);
 }
+
 
 

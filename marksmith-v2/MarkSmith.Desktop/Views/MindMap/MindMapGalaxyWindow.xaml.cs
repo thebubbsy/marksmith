@@ -4128,6 +4128,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditGraphCyclesFeedbackClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphCyclesAndFeedbackLoops();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5151,6 +5159,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditCommunityModularityItem.Click += OnAuditCommunityModularityClick;
             menu.Items.Add(auditCommunityModularityItem);
+
+            var auditGraphCyclesItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph directed cycles & feedback loops (Tarjan SCC)",
+                Icon = new FontIcon { Glyph = "\uE8B9" }
+            };
+            auditGraphCyclesItem.Click += OnAuditGraphCyclesFeedbackClick;
+            menu.Items.Add(auditGraphCyclesItem);
 
             var fitItem = new MenuFlyoutItem
 

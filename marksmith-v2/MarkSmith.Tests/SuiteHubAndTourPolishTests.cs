@@ -3814,6 +3814,100 @@ Some paragraph in between.
         Assert.Contains("OnCopyWorkspaceDocumentGraphAdvisorClick", suiteCs);
         Assert.Contains("AuditWorkspaceDocumentGraphAndOrphans", suiteCs);
     }
+
+    [Fact]
+    public void Run175_AuditWorkspaceMediaAssetIntegrity_DetectsBrokenImages()
+    {
+        var empty = RecentFilesService.AuditWorkspaceMediaAssetIntegrity(Array.Empty<string>());
+        Assert.Equal(0, empty.TotalDocumentsEvaluated);
+        Assert.Equal(0, empty.TotalMediaReferences);
+        Assert.Equal(100.0, empty.MediaIntegrityScore);
+        Assert.Equal("Empty Workspace", empty.Category);
+
+        var files = new[]
+        {
+            @"C:\Docs\readme.md",
+            @"C:\Docs\guide.md"
+        };
+
+        var contents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { @"C:\Docs\readme.md", "# Readme\n\n![Logo](assets/logo.png)\n<img src=\"https://example.com/banner.jpg\" />" },
+            { @"C:\Docs\guide.md", "# Guide\n\n![Diagram](missing.svg)\n![External](http://example.com/ext.png)" }
+        };
+
+        var existingFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            @"C:\Docs\readme.md",
+            @"C:\Docs\guide.md",
+            Path.GetFullPath(@"C:\Docs\assets\logo.png")
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceMediaAssetIntegrity(
+            files,
+            fileExistsProvider: path => existingFiles.Contains(path),
+            contentReader: path => contents.TryGetValue(path, out var text) ? text : string.Empty);
+
+        Assert.Equal(2, audit.TotalDocumentsEvaluated);
+        Assert.Equal(4, audit.TotalMediaReferences);
+        Assert.Equal(2, audit.WebRemoteAssets);
+        Assert.Equal(2, audit.LocalAssetsChecked);
+        Assert.Equal(1, audit.ValidLocalAssets);
+        Assert.Equal(1, audit.MissingLocalAssets);
+        Assert.Equal(50.0, audit.MediaIntegrityScore);
+
+        var missingItem = audit.MediaItems.First(a => !a.Exists);
+        Assert.Equal("missing.svg", missingItem.RawSource);
+        Assert.Equal("guide.md", missingItem.DocumentName);
+
+        string formatted = RecentFilesService.FormatWorkspaceMediaAssetSummary(
+            audit.TotalDocumentsEvaluated, audit.TotalMediaReferences, audit.LocalAssetsChecked,
+            audit.ValidLocalAssets, audit.MissingLocalAssets, audit.WebRemoteAssets,
+            audit.MediaIntegrityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run175_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Task list hierarchy & progress auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditTaskListHierarchyItem", mainCs);
+        Assert.Contains("AuditTaskListHierarchyAndProgress", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph cycle & feedback loop topology auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphCyclesFeedbackItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphCyclesFeedbackClick", galaxyCs);
+        Assert.Contains("AuditGraphCyclesAndFeedbackLoops", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram visual flow directionality & monotonicity auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditVisualFlowDirectionalityItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditVisualFlowDirectionalityClick", shapeCs);
+        Assert.Contains("AuditVisualFlowDirectionality", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - Segmented process cycle interval uniformity auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditCycleIntervalItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditCycleIntervalClick", smartArtCs);
+        Assert.Contains("AuditCycleIntervalAndRadialChords", smartArtCs);
+
+        // Surface 5: HistoryWindow - Formatting whitespace vs syntactic token change entropy auditor
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditEntropy", historyCs);
+        Assert.Contains("AuditFormattingVsSyntacticChangeEntropy", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace media asset relative path resolution & missing image advisor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceMediaAssetAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceMediaAssetAdvisorClick", suiteCs);
+        Assert.Contains("AuditWorkspaceMediaAssetIntegrity", suiteCs);
+    }
 }
 
 

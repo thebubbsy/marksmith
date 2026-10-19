@@ -5748,6 +5748,154 @@ public static class LineDiff
         return $"Semantic block relocation audit ({totalRows} diff rows [{blockLabel}, {relocatedLines} lines moved] · {category} · {score:0.#}% score): Net genuine churn {netGenuine} lines";
     }
 
+    /// <summary>
+    /// Audits version diff unified rows to partition changes into cosmetic whitespace/formatting churn
+    /// versus genuine syntactic token alterations, calculating syntactic entropy ratio and signal-to-noise score.
+    /// </summary>
+    public static FormattingVsSyntacticEntropyAudit AuditFormattingVsSyntacticChangeEntropy(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new FormattingVsSyntacticEntropyAudit(
+                0, 0, 0, 0, 0, 0, 0.0, 100.0,
+                "Zero Diffs (Unchanged)",
+                "Formatting vs syntactic change entropy audit: 0 diff rows · Document unchanged");
+        }
+
+        var changedRows = unifiedRows.Where(r => r.Kind is Kind.Added or Kind.Removed).ToList();
+        if (changedRows.Count == 0)
+        {
+            return new FormattingVsSyntacticEntropyAudit(
+                unifiedRows.Count, 0, 0, 0, 0, 0, 0.0, 100.0,
+                "Zero Diffs (Unchanged)",
+                $"Formatting vs syntactic change entropy audit: {unifiedRows.Count} diff rows · All rows identical (100% signal)");
+        }
+
+        int addedCount = unifiedRows.Count(r => r.Kind == Kind.Added);
+        int removedCount = unifiedRows.Count(r => r.Kind == Kind.Removed);
+        int totalChurn = addedCount + removedCount;
+
+        int pureWhitespaceLines = 0;
+        int syntacticLines = 0;
+
+        // Group adjacent hunks of Added/Removed rows to evaluate token equivalence
+        var addedHunk = new List<string>();
+        var removedHunk = new List<string>();
+
+        void FlushHunk()
+        {
+            if (addedHunk.Count == 0 && removedHunk.Count == 0) return;
+
+            // Pairwise token comparison
+            int minLen = Math.Min(addedHunk.Count, removedHunk.Count);
+            for (int i = 0; i < minLen; i++)
+            {
+                string remNorm = System.Text.RegularExpressions.Regex.Replace(removedHunk[i], @"\s+", "");
+                string addNorm = System.Text.RegularExpressions.Regex.Replace(addedHunk[i], @"\s+", "");
+
+                if (string.Equals(remNorm, addNorm, StringComparison.Ordinal))
+                {
+                    pureWhitespaceLines += 2; // both removed and added are whitespace/indentation shifts
+                }
+                else
+                {
+                    syntacticLines += 2; // actual token change
+                }
+            }
+
+            // Remaining unbalanced lines
+            if (addedHunk.Count > minLen)
+            {
+                for (int i = minLen; i < addedHunk.Count; i++)
+                {
+                    if (string.IsNullOrWhiteSpace(addedHunk[i])) pureWhitespaceLines++;
+                    else syntacticLines++;
+                }
+            }
+            else if (removedHunk.Count > minLen)
+            {
+                for (int i = minLen; i < removedHunk.Count; i++)
+                {
+                    if (string.IsNullOrWhiteSpace(removedHunk[i])) pureWhitespaceLines++;
+                    else syntacticLines++;
+                }
+            }
+
+            addedHunk.Clear();
+            removedHunk.Clear();
+        }
+
+        foreach (var r in unifiedRows)
+        {
+            if (r.Kind == Kind.Removed)
+            {
+                removedHunk.Add(r.Text ?? string.Empty);
+            }
+            else if (r.Kind == Kind.Added)
+            {
+                addedHunk.Add(r.Text ?? string.Empty);
+            }
+            else
+            {
+                FlushHunk();
+            }
+        }
+        FlushHunk();
+
+        double syntacticEntropyRatio = totalChurn > 0
+            ? Math.Round((double)syntacticLines / totalChurn, 3)
+            : 0.0;
+        double signalToNoise = Math.Round(syntacticEntropyRatio * 100.0, 1);
+
+        string category;
+        if (syntacticLines == 0 && pureWhitespaceLines > 0)
+            category = "Pure Formatting / Indentation Churn (Zero Syntactic Change)";
+        else if (pureWhitespaceLines == 0 && syntacticLines > 0)
+            category = "Pure Syntactic Evolution (Zero Whitespace Churn)";
+        else if (signalToNoise >= 75.0)
+            category = "High Signal Syntactic Evolution";
+        else if (signalToNoise >= 40.0)
+            category = "Balanced Syntactic & Formatting Edits";
+        else
+            category = "Formatting-Heavy Churn (Low Signal-to-Noise)";
+
+        string summary = FormatFormattingVsSyntacticEntropySummary(
+            unifiedRows.Count, addedCount, removedCount, totalChurn, pureWhitespaceLines,
+            syntacticLines, syntacticEntropyRatio, signalToNoise, category);
+
+        return new FormattingVsSyntacticEntropyAudit(
+            unifiedRows.Count,
+            addedCount,
+            removedCount,
+            totalChurn,
+            pureWhitespaceLines,
+            syntacticLines,
+            syntacticEntropyRatio,
+            signalToNoise,
+            category,
+            summary);
+    }
+
+    public static FormattingVsSyntacticEntropyAudit AuditFormattingVsSyntacticChangeEntropy(
+        string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditFormattingVsSyntacticChangeEntropy(unified);
+    }
+
+    public static string FormatFormattingVsSyntacticEntropySummary(
+        int totalRows, int added, int removed, int totalChurn, int whitespaceLines,
+        int syntacticLines, double entropyRatio, double signalToNoise, string category)
+    {
+        if (totalRows == 0 || totalChurn == 0)
+            return "Formatting vs syntactic change entropy audit: 0 diff rows · Document unchanged";
+
+        string churnLabel = totalChurn == 1 ? "1 churn line" : $"{totalChurn} churn lines";
+        return $"Formatting vs syntactic change entropy audit ({totalRows} rows [{churnLabel}: +{added}/-{removed}] · {category} · {signalToNoise:0.#}% signal): " +
+               $"{syntacticLines} syntactic, {whitespaceLines} formatting (entropy ratio {entropyRatio:0.###})";
+    }
 }
 
 /// <summary>
@@ -6209,3 +6357,20 @@ public sealed record SemanticBlockRelocationAudit(
     IReadOnlyList<RelocatedBlockItem> RelocatedBlocks,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents the result of an audit of diff formatting whitespace vs syntactic token change entropy,
+/// separating cosmetic indentation churn from true semantic alterations.
+/// </summary>
+public sealed record FormattingVsSyntacticEntropyAudit(
+    int TotalDiffRows,
+    int AddedLines,
+    int RemovedLines,
+    int TotalChurnLines,
+    int PureWhitespaceLines,
+    int SyntacticChangeLines,
+    double SyntacticEntropyRatio,
+    double SignalToNoiseScore,
+    string Category,
+    string Summary);
+

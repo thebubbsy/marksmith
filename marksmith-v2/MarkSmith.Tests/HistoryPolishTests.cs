@@ -2064,6 +2064,44 @@ public class HistoryPolishTests : IDisposable
             directAudit.NetGenuineChurnLines, directAudit.RelocationClarityScore, directAudit.Category);
         Assert.Equal(directAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run175_AuditFormattingVsSyntacticChangeEntropy_SeparatesWhitespaceFromTokens()
+    {
+        var empty = LineDiff.AuditFormattingVsSyntacticChangeEntropy(Array.Empty<LineDiff.UnifiedRow>());
+        Assert.Equal(0, empty.TotalDiffRows);
+        Assert.Equal(0, empty.TotalChurnLines);
+        Assert.Equal(100.0, empty.SignalToNoiseScore);
+        Assert.Equal("Zero Diffs (Unchanged)", empty.Category);
+
+        // 1. Pure whitespace/indentation diff
+        string beforeWs = "public void Execute()\n{\n    Run();\n}";
+        string afterWs = "public void Execute()\n{\n        Run();\n}"; // 4 extra spaces
+        var wsAudit = LineDiff.AuditFormattingVsSyntacticChangeEntropy(beforeWs, afterWs);
+        Assert.True(wsAudit.TotalChurnLines >= 2);
+        Assert.Equal(0, wsAudit.SyntacticChangeLines);
+        Assert.Equal(wsAudit.TotalChurnLines, wsAudit.PureWhitespaceLines);
+        Assert.Equal(0.0, wsAudit.SyntacticEntropyRatio);
+        Assert.Equal(0.0, wsAudit.SignalToNoiseScore);
+        Assert.Equal("Pure Formatting / Indentation Churn (Zero Syntactic Change)", wsAudit.Category);
+
+        // 2. Pure syntactic change
+        string beforeSyn = "int counter = 0;";
+        string afterSyn = "string title = \"Architecture\";";
+        var synAudit = LineDiff.AuditFormattingVsSyntacticChangeEntropy(beforeSyn, afterSyn);
+        Assert.Equal(2, synAudit.TotalChurnLines);
+        Assert.Equal(2, synAudit.SyntacticChangeLines);
+        Assert.Equal(0, synAudit.PureWhitespaceLines);
+        Assert.Equal(1.0, synAudit.SyntacticEntropyRatio);
+        Assert.Equal(100.0, synAudit.SignalToNoiseScore);
+        Assert.Equal("Pure Syntactic Evolution (Zero Whitespace Churn)", synAudit.Category);
+
+        string formatted = LineDiff.FormatFormattingVsSyntacticEntropySummary(
+            synAudit.TotalDiffRows, synAudit.AddedLines, synAudit.RemovedLines, synAudit.TotalChurnLines,
+            synAudit.PureWhitespaceLines, synAudit.SyntacticChangeLines, synAudit.SyntacticEntropyRatio,
+            synAudit.SignalToNoiseScore, synAudit.Category);
+        Assert.Equal(synAudit.Summary, formatted);
+    }
 }
 
 

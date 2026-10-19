@@ -2131,6 +2131,52 @@ public class TextSearchTests
         Assert.Equal(1, irregularAudit.IrregularIndentationCount);
         Assert.True(irregularAudit.GlossaryConsistencyScore < 100.0);
     }
+
+    [Fact]
+    public void Run175_AuditTaskListHierarchyAndProgress_ValidatesParentChildStateAndIndentation()
+    {
+        var empty = TextSearch.AuditTaskListHierarchyAndProgress("");
+        Assert.Equal(0, empty.TotalTasks);
+        Assert.Equal(0, empty.CompletedTasks);
+        Assert.Equal(100.0, empty.HierarchyConsistencyScore);
+        Assert.Equal("No Task Lists", empty.Category);
+        Assert.Equal(empty.Summary, TextSearch.FormatTaskListHierarchySummary(""));
+
+        string validDoc = string.Join("\n",
+            "- [x] Feature Architecture Specification",
+            "  - [x] Define Domain Models",
+            "  - [x] Wire ViewModels",
+            "- [ ] Quality Assurance & Production Release",
+            "  - [ ] Execute Unit Test Suite",
+            "  - [ ] Perform Desktop Smoke Verification"
+        );
+        var validAudit = TextSearch.AuditTaskListHierarchyAndProgress(validDoc);
+        Assert.Equal(6, validAudit.TotalTasks);
+        Assert.Equal(3, validAudit.CompletedTasks);
+        Assert.Equal(2, validAudit.RootTasks);
+        Assert.Equal(4, validAudit.NestedSubtasks);
+        Assert.Equal(0, validAudit.InconsistentParentCount);
+        Assert.Equal(50.0, validAudit.CompletionPercentage);
+        Assert.Equal(100.0, validAudit.HierarchyConsistencyScore);
+        Assert.Equal("Coherent Task Hierarchy (In-Progress)", validAudit.Category);
+
+        string inconsistentDoc = string.Join("\n",
+            "- [x] Inconsistent Parent Claimed Done",
+            "  - [ ] Child task is still incomplete"
+        );
+        var incAudit = TextSearch.AuditTaskListHierarchyAndProgress(inconsistentDoc);
+        Assert.Equal(2, incAudit.TotalTasks);
+        Assert.Equal(1, incAudit.CompletedTasks);
+        Assert.Equal(1, incAudit.InconsistentParentCount);
+        Assert.True(incAudit.HierarchyConsistencyScore < 100.0);
+        Assert.Contains("Discrepancy", incAudit.Category);
+
+        string formatted = TextSearch.FormatTaskListHierarchySummary(
+            validAudit.TotalTasks, validAudit.CompletedTasks, validAudit.RootTasks,
+            validAudit.NestedSubtasks, validAudit.InconsistentParentCount,
+            validAudit.CompletionPercentage, validAudit.HierarchyConsistencyScore, validAudit.Category);
+        Assert.Equal(validAudit.Summary, formatted);
+    }
 }
 
 

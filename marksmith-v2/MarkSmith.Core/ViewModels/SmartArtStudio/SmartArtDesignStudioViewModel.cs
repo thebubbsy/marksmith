@@ -6753,6 +6753,152 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"Timeline milestone chronology audit ({mLabel} [{dateLabel}] · {category} · {score:0.#}% chronology){alertSuffix}";
     }
 
+    /// <summary>
+    /// Audits SmartArt segmented process cycle interval uniformity, radial angular chord balance (360/N),
+    /// cognitive step count limits (3-7 optimal), and text brevity symmetry across cyclic process layouts.
+    /// </summary>
+    public SmartArtCycleIntervalAudit AuditCycleIntervalAndRadialChords(string? markdown = null, string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtCycleIntervalAudit(
+                0, 0.0, 0.0, 0.0, 0, 100.0,
+                Array.Empty<CycleSegmentItem>(),
+                "Empty Cycle",
+                "Cycle process interval audit: 0 steps · Outline contains no steps");
+        }
+
+        var lines = input.Replace("\r", "").Split('\n');
+        var stepRegex = new System.Text.RegularExpressions.Regex(@"^(\s*)(?:[-*+]|\d+\.)\s+(.*)$");
+
+        var rawSteps = new List<string>();
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::")) continue;
+
+            var match = stepRegex.Match(rawLine);
+            if (match.Success)
+            {
+                int indent = match.Groups[1].Value.Length;
+                if (indent == 0) // top-level cycle segment step
+                {
+                    rawSteps.Add(match.Groups[2].Value.Trim());
+                }
+            }
+        }
+
+        if (rawSteps.Count == 0)
+        {
+            return new SmartArtCycleIntervalAudit(
+                0, 0.0, 0.0, 0.0, 0, 100.0,
+                Array.Empty<CycleSegmentItem>(),
+                "Empty Cycle",
+                "Cycle process interval audit: 0 steps · No top-level cycle segments found");
+        }
+
+        int totalSteps = rawSteps.Count;
+        double angularChord = Math.Round(360.0 / totalSteps, 1);
+
+        var segments = new List<CycleSegmentItem>();
+        var wordCounts = new List<int>();
+        int overcrowdedCount = 0;
+
+        for (int i = 0; i < rawSteps.Count; i++)
+        {
+            string title = rawSteps[i];
+            var words = title.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            int wc = words.Length;
+            wordCounts.Add(wc);
+
+            bool isBrevityOptimal = wc is >= 1 and <= 12;
+            if (!isBrevityOptimal) overcrowdedCount++;
+
+            segments.Add(new CycleSegmentItem(
+                i + 1,
+                title,
+                wc,
+                angularChord,
+                isBrevityOptimal));
+        }
+
+        double meanWords = Math.Round(wordCounts.Average(), 1);
+        double sumSq = wordCounts.Sum(w => Math.Pow(w - meanWords, 2));
+        double wordStdDev = wordCounts.Count > 1
+            ? Math.Round(Math.Sqrt(sumSq / (wordCounts.Count - 1)), 2)
+            : 0.0;
+
+        double penalty = 0.0;
+        if (totalSteps < 3)
+        {
+            penalty += (3 - totalSteps) * 25.0; // Under-constrained cycle
+        }
+        else if (totalSteps > 7)
+        {
+            penalty += (totalSteps - 7) * 10.0; // Overcrowded cycle
+        }
+
+        penalty += Math.Min(30.0, wordStdDev * 3.0);
+        if (overcrowdedCount > 0)
+        {
+            penalty += overcrowdedCount * 5.0;
+        }
+
+        double radialHarmonyScore = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category;
+        if (totalSteps < 3)
+            category = "Degenerate Cycle (<3 Steps)";
+        else if (totalSteps > 7)
+            category = "Overcrowded Radial (>7 Steps)";
+        else if (radialHarmonyScore >= 90.0)
+            category = "Harmonic Radial Cycle (Optimal 3-7 Steps & Uniform Chords)";
+        else
+            category = "Unbalanced Cycle Pacing & Segment Word Density";
+
+        string summary = FormatCycleIntervalSummary(
+            totalSteps, angularChord, meanWords, wordStdDev, overcrowdedCount,
+            radialHarmonyScore, category);
+
+        return new SmartArtCycleIntervalAudit(
+            totalSteps,
+            angularChord,
+            meanWords,
+            wordStdDev,
+            overcrowdedCount,
+            radialHarmonyScore,
+            segments,
+            category,
+            summary);
+    }
+
+    public static SmartArtCycleIntervalAudit AuditCycleIntervalAndRadialChords(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditCycleIntervalAndRadialChords(markdown, layoutName);
+    }
+
+    public static string FormatCycleIntervalSummary(
+        int totalSteps, double angularChord, double meanWords, double wordStdDev, int overcrowdedCount,
+        double score, string category)
+    {
+        if (totalSteps == 0) return "Cycle process interval audit: 0 steps · Outline contains no steps";
+
+        string stepLabel = totalSteps == 1 ? "1 step" : $"{totalSteps} steps";
+        var alerts = new List<string>();
+        if (totalSteps < 3) alerts.Add("⚠ under-constrained (<3 steps)");
+        if (totalSteps > 7) alerts.Add($"⚠ {totalSteps} steps (>7 overcrowded)");
+        if (overcrowdedCount > 0) alerts.Add($"⚠ {overcrowdedCount} verbose steps (>12w)");
+        alerts.Add($"~{meanWords:0.#}w/step (σ={wordStdDev:0.#})");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · Uniform chord distribution";
+
+        return $"Cycle process interval audit ({stepLabel} [{angularChord:0.#}° chord] · {category} · {score:0.#}% harmony){alertSuffix}";
+    }
+
 }
 
 /// <summary>
@@ -7335,3 +7481,29 @@ public sealed record SmartArtTimelineChronologyAudit(
     IReadOnlyList<string> ChronologyAlerts,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, word count, chord angle, and brevity for an individual cyclic process step.
+/// </summary>
+public sealed record CycleSegmentItem(
+    int StepIndex,
+    string StepTitle,
+    int WordCount,
+    double ChordDegrees,
+    bool IsOptimalBrevity);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt segmented process cycle interval uniformity, radial chord balance,
+/// cognitive step limits, and text brevity symmetry across cyclic process layouts.
+/// </summary>
+public sealed record SmartArtCycleIntervalAudit(
+    int TotalSteps,
+    double AngularChordDegrees,
+    double MeanWordsPerStep,
+    double WordCountStdDev,
+    int OvercrowdedStepsCount,
+    double RadialHarmonyScore,
+    IReadOnlyList<CycleSegmentItem> Segments,
+    string Category,
+    string Summary);
+
