@@ -11963,6 +11963,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditHtmlEntitiesItem);
 
+        var auditFootnoteSequenceItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Footnote Reference Definitions & Numbering Sequence",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditFootnoteSequenceItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditFootnoteReferencesAndDefinitions(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditFootnoteSequenceItem);
+
         menu.ShowAt(anchor);
     }
 

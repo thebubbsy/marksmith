@@ -2897,11 +2897,52 @@ public class HistoryPolishTests : IDisposable
         Assert.True(probAudit.StructParamByValCount >= 1);
         Assert.True(probAudit.ValueTypeEfficiencyScore < 90.0);
     }
+
+    [Fact]
+    public void Run192_AuditMethodInliningAndPgoHazards_ValidatesDirectivesAndThrowBlockers()
+    {
+        // 1. Empty / null diff
+        var emptyAudit = LineDiff.AuditMethodInliningAndPgoHazards("", "");
+        Assert.Equal(0, emptyAudit.TotalModifiedLines);
+        Assert.Equal(0, emptyAudit.TotalHazardsCount);
+        Assert.Equal(100.0, emptyAudit.InliningOptimizationScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 modified lines", emptyAudit.Summary);
+
+        // 2. Optimal code without inlining blockers or aggressive directives
+        var cleanCode = string.Join("\n",
+            "public class MathHelper",
+            "{",
+            "    public static int Add(int a, int b) => a + b;",
+            "    public static int Multiply(int a, int b) => a * b;",
+            "}"
+        );
+
+        var cleanAudit = LineDiff.AuditMethodInliningAndPgoHazards("", cleanCode);
+        Assert.Equal(0, cleanAudit.AggressiveInliningCount);
+        Assert.Equal(0, cleanAudit.ThrowBlockerCount);
+        Assert.Equal(100.0, cleanAudit.InliningOptimizationScore);
+        Assert.Equal("Optimal Method Inlining & PGO Deoptimization Governance (≥90%)", cleanAudit.Category);
+
+        string formatted = LineDiff.FormatMethodInliningSummary(
+            cleanAudit.TotalModifiedLines, cleanAudit.TotalHazardsCount, cleanAudit.AggressiveInliningCount,
+            cleanAudit.ThrowBlockerCount, cleanAudit.VirtualDispatchHazardCount,
+            cleanAudit.InliningOptimizationScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Code with [AggressiveInlining] on complex method and inline throw statement
+        var probCode = string.Join("\n",
+            "[MethodImpl(MethodImplOptions.AggressiveInlining)]",
+            "public void ComplexProcessor()",
+            "{",
+            "    if (invalid)",
+            "        throw new InvalidOperationException(\"error\");",
+            "}"
+        );
+
+        var probAudit = LineDiff.AuditMethodInliningAndPgoHazards("", probCode);
+        Assert.True(probAudit.AggressiveInliningCount >= 1);
+        Assert.True(probAudit.ThrowBlockerCount >= 1);
+        Assert.True(probAudit.InliningOptimizationScore < 80.0);
+    }
 }
-
-
-
-
-
-
-

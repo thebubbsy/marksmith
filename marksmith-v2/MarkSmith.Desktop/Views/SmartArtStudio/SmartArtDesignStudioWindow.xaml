@@ -413,6 +413,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditAlternatingFlowItem" Text="Audit SmartArt alternating flow rhythm, step parity &amp; bilateral balance" Click="OnOutlineStatsAuditAlternatingFlowClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditRadialGearCycleItem" Text="Audit SmartArt radial gear cycle mechanical engagement &amp; angular pitch" Click="OnOutlineStatsAuditRadialGearCycleClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

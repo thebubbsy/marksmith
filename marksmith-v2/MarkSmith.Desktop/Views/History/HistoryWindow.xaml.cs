@@ -3705,6 +3705,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditDefensiveCopying);
+
+                var auditMethodInlining = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff method inlining, AggressiveInlining & PGO deoptimization hazards",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditMethodInlining.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditMethodInliningAndPgoHazards(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditMethodInlining);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

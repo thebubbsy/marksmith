@@ -3077,11 +3077,65 @@ public class TextSearchTests
         Assert.True(problemAudit.UnescapedBracketCount >= 2);
         Assert.True(problemAudit.HygieneScore < 75.0);
     }
+
+    [Fact]
+    public void Run192_AuditFootnoteReferencesAndDefinitions_ValidatesPairingAndNumberingSequence()
+    {
+        // 1. Empty / null document
+        var emptyAudit = TextSearch.AuditFootnoteReferencesAndDefinitions(null);
+        Assert.Equal(0, emptyAudit.TotalReferences);
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(100.0, emptyAudit.StructuralIntegrityScore);
+        Assert.Equal("Empty Document", emptyAudit.Category);
+        Assert.Contains("0 footnote references", emptyAudit.Summary);
+
+        // 2. Document with valid sequential footnotes and definitions
+        var validDoc = string.Join("\n",
+            "# Footnote Analysis",
+            "Here is the first reference[^1] in the introduction.",
+            "Here is the second reference[^2] and named footnote[^note].",
+            "",
+            "Code fence with bracket should be ignored:",
+            "```markdown",
+            "Inside code fence [^99] ignored",
+            "```",
+            "",
+            "[^1]: Definition of footnote one.",
+            "[^2]: Definition of footnote two.",
+            "[^note]: Named note definition."
+        );
+
+        var validAudit = TextSearch.AuditFootnoteReferencesAndDefinitions(validDoc);
+        Assert.Equal(3, validAudit.TotalReferences);
+        Assert.Equal(3, validAudit.TotalDefinitions);
+        Assert.Equal(3, validAudit.MatchedPairs);
+        Assert.Equal(0, validAudit.OrphanedReferences);
+        Assert.Equal(0, validAudit.OrphanedDefinitions);
+        Assert.Equal(0, validAudit.SequentialMismatches);
+        Assert.Equal(100.0, validAudit.StructuralIntegrityScore);
+        Assert.Equal("Optimal Footnote Sequence & Definition Governance (≥90%)", validAudit.Category);
+
+        string formatted = TextSearch.FormatFootnoteReferencesSummary(
+            validAudit.TotalReferences, validAudit.TotalDefinitions, validAudit.MatchedPairs,
+            validAudit.OrphanedReferences, validAudit.OrphanedDefinitions, validAudit.SequentialMismatches,
+            validAudit.StructuralIntegrityScore, validAudit.Category);
+        Assert.Equal(validAudit.Summary, formatted);
+
+        // 3. Problematic document: orphaned reference, orphaned definition, out-of-order numeric sequence
+        var probDoc = string.Join("\n",
+            "First ref is out of order [^3].",
+            "Second ref is missing definition [^orphan].",
+            "",
+            "[^3]: Definition for 3.",
+            "[^unreferenced]: Definition with no anchor."
+        );
+
+        var probAudit = TextSearch.AuditFootnoteReferencesAndDefinitions(probDoc);
+        Assert.Equal(2, probAudit.TotalReferences);
+        Assert.Equal(2, probAudit.TotalDefinitions);
+        Assert.True(probAudit.OrphanedReferences >= 1);
+        Assert.True(probAudit.OrphanedDefinitions >= 1);
+        Assert.True(probAudit.SequentialMismatches >= 1);
+        Assert.True(probAudit.StructuralIntegrityScore < 75.0);
+    }
 }
-
-
-
-
-
-
-

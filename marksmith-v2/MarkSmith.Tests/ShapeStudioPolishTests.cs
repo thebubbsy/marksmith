@@ -3020,11 +3020,51 @@ public class ShapeStudioPolishTests
         Assert.True(overflowAudit.ChildOverflowCount >= 1);
         Assert.True(overflowAudit.HierarchyIntegrityScore < 100.0);
     }
+
+    [Fact]
+    public void Run192_AuditLayeringZOrderAndOcclusion_ValidatesOverlapAndInvertedStacking()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditLayeringZOrderAndOcclusion();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(0, emptyAudit.OverlapCount);
+        Assert.Equal(100.0, emptyAudit.LayeringEleganceScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+        Assert.Contains("0 shapes", emptyAudit.Summary);
+
+        // 2. Clean non-overlapping shapes
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Left Shape", X = 0, Y = 0, Width = 100, Height = 100 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Right Shape", X = 200, Y = 0, Width = 100, Height = 100 };
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+
+        var cleanAudit = vm.AuditLayeringZOrderAndOcclusion();
+        Assert.Equal(2, cleanAudit.TotalShapes);
+        Assert.Equal(0, cleanAudit.OverlapCount);
+        Assert.Equal(0, cleanAudit.InvertedHierarchyCount);
+        Assert.Equal(0, cleanAudit.FullyOccludedCount);
+        Assert.Equal(100.0, cleanAudit.LayeringEleganceScore);
+        Assert.Equal("Optimal Z-Order Layering & Stacking Elegance (≥90%)", cleanAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatLayeringZOrderSummary(
+            cleanAudit.TotalShapes, cleanAudit.OverlapCount, cleanAudit.InvertedHierarchyCount,
+            cleanAudit.FullyOccludedCount, cleanAudit.LayeringEleganceScore, cleanAudit.Category, cleanAudit.IsSelectionScope);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Fully occluded and inverted shape (s3 lower shape 50x50 at 0,0; s4 upper shape 200x200 at 0,0)
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Name = "Small Foreground", X = 0, Y = 0, Width = 50, Height = 50 };
+        var s4 = new ShapeCanvasItemViewModel { Id = "s4", Name = "Large Background", X = 0, Y = 0, Width = 200, Height = 200 };
+        var occludedVm = new ShapeDesignStudioViewModel();
+        occludedVm.Shapes.Add(s3);
+        occludedVm.Shapes.Add(s4);
+
+        var occludedAudit = occludedVm.AuditLayeringZOrderAndOcclusion();
+        Assert.Equal(2, occludedAudit.TotalShapes);
+        Assert.Equal(1, occludedAudit.OverlapCount);
+        Assert.True(occludedAudit.FullyOccludedCount >= 1);
+        Assert.True(occludedAudit.InvertedHierarchyCount >= 1);
+        Assert.True(occludedAudit.LayeringEleganceScore < 75.0);
+    }
 }
-
-
-
-
-
-
-

@@ -390,6 +390,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphBipartiteItem" Text="Audit graph bipartite 2-mode network partition, odd cycles &amp; modularity balance" Click="OnAuditGraphBipartiteClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphPlanarityItem" Text="Audit graph edge crossings, planarity &amp; Kuratowski obstruction" Click="OnAuditGraphPlanarityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

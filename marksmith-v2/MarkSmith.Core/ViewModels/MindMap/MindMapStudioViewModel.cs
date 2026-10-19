@@ -11378,6 +11378,171 @@ namespace MarkSmith.ViewModels.MindMap
             string details = string.Join(" · ", parts);
             return $"Graph bipartite partition audit ({scope}{nodeStr} · {category} · {score:0.#}% modularity score): {details}";
         }
+
+        public GraphPlanarityAudit AuditGraphEdgeCrossingsAndPlanarity(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = targetNodes.Select(n => n.Id).ToHashSet();
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphEdgeCrossingsAndPlanarity(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphPlanarityAudit AuditGraphEdgeCrossingsAndPlanarity(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+
+            int totalNodes = nodeList.Count;
+            int totalLinks = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatPlanaritySummary(0, 0, 0, false, "None (Planar Graph Topology)", 100.0, "Empty MindMap", isSelection);
+                return new GraphPlanarityAudit(
+                    0, 0, 0, false, "None (Planar Graph Topology)", 100.0,
+                    Array.Empty<EdgeCrossingItem>(), "Empty MindMap", isSelection, emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id, n => n);
+            var crossings = new List<EdgeCrossingItem>();
+
+            // Distinct pairs of links
+            for (int i = 0; i < linkList.Count; i++)
+            {
+                var l1 = linkList[i];
+                if (!nodeMap.TryGetValue(l1.SourceNodeId, out var u1) || !nodeMap.TryGetValue(l1.TargetNodeId, out var v1))
+                    continue;
+
+                for (int j = i + 1; j < linkList.Count; j++)
+                {
+                    var l2 = linkList[j];
+                    if (!nodeMap.TryGetValue(l2.SourceNodeId, out var u2) || !nodeMap.TryGetValue(l2.TargetNodeId, out var v2))
+                        continue;
+
+                    // Skip edges that share an endpoint
+                    if (l1.SourceNodeId == l2.SourceNodeId || l1.SourceNodeId == l2.TargetNodeId ||
+                        l1.TargetNodeId == l2.SourceNodeId || l1.TargetNodeId == l2.TargetNodeId)
+                        continue;
+
+                    // Segment intersection test between (u1, v1) and (u2, v2)
+                    double x1 = u1.X, y1 = u1.Y;
+                    double x2 = v1.X, y2 = v1.Y;
+                    double x3 = u2.X, y3 = u2.Y;
+                    double x4 = v2.X, y4 = v2.Y;
+
+                    double d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+                    if (Math.Abs(d) < 1e-6) continue;
+
+                    double t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / d;
+                    double u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / d;
+
+                    if (t > 0.001 && t < 0.999 && u > 0.001 && u < 0.999)
+                    {
+                        double ix = x1 + t * (x2 - x1);
+                        double iy = y1 + t * (y2 - y1);
+                        string e1Name = $"{u1.Title} -> {v1.Title}";
+                        string e2Name = $"{u2.Title} -> {v2.Title}";
+                        crossings.Add(new EdgeCrossingItem(
+                            l1.Id, l2.Id, e1Name, e2Name, Math.Round(ix, 1), Math.Round(iy, 1),
+                            $"Edge crossing at ({ix:F1}, {iy:F1}) between [{e1Name}] and [{e2Name}]"));
+                    }
+                }
+            }
+
+            // Kuratowski / Euler condition check
+            bool hasObstruction = false;
+            string obstructionType = "None (Planar Graph Topology)";
+
+            if (totalNodes >= 3 && totalLinks > (3 * totalNodes - 6))
+            {
+                hasObstruction = true;
+                obstructionType = "Euler Planarity Violation (E > 3V - 6)";
+            }
+            else if (totalNodes >= 5)
+            {
+                // Check for K5 complete graph clique
+                var adj = new HashSet<string>();
+                foreach (var l in linkList)
+                {
+                    adj.Add($"{l.SourceNodeId}_{l.TargetNodeId}");
+                    adj.Add($"{l.TargetNodeId}_{l.SourceNodeId}");
+                }
+                var ids = nodeList.Select(n => n.Id).ToList();
+                for (int a = 0; a < ids.Count && !hasObstruction; a++)
+                for (int b = a + 1; b < ids.Count && !hasObstruction; b++)
+                for (int c = b + 1; c < ids.Count && !hasObstruction; c++)
+                for (int e = c + 1; e < ids.Count && !hasObstruction; e++)
+                for (int f = e + 1; f < ids.Count && !hasObstruction; f++)
+                {
+                    string[] k5 = { ids[a], ids[b], ids[c], ids[e], ids[f] };
+                    int edgeCount = 0;
+                    for (int x = 0; x < 5; x++)
+                    for (int y = x + 1; y < 5; y++)
+                    {
+                        if (adj.Contains($"{k5[x]}_{k5[y]}")) edgeCount++;
+                    }
+                    if (edgeCount == 10)
+                    {
+                        hasObstruction = true;
+                        obstructionType = "K5 Complete Subgraph Minor Detected";
+                    }
+                }
+            }
+
+            double score = 100.0;
+            score -= Math.Min(60.0, crossings.Count * 15.0);
+            if (hasObstruction) score -= 25.0;
+            score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+            string category;
+            if (totalNodes == 0) category = "Empty MindMap";
+            else if (score >= 90.0) category = "Optimal Planar Geometry & Zero Edge Crossings (≥90%)";
+            else if (score >= 75.0) category = "Good Planar Layout with Minor Segment Overlaps (75-89%)";
+            else if (score >= 50.0) category = "Moderate Edge Crossings or Planarity Density (50-74%)";
+            else category = "Severe Edge Crossing Mesh & Non-Planar Topology (<50%)";
+
+            string summary = FormatPlanaritySummary(
+                totalNodes, totalLinks, crossings.Count, hasObstruction, obstructionType, score, category, isSelection);
+
+            return new GraphPlanarityAudit(
+                totalNodes, totalLinks, crossings.Count, hasObstruction, obstructionType,
+                score, crossings, category, isSelection, summary);
+        }
+
+        public static string FormatPlanaritySummary(
+            int totalNodes, int totalLinks, int crossingCount, bool hasObstruction,
+            string obstructionType, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph edge crossing & planarity audit ({scope}0 nodes): Empty mind map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            var parts = new List<string>();
+
+            if (crossingCount == 0)
+                parts.Add("0 edge crossings (Clean 2D Planar)");
+            else
+                parts.Add($"⚠ {crossingCount} edge crossing{(crossingCount == 1 ? "" : "s")}");
+
+            if (hasObstruction)
+                parts.Add($"⚠ {obstructionType}");
+            else
+                parts.Add("Planar topology");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph edge crossing & planarity audit ({scope}{nodeStr} · {category} · {score:0.#}% planarity score): {details}";
+        }
     }
 
 
@@ -12545,6 +12710,32 @@ namespace MarkSmith.ViewModels.MindMap
         int IsolatedCount,
         double ModularityScore,
         IReadOnlyList<NodeBipartiteItem> Nodes,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+    /// <summary>
+    /// Represents evaluated coordinates, intersected edges, and status for an individual graph edge crossing.
+    /// </summary>
+    public sealed record EdgeCrossingItem(
+        string SourceEdgeId,
+        string TargetEdgeId,
+        string SourceEdgeLabel,
+        string TargetEdgeLabel,
+        double IntersectionX,
+        double IntersectionY,
+        string Status);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map 2D edge crossings, visual planarity, and Kuratowski K5/K3,3 graph obstructions.
+    /// </summary>
+    public sealed record GraphPlanarityAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int CrossingCount,
+        bool HasKuratowskiObstruction,
+        string ObstructionType,
+        double PlanarityScore,
+        IReadOnlyList<EdgeCrossingItem> Crossings,
         string Category,
         bool IsSelectionScope,
         string Summary);

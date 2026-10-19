@@ -784,6 +784,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditGroupHierarchyPaddingItem" Text="Audit diagram shape grouping hierarchy, container bounds &amp; padding" Click="OnSelectionAuditGroupHierarchyPaddingClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditLayeringZOrderOcclusionItem" Text="Audit diagram shape Z-order layering, stacking depth &amp; overlap inversion" Click="OnSelectionAuditLayeringZOrderOcclusionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

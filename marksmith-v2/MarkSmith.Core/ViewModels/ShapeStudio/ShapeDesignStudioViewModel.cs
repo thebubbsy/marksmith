@@ -10845,6 +10845,128 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"Diagram grouping hierarchy & container padding audit ({scopeStr}{shapeStr} · {category} · {score:0.#}% integrity): {details}";
     }
+
+    public ShapeLayeringZOrderAudit AuditLayeringZOrderAndOcclusion()
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var target = selected.Count > 0 ? selected : Shapes.ToList();
+        bool isSelection = selected.Count > 0;
+        var audit = AuditLayeringZOrderAndOcclusion(target, Shapes, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static ShapeLayeringZOrderAudit AuditLayeringZOrderAndOcclusion(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes,
+        bool isSelection = false)
+    {
+        var targetList = targetShapes?.ToList() ?? new List<ShapeCanvasItemViewModel>();
+        var allList = allShapes?.ToList() ?? targetList;
+
+        int totalShapes = targetList.Count;
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatLayeringZOrderSummary(0, 0, 0, 0, 100.0, "Empty Canvas", isSelection);
+            return new ShapeLayeringZOrderAudit(
+                0, 0, 0, 0, 100.0, Array.Empty<ShapeLayeringOcclusionItem>(), "Empty Canvas", isSelection, emptySummary);
+        }
+
+        var items = new List<ShapeLayeringOcclusionItem>();
+        int overlapCount = 0;
+        int invertedHierarchyCount = 0;
+        int fullyOccludedCount = 0;
+
+        for (int i = 0; i < allList.Count; i++)
+        {
+            var lower = allList[i];
+            double aX1 = lower.X, aY1 = lower.Y, aX2 = lower.X + lower.Width, aY2 = lower.Y + lower.Height;
+            double areaA = lower.Width * lower.Height;
+            if (areaA <= 0) continue;
+
+            for (int j = i + 1; j < allList.Count; j++)
+            {
+                var upper = allList[j];
+                double bX1 = upper.X, bY1 = upper.Y, bX2 = upper.X + upper.Width, bY2 = upper.Y + upper.Height;
+                double areaB = upper.Width * upper.Height;
+                if (areaB <= 0) continue;
+
+                double oLeft = Math.Max(aX1, bX1);
+                double oTop = Math.Max(aY1, bY1);
+                double oRight = Math.Min(aX2, bX2);
+                double oBottom = Math.Min(aY2, bY2);
+
+                double oW = Math.Max(0.0, oRight - oLeft);
+                double oH = Math.Max(0.0, oBottom - oTop);
+                double oArea = oW * oH;
+
+                if (oArea > 1.0)
+                {
+                    overlapCount++;
+                    double overlapRatioA = oArea / areaA;
+                    bool isFullyOccluded = overlapRatioA >= 0.95;
+                    bool isInverted = areaB > 2.0 * areaA && overlapRatioA >= 0.50;
+
+                    if (isFullyOccluded) fullyOccludedCount++;
+                    if (isInverted) invertedHierarchyCount++;
+
+                    string issue = isFullyOccluded
+                        ? $"Shape [{lower.Name}] is 95%+ occluded and hidden by upper shape [{upper.Name}]"
+                        : isInverted
+                            ? $"Inverted layering: Large shape [{upper.Name}] stacks over small foreground shape [{lower.Name}]"
+                            : $"Partial overlap ({overlapRatioA:P0}) between [{lower.Name}] and [{upper.Name}]";
+
+                    items.Add(new ShapeLayeringOcclusionItem(
+                        lower.Id, upper.Id, lower.Name, upper.Name,
+                        Math.Round(overlapRatioA, 2), isInverted, isFullyOccluded, issue));
+                }
+            }
+        }
+
+        double score = 100.0;
+        score -= fullyOccludedCount * 25.0;
+        score -= invertedHierarchyCount * 15.0;
+        score -= Math.Min(30.0, overlapCount * 5.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalShapes == 0) category = "Empty Canvas";
+        else if (score >= 90.0) category = "Optimal Z-Order Layering & Stacking Elegance (≥90%)";
+        else if (score >= 75.0) category = "Good Shape Layering with Minor Overlap Shadows (75-89%)";
+        else if (score >= 50.0) category = "Moderate Inverted Layering or Occlusion Discrepancies (50-74%)";
+        else category = "Severe Occlusion & Broken Z-Index Hierarchy (<50%)";
+
+        string summary = FormatLayeringZOrderSummary(
+            totalShapes, overlapCount, invertedHierarchyCount, fullyOccludedCount, score, category, isSelection);
+
+        return new ShapeLayeringZOrderAudit(
+            totalShapes, overlapCount, invertedHierarchyCount, fullyOccludedCount,
+            score, items, category, isSelection, summary);
+    }
+
+    public static string FormatLayeringZOrderSummary(
+        int totalShapes, int overlapCount, int invertedCount, int occludedCount,
+        double score, string category, bool isSelection = false)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Diagram shape Z-order layering & occlusion audit ({scope}0 shapes): Empty canvas";
+
+        string shapeStr = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        var parts = new List<string>();
+
+        if (overlapCount == 0)
+            parts.Add("0 overlapping shapes (Clean Stacking)");
+        else
+            parts.Add($"{overlapCount} overlap{(overlapCount == 1 ? "" : "s")}");
+
+        if (occludedCount > 0)
+            parts.Add($"⚠ {occludedCount} fully occluded");
+        if (invertedCount > 0)
+            parts.Add($"⚠ {invertedCount} inverted hierarchy");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram shape Z-order layering & occlusion audit ({scope}{shapeStr} · {category} · {score:0.#}% elegance score): {details}";
+    }
 }
 
 /// <summary>
@@ -12035,5 +12157,31 @@ public sealed record DiagramGroupHierarchyAudit(
     IReadOnlyList<ShapeContainerHierarchyItem> Shapes,
     string Category,
     bool IsSelectionScope,
-    string Summary);
+    string Summary);
+
+/// <summary>
+/// Represents evaluated Z-order overlap, inverted stacking, and full occlusion state between two diagram shapes.
+/// </summary>
+public sealed record ShapeLayeringOcclusionItem(
+    string LowerShapeId,
+    string UpperShapeId,
+    string LowerShapeName,
+    string UpperShapeName,
+    double OverlapRatio,
+    bool IsInvertedHierarchy,
+    bool IsFullyOccluded,
+    string Status);
 
+/// <summary>
+/// Represents the result of an audit of diagram shape Z-order layering, stacking depth, inverted hierarchy, and full occlusion.
+/// </summary>
+public sealed record ShapeLayeringZOrderAudit(
+    int TotalShapes,
+    int OverlapCount,
+    int InvertedHierarchyCount,
+    int FullyOccludedCount,
+    double LayeringEleganceScore,
+    IReadOnlyList<ShapeLayeringOcclusionItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

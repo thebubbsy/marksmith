@@ -5565,11 +5565,123 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceCodeFenceLanguagesClick", suiteCs);
         Assert.Contains("AuditWorkspaceCodeFenceLanguages", suiteCs);
     }
+
+    [Fact]
+    public void Run192_AuditWorkspaceMathFormulasAndKaTeX_ValidatesFormulasAndBraces()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditWorkspaceMathFormulasAndKaTeX(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(0, emptyAudit.TotalFormulasFound);
+        Assert.Equal(100.0, emptyAudit.MathConsistencyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 documents scanned", emptyAudit.Summary);
+
+        // 2. Structured workspace with valid inline math ($x^2$) and display math ($$...$$)
+        var docMath = string.Join("\n",
+            "# Physics Notes",
+            "Energy equation: $E = mc^2$ in relativity.",
+            "Pythagorean theorem: $a^2 + b^2 = c^2$ in Euclidean geometry.",
+            "",
+            "$$",
+            "\\int_{0}^{\\infty} e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}",
+            "$$"
+        );
+
+        var docCurrency = string.Join("\n",
+            "# Financial Summary",
+            "The price is $100 and tax is $20.",
+            "Currency symbols should not be parsed as math."
+        );
+
+        var fileSystem = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\physics.md"] = docMath.Split('\n'),
+            [@"C:\workspace\finance.md"] = docCurrency.Split('\n')
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceMathFormulasAndKaTeX(
+            fileSystem.Keys,
+            workspaceRoot: @"C:\workspace",
+            fileExists: p => fileSystem.ContainsKey(p),
+            readAllLines: p => fileSystem.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(2, audit.TotalFilesScanned);
+        Assert.Equal(3, audit.TotalFormulasFound);
+        Assert.Equal(2, audit.InlineFormulaCount);
+        Assert.Equal(1, audit.BlockFormulaCount);
+        Assert.Equal(0, audit.SyntaxErrorCount);
+        Assert.Equal(100.0, audit.MathConsistencyScore);
+        Assert.Equal("Optimal KaTeX / LaTeX Syntax Consistency (≥90%)", audit.Category);
+
+        string formatted = RecentFilesService.FormatWorkspaceMathSummary(
+            audit.TotalFilesScanned, audit.TotalFormulasFound, audit.InlineFormulaCount,
+            audit.BlockFormulaCount, audit.SyntaxErrorCount, audit.MathConsistencyScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Document with syntax error (unbalanced braces)
+        var docBroken = string.Join("\n",
+            "Unbalanced math: $\\frac{a}{b$",
+            "$$",
+            "\\sqrt{x + y",
+            "$$"
+        );
+
+        var brokenFs = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\broken.md"] = docBroken.Split('\n')
+        };
+
+        var brokenAudit = RecentFilesService.AuditWorkspaceMathFormulasAndKaTeX(
+            brokenFs.Keys,
+            workspaceRoot: @"C:\workspace",
+            fileExists: p => brokenFs.ContainsKey(p),
+            readAllLines: p => brokenFs.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(1, brokenAudit.TotalFilesScanned);
+        Assert.True(brokenAudit.SyntaxErrorCount >= 1);
+        Assert.True(brokenAudit.MathConsistencyScore < 90.0);
+    }
+
+    [Fact]
+    public void Run192_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Footnote Reference Definitions & Numbering Sequence Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditFootnoteSequenceItem", mainCs);
+        Assert.Contains("AuditFootnoteReferencesAndDefinitions", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Edge Crossing & Planarity Obstruction Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphPlanarityItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphPlanarityClick", galaxyCs);
+        Assert.Contains("AuditGraphEdgeCrossingsAndPlanarity", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Z-Order Layering, Stacking Depth & Overlap Inversion Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditLayeringZOrderOcclusionItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditLayeringZOrderOcclusionClick", shapeCs);
+        Assert.Contains("AuditLayeringZOrderAndOcclusion", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Radial Gear Cycle Mechanical Engagement & Angular Pitch Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditRadialGearCycleItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditRadialGearCycleClick", smartArtCs);
+        Assert.Contains("AuditRadialGearCycleEngagement", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Method Inlining, AggressiveInlining & PGO Deoptimization Hazards Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditMethodInlining", historyCs);
+        Assert.Contains("AuditMethodInliningAndPgoHazards", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Mathematical Expressions, KaTeX & LaTeX Syntax Consistency Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceMathFormulasItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceMathFormulasClick", suiteCs);
+        Assert.Contains("AuditWorkspaceMathFormulasAndKaTeX", suiteCs);
+    }
 }
-
-
-
-
-
-
-

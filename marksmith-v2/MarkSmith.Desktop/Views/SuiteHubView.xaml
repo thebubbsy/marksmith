@@ -381,6 +381,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceCodeFenceLanguagesItem" Text="Audit workspace markdown code fence languages, missing tags &amp; alias consistency" Click="OnAuditWorkspaceCodeFenceLanguagesClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceMathFormulasItem" Text="Audit workspace markdown mathematical expressions, KaTeX &amp; LaTeX syntax" Click="OnAuditWorkspaceMathFormulasClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

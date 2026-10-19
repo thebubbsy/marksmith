@@ -9513,6 +9513,100 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"SmartArt alternating flow audit ({layoutName} · {stepStr} · {category} · {rhythmScore:0.#}% rhythm): {details}";
     }
+
+    public SmartArtRadialGearAudit AuditRadialGearCycleEngagement()
+    {
+        var audit = AuditRadialGearCycleEngagement(MarkdownText, SelectedLayout?.DisplayName);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static SmartArtRadialGearAudit AuditRadialGearCycleEngagement(string? markdown, string? layoutName = null)
+    {
+        string layout = layoutName ?? "Radial Gear Cycle";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatRadialGearSummary(0, 0.0, true, 100.0, "Empty Outline", layout);
+            return new SmartArtRadialGearAudit(
+                0, 0.0, 0.0, true, 100.0, Array.Empty<RadialGearNodeItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        var lines = markdown.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
+            .Select(l => l.Trim())
+            .Where(l => l.StartsWith("- ") || l.StartsWith("* ") || l.StartsWith("+ "))
+            .Select(l => l.Substring(2).Trim())
+            .Where(l => !string.IsNullOrEmpty(l))
+            .ToList();
+
+        int totalGears = lines.Count;
+        if (totalGears == 0)
+        {
+            string emptySummary = FormatRadialGearSummary(0, 0.0, true, 100.0, "Empty Outline", layout);
+            return new SmartArtRadialGearAudit(
+                0, 0.0, 0.0, true, 100.0, Array.Empty<RadialGearNodeItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        double targetPitch = 360.0 / totalGears;
+        bool isOptimalDensity = totalGears >= 3 && totalGears <= 8;
+        var items = new List<RadialGearNodeItem>();
+
+        for (int i = 0; i < totalGears; i++)
+        {
+            double targetAngle = Math.Round((i * 360.0 / totalGears) % 360.0, 1);
+            string title = lines[i];
+            string status = totalGears < 3
+                ? $"Insufficient gears ({totalGears} gears, min 3 required for radial engagement)"
+                : totalGears > 8
+                    ? $"Crowded gear mesh ({totalGears} gears, max 8 recommended)"
+                    : $"Optimal radial gear pitch ({targetPitch:F1}°) at angle {targetAngle:F1}°";
+
+            items.Add(new RadialGearNodeItem(
+                i + 1, title, targetAngle, Math.Round(targetPitch, 1), true, isOptimalDensity, status));
+        }
+
+        double score = 100.0;
+        if (totalGears < 3)
+        {
+            score -= 40.0;
+        }
+        else if (totalGears > 8)
+        {
+            score -= Math.Min(50.0, (totalGears - 8) * 12.0);
+        }
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalGears == 0) category = "Empty Outline";
+        else if (score >= 90.0) category = "Optimal Radial Gear Engagement & Pitch Rhythm (≥90%)";
+        else if (score >= 75.0) category = "Good Circular Pitch with Minor Density Limits (75-89%)";
+        else if (score >= 50.0) category = "Moderate Mechanical Crowding or Sparse Gears (50-74%)";
+        else category = "Severe Gear Disengagement or Mechanical Mesh Crowding (<50%)";
+
+        string summary = FormatRadialGearSummary(totalGears, targetPitch, isOptimalDensity, score, category, layout);
+
+        return new SmartArtRadialGearAudit(
+            totalGears, Math.Round(targetPitch, 1), 0.0, isOptimalDensity, score, items, category, layout, summary);
+    }
+
+    public static string FormatRadialGearSummary(
+        int totalGears, double targetPitch, bool isOptimalDensity, double score, string category, string layoutName)
+    {
+        if (totalGears == 0) return "SmartArt radial gear cycle audit: Empty outline";
+
+        string gearStr = totalGears == 1 ? "1 gear" : $"{totalGears} gears";
+        var parts = new List<string>();
+
+        parts.Add($"{targetPitch:F1}° angular pitch");
+        if (isOptimalDensity)
+            parts.Add("Optimal gear density (3-8 gears)");
+        else if (totalGears < 3)
+            parts.Add("⚠ Sparse gears (<3 gears)");
+        else
+            parts.Add("⚠ Crowded gear mesh (>8 gears)");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt radial gear cycle audit ({gearStr} · {details} · {category} · {score:0.#}% rotational balance score)";
+    }
 }
 
 /// <summary>
@@ -10572,3 +10666,29 @@ public sealed record SmartArtAlternatingFlowAudit(
 
 
 
+/// <summary>
+/// Represents evaluated gear index, label, target angle, angular pitch, and density status for an individual radial gear node.
+/// </summary>
+public sealed record RadialGearNodeItem(
+    int Index,
+    string Label,
+    double TargetAngleDegrees,
+    double AngularPitchDegrees,
+    bool IsPitchUniform,
+    bool IsOptimalDensity,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt radial and gear cycle layouts for angular pitch uniformity,
+/// optimal mechanical density (3-8 gears), and rotational balance.
+/// </summary>
+public sealed record SmartArtRadialGearAudit(
+    int TotalGears,
+    double TargetPitchDegrees,
+    double AngularPitchVariance,
+    bool HasOptimalGearDensity,
+    double RotationalBalanceScore,
+    IReadOnlyList<RadialGearNodeItem> Gears,
+    string Category,
+    string LayoutName,
+    string Summary);

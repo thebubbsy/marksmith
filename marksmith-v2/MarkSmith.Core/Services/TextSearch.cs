@@ -3021,7 +3021,7 @@ public static class TextSearch
         {
             return new FootnoteLinkageAudit(
                 0, 0, 0, 0, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(),
-                Array.Empty<FootnoteReferenceItem>(), Array.Empty<FootnoteDefinitionItem>(),
+                Array.Empty<FootnoteSequenceItem>(), Array.Empty<FootnoteDefinitionItem>(),
                 "No Footnotes", "Markdown footnotes: 0 items · Document contains no footnotes");
         }
 
@@ -3029,7 +3029,7 @@ public static class TextSearch
         bool inCodeFence = false;
         bool inHtmlComment = false;
 
-        var references = new List<FootnoteReferenceItem>();
+        var references = new List<FootnoteSequenceItem>();
         var definitions = new List<FootnoteDefinitionItem>();
 
         var defRegex = new Regex(@"^\s*\[\^([a-zA-Z0-9_\-]+)\]:\s*(.*)$", RegexOptions.Compiled);
@@ -3069,7 +3069,7 @@ public static class TextSearch
                 var inlineMatches = refRegex.Matches(bodyPart);
                 foreach (Match m in inlineMatches)
                 {
-                    references.Add(new FootnoteReferenceItem(i + 1, m.Groups[1].Value));
+                    references.Add(new FootnoteSequenceItem(i + 1, m.Groups[1].Value));
                 }
             }
             else
@@ -3077,7 +3077,7 @@ public static class TextSearch
                 var matches = refRegex.Matches(line);
                 foreach (Match m in matches)
                 {
-                    references.Add(new FootnoteReferenceItem(i + 1, m.Groups[1].Value));
+                    references.Add(new FootnoteSequenceItem(i + 1, m.Groups[1].Value));
                 }
             }
         }
@@ -3086,7 +3086,7 @@ public static class TextSearch
         {
             return new FootnoteLinkageAudit(
                 0, 0, 0, 0, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(),
-                Array.Empty<FootnoteReferenceItem>(), Array.Empty<FootnoteDefinitionItem>(),
+                Array.Empty<FootnoteSequenceItem>(), Array.Empty<FootnoteDefinitionItem>(),
                 "No Footnotes", "Markdown footnotes: 0 items · Document contains no footnotes");
         }
 
@@ -3144,7 +3144,7 @@ public static class TextSearch
     public static string FormatFootnoteLinkageSummary(
         int totalReferences, int uniqueReferencedIds, int totalDefinitions, int uniqueDefinedIds,
         IReadOnlyList<string> unresolvedIds, IReadOnlyList<string> orphanIds, IReadOnlyList<string> duplicateDefs,
-        string category, IReadOnlyList<FootnoteReferenceItem>? references = null,
+        string category, IReadOnlyList<FootnoteSequenceItem>? references = null,
         IReadOnlyList<FootnoteDefinitionItem>? definitions = null)
     {
         if (totalReferences == 0 && totalDefinitions == 0)
@@ -10381,6 +10381,192 @@ public static class TextSearch
         string details = string.Join(" · ", parts);
         return $"Markdown HTML entities & character escape audit ({details} · {category} · {score:0.#}% hygiene score)";
     }
+
+    /// <summary>
+    /// Audits markdown text for GFM footnote references ([^1], [^note]), definitions ([^1]: text),
+    /// orphaned references, unreferenced definitions, and sequential numeric ordering.
+    /// </summary>
+    public static MarkdownFootnoteAudit AuditFootnoteReferencesAndDefinitions(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "Markdown footnote audit: Clean document · 0 footnote references or definitions detected";
+            return new MarkdownFootnoteAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownFootnoteSequenceItem>(),
+                "Empty Document",
+                emptySummary);
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var maskedLines = new string[lines.Length];
+        bool inCodeFence = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.TrimStart();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                maskedLines[i] = new string(' ', line.Length);
+                continue;
+            }
+            if (inCodeFence)
+            {
+                maskedLines[i] = new string(' ', line.Length);
+                continue;
+            }
+
+            var chars = line.ToCharArray();
+            bool inBacktick = false;
+            for (int c = 0; c < chars.Length; c++)
+            {
+                if (chars[c] == '`')
+                {
+                    inBacktick = !inBacktick;
+                    chars[c] = ' ';
+                }
+                else if (inBacktick)
+                {
+                    chars[c] = ' ';
+                }
+            }
+            maskedLines[i] = new string(chars);
+        }
+
+        var defRegex = new Regex(@"^\s{0,3}\[\^([^\]]+)\]:\s*(.*)$");
+        var refRegex = new Regex(@"(?<!\\)\[\^([^\]]+)\]");
+
+        var definitions = new Dictionary<string, List<(int Line, string Text)>>(StringComparer.OrdinalIgnoreCase);
+        var references = new List<(int Line, int Col, string Label)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = maskedLines[i];
+            var defMatch = defRegex.Match(line);
+            if (defMatch.Success)
+            {
+                string label = defMatch.Groups[1].Value.Trim();
+                if (!definitions.TryGetValue(label, out var list))
+                {
+                    list = new List<(int Line, string Text)>();
+                    definitions[label] = list;
+                }
+                list.Add((i + 1, defMatch.Groups[2].Value));
+            }
+            else
+            {
+                var refMatches = refRegex.Matches(line);
+                foreach (Match rm in refMatches)
+                {
+                    string label = rm.Groups[1].Value.Trim();
+                    references.Add((i + 1, rm.Index + 1, label));
+                }
+            }
+        }
+
+        var items = new List<MarkdownFootnoteSequenceItem>();
+        int totalRefs = references.Count;
+        int totalDefs = definitions.Values.Sum(v => v.Count);
+        int matchedPairs = 0;
+        int orphanRefs = 0;
+        int orphanDefs = 0;
+        int seqMismatches = 0;
+        int expectedNumericSeq = 1;
+
+        foreach (var r in references)
+        {
+            bool hasDef = definitions.ContainsKey(r.Label);
+            bool isNum = int.TryParse(r.Label, out int numVal);
+            bool inSeq = true;
+
+            if (isNum)
+            {
+                if (numVal == expectedNumericSeq)
+                {
+                    expectedNumericSeq++;
+                }
+                else
+                {
+                    inSeq = false;
+                    seqMismatches++;
+                }
+            }
+
+            if (hasDef) matchedPairs++;
+            else orphanRefs++;
+
+            string status = !hasDef
+                ? $"Orphaned Footnote Reference [^{r.Label}] (Missing definition [^{r.Label}]: ...)"
+                : !inSeq
+                    ? $"Out-of-Sequence Numeric Footnote [^{r.Label}] (Expected [^{expectedNumericSeq - (numVal > expectedNumericSeq ? 0 : 1)}])"
+                    : $"Valid Footnote Reference [^{r.Label}] (Paired with definition)";
+
+            items.Add(new MarkdownFootnoteSequenceItem(
+                r.Line, r.Col, r.Label, true, false, hasDef, isNum, isNum ? numVal : 0, inSeq, status));
+        }
+
+        var referencedLabels = references.Select(r => r.Label).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var kvp in definitions)
+        {
+            string label = kvp.Key;
+            bool isReferenced = referencedLabels.Contains(label);
+            bool isNum = int.TryParse(label, out int numVal);
+
+            foreach (var defEntry in kvp.Value)
+            {
+                if (!isReferenced) orphanDefs++;
+
+                string status = !isReferenced
+                    ? $"Orphaned Footnote Definition [^{label}]: (No inline reference [^{label}] found)"
+                    : $"Valid Footnote Definition [^{label}]: (Referenced in document)";
+
+                items.Add(new MarkdownFootnoteSequenceItem(
+                    defEntry.Line, 1, label, false, true, isReferenced, isNum, isNum ? numVal : 0, true, status));
+            }
+        }
+
+        double score = 100.0;
+        score -= orphanRefs * 20.0;
+        score -= orphanDefs * 15.0;
+        score -= seqMismatches * 10.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalRefs == 0 && totalDefs == 0) category = "No Footnotes";
+        else if (score >= 90.0) category = "Optimal Footnote Sequence & Definition Governance (≥90%)";
+        else if (score >= 75.0) category = "Good Footnote Pairing with Minor Sequence Gaps (75-89%)";
+        else if (score >= 50.0) category = "Moderate Footnote Sequence or Definition Discrepancies (50-74%)";
+        else category = "Severe Orphaned Footnote Anchor or Definition Corruption (<50%)";
+
+        string summary = FormatFootnoteReferencesSummary(
+            totalRefs, totalDefs, matchedPairs, orphanRefs, orphanDefs, seqMismatches, score, category);
+
+        return new MarkdownFootnoteAudit(
+            totalRefs, totalDefs, matchedPairs, orphanRefs, orphanDefs, seqMismatches, score, items, category, summary);
+    }
+
+    public static string FormatFootnoteReferencesSummary(string? markdownText)
+        => AuditFootnoteReferencesAndDefinitions(markdownText).Summary;
+
+    public static string FormatFootnoteReferencesSummary(
+        int totalRefs, int totalDefs, int matched, int orphanRefs, int orphanDefs, int seqMismatches, double score, string category)
+    {
+        if (totalRefs == 0 && totalDefs == 0)
+            return "Markdown footnote audit: Clean document · 0 footnote references or definitions detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalRefs} ref{(totalRefs == 1 ? "" : "s")}");
+        parts.Add($"{totalDefs} def{(totalDefs == 1 ? "" : "s")}");
+        if (matched > 0) parts.Add($"{matched} matched");
+        if (orphanRefs > 0) parts.Add($"⚠ {orphanRefs} orphaned ref{(orphanRefs == 1 ? "" : "s")}");
+        if (orphanDefs > 0) parts.Add($"⚠ {orphanDefs} unreferenced def{(orphanDefs == 1 ? "" : "s")}");
+        if (seqMismatches > 0) parts.Add($"⚠ {seqMismatches} sequence mismatch{(seqMismatches == 1 ? "" : "es")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown footnote audit ({details} · {category} · {score:0.#}% integrity score)";
+    }
 }
 
 /// <summary>
@@ -10525,7 +10711,7 @@ public sealed record TaskListProgressAudit(
 /// <summary>
 /// Represents an inline footnote reference [^id] with line number.
 /// </summary>
-public sealed record FootnoteReferenceItem(
+public sealed record FootnoteSequenceItem(
     int LineNumber,
     string Id);
 
@@ -10548,7 +10734,7 @@ public sealed record FootnoteLinkageAudit(
     IReadOnlyList<string> UnresolvedReferenceIds,
     IReadOnlyList<string> OrphanDefinitionIds,
     IReadOnlyList<string> DuplicateDefinitionIds,
-    IReadOnlyList<FootnoteReferenceItem> References,
+    IReadOnlyList<FootnoteSequenceItem> References,
     IReadOnlyList<FootnoteDefinitionItem> Definitions,
     string LinkageCategory,
     string Summary);
@@ -11517,3 +11703,35 @@ public sealed record MarkdownHtmlEntitiesAudit(
     string Category,
     string Summary);
 
+
+
+/// <summary>
+/// Represents evaluated metrics, reference vs definition type, numeric sequence, and paired status for an individual markdown footnote item.
+/// </summary>
+public sealed record MarkdownFootnoteSequenceItem(
+    int LineNumber,
+    int Column,
+    string Identifier,
+    bool IsReference,
+    bool IsDefinition,
+    bool HasMatchingCounterpart,
+    bool IsNumeric,
+    int NumericSequence,
+    bool InSequence,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown footnote references ([^1], [^note]), definitions ([^1]: text),
+/// orphaned anchors, unreferenced definitions, and numeric sequence ordering.
+/// </summary>
+public sealed record MarkdownFootnoteAudit(
+    int TotalReferences,
+    int TotalDefinitions,
+    int MatchedPairs,
+    int OrphanedReferences,
+    int OrphanedDefinitions,
+    int SequentialMismatches,
+    double StructuralIntegrityScore,
+    IReadOnlyList<MarkdownFootnoteSequenceItem> Items,
+    string Category,
+    string Summary);

@@ -8501,6 +8501,151 @@ public sealed class RecentFilesService
         string details = string.Join(" · ", parts);
         return $"Workspace code fence language audit ({fileStr} · {category} · {score:0.#}% metadata score): {details}";
     }
+
+    public static WorkspaceMathConsistencyAudit AuditWorkspaceMathFormulasAndKaTeX(
+        IEnumerable<string>? filePaths,
+        string? workspaceRoot = null,
+        Func<string, bool>? fileExists = null,
+        Func<string, string[]?>? readAllLines = null)
+    {
+        var exists = fileExists ?? (p => File.Exists(p));
+        var readLines = readAllLines ?? (p => {
+            try { return File.ReadAllLines(p); }
+            catch { return null; }
+        });
+
+        var files = filePaths?
+            .Where(p => !string.IsNullOrWhiteSpace(p) && exists(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? new List<string>();
+
+        int scannedFiles = files.Count;
+        if (scannedFiles == 0)
+        {
+            string emptySummary = FormatWorkspaceMathSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceMathConsistencyAudit(
+                0, 0, 0, 0, 0, 100.0, Array.Empty<WorkspaceMathFormulaItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var items = new List<WorkspaceMathFormulaItem>();
+        int totalFormulas = 0;
+        int inlineCount = 0;
+        int blockCount = 0;
+        int syntaxErrorCount = 0;
+
+        var displayMathRegex = new Regex(@"\$\$([\s\S]*?)\$\$");
+        var inlineMathRegex = new Regex(@"(?<![\\\$])\$(?!\s)([^\$\n]+?)(?<!\s)\$(?!\d)");
+
+        foreach (var file in files)
+        {
+            var lines = readLines(file);
+            if (lines == null || lines.Length == 0) continue;
+
+            string fullText = string.Join("\n", lines);
+
+            var blockMatches = displayMathRegex.Matches(fullText);
+            foreach (Match m in blockMatches)
+            {
+                totalFormulas++;
+                blockCount++;
+                string snippet = m.Groups[1].Value.Trim();
+                bool hasError = false;
+                string errDetail = "Valid Block Math";
+
+                int openBraces = snippet.Count(c => c == '{');
+                int closeBraces = snippet.Count(c => c == '}');
+                if (openBraces != closeBraces)
+                {
+                    hasError = true;
+                    errDetail = $"Unbalanced curly braces ({openBraces} open vs {closeBraces} close)";
+                }
+
+                if (hasError) syntaxErrorCount++;
+
+                int lineNum = fullText.Substring(0, m.Index).Count(c => c == '\n') + 1;
+                items.Add(new WorkspaceMathFormulaItem(
+                    file, Path.GetFileName(file), lineNum, snippet.Length > 40 ? snippet.Substring(0, 37) + "..." : snippet,
+                    true, hasError, errDetail));
+            }
+
+            bool inCodeFence = false;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.TrimStart();
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inCodeFence = !inCodeFence;
+                    continue;
+                }
+                if (inCodeFence) continue;
+
+                var inlineMatches = inlineMathRegex.Matches(line);
+                foreach (Match m in inlineMatches)
+                {
+                    totalFormulas++;
+                    inlineCount++;
+                    string snippet = m.Groups[1].Value.Trim();
+                    bool hasError = false;
+                    string errDetail = "Valid Inline Math";
+
+                    int openBraces = snippet.Count(c => c == '{');
+                    int closeBraces = snippet.Count(c => c == '}');
+                    if (openBraces != closeBraces)
+                    {
+                        hasError = true;
+                        errDetail = $"Unbalanced curly braces ({openBraces} open vs {closeBraces} close)";
+                    }
+
+                    if (hasError) syntaxErrorCount++;
+
+                    items.Add(new WorkspaceMathFormulaItem(
+                        file, Path.GetFileName(file), i + 1, snippet.Length > 30 ? snippet.Substring(0, 27) + "..." : snippet,
+                        false, hasError, errDetail));
+                }
+            }
+        }
+
+        double score = 100.0;
+        score -= syntaxErrorCount * 20.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (scannedFiles == 0 || totalFormulas == 0) category = "Clean Baseline";
+        else if (score >= 90.0) category = "Optimal KaTeX / LaTeX Syntax Consistency (≥90%)";
+        else if (score >= 75.0) category = "Good Formula Structure with Minor Brace Errors (75-89%)";
+        else if (score >= 50.0) category = "Moderate Mathematical Delimiter Inconsistencies (50-74%)";
+        else category = "Severe Unbalanced Braces or Broken KaTeX Syntax (<50%)";
+
+        string summary = FormatWorkspaceMathSummary(
+            scannedFiles, totalFormulas, inlineCount, blockCount, syntaxErrorCount, score, category);
+
+        return new WorkspaceMathConsistencyAudit(
+            scannedFiles, totalFormulas, inlineCount, blockCount, syntaxErrorCount,
+            score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceMathSummary(
+        int filesScanned, int totalFormulas, int inlineCount, int blockCount,
+        int syntaxErrorCount, double score, string category)
+    {
+        if (filesScanned == 0) return "Workspace math formula audit: Clean baseline · 0 documents scanned";
+        if (totalFormulas == 0) return $"Workspace math formula audit ({filesScanned} docs): Clean baseline · 0 formulas detected";
+
+        string fileStr = filesScanned == 1 ? "1 doc" : $"{filesScanned} docs";
+        var parts = new List<string>();
+
+        parts.Add($"{totalFormulas} formula{(totalFormulas == 1 ? "" : "s")}");
+        parts.Add($"{inlineCount} inline, {blockCount} block");
+
+        if (syntaxErrorCount > 0)
+            parts.Add($"⚠ {syntaxErrorCount} syntax error{(syntaxErrorCount == 1 ? "" : "s")}");
+        else
+            parts.Add("Valid KaTeX/LaTeX syntax");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace math formula audit ({fileStr} · {details} · {category} · {score:0.#}% syntax score)";
+    }
 }
 
 /// <summary>
@@ -9575,7 +9720,31 @@ public sealed record WorkspaceFenceGrammarAudit(
     double MetadataRigorScore,
     IReadOnlyList<WorkspaceFenceGrammarItem> Items,
     string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated math formula metrics, file location, LaTeX snippet, and syntax error status for an individual expression.
+/// </summary>
+public sealed record WorkspaceMathFormulaItem(
+    string FilePath,
+    string FileName,
+    int LineNumber,
+    string FormulaSnippet,
+    bool IsBlockMath,
+    bool HasSyntaxError,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown documents for inline and block LaTeX/KaTeX mathematical expressions,
+/// balanced curly braces, and syntax consistency.
+/// </summary>
+public sealed record WorkspaceMathConsistencyAudit(
+    int TotalFilesScanned,
+    int TotalFormulasFound,
+    int InlineFormulaCount,
+    int BlockFormulaCount,
+    int SyntaxErrorCount,
+    double MathConsistencyScore,
+    IReadOnlyList<WorkspaceMathFormulaItem> Items,
+    string Category,
     string Summary);
-
-
-

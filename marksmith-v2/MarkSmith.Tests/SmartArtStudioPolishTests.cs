@@ -2738,11 +2738,46 @@ public class SmartArtStudioPolishTests
         Assert.True(probAudit.WordBalanceRatio < 0.8);
         Assert.True(probAudit.RhythmScore < 95.0);
     }
+
+    [Fact]
+    public void Run192_AuditRadialGearCycleEngagement_ValidatesAngularPitchAndDensity()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditRadialGearCycleEngagement("");
+        Assert.Equal(0, emptyAudit.TotalGears);
+        Assert.Equal(100.0, emptyAudit.RotationalBalanceScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+        Assert.Contains("Empty outline", emptyAudit.Summary);
+
+        // 2. Optimal 4-gear cycle (90 deg pitch)
+        var cleanMd = string.Join("\n",
+            "- Discovery & Analysis",
+            "- Architectural Design",
+            "- Core Implementation",
+            "- Verification & Testing"
+        );
+
+        var cleanAudit = SmartArtDesignStudioViewModel.AuditRadialGearCycleEngagement(cleanMd, "Radial Gear Cycle");
+        Assert.Equal(4, cleanAudit.TotalGears);
+        Assert.Equal(90.0, cleanAudit.TargetPitchDegrees);
+        Assert.True(cleanAudit.HasOptimalGearDensity);
+        Assert.Equal(100.0, cleanAudit.RotationalBalanceScore);
+        Assert.Equal("Optimal Radial Gear Engagement & Pitch Rhythm (≥90%)", cleanAudit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatRadialGearSummary(
+            cleanAudit.TotalGears, cleanAudit.TargetPitchDegrees, cleanAudit.HasOptimalGearDensity,
+            cleanAudit.RotationalBalanceScore, cleanAudit.Category, cleanAudit.LayoutName);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Sparse gear cycle (2 gears: cannot mechanically mesh)
+        var sparseMd = string.Join("\n",
+            "- Input Gear",
+            "- Output Gear"
+        );
+
+        var sparseAudit = SmartArtDesignStudioViewModel.AuditRadialGearCycleEngagement(sparseMd, "Gear Mesh");
+        Assert.Equal(2, sparseAudit.TotalGears);
+        Assert.False(sparseAudit.HasOptimalGearDensity);
+        Assert.True(sparseAudit.RotationalBalanceScore < 90.0);
+    }
 }
-
-
-
-
-
-
-

@@ -8367,6 +8367,120 @@ public static class LineDiff
         string details = string.Join(" · ", parts);
         return $"Diff defensive copying & struct parameter audit ({lineStr} · {category} · {score:0.#}% efficiency score): {details}";
     }
+
+    public static DiffMethodInliningAudit AuditMethodInliningAndPgoHazards(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditMethodInliningAndPgoHazards(unified);
+    }
+
+    public static DiffMethodInliningAudit AuditMethodInliningAndPgoHazards(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            string emptySummary = FormatMethodInliningSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffMethodInliningAudit(
+                0, 0, 0, 0, 0, 100.0, Array.Empty<MethodInliningHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && !r.IsRemoved && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatMethodInliningSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffMethodInliningAudit(
+                0, 0, 0, 0, 0, 100.0, Array.Empty<MethodInliningHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<MethodInliningHazardItem>();
+        int aggressiveCount = 0;
+        int throwCount = 0;
+        int virtualCount = 0;
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string text = row.Text ?? string.Empty;
+            string trimmed = text.Trim();
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            if (trimmed.Contains("MethodImplOptions.AggressiveInlining"))
+            {
+                aggressiveCount++;
+                hazards.Add(new MethodInliningHazardItem(
+                    lineNum, trimmed, "AggressiveInlining Directive", "Warning",
+                    "Verify method IL body is < 32 bytes and lacks branches/loops",
+                    "[AggressiveInlining] may bloat caller code size if method exceeds 32 IL bytes"));
+            }
+            else if (trimmed.StartsWith("throw new ") || trimmed.Contains(" throw new "))
+            {
+                throwCount++;
+                hazards.Add(new MethodInliningHazardItem(
+                    lineNum, trimmed, "Inline Throw Blocker", "Warning",
+                    "Factor throw statement into a static [DoesNotReturn] ThrowHelper method",
+                    "Inline throw statement inhibits JIT method inlining in hot path"));
+            }
+            else if ((trimmed.StartsWith("for (") || trimmed.StartsWith("foreach (") || trimmed.StartsWith("while (")) &&
+                     (trimmed.Contains("=>") || trimmed.Contains(".Invoke(") || trimmed.Contains("Func<") || trimmed.Contains("Action<")))
+            {
+                virtualCount++;
+                hazards.Add(new MethodInliningHazardItem(
+                    lineNum, trimmed, "Virtual/Delegate Call in Loop", "Suggestion",
+                    "Avoid virtual or delegate dispatch inside tight loops to enable JIT devirtualization",
+                    "Delegate or virtual invocation in hot loop inhibits PGO devirtualization"));
+            }
+        }
+
+        double score = 100.0;
+        score -= aggressiveCount * 15.0;
+        score -= throwCount * 10.0;
+        score -= virtualCount * 8.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalModified == 0) category = "Clean Baseline";
+        else if (score >= 90.0) category = "Optimal Method Inlining & PGO Deoptimization Governance (≥90%)";
+        else if (score >= 75.0) category = "Good Inlining Health with Minor Inline Throw Hazards (75-89%)";
+        else if (score >= 50.0) category = "Moderate Inlining Inhibitors or Aggressive Directives (50-74%)";
+        else category = "Severe JIT Inlining Deoptimization Hazards (<50%)";
+
+        int totalHazards = hazards.Count;
+        string summary = FormatMethodInliningSummary(
+            totalModified, totalHazards, aggressiveCount, throwCount, virtualCount, score, category);
+
+        return new DiffMethodInliningAudit(
+            totalModified, totalHazards, aggressiveCount, throwCount, virtualCount,
+            score, hazards, category, summary);
+    }
+
+    public static string FormatMethodInliningSummary(
+        int totalLines, int totalHazards, int aggressiveCount, int throwCount,
+        int virtualCount, double score, string category)
+    {
+        if (totalLines == 0) return "Semantic diff method inlining audit: Clean baseline · 0 modified lines";
+
+        string lineStr = totalLines == 1 ? "1 modified line" : $"{totalLines} modified lines";
+        var parts = new List<string>();
+
+        if (totalHazards == 0)
+            parts.Add("0 inlining hazards (Optimal JIT Hygiene)");
+        else
+            parts.Add($"⚠ {totalHazards} inlining hazard{(totalHazards == 1 ? "" : "s")}");
+
+        if (aggressiveCount > 0)
+            parts.Add($"{aggressiveCount} [AggressiveInlining]");
+        if (throwCount > 0)
+            parts.Add($"{throwCount} inline throw blocker{(throwCount == 1 ? "" : "s")}");
+        if (virtualCount > 0)
+            parts.Add($"{virtualCount} loop delegate/virtual hazard{(virtualCount == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff method inlining audit ({lineStr} · {details} · {category} · {score:0.#}% inlining score): {details}";
+    }
 }
 
 /// <summary>
@@ -9241,8 +9355,28 @@ public sealed record DiffDefensiveCopyingAudit(
 
 
 
+/// <summary>
+/// Represents an identified method inlining hazard, AggressiveInlining directive, or PGO deoptimization blocker on a diff line.
+/// </summary>
+public sealed record MethodInliningHazardItem(
+    int LineNumber,
+    string LineText,
+    string HazardType,
+    string Severity,
+    string Recommendation,
+    string Description);
 
-
-
-
-
+/// <summary>
+/// Represents the result of an audit of semantic diff hunks for method inlining, AggressiveInlining directives,
+/// throw statement inlining blockers, and delegate/virtual dispatch in loops.
+/// </summary>
+public sealed record DiffMethodInliningAudit(
+    int TotalModifiedLines,
+    int TotalHazardsCount,
+    int AggressiveInliningCount,
+    int ThrowBlockerCount,
+    int VirtualDispatchHazardCount,
+    double InliningOptimizationScore,
+    IReadOnlyList<MethodInliningHazardItem> Hazards,
+    string Category,
+    string Summary);
