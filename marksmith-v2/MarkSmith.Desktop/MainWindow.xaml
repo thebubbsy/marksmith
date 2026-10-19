@@ -2323,6 +2323,18 @@
                         </StackPanel>
                     </HyperlinkButton>
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                    <HyperlinkButton x:Name="StatusCopyMathButton"
+                                     Click="OnStatusCopyMathButtonClick"
+                                     RightTapped="OnStatusCopyMathButtonRightTapped"
+                                     Padding="5,1" FontSize="11.5" Opacity="0.85"
+                                     ToolTipService.ToolTip="Copy all LaTeX math expressions to clipboard · Right-click for display/inline filters or Math Inventory Table"
+                                     AutomationProperties.Name="Copy LaTeX math expressions">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE948;" FontSize="11" />
+                            <TextBlock x:Name="StatusCopyMathText" Text="Copy Math" />
+                        </StackPanel>
+                    </HyperlinkButton>
+                    <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1" VerticalAlignment="Center"
                                FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
                                Tapped="OnCursorPosTextTapped" DoubleTapped="OnCursorPosTextDoubleTapped"

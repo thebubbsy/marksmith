@@ -12461,6 +12461,282 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.ShowAt(anchor);
     }
 
+    private List<(bool IsDisplay, int LineNumber, string RawDelimited, string InnerExpression)> ExtractMarkdownMathExpressions()
+    {
+        var results = new List<(bool IsDisplay, int LineNumber, string RawDelimited, string InnerExpression)>();
+        var md = EditorDocument();
+        if (string.IsNullOrWhiteSpace(md)) return results;
+
+        var lines = md.Split('\n');
+        bool inCodeFence = false;
+        bool inDisplayBlock = false;
+        string displayOpenDelim = "$$";
+        int displayStartLine = 1;
+        var displayBuf = new System.Text.StringBuilder();
+
+        for (int idx = 0; idx < lines.Length; idx++)
+        {
+            int lineNo = idx + 1;
+            var line = lines[idx].TrimEnd('\r');
+            var trimmed = line.TrimStart();
+
+            if (!inDisplayBlock && (trimmed.StartsWith("```") || trimmed.StartsWith("~~~")))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            if (inDisplayBlock)
+            {
+                string closeDelim = displayOpenDelim == "$$" ? "$$" : "\\]";
+                int closeIdx = line.IndexOf(closeDelim, StringComparison.Ordinal);
+                if (closeIdx >= 0)
+                {
+                    if (closeIdx > 0)
+                    {
+                        if (displayBuf.Length > 0) displayBuf.Append('\n');
+                        displayBuf.Append(line[..closeIdx]);
+                    }
+                    var inner = displayBuf.ToString().Trim();
+                    if (!string.IsNullOrEmpty(inner))
+                    {
+                        var raw = displayOpenDelim == "$$" ? $"$$\n{inner}\n$$" : $"\\[\n{inner}\n\\]";
+                        results.Add((true, displayStartLine, raw, inner));
+                    }
+                    inDisplayBlock = false;
+                    displayBuf.Clear();
+                }
+                else
+                {
+                    if (displayBuf.Length > 0) displayBuf.Append('\n');
+                    displayBuf.Append(line);
+                }
+                continue;
+            }
+
+            if (trimmed.StartsWith("$$") || trimmed.StartsWith("\\["))
+            {
+                string openDelim = trimmed.StartsWith("$$") ? "$$" : "\\[";
+                string closeDelim = openDelim == "$$" ? "$$" : "\\]";
+                var afterOpen = trimmed[2..];
+                int closeIdx = afterOpen.IndexOf(closeDelim, StringComparison.Ordinal);
+                if (closeIdx >= 0)
+                {
+                    var inner = afterOpen[..closeIdx].Trim();
+                    if (!string.IsNullOrEmpty(inner))
+                    {
+                        results.Add((true, lineNo, $"{openDelim}{inner}{closeDelim}", inner));
+                    }
+                }
+                else
+                {
+                    inDisplayBlock = true;
+                    displayOpenDelim = openDelim;
+                    displayStartLine = lineNo;
+                    displayBuf.Clear();
+                    if (!string.IsNullOrWhiteSpace(afterOpen))
+                        displayBuf.Append(afterOpen.Trim());
+                }
+                continue;
+            }
+
+            int pos = 0;
+            while (pos < line.Length)
+            {
+                if (line[pos] == '`')
+                {
+                    int nextTick = line.IndexOf('`', pos + 1);
+                    if (nextTick > pos) { pos = nextTick + 1; continue; }
+                }
+
+                if (pos + 1 < line.Length && line[pos] == '\\' && line[pos + 1] == '(')
+                {
+                    int closeParen = line.IndexOf("\\)", pos + 2, StringComparison.Ordinal);
+                    if (closeParen > pos + 2)
+                    {
+                        var inner = line[(pos + 2)..closeParen].Trim();
+                        if (!string.IsNullOrEmpty(inner))
+                            results.Add((false, lineNo, $"\\({inner}\\)", inner));
+                        pos = closeParen + 2;
+                        continue;
+                    }
+                }
+
+                if (pos + 1 < line.Length && line[pos] == '$' && line[pos + 1] == '$')
+                {
+                    int closeDbl = line.IndexOf("$$", pos + 2, StringComparison.Ordinal);
+                    if (closeDbl > pos + 2)
+                    {
+                        var inner = line[(pos + 2)..closeDbl].Trim();
+                        if (!string.IsNullOrEmpty(inner))
+                            results.Add((true, lineNo, $"$${inner}$$", inner));
+                        pos = closeDbl + 2;
+                        continue;
+                    }
+                }
+
+                if (line[pos] == '$' && (pos == 0 || line[pos - 1] != '\\'))
+                {
+                    if (pos + 1 < line.Length && !char.IsWhiteSpace(line[pos + 1]) && line[pos + 1] != '$')
+                    {
+                        int closeSingle = -1;
+                        for (int k = pos + 1; k < line.Length; k++)
+                        {
+                            if (line[k] == '$' && line[k - 1] != '\\' && !char.IsWhiteSpace(line[k - 1]))
+                            {
+                                closeSingle = k;
+                                break;
+                            }
+                        }
+                        if (closeSingle > pos + 1)
+                        {
+                            var inner = line[(pos + 1)..closeSingle].Trim();
+                            if (!string.IsNullOrEmpty(inner))
+                                results.Add((false, lineNo, $"${inner}$", inner));
+                            pos = closeSingle + 1;
+                            continue;
+                        }
+                    }
+                }
+                pos++;
+            }
+        }
+
+        return results;
+    }
+
+    private void OnStatusCopyMathButtonClick(object sender, RoutedEventArgs e)
+    {
+        var exprs = ExtractMarkdownMathExpressions();
+        if (exprs.Count == 0)
+        {
+            AnnounceStatus("No LaTeX math expressions ($...$ or $$...$$) found in document");
+            return;
+        }
+
+        int displayCount = exprs.Count(m => m.IsDisplay);
+        int inlineCount = exprs.Count - displayCount;
+        var output = string.Join(Environment.NewLine + Environment.NewLine, exprs.Select(m => m.RawDelimited));
+        _ = Services.ClipboardWriter.TrySetTextAsync(output);
+        AnnounceStatus($"Copied {exprs.Count:N0} LaTeX math expression(s) ({displayCount:N0} display, {inlineCount:N0} inline) to clipboard");
+    }
+
+    private void OnStatusCopyMathButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+
+        var menu = new MenuFlyout();
+
+        var copyAllItem = new MenuFlyoutItem
+        {
+            Text = "Copy all math expressions (display + inline)",
+            Icon = new FontIcon { Glyph = "\uE948" }
+        };
+        copyAllItem.Click += (_, _) => OnStatusCopyMathButtonClick(sender, new RoutedEventArgs());
+        menu.Items.Add(copyAllItem);
+
+        var copyDisplayItem = new MenuFlyoutItem
+        {
+            Text = "Copy display math blocks only ($$...$$ / \\[...\\])",
+            Icon = new FontIcon { Glyph = "\uE943" }
+        };
+        copyDisplayItem.Click += (_, _) =>
+        {
+            var displayOnly = ExtractMarkdownMathExpressions().Where(m => m.IsDisplay).ToList();
+            if (displayOnly.Count == 0)
+            {
+                AnnounceStatus("No display math blocks ($$...$$) found in document");
+                return;
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine + Environment.NewLine, displayOnly.Select(m => m.RawDelimited)));
+            AnnounceStatus($"Copied {displayOnly.Count:N0} display math block(s) to clipboard");
+        };
+        menu.Items.Add(copyDisplayItem);
+
+        var copyInlineItem = new MenuFlyoutItem
+        {
+            Text = "Copy inline math expressions only ($...$ / \\(...\\))",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyInlineItem.Click += (_, _) =>
+        {
+            var inlineOnly = ExtractMarkdownMathExpressions().Where(m => !m.IsDisplay).ToList();
+            if (inlineOnly.Count == 0)
+            {
+                AnnounceStatus("No inline math expressions ($...$) found in document");
+                return;
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine, inlineOnly.Select(m => m.RawDelimited)));
+            AnnounceStatus($"Copied {inlineOnly.Count:N0} inline math expression(s) to clipboard");
+        };
+        menu.Items.Add(copyInlineItem);
+
+        var copyTableItem = new MenuFlyoutItem
+        {
+            Text = "Copy Math Inventory Table (Markdown)",
+            Icon = new FontIcon { Glyph = "\uE80A" }
+        };
+        copyTableItem.Click += (_, _) =>
+        {
+            var exprs = ExtractMarkdownMathExpressions();
+            if (exprs.Count == 0)
+            {
+                AnnounceStatus("No LaTeX math expressions found in document");
+                return;
+            }
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"**LaTeX Math Inventory**: {exprs.Count:N0} expression(s) ({exprs.Count(m => m.IsDisplay):N0} display, {exprs.Count(m => !m.IsDisplay):N0} inline)");
+            sb.AppendLine();
+            sb.AppendLine("| # | Mode | Line | LaTeX Expression |");
+            sb.AppendLine("| ---: | :---: | ---: | :--- |");
+            for (int i = 0; i < exprs.Count; i++)
+            {
+                var m = exprs[i];
+                var mode = m.IsDisplay ? "Display" : "Inline";
+                var cleanExpr = m.InnerExpression.Replace("\r", " ").Replace("\n", " ").Replace("|", "\\|");
+                sb.AppendLine($"| {i + 1} | {mode} | Ln {m.LineNumber} | `{cleanExpr}` |");
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
+            AnnounceStatus($"Copied Math Inventory Table ({exprs.Count:N0} expressions) to clipboard");
+        };
+        menu.Items.Add(copyTableItem);
+
+        var insertTableItem = new MenuFlyoutItem
+        {
+            Text = "Insert Math Inventory Table at cursor",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertTableItem.Click += (_, _) =>
+        {
+            var exprs = ExtractMarkdownMathExpressions();
+            if (exprs.Count == 0)
+            {
+                AnnounceStatus("No LaTeX math expressions found in document");
+                return;
+            }
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"## LaTeX Math Inventory ({exprs.Count:N0} Expressions)");
+            sb.AppendLine();
+            sb.AppendLine("| # | Mode | Line | LaTeX Expression |");
+            sb.AppendLine("| ---: | :---: | ---: | :--- |");
+            for (int i = 0; i < exprs.Count; i++)
+            {
+                var m = exprs[i];
+                var mode = m.IsDisplay ? "Display" : "Inline";
+                var cleanExpr = m.InnerExpression.Replace("\r", " ").Replace("\n", " ").Replace("|", "\\|");
+                sb.AppendLine($"| {i + 1} | {mode} | Ln {m.LineNumber} | `{cleanExpr}` |");
+            }
+            sb.AppendLine();
+            InsertMarkdown(sb.ToString());
+            AnnounceStatus($"Inserted Math Inventory Table ({exprs.Count:N0} expressions) at cursor");
+        };
+        menu.Items.Add(insertTableItem);
+
+        menu.ShowAt(anchor);
+    }
+
     private void OnStatusCopyMarkdownButtonClick(object sender, RoutedEventArgs e)
     {
         var selected = PasteTextBox?.SelectedText;
