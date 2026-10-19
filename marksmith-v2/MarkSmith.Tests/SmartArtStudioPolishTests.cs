@@ -2236,6 +2236,49 @@ public class SmartArtStudioPolishTests
             audit.HierarchyBalanceScore, audit.Category);
         Assert.Equal(audit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run182_AuditCycleSequenceAndClosure_EvaluatesMonotonicityAndClosure()
+    {
+        // 1. Empty markdown
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditCycleSequenceAndClosure("", "Continuous Block Cycle");
+        Assert.Equal(0, emptyAudit.TotalSteps);
+        Assert.Equal(100.0, emptyAudit.BalanceScore);
+        Assert.Contains("0 steps", emptyAudit.Summary);
+
+        // 2. Closed 4-step cycle with balanced wording
+        string cycleMd = string.Join("\n",
+            "- Step 1: Discover",
+            "- Step 2: Design",
+            "- Step 3: Implement",
+            "- Step 4: Verify"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditCycleSequenceAndClosure(cycleMd, "Radial Cycle");
+        Assert.Equal(4, audit.TotalSteps);
+        Assert.True(audit.MeetsMinimumCycleSize);
+        Assert.True(audit.IsClosedLoop);
+        Assert.True(audit.BalanceScore >= 90.0);
+        Assert.Equal("Harmonious Cyclic Loop (≥90%)", audit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatCycleSequenceSummary(
+            audit.TotalSteps, audit.MeetsMinimumCycleSize, audit.AverageStepWordCount,
+            audit.WordCountVariance, audit.SubBulletTotal, audit.BalanceScore,
+            audit.Category, audit.LayoutName);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Cycle with insufficient steps (< 3 steps)
+        string shortCycleMd = string.Join("\n",
+            "- Single Starting Step",
+            "- Second Step Only"
+        );
+
+        var shortAudit = SmartArtDesignStudioViewModel.AuditCycleSequenceAndClosure(shortCycleMd, "Continuous Block Cycle");
+        Assert.Equal(2, shortAudit.TotalSteps);
+        Assert.False(shortAudit.MeetsMinimumCycleSize);
+        Assert.False(shortAudit.IsClosedLoop);
+        Assert.True(shortAudit.BalanceScore < audit.BalanceScore);
+    }
 }
 
 

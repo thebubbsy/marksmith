@@ -2528,6 +2528,51 @@ public class ShapeStudioPolishTests
             audit.PaletteHarmonyScore, audit.Category, audit.IsSelectionScope ? "Selection · " : "");
         Assert.Equal(audit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run182_AuditShapeAspectRatioHarmony_EvaluatesProportionsAndSlivers()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditShapeAspectRatioHarmony();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.HarmonyScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+        Assert.Contains("0 shapes", emptyAudit.Summary);
+
+        // 2. Harmonious shapes (Square, 4:3, 16:9, Golden Ratio)
+        var square = new ShapeCanvasItemViewModel { Id = "sq", Name = "Square", Width = 100, Height = 100 };
+        var photo = new ShapeCanvasItemViewModel { Id = "ph", Name = "Photo 4:3", Width = 400, Height = 300 };
+        var golden = new ShapeCanvasItemViewModel { Id = "gd", Name = "Golden Box", Width = 161.8, Height = 100 };
+
+        vm.Shapes.Add(square);
+        vm.Shapes.Add(photo);
+        vm.Shapes.Add(golden);
+
+        var audit = vm.AuditShapeAspectRatioHarmony();
+        Assert.Equal(3, audit.TotalShapes);
+        Assert.Equal(1, audit.SquareRatioCount);
+        Assert.Equal(1, audit.GoldenRatioCount);
+        Assert.Equal(0, audit.ExtremeDistortionCount);
+        Assert.True(audit.HarmonyScore >= 85.0);
+        Assert.Equal("Harmonious & Proportional (≥90%)", audit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatAspectRatioHarmonySummary(
+            audit.TotalShapes, audit.AverageAspectRatio, audit.AspectRatioVariance,
+            audit.ExtremeDistortionCount, audit.GoldenRatioCount, audit.SquareRatioCount,
+            audit.HarmonyScore, audit.Category, audit.IsSelectionScope ? "Selection · " : "");
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Extreme sliver shape
+        var sliver = new ShapeCanvasItemViewModel { Id = "sl", Name = "Sliver Line", Width = 500, Height = 5 };
+        vm.Shapes.Add(sliver);
+
+        var sliverAudit = vm.AuditShapeAspectRatioHarmony();
+        Assert.Equal(4, sliverAudit.TotalShapes);
+        Assert.True(sliverAudit.ExtremeDistortionCount >= 1);
+        Assert.True(sliverAudit.HarmonyScore < audit.HarmonyScore);
+    }
 }
 
 

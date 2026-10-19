@@ -9053,6 +9053,156 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
         return $"Fill color harmony audit ({scopeStr}{shapeStr} · {category} · {harmonyScore:0.#}% harmony){details}";
     }
+
+    /// <summary>
+    /// Audits diagram shapes for geometric aspect ratio harmony, standard design proportions (1:1, 4:3, 16:9, Golden Ratio),
+    /// extreme sliver distortions, and visual mass distribution.
+    /// </summary>
+    public DiagramAspectRatioHarmonyAudit AuditShapeAspectRatioHarmony(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = targetShapes?.ToList() ?? (selected.Count > 0 ? selected : Shapes.ToList());
+        bool isSelection = targetShapes != null || (selected.Count > 0 && targets.Count < Shapes.Count);
+        var audit = AuditShapeAspectRatioHarmony(targets, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramAspectRatioHarmonyAudit AuditShapeAspectRatioHarmony(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes,
+        bool isSelection = false)
+    {
+        var list = shapes?.ToList() ?? new List<ShapeCanvasItemViewModel>();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        if (list.Count == 0)
+        {
+            return new DiagramAspectRatioHarmonyAudit(
+                0, 0.0, 0.0, 0, 0.0, 0.0, 0, 0, 100.0,
+                Array.Empty<ShapeAspectRatioItem>(),
+                "Empty Canvas", isSelection,
+                $"Diagram aspect ratio harmony audit ({scopeStr}0 shapes): Canvas is empty");
+        }
+
+        var items = new List<ShapeAspectRatioItem>();
+        int extremeDistortionCount = 0;
+        int goldenCount = 0;
+        int squareCount = 0;
+
+        var ratios = new List<double>();
+        var areas = new List<double>();
+
+        var standardRatios = new (double Ratio, string Name)[]
+        {
+            (1.0, "1:1 Square"),
+            (4.0 / 3.0, "4:3 Standard"),
+            (1.618, "1.618 Golden Ratio"),
+            (16.0 / 9.0, "16:9 Widescreen"),
+            (1.5, "3:2 Classic"),
+            (2.0, "2:1 Banner"),
+            (3.0 / 4.0, "3:4 Portrait"),
+            (9.0 / 16.0, "9:16 Vertical")
+        };
+
+        foreach (var shape in list)
+        {
+            double w = Math.Max(1.0, Math.Abs(shape.Width));
+            double h = Math.Max(1.0, Math.Abs(shape.Height));
+            double r = Math.Round(w / h, 3);
+            double area = Math.Round(w * h, 1);
+
+            ratios.Add(r);
+            areas.Add(area);
+
+            var closest = standardRatios
+                .Select(s => (s.Name, Diff: Math.Abs(r - s.Ratio) / s.Ratio, s.Ratio))
+                .OrderBy(x => x.Diff)
+                .First();
+
+            bool isSquare = Math.Abs(r - 1.0) <= 0.08;
+            bool isGolden = Math.Abs(r - 1.618) <= 0.12;
+            bool isExtreme = (r < 0.15 || r > 7.0);
+
+            if (isSquare) squareCount++;
+            if (isGolden) goldenCount++;
+            if (isExtreme) extremeDistortionCount++;
+
+            string status = isExtreme ? "⚠ Extreme sliver distortion" :
+                            isSquare ? "✓ Square / 1:1" :
+                            isGolden ? "✓ Golden ratio / 1.618" :
+                            $"~ {closest.Name} (±{Math.Round(closest.Diff * 100, 0)}%)";
+
+            string label = !string.IsNullOrWhiteSpace(shape.Text) ? shape.Text :
+                           shape.ShapeType.ToString();
+
+            items.Add(new ShapeAspectRatioItem(
+                shape.Id,
+                label,
+                Math.Round(w, 1),
+                Math.Round(h, 1),
+                r,
+                area,
+                closest.Name,
+                Math.Round(closest.Diff, 3),
+                isExtreme,
+                status));
+        }
+
+        double avgRatio = Math.Round(ratios.Average(), 2);
+        double ratioVariance = ratios.Count > 1
+            ? Math.Round(ratios.Select(r => Math.Pow(r - avgRatio, 2)).Average(), 2)
+            : 0.0;
+
+        double avgArea = Math.Round(areas.Average(), 1);
+        double areaVariance = areas.Count > 1
+            ? Math.Round(areas.Select(a => Math.Pow(a - avgArea, 2)).Average(), 1)
+            : 0.0;
+
+        double penalty = (extremeDistortionCount * 18.0);
+        if (ratioVariance > 2.0)
+        {
+            penalty += Math.Min(25.0, (ratioVariance - 2.0) * 8.0);
+        }
+
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Harmonious & Proportional (≥90%)",
+            >= 75.0 => "Balanced Geometries (75–89%)",
+            >= 60.0 => "Moderate Variance (60–74%)",
+            >= 40.0 => "Distorted / Sliver Shapes (40–59%)",
+            _ => "Chaotic Proportions (<40%)"
+        };
+
+        string summary = FormatAspectRatioHarmonySummary(
+            list.Count, avgRatio, ratioVariance, extremeDistortionCount, goldenCount, squareCount,
+            score, category, scopeStr);
+
+        return new DiagramAspectRatioHarmonyAudit(
+            list.Count, avgRatio, ratioVariance, extremeDistortionCount, avgArea, areaVariance,
+            goldenCount, squareCount, score, items, category, isSelection, summary);
+    }
+
+    public static string FormatAspectRatioHarmonySummary(
+        int totalShapes, double avgRatio, double ratioVariance, int extremeDistortionCount,
+        int goldenCount, int squareCount, double harmonyScore, string category,
+        string scopeStr = "")
+    {
+        if (totalShapes == 0) return $"Diagram aspect ratio harmony audit ({scopeStr}0 shapes): Canvas is empty";
+
+        string shapeStr = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        var alerts = new List<string>();
+        alerts.Add($"avg ratio {avgRatio:0.##}:1 (var {ratioVariance:0.##})");
+        if (goldenCount > 0) alerts.Add($"{goldenCount} golden");
+        if (squareCount > 0) alerts.Add($"{squareCount} square");
+        if (extremeDistortionCount > 0) alerts.Add($"⚠ {extremeDistortionCount} sliver {(extremeDistortionCount == 1 ? "distortion" : "distortions")}");
+        else alerts.Add("0 distortions");
+
+        string details = string.Join(" · ", alerts);
+        return $"Aspect ratio harmony audit ({scopeStr}{shapeStr} · {category} · {harmonyScore:0.#}% harmony): {details}";
+    }
 }
 
 /// <summary>
@@ -9931,6 +10081,40 @@ public sealed record DiagramFillColorHarmonyAudit(
     int DominantColorCount,
     double PaletteHarmonyScore,
     IReadOnlyList<ShapeColorHarmonyItem> Shapes,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated aspect ratio, standard proportions, and sliver distortion for an individual shape.
+/// </summary>
+public sealed record ShapeAspectRatioItem(
+    string ShapeId,
+    string Label,
+    double Width,
+    double Height,
+    double AspectRatio,
+    double Area,
+    string ClosestStandardRatio,
+    double RatioDeviation,
+    bool IsExtremeDistortion,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape geometric aspect ratio harmony, standard proportions,
+/// extreme sliver distortions, and visual mass distribution.
+/// </summary>
+public sealed record DiagramAspectRatioHarmonyAudit(
+    int TotalShapes,
+    double AverageAspectRatio,
+    double AspectRatioVariance,
+    int ExtremeDistortionCount,
+    double AverageArea,
+    double AreaVariance,
+    int GoldenRatioCount,
+    int SquareRatioCount,
+    double HarmonyScore,
+    IReadOnlyList<ShapeAspectRatioItem> Items,
     string Category,
     bool IsSelectionScope,
     string Summary);

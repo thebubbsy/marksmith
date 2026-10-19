@@ -6605,6 +6605,190 @@ public sealed class RecentFilesService
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
         return $"Workspace code block language advisor ({docStr} [{blockStr} in {langStr}] · {category} · {score:0.#}% coverage){details}";
     }
+
+    /// <summary>
+    /// Audits workspace markdown files for code fence delimiter consistency (backtick vs tilde),
+    /// irregular 1-3 space indentation outside list items, and tab-versus-space indentation anomalies.
+    /// </summary>
+    public static WorkspaceCodeFenceIndentationAudit AuditWorkspaceCodeFenceIndentation(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var exists = fileExistsProvider ?? File.Exists;
+        var reader = contentReader ?? File.ReadAllText;
+
+        var fileList = files?.ToList() ?? new List<string>();
+        var mdFiles = fileList
+            .Where(f => !string.IsNullOrWhiteSpace(f) &&
+                        (f.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
+                         f.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (mdFiles.Count == 0)
+        {
+            return new WorkspaceCodeFenceIndentationAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<CodeFenceFileAuditItem>(),
+                "Empty Workspace",
+                "Workspace code fence indentation advisor: 0 documents · Workspace is empty");
+        }
+
+        var items = new List<CodeFenceFileAuditItem>();
+        int totalFences = 0;
+        int totalBackticks = 0;
+        int totalTildes = 0;
+        int totalIndentationAlerts = 0;
+        int filesWithFences = 0;
+
+        foreach (var path in mdFiles)
+        {
+            if (!exists(path)) continue;
+
+            string content;
+            try { content = reader(path); }
+            catch { continue; }
+
+            var lines = content.Replace("\r", "").Split('\n');
+            int fileFences = 0;
+            int fileBackticks = 0;
+            int fileTildes = 0;
+            int fileIndentAlerts = 0;
+
+            bool inFence = false;
+            string fenceChar = "";
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                int leadingSpaces = 0;
+                bool hasTab = false;
+                while (leadingSpaces < line.Length && (line[leadingSpaces] == ' ' || line[leadingSpaces] == '\t'))
+                {
+                    if (line[leadingSpaces] == '\t') hasTab = true;
+                    leadingSpaces++;
+                }
+
+                var trimmed = line.Trim();
+                bool isBacktick = trimmed.StartsWith("```");
+                bool isTilde = trimmed.StartsWith("~~~");
+
+                if (!inFence && (isBacktick || isTilde))
+                {
+                    inFence = true;
+                    fenceChar = isBacktick ? "`" : "~";
+                    fileFences++;
+                    if (isBacktick) fileBackticks++;
+                    else fileTildes++;
+
+                    bool isPrecededByList = (i > 0) &&
+                        Regex.IsMatch(lines[i - 1].Trim(), @"^([-*+]|\d+[.)])\s+");
+
+                    if (hasTab)
+                    {
+                        fileIndentAlerts++;
+                    }
+                    else if (leadingSpaces >= 1 && leadingSpaces <= 3 && !isPrecededByList)
+                    {
+                        fileIndentAlerts++;
+                    }
+                }
+                else if (inFence && ((fenceChar == "`" && isBacktick) || (fenceChar == "~" && isTilde)))
+                {
+                    inFence = false;
+                    fenceChar = "";
+                }
+            }
+
+            if (fileFences > 0) filesWithFences++;
+            totalFences += fileFences;
+            totalBackticks += fileBackticks;
+            totalTildes += fileTildes;
+            totalIndentationAlerts += fileIndentAlerts;
+
+            int mixedCount = (fileBackticks > 0 && fileTildes > 0) ? Math.Min(fileBackticks, fileTildes) : 0;
+            bool hasAnomaly = fileIndentAlerts > 0 || mixedCount > 0;
+
+            string status = fileIndentAlerts > 0 ? $"⚠ {fileIndentAlerts} indentation alert(s)" :
+                            mixedCount > 0 ? $"⚠ Mixed delimiters (` and ~)" :
+                            fileFences > 0 ? $"✓ {fileFences} uniform fence(s)" : "✓ No fences";
+
+            items.Add(new CodeFenceFileAuditItem(
+                path,
+                Path.GetFileName(path),
+                fileFences,
+                fileBackticks,
+                fileTildes,
+                fileIndentAlerts,
+                mixedCount,
+                hasAnomaly,
+                status));
+        }
+
+        if (totalFences == 0)
+        {
+            return new WorkspaceCodeFenceIndentationAudit(
+                mdFiles.Count, 0, 0, 0, 0, 0, 100.0,
+                items,
+                "Clean Baseline",
+                $"Workspace code fence indentation advisor ({mdFiles.Count} docs): 0 code fences · Clean baseline");
+        }
+
+        double penalty = (totalIndentationAlerts * 10.0);
+        int filesWithMixed = items.Count(it => it.MixedDelimiterCount > 0);
+        penalty += filesWithMixed * 8.0;
+
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Consistent Fences (≥90%)",
+            >= 75.0 => "Uniform Formatting (75–89%)",
+            >= 60.0 => "Moderate Variance (60–74%)",
+            >= 40.0 => "Irregular Indentation (40–59%)",
+            _ => "Chaotic Formatting (<40%)"
+        };
+
+        string summary = FormatWorkspaceCodeFenceSummary(
+            mdFiles.Count, filesWithFences, totalFences, totalBackticks, totalTildes,
+            totalIndentationAlerts, score, category, items);
+
+        return new WorkspaceCodeFenceIndentationAudit(
+            mdFiles.Count, filesWithFences, totalFences, totalBackticks, totalTildes,
+            totalIndentationAlerts, score, items, category, summary);
+    }
+
+    public static WorkspaceCodeFenceIndentationAudit AuditWorkspaceCodeFenceIndentation(
+        string filePath,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        return AuditWorkspaceCodeFenceIndentation(new[] { filePath }, fileExistsProvider, contentReader);
+    }
+
+    public static string FormatWorkspaceCodeFenceSummary(
+        int totalDocs, int docsWithFences, int totalFences, int backticks, int tildes,
+        int indentAlerts, double score, string category,
+        IReadOnlyList<CodeFenceFileAuditItem>? items = null)
+    {
+        if (totalDocs == 0) return "Workspace code fence indentation advisor: 0 documents · Workspace is empty";
+        if (totalFences == 0) return $"Workspace code fence indentation advisor ({totalDocs} docs): 0 code fences · Clean baseline";
+
+        string docStr = totalDocs == 1 ? "1 document" : $"{totalDocs} documents";
+        string fenceStr = totalFences == 1 ? "1 fence" : $"{totalFences} fences";
+
+        var parts = new List<string>();
+        parts.Add($"{backticks} backtick, {tildes} tilde");
+        if (indentAlerts > 0) parts.Add($"⚠ {indentAlerts} indent {(indentAlerts == 1 ? "alert" : "alerts")}");
+        else parts.Add("0 indent alerts");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace code fence indentation advisor ({docStr} [{fenceStr}] · {category} · {score:0.#}% consistency): {details}";
+    }
 }
 
 /// <summary>
@@ -7421,6 +7605,36 @@ public sealed record WorkspaceCodeBlockLanguageAudit(
     string DominantLanguage,
     double SyntaxHighlightingCoverageScore,
     IReadOnlyList<CodeBlockLanguageCountItem> Languages,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated code fence count, delimiter distribution, and indentation alert status for a markdown file.
+/// </summary>
+public sealed record CodeFenceFileAuditItem(
+    string FilePath,
+    string FileName,
+    int TotalFences,
+    int BacktickFences,
+    int TildeFences,
+    int IndentedFences,
+    int MixedDelimiterCount,
+    bool HasFormattingAnomaly,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown code block fence formatting, delimiter consistency,
+/// and indentation anomalies.
+/// </summary>
+public sealed record WorkspaceCodeFenceIndentationAudit(
+    int TotalFilesScanned,
+    int FilesWithFences,
+    int TotalFences,
+    int BacktickCount,
+    int TildeCount,
+    int IndentationAlertCount,
+    double ConsistencyScore,
+    IReadOnlyList<CodeFenceFileAuditItem> Files,
     string Category,
     string Summary);
 

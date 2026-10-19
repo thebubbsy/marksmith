@@ -6527,6 +6527,14 @@ namespace MarkSmith.Views.ShapeStudio
             _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
+
+        private void OnSelectionAuditAspectRatioHarmonyClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditShapeAspectRatioHarmony();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
     }
 }
 

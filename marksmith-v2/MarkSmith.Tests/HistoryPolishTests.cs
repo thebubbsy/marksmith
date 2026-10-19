@@ -2337,6 +2337,65 @@ public class HistoryPolishTests : IDisposable
             audit.MutationClarityScore, audit.Category, audit.Pairs);
         Assert.Equal(audit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run182_AuditVariableScopeLocality_EvaluatesLifetimeAndLeakage()
+    {
+        // 1. Empty / null input
+        var emptyAudit = LineDiff.AuditVariableScopeLocality("", "");
+        Assert.Equal(0, emptyAudit.TotalVariablesDetected);
+        Assert.Equal(100.0, emptyAudit.LocalityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 variable declarations", emptyAudit.Summary);
+
+        // 2. Tightly localized variable within short span
+        string beforeCode = string.Join("\n",
+            "public void ProcessData()",
+            "{",
+            "    int legacy = 0;",
+            "    DoWork(legacy);",
+            "}"
+        );
+
+        string afterCode = string.Join("\n",
+            "public void ProcessData()",
+            "{",
+            "    var localBuffer = new byte[1024];",
+            "    localBuffer[0] = 1;",
+            "    WriteData(localBuffer);",
+            "}"
+        );
+
+        var audit = LineDiff.AuditVariableScopeLocality(beforeCode, afterCode);
+        Assert.True(audit.TotalVariablesDetected >= 1);
+        Assert.Equal(0, audit.LeakingScopeVariablesCount);
+        Assert.True(audit.LocalityScore >= 80.0);
+
+        string formatted = LineDiff.FormatVariableScopeLocalitySummary(
+            audit.TotalVariablesDetected, audit.LocalizedVariablesCount, audit.LeakingScopeVariablesCount,
+            audit.AverageScopeSpanLines, audit.MaxScopeSpanLines, audit.LocalityScore,
+            audit.Category, audit.Items);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Widely separated / leaking scope variable
+        var lines = new List<string>
+        {
+            "var leakingVar = 42;"
+        };
+        for (int i = 0; i < 60; i++)
+        {
+            lines.Add($"// intermediate code line {i}");
+        }
+        lines.Add("ConsumeLeaking(leakingVar);");
+
+        string wideAfterCode = string.Join("\n", lines);
+        var wideAudit = LineDiff.AuditVariableScopeLocality("", wideAfterCode);
+
+        Assert.True(wideAudit.TotalVariablesDetected >= 1);
+        Assert.True(wideAudit.MaxScopeSpanLines >= 50);
+        Assert.True(wideAudit.LeakingScopeVariablesCount >= 1);
+        Assert.True(wideAudit.LocalityScore < audit.LocalityScore);
+    }
 }
 
 

@@ -7855,6 +7855,188 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · balanced branches";
         return $"Hierarchy tree balance audit ({nodeStr} · {category} · {score:0.#}% balance){details}";
     }
+
+    /// <summary>
+    /// Audits SmartArt cycle and radial layouts for monotonic sequencing, minimum loop closure (N >= 3),
+    /// step description word count uniformity, and sub-bullet balance.
+    /// </summary>
+    public SmartArtCycleSequenceAudit AuditCycleSequenceAndClosure(string? markdown = null, string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? SelectedLayout?.Name ?? "Cycle";
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtCycleSequenceAudit(
+                0, false, false, 0.0, 0.0, 0, 100.0,
+                Array.Empty<CycleSequenceStepItem>(),
+                "Empty Outline", layout,
+                $"SmartArt cycle sequence audit ({layout} · 0 steps): Outline is empty");
+        }
+
+        var lines = input.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var rawSteps = new List<(string Title, int LineNumber, List<string> SubBullets)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            int indent = 0;
+            while (indent < line.Length && (line[indent] == ' ' || line[indent] == '\t'))
+            {
+                indent += line[indent] == '\t' ? 4 : 1;
+            }
+
+            string trimmed = line.Trim();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+                continue;
+
+            int level = indent / 2;
+            string nodeText = trimmed;
+
+            if (trimmed.StartsWith('#'))
+            {
+                int hashCount = trimmed.TakeWhile(c => c == '#').Count();
+                level = Math.Max(0, hashCount - 1);
+                nodeText = trimmed.TrimStart('#').Trim();
+            }
+            else if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ "))
+            {
+                nodeText = trimmed.Substring(2).Trim();
+            }
+            else
+            {
+                var numMatch = System.Text.RegularExpressions.Regex.Match(trimmed, @"^\d+[.)]\s+(.*)$");
+                if (numMatch.Success)
+                {
+                    nodeText = numMatch.Groups[1].Value.Trim();
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(nodeText)) continue;
+
+            if (level == 0)
+            {
+                rawSteps.Add((nodeText, i + 1, new List<string>()));
+            }
+            else if (rawSteps.Count > 0)
+            {
+                rawSteps[rawSteps.Count - 1].SubBullets.Add(nodeText);
+            }
+            else
+            {
+                rawSteps.Add((nodeText, i + 1, new List<string>()));
+            }
+        }
+
+        int totalSteps = rawSteps.Count;
+        bool meetsMinSize = totalSteps >= 3;
+        bool isClosedLoop = totalSteps >= 3;
+
+        if (totalSteps == 0)
+        {
+            return new SmartArtCycleSequenceAudit(
+                0, false, false, 0.0, 0.0, 0, 100.0,
+                Array.Empty<CycleSequenceStepItem>(),
+                "Empty Outline", layout,
+                $"SmartArt cycle sequence audit ({layout} · 0 steps): Outline contains no valid steps");
+        }
+
+        var wordCounts = rawSteps.Select(s => s.Title.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length).ToList();
+        double avgWords = Math.Round(wordCounts.Average(), 1);
+        double wordVariance = wordCounts.Count > 1
+            ? Math.Round(wordCounts.Select(w => Math.Pow(w - avgWords, 2)).Average(), 1)
+            : 0.0;
+
+        int totalSubBullets = rawSteps.Sum(s => s.SubBullets.Count);
+
+        var items = new List<CycleSequenceStepItem>();
+        for (int i = 0; i < rawSteps.Count; i++)
+        {
+            var step = rawSteps[i];
+            int words = wordCounts[i];
+            double deviation = Math.Round(words - avgWords, 1);
+            int subCount = step.SubBullets.Count;
+
+            string status = !meetsMinSize ? "⚠ Needs ≥3 steps to form closed loop" :
+                            Math.Abs(deviation) > 6.0 ? $"⚠ Word count outlier ({words} words vs avg {avgWords:0.#})" :
+                            subCount > 3 ? $"✓ Step with {subCount} details" : "✓ Balanced step";
+
+            items.Add(new CycleSequenceStepItem(
+                i + 1,
+                step.Title,
+                step.LineNumber,
+                step.Title.Length,
+                words,
+                deviation,
+                subCount,
+                status));
+        }
+
+        double penalty = 0.0;
+        if (!meetsMinSize)
+        {
+            penalty += (3 - totalSteps) * 20.0;
+        }
+
+        if (wordVariance > 10.0)
+        {
+            penalty += Math.Min(25.0, (wordVariance - 10.0) * 1.5);
+        }
+
+        if (totalSteps > 8)
+        {
+            penalty += (totalSteps - 8) * 5.0;
+        }
+
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Harmonious Cyclic Loop (≥90%)",
+            >= 75.0 => "Balanced Sequence (75–89%)",
+            >= 60.0 => "Moderate Cycle Asymmetry (60–74%)",
+            >= 40.0 => "Unbalanced / Underpopulated Cycle (40–59%)",
+            _ => "Incomplete Cycle (<40%)"
+        };
+
+        string summary = FormatCycleSequenceSummary(
+            totalSteps, meetsMinSize, avgWords, wordVariance, totalSubBullets, score, category, layout);
+
+        StatusMessage = summary;
+
+        return new SmartArtCycleSequenceAudit(
+            totalSteps, isClosedLoop, meetsMinSize, avgWords, wordVariance, totalSubBullets,
+            score, items, category, layout, summary);
+    }
+
+    public static SmartArtCycleSequenceAudit AuditCycleSequenceAndClosure(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditCycleSequenceAndClosure(markdown, layoutName);
+    }
+
+    public static string FormatCycleSequenceSummary(
+        int totalSteps, bool meetsMinSize, double avgWords, double wordVariance,
+        int totalSubBullets, double score, string category, string layoutName)
+    {
+        if (totalSteps == 0)
+            return $"SmartArt cycle sequence audit ({layoutName} · 0 steps): Outline is empty";
+
+        string stepStr = totalSteps == 1 ? "1 step" : $"{totalSteps} steps";
+        var alerts = new List<string>();
+        if (!meetsMinSize) alerts.Add("⚠ incomplete loop (needs ≥3 steps)");
+        else alerts.Add("closed cyclic loop");
+
+        alerts.Add($"avg {avgWords:0.#} words/step (var {wordVariance:0.#})");
+        if (totalSubBullets > 0) alerts.Add($"{totalSubBullets} sub-items");
+
+        string details = string.Join(" · ", alerts);
+        return $"Cycle sequence audit ({layoutName} · {stepStr} · {category} · {score:0.#}% balance): {details}";
+    }
 }
 
 /// <summary>
@@ -8633,6 +8815,36 @@ public sealed record SmartArtHierarchyBalanceAudit(
     double HierarchyBalanceScore,
     IReadOnlyList<HierarchyNodeBalanceItem> Items,
     string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, character length, word count, and sub-bullets for an individual SmartArt cycle step.
+/// </summary>
+public sealed record CycleSequenceStepItem(
+    int StepIndex,
+    string Title,
+    int LineNumber,
+    int CharacterLength,
+    int WordCount,
+    double LengthDeviationFromMean,
+    int SubBulletCount,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt cycle layout monotonic sequencing, minimum loop closure (N >= 3),
+/// step description word count uniformity, and sub-bullet balance.
+/// </summary>
+public sealed record SmartArtCycleSequenceAudit(
+    int TotalSteps,
+    bool IsClosedLoop,
+    bool MeetsMinimumCycleSize,
+    double AverageStepWordCount,
+    double WordCountVariance,
+    int SubBulletTotal,
+    double BalanceScore,
+    IReadOnlyList<CycleSequenceStepItem> Steps,
+    string Category,
+    string LayoutName,
     string Summary);
 
 

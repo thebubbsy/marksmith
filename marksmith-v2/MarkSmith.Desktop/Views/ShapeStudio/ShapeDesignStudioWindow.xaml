@@ -754,6 +754,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditFillColorPaletteHarmonyItem" Text="Audit shape fill color harmony &amp; WCAG contrast uniformity" Click="OnSelectionAuditFillColorPaletteHarmonyClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditAspectRatioHarmonyItem" Text="Audit shape aspect ratio harmony &amp; visual mass distribution" Click="OnSelectionAuditAspectRatioHarmonyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -2157,6 +2157,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyWorkspaceCodeFenceIndentationAdvisorClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var audit = RecentFilesService.AuditWorkspaceCodeFenceIndentation(files);
+            await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+            SetNotification($"Copied Code Fence Indentation advisor: {audit.Category} · {audit.ConsistencyScore:0.#}% consistency", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit workspace code fence indentation: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

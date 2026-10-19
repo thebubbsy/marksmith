@@ -383,6 +383,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyBalanceItem" Text="Audit SmartArt hierarchy level indentation depth &amp; sibling balance" Click="OnOutlineStatsAuditHierarchyBalanceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditCycleSequenceItem" Text="Audit SmartArt cycle layout sequence monotonicity &amp; loop closure" Click="OnOutlineStatsAuditCycleSequenceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

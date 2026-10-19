@@ -351,6 +351,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceCodeBlockLanguagesAdvisorItem" Text="Copy workspace markdown code block language tag distribution &amp; missing syntax highlighting advisor" Click="OnCopyWorkspaceCodeBlockLanguagesAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyWorkspaceCodeFenceIndentationAdvisorItem" Text="Copy workspace markdown code block fence formatting &amp; indentation consistency advisor" Click="OnCopyWorkspaceCodeFenceIndentationAdvisorClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

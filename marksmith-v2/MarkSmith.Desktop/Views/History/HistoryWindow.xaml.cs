@@ -3601,6 +3601,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditIdentifierRenaming);
+
+                var auditVariableScopeLocality = new MenuFlyoutItem
+                {
+                    Text = "Audit variable scope lifetime & mutation locality distribution",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditVariableScopeLocality.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditVariableScopeLocality(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditVariableScopeLocality);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

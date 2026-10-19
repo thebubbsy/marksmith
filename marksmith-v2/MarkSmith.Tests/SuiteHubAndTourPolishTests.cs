@@ -4490,6 +4490,100 @@ Some paragraph in between.
         Assert.Contains("OnCopyWorkspaceCodeBlockLanguagesAdvisorClick", suiteCs);
         Assert.Contains("AuditWorkspaceCodeBlockLanguages", suiteCs);
     }
+
+    [Fact]
+    public void Run182_AuditWorkspaceCodeFenceIndentation_EvaluatesDelimitersAndIndentation()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceCodeFenceIndentation(
+            Array.Empty<string>(),
+            _ => true,
+            _ => "");
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(100.0, emptyAudit.ConsistencyScore);
+        Assert.Contains("0 documents", emptyAudit.Summary);
+
+        var doc1 = string.Join("\n",
+            "# Clean Code Blocks",
+            "```csharp",
+            "var x = 1;",
+            "```",
+            "```json",
+            "{\"ok\": true}",
+            "```"
+        );
+
+        var doc2 = string.Join("\n",
+            "# Tilde Blocks & Indentation",
+            "~~~python",
+            "print('Hello')",
+            "~~~",
+            "   ```js",
+            "console.log('Indented fence');",
+            "   ```"
+        );
+
+        var files = new[] { @"C:\test\clean.md", @"C:\test\indented.md" };
+        var audit = RecentFilesService.AuditWorkspaceCodeFenceIndentation(
+            files,
+            _ => true,
+            f => f.Contains("clean") ? doc1 : doc2);
+
+        Assert.Equal(2, audit.TotalFilesScanned);
+        Assert.Equal(2, audit.FilesWithFences);
+        Assert.Equal(4, audit.TotalFences);
+        Assert.Equal(3, audit.BacktickCount);
+        Assert.Equal(1, audit.TildeCount);
+        Assert.Equal(1, audit.IndentationAlertCount);
+        Assert.True(audit.ConsistencyScore < 100.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceCodeFenceSummary(
+            audit.TotalFilesScanned, audit.FilesWithFences, audit.TotalFences,
+            audit.BacktickCount, audit.TildeCount, audit.IndentationAlertCount,
+            audit.ConsistencyScore, audit.Category, audit.Files);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run182_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Footnote Sequential Ordering, Orphan Reference & Multi-Paragraph Continuation Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditFootnoteOrderItem", mainCs);
+        Assert.Contains("AuditFootnoteOrderAndOrphans", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Topological Hierarchy Level, Stratum Layering & Directed Cycle Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphTopologicalHierarchyAndCyclesItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphTopologicalHierarchyAndCyclesClick", galaxyCs);
+        Assert.Contains("AuditTopologicalHierarchyAndCycles", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Aspect Ratio Harmony, Golden Proportions & Extreme Sliver Distortion Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditAspectRatioHarmonyItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditAspectRatioHarmonyClick", shapeCs);
+        Assert.Contains("AuditShapeAspectRatioHarmony", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Cycle Layout Sequence Monotonicity, Step Count & Closed-Loop Closure Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditCycleSequenceItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditCycleSequenceClick", smartArtCs);
+        Assert.Contains("AuditCycleSequenceAndClosure", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Token-Level Variable Scope Locality, Lifetime Span & Scope Leakage Advisor
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditVariableScopeLocality", historyCs);
+        Assert.Contains("AuditVariableScopeLocality", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Code Fence Formatting, Indentation Alignment & Delimiter Consistency Advisor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceCodeFenceIndentationAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceCodeFenceIndentationAdvisorClick", suiteCs);
+        Assert.Contains("AuditWorkspaceCodeFenceIndentation", suiteCs);
+    }
 }
 
 

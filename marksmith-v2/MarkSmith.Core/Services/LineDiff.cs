@@ -6882,6 +6882,167 @@ public static class LineDiff
         string details = parts.Count > 0 ? $" · {string.Join(" · ", parts)}" : "";
         return $"Diff identifier renaming audit ({pairStr} · {category} · {score:0.#}% clarity){details}";
     }
+
+    /// <summary>
+    /// Audits semantic diff unified rows for variable declaration-to-mutation scope lifetimes,
+    /// tracking line spans between identifier introduction and subsequent modifications, and detecting scope leakage.
+    /// </summary>
+    public static DiffVariableScopeLocalityAudit AuditVariableScopeLocality(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new DiffVariableScopeLocalityAudit(
+                0, 0, 0, 0.0, 0, 100.0,
+                Array.Empty<VariableScopeLocalityItem>(),
+                "Empty Diff",
+                "Diff variable scope locality audit: 0 variables · Diff is empty");
+        }
+
+        var declRegex = new Regex(
+            @"\b(?:var|let|const|val|int|string|bool|double|float|long|auto)\s+([a-zA-Z_][a-zA-Z0-9_]*)\b(?:\s*=|;|\s*:)|^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*=[^=]",
+            RegexOptions.Compiled);
+
+        var varMap = new Dictionary<string, (int DeclLine, List<int> Usages)>(StringComparer.Ordinal);
+        var keywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "if", "else", "for", "while", "do", "switch", "case", "return", "new", "this", "true", "false", "null",
+            "get", "set", "add", "remove", "value", "void", "public", "private", "protected", "internal", "static"
+        };
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var row = unifiedRows[i];
+            if (row.IsGap || row.Kind == Kind.Same) continue;
+
+            string text = row.Text ?? "";
+            if (string.IsNullOrWhiteSpace(text)) continue;
+
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            var match = declRegex.Match(text);
+            if (match.Success)
+            {
+                string varName = !string.IsNullOrEmpty(match.Groups[1].Value)
+                    ? match.Groups[1].Value
+                    : match.Groups[2].Value;
+
+                if (!string.IsNullOrWhiteSpace(varName) && !keywords.Contains(varName) && varName.Length > 1)
+                {
+                    if (!varMap.ContainsKey(varName))
+                    {
+                        varMap[varName] = (lineNum, new List<int>());
+                    }
+                }
+            }
+
+            foreach (var kvp in varMap)
+            {
+                string name = kvp.Key;
+                if (Regex.IsMatch(text, $@"\b{Regex.Escape(name)}\b") && lineNum != kvp.Value.DeclLine)
+                {
+                    kvp.Value.Usages.Add(lineNum);
+                }
+            }
+        }
+
+        if (varMap.Count == 0)
+        {
+            return new DiffVariableScopeLocalityAudit(
+                0, 0, 0, 0.0, 0, 100.0,
+                Array.Empty<VariableScopeLocalityItem>(),
+                "Clean Baseline",
+                "Diff variable scope locality audit: 0 variable declarations in diff · Clean baseline");
+        }
+
+        var items = new List<VariableScopeLocalityItem>();
+        int localizedCount = 0;
+        int leakingCount = 0;
+        int maxSpan = 0;
+        var spans = new List<int>();
+
+        foreach (var kvp in varMap)
+        {
+            string varName = kvp.Key;
+            int decl = kvp.Value.DeclLine;
+            var usages = kvp.Value.Usages;
+
+            int firstMut = usages.Count > 0 ? usages.Min() : decl;
+            int lastMut = usages.Count > 0 ? usages.Max() : decl;
+            int span = Math.Max(0, lastMut - decl);
+
+            spans.Add(span);
+            if (span > maxSpan) maxSpan = span;
+
+            bool isLeaking = span > 25 || (usages.Count >= 5 && span > 15);
+            if (isLeaking) leakingCount++;
+            else localizedCount++;
+
+            string status = isLeaking
+                ? $"⚠ Scope span {span} lines ({usages.Count} mutations) · Leaking scope"
+                : $"✓ Localized span {span} lines ({usages.Count} mutations)";
+
+            items.Add(new VariableScopeLocalityItem(
+                varName,
+                decl,
+                firstMut,
+                lastMut,
+                span,
+                usages.Count,
+                isLeaking,
+                status));
+        }
+
+        double avgSpan = spans.Count > 0 ? Math.Round(spans.Average(), 1) : 0.0;
+
+        double penalty = (leakingCount * 16.0);
+        if (avgSpan > 15.0)
+        {
+            penalty += Math.Min(25.0, (avgSpan - 15.0) * 1.5);
+        }
+
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "High Mutation Locality (≥90%)",
+            >= 75.0 => "Well-Scoped Variables (75–89%)",
+            >= 60.0 => "Moderate Scope Drift (60–74%)",
+            >= 40.0 => "Extended Scope Leakage (40–59%)",
+            _ => "Diffuse Mutation Span (<40%)"
+        };
+
+        string summary = FormatVariableScopeLocalitySummary(
+            varMap.Count, localizedCount, leakingCount, avgSpan, maxSpan, score, category, items);
+
+        return new DiffVariableScopeLocalityAudit(
+            varMap.Count, localizedCount, leakingCount, avgSpan, maxSpan,
+            score, items, category, summary);
+    }
+
+    public static DiffVariableScopeLocalityAudit AuditVariableScopeLocality(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditVariableScopeLocality(unified);
+    }
+
+    public static string FormatVariableScopeLocalitySummary(
+        int totalVars, int localized, int leaking, double avgSpan, int maxSpan,
+        double score, string category, IReadOnlyList<VariableScopeLocalityItem>? items = null)
+    {
+        if (totalVars == 0)
+            return "Diff variable scope locality audit: 0 variable declarations in diff · Clean baseline";
+
+        string varStr = totalVars == 1 ? "1 variable" : $"{totalVars} variables";
+        var parts = new List<string>();
+        parts.Add($"avg span {avgSpan:0.#} lines (max {maxSpan})");
+        if (leaking > 0) parts.Add($"⚠ {leaking} leaking scope");
+        else parts.Add("100% localized");
+
+        string details = string.Join(" · ", parts);
+        return $"Diff variable scope locality audit ({varStr} · {category} · {score:0.#}% locality): {details}";
+    }
 }
 
 /// <summary>
@@ -7521,6 +7682,34 @@ public sealed record DiffIdentifierRenamingAudit(
     double ScopeEntropy,
     double MutationClarityScore,
     IReadOnlyList<IdentifierRenamePairItem> Pairs,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated declaration line, mutation lifetime span, and scope leakage status for a variable in a diff.
+/// </summary>
+public sealed record VariableScopeLocalityItem(
+    string VariableName,
+    int DeclarationLine,
+    int FirstMutationLine,
+    int LastMutationLine,
+    int ScopeSpanLines,
+    int MutationCount,
+    bool IsLeakingScope,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff variable scope lifetimes, line spans between declaration and modification,
+/// and scope leakage risk.
+/// </summary>
+public sealed record DiffVariableScopeLocalityAudit(
+    int TotalVariablesDetected,
+    int LocalizedVariablesCount,
+    int LeakingScopeVariablesCount,
+    double AverageScopeSpanLines,
+    int MaxScopeSpanLines,
+    double LocalityScore,
+    IReadOnlyList<VariableScopeLocalityItem> Items,
     string Category,
     string Summary);
 

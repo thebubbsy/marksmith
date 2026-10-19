@@ -3210,6 +3210,64 @@ namespace MarkSmith.Tests
                 audit.TopologyBalanceScore, audit.TopHubTitle, audit.Category, audit.IsSelectionScope);
             Assert.Equal(audit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run182_AuditTopologicalHierarchyAndCycles_EvaluatesAcyclicityAndStrata()
+        {
+            // 1. Empty / null input
+            var emptyAudit = MindMapStudioViewModel.AuditTopologicalHierarchyAndCycles(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalEdges);
+            Assert.Equal(100.0, emptyAudit.AcyclicityScore);
+            Assert.Equal("Empty Map", emptyAudit.HierarchyClassification);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Directed Acyclic Graph (DAG) with clean strata
+            var root = new MindMapNode { Id = "root", Title = "Root Project" };
+            var arch = new MindMapNode { Id = "arch", Title = "Architecture" };
+            var ui = new MindMapNode { Id = "ui", Title = "UI Layer" };
+            var db = new MindMapNode { Id = "db", Title = "Data Layer" };
+
+            var l1 = new MindMapLink { SourceNodeId = "root", TargetNodeId = "arch" };
+            var l2 = new MindMapLink { SourceNodeId = "arch", TargetNodeId = "ui" };
+            var l3 = new MindMapLink { SourceNodeId = "arch", TargetNodeId = "db" };
+
+            var dagAudit = MindMapStudioViewModel.AuditTopologicalHierarchyAndCycles(
+                new[] { root, arch, ui, db },
+                new[] { l1, l2, l3 });
+
+            Assert.Equal(4, dagAudit.TotalNodes);
+            Assert.Equal(3, dagAudit.TotalEdges);
+            Assert.Equal(0, dagAudit.CycleCount);
+            Assert.Equal(0, dagAudit.CycleNodeCount);
+            Assert.True(dagAudit.StratumLayerCount >= 3);
+            Assert.True(dagAudit.AcyclicityScore >= 90.0);
+            Assert.Equal("Pure DAG (Acyclic Layered)", dagAudit.HierarchyClassification);
+
+            string formatted = MindMapStudioViewModel.FormatTopologicalHierarchySummary(
+                dagAudit.TotalNodes, dagAudit.TotalEdges, dagAudit.StratumLayerCount, dagAudit.MaxStratumWidth,
+                dagAudit.CycleNodeCount, dagAudit.CycleCount, dagAudit.AcyclicityScore, dagAudit.HierarchyClassification, dagAudit.IsSelectionScope);
+            Assert.Equal(dagAudit.Summary, formatted);
+
+            // 3. Cyclic graph with loop
+            var c1 = new MindMapNode { Id = "c1", Title = "Cycle Node 1" };
+            var c2 = new MindMapNode { Id = "c2", Title = "Cycle Node 2" };
+            var c3 = new MindMapNode { Id = "c3", Title = "Cycle Node 3" };
+
+            var cl1 = new MindMapLink { SourceNodeId = "c1", TargetNodeId = "c2" };
+            var cl2 = new MindMapLink { SourceNodeId = "c2", TargetNodeId = "c3" };
+            var cl3 = new MindMapLink { SourceNodeId = "c3", TargetNodeId = "c1" };
+
+            var cycleAudit = MindMapStudioViewModel.AuditTopologicalHierarchyAndCycles(
+                new[] { c1, c2, c3 },
+                new[] { cl1, cl2, cl3 });
+
+            Assert.Equal(3, cycleAudit.TotalNodes);
+            Assert.Equal(3, cycleAudit.TotalEdges);
+            Assert.True(cycleAudit.CycleCount >= 1);
+            Assert.True(cycleAudit.CycleNodeCount >= 3);
+            Assert.True(cycleAudit.AcyclicityScore < 100.0);
+        }
     }
 }
 

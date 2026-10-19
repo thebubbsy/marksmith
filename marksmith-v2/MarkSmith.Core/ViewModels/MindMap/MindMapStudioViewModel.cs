@@ -9372,6 +9372,256 @@ namespace MarkSmith.ViewModels.MindMap
             string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · uniform degrees";
             return $"Graph degree distribution & hub dominance audit ({scope}{nodeStr}, {edgeStr} · {category} · {balanceScore:0.#}% balance): avg deg {avgDegree:0.##}{details}";
         }
+
+        public GraphTopologicalHierarchyAudit AuditTopologicalHierarchyAndCycles(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0) ? selected : Nodes.ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+            string scope = isSelection ? "Selection · " : "";
+
+            if (targetNodes.Count == 0)
+            {
+                return new GraphTopologicalHierarchyAudit(
+                    0, 0, 0, 0, 0, 0, 100.0,
+                    Array.Empty<TopologicalStratumNodeInfo>(),
+                    "Empty Map", isSelection,
+                    $"Graph topological hierarchy & cycle audit ({scope}0 nodes): Empty map");
+            }
+
+            var nodeSet = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var targetLinks = Links.Where(l => nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId)).ToList();
+
+            var inDegrees = new Dictionary<string, int>();
+            var outDegrees = new Dictionary<string, int>();
+            var adj = new Dictionary<string, List<string>>();
+            foreach (var nd in targetNodes)
+            {
+                inDegrees[nd.Id] = 0;
+                outDegrees[nd.Id] = 0;
+                adj[nd.Id] = new List<string>();
+            }
+
+            foreach (var link in targetLinks)
+            {
+                if (outDegrees.ContainsKey(link.SourceNodeId)) outDegrees[link.SourceNodeId]++;
+                if (inDegrees.ContainsKey(link.TargetNodeId)) inDegrees[link.TargetNodeId]++;
+                if (adj.ContainsKey(link.SourceNodeId)) adj[link.SourceNodeId].Add(link.TargetNodeId);
+            }
+
+            int index = 0;
+            var indices = new Dictionary<string, int>();
+            var lowlink = new Dictionary<string, int>();
+            var onStack = new HashSet<string>();
+            var stack = new Stack<string>();
+            var sccs = new List<List<string>>();
+
+            void StrongConnect(string v)
+            {
+                indices[v] = index;
+                lowlink[v] = index;
+                index++;
+                stack.Push(v);
+                onStack.Add(v);
+
+                foreach (var w in adj[v])
+                {
+                    if (!indices.ContainsKey(w))
+                    {
+                        StrongConnect(w);
+                        lowlink[v] = Math.Min(lowlink[v], lowlink[w]);
+                    }
+                    else if (onStack.Contains(w))
+                    {
+                        lowlink[v] = Math.Min(lowlink[v], indices[w]);
+                    }
+                }
+
+                if (lowlink[v] == indices[v])
+                {
+                    var scc = new List<string>();
+                    string node;
+                    do
+                    {
+                        node = stack.Pop();
+                        onStack.Remove(node);
+                        scc.Add(node);
+                    } while (node != v);
+                    sccs.Add(scc);
+                }
+            }
+
+            foreach (var nd in targetNodes)
+            {
+                if (!indices.ContainsKey(nd.Id))
+                {
+                    StrongConnect(nd.Id);
+                }
+            }
+
+            var cycleNodeMap = new Dictionary<string, string>();
+            int cycleGroupCounter = 1;
+            foreach (var scc in sccs)
+            {
+                bool isCycle = false;
+                if (scc.Count > 1)
+                {
+                    isCycle = true;
+                }
+                else if (scc.Count == 1)
+                {
+                    var single = scc[0];
+                    if (adj[single].Contains(single))
+                    {
+                        isCycle = true;
+                    }
+                }
+
+                if (isCycle)
+                {
+                    string groupId = $"C{cycleGroupCounter++}";
+                    foreach (var cNode in scc)
+                    {
+                        cycleNodeMap[cNode] = groupId;
+                    }
+                }
+            }
+
+            int cycleNodeCount = cycleNodeMap.Count;
+            int cycleCount = cycleGroupCounter - 1;
+
+            var dagNodes = targetNodes.Where(n => !cycleNodeMap.ContainsKey(n.Id)).ToList();
+            var dagNodeSet = new HashSet<string>(dagNodes.Select(n => n.Id));
+            var dagInDegree = new Dictionary<string, int>();
+            var dagAdj = new Dictionary<string, List<string>>();
+            var stratumMap = new Dictionary<string, int>();
+
+            foreach (var nd in dagNodes)
+            {
+                dagInDegree[nd.Id] = 0;
+                dagAdj[nd.Id] = new List<string>();
+                stratumMap[nd.Id] = 0;
+            }
+
+            foreach (var link in targetLinks)
+            {
+                if (dagNodeSet.Contains(link.SourceNodeId) && dagNodeSet.Contains(link.TargetNodeId))
+                {
+                    dagAdj[link.SourceNodeId].Add(link.TargetNodeId);
+                    dagInDegree[link.TargetNodeId]++;
+                }
+            }
+
+            var queue = new Queue<string>();
+            foreach (var nd in dagNodes)
+            {
+                if (dagInDegree[nd.Id] == 0)
+                {
+                    queue.Enqueue(nd.Id);
+                }
+            }
+
+            while (queue.Count > 0)
+            {
+                var u = queue.Dequeue();
+                int currentLayer = stratumMap[u];
+                foreach (var v in dagAdj[u])
+                {
+                    stratumMap[v] = Math.Max(stratumMap[v], currentLayer + 1);
+                    dagInDegree[v]--;
+                    if (dagInDegree[v] == 0)
+                    {
+                        queue.Enqueue(v);
+                    }
+                }
+            }
+
+            var layerCounts = new Dictionary<int, int>();
+            foreach (var kvp in stratumMap)
+            {
+                int layer = kvp.Value;
+                layerCounts[layer] = layerCounts.GetValueOrDefault(layer, 0) + 1;
+            }
+
+            int stratumLayerCount = layerCounts.Count > 0 ? layerCounts.Keys.Max() + 1 : (targetNodes.Count > 0 && cycleNodeCount == 0 ? 1 : 0);
+            int maxStratumWidth = layerCounts.Count > 0 ? layerCounts.Values.Max() : 0;
+
+            var items = new List<TopologicalStratumNodeInfo>();
+            foreach (var nd in targetNodes)
+            {
+                bool inCycle = cycleNodeMap.TryGetValue(nd.Id, out var cGroupId);
+                int layer = inCycle ? -1 : stratumMap.GetValueOrDefault(nd.Id, 0);
+                string title = string.IsNullOrWhiteSpace(nd.Title) ? nd.Id : nd.Title;
+                items.Add(new TopologicalStratumNodeInfo(
+                    nd.Id,
+                    title,
+                    layer,
+                    inDegrees[nd.Id],
+                    outDegrees[nd.Id],
+                    inCycle,
+                    cGroupId ?? string.Empty));
+            }
+
+            int n = targetNodes.Count;
+            double acyclicityScore;
+            if (cycleNodeCount == 0)
+            {
+                acyclicityScore = 100.0;
+            }
+            else
+            {
+                double cycleRatio = (double)cycleNodeCount / n;
+                double penalty = (cycleRatio * 70.0) + (cycleCount * 15.0);
+                acyclicityScore = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+                acyclicityScore = Math.Round(acyclicityScore, 1);
+            }
+
+            string category = acyclicityScore switch
+            {
+                >= 100.0 => "Pure DAG (Acyclic Layered)",
+                >= 80.0 => "Weakly Cyclic (Local Feedback Loops)",
+                >= 50.0 => "Moderately Cyclic (Feedback Loops Detected)",
+                _ => "Entangled Cyclic Graph"
+            };
+
+            string summary = FormatTopologicalHierarchySummary(
+                n, targetLinks.Count, stratumLayerCount, maxStratumWidth, cycleNodeCount,
+                cycleCount, acyclicityScore, category, isSelection);
+
+            return new GraphTopologicalHierarchyAudit(
+                n, targetLinks.Count, stratumLayerCount, maxStratumWidth, cycleNodeCount,
+                cycleCount, acyclicityScore, items, category, isSelection, summary);
+        }
+
+        public static GraphTopologicalHierarchyAudit AuditTopologicalHierarchyAndCycles(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null) foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            if (links != null) foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            return vm.AuditTopologicalHierarchyAndCycles();
+        }
+
+        public static string FormatTopologicalHierarchySummary(
+            int totalNodes, int totalEdges, int stratumCount, int maxWidth, int cycleNodes,
+            int cycleCount, double acyclicityScore, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph topological hierarchy & cycle audit ({scope}0 nodes): Empty map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string edgeStr = totalEdges == 1 ? "1 edge" : $"{totalEdges} edges";
+
+            var alerts = new List<string>();
+            if (stratumCount > 0) alerts.Add($"{stratumCount} strata (max width {maxWidth})");
+            if (cycleCount > 0) alerts.Add($"⚠ {cycleCount} {(cycleCount == 1 ? "cycle" : "cycles")} ({cycleNodes} nodes)");
+            else alerts.Add("0 cycles (acyclic)");
+
+            string details = string.Join(" · ", alerts);
+            return $"Graph topological hierarchy & cycle audit ({scope}{nodeStr}, {edgeStr} · {category} · {acyclicityScore:0.#}% acyclic): {details}";
+        }
     }
 
 
@@ -10235,6 +10485,34 @@ namespace MarkSmith.ViewModels.MindMap
         string TopHubTitle,
         IReadOnlyList<NodeDegreeMetricInfo> Items,
         string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents node topological stratum depth layer, degree connectivity, and cycle membership.
+    /// </summary>
+    public sealed record TopologicalStratumNodeInfo(
+        string NodeId,
+        string Title,
+        int StratumLayer,
+        int InDegree,
+        int OutDegree,
+        bool IsInCycle,
+        string CycleGroupId);
+
+    /// <summary>
+    /// Represents the result of an audit of graph topological stratification, DAG acyclicity, and directed cycle resolution.
+    /// </summary>
+    public sealed record GraphTopologicalHierarchyAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int StratumLayerCount,
+        int MaxStratumWidth,
+        int CycleNodeCount,
+        int CycleCount,
+        double AcyclicityScore,
+        IReadOnlyList<TopologicalStratumNodeInfo> Items,
+        string HierarchyClassification,
         bool IsSelectionScope,
         string Summary);
 }

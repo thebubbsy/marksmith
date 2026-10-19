@@ -2475,6 +2475,68 @@ public class TextSearchTests
             audit.MultilineDefinitions, audit.SpacingIssues, audit.ContinuityScore, audit.Category);
         Assert.Equal(audit.Summary, summary);
     }
+
+    [Fact]
+    public void Run182_AuditFootnoteOrderAndOrphans_EvaluatesOrderingAndOrphans()
+    {
+        // 1. Empty / null input
+        var emptyAudit = TextSearch.AuditFootnoteOrderAndOrphans(null);
+        Assert.Equal(0, emptyAudit.TotalReferences);
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(100.0, emptyAudit.IntegrityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 references", emptyAudit.Summary);
+
+        // 2. Structured valid markdown with ordered numeric footnotes & multi-paragraph continuation
+        var doc = string.Join("\n",
+            "# Footnote Document",
+            "",
+            "This is the first statement[^1].",
+            "This is the second statement[^2].",
+            "",
+            "[^1]: This is the first footnote definition.",
+            "[^2]: This is the second footnote definition.",
+            "",
+            "    This is a second paragraph for footnote 2.",
+            "",
+            "```markdown",
+            "Ignored code block with [^3] reference and [^3]: def inside fence",
+            "```"
+        );
+
+        var audit = TextSearch.AuditFootnoteOrderAndOrphans(doc);
+        Assert.Equal(2, audit.TotalReferences);
+        Assert.Equal(2, audit.TotalDefinitions);
+        Assert.Equal(0, audit.OrphanReferences);
+        Assert.Equal(0, audit.UnusedDefinitions);
+        Assert.Equal(0, audit.OutOfOrderReferences);
+        Assert.Equal(1, audit.MultiParagraphDefinitions);
+        Assert.True(audit.IntegrityScore >= 95.0);
+        Assert.Equal("Optimal", audit.Category);
+
+        string formatted = TextSearch.FormatFootnoteOrderSummary(
+            audit.TotalReferences, audit.TotalDefinitions, audit.OrphanReferences,
+            audit.UnusedDefinitions, audit.OutOfOrderReferences, audit.MultiParagraphDefinitions,
+            audit.IntegrityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Out-of-order references and orphans
+        var disorderedDoc = string.Join("\n",
+            "Second ref first[^2] and first ref second[^1]. Orphan ref[^9].",
+            "",
+            "[^1]: Definition 1",
+            "[^2]: Definition 2",
+            "[^unused]: Unused definition"
+        );
+
+        var disorderedAudit = TextSearch.AuditFootnoteOrderAndOrphans(disorderedDoc);
+        Assert.Equal(3, disorderedAudit.TotalReferences);
+        Assert.Equal(3, disorderedAudit.TotalDefinitions);
+        Assert.Equal(1, disorderedAudit.OrphanReferences);
+        Assert.Equal(1, disorderedAudit.UnusedDefinitions);
+        Assert.Equal(1, disorderedAudit.OutOfOrderReferences);
+        Assert.True(disorderedAudit.IntegrityScore < 100.0);
+    }
 }
 
 

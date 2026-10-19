@@ -7999,6 +7999,287 @@ public static class TextSearch
         string prefix = $"Markdown definition list audit ({termStr}, {defStr} · {category} · {score:0.#}% score)";
         return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} · Structured definitions";
     }
+
+    /// <summary>
+    /// Audits markdown text for footnote references and definitions, verifying sequential monotonic numerical ordering,
+    /// detecting orphan references and unused definitions, and analyzing multi-paragraph footnote continuation blocks.
+    /// Excludes fenced code blocks and frontmatter.
+    /// </summary>
+    public static FootnoteOrderAndOrphanAudit AuditFootnoteOrderAndOrphans(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new FootnoteOrderAndOrphanAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<FootnoteOrderItem>(),
+                "Clean Baseline",
+                "Markdown footnote order & orphan audit: 0 references · Document contains no footnotes");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        var maskedLines = new string[lines.Length];
+        bool inFence = false;
+        string fenceMarker = string.Empty;
+        bool inFrontmatter = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+
+            if (i == 0 && (trimmed == "---" || trimmed == "+++"))
+            {
+                inFrontmatter = true;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            if (inFrontmatter)
+            {
+                if (trimmed == "---" || trimmed == "+++") inFrontmatter = false;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                string tag = trimmed.Length >= 3 ? trimmed.Substring(0, 3) : trimmed;
+                if (!inFence)
+                {
+                    inFence = true;
+                    fenceMarker = tag;
+                }
+                else if (tag == fenceMarker || trimmed == ":::")
+                {
+                    inFence = false;
+                    fenceMarker = string.Empty;
+                }
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            if (inFence)
+            {
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            maskedLines[i] = line;
+        }
+
+        var defDict = new Dictionary<string, (int LineNumber, int ParagraphCount, string FirstLine)>(StringComparer.OrdinalIgnoreCase);
+        var defRegex = new Regex(@"^[ ]{0,3}\[\^([^\]]+)\]:\s*(.*)", RegexOptions.Compiled);
+        var isDefLine = new bool[maskedLines.Length];
+
+        for (int i = 0; i < maskedLines.Length; i++)
+        {
+            var line = maskedLines[i];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var match = defRegex.Match(line);
+            if (match.Success)
+            {
+                string label = match.Groups[1].Value.Trim();
+                int defLine = i + 1;
+                isDefLine[i] = true;
+                int paragraphCount = 1;
+
+                int j = i + 1;
+                bool prevWasEmpty = false;
+                while (j < maskedLines.Length)
+                {
+                    var nextLine = maskedLines[j];
+                    if (string.IsNullOrWhiteSpace(nextLine))
+                    {
+                        int peek = j + 1;
+                        while (peek < maskedLines.Length && string.IsNullOrWhiteSpace(maskedLines[peek])) peek++;
+                        if (peek < maskedLines.Length)
+                        {
+                            var peekLine = maskedLines[peek];
+                            if (peekLine.StartsWith("    ") || peekLine.StartsWith("\t"))
+                            {
+                                isDefLine[j] = true;
+                                prevWasEmpty = true;
+                                j++;
+                                continue;
+                            }
+                        }
+                        break;
+                    }
+
+                    if (nextLine.StartsWith("    ") || nextLine.StartsWith("\t"))
+                    {
+                        isDefLine[j] = true;
+                        if (prevWasEmpty)
+                        {
+                            paragraphCount++;
+                            prevWasEmpty = false;
+                        }
+                        j++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                if (!defDict.ContainsKey(label))
+                {
+                    defDict[label] = (defLine, paragraphCount, match.Groups[2].Value.Trim());
+                }
+                i = j - 1;
+            }
+        }
+
+        var items = new List<FootnoteOrderItem>();
+        var refRegex = new Regex(@"\[\^([^\]]+)\](?!:)", RegexOptions.Compiled);
+        var inlineCodeRegex = new Regex(@"`[^`]*`", RegexOptions.Compiled);
+
+        var referencedLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int totalRefs = 0;
+        int orphanRefs = 0;
+        int outOfOrderRefs = 0;
+        int maxSeenNumeric = 0;
+
+        for (int i = 0; i < maskedLines.Length; i++)
+        {
+            if (isDefLine[i]) continue;
+            var line = maskedLines[i];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var scrubbed = inlineCodeRegex.Replace(line, " ");
+            var matches = refRegex.Matches(scrubbed);
+
+            foreach (Match m in matches)
+            {
+                totalRefs++;
+                string label = m.Groups[1].Value.Trim();
+                referencedLabels.Add(label);
+
+                bool isNum = int.TryParse(label, out int numVal);
+                int? numNullable = isNum ? numVal : null;
+
+                bool isOutOfOrder = false;
+                if (isNum)
+                {
+                    if (numVal < maxSeenNumeric)
+                    {
+                        isOutOfOrder = true;
+                        outOfOrderRefs++;
+                    }
+                    else
+                    {
+                        maxSeenNumeric = Math.Max(maxSeenNumeric, numVal);
+                    }
+                }
+
+                bool hasDef = defDict.TryGetValue(label, out var defInfo);
+                if (!hasDef)
+                {
+                    orphanRefs++;
+                }
+
+                string status;
+                if (!hasDef)
+                {
+                    status = "⚠ Missing definition (Orphan reference)";
+                }
+                else if (isOutOfOrder)
+                {
+                    status = $"⚠ Out-of-order reference (defined line {defInfo.LineNumber})";
+                }
+                else if (defInfo.ParagraphCount > 1)
+                {
+                    status = $"✓ Defined line {defInfo.LineNumber} ({defInfo.ParagraphCount} paragraphs)";
+                }
+                else
+                {
+                    status = $"✓ Defined line {defInfo.LineNumber}";
+                }
+
+                items.Add(new FootnoteOrderItem(
+                    i + 1,
+                    label,
+                    totalRefs,
+                    isNum,
+                    numNullable,
+                    hasDef,
+                    hasDef ? defInfo.LineNumber : 0,
+                    hasDef ? defInfo.ParagraphCount : 0,
+                    status));
+            }
+        }
+
+        int unusedDefs = 0;
+        foreach (var kvp in defDict)
+        {
+            if (!referencedLabels.Contains(kvp.Key))
+            {
+                unusedDefs++;
+            }
+        }
+
+        int multiParaDefs = defDict.Values.Count(d => d.ParagraphCount > 1);
+
+        if (totalRefs == 0 && defDict.Count == 0)
+        {
+            return new FootnoteOrderAndOrphanAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<FootnoteOrderItem>(),
+                "Clean Baseline",
+                "Markdown footnote order & orphan audit: 0 references · Document contains no footnotes");
+        }
+
+        double penalty = (orphanRefs * 15.0) + (unusedDefs * 10.0) + (outOfOrderRefs * 8.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Optimal",
+            >= 75.0 => "Consistent",
+            >= 60.0 => "Fair",
+            >= 40.0 => "Irregular",
+            _ => "Fragmented"
+        };
+
+        string summary = FormatFootnoteOrderSummary(
+            totalRefs, defDict.Count, orphanRefs, unusedDefs, outOfOrderRefs, multiParaDefs, score, category);
+
+        return new FootnoteOrderAndOrphanAudit(
+            totalRefs, defDict.Count, orphanRefs, unusedDefs, outOfOrderRefs, multiParaDefs,
+            score, items, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of footnote ordering and definition integrity from markdown text.
+    /// </summary>
+    public static string FormatFootnoteOrderSummary(string? markdownText)
+        => AuditFootnoteOrderAndOrphans(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of footnote ordering metrics.
+    /// </summary>
+    public static string FormatFootnoteOrderSummary(
+        int totalRefs, int totalDefs, int orphanRefs, int unusedDefs,
+        int outOfOrderRefs, int multiParaDefs, double score, string category)
+    {
+        if (totalRefs == 0 && totalDefs == 0)
+            return "Markdown footnote order & orphan audit: 0 references · Document contains no footnotes";
+
+        string refStr = totalRefs == 1 ? "1 reference" : $"{totalRefs} references";
+        string defStr = totalDefs == 1 ? "1 definition" : $"{totalDefs} definitions";
+
+        var parts = new List<string>();
+        if (multiParaDefs > 0) parts.Add($"{multiParaDefs} multi-paragraph");
+        if (orphanRefs > 0) parts.Add($"⚠ {orphanRefs} orphan {(orphanRefs == 1 ? "ref" : "refs")}");
+        if (unusedDefs > 0) parts.Add($"⚠ {unusedDefs} unused {(unusedDefs == 1 ? "def" : "defs")}");
+        if (outOfOrderRefs > 0) parts.Add($"⚠ {outOfOrderRefs} out-of-order");
+
+        string details = parts.Count > 0 ? $" · {string.Join(", ", parts)}" : "";
+        string prefix = $"Markdown footnote order & orphan audit ({refStr}, {defStr} · {category} · {score:0.#}% score)";
+        return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} · Sequential & balanced";
+    }
 }
 
 /// <summary>
@@ -8818,6 +9099,36 @@ public sealed record DefinitionListContinuityAudit(
     int SpacingIssues,
     double ContinuityScore,
     IReadOnlyList<DefinitionListContinuityItem> Items,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, sequential ordering, and multi-paragraph continuation for an individual footnote reference.
+/// </summary>
+public sealed record FootnoteOrderItem(
+    int LineNumber,
+    string Label,
+    int ReferenceOrder,
+    bool IsNumeric,
+    int? NumericValue,
+    bool HasDefinition,
+    int DefinitionLineNumber,
+    int DefinitionParagraphCount,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown footnote sequential ordering, orphan references, unused definitions,
+/// and multi-paragraph continuation blocks.
+/// </summary>
+public sealed record FootnoteOrderAndOrphanAudit(
+    int TotalReferences,
+    int TotalDefinitions,
+    int OrphanReferences,
+    int UnusedDefinitions,
+    int OutOfOrderReferences,
+    int MultiParagraphDefinitions,
+    double IntegrityScore,
+    IReadOnlyList<FootnoteOrderItem> Items,
     string Category,
     string Summary);
 

@@ -11823,6 +11823,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditDefinitionListItem);
 
+        var auditFootnoteOrderItem = new MenuFlyoutItem
+        {
+            Text = "Audit Footnote Ordering & Multi-Paragraph Integrity",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditFootnoteOrderItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditFootnoteOrderAndOrphans(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditFootnoteOrderItem);
+
         menu.ShowAt(anchor);
     }
 

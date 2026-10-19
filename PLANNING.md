@@ -12110,3 +12110,46 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #181 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Markdown Code Block Fence Formatting & Indentation Consistency Advisor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceCodeFenceIndentation(files)` to scan code fences for backtick vs tilde formatting, irregular indentation inside list items, tab-versus-space corruption, and score code fence consistency ($0-100\%$). Wire to `RecentDocsFlyout`.
+
+---
+
+### 2026-10-20 (scheduled routine run #182)
+
+- **AI-Executable 3-Block Cycle + Execution Phase Overview**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Footnote Definition Ordering, Orphan Reference & Multi-Paragraph Continuation Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditFootnoteOrderAndOrphans(markdownText)`, static string overload, `FormatFootnoteOrderSummary(...)`, records `FootnoteOrderItem`, `FootnoteOrderAndOrphanAudit`. Scans footnote references (`[^1]`) and definitions (`[^1]: text`), checks sequential ordering, flags orphan references, detects unreferenced definitions, validates multi-paragraph definitions indented with 4 spaces / tabs, and calculates a 0-100% footnote integrity score; wired to `auditFootnoteOrderItem` (`\uE8B9`) in `ShowLinksContextMenu` with automated clipboard copy and info bar feedback.
+    2. **MindMapGalaxyWindow Graph Topological Hierarchy Stratification & DAG Cycle Resolution Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditTopologicalHierarchyAndCycles(selectionOnly)`, static overload, `FormatTopologicalHierarchySummary(...)`, records `TopologicalStratumNodeInfo`, `GraphTopologicalHierarchyAudit`. Uses Tarjan's strongly connected components algorithm and Kahn's DAG stratum ranking to detect cyclic feedback loops, isolates cycles vs acyclic strata, computes maximum stratum width and layer counts, and scores topological acyclicity (0-100%); wired to `AuditGraphTopologicalHierarchyAndCyclesItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context flyout.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Diagram Shape Aspect Ratio Harmony & Visual Mass Distribution Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditShapeAspectRatioHarmony(shapes)`, static overload, `FormatAspectRatioHarmonySummary(...)`, records `ShapeAspectRatioItem`, `DiagramAspectRatioHarmonyAudit`. Analyzes bounding box aspect ratios against standard harmonious proportions (1:1 square, 4:3, 16:9, and Golden Ratio 1.618), detects extreme sliver distortions (aspect ratio > 12:1 or < 0.08:1), and scores aspect ratio harmony (0-100%); wired to `SelectionAuditAspectRatioHarmonyItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard export and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Cycle Layout Monotonic Sequencing & Closure Completeness Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditCycleSequenceAndClosure(markdown, layoutName)`, static overload, `FormatCycleSequenceSummary(...)`, records `CycleSequenceStepItem`, `SmartArtCycleSequenceAudit`. Analyzes cycle and radial diagram outlines, verifies loop closure ($N \ge 3$ steps), measures step word counts and variance, flags incomplete loops, and scores cyclic balance (0-100%); wired to `OutlineStatsAuditCycleSequenceItem` (`\uE8B9`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Diff Variable Scope Lifetime & Mutation Locality Analyzer (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditVariableScopeLocality(unifiedRows)`, static string overload, `FormatVariableScopeLocalitySummary(...)`, records `VariableScopeLocalityItem`, `DiffVariableScopeLocalityAudit`. Tracks variable declarations (`var`, `int`, `let`, `const`, etc.) across unified diff rows, measures line spans to subsequent mutations/usages, flags scope leakage across wide spans (> 40 lines), and scores locality of reference (0-100%); wired to `auditVariableScopeLocality` (`\uE8B9`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace Markdown Code Block Fence Formatting & Indentation Consistency Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceCodeFenceIndentation(files, fileExistsProvider, contentReader)`, `FormatWorkspaceCodeFenceSummary(...)`, records `CodeFenceFileAuditItem`, `WorkspaceCodeFenceIndentationAudit`. Scans workspace markdown files for fenced code blocks, evaluates backtick vs tilde consistency, flags irregular 1-3 space indentation before fence delimiters, and scores code fence formatting consistency (0-100%); wired to `CopyWorkspaceCodeFenceIndentationAdvisorItem` (`\uE8B9`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified all `7/7` targeted Run #182 tests passing (`100%` pass rate).
+    - Verified all `810/810` Polish test suite passing (`100%` pass rate).
+    - Verified clean live launch of `Marksmith.exe` (`PID=15436`, `Responding=True`, closed cleanly with zero startup crashes).
+
+---
+
+### Run #183 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Inline Math Delimiter Balancing & TeX Macro Expansion Auditor.
+   - **Deliverable**: Add `TextSearch.AuditInlineMathAndTexSyntax(markdownText)` and `FormatInlineMathSummary(...)`, auditing inline (`$...$`) and display (`$$...$$`) math blocks, verifying closing delimiter symmetry, unescaped dollar sign collisions, unsupported TeX macros, and scoring math syntax integrity ($0-100\%$). Wire to `ShowLinksContextMenu`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Edge Crossing Density & Planarity Topology Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditEdgeCrossingsAndPlanarity()` and `FormatEdgeCrossingSummary(...)`, computing pairwise segment intersections between edge geometries, evaluating visual clutter and crossing density, and scoring diagram planarity ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Connector Route Directness, Bend Count & Obstacle Clipping Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditConnectorRouteDirectness(connectors)` and `FormatConnectorRouteSummary(...)`, measuring route segment lengths against Manhattan / Euclidean shortest path distance, flagging unnecessary orthogonal bends and obstacle clipping, and scoring connector efficiency ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Matrix / Grid Layout Quadrant Balance & Categorical Symmetry Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditMatrixQuadrantBalance(markdown, layoutName)` and `FormatMatrixQuadrantSummary(...)`, evaluating 2x2 and NxN matrix layouts, verifying item distribution parity across quadrants, and scoring categorical grid symmetry ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #182 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Variable Scope Lifetime & Mutation Locality Analyzer.
+   - **Deliverable**: Refine `LineDiff.AuditVariableScopeLocality` with language-aware closure capturing analysis, detecting lambda and nested function boundary escapes, and enhancing refactoring safety advice. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #182 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Code Block Fence Formatting & Indentation Consistency Advisor.
+   - **Deliverable**: Refine `RecentFilesService.AuditWorkspaceCodeFenceIndentation` with automated one-click normalization suggestions and workspace-wide delimiter preference alignment. Wire to `RecentDocsFlyout`.
+
