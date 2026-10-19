@@ -2299,6 +2299,18 @@
                         </StackPanel>
                     </HyperlinkButton>
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                    <HyperlinkButton x:Name="StatusCopyTablesButton"
+                                     Click="OnStatusCopyTablesButtonClick"
+                                     RightTapped="OnStatusCopyTablesButtonRightTapped"
+                                     Padding="5,1" FontSize="11.5" Opacity="0.85"
+                                     ToolTipService.ToolTip="Copy all Markdown tables to clipboard · Right-click for Excel/TSV copy or Table Inventory Summary"
+                                     AutomationProperties.Name="Copy Markdown tables">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE80A;" FontSize="11" />
+                            <TextBlock x:Name="StatusCopyTablesText" Text="Copy Tables" />
+                        </StackPanel>
+                    </HyperlinkButton>
+                    <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1" VerticalAlignment="Center"
                                FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
                                Tapped="OnCursorPosTextTapped" DoubleTapped="OnCursorPosTextDoubleTapped"

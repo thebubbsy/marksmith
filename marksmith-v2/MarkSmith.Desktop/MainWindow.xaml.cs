@@ -11937,6 +11937,195 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.ShowAt(anchor);
     }
 
+    private List<(List<string> Headers, List<List<string>> Rows, string RawTable)> ExtractMarkdownPipeTables()
+    {
+        var md = EditorDocument();
+        var tables = new List<(List<string> Headers, List<List<string>> Rows, string RawTable)>();
+        if (string.IsNullOrWhiteSpace(md)) return tables;
+
+        var lines = md.Split('\n').Select(l => l.TrimEnd('\r')).ToList();
+        bool inFence = false;
+        int i = 0;
+
+        static List<string> ParsePipeRow(string line)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith('|')) trimmed = trimmed[1..];
+            if (trimmed.EndsWith('|')) trimmed = trimmed[..^1];
+            return trimmed.Split('|').Select(c => c.Trim()).ToList();
+        }
+
+        static bool IsDelimiterLine(string line)
+        {
+            var trimmed = line.Trim();
+            if (!trimmed.Contains('|') || !trimmed.Contains('-')) return false;
+            var cells = ParsePipeRow(trimmed);
+            return cells.Count > 0 && cells.All(c => !string.IsNullOrWhiteSpace(c) && c.All(ch => ch == '-' || ch == ':' || char.IsWhiteSpace(ch)));
+        }
+
+        while (i < lines.Count)
+        {
+            var trimmed = lines[i].TrimStart();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inFence = !inFence;
+                i++;
+                continue;
+            }
+
+            if (!inFence && lines[i].Contains('|') && i + 1 < lines.Count && IsDelimiterLine(lines[i + 1]))
+            {
+                var rawBuilder = new System.Text.StringBuilder();
+                var headers = ParsePipeRow(lines[i]);
+                rawBuilder.AppendLine(lines[i]);
+                rawBuilder.AppendLine(lines[i + 1]);
+                i += 2;
+
+                var dataRows = new List<List<string>>();
+                while (i < lines.Count)
+                {
+                    var rowLine = lines[i];
+                    var rowTrim = rowLine.Trim();
+                    if (string.IsNullOrEmpty(rowTrim) || !rowTrim.Contains('|') || rowTrim.StartsWith("```") || rowTrim.StartsWith("~~~"))
+                        break;
+                    dataRows.Add(ParsePipeRow(rowLine));
+                    rawBuilder.AppendLine(rowLine);
+                    i++;
+                }
+
+                tables.Add((headers, dataRows, rawBuilder.ToString().TrimEnd()));
+                continue;
+            }
+
+            i++;
+        }
+
+        return tables;
+    }
+
+    private void OnStatusCopyTablesButtonClick(object sender, RoutedEventArgs e)
+    {
+        var tables = ExtractMarkdownPipeTables();
+        if (tables.Count == 0)
+        {
+            AnnounceStatus("No Markdown pipe tables found in document");
+            return;
+        }
+
+        var totalRows = tables.Sum(t => t.Rows.Count);
+        var combined = string.Join(Environment.NewLine + Environment.NewLine, tables.Select(t => t.RawTable));
+        _ = Services.ClipboardWriter.TrySetTextAsync(combined);
+        AnnounceStatus($"Copied {tables.Count:N0} Markdown table(s) ({totalRows:N0} data rows) to clipboard");
+    }
+
+    private void OnStatusCopyTablesButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+
+        var menu = new MenuFlyout();
+
+        var copyMdTablesItem = new MenuFlyoutItem
+        {
+            Text = "Copy all Markdown pipe tables",
+            Icon = new FontIcon { Glyph = "\uE80A" }
+        };
+        copyMdTablesItem.Click += (_, _) => OnStatusCopyTablesButtonClick(sender, new RoutedEventArgs());
+        menu.Items.Add(copyMdTablesItem);
+
+        var copyTsvItem = new MenuFlyoutItem
+        {
+            Text = "Copy all tables as TSV (Excel / Sheets paste-ready)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyTsvItem.Click += (_, _) =>
+        {
+            var tables = ExtractMarkdownPipeTables();
+            if (tables.Count == 0)
+            {
+                AnnounceStatus("No Markdown pipe tables found in document");
+                return;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            for (int idx = 0; idx < tables.Count; idx++)
+            {
+                if (idx > 0) sb.AppendLine();
+                var t = tables[idx];
+                sb.AppendLine(string.Join("\t", t.Headers));
+                foreach (var r in t.Rows)
+                {
+                    sb.AppendLine(string.Join("\t", r));
+                }
+            }
+            var totalRows = tables.Sum(t => t.Rows.Count);
+            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
+            AnnounceStatus($"Copied {tables.Count:N0} table(s) ({totalRows:N0} rows) as TSV for Excel/Sheets");
+        };
+        menu.Items.Add(copyTsvItem);
+
+        var copySummaryItem = new MenuFlyoutItem
+        {
+            Text = "Copy Table Inventory Summary (Markdown)",
+            Icon = new FontIcon { Glyph = "\uE9D9" }
+        };
+        copySummaryItem.Click += (_, _) =>
+        {
+            var tables = ExtractMarkdownPipeTables();
+            if (tables.Count == 0)
+            {
+                AnnounceStatus("No Markdown pipe tables found in document");
+                return;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("| Table # | Columns | Data Rows | Header Columns |");
+            sb.AppendLine("| :--- | ---: | ---: | :--- |");
+            for (int idx = 0; idx < tables.Count; idx++)
+            {
+                var t = tables[idx];
+                var hdrPreview = string.Join(", ", t.Headers.Select(h => h.Replace("|", "\\|")));
+                sb.AppendLine($"| #{idx + 1} | {t.Headers.Count:N0} | {t.Rows.Count:N0} | {hdrPreview} |");
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
+            AnnounceStatus($"Copied Table Inventory Summary ({tables.Count:N0} tables) to clipboard");
+        };
+        menu.Items.Add(copySummaryItem);
+
+        var insertSummaryItem = new MenuFlyoutItem
+        {
+            Text = "Insert Table Inventory Summary at cursor",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertSummaryItem.Click += (_, _) =>
+        {
+            var tables = ExtractMarkdownPipeTables();
+            if (tables.Count == 0)
+            {
+                AnnounceStatus("No Markdown pipe tables found in document");
+                return;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("## Document Tables Summary");
+            sb.AppendLine();
+            sb.AppendLine("| Table # | Columns | Data Rows | Header Columns |");
+            sb.AppendLine("| :--- | ---: | ---: | :--- |");
+            for (int idx = 0; idx < tables.Count; idx++)
+            {
+                var t = tables[idx];
+                var hdrPreview = string.Join(", ", t.Headers.Select(h => h.Replace("|", "\\|")));
+                sb.AppendLine($"| #{idx + 1} | {t.Headers.Count:N0} | {t.Rows.Count:N0} | {hdrPreview} |");
+            }
+            sb.AppendLine();
+            InsertMarkdown(sb.ToString());
+            AnnounceStatus($"Inserted Table Inventory Summary ({tables.Count:N0} tables) at cursor");
+        };
+        menu.Items.Add(insertSummaryItem);
+
+        menu.ShowAt(anchor);
+    }
+
     private void OnStatusCopyMarkdownButtonClick(object sender, RoutedEventArgs e)
     {
         var selected = PasteTextBox?.SelectedText;
