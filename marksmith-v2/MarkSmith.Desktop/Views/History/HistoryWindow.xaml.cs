@@ -3617,7 +3617,7 @@ public sealed partial class HistoryWindow : Window
 
                 var auditClosureCaptureScope = new MenuFlyoutItem
                 {
-                    Text = "Audit variable closure capturing, lifetime escapes & race hazards",
+                    Text = "Audit variable closure capturing, lifetime escapes, race hazards & immutability",
                     Icon = new FontIcon { Glyph = "\uE8B9" }
                 };
                 auditClosureCaptureScope.Click += (_, _) =>

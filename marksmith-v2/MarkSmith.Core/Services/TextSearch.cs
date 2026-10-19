@@ -8892,6 +8892,230 @@ public static class TextSearch
         string details = string.Join(" · ", parts);
         return $"Markdown header anchor & TOC audit ({headerStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits markdown GitHub-style callouts (> [!NOTE]), quote depth nesting,
+    /// consecutive alert placement, empty alert bodies, and accessibility descriptions.
+    /// </summary>
+    public static MarkdownCalloutAudit AuditCalloutDepthAndSemantics(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new MarkdownCalloutAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<CalloutItem>(),
+                "Clean Baseline",
+                "Markdown callout alert audit: 0 alerts · Document contains no callout alert blocks");
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        bool inCodeFence = false;
+        var validTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"
+        };
+
+        var calloutHeaderRegex = new Regex(@"^\s*(>+)\s*\[!([A-Za-z0-9_-]+)\](.*)$", RegexOptions.Compiled);
+        var quotePrefixRegex = new Regex(@"^\s*>+\s*", RegexOptions.Compiled);
+
+        var items = new List<CalloutItem>();
+        int validCount = 0;
+        int nestedCount = 0;
+        int consecutiveCount = 0;
+        int emptyBodyCount = 0;
+        int unknownTypeCount = 0;
+        int maxDepth = 0;
+
+        int? lastCalloutEndLine = null;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            var match = calloutHeaderRegex.Match(line);
+            if (match.Success)
+            {
+                int startLine = i + 1;
+                string quoteChars = match.Groups[1].Value;
+                int quoteDepth = quoteChars.Length;
+                if (quoteDepth > maxDepth) maxDepth = quoteDepth;
+
+                string alertType = match.Groups[2].Value.ToUpperInvariant();
+                string inlineHeaderRemainder = match.Groups[3].Value.Trim();
+
+                bool isValidType = validTypes.Contains(alertType);
+                if (!isValidType) unknownTypeCount++;
+
+                bool isNested = quoteDepth > 1;
+                if (isNested) nestedCount++;
+
+                bool isConsecutive = false;
+                if (lastCalloutEndLine.HasValue && (startLine - lastCalloutEndLine.Value) <= 2)
+                {
+                    isConsecutive = true;
+                    consecutiveCount++;
+                }
+
+                var bodyLines = new List<string>();
+                if (!string.IsNullOrWhiteSpace(inlineHeaderRemainder))
+                {
+                    bodyLines.Add(inlineHeaderRemainder);
+                }
+
+                int endLine = startLine;
+                int j = i + 1;
+                while (j < lines.Length)
+                {
+                    string nextLine = lines[j];
+                    string nextTrimmed = nextLine.Trim();
+
+                    if (nextTrimmed.StartsWith("```") || nextTrimmed.StartsWith("~~~"))
+                        break;
+
+                    if (calloutHeaderRegex.IsMatch(nextLine))
+                        break;
+
+                    if (nextTrimmed.StartsWith(">"))
+                    {
+                        string stripped = quotePrefixRegex.Replace(nextLine, "").Trim();
+                        if (!string.IsNullOrWhiteSpace(stripped))
+                        {
+                            bodyLines.Add(stripped);
+                        }
+                        endLine = j + 1;
+                        j++;
+                    }
+                    else if (string.IsNullOrWhiteSpace(nextTrimmed))
+                    {
+                        if (j + 1 < lines.Length && lines[j + 1].Trim().StartsWith(">") && !calloutHeaderRegex.IsMatch(lines[j + 1]))
+                        {
+                            endLine = j + 1;
+                            j++;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                i = endLine - 1;
+                lastCalloutEndLine = endLine;
+
+                int contentLineCount = bodyLines.Count;
+                int totalWords = 0;
+                foreach (var bl in bodyLines)
+                {
+                    totalWords += bl.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+                }
+
+                bool hasEmptyBody = totalWords == 0;
+                if (hasEmptyBody) emptyBodyCount++;
+
+                if (isValidType && !isNested && !isConsecutive && !hasEmptyBody)
+                {
+                    validCount++;
+                }
+
+                string status;
+                if (!isValidType)
+                    status = $"⚠ Unknown alert type '[!{alertType}]' (expected NOTE/TIP/IMPORTANT/WARNING/CAUTION)";
+                else if (isNested)
+                    status = $"⚠ Invalid nested callout at depth {quoteDepth} (violates rule: do not nest alerts)";
+                else if (isConsecutive)
+                    status = $"⚠ Consecutive alert placement without intervening text (violates alert governance)";
+                else if (hasEmptyBody)
+                    status = "⚠ Missing accessible body content / empty callout block";
+                else
+                    status = $"✓ Standard [!{alertType}] alert ({totalWords} words)";
+
+                items.Add(new CalloutItem(
+                    startLine,
+                    endLine,
+                    alertType,
+                    quoteDepth,
+                    contentLineCount,
+                    totalWords,
+                    isValidType,
+                    isNested,
+                    isConsecutive,
+                    hasEmptyBody,
+                    status));
+            }
+        }
+
+        int totalAlerts = items.Count;
+        if (totalAlerts == 0)
+        {
+            return new MarkdownCalloutAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<CalloutItem>(),
+                "Clean Baseline",
+                "Markdown callout alert audit: 0 alerts · Document contains no callout alert blocks");
+        }
+
+        double score = 100.0;
+        score -= (nestedCount * 15.0);
+        score -= (consecutiveCount * 10.0);
+        score -= (emptyBodyCount * 12.0);
+        score -= (unknownTypeCount * 8.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Callout Semantics (≥90%)"
+            : score >= 75.0
+                ? "Moderate Alert Hierarchy Risk (75-89%)"
+                : "Degraded Callout Governance (<75%)";
+
+        string summary = FormatCalloutDepthSummary(
+            totalAlerts, validCount, nestedCount, consecutiveCount,
+            emptyBodyCount, unknownTypeCount, maxDepth, score, category);
+
+        return new MarkdownCalloutAudit(
+            totalAlerts, validCount, nestedCount, consecutiveCount,
+            emptyBodyCount, unknownTypeCount, maxDepth, score, items, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown callout alert syntax and semantic nesting depth.
+    /// </summary>
+    public static string FormatCalloutDepthSummary(string? markdownText)
+        => AuditCalloutDepthAndSemantics(markdownText).Summary;
+
+    public static string FormatCalloutDepthSummary(
+        int totalAlerts, int validCount, int nestedCount, int consecutiveCount,
+        int emptyBodyCount, int unknownTypeCount, int maxDepth, double score, string category)
+    {
+        if (totalAlerts == 0)
+            return "Markdown callout alert audit: 0 alerts · Document contains no callout alert blocks";
+
+        string alertStr = totalAlerts == 1 ? "1 alert" : $"{totalAlerts} alerts";
+        var parts = new List<string>();
+        parts.Add($"{validCount} standard {(validCount == 1 ? "alert" : "alerts")}");
+        if (nestedCount > 0) parts.Add($"⚠ {nestedCount} nested (depth {maxDepth})");
+        else parts.Add("0 nested alerts");
+
+        if (consecutiveCount > 0) parts.Add($"⚠ {consecutiveCount} consecutive");
+        else parts.Add("0 consecutive alerts");
+
+        if (emptyBodyCount > 0) parts.Add($"⚠ {emptyBodyCount} empty body");
+        if (unknownTypeCount > 0) parts.Add($"⚠ {unknownTypeCount} unknown type");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown callout alert audit ({alertStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -9802,5 +10026,35 @@ public sealed record HeaderAnchorAndTocAudit(
     string Category,
     string Summary);
 
+/// <summary>
+/// Represents evaluated metrics, alert type, quote depth, accessibility description, and nesting compliance for an individual markdown callout block.
+/// </summary>
+public sealed record CalloutItem(
+    int StartLine,
+    int EndLine,
+    string AlertType,
+    int QuoteDepth,
+    int ContentLineCount,
+    int WordCount,
+    bool HasValidType,
+    bool IsNestedCallout,
+    bool IsConsecutive,
+    bool HasEmptyBody,
+    string Status);
 
-
+/// <summary>
+/// Represents the result of an audit of markdown callout alert syntax (> [!NOTE]), quote depth nesting,
+/// consecutive alert placement, empty alert bodies, and accessibility descriptions.
+/// </summary>
+public sealed record MarkdownCalloutAudit(
+    int TotalCallouts,
+    int ValidCallouts,
+    int NestedCallouts,
+    int ConsecutiveCallouts,
+    int EmptyBodyCallouts,
+    int UnknownTypeCallouts,
+    int MaxQuoteDepth,
+    double SemanticIntegrityScore,
+    IReadOnlyList<CalloutItem> Items,
+    string Category,
+    string Summary);

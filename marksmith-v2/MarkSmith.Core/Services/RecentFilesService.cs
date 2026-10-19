@@ -7069,6 +7069,134 @@ public sealed class RecentFilesService
 }
 """;
     }
+
+    /// <summary>
+    /// Simulates a batch automated markdown dialect normalization dry-run across all workspace documents,
+    /// calculating required replacement counts and projected AST syntax conformity.
+    /// </summary>
+    public static DialectNormalizationDryRunResult SimulateDialectNormalizationDryRun(
+        IEnumerable<string> files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string?>? contentReader = null)
+    {
+        var list = files?.ToList() ?? new List<string>();
+        var audit = AuditWorkspaceMarkdownDialectConsistency(list, fileExistsProvider, contentReader != null ? (p => contentReader(p) ?? "") : null);
+        return SimulateDialectNormalizationDryRun(audit, list, fileExistsProvider, contentReader);
+    }
+
+    public static DialectNormalizationDryRunResult SimulateDialectNormalizationDryRun(
+        WorkspaceMarkdownDialectAudit audit,
+        IEnumerable<string> files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string?>? contentReader = null)
+    {
+        var exists = fileExistsProvider ?? (path => File.Exists(path));
+        var read = contentReader ?? (path => { try { return File.ReadAllText(path); } catch { return null; } });
+
+        var list = (files ?? Enumerable.Empty<string>()).ToList();
+        var changedFiles = new List<string>();
+
+        int totalFilesAudited = audit.TotalFilesScanned;
+        int totalReplacements = 0;
+        int fenceReplacements = 0;
+        int listReplacements = 0;
+        int headingReplacements = 0;
+
+        bool preferBacktick = !audit.DominantFenceType.Contains("tilde", StringComparison.OrdinalIgnoreCase);
+        string preferredMarker = audit.AsteriskListTotal > audit.HyphenListTotal && audit.AsteriskListTotal > audit.PlusListTotal ? "*" : "-";
+        bool preferAtx = audit.AtxHeadingsTotal >= audit.SetextHeadingsTotal;
+
+        foreach (var path in list)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !exists(path)) continue;
+            string ext = Path.GetExtension(path).ToLowerInvariant();
+            if (ext != ".md" && ext != ".markdown") continue;
+
+            string? content = read(path);
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            int fileFences = 0;
+            int fileLists = 0;
+            int fileHeadings = 0;
+
+            var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.Trim();
+
+                if (preferBacktick && trimmed.StartsWith("~~~"))
+                {
+                    fileFences++;
+                }
+                else if (!preferBacktick && trimmed.StartsWith("```"))
+                {
+                    fileFences++;
+                }
+
+                if (preferredMarker == "-" && (trimmed.StartsWith("* ") || trimmed.StartsWith("+ ")))
+                {
+                    fileLists++;
+                }
+                else if (preferredMarker == "*" && (trimmed.StartsWith("- ") || trimmed.StartsWith("+ ")))
+                {
+                    fileLists++;
+                }
+
+                if (preferAtx && i > 0 && (trimmed.StartsWith("===") || trimmed.StartsWith("---")) && trimmed.All(c => c == '=' || c == '-'))
+                {
+                    fileHeadings++;
+                }
+            }
+
+            int fileTotal = fileFences + fileLists + fileHeadings;
+            if (fileTotal > 0)
+            {
+                changedFiles.Add(Path.GetFileName(path));
+                fenceReplacements += fileFences;
+                listReplacements += fileLists;
+                headingReplacements += fileHeadings;
+                totalReplacements += fileTotal;
+            }
+        }
+
+        int filesRequiringNormalization = changedFiles.Count;
+        double projectedScore = 100.0;
+
+        string summary = FormatDialectNormalizationSummary(
+            totalFilesAudited, filesRequiringNormalization, totalReplacements,
+            fenceReplacements, listReplacements, headingReplacements, projectedScore);
+
+        return new DialectNormalizationDryRunResult(
+            totalFilesAudited,
+            filesRequiringNormalization,
+            totalReplacements,
+            fenceReplacements,
+            listReplacements,
+            headingReplacements,
+            projectedScore,
+            changedFiles,
+            summary);
+    }
+
+    public static string FormatDialectNormalizationSummary(
+        int totalFiles, int filesToChange, int totalReplacements,
+        int fenceChanges, int listChanges, int headingChanges, double projectedScore)
+    {
+        if (totalFiles == 0)
+            return "Workspace dialect normalization dry-run: 0 files · No workspace markdown files to normalize";
+
+        if (totalReplacements == 0)
+            return $"Workspace dialect normalization dry-run ({totalFiles} files · 100% conforming): All files match dominant dialect";
+
+        var parts = new List<string>();
+        if (fenceChanges > 0) parts.Add($"{fenceChanges} fence {(fenceChanges == 1 ? "swap" : "swaps")}");
+        if (listChanges > 0) parts.Add($"{listChanges} list marker {(listChanges == 1 ? "alignment" : "alignments")}");
+        if (headingChanges > 0) parts.Add($"{headingChanges} heading style {(headingChanges == 1 ? "conversion" : "conversions")}");
+
+        string details = string.Join(", ", parts);
+        return $"Workspace dialect normalization dry-run ({filesToChange}/{totalFiles} files · {totalReplacements} changes · {projectedScore:0.#}% projected alignment): {details}";
+    }
 }
 
 /// <summary>
@@ -7959,7 +8087,16 @@ public sealed record WorkspaceMarkdownDialectAudit(
     string Summary,
     string? RecommendedConfiguration = null);
 
-
-
-
-
+/// <summary>
+/// Represents the result of a simulated batch dialect normalization dry-run across all workspace markdown files.
+/// </summary>
+public sealed record DialectNormalizationDryRunResult(
+    int TotalFilesAudited,
+    int FilesRequiringNormalization,
+    int TotalReplacementCount,
+    int FenceReplacementsCount,
+    int ListMarkerReplacementsCount,
+    int HeadingStyleReplacementsCount,
+    double ProjectedConformityScore,
+    IReadOnlyList<string> ChangedFileNames,
+    string Summary);

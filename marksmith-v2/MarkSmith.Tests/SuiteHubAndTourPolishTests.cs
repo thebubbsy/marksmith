@@ -4781,7 +4781,7 @@ Some paragraph in between.
         // Surface 5: HistoryWindow - Diff Variable Closure Capturing, Scope Escapes & Race Hazards
         var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
         Assert.Contains("auditClosureCaptureScope", historyCs);
-        Assert.Contains("Audit variable closure capturing, lifetime escapes & race hazards", historyCs);
+        Assert.Contains("Audit variable closure capturing, lifetime escapes", historyCs);
         Assert.Contains("AuditClosureCaptureAndScopeEscapes", historyCs);
 
         // Surface 6: SuiteHubView - Standardized .marksmith.json Markdown Dialect Configuration Generator
@@ -4790,6 +4790,114 @@ Some paragraph in between.
         Assert.Contains("GenerateWorkspaceDialectConfigFileItem", suiteXaml);
         Assert.Contains("OnGenerateWorkspaceDialectConfigFileClick", suiteCs);
         Assert.Contains("GenerateRecommendedDialectConfiguration", suiteCs);
+    }
+
+    [Fact]
+    public void Run185_SimulateDialectNormalizationDryRun_CalculatesConformityAndReplacements()
+    {
+        // 1. Empty workspace
+        var emptyResult = RecentFilesService.SimulateDialectNormalizationDryRun(
+            Array.Empty<string>(),
+            _ => false,
+            _ => null);
+        Assert.Equal(0, emptyResult.TotalFilesAudited);
+        Assert.Equal(0, emptyResult.FilesRequiringNormalization);
+        Assert.Equal(0, emptyResult.TotalReplacementCount);
+        Assert.Equal(100.0, emptyResult.ProjectedConformityScore);
+        Assert.Contains("0 files", emptyResult.Summary);
+
+        // 2. Workspace with mixed dialects needing normalization
+        var doc1 = string.Join("\n",
+            "# Standard Document",
+            "",
+            "- Standard bullet 1",
+            "- Standard bullet 2",
+            "- Standard bullet 3",
+            "",
+            "```csharp",
+            "int x = 1;",
+            "```"
+        );
+
+        var doc2 = string.Join("\n",
+            "Setext Heading",
+            "==============",
+            "",
+            "* Non-standard bullet 1",
+            "* Non-standard bullet 2",
+            "",
+            "~~~",
+            "tilde fence block",
+            "~~~"
+        );
+
+        var files = new[] { @"C:\docs\doc1.md", @"C:\docs\doc2.md" };
+        var dict = new Dictionary<string, string>
+        {
+            [@"C:\docs\doc1.md"] = doc1,
+            [@"C:\docs\doc2.md"] = doc2
+        };
+
+        var result = RecentFilesService.SimulateDialectNormalizationDryRun(
+            files,
+            _ => true,
+            p => dict.TryGetValue(p, out var c) ? c : null);
+
+        Assert.Equal(2, result.TotalFilesAudited);
+        Assert.Equal(1, result.FilesRequiringNormalization);
+        Assert.True(result.TotalReplacementCount >= 1);
+        Assert.Contains("doc2.md", result.ChangedFileNames);
+        Assert.Equal(100.0, result.ProjectedConformityScore);
+
+        string formatted = RecentFilesService.FormatDialectNormalizationSummary(
+            result.TotalFilesAudited, result.FilesRequiringNormalization,
+            result.TotalReplacementCount, result.FenceReplacementsCount,
+            result.ListMarkerReplacementsCount, result.HeadingStyleReplacementsCount,
+            result.ProjectedConformityScore);
+        Assert.Equal(result.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run185_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Callout Alert Semantic Nesting & Depth Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditCalloutSemanticsItem", mainCs);
+        Assert.Contains("AuditCalloutDepthAndSemantics", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Node Bounding Box Collision & Proximity Clearance Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphNodeProximityItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphNodeProximityClick", galaxyCs);
+        Assert.Contains("AuditNodeProximityAndOverlaps", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Canvas Alignment, Grid Snapping & Distribution Parity Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditAlignmentSnappingItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditAlignmentSnappingClick", shapeCs);
+        Assert.Contains("AuditAlignmentAndGridSnapping", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - Timeline & Process Milestones Chronological Ordering Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditTimelineIntervalsItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditTimelineIntervalsClick", smartArtCs);
+        Assert.Contains("AuditTimelineChronologyAndIntervals", smartArtCs);
+
+        // Surface 5: HistoryWindow - Diff Variable Closure Capturing, Scope Escapes & Immutability Promotion
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditClosureCaptureScope", historyCs);
+        Assert.Contains("Audit variable closure capturing, lifetime escapes, race hazards & immutability", historyCs);
+        Assert.Contains("AuditClosureCaptureAndScopeEscapes", historyCs);
+
+        // Surface 6: SuiteHubView - Automated Markdown Dialect Normalization Dry-Run
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("SimulateWorkspaceDialectNormalizationItem", suiteXaml);
+        Assert.Contains("OnSimulateWorkspaceDialectNormalizationClick", suiteCs);
+        Assert.Contains("SimulateDialectNormalizationDryRun", suiteCs);
     }
 }
 

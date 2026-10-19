@@ -360,6 +360,9 @@
                                     <MenuFlyoutItem x:Name="GenerateWorkspaceDialectConfigFileItem" Text="Generate &amp; copy workspace .marksmith.json markdown dialect configuration file" Click="OnGenerateWorkspaceDialectConfigFileClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="SimulateWorkspaceDialectNormalizationItem" Text="Simulate batch automated markdown dialect normalization dry-run" Click="OnSimulateWorkspaceDialectNormalizationClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

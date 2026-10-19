@@ -369,6 +369,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphSpatialBalanceItem" Text="Audit graph visual mass center of gravity, spatial balance &amp; viewport centering" Click="OnAuditGraphSpatialBalanceClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphNodeProximityItem" Text="Audit graph node bounding box collisions, clearance distances &amp; visual breathing room" Click="OnAuditGraphNodeProximityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

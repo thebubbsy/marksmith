@@ -9977,6 +9977,165 @@ namespace MarkSmith.ViewModels.MindMap
             string details = string.Join(" · ", alerts);
             return $"Graph spatial balance audit ({scope}{nodeStr} · {category} · {score:0.#}% score): {details}";
         }
+
+        /// <summary>
+        /// Audits mind map graph node bounding box collisions, clearance distances, crowding density, and visual breathing room.
+        /// </summary>
+        public GraphNodeProximityAudit AuditNodeProximityAndOverlaps(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var targetNodes = isSelection ? selected : Nodes.ToList();
+            int n = targetNodes.Count;
+            string scope = isSelection ? "Selection · " : "";
+
+            if (n == 0)
+            {
+                return new GraphNodeProximityAudit(
+                    0, 0, 0, 0, 0.0, 0.0, 100.0,
+                    Array.Empty<NodeProximityPairItem>(),
+                    "Empty Map",
+                    isSelection,
+                    $"Graph node proximity audit ({scope}0 nodes): Empty map");
+            }
+
+            if (n == 1)
+            {
+                return new GraphNodeProximityAudit(
+                    1, 0, 0, 0, double.PositiveInfinity, double.PositiveInfinity, 100.0,
+                    Array.Empty<NodeProximityPairItem>(),
+                    "Single Node · Full Clearance",
+                    isSelection,
+                    $"Graph node proximity audit ({scope}1 node · Single Node · 100% score): Infinite clearance");
+            }
+
+            const double defaultWidth = 140.0;
+            const double defaultHeight = 46.0;
+
+            var proximalPairs = new List<NodeProximityPairItem>();
+            int totalPairs = 0;
+            int collisions = 0;
+            int crowdedCount = 0;
+            double sumClearance = 0.0;
+            double minClearance = double.MaxValue;
+
+            for (int i = 0; i < n; i++)
+            {
+                var nodeA = targetNodes[i];
+                double wA = defaultWidth;
+                double hA = defaultHeight;
+
+                for (int j = i + 1; j < n; j++)
+                {
+                    var nodeB = targetNodes[j];
+                    double wB = defaultWidth;
+                    double hB = defaultHeight;
+
+                    totalPairs++;
+
+                    double centerDist = Math.Sqrt(Math.Pow(nodeA.X - nodeB.X, 2) + Math.Pow(nodeA.Y - nodeB.Y, 2));
+
+                    double dx = Math.Abs(nodeA.X - nodeB.X) - ((wA + wB) / 2.0);
+                    double dy = Math.Abs(nodeA.Y - nodeB.Y) - ((hA + hB) / 2.0);
+
+                    bool isOverlapping = dx < 0.0 && dy < 0.0;
+                    double overlapArea = isOverlapping ? Math.Abs(dx) * Math.Abs(dy) : 0.0;
+                    double clearance = isOverlapping ? -Math.Max(Math.Abs(dx), Math.Abs(dy)) : Math.Max(0.0, Math.Max(dx, dy));
+
+                    if (clearance < minClearance) minClearance = clearance;
+                    sumClearance += Math.Max(0.0, clearance);
+
+                    string urgency;
+                    if (isOverlapping)
+                    {
+                        collisions++;
+                        urgency = "Critical Collision (Overlap)";
+                    }
+                    else if (clearance < 25.0)
+                    {
+                        crowdedCount++;
+                        urgency = "High Crowding";
+                    }
+                    else if (clearance < 50.0)
+                    {
+                        urgency = "Moderate Proximity";
+                    }
+                    else
+                    {
+                        urgency = "Optimal Clearance";
+                    }
+
+                    if (clearance < 50.0 || isOverlapping)
+                    {
+                        proximalPairs.Add(new NodeProximityPairItem(
+                            nodeA.Id ?? $"n{i}",
+                            nodeA.Title ?? "Node",
+                            nodeB.Id ?? $"n{j}",
+                            nodeB.Title ?? "Node",
+                            Math.Round(centerDist, 1),
+                            Math.Round(clearance, 1),
+                            isOverlapping,
+                            Math.Round(overlapArea, 1),
+                            urgency));
+                    }
+                }
+            }
+
+            double avgClearance = totalPairs > 0 ? Math.Round(sumClearance / totalPairs, 1) : 0.0;
+            if (minClearance == double.MaxValue) minClearance = 0.0;
+            else minClearance = Math.Round(minClearance, 1);
+
+            proximalPairs.Sort((a, b) => a.ClearanceDistance.CompareTo(b.ClearanceDistance));
+
+            double score = 100.0 - (collisions * 25.0) - (crowdedCount * 6.0);
+            score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+            string category = score >= 90.0
+                ? "Optimal Spatial Breathing Room (≥90%)"
+                : score >= 75.0
+                    ? "Moderate Node Proximity Crowding (75-89%)"
+                    : "Severe Collision & Overlapping Nodes (<75%)";
+
+            string summary = FormatNodeProximitySummary(
+                n, totalPairs, collisions, crowdedCount, minClearance, avgClearance, score, category, isSelection);
+
+            return new GraphNodeProximityAudit(
+                n, totalPairs, collisions, crowdedCount, minClearance, avgClearance,
+                score, proximalPairs, category, isSelection, summary);
+        }
+
+        public static GraphNodeProximityAudit AuditNodeProximityAndOverlaps(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null) foreach (var nd in nodes) vm.Nodes.Add(new MindMapNodeViewModel(nd));
+            if (links != null) foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            return vm.AuditNodeProximityAndOverlaps();
+        }
+
+        public static string FormatNodeProximitySummary(
+            int totalNodes, int totalPairs, int collisions, int crowdedCount,
+            double minClearance, double avgClearance, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph node proximity audit ({scope}0 nodes): Empty map";
+            if (totalNodes == 1) return $"Graph node proximity audit ({scope}1 node · Single Node · 100% score): Infinite clearance";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            var alerts = new List<string>();
+            if (collisions > 0) alerts.Add($"⚠ {collisions} collision {(collisions == 1 ? "overlap" : "overlaps")}");
+            else alerts.Add("0 collisions");
+
+            if (crowdedCount > 0) alerts.Add($"⚠ {crowdedCount} crowded {(crowdedCount == 1 ? "pair" : "pairs")}");
+            else alerts.Add("ample clearance");
+
+            alerts.Add($"min clearance {minClearance:0.#}px");
+
+            string details = string.Join(" · ", alerts);
+            return $"Graph node proximity audit ({scope}{nodeStr} · {category} · {score:0.#}% score): {details}";
+        }
     }
 
 
@@ -10924,6 +11083,36 @@ namespace MarkSmith.ViewModels.MindMap
         double MassVariance,
         double SpatialBalanceScore,
         IReadOnlyList<SpatialQuadrantMassItem> Quadrants,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated clearance distance, overlap area, and repulsion urgency between two proximal or colliding mind map nodes.
+    /// </summary>
+    public sealed record NodeProximityPairItem(
+        string NodeId1,
+        string Title1,
+        string NodeId2,
+        string Title2,
+        double DistanceCenterToCenter,
+        double ClearanceDistance,
+        bool IsOverlapping,
+        double OverlapArea,
+        string RepulsionUrgency);
+
+    /// <summary>
+    /// Represents the result of an audit of graph node bounding box collisions, clearance distances, crowding density, and visual breathing room.
+    /// </summary>
+    public sealed record GraphNodeProximityAudit(
+        int TotalNodes,
+        int TotalPairsEvaluated,
+        int CollisionOverlapCount,
+        int CrowdedPairCount,
+        double MinClearanceDistance,
+        double AverageClearanceDistance,
+        double BreathingRoomScore,
+        IReadOnlyList<NodeProximityPairItem> ProximalPairs,
         string Category,
         bool IsSelectionScope,
         string Summary);

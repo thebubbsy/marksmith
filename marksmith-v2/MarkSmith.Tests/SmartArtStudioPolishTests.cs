@@ -2384,6 +2384,53 @@ public class SmartArtStudioPolishTests
         Assert.True(verboseAudit.WordLengthViolations >= 1);
         Assert.True(verboseAudit.VolumeProgressionScore < 100.0);
     }
+
+    [Fact]
+    public void Run185_AuditTimelineChronologyAndIntervals_EvaluatesMonotonicityAndBounds()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditTimelineChronologyAndIntervals("", "Timeline");
+        Assert.Equal(0, emptyAudit.TotalMilestones);
+        Assert.Equal(100.0, emptyAudit.ChronologyBalanceScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+        Assert.Contains("0 milestones", emptyAudit.Summary);
+
+        // 2. Structured chronological 4-step process
+        var timelineMd = string.Join("\n",
+            "- 2023: Project Inception",
+            "- 2024: Alpha Release",
+            "- 2025: Beta Testing & Scalability",
+            "- 2026: General Availability"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditTimelineChronologyAndIntervals(timelineMd, "Timeline");
+        Assert.Equal(4, audit.TotalMilestones);
+        Assert.True(audit.IsMonotonicallyOrdered);
+        Assert.Equal(0, audit.InvertedOrderCount);
+        Assert.Equal(0, audit.WordLengthViolations);
+        Assert.True(audit.IsWithinOptimalStepBounds);
+        Assert.Equal(100.0, audit.ChronologyBalanceScore);
+        Assert.Equal("Optimal Milestone Pacing & Chronology (≥90%)", audit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatTimelineChronologySummary(
+            audit.TotalMilestones, audit.IsMonotonicallyOrdered, audit.InvertedOrderCount,
+            audit.WordLengthViolations, audit.IsWithinOptimalStepBounds,
+            audit.ChronologyBalanceScore, audit.Category, audit.LayoutName);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Chronological inversion (2025 before 2024)
+        var invertedMd = string.Join("\n",
+            "- 2025: Future Stage",
+            "- 2024: Past Stage",
+            "- 2026: Final Stage"
+        );
+
+        var invAudit = SmartArtDesignStudioViewModel.AuditTimelineChronologyAndIntervals(invertedMd, "Timeline");
+        Assert.Equal(3, invAudit.TotalMilestones);
+        Assert.False(invAudit.IsMonotonicallyOrdered);
+        Assert.True(invAudit.InvertedOrderCount >= 1);
+        Assert.True(invAudit.ChronologyBalanceScore < 100.0);
+    }
 }
 
 

@@ -11865,6 +11865,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditHeaderAnchorTocItem);
 
+        var auditCalloutSemanticsItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Callout Alerts & Semantic Nesting Depth",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditCalloutSemanticsItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditCalloutDepthAndSemantics(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditCalloutSemanticsItem);
+
         menu.ShowAt(anchor);
     }
 

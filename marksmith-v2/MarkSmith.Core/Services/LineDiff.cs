@@ -7151,6 +7151,22 @@ public static class LineDiff
                                 }
                             }
 
+                            bool escapesToExternal = isAsync || Regex.IsMatch(line, @"\b(?:Task\.Run|ThreadPool\.QueueUserWorkItem|Parallel\.For|Parallel\.ForEach|StartNew|DispatchAsync|SendAsync|Post)\b");
+
+                            string immutabilitySuggestion;
+                            if (hasPostCaptureMutation)
+                            {
+                                immutabilitySuggestion = $"Refactor '{varName}' to local function return value, Interlocked/thread-safe primitive, or immutable record";
+                            }
+                            else if (isAsync || escapesToExternal)
+                            {
+                                immutabilitySuggestion = $"Promote '{varName}' ({info.DeclType}) to 'readonly', 'in' parameter, or immutable record to guarantee thread safety";
+                            }
+                            else
+                            {
+                                immutabilitySuggestion = $"Mark '{varName}' as 'readonly' or 'const'";
+                            }
+
                             string risk = isAsync
                                 ? (hasPostCaptureMutation ? "Critical Race Hazard (Post-Async Mutation)" : "High Risk (Async Closure Escape)")
                                 : (hasPostCaptureMutation ? "Moderate (Post-Capture Mutation)" : "Moderate (Enclosed Callback)");
@@ -7167,6 +7183,8 @@ public static class LineDiff
                                         ? $"⚠ Modified closure hazard: mutated on line {mutationLine} after capture on line {lineNum}"
                                         : $"✓ Captured in local delegate on line {lineNum} (+{lineNum - info.DeclLine} lines)";
 
+                            if (escapesToExternal) status += " · Escapes across external procedure boundary";
+
                             escapes.Add(new ClosureEscapeItem(
                                 info.DeclLine,
                                 lineNum,
@@ -7178,7 +7196,9 @@ public static class LineDiff
                                 status,
                                 hasPostCaptureMutation,
                                 isAsync,
-                                concurrencyRisk));
+                                concurrencyRisk,
+                                escapesToExternal,
+                                immutabilitySuggestion));
 
                             if (isAsync || hasPostCaptureMutation) highRiskAsyncCount++;
                             else escapedCount++;
@@ -7212,8 +7232,10 @@ public static class LineDiff
 
         int postMutCount = escapes.Count(e => e.HasPostCaptureMutation);
         int raceCount = escapes.Count(e => e.ConcurrencyRiskLevel == "Critical" || e.ConcurrencyRiskLevel == "High");
+        int externalEscapesCount = escapes.Count(e => e.EscapesToExternalInvocation);
+        int immutabilityCandidatesCount = escapes.Count(e => !string.IsNullOrEmpty(e.ImmutabilityPromotionSuggestion));
 
-        double penalty = (highRiskAsyncCount * 18.0) + (escapedCount * 6.0) + (postMutCount * 10.0);
+        double penalty = (highRiskAsyncCount * 18.0) + (escapedCount * 6.0) + (postMutCount * 10.0) + (externalEscapesCount * 4.0);
         double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
         score = Math.Round(score, 1);
 
@@ -7230,7 +7252,7 @@ public static class LineDiff
 
         return new DiffClosureCaptureAudit(
             totalVars, safeLocalCount, escapedCount, highRiskAsyncCount, score, escapes, category, summary,
-            postMutCount, raceCount);
+            postMutCount, raceCount, externalEscapesCount, immutabilityCandidatesCount);
     }
 
     public static DiffClosureCaptureAudit AuditClosureCaptureAndScopeEscapes(string? beforeText, string? afterText)
@@ -7256,6 +7278,12 @@ public static class LineDiff
 
         int postMutations = escapes?.Count(e => e.HasPostCaptureMutation) ?? 0;
         if (postMutations > 0) parts.Add($"⚠ {postMutations} post-capture mutation race hazard");
+
+        int externalEscapes = escapes?.Count(e => e.EscapesToExternalInvocation) ?? 0;
+        if (externalEscapes > 0) parts.Add($"⚠ {externalEscapes} cross-procedural escape");
+
+        int immutabilityPromotions = escapes?.Count(e => !string.IsNullOrEmpty(e.ImmutabilityPromotionSuggestion)) ?? 0;
+        if (immutabilityPromotions > 0) parts.Add($"{immutabilityPromotions} immutability promotion {(immutabilityPromotions == 1 ? "candidate" : "candidates")}");
 
         string details = string.Join(" · ", parts);
         return $"Diff closure capture & escape audit ({varStr} · {category} · {score:0.#}% encapsulation): {details}";
@@ -7944,7 +7972,9 @@ public sealed record ClosureEscapeItem(
     string Status,
     bool HasPostCaptureMutation = false,
     bool CrossesAsyncAwaitBoundary = false,
-    string ConcurrencyRiskLevel = "Low");
+    string ConcurrencyRiskLevel = "Low",
+    bool EscapesToExternalInvocation = false,
+    string ImmutabilityPromotionSuggestion = "");
 
 /// <summary>
 /// Represents the result of an audit of semantic diff variable closure capturing, lambda boundary escapes, and race condition risks.
@@ -7959,7 +7989,9 @@ public sealed record DiffClosureCaptureAudit(
     string Category,
     string Summary,
     int PostCaptureMutationsCount = 0,
-    int ConcurrencyRaceRiskCount = 0);
+    int ConcurrencyRaceRiskCount = 0,
+    int ExternalEscapingInvocationsCount = 0,
+    int ImmutabilityPromotionCandidatesCount = 0);
 
 
 

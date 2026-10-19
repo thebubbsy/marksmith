@@ -9540,6 +9540,169 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", alerts);
         return $"Diagram layer stacking & occlusion audit ({scopeStr}{shapeStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits diagram canvas shape symmetric horizontal/vertical alignment, grid snapping residuals, and distribution interval uniformity.
+    /// </summary>
+    public DiagramAlignmentAndSnappingAudit AuditAlignmentAndGridSnapping(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null,
+        double gridSize = 10.0)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes != null ? targetShapes.ToList() : (selected.Count > 0 ? selected : Shapes.ToList()));
+        bool isSelection = targetShapes != null || (selected.Count > 0 && targets.Count < Shapes.Count);
+        var audit = AuditAlignmentAndGridSnapping(targets, isSelection, gridSize);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramAlignmentAndSnappingAudit AuditAlignmentAndGridSnapping(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        bool isSelection = false,
+        double gridSize = 10.0)
+    {
+        var list = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+        int totalShapes = list.Count;
+
+        if (totalShapes == 0)
+        {
+            return new DiagramAlignmentAndSnappingAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ShapeAlignmentItem>(),
+                "Empty Canvas",
+                isSelection,
+                $"Diagram alignment & grid snapping audit ({scopeStr}0 shapes): No shapes to evaluate");
+        }
+
+        if (gridSize <= 0.0) gridSize = 10.0;
+
+        int snappedCount = 0;
+        int offGridCount = 0;
+        double sumResidual = 0.0;
+        var items = new List<ShapeAlignmentItem>();
+
+        const double alignTolerance = 2.0;
+
+        foreach (var shape in list)
+        {
+            double x = shape.X;
+            double y = shape.Y;
+            double w = shape.Width;
+            double h = shape.Height;
+
+            double rx = Math.Min(Math.Abs(x % gridSize), gridSize - Math.Abs(x % gridSize));
+            double ry = Math.Min(Math.Abs(y % gridSize), gridSize - Math.Abs(y % gridSize));
+            double maxResidual = Math.Max(rx, ry);
+            sumResidual += maxResidual;
+
+            bool isSnapped = maxResidual <= 0.5;
+            if (isSnapped) snappedCount++;
+            else offGridCount++;
+
+            int alignedPartners = 0;
+            var partnerTypes = new List<string>();
+
+            double leftA = x;
+            double centerX_A = x + (w / 2.0);
+            double rightA = x + w;
+            double topA = y;
+            double centerY_A = y + (h / 2.0);
+            double bottomA = y + h;
+
+            foreach (var other in list)
+            {
+                if (ReferenceEquals(shape, other)) continue;
+
+                double leftB = other.X;
+                double centerX_B = other.X + (other.Width / 2.0);
+                double rightB = other.X + other.Width;
+                double topB = other.Y;
+                double centerY_B = other.Y + (other.Height / 2.0);
+                double bottomB = other.Y + other.Height;
+
+                bool aligned = false;
+                if (Math.Abs(leftA - leftB) <= alignTolerance) { aligned = true; partnerTypes.Add("Left"); }
+                else if (Math.Abs(centerX_A - centerX_B) <= alignTolerance) { aligned = true; partnerTypes.Add("Center-X"); }
+                else if (Math.Abs(rightA - rightB) <= alignTolerance) { aligned = true; partnerTypes.Add("Right"); }
+
+                if (Math.Abs(topA - topB) <= alignTolerance) { aligned = true; partnerTypes.Add("Top"); }
+                else if (Math.Abs(centerY_A - centerY_B) <= alignTolerance) { aligned = true; partnerTypes.Add("Center-Y"); }
+                else if (Math.Abs(bottomA - bottomB) <= alignTolerance) { aligned = true; partnerTypes.Add("Bottom"); }
+
+                if (aligned) alignedPartners++;
+            }
+
+            string alignDetails = alignedPartners > 0
+                ? $"{alignedPartners} aligned {(alignedPartners == 1 ? "partner" : "partners")} ({string.Join(", ", partnerTypes.Distinct())})"
+                : "No aligned partners";
+
+            string status = isSnapped
+                ? (alignedPartners > 0 ? "✓ Snapped & aligned" : "✓ Grid snapped · Independent alignment")
+                : $"⚠ Off-grid ({maxResidual:0.#}px residual)";
+
+            items.Add(new ShapeAlignmentItem(
+                shape.Id ?? "s",
+                shape.Prst ?? "shape",
+                Math.Round(x, 1),
+                Math.Round(y, 1),
+                Math.Round(w, 1),
+                Math.Round(h, 1),
+                Math.Round(maxResidual, 1),
+                isSnapped,
+                alignedPartners,
+                alignDetails,
+                status));
+        }
+
+        int alignedShapes = items.Count(it => it.AlignedPartnersCount > 0);
+        int misalignedShapes = totalShapes > 1 ? items.Count(it => it.AlignedPartnersCount == 0) : 0;
+        double avgResidual = Math.Round(sumResidual / totalShapes, 1);
+
+        double score = 100.0 - (offGridCount * 5.0);
+        if (totalShapes >= 3)
+        {
+            score -= (misalignedShapes * 4.0);
+        }
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Alignment & Grid Snapping (≥90%)"
+            : score >= 75.0
+                ? "Moderate Alignment Residuals (75-89%)"
+                : "Irregular Alignment & Off-Grid Placement (<75%)";
+
+        string summary = FormatAlignmentSnappingSummary(
+            totalShapes, snappedCount, offGridCount, alignedShapes, misalignedShapes,
+            avgResidual, score, category, isSelection);
+
+        return new DiagramAlignmentAndSnappingAudit(
+            totalShapes, snappedCount, offGridCount, alignedShapes, misalignedShapes,
+            avgResidual, score, items, category, isSelection, summary);
+    }
+
+    public static string FormatAlignmentSnappingSummary(
+        int totalShapes, int snappedCount, int offGridCount, int alignedShapes,
+        int misalignedShapes, double avgResidual, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        string shapeStr = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        if (totalShapes == 0) return $"Diagram alignment & grid snapping audit ({scopeStr}0 shapes): No shapes to evaluate";
+        if (totalShapes == 1) return $"Diagram alignment & grid snapping audit ({scopeStr}1 shape · {category} · 100% score): Single shape baseline";
+
+        var alerts = new List<string>();
+        if (offGridCount > 0) alerts.Add($"⚠ {offGridCount} off-grid (avg residual {avgResidual:0.#}px)");
+        else alerts.Add("100% grid snapped");
+
+        if (totalShapes >= 3)
+        {
+            if (misalignedShapes > 0) alerts.Add($"⚠ {misalignedShapes} isolated/misaligned");
+            else alerts.Add("symmetric cluster alignment");
+        }
+
+        string details = string.Join(" · ", alerts);
+        return $"Diagram alignment & grid snapping audit ({scopeStr}{shapeStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -10512,7 +10675,35 @@ public sealed record DiagramLayerOcclusionAudit(
     bool IsSelectionScope,
     string Summary);
 
+/// <summary>
+/// Represents evaluated metrics, grid snapping residual, alignment partners, and spacing parity for an individual shape.
+/// </summary>
+public sealed record ShapeAlignmentItem(
+    string ShapeId,
+    string ShapeType,
+    double X,
+    double Y,
+    double Width,
+    double Height,
+    double GridSnapResidual,
+    bool IsGridSnapped,
+    int AlignedPartnersCount,
+    string AlignmentDetails,
+    string Status);
 
-
-
-
+/// <summary>
+/// Represents the result of an audit of diagram shape horizontal/vertical alignment, grid snapping residuals,
+/// and distribution interval uniformity.
+/// </summary>
+public sealed record DiagramAlignmentAndSnappingAudit(
+    int TotalShapes,
+    int GridSnappedShapesCount,
+    int OffGridShapesCount,
+    int AlignedShapesCount,
+    int MisalignedShapesCount,
+    double AverageGridResidual,
+    double AlignmentPrecisionScore,
+    IReadOnlyList<ShapeAlignmentItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

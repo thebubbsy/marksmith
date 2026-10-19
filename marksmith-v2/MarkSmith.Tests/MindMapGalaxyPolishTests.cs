@@ -3376,6 +3376,60 @@ namespace MarkSmith.Tests
             Assert.True(lopsidedAudit.SpatialBalanceScore < 100.0);
             Assert.True(lopsidedAudit.MassVariance > 0.0);
         }
+
+        [Fact]
+        public void Run185_AuditNodeProximityAndOverlaps_EvaluatesCollisionsAndClearance()
+        {
+            // 1. Empty map
+            var emptyAudit = MindMapStudioViewModel.AuditNodeProximityAndOverlaps(
+                Array.Empty<MindMapNode>(), null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.BreathingRoomScore);
+            Assert.Equal("Empty Map", emptyAudit.Category);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Single node
+            var single = new MindMapNode { Id = "s", Title = "Sole Node", X = 200, Y = 200 };
+            var singleAudit = MindMapStudioViewModel.AuditNodeProximityAndOverlaps(
+                new[] { single }, null);
+            Assert.Equal(1, singleAudit.TotalNodes);
+            Assert.Equal(100.0, singleAudit.BreathingRoomScore);
+            Assert.Equal("Single Node · Full Clearance", singleAudit.Category);
+
+            // 3. Two well-spaced nodes with ample clearance
+            var n1 = new MindMapNode { Id = "n1", Title = "Node 1", X = 100, Y = 100 };
+            var n2 = new MindMapNode { Id = "n2", Title = "Node 2", X = 400, Y = 400 };
+
+            var wellSpacedAudit = MindMapStudioViewModel.AuditNodeProximityAndOverlaps(
+                new[] { n1, n2 }, null);
+
+            Assert.Equal(2, wellSpacedAudit.TotalNodes);
+            Assert.Equal(1, wellSpacedAudit.TotalPairsEvaluated);
+            Assert.Equal(0, wellSpacedAudit.CollisionOverlapCount);
+            Assert.Equal(0, wellSpacedAudit.CrowdedPairCount);
+            Assert.Equal(100.0, wellSpacedAudit.BreathingRoomScore);
+            Assert.Equal("Optimal Spatial Breathing Room (≥90%)", wellSpacedAudit.Category);
+
+            string formatted = MindMapStudioViewModel.FormatNodeProximitySummary(
+                wellSpacedAudit.TotalNodes, wellSpacedAudit.TotalPairsEvaluated,
+                wellSpacedAudit.CollisionOverlapCount, wellSpacedAudit.CrowdedPairCount,
+                wellSpacedAudit.MinClearanceDistance, wellSpacedAudit.AverageClearanceDistance,
+                wellSpacedAudit.BreathingRoomScore, wellSpacedAudit.Category, wellSpacedAudit.IsSelectionScope);
+            Assert.Equal(wellSpacedAudit.Summary, formatted);
+
+            // 4. Overlapping colliding nodes
+            var c1 = new MindMapNode { Id = "c1", Title = "Overlap 1", X = 200, Y = 200 };
+            var c2 = new MindMapNode { Id = "c2", Title = "Overlap 2", X = 220, Y = 210 };
+
+            var collisionAudit = MindMapStudioViewModel.AuditNodeProximityAndOverlaps(
+                new[] { c1, c2 }, null);
+
+            Assert.Equal(2, collisionAudit.TotalNodes);
+            Assert.Equal(1, collisionAudit.CollisionOverlapCount);
+            Assert.True(collisionAudit.BreathingRoomScore < 100.0);
+            Assert.NotEmpty(collisionAudit.ProximalPairs);
+            Assert.True(collisionAudit.ProximalPairs[0].IsOverlapping);
+        }
     }
 }
 

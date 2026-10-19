@@ -2662,6 +2662,71 @@ public class TextSearchTests
         Assert.Equal(1, collisionAudit.BrokenTocLinksCount);
         Assert.True(collisionAudit.AnchorSyncScore < 100.0);
     }
+
+    [Fact]
+    public void Run185_AuditCalloutDepthAndSemantics_EvaluatesAlertsAndNesting()
+    {
+        // 1. Empty / null input
+        var emptyAudit = TextSearch.AuditCalloutDepthAndSemantics(null);
+        Assert.Equal(0, emptyAudit.TotalCallouts);
+        Assert.Equal(100.0, emptyAudit.SemanticIntegrityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 alerts", emptyAudit.Summary);
+
+        // 2. Structured document with valid, well-formed GitHub-style alerts
+        var doc = string.Join("\n",
+            "# Document Title",
+            "",
+            "> [!NOTE]",
+            "> This is a helpful note with valid description content.",
+            "",
+            "Some intermediate paragraph text.",
+            "",
+            "> [!WARNING]",
+            "> Critical warning alert with detailed instructions.",
+            "",
+            "```markdown",
+            "> [!NOTE]",
+            "> Ignored callout inside code block",
+            "```"
+        );
+
+        var audit = TextSearch.AuditCalloutDepthAndSemantics(doc);
+        Assert.Equal(2, audit.TotalCallouts);
+        Assert.Equal(2, audit.ValidCallouts);
+        Assert.Equal(0, audit.NestedCallouts);
+        Assert.Equal(0, audit.ConsecutiveCallouts);
+        Assert.Equal(0, audit.EmptyBodyCallouts);
+        Assert.Equal(0, audit.UnknownTypeCallouts);
+        Assert.Equal(1, audit.MaxQuoteDepth);
+        Assert.Equal(100.0, audit.SemanticIntegrityScore);
+        Assert.Equal("Optimal Callout Semantics (≥90%)", audit.Category);
+
+        string formatted = TextSearch.FormatCalloutDepthSummary(
+            audit.TotalCallouts, audit.ValidCallouts, audit.NestedCallouts,
+            audit.ConsecutiveCallouts, audit.EmptyBodyCallouts, audit.UnknownTypeCallouts,
+            audit.MaxQuoteDepth, audit.SemanticIntegrityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Document with consecutive alerts, nested alerts, empty body, and unknown type
+        var invalidDoc = string.Join("\n",
+            ">> [!NOTE]",
+            ">> Nested alert inside blockquote depth 2",
+            "",
+            "> [!UNKNOWNALERT]",
+            "> Invalid alert type",
+            "> [!TIP]",
+            "",
+            "> [!CAUTION]"
+        );
+
+        var invalidAudit = TextSearch.AuditCalloutDepthAndSemantics(invalidDoc);
+        Assert.True(invalidAudit.TotalCallouts >= 3);
+        Assert.True(invalidAudit.NestedCallouts >= 1);
+        Assert.True(invalidAudit.ConsecutiveCallouts >= 1 || invalidAudit.EmptyBodyCallouts >= 1);
+        Assert.True(invalidAudit.UnknownTypeCallouts >= 1);
+        Assert.True(invalidAudit.SemanticIntegrityScore < 100.0);
+    }
 }
 
 

@@ -2506,6 +2506,34 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal("Moderate", syncAudit.Escapes[0].ConcurrencyRiskLevel);
         Assert.Contains("Modified closure hazard", syncAudit.Escapes[0].Status);
     }
+
+    [Fact]
+    public void Run185_AuditClosureCaptureAndScopeEscapes_DetectsExternalInvocationsAndImmutability()
+    {
+        // 1. External procedure boundary escape via Task.Run
+        string externalCode = string.Join("\n",
+            "public void ExecuteJob()",
+            "{",
+            "    string payload = \"job-123\";",
+            "    Task.Run(() => {",
+            "        DispatchAsync(payload);",
+            "    });",
+            "}"
+        );
+
+        var audit = LineDiff.AuditClosureCaptureAndScopeEscapes("", externalCode);
+        Assert.True(audit.TotalVariablesEvaluated >= 1);
+        Assert.True(audit.ExternalEscapingInvocationsCount >= 1);
+        Assert.True(audit.ImmutabilityPromotionCandidatesCount >= 1);
+        Assert.Contains("cross-procedural escape", audit.Summary);
+        Assert.NotEmpty(audit.Escapes);
+
+        var item = audit.Escapes[0];
+        Assert.Equal("payload", item.VariableName);
+        Assert.True(item.EscapesToExternalInvocation);
+        Assert.Contains("readonly", item.ImmutabilityPromotionSuggestion);
+        Assert.Contains("Escapes across external procedure boundary", item.Status);
+    }
 }
 
 

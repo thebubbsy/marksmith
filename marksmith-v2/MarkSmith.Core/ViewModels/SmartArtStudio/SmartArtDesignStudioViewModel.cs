@@ -8375,6 +8375,182 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", alerts);
         return $"SmartArt {kind} progression audit ({layoutName} · {stageStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits SmartArt timeline, roadmap, and horizontal process layouts for chronological monotonicity,
+    /// step count bounds (3 <= N <= 8), and milestone pacing balance.
+    /// </summary>
+    public SmartArtTimelineIntervalAudit AuditTimelineChronologyAndIntervals(
+        string? markdown = null,
+        string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? SelectedLayout?.Name ?? "Timeline / Process";
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtTimelineIntervalAudit(
+                0, true, 0, 0, false, 100.0,
+                Array.Empty<TimelineIntervalMilestoneItem>(),
+                "Empty Outline", layout,
+                $"SmartArt timeline chronology audit ({layout} · 0 milestones): Outline is empty");
+        }
+
+        var lines = input.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var rawSteps = new List<string>();
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine.TrimEnd();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            if (line.TrimStart().StartsWith("```") || line.TrimStart().StartsWith("~~~")) continue;
+
+            int indent = line.TakeWhile(char.IsWhiteSpace).Count();
+            string trimmed = line.TrimStart('-', '*', '+', '#', ' ', '\t');
+
+            if (indent == 0 || (!line.StartsWith(" ") && !line.StartsWith("\t") && (line.StartsWith("-") || line.StartsWith("*") || (line.Length > 0 && char.IsDigit(line[0])))))
+            {
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                {
+                    rawSteps.Add(trimmed);
+                }
+            }
+        }
+
+        int totalMilestones = rawSteps.Count;
+        if (totalMilestones == 0)
+        {
+            return new SmartArtTimelineIntervalAudit(
+                0, true, 0, 0, false, 100.0,
+                Array.Empty<TimelineIntervalMilestoneItem>(),
+                "Empty Outline", layout,
+                $"SmartArt timeline chronology audit ({layout} · 0 milestones): Outline is empty");
+        }
+
+        var yearRegex = new Regex(@"\b(19\d\d|20\d\d)\b", RegexOptions.Compiled);
+        var quarterRegex = new Regex(@"\bQ([1-4])\s*(?:'|\b)(?:20)?(\d\d)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        var phaseRegex = new Regex(@"\b(?:Phase|Step|Stage|Sprint|Milestone|v|Version)\s*(\d+)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        var items = new List<TimelineIntervalMilestoneItem>();
+        int wordViolations = 0;
+        int invertedCount = 0;
+        int? lastParsedSequenceValue = null;
+
+        for (int i = 0; i < totalMilestones; i++)
+        {
+            string label = rawSteps[i];
+            int words = label.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+            if (words > 12) wordViolations++;
+
+            string indicator = "Generic Step";
+            int? parsedVal = null;
+
+            var yMatch = yearRegex.Match(label);
+            var qMatch = quarterRegex.Match(label);
+            var pMatch = phaseRegex.Match(label);
+
+            if (yMatch.Success)
+            {
+                int year = int.Parse(yMatch.Groups[1].Value);
+                indicator = $"Year {year}";
+                parsedVal = year;
+            }
+            else if (qMatch.Success)
+            {
+                int q = int.Parse(qMatch.Groups[1].Value);
+                int y = qMatch.Groups[2].Success && !string.IsNullOrEmpty(qMatch.Groups[2].Value)
+                    ? int.Parse(qMatch.Groups[2].Value) + 2000
+                    : 2025;
+                indicator = $"Q{q} {y}";
+                parsedVal = (y * 10) + q;
+            }
+            else if (pMatch.Success)
+            {
+                int p = int.Parse(pMatch.Groups[1].Value);
+                indicator = $"Phase {p}";
+                parsedVal = p;
+            }
+
+            bool ordered = true;
+            if (parsedVal.HasValue)
+            {
+                if (lastParsedSequenceValue.HasValue && parsedVal.Value < lastParsedSequenceValue.Value)
+                {
+                    ordered = false;
+                    invertedCount++;
+                }
+                lastParsedSequenceValue = parsedVal.Value;
+            }
+
+            string status = words > 12
+                ? $"⚠ Overly verbose ({words} words > 12)"
+                : !ordered
+                    ? $"⚠ Inverted sequence order ({indicator} appears after later milestone)"
+                    : $"✓ Milestone {i + 1} ({indicator})";
+
+            items.Add(new TimelineIntervalMilestoneItem(
+                i + 1,
+                label,
+                indicator,
+                parsedVal,
+                words,
+                ordered,
+                status));
+        }
+
+        bool isOptimalBounds = totalMilestones >= 3 && totalMilestones <= 8;
+        bool isMonotonic = invertedCount == 0;
+
+        double score = 100.0;
+        if (totalMilestones < 3) score -= 15.0;
+        else if (totalMilestones > 8) score -= 12.0;
+
+        score -= (invertedCount * 18.0);
+        score -= (wordViolations * 8.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Milestone Pacing & Chronology (≥90%)"
+            : score >= 75.0
+                ? "Moderate Chronological Variance (75-89%)"
+                : "Inverted Sequence & Temporal Clutter (<75%)";
+
+        string summary = FormatTimelineChronologySummary(
+            totalMilestones, isMonotonic, invertedCount, wordViolations, isOptimalBounds, score, category, layout);
+
+        return new SmartArtTimelineIntervalAudit(
+            totalMilestones, isMonotonic, invertedCount, wordViolations, isOptimalBounds, score, items, category, layout, summary);
+    }
+
+    public static SmartArtTimelineIntervalAudit AuditTimelineChronologyAndIntervals(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditTimelineChronologyAndIntervals(markdown, layoutName);
+    }
+
+    public static string FormatTimelineChronologySummary(
+        int totalMilestones, bool isMonotonic, int invertedCount, int wordViolations,
+        bool isOptimalBounds, double score, string category, string layoutName)
+    {
+        if (totalMilestones == 0)
+            return $"SmartArt timeline chronology audit ({layoutName} · 0 milestones): Outline is empty";
+
+        string milestoneStr = totalMilestones == 1 ? "1 milestone" : $"{totalMilestones} milestones";
+        var alerts = new List<string>();
+
+        if (isMonotonic) alerts.Add("strictly chronological");
+        else alerts.Add($"⚠ {invertedCount} chronological {(invertedCount == 1 ? "inversion" : "inversions")}");
+
+        if (wordViolations > 0) alerts.Add($"⚠ {wordViolations} verbose {(wordViolations == 1 ? "label" : "labels")}");
+        else alerts.Add("concise milestone labels (≤12w)");
+
+        if (!isOptimalBounds) alerts.Add(totalMilestones < 3 ? "sparse timeline (<3)" : "dense timeline (>8)");
+        else alerts.Add("balanced bounds (3-8)");
+
+        string details = string.Join(" · ", alerts);
+        return $"SmartArt timeline chronology audit ({layoutName} · {milestoneStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -9239,7 +9415,30 @@ public sealed record SmartArtFunnelPyramidProgressionAudit(
     string LayoutName,
     string Summary);
 
+/// <summary>
+/// Represents evaluated metrics, milestone identifier, temporal date or phase, word count, and chronological sequence for an individual timeline step.
+/// </summary>
+public sealed record TimelineIntervalMilestoneItem(
+    int StepIndex,
+    string MilestoneLabel,
+    string TemporalIndicator,
+    int? ParsedYearOrPhase,
+    int WordCount,
+    bool IsChronologicallyOrdered,
+    string Status);
 
-
-
-
+/// <summary>
+/// Represents the result of an audit of SmartArt timeline and linear process layouts for chronological monotonicity,
+/// step count bounds (3 <= N <= 8), and milestone pacing balance.
+/// </summary>
+public sealed record SmartArtTimelineIntervalAudit(
+    int TotalMilestones,
+    bool IsMonotonicallyOrdered,
+    int InvertedOrderCount,
+    int WordLengthViolations,
+    bool IsWithinOptimalStepBounds,
+    double ChronologyBalanceScore,
+    IReadOnlyList<TimelineIntervalMilestoneItem> Milestones,
+    string Category,
+    string LayoutName,
+    string Summary);

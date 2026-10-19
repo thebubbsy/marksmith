@@ -2674,6 +2674,56 @@ public class ShapeStudioPolishTests
         Assert.True(occlusionAudit.CompletelyHiddenCount >= 1);
         Assert.True(occlusionAudit.HierarchyClarityScore < 100.0);
     }
+
+    [Fact]
+    public void Run185_AuditAlignmentAndGridSnapping_EvaluatesGridAndAlignment()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditAlignmentAndGridSnapping();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.AlignmentPrecisionScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+        Assert.Contains("0 shapes", emptyAudit.Summary);
+
+        // 2. Single shape snapped to 10px grid
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Shape 1", X = 100, Y = 100, Width = 80, Height = 60 };
+        vm.Shapes.Add(s1);
+
+        var singleAudit = vm.AuditAlignmentAndGridSnapping();
+        Assert.Equal(1, singleAudit.TotalShapes);
+        Assert.Equal(1, singleAudit.GridSnappedShapesCount);
+        Assert.Equal(0, singleAudit.OffGridShapesCount);
+        Assert.Equal(100.0, singleAudit.AlignmentPrecisionScore);
+
+        // 3. Two aligned shapes sharing top and bottom coordinates
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Shape 2", X = 200, Y = 100, Width = 80, Height = 60 };
+        vm.Shapes.Add(s2);
+
+        var alignedAudit = vm.AuditAlignmentAndGridSnapping();
+        Assert.Equal(2, alignedAudit.TotalShapes);
+        Assert.Equal(2, alignedAudit.GridSnappedShapesCount);
+        Assert.Equal(2, alignedAudit.AlignedShapesCount);
+        Assert.Equal(100.0, alignedAudit.AlignmentPrecisionScore);
+        Assert.Equal("Optimal Alignment & Grid Snapping (≥90%)", alignedAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatAlignmentSnappingSummary(
+            alignedAudit.TotalShapes, alignedAudit.GridSnappedShapesCount,
+            alignedAudit.OffGridShapesCount, alignedAudit.AlignedShapesCount,
+            alignedAudit.MisalignedShapesCount, alignedAudit.AverageGridResidual,
+            alignedAudit.AlignmentPrecisionScore, alignedAudit.Category, alignedAudit.IsSelectionScope);
+        Assert.Equal(alignedAudit.Summary, formatted);
+
+        // 4. Off-grid shape
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Name = "Off-grid Shape", X = 103, Y = 107, Width = 73, Height = 51 };
+        vm.Shapes.Add(s3);
+
+        var offGridAudit = vm.AuditAlignmentAndGridSnapping();
+        Assert.Equal(3, offGridAudit.TotalShapes);
+        Assert.True(offGridAudit.OffGridShapesCount >= 1);
+        Assert.True(offGridAudit.AlignmentPrecisionScore < 100.0);
+    }
 }
 
 
