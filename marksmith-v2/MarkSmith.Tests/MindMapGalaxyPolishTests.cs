@@ -3593,6 +3593,60 @@ namespace MarkSmith.Tests
             Assert.Equal(2, collisionAudit.OverlappingNodesCount);
             Assert.True(collisionAudit.SpatialDispersionScore < 80.0);
         }
+
+        [Fact]
+        public void Run189_AuditTreeHierarchyBranching_ValidatesDepthAndFanOut()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditTreeHierarchyBranching(Array.Empty<MindMapNode>());
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.HierarchyBalanceScore);
+            Assert.Equal("Clean Baseline", emptyAudit.Category);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Balanced tree hierarchy
+            var root = new MindMapNode { Id = "r", Title = "Root Node" };
+            var child1 = new MindMapNode { Id = "c1", Title = "Child 1" };
+            var child2 = new MindMapNode { Id = "c2", Title = "Child 2" };
+            var leaf1 = new MindMapNode { Id = "l1", Title = "Leaf 1" };
+
+            var links = new[]
+            {
+                new MindMapLink { SourceNodeId = "r", TargetNodeId = "c1" },
+                new MindMapLink { SourceNodeId = "r", TargetNodeId = "c2" },
+                new MindMapLink { SourceNodeId = "c1", TargetNodeId = "l1" }
+            };
+
+            var balancedAudit = MindMapStudioViewModel.AuditTreeHierarchyBranching(new[] { root, child1, child2, leaf1 }, links);
+            Assert.Equal(4, balancedAudit.TotalNodes);
+            Assert.Equal(1, balancedAudit.RootCount);
+            Assert.Equal(2, balancedAudit.LeafCount);
+            Assert.Equal(2, balancedAudit.MaxDepth);
+            Assert.Equal(0, balancedAudit.OverBranchingNodesCount);
+            Assert.Equal(0, balancedAudit.DeepSprawlNodesCount);
+            Assert.Equal(100.0, balancedAudit.HierarchyBalanceScore);
+            Assert.Equal("Optimal Tree Hierarchy & Balanced Branching (≥90%)", balancedAudit.Category);
+
+            string formatted = MindMapStudioViewModel.FormatTreeHierarchyBranchingSummary(
+                balancedAudit.TotalNodes, balancedAudit.RootCount, balancedAudit.MaxDepth,
+                balancedAudit.AverageBranchingFactor, balancedAudit.OverBranchingNodesCount,
+                balancedAudit.DeepSprawlNodesCount, balancedAudit.HierarchyBalanceScore,
+                balancedAudit.Category, balancedAudit.IsSelectionScope);
+            Assert.Equal(balancedAudit.Summary, formatted);
+
+            // 3. Over-branching bottleneck (> 8 children)
+            var overNode = new MindMapNode { Id = "hub", Title = "Over-branching Hub" };
+            var children = Enumerable.Range(1, 10).Select(i => new MindMapNode { Id = $"ch_{i}", Title = $"Child {i}" }).ToList();
+            var overLinks = children.Select(c => new MindMapLink { SourceNodeId = "hub", TargetNodeId = c.Id }).ToList();
+
+            var allNodes = new List<MindMapNode> { overNode };
+            allNodes.AddRange(children);
+
+            var overAudit = MindMapStudioViewModel.AuditTreeHierarchyBranching(allNodes, overLinks);
+            Assert.Equal(11, overAudit.TotalNodes);
+            Assert.Equal(1, overAudit.OverBranchingNodesCount);
+            Assert.True(overAudit.HierarchyBalanceScore < 95.0);
+        }
     }
 }
 

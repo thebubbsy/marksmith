@@ -9030,6 +9030,157 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"SmartArt funnel/pyramid audit ({layoutName} · {stageStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits SmartArt matrix and grid layout cell symmetry, quadrant word parity, and label balance.
+    /// </summary>
+    public SmartArtMatrixSymmetryAudit AuditMatrixCellSymmetry(
+        string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText ?? string.Empty;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Grid Matrix";
+
+        if (string.IsNullOrWhiteSpace(md))
+        {
+            return new SmartArtMatrixSymmetryAudit(
+                0, 0, 0, false, 0.0, 0.0, 100.0,
+                Array.Empty<MatrixCellSymmetryItem>(),
+                "Clean Baseline", layout,
+                $"SmartArt matrix symmetry audit ({layout} · 0 cells): Outline is empty");
+        }
+
+        var lines = md.Replace("\r\n", "\n").Split('\n');
+        var cells = new List<(string Label, List<string> SubBullets)>();
+        (string Label, List<string> SubBullets)? currentCell = null;
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            if (line.StartsWith("```") || line.StartsWith("~~~")) continue;
+
+            bool isSubBullet = rawLine.StartsWith("  ") || rawLine.StartsWith("\t") || rawLine.TrimStart().StartsWith(" - ") || rawLine.TrimStart().StartsWith(" * ");
+            string clean = line.TrimStart('-', '*', '+', '#', ' ', '\t');
+
+            if (isSubBullet && currentCell != null)
+            {
+                currentCell.Value.SubBullets.Add(clean);
+            }
+            else
+            {
+                if (currentCell != null)
+                {
+                    cells.Add(currentCell.Value);
+                }
+                currentCell = (clean, new List<string>());
+            }
+        }
+        if (currentCell != null)
+        {
+            cells.Add(currentCell.Value);
+        }
+
+        if (cells.Count == 0)
+        {
+            return new SmartArtMatrixSymmetryAudit(
+                0, 0, 0, false, 0.0, 0.0, 100.0,
+                Array.Empty<MatrixCellSymmetryItem>(),
+                "Clean Baseline", layout,
+                $"SmartArt matrix symmetry audit ({layout} · 0 cells): Outline is empty");
+        }
+
+        int totalCells = cells.Count;
+        bool isStandardGridSize = totalCells == 4 || totalCells == 9;
+        var items = new List<MatrixCellSymmetryItem>();
+        int totalWords = 0;
+        int totalSubBullets = 0;
+        var wordCounts = new List<int>();
+
+        for (int i = 0; i < cells.Count; i++)
+        {
+            var c = cells[i];
+            int wordsInTitle = c.Label.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+            int wordsInSub = c.SubBullets.Sum(s => s.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length);
+            int cellWords = wordsInTitle + wordsInSub;
+            totalWords += cellWords;
+            totalSubBullets += c.SubBullets.Count;
+            wordCounts.Add(cellWords);
+
+            bool isOvercrowded = cellWords > 25 || c.SubBullets.Any(s => s.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length > 15);
+            string status;
+            if (isOvercrowded) status = $"⚠ Overcrowded ({cellWords} words, {c.SubBullets.Count} sub-items)";
+            else status = $"✓ Balanced ({cellWords} words)";
+
+            items.Add(new MatrixCellSymmetryItem(i + 1, c.Label, cellWords, c.SubBullets.Count, isOvercrowded, status));
+        }
+
+        double meanWords = totalCells > 0 ? Math.Round((double)totalWords / totalCells, 1) : 0.0;
+        double sumSqDiff = wordCounts.Sum(w => Math.Pow(w - meanWords, 2));
+        double wordVariance = totalCells > 0 ? Math.Round(Math.Sqrt(sumSqDiff / totalCells), 1) : 0.0;
+
+        int minWords = wordCounts.Min();
+        int maxWords = wordCounts.Max();
+        bool severeImbalance = minWords > 0 && maxWords > minWords * 3;
+
+        double score = 100.0;
+        if (!isStandardGridSize) score -= 20.0;
+        if (severeImbalance) score -= 25.0;
+        int overcrowdedCount = items.Count(i => i.IsOvercrowded);
+        if (overcrowdedCount > 0) score -= Math.Min(30.0, overcrowdedCount * 10.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Matrix Symmetry & Quadrant Balance (≥90%)"
+            : score >= 75.0
+                ? "Good Grid Distribution & Balanced Labels (75-89%)"
+                : score >= 50.0
+                    ? "Moderate Quadrant Variance & Label Imbalance (50-74%)"
+                    : "Severe Matrix Asymmetry & Irregular Grid (<50%)";
+
+        string summary = FormatMatrixCellSymmetrySummary(
+            totalCells, totalWords, totalSubBullets, isStandardGridSize, meanWords, score, category, layout);
+
+        return new SmartArtMatrixSymmetryAudit(
+            totalCells,
+            totalWords,
+            totalSubBullets,
+            isStandardGridSize,
+            meanWords,
+            wordVariance,
+            score,
+            items,
+            category,
+            layout,
+            summary);
+    }
+
+    public static SmartArtMatrixSymmetryAudit AuditMatrixCellSymmetry(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditMatrixCellSymmetry(markdown, layoutName);
+    }
+
+    public static string FormatMatrixCellSymmetrySummary(
+        int totalCells, int totalWords, int totalSubBullets, bool isStandardGridSize,
+        double meanWords, double score, string category, string layoutName)
+    {
+        if (totalCells == 0)
+            return $"SmartArt matrix symmetry audit ({layoutName} · 0 cells): Outline is empty";
+
+        string cellStr = totalCells == 1 ? "1 cell" : $"{totalCells} cells";
+        var parts = new List<string>();
+
+        if (isStandardGridSize) parts.Add(totalCells == 4 ? "standard 2x2 grid" : "standard 3x3 grid");
+        else parts.Add($"irregular grid ({totalCells} quadrants)");
+
+        parts.Add($"mean {meanWords:0.#} words/cell");
+
+        if (totalSubBullets > 0) parts.Add($"{totalSubBullets} sub-items");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt matrix symmetry audit ({layoutName} · {cellStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -10005,3 +10156,31 @@ public sealed record SmartArtFunnelPyramidProportionsAudit(
     string LayoutName,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, word count, and label balance for an individual matrix/grid quadrant cell.
+/// </summary>
+public sealed record MatrixCellSymmetryItem(
+    int QuadrantIndex,
+    string QuadrantLabel,
+    int WordCount,
+    int SubBulletCount,
+    bool IsOvercrowded,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt matrix and grid layout cell symmetry, quadrant word parity, and label balance.
+/// </summary>
+public sealed record SmartArtMatrixSymmetryAudit(
+    int TotalCells,
+    int TotalWords,
+    int TotalSubBullets,
+    bool IsStandardGridSize,
+    double MeanWordsPerCell,
+    double WordCountVariance,
+    double SymmetryScore,
+    IReadOnlyList<MatrixCellSymmetryItem> Quadrants,
+    string Category,
+    string LayoutName,
+    string Summary);
+

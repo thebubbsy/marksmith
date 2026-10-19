@@ -2713,6 +2713,61 @@ public class HistoryPolishTests : IDisposable
         Assert.True(probAudit.UnobservedTaskCount >= 1);
         Assert.True(probAudit.ConcurrencySafetyScore < 70.0);
     }
+
+    [Fact]
+    public void Run189_AuditMemoryAllocationAndBoxingHazards_DetectsLoopAllocationsAndBoxing()
+    {
+        // 1. Empty diff
+        var emptyAudit = LineDiff.AuditMemoryAllocationAndBoxingHazards("", "");
+        Assert.Equal(0, emptyAudit.TotalModifiedLines);
+        Assert.Equal(0, emptyAudit.TotalHazardsCount);
+        Assert.Equal(100.0, emptyAudit.ZeroAllocationScore);
+        Assert.Equal("Optimal Zero-Allocation Efficiency (≥90%)", emptyAudit.Category);
+        Assert.Contains("0 modified lines", emptyAudit.Summary);
+
+        // 2. Clean zero-allocation code
+        var cleanCode = string.Join("\n",
+            "public void ProcessSpan(ReadOnlySpan<char> span)",
+            "{",
+            "    for (int i = 0; i < span.Length; i++)",
+            "    {",
+            "        char c = span[i];",
+            "        DoSomething(c);",
+            "    }",
+            "}"
+        );
+
+        var cleanAudit = LineDiff.AuditMemoryAllocationAndBoxingHazards("", cleanCode);
+        Assert.Equal(0, cleanAudit.TotalHazardsCount);
+        Assert.Equal(100.0, cleanAudit.ZeroAllocationScore);
+        Assert.Equal("Optimal Zero-Allocation Efficiency (≥90%)", cleanAudit.Category);
+
+        string formatted = LineDiff.FormatMemoryAllocationSummary(
+            cleanAudit.TotalModifiedLines, cleanAudit.TotalHazardsCount, cleanAudit.LoopStringConcatCount,
+            cleanAudit.LoopLinqAllocationCount, cleanAudit.LoopClosureCount, cleanAudit.ValueTypeBoxingCount,
+            cleanAudit.LoopArrayAllocationCount, cleanAudit.ZeroAllocationScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Problematic code with loop string concat, loop LINQ, and boxing
+        var probCode = string.Join("\n",
+            "public void HeavyAllocationLoop(List<int> list)",
+            "{",
+            "    string text = \"\";",
+            "    for (int i = 0; i < 100; i++)",
+            "    {",
+            "        text += \"item \" + i;",
+            "        var filtered = list.Where(x => x > 5).ToList();",
+            "        object boxed = i;",
+            "    }",
+            "}"
+        );
+
+        var probAudit = LineDiff.AuditMemoryAllocationAndBoxingHazards("", probCode);
+        Assert.True(probAudit.LoopStringConcatCount >= 1);
+        Assert.True(probAudit.LoopLinqAllocationCount >= 1);
+        Assert.True(probAudit.ValueTypeBoxingCount >= 1);
+        Assert.True(probAudit.ZeroAllocationScore < 70.0);
+    }
 }
 
 

@@ -3666,6 +3666,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditAsyncThreading);
+
+                var auditMemoryAllocation = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff memory allocations, hot path boxing & loop churn",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditMemoryAllocation.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditMemoryAllocationAndBoxingHazards(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditMemoryAllocation);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

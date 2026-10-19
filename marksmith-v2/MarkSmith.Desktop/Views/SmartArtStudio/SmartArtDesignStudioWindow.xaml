@@ -404,6 +404,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelPyramidProportionsItem" Text="Audit SmartArt funnel &amp; pyramid layout step proportions &amp; text inscription" Click="OnOutlineStatsAuditFunnelPyramidProportionsClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixCellSymmetryItem" Text="Audit SmartArt matrix &amp; grid layout cell symmetry, aspect ratio &amp; label balance" Click="OnOutlineStatsAuditMatrixCellSymmetryClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

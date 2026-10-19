@@ -5273,6 +5273,110 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceWikiLinksClick", suiteCs);
         Assert.Contains("AuditWorkspaceWikiLinksAndAssets", suiteCs);
     }
+
+    [Fact]
+    public void Run189_AuditWorkspaceTagTaxonomy_ValidatesCasingAndPluralization()
+    {
+        // 1. Empty / null files list
+        var emptyAudit = RecentFilesService.AuditWorkspaceTagTaxonomy(
+            Array.Empty<string>(),
+            null,
+            _ => false,
+            _ => null);
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(0, emptyAudit.TotalTagOccurrences);
+        Assert.Equal(100.0, emptyAudit.TaxonomyCohesionScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 files", emptyAudit.Summary);
+
+        // 2. Document with frontmatter tags and inline tags
+        var doc1 = string.Join("\n",
+            "---",
+            "title: Architecture Guide",
+            "tags: [winui, markdown, editor]",
+            "---",
+            "# Architecture Notes",
+            "Discussing #winui and #editor components."
+        );
+
+        var doc2 = string.Join("\n",
+            "---",
+            "title: Style Guide",
+            "tags:",
+            "  - WinUI",
+            "  - markdown",
+            "---",
+            "# Tag Variations",
+            "Check out #editors and #singleton."
+        );
+
+        var fileSystem = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\doc1.md"] = doc1.Split('\n'),
+            [@"C:\workspace\doc2.md"] = doc2.Split('\n')
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceTagTaxonomy(
+            fileSystem.Keys,
+            workspaceRoot: @"C:\workspace",
+            fileExists: p => fileSystem.ContainsKey(p),
+            readAllLines: p => fileSystem.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(2, audit.TotalFilesScanned);
+        Assert.True(audit.TotalTagOccurrences >= 7);
+        Assert.True(audit.CasingInconsistenciesCount >= 1);
+        Assert.True(audit.PluralDuplicatesCount >= 1);
+        Assert.True(audit.SingletonTagsCount >= 1);
+        Assert.True(audit.TaxonomyCohesionScore < 95.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceTagTaxonomySummary(
+            audit.TotalFilesScanned, audit.TotalTagOccurrences, audit.UniqueTagsCount,
+            audit.CasingInconsistenciesCount, audit.PluralDuplicatesCount,
+            audit.SingletonTagsCount, audit.TaxonomyCohesionScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run189_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Task List Priority, Due Date & Completion Checkbox Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditTaskListPriorityItem", mainCs);
+        Assert.Contains("AuditTaskListPriorityAndDueDates", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Tree Hierarchy Depth, Max Fan-Out & Branching Factor Balance Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphTreeHierarchyItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphTreeHierarchyClick", galaxyCs);
+        Assert.Contains("AuditTreeHierarchyBranching", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Connector Orthogonal Routing, Corner Bends & Segment Occlusion Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditConnectorOrthogonalBendsItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditConnectorOrthogonalBendsClick", shapeCs);
+        Assert.Contains("AuditConnectorOrthogonalBends", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Matrix & Grid Layout Cell Symmetry, Aspect Ratio & Label Balance Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditMatrixCellSymmetryItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditMatrixCellSymmetryClick", smartArtCs);
+        Assert.Contains("AuditMatrixCellSymmetry", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Memory Allocation & Boxing Hazard in Hot Paths Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditMemoryAllocation", historyCs);
+        Assert.Contains("AuditMemoryAllocationAndBoxingHazards", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Tag Taxonomy & Co-Occurrence Graph Consistency Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceTagTaxonomyItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceTagTaxonomyClick", suiteCs);
+        Assert.Contains("AuditWorkspaceTagTaxonomy", suiteCs);
+    }
 }
 
 

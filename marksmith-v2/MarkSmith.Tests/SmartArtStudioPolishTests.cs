@@ -2581,6 +2581,54 @@ public class SmartArtStudioPolishTests
         Assert.True(probAudit.TextOverflowRisksCount >= 1);
         Assert.True(probAudit.ProportionFidelityScore < 75.0);
     }
+
+    [Fact]
+    public void Run189_AuditMatrixCellSymmetry_ValidatesQuadrantParityAndWordLimits()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditMatrixCellSymmetry("", "Grid Matrix");
+        Assert.Equal(0, emptyAudit.TotalCells);
+        Assert.Equal(100.0, emptyAudit.SymmetryScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 cells", emptyAudit.Summary);
+
+        // 2. Clean balanced 2x2 matrix
+        var cleanMd = string.Join("\n",
+            "- Quadrant 1",
+            "  - Strengths and core competencies",
+            "- Quadrant 2",
+            "  - Weaknesses and operational gaps",
+            "- Quadrant 3",
+            "  - Opportunities and growth paths",
+            "- Quadrant 4",
+            "  - Threats and competitive risks"
+        );
+
+        var cleanAudit = SmartArtDesignStudioViewModel.AuditMatrixCellSymmetry(cleanMd, "Grid Matrix");
+        Assert.Equal(4, cleanAudit.TotalCells);
+        Assert.True(cleanAudit.IsStandardGridSize);
+        Assert.Equal(4, cleanAudit.TotalSubBullets);
+        Assert.Equal(100.0, cleanAudit.SymmetryScore);
+        Assert.Equal("Optimal Matrix Symmetry & Quadrant Balance (≥90%)", cleanAudit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatMatrixCellSymmetrySummary(
+            cleanAudit.TotalCells, cleanAudit.TotalWords, cleanAudit.TotalSubBullets,
+            cleanAudit.IsStandardGridSize, cleanAudit.MeanWordsPerCell, cleanAudit.SymmetryScore,
+            cleanAudit.Category, cleanAudit.LayoutName);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Irregular 3-cell matrix with extreme word imbalance
+        var probMd = string.Join("\n",
+            "- Short",
+            "- Giant Paragraph of Many Words That Overwhelms This Particular Quadrant Cell By Far Exceeding All Proportions Compared To Peers",
+            "- Medium"
+        );
+
+        var probAudit = SmartArtDesignStudioViewModel.AuditMatrixCellSymmetry(probMd, "Grid Matrix");
+        Assert.Equal(3, probAudit.TotalCells);
+        Assert.False(probAudit.IsStandardGridSize);
+        Assert.True(probAudit.SymmetryScore < 75.0);
+    }
 }
 
 

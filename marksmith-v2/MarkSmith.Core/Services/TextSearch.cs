@@ -9795,6 +9795,191 @@ public static class TextSearch
         string details = string.Join(" · ", parts);
         return $"Markdown table structure & alignment audit ({tblLabel} · {category} · {score:0.#}% compliance score): {details}";
     }
+
+    /// <summary>
+    /// Audits markdown task lists, checkboxes (- [ ], - [x]), priority tags ([p0]-[p3], [high], #urgent),
+    /// due date annotations (@due(YYYY-MM-DD), due:YYYY-MM-DD), overdue items, and task tracking rigor.
+    /// </summary>
+    public static MarkdownTaskPriorityAudit AuditTaskListPriorityAndDueDates(
+        string? markdownText, DateTime? referenceDate = null)
+    {
+        var refDate = referenceDate ?? DateTime.UtcNow;
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new MarkdownTaskPriorityAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<TaskPriorityItem>(),
+                "Clean Baseline",
+                "Markdown task list priority & due date audit: 0 tasks · Document contains no checklist items");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        bool inCodeFence = false;
+        bool inHtmlComment = false;
+        string currentSection = "General";
+
+        var taskItems = new List<TaskPriorityItem>();
+        var taskRegex = new Regex(@"^\s*(?:[-*+]|\d+\.)\s+\[([ xX])\]\s*(.*)$", RegexOptions.Compiled);
+        var dueDateRegex = new Regex(@"(?:@due\(|due:|📅\s*)([0-9]{4}-[0-9]{2}-[0-9]{2})\)?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        var p0Regex = new Regex(@"(?:\[p0\]|\[high\]|#urgent|!urgent|!high)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        var p1Regex = new Regex(@"(?:\[p1\]|\[med\]|\[medium\]|#medium)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        var p2Regex = new Regex(@"(?:\[p2\]|\[p3\]|\[low\]|#low)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            if (trimmed.StartsWith("<!--") && !trimmed.EndsWith("-->"))
+            {
+                inHtmlComment = true;
+                continue;
+            }
+            if (inHtmlComment)
+            {
+                if (trimmed.Contains("-->")) inHtmlComment = false;
+                continue;
+            }
+            if (trimmed.StartsWith("<!--") && trimmed.EndsWith("-->")) continue;
+
+            if (trimmed.StartsWith("#"))
+            {
+                int hIndex = 0;
+                while (hIndex < trimmed.Length && trimmed[hIndex] == '#') hIndex++;
+                currentSection = trimmed[hIndex..].Trim();
+                if (string.IsNullOrWhiteSpace(currentSection)) currentSection = "General";
+                continue;
+            }
+
+            var match = taskRegex.Match(line);
+            if (match.Success)
+            {
+                char check = match.Groups[1].Value[0];
+                bool isCompleted = check == 'x' || check == 'X';
+                string text = match.Groups[2].Value.Trim();
+
+                string priority = "None";
+                if (p0Regex.IsMatch(text)) priority = "High";
+                else if (p1Regex.IsMatch(text)) priority = "Medium";
+                else if (p2Regex.IsMatch(text)) priority = "Low";
+
+                DateTime? dueDate = null;
+                bool isOverdue = false;
+                var dueMatch = dueDateRegex.Match(text);
+                if (dueMatch.Success && DateTime.TryParse(dueMatch.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var dt))
+                {
+                    dueDate = dt;
+                    if (!isCompleted && dt.Date < refDate.Date)
+                    {
+                        isOverdue = true;
+                    }
+                }
+
+                string status;
+                if (isCompleted) status = "✓ Completed";
+                else if (isOverdue) status = $"⚠ Overdue (due {dueDate:yyyy-MM-dd})";
+                else if (dueDate != null) status = $"Due {dueDate:yyyy-MM-dd}";
+                else if (priority != "None") status = $"{priority} priority";
+                else status = "Pending";
+
+                taskItems.Add(new TaskPriorityItem(i + 1, currentSection, text, isCompleted, priority, dueDate, isOverdue, status));
+            }
+        }
+
+        if (taskItems.Count == 0)
+        {
+            return new MarkdownTaskPriorityAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<TaskPriorityItem>(),
+                "Clean Baseline",
+                "Markdown task list priority & due date audit: 0 tasks · Document contains no checklist items");
+        }
+
+        int totalTasks = taskItems.Count;
+        int completedTasks = taskItems.Count(t => t.IsCompleted);
+        int pendingTasks = totalTasks - completedTasks;
+        int highCount = taskItems.Count(t => t.Priority == "High");
+        int medCount = taskItems.Count(t => t.Priority == "Medium");
+        int lowCount = taskItems.Count(t => t.Priority == "Low");
+        int overdueCount = taskItems.Count(t => t.IsOverdue);
+        int taggedCount = taskItems.Count(t => t.Priority != "None" || t.DueDate != null);
+        double completionRate = Math.Round((double)completedTasks / totalTasks * 100.0, 1);
+
+        double score = 100.0;
+        if (overdueCount > 0)
+        {
+            score -= Math.Min(45.0, overdueCount * 15.0);
+        }
+        if (totalTasks > 5 && taggedCount == 0)
+        {
+            score -= 20.0;
+        }
+        if (pendingTasks > 0 && completionRate < 25.0 && totalTasks >= 4)
+        {
+            score -= 10.0;
+        }
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Task Tracking & Deadline Rigor (≥90%)"
+            : score >= 75.0
+                ? "Good Task Progress & Priority Structure (75-89%)"
+                : score >= 50.0
+                    ? "Moderate Task List Drift & Overdue Items (50-74%)"
+                    : "Severe Task Priority & Deadline Disorganization (<50%)";
+
+        string summary = FormatTaskListPrioritySummary(
+            totalTasks, completedTasks, pendingTasks, highCount, overdueCount, completionRate, score, category);
+
+        return new MarkdownTaskPriorityAudit(
+            totalTasks,
+            completedTasks,
+            pendingTasks,
+            highCount,
+            medCount,
+            lowCount,
+            overdueCount,
+            taggedCount,
+            completionRate,
+            score,
+            taskItems,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown task list priorities, due dates, and progress.
+    /// </summary>
+    public static string FormatTaskListPrioritySummary(string? markdownText, DateTime? referenceDate = null)
+        => AuditTaskListPriorityAndDueDates(markdownText, referenceDate).Summary;
+
+    public static string FormatTaskListPrioritySummary(
+        int totalTasks, int completedTasks, int pendingTasks, int highCount,
+        int overdueCount, double completionRate, double score, string category)
+    {
+        if (totalTasks == 0)
+            return "Markdown task list priority & due date audit: 0 tasks · Document contains no checklist items";
+
+        string taskStr = totalTasks == 1 ? "1 task" : $"{totalTasks} tasks";
+        var parts = new List<string>();
+        parts.Add($"{completedTasks}/{totalTasks} completed ({completionRate:0.#}%)");
+
+        if (overdueCount > 0) parts.Add($"⚠ {overdueCount} overdue");
+        else parts.Add("0 overdue");
+
+        if (highCount > 0) parts.Add($"{highCount} high-priority");
+        if (pendingTasks > 0) parts.Add($"{pendingTasks} pending");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown task list priority & due date audit ({taskStr} · {category} · {score:0.#}% rigor score): {details}";
+    }
 }
 
 /// <summary>
@@ -10833,3 +11018,36 @@ public sealed record MarkdownTableAlignmentAudit(
     IReadOnlyList<TableStructureItem> Tables,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, priority, due date, overdue state, and completion status for an individual markdown task item.
+/// </summary>
+public sealed record TaskPriorityItem(
+    int LineNumber,
+    string Section,
+    string Text,
+    bool IsCompleted,
+    string Priority,
+    DateTime? DueDate,
+    bool IsOverdue,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown task list items for priority tags ([p0]-[p3], [high], #urgent),
+/// due date annotations (@due(YYYY-MM-DD), due:YYYY-MM-DD), overdue items, and task tracking rigor.
+/// </summary>
+public sealed record MarkdownTaskPriorityAudit(
+    int TotalTasks,
+    int CompletedTasks,
+    int PendingTasks,
+    int HighPriorityCount,
+    int MediumPriorityCount,
+    int LowPriorityCount,
+    int OverdueCount,
+    int TaggedTasksCount,
+    double CompletionPercentage,
+    double TrackingRigorScore,
+    IReadOnlyList<TaskPriorityItem> Items,
+    string Category,
+    string Summary);
+

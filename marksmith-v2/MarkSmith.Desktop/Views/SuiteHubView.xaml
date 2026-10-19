@@ -372,6 +372,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceWikiLinksItem" Text="Audit workspace markdown cross-document wiki-links &amp; relative media assets" Click="OnAuditWorkspaceWikiLinksClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceTagTaxonomyItem" Text="Audit workspace markdown tag taxonomy, plural duplicates &amp; singleton tags" Click="OnAuditWorkspaceTagTaxonomyClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

@@ -10214,6 +10214,207 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"Diagram Z-order & occlusion audit ({scopeStr}{shapeStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits diagram connector orthogonal routing, corner bends, collinear kinks, and segment-shape crossings.
+    /// </summary>
+    public DiagramConnectorRoutingAudit AuditConnectorOrthogonalBends(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes != null ? targetShapes.ToList() : (selected.Count > 0 ? selected : Shapes.ToList()));
+        bool isSelection = targetShapes != null || (selected.Count > 0 && targets.Count < Shapes.Count);
+        var audit = AuditConnectorOrthogonalBends(targets, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramConnectorRoutingAudit AuditConnectorOrthogonalBends(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes = null,
+        bool isSelection = false)
+    {
+        var list = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        var allList = (allShapes != null ? allShapes.ToList() : list);
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        var connectors = list.Where(s =>
+            (s.PathPoints != null && s.PathPoints.Count >= 2) ||
+            string.Equals(s.ShapeType, "line", StringComparison.OrdinalIgnoreCase) ||
+            (s.Name != null && s.Name.Contains("Connector", StringComparison.OrdinalIgnoreCase))
+        ).ToList();
+
+        var nonConnectorShapes = allList.Where(s => !connectors.Contains(s)).ToList();
+
+        int totalConnectors = connectors.Count;
+        if (totalConnectors == 0)
+        {
+            return new DiagramConnectorRoutingAudit(
+                0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ConnectorRoutingItem>(),
+                "No Connectors",
+                isSelection,
+                $"Diagram connector orthogonal routing audit ({scopeStr}0 connectors): No connector lines to evaluate");
+        }
+
+        int totalBends = 0;
+        int totalRedundantBends = 0;
+        int totalIntersections = 0;
+        var items = new List<ConnectorRoutingItem>();
+
+        foreach (var conn in connectors)
+        {
+            var pts = ConnectorPoints(conn);
+            if (pts.Count < 2)
+            {
+                pts = new List<(double X, double Y)>
+                {
+                    (conn.X, conn.Y),
+                    (conn.X + conn.Width, conn.Y + conn.Height)
+                };
+            }
+
+            int bends = Math.Max(0, pts.Count - 2);
+            totalBends += bends;
+            int redundantBends = 0;
+            int intersections = 0;
+
+            // Check angles between consecutive segments
+            var segAngles = new List<double>();
+            for (int i = 0; i < pts.Count - 1; i++)
+            {
+                double dx = pts[i + 1].X - pts[i].X;
+                double dy = pts[i + 1].Y - pts[i].Y;
+                double angleDeg = Math.Atan2(dy, dx) * 180.0 / Math.PI;
+                segAngles.Add(angleDeg);
+            }
+
+            bool isOrthogonal = true;
+            for (int i = 0; i < segAngles.Count; i++)
+            {
+                double a = Math.Abs(segAngles[i]);
+                double dev = Math.Min(a, Math.Min(Math.Abs(a - 90.0), Math.Abs(a - 180.0)));
+                if (dev > 5.0) isOrthogonal = false;
+            }
+
+            for (int i = 0; i < segAngles.Count - 1; i++)
+            {
+                double diff = Math.Abs(segAngles[i] - segAngles[i + 1]);
+                if (diff > 180.0) diff = 360.0 - diff;
+                // Collinear kink (diff < 5°) or complete reverse U-turn (diff > 175°)
+                if ((diff >= 0.1 && diff <= 5.0) || diff >= 175.0)
+                {
+                    redundantBends++;
+                }
+            }
+
+            // If a connector has more than 3 bends connecting two shapes, flag excessive detours
+            if (bends > 3)
+            {
+                redundantBends += (bends - 3);
+            }
+
+            // Check if segments pierce through non-connector shapes
+            for (int i = 0; i < pts.Count - 1; i++)
+            {
+                double x1 = pts[i].X, y1 = pts[i].Y;
+                double x2 = pts[i + 1].X, y2 = pts[i + 1].Y;
+                double minSegX = Math.Min(x1, x2), maxSegX = Math.Max(x1, x2);
+                double minSegY = Math.Min(y1, y2), maxSegY = Math.Max(y1, y2);
+
+                foreach (var sh in nonConnectorShapes)
+                {
+                    double sx1 = sh.X, sy1 = sh.Y;
+                    double sx2 = sh.X + sh.Width, sy2 = sh.Y + sh.Height;
+
+                    // Exclude endpoints touching boundary
+                    bool isEndpointA = Math.Abs(x1 - sx1) < 4.0 || Math.Abs(x1 - sx2) < 4.0 || Math.Abs(y1 - sy1) < 4.0 || Math.Abs(y1 - sy2) < 4.0;
+                    bool isEndpointB = Math.Abs(x2 - sx1) < 4.0 || Math.Abs(x2 - sx2) < 4.0 || Math.Abs(y2 - sy1) < 4.0 || Math.Abs(y2 - sy2) < 4.0;
+
+                    // Check bounding box intersection
+                    if (maxSegX > sx1 + 4.0 && minSegX < sx2 - 4.0 && maxSegY > sy1 + 4.0 && minSegY < sy2 - 4.0)
+                    {
+                        if (!isEndpointA && !isEndpointB)
+                        {
+                            intersections++;
+                        }
+                    }
+                }
+            }
+
+            totalRedundantBends += redundantBends;
+            totalIntersections += intersections;
+
+            string status;
+            if (redundantBends == 0 && intersections == 0 && isOrthogonal)
+                status = $"✓ Optimal routing ({bends} {(bends == 1 ? "bend" : "bends")})";
+            else if (intersections > 0)
+                status = $"⚠ Crosses {intersections} {(intersections == 1 ? "shape" : "shapes")} ({bends} bends)";
+            else if (redundantBends > 0)
+                status = $"⚠ {redundantBends} redundant {(redundantBends == 1 ? "bend" : "bends")}";
+            else
+                status = $"Non-orthogonal ({bends} bends)";
+
+            items.Add(new ConnectorRoutingItem(
+                conn.Id,
+                conn.Name ?? "Connector",
+                bends,
+                redundantBends,
+                intersections,
+                isOrthogonal,
+                status));
+        }
+
+        double meanBends = totalConnectors > 0 ? Math.Round((double)totalBends / totalConnectors, 1) : 0.0;
+        double score = 100.0;
+        score -= Math.Min(40.0, totalRedundantBends * 10.0);
+        score -= Math.Min(40.0, totalIntersections * 15.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Orthogonal Routing & Clear Corridors (≥90%)"
+            : score >= 75.0
+                ? "Good Orthogonal Trajectories & Few Bends (75-89%)"
+                : score >= 50.0
+                    ? "Moderate Detour Bends & Element Crossings (50-74%)"
+                    : "Severe Routing Congestion & Shape Piercing (<50%)";
+
+        string summary = FormatConnectorOrthogonalSummary(
+            totalConnectors, totalBends, totalRedundantBends, totalIntersections, score, category, isSelection);
+
+        return new DiagramConnectorRoutingAudit(
+            totalConnectors,
+            totalBends,
+            totalRedundantBends,
+            totalIntersections,
+            meanBends,
+            score,
+            items,
+            category,
+            isSelection,
+            summary);
+    }
+
+    public static string FormatConnectorOrthogonalSummary(
+        int totalConnectors, int totalBends, int redundantBends, int intersections,
+        double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalConnectors == 0) return $"Diagram connector orthogonal routing audit ({scopeStr}0 connectors): No connector lines to evaluate";
+
+        string connStr = totalConnectors == 1 ? "1 connector" : $"{totalConnectors} connectors";
+        var parts = new List<string>();
+        parts.Add($"{totalBends} {(totalBends == 1 ? "bend" : "bends")}");
+
+        if (redundantBends > 0) parts.Add($"⚠ {redundantBends} redundant {(redundantBends == 1 ? "bend" : "bends")}");
+        else parts.Add("0 redundant bends");
+
+        if (intersections > 0) parts.Add($"⚠ {intersections} shape {(intersections == 1 ? "crossing" : "crossings")}");
+        else parts.Add("0 shape crossings");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram connector orthogonal routing audit ({scopeStr}{connStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -11317,3 +11518,31 @@ public sealed record DiagramZOrderOcclusionAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated bend count, redundant detour bends, and shape crossings for an individual diagram connector.
+/// </summary>
+public sealed record ConnectorRoutingItem(
+    string ConnectorId,
+    string ConnectorName,
+    int BendCount,
+    int RedundantBends,
+    int IntersectingShapesCount,
+    bool IsOrthogonal,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram connector orthogonal routing, corner bends, collinear kinks, and segment-shape crossings.
+/// </summary>
+public sealed record DiagramConnectorRoutingAudit(
+    int TotalConnectors,
+    int TotalBends,
+    int RedundantBendsCount,
+    int ShapeIntersectionCount,
+    double MeanBendsPerConnector,
+    double RoutingEleganceScore,
+    IReadOnlyList<ConnectorRoutingItem> Connectors,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+

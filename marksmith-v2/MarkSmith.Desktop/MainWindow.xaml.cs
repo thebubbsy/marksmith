@@ -11921,6 +11921,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditTableAlignmentItem);
 
+        var auditTaskListPriorityItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Task Priority, Due Dates & Completion Checkboxes",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditTaskListPriorityItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditTaskListPriorityAndDueDates(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditTaskListPriorityItem);
+
         menu.ShowAt(anchor);
     }
 

@@ -2292,6 +2292,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnAuditWorkspaceTagTaxonomyClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceTagTaxonomy(files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification($"Tag Taxonomy: {result.UniqueTagsCount} unique tags ({result.CasingInconsistenciesCount} casing variants, {result.PluralDuplicatesCount} plural dupes, {result.SingletonTagsCount} singletons)", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Tags");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit workspace tag taxonomy: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

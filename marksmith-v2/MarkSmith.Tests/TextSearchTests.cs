@@ -2900,6 +2900,66 @@ public class TextSearchTests
         Assert.True(probAudit.DelimiterIssuesCount >= 1);
         Assert.True(probAudit.StructureComplianceScore < 75.0);
     }
+
+    [Fact]
+    public void Run189_AuditTaskListPriorityAndDueDates_ValidatesPrioritiesAndDeadlines()
+    {
+        var refDate = new DateTime(2026, 10, 20);
+
+        // 1. Empty document
+        var emptyAudit = TextSearch.AuditTaskListPriorityAndDueDates(null, refDate);
+        Assert.Equal(0, emptyAudit.TotalTasks);
+        Assert.Equal(100.0, emptyAudit.TrackingRigorScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 tasks", emptyAudit.Summary);
+
+        // 2. Clean document with priorities, future deadlines, and completed items
+        var cleanDoc = string.Join("\n",
+            "# Sprint Tasks",
+            "- [x] Fix WinUI 3 layout styling [p0] @due(2026-10-19)",
+            "- [ ] Implement matrix symmetry auditor [p1] @due(2026-10-25)",
+            "- [ ] Update documentation [p2] due:2026-10-30",
+            "- [x] Add unit test suite 📅 2026-10-18",
+            "",
+            "```markdown",
+            "- [ ] Ignored task in code block",
+            "```"
+        );
+
+        var cleanAudit = TextSearch.AuditTaskListPriorityAndDueDates(cleanDoc, refDate);
+        Assert.Equal(4, cleanAudit.TotalTasks);
+        Assert.Equal(2, cleanAudit.CompletedTasks);
+        Assert.Equal(2, cleanAudit.PendingTasks);
+        Assert.Equal(1, cleanAudit.HighPriorityCount);
+        Assert.Equal(1, cleanAudit.MediumPriorityCount);
+        Assert.Equal(1, cleanAudit.LowPriorityCount);
+        Assert.Equal(0, cleanAudit.OverdueCount); // completed past task is not overdue
+        Assert.Equal(4, cleanAudit.TaggedTasksCount);
+        Assert.Equal(50.0, cleanAudit.CompletionPercentage);
+        Assert.Equal(100.0, cleanAudit.TrackingRigorScore);
+        Assert.Equal("Optimal Task Tracking & Deadline Rigor (≥90%)", cleanAudit.Category);
+
+        string formatted = TextSearch.FormatTaskListPrioritySummary(
+            cleanAudit.TotalTasks, cleanAudit.CompletedTasks, cleanAudit.PendingTasks,
+            cleanAudit.HighPriorityCount, cleanAudit.OverdueCount, cleanAudit.CompletionPercentage,
+            cleanAudit.TrackingRigorScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Problematic document with overdue tasks
+        var probDoc = string.Join("\n",
+            "# Overdue Backlog",
+            "- [ ] Urgent server patch [high] @due(2026-10-10)", // overdue
+            "- [ ] Critical database migration #urgent @due(2026-10-15)", // overdue
+            "- [ ] Untracked loose task",
+            "- [ ] Another untracked task"
+        );
+
+        var probAudit = TextSearch.AuditTaskListPriorityAndDueDates(probDoc, refDate);
+        Assert.Equal(4, probAudit.TotalTasks);
+        Assert.Equal(0, probAudit.CompletedTasks);
+        Assert.Equal(2, probAudit.OverdueCount);
+        Assert.True(probAudit.TrackingRigorScore < 75.0);
+    }
 }
 
 

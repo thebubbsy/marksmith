@@ -381,6 +381,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphSpatialDensityItem" Text="Audit graph spatial density, force-directed overlap &amp; collision avoidance" Click="OnAuditGraphSpatialDensityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphTreeHierarchyItem" Text="Audit graph tree hierarchy depth, fan-out &amp; branching balance" Click="OnAuditGraphTreeHierarchyClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

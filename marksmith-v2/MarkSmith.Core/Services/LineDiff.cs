@@ -7885,6 +7885,165 @@ public static class LineDiff
         string details = string.Join(" · ", parts);
         return $"Diff async & threading audit ({lineStr} · {category} · {score:0.#}% safety score): {details}";
     }
+
+    /// <summary>
+    /// Audits semantic diff hunks for hot-path memory allocation and boxing anti-patterns:
+    /// string concatenation in loops, LINQ allocations in loops, closure captures in loops,
+    /// value-type boxing, and repeated array allocations.
+    /// </summary>
+    public static DiffMemoryAllocationAudit AuditMemoryAllocationAndBoxingHazards(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new DiffMemoryAllocationAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MemoryAllocationHazardItem>(),
+                "Clean Baseline",
+                "Diff memory allocation & boxing audit (0 modified lines): 0 allocation hazards found");
+        }
+
+        var loopRegex = new Regex(@"\b(for|foreach|while)\s*\(", RegexOptions.Compiled);
+        var linqInLoopRegex = new Regex(@"\.(Where|Select|SelectMany|OrderBy|OrderByDescending|GroupBy|ToList|ToArray|Any|Count|First|FirstOrDefault)\s*\(", RegexOptions.Compiled);
+        var stringConcatInLoopRegex = new Regex(@"(\b\w+\s*\+=\s*""|\b\w+\s*\+=\s*\w+|\bstring\s*\.\s*Concat|\+\s*""[^""]*"")", RegexOptions.Compiled);
+        var closureInLoopRegex = new Regex(@"(=>\s*|delegate\s*\{)", RegexOptions.Compiled);
+        var boxingRegex = new Regex(@"(object\s+\w+\s*=\s*\w+|Enum\.HasFlag|\bArrayList\b|\bHashtable\b|\(object\)\s*\w+)", RegexOptions.Compiled);
+        var newArrayInLoopRegex = new Regex(@"\bnew\s+(?:int|byte|string|object|List<|Dictionary<|HashSet<)[^;]+", RegexOptions.Compiled);
+
+        var hazards = new List<MemoryAllocationHazardItem>();
+        int modifiedLines = 0;
+        int loopDepth = 0;
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var row = unifiedRows[i];
+            if (row.IsGap || row.IsRemoved) continue;
+
+            string text = row.Text;
+            if (string.IsNullOrWhiteSpace(text)) continue;
+            modifiedLines++;
+
+            string trimmed = text.Trim();
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*")) continue;
+
+            // Simple loop tracking
+            if (loopRegex.IsMatch(trimmed))
+            {
+                loopDepth++;
+            }
+            if (trimmed.Contains("}") && loopDepth > 0)
+            {
+                loopDepth--;
+            }
+
+            int lineNo = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            // Boxing check
+            if (boxingRegex.IsMatch(trimmed))
+            {
+                hazards.Add(new MemoryAllocationHazardItem(
+                    lineNo, trimmed, "ValueTypeBoxing", "Warning",
+                    "Boxing value-type to object/interface causes heap allocation and GC pressure"));
+            }
+
+            // Inside loop checks
+            if (loopDepth > 0 || loopRegex.IsMatch(trimmed))
+            {
+                if (linqInLoopRegex.IsMatch(trimmed))
+                {
+                    hazards.Add(new MemoryAllocationHazardItem(
+                        lineNo, trimmed, "LoopLinqAllocation", "Warning",
+                        "LINQ pipeline iteration inside loop generates delegate and iterator state-machine allocations"));
+                }
+
+                if (stringConcatInLoopRegex.IsMatch(trimmed) && trimmed.Contains("+="))
+                {
+                    hazards.Add(new MemoryAllocationHazardItem(
+                        lineNo, trimmed, "LoopStringConcat", "Error",
+                        "Repeated string concatenation inside loop produces O(N^2) heap allocations; use ValueStringBuilder or StringBuilder"));
+                }
+
+                if (closureInLoopRegex.IsMatch(trimmed))
+                {
+                    hazards.Add(new MemoryAllocationHazardItem(
+                        lineNo, trimmed, "LoopClosureCapture", "Warning",
+                        "Lambda closure inside loop allocates a new display class instance per iteration"));
+                }
+
+                if (newArrayInLoopRegex.IsMatch(trimmed))
+                {
+                    hazards.Add(new MemoryAllocationHazardItem(
+                        lineNo, trimmed, "LoopArrayAllocation", "Warning",
+                        "Collection/array instantiation inside loop; consider preallocating or renting from ArrayPool<T>"));
+                }
+            }
+        }
+
+        int totalHazards = hazards.Count;
+        int loopStringConcat = hazards.Count(h => h.HazardKind == "LoopStringConcat");
+        int loopLinq = hazards.Count(h => h.HazardKind == "LoopLinqAllocation");
+        int loopClosure = hazards.Count(h => h.HazardKind == "LoopClosureCapture");
+        int boxing = hazards.Count(h => h.HazardKind == "ValueTypeBoxing");
+        int loopArray = hazards.Count(h => h.HazardKind == "LoopArrayAllocation");
+
+        double score = 100.0;
+        score -= Math.Min(40.0, loopStringConcat * 15.0);
+        score -= Math.Min(30.0, (loopLinq + loopClosure) * 10.0);
+        score -= Math.Min(20.0, (boxing + loopArray) * 5.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Zero-Allocation Efficiency (≥90%)"
+            : score >= 75.0
+                ? "Good Allocation Profile & Low GC Churn (75-89%)"
+                : score >= 50.0
+                    ? "Moderate Hot-Path Heap Allocations (50-74%)"
+                    : "Severe Heap Churn & Boxing Anti-Patterns (<50%)";
+
+        string summary = FormatMemoryAllocationSummary(
+            modifiedLines, totalHazards, loopStringConcat, loopLinq, loopClosure, boxing, loopArray, score, category);
+
+        return new DiffMemoryAllocationAudit(
+            modifiedLines,
+            totalHazards,
+            loopStringConcat,
+            loopLinq,
+            loopClosure,
+            boxing,
+            loopArray,
+            score,
+            hazards,
+            category,
+            summary);
+    }
+
+    public static DiffMemoryAllocationAudit AuditMemoryAllocationAndBoxingHazards(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditMemoryAllocationAndBoxingHazards(unified);
+    }
+
+    public static string FormatMemoryAllocationSummary(
+        int modifiedLines, int totalHazards, int loopStringConcat, int loopLinq,
+        int loopClosure, int boxing, int loopArray, double score, string category)
+    {
+        if (totalHazards == 0)
+            return $"Diff memory allocation & boxing audit ({modifiedLines} modified lines): 0 allocation hazards found";
+
+        string lineStr = modifiedLines == 1 ? "1 modified line" : $"{modifiedLines} modified lines";
+        var parts = new List<string>();
+
+        if (loopStringConcat > 0) parts.Add($"⚠ {loopStringConcat} loop string concat");
+        else parts.Add("0 loop string concats");
+
+        if (loopLinq > 0) parts.Add($"⚠ {loopLinq} loop LINQ");
+        if (loopClosure > 0) parts.Add($"⚠ {loopClosure} loop closures");
+        if (boxing > 0) parts.Add($"⚠ {boxing} boxing hazards");
+        if (loopArray > 0) parts.Add($"{loopArray} loop array instantiations");
+
+        string details = string.Join(" · ", parts);
+        return $"Diff memory allocation & boxing audit ({lineStr} · {category} · {score:0.#}% efficiency score): {details}";
+    }
 }
 
 /// <summary>
@@ -8671,6 +8830,38 @@ public sealed record DiffAsyncThreadingAudit(
     IReadOnlyList<AsyncThreadingHazardItem> Hazards,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, severity, and anti-pattern description for an individual memory allocation hazard.
+/// </summary>
+public sealed record MemoryAllocationHazardItem(
+    int LineNumber,
+    string CodeLine,
+    string HazardKind,
+    string Severity,
+    string Description);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff hunks for hot-path memory allocation and boxing anti-patterns:
+/// string concatenation in loops, LINQ allocations in loops, closure captures in loops,
+/// value-type boxing, and repeated array allocations.
+/// </summary>
+public sealed record DiffMemoryAllocationAudit(
+    int TotalModifiedLines,
+    int TotalHazards,
+    int LoopStringConcatCount,
+    int LoopLinqAllocationCount,
+    int LoopClosureCount,
+    int ValueTypeBoxingCount,
+    int LoopArrayAllocationCount,
+    double ZeroAllocationScore,
+    IReadOnlyList<MemoryAllocationHazardItem> Hazards,
+    string Category,
+    string Summary)
+{
+    public int TotalHazardsCount => TotalHazards;
+}
+
 
 
 

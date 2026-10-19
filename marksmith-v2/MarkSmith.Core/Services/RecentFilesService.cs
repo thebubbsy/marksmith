@@ -7878,6 +7878,264 @@ public sealed class RecentFilesService
         string details = string.Join(" · ", parts);
         return $"Workspace cross-document links audit ({fileStr}, {linkStr} · {category} · {score:0.#}% integrity score): {details}";
     }
+
+    /// <summary>
+    /// Audits workspace markdown documents for tag taxonomy consistency:
+    /// frontmatter tags, inline #tags, casing variations (e.g. #WinUI vs #winui),
+    /// singular/plural duplication (#tag vs #tags), and orphaned singleton tags.
+    /// </summary>
+    public static WorkspaceTagTaxonomyAudit AuditWorkspaceTagTaxonomy(
+        IEnumerable<string>? filePaths,
+        string? workspaceRoot = null,
+        Func<string, bool>? fileExists = null,
+        Func<string, string[]?>? readAllLines = null)
+    {
+        var exists = fileExists ?? (p => File.Exists(p));
+        var reader = readAllLines ?? (p => File.Exists(p) ? File.ReadAllLines(p) : null);
+
+        var candidatePaths = (filePaths ?? Enumerable.Empty<string>())
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (candidatePaths.Count == 0)
+        {
+            return new WorkspaceTagTaxonomyAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<TagTaxonomyItem>(),
+                "Clean Baseline",
+                "Workspace tag taxonomy audit (0 files): 0 tags found");
+        }
+
+        var tagOccurrences = new Dictionary<string, List<(string FilePath, string RawTag)>>(StringComparer.OrdinalIgnoreCase);
+        var inlineTagRegex = new Regex(@"(?:^|\s)#([a-zA-Z0-9_\-]+)", RegexOptions.Compiled);
+        int filesScanned = 0;
+
+        foreach (var file in candidatePaths)
+        {
+            if (!exists(file)) continue;
+            var lines = reader(file);
+            if (lines == null || lines.Length == 0) continue;
+            filesScanned++;
+
+            bool inFrontmatter = false;
+            bool inTagsList = false;
+            bool inCodeFence = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.Trim();
+
+                if (i == 0 && (trimmed == "---" || trimmed == "+++"))
+                {
+                    inFrontmatter = true;
+                    continue;
+                }
+                if (inFrontmatter && (trimmed == "---" || trimmed == "+++"))
+                {
+                    inFrontmatter = false;
+                    inTagsList = false;
+                    continue;
+                }
+
+                if (inFrontmatter)
+                {
+                    if (trimmed.StartsWith("tags:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string val = trimmed.Substring(5).Trim();
+                        if (val.StartsWith("[") && val.EndsWith("]"))
+                        {
+                            var inner = val.Trim('[', ']');
+                            var parts = inner.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                            foreach (var p in parts)
+                            {
+                                RecordTag(p.Trim().Trim('"', '\''), file);
+                            }
+                        }
+                        else if (string.IsNullOrWhiteSpace(val))
+                        {
+                            inTagsList = true;
+                        }
+                        else
+                        {
+                            RecordTag(val.Trim('"', '\''), file);
+                        }
+                        continue;
+                    }
+
+                    if (inTagsList)
+                    {
+                        if (trimmed.StartsWith("- "))
+                        {
+                            RecordTag(trimmed.Substring(2).Trim().Trim('"', '\''), file);
+                            continue;
+                        }
+                        if (trimmed.Contains(":") && !trimmed.StartsWith("-"))
+                        {
+                            inTagsList = false;
+                        }
+                    }
+                    continue;
+                }
+
+                // Outside frontmatter
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inCodeFence = !inCodeFence;
+                    continue;
+                }
+                if (inCodeFence) continue;
+
+                var matches = inlineTagRegex.Matches(line);
+                foreach (Match m in matches)
+                {
+                    string tag = m.Groups[1].Value.Trim();
+                    if (!string.IsNullOrWhiteSpace(tag))
+                    {
+                        RecordTag(tag, file);
+                    }
+                }
+            }
+        }
+
+        void RecordTag(string rawTag, string file)
+        {
+            if (string.IsNullOrWhiteSpace(rawTag)) return;
+            string key = rawTag.ToLowerInvariant();
+            if (!tagOccurrences.TryGetValue(key, out var list))
+            {
+                list = new List<(string FilePath, string RawTag)>();
+                tagOccurrences[key] = list;
+            }
+            list.Add((file, rawTag));
+        }
+
+        if (tagOccurrences.Count == 0)
+        {
+            return new WorkspaceTagTaxonomyAudit(
+                filesScanned, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<TagTaxonomyItem>(),
+                "Clean Baseline",
+                $"Workspace tag taxonomy audit ({filesScanned} files): 0 tags found");
+        }
+
+        int totalOccurrences = tagOccurrences.Values.Sum(v => v.Count);
+        int uniqueTags = tagOccurrences.Count;
+        int casingIssues = 0;
+        int pluralIssues = 0;
+        int singletons = 0;
+        var items = new List<TagTaxonomyItem>();
+
+        var allNormalizedTags = new HashSet<string>(tagOccurrences.Keys, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var kvp in tagOccurrences.OrderByDescending(k => k.Value.Count).ThenBy(k => k.Key))
+        {
+            string normTag = kvp.Key;
+            var occList = kvp.Value;
+            int freq = occList.Count;
+            int docCount = occList.Select(o => o.FilePath).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+
+            var distinctVariants = occList.Select(o => o.RawTag).Distinct(StringComparer.Ordinal).ToList();
+            bool hasCasing = distinctVariants.Count > 1;
+            if (hasCasing) casingIssues++;
+
+            bool hasPlural = false;
+            if (normTag.EndsWith("s") && allNormalizedTags.Contains(normTag.Substring(0, normTag.Length - 1)))
+            {
+                hasPlural = true;
+            }
+            else if (allNormalizedTags.Contains(normTag + "s"))
+            {
+                hasPlural = true;
+            }
+            if (hasPlural) pluralIssues++;
+
+            bool isSingleton = freq == 1;
+            if (isSingleton) singletons++;
+
+            string status;
+            if (hasCasing && hasPlural) status = $"⚠ Casing variation ({string.Join("/", distinctVariants)}) & plural duplicate";
+            else if (hasCasing) status = $"⚠ Casing inconsistency ({string.Join("/", distinctVariants)})";
+            else if (hasPlural) status = "⚠ Singular/plural variant exists in workspace";
+            else if (isSingleton) status = "Orphaned singleton tag (1 occurrence)";
+            else status = $"✓ Consistent taxonomy ({freq} occurrences across {docCount} docs)";
+
+            items.Add(new TagTaxonomyItem(
+                distinctVariants[0],
+                freq,
+                docCount,
+                hasCasing,
+                hasPlural,
+                isSingleton,
+                distinctVariants,
+                status));
+        }
+
+        double score = 100.0;
+        score -= Math.Min(35.0, casingIssues * 5.0);
+        score -= Math.Min(35.0, (pluralIssues / 2) * 5.0);
+        if (uniqueTags > 10 && singletons > 0)
+        {
+            score -= Math.Min(20.0, (singletons / 5.0) * 5.0);
+        }
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Tag Taxonomy & Cohesive Vocabulary (≥90%)"
+            : score >= 75.0
+                ? "Good Tag Consistency & Few Near-Duplicates (75-89%)"
+                : score >= 50.0
+                    ? "Moderate Taxonomy Fragmentation & Casing Drift (50-74%)"
+                    : "Severe Tag Sprawl & Duplicate Multiplicity (<50%)";
+
+        string summary = FormatWorkspaceTagTaxonomySummary(
+            filesScanned, totalOccurrences, uniqueTags, casingIssues, pluralIssues, singletons, score, category);
+
+        return new WorkspaceTagTaxonomyAudit(
+            filesScanned,
+            totalOccurrences,
+            uniqueTags,
+            casingIssues,
+            pluralIssues,
+            singletons,
+            score,
+            items,
+            category,
+            summary);
+    }
+
+    public static string FormatWorkspaceTagTaxonomySummary(
+        IEnumerable<string>? filePaths,
+        string? workspaceRoot = null,
+        Func<string, bool>? fileExists = null,
+        Func<string, string[]?>? readAllLines = null)
+    {
+        return AuditWorkspaceTagTaxonomy(filePaths, workspaceRoot, fileExists, readAllLines).Summary;
+    }
+
+    public static string FormatWorkspaceTagTaxonomySummary(
+        int filesScanned, int totalOccurrences, int uniqueTags, int casingIssues,
+        int pluralIssues, int singletons, double score, string category)
+    {
+        if (totalOccurrences == 0)
+            return $"Workspace tag taxonomy audit ({filesScanned} files): 0 tags found";
+
+        string fileStr = filesScanned == 1 ? "1 file" : $"{filesScanned} files";
+        string tagStr = uniqueTags == 1 ? "1 tag" : $"{uniqueTags} unique tags";
+        var parts = new List<string>();
+
+        parts.Add($"{totalOccurrences} occurrences");
+
+        if (casingIssues > 0) parts.Add($"⚠ {casingIssues} casing {(casingIssues == 1 ? "inconsistency" : "inconsistencies")}");
+        else parts.Add("0 casing discrepancies");
+
+        if (pluralIssues > 0) parts.Add($"⚠ {pluralIssues} plural {(pluralIssues == 1 ? "duplicate" : "duplicates")}");
+        if (singletons > 0) parts.Add($"{singletons} singleton {(singletons == 1 ? "tag" : "tags")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace tag taxonomy audit ({fileStr}, {tagStr} · {category} · {score:0.#}% cohesion score): {details}";
+    }
 }
 
 /// <summary>
@@ -8864,3 +9122,33 @@ public sealed record WorkspaceWikiLinksAudit(
     IReadOnlyList<WorkspaceLinkTargetItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, frequency, document count, and taxonomy status for an individual workspace tag.
+/// </summary>
+public sealed record TagTaxonomyItem(
+    string TagName,
+    int Frequency,
+    int DocumentCount,
+    bool HasCasingInconsistency,
+    bool HasPluralDuplicate,
+    bool IsSingleton,
+    IReadOnlyList<string> Variants,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown documents for tag taxonomy consistency:
+/// frontmatter tags, inline #tags, casing variations, singular/plural duplication, and orphaned singleton tags.
+/// </summary>
+public sealed record WorkspaceTagTaxonomyAudit(
+    int TotalFilesScanned,
+    int TotalTagOccurrences,
+    int UniqueTagsCount,
+    int CasingInconsistenciesCount,
+    int PluralDuplicatesCount,
+    int SingletonTagsCount,
+    double TaxonomyCohesionScore,
+    IReadOnlyList<TagTaxonomyItem> Items,
+    string Category,
+    string Summary);
+

@@ -10813,6 +10813,200 @@ namespace MarkSmith.ViewModels.MindMap
             string details = string.Join(" · ", parts);
             return $"Graph spatial density audit ({scope}{nodeStr} · {category} · {score:0.#}% score): {details}";
         }
+
+        /// <summary>
+        /// Audits mind map graph hierarchy tree depth, child fan-out bottlenecks (>8 children),
+        /// deep hierarchical sprawl (>6 levels), and branching factor balance.
+        /// </summary>
+        public GraphTreeHierarchyAudit AuditTreeHierarchyBranching(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = selectionOnly && selected.Count > 0 ? selected : Nodes.ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+
+            var targetIds = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+            var relevantLinks = Links.Where(l => targetIds.Contains(l.SourceNodeId) && targetIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditTreeHierarchyBranching(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphTreeHierarchyAudit AuditTreeHierarchyBranching(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links = null, bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+
+            string scopeStr = isSelection ? "Selection · " : "";
+            int totalNodes = nodeList.Count;
+
+            if (totalNodes == 0)
+            {
+                return new GraphTreeHierarchyAudit(
+                    0, 0, 0, 0, 0.0, 0, 0, 100.0,
+                    Array.Empty<TreeNodeBranchingItem>(),
+                    "Clean Baseline", isSelection,
+                    $"Graph tree hierarchy audit ({scopeStr}0 nodes): Empty mind map");
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+            var outLinks = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var inDegree = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var n in nodeList)
+            {
+                outLinks[n.Id] = new List<string>();
+                inDegree[n.Id] = 0;
+            }
+
+            foreach (var link in linkList)
+            {
+                if (outLinks.ContainsKey(link.SourceNodeId) && inDegree.ContainsKey(link.TargetNodeId))
+                {
+                    outLinks[link.SourceNodeId].Add(link.TargetNodeId);
+                    inDegree[link.TargetNodeId]++;
+                }
+            }
+
+            // Identify root candidates: in-degree == 0, or lowest in-degree
+            var roots = nodeList.Where(n => inDegree[n.Id] == 0).ToList();
+            if (roots.Count == 0 && nodeList.Count > 0)
+            {
+                int minIn = inDegree.Values.Min();
+                roots = nodeList.Where(n => inDegree[n.Id] == minIn).ToList();
+            }
+
+            var depthMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var queue = new Queue<(string Id, int Depth)>();
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var r in roots)
+            {
+                queue.Enqueue((r.Id, 0));
+                depthMap[r.Id] = 0;
+                visited.Add(r.Id);
+            }
+
+            while (queue.Count > 0)
+            {
+                var (currId, d) = queue.Dequeue();
+                if (outLinks.TryGetValue(currId, out var children))
+                {
+                    foreach (var childId in children)
+                    {
+                        if (!visited.Contains(childId))
+                        {
+                            visited.Add(childId);
+                            depthMap[childId] = d + 1;
+                            queue.Enqueue((childId, d + 1));
+                        }
+                    }
+                }
+            }
+
+            // Unreachable nodes (disconnected components)
+            foreach (var n in nodeList)
+            {
+                if (!depthMap.ContainsKey(n.Id))
+                {
+                    depthMap[n.Id] = 0;
+                }
+            }
+
+            var items = new List<TreeNodeBranchingItem>();
+            int rootCount = roots.Count;
+            int leafCount = 0;
+            int overBranchingCount = 0;
+            int deepSprawlCount = 0;
+            int totalOutDegree = 0;
+            int maxDepth = 0;
+
+            foreach (var n in nodeList)
+            {
+                int depth = depthMap[n.Id];
+                if (depth > maxDepth) maxDepth = depth;
+
+                int childCount = outLinks[n.Id].Count;
+                totalOutDegree += childCount;
+
+                bool isRoot = roots.Any(r => string.Equals(r.Id, n.Id, StringComparison.OrdinalIgnoreCase));
+                bool isLeaf = childCount == 0;
+                if (isLeaf) leafCount++;
+
+                bool isOverBranching = childCount > 8;
+                if (isOverBranching) overBranchingCount++;
+
+                bool isDeepSprawl = depth > 6;
+                if (isDeepSprawl) deepSprawlCount++;
+
+                string status;
+                if (isOverBranching && isDeepSprawl) status = $"⚠ Over-branching ({childCount} children) & deep sprawl (depth {depth})";
+                else if (isOverBranching) status = $"⚠ Over-branching bottleneck ({childCount} children > 8)";
+                else if (isDeepSprawl) status = $"⚠ Deep hierarchy sprawl (depth {depth} > 6)";
+                else if (isRoot) status = "Root node";
+                else if (isLeaf) status = "Leaf node";
+                else status = $"Balanced node ({childCount} children, depth {depth})";
+
+                items.Add(new TreeNodeBranchingItem(n.Id, n.Title ?? "Untitled", depth, childCount, isRoot, isLeaf, isOverBranching, isDeepSprawl, status));
+            }
+
+            int branchableNodes = nodeList.Count(n => outLinks[n.Id].Count > 0);
+            double avgBranching = branchableNodes > 0 ? Math.Round((double)totalOutDegree / branchableNodes, 1) : 0.0;
+
+            double score = 100.0;
+            score -= Math.Min(40.0, overBranchingCount * 10.0);
+            score -= Math.Min(30.0, deepSprawlCount * 8.0);
+            if (avgBranching > 6.0) score -= 15.0;
+            score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+            string category = score >= 90.0
+                ? "Optimal Tree Hierarchy & Balanced Branching (≥90%)"
+                : score >= 75.0
+                    ? "Good Cognitive Hierarchy & Branch Distribution (75-89%)"
+                    : score >= 50.0
+                        ? "Moderate Tree Sprawl & Branching Bottlenecks (50-74%)"
+                        : "Severe Hierarchy Disorganization & Deep Sprawl (<50%)";
+
+            string summary = FormatTreeHierarchyBranchingSummary(
+                totalNodes, rootCount, maxDepth, avgBranching, overBranchingCount, deepSprawlCount, score, category, isSelection);
+
+            return new GraphTreeHierarchyAudit(
+                totalNodes,
+                rootCount,
+                leafCount,
+                maxDepth,
+                avgBranching,
+                overBranchingCount,
+                deepSprawlCount,
+                score,
+                items,
+                category,
+                isSelection,
+                summary);
+        }
+
+        public static string FormatTreeHierarchyBranchingSummary(
+            int totalNodes, int rootCount, int maxDepth, double avgBranching,
+            int overBranchingCount, int deepSprawlCount, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph tree hierarchy audit ({scope}0 nodes): Empty mind map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            var parts = new List<string>();
+
+            parts.Add($"{rootCount} {(rootCount == 1 ? "root" : "roots")}, max depth {maxDepth}");
+            parts.Add($"avg branching {avgBranching:0.#}");
+
+            if (overBranchingCount > 0) parts.Add($"⚠ {overBranchingCount} over-branching (>8 children)");
+            else parts.Add("0 fan-out bottlenecks");
+
+            if (deepSprawlCount > 0) parts.Add($"⚠ {deepSprawlCount} deep sprawl (>6 levels)");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph tree hierarchy audit ({scope}{nodeStr} · {category} · {score:0.#}% balance score): {details}";
+        }
     }
 
 
@@ -11884,6 +12078,38 @@ namespace MarkSmith.ViewModels.MindMap
         double MaxDistance,
         double SpatialDispersionScore,
         IReadOnlyList<NodeSpatialClusterItem> Clusters,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated hierarchy depth, child fan-out count, and sprawl risks for an individual mind map node.
+    /// </summary>
+    public sealed record TreeNodeBranchingItem(
+        string NodeId,
+        string NodeTitle,
+        int Depth,
+        int ChildCount,
+        bool IsRoot,
+        bool IsLeaf,
+        bool IsOverBranching,
+        bool IsDeepSprawl,
+        string Status);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph hierarchy tree depth, child fan-out bottlenecks (>8 children),
+    /// deep hierarchical sprawl (>6 levels), and branching factor balance.
+    /// </summary>
+    public sealed record GraphTreeHierarchyAudit(
+        int TotalNodes,
+        int RootCount,
+        int LeafCount,
+        int MaxDepth,
+        double AverageBranchingFactor,
+        int OverBranchingNodesCount,
+        int DeepSprawlNodesCount,
+        double HierarchyBalanceScore,
+        IReadOnlyList<TreeNodeBranchingItem> Nodes,
         string Category,
         bool IsSelectionScope,
         string Summary);

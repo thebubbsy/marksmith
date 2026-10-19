@@ -2889,6 +2889,52 @@ public class ShapeStudioPolishTests
         Assert.True(occludedAudit.InvertedContainerCount >= 1 || occludedAudit.SevereOcclusionCount >= 1);
         Assert.True(occludedAudit.LayerStratificationScore < 80.0);
     }
+
+    [Fact]
+    public void Run189_AuditConnectorOrthogonalBends_ValidatesElbowBendsAndCrossings()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditConnectorOrthogonalBends();
+        Assert.Equal(0, emptyAudit.TotalConnectors);
+        Assert.Equal(100.0, emptyAudit.RoutingEleganceScore);
+        Assert.Equal("No Connectors", emptyAudit.Category);
+        Assert.Contains("0 connectors", emptyAudit.Summary);
+
+        // 2. Clean orthogonal connector with 1 clean bend
+        var conn1 = new ShapeCanvasItemViewModel
+        {
+            Id = "c1",
+            Name = "Step Connector",
+            ShapeType = "line"
+        };
+        ShapeDesignStudioViewModel.SetConnectorPoints(conn1, new (double, double)[] { (50, 50), (150, 50), (150, 150) });
+        vm.Shapes.Add(conn1);
+
+        var cleanAudit = vm.AuditConnectorOrthogonalBends();
+        Assert.Equal(1, cleanAudit.TotalConnectors);
+        Assert.Equal(1, cleanAudit.TotalBends);
+        Assert.Equal(0, cleanAudit.RedundantBendsCount);
+        Assert.Equal(0, cleanAudit.ShapeIntersectionCount);
+        Assert.Equal(100.0, cleanAudit.RoutingEleganceScore);
+        Assert.Equal("Optimal Orthogonal Routing & Clear Corridors (≥90%)", cleanAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatConnectorOrthogonalSummary(
+            cleanAudit.TotalConnectors, cleanAudit.TotalBends, cleanAudit.RedundantBendsCount,
+            cleanAudit.ShapeIntersectionCount, cleanAudit.RoutingEleganceScore,
+            cleanAudit.Category, cleanAudit.IsSelectionScope);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Piercing obstacle shape directly intersecting connector
+        var obstacle = new ShapeCanvasItemViewModel { Id = "obs", Name = "Obstacle Shape", X = 80, Y = 30, Width = 40, Height = 40 };
+        vm.Shapes.Add(obstacle);
+
+        var piercedAudit = vm.AuditConnectorOrthogonalBends();
+        Assert.Equal(1, piercedAudit.TotalConnectors);
+        Assert.True(piercedAudit.ShapeIntersectionCount >= 1);
+        Assert.True(piercedAudit.RoutingEleganceScore < 90.0);
+    }
 }
 
 
