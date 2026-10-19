@@ -11855,24 +11855,46 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 
 ---
 
-### Run #176 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+## Scheduled WinUI 3 Desktop Polish Routine — Run #176 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Table Column Alignment & Header Delimiter Syntax Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditTableColumnAlignmentSyntax(markdownText)`, `FormatTableColumnAlignmentSummary(...)` (audit and string overloads), records `TableColumnAlignmentItem`, `TableColumnAlignmentSyntaxAudit`. Audits GFM table header delimiter syntax (`|:---|:---:|---:|`), verifies consistent pipe enclosures, parses per-column alignment specifiers (`Left`, `Center`, `Right`, `None`), flags jagged rows with column count mismatches, and scores alignment syntax consistency ($0-100\%$); wired to `auditTableAlignmentSyntaxItem` ("Audit Table Column Alignment & Delimiter Syntax", glyph `\uE80A`) in `ShowLinksContextMenu` with clipboard copy and toast announcement.
+    2. **MindMapGalaxyWindow Graph Diameter, Average Path Length & Small-World Phenomenon Index Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditGraphDiameterAndSmallWorld()`, static overload, `FormatSmallWorldSummary(...)`, records `NodePathEccentricityInfo`, `GraphDiameterAndSmallWorldAudit`. Computes all-pairs shortest path geodesics using unweighted BFS, calculates node eccentricities, graph diameter $D = \max \epsilon(v)$, characteristic path length $L = \frac{1}{N(N-1)} \sum d(i,j)$, global efficiency $E = \frac{1}{N(N-1)} \sum \frac{1}{d(i,j)}$, and evaluates small-world navigation efficiency vs random graph expectation $L \sim \ln(N)$; wired to `AuditGraphDiameterSmallWorldItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Shape Aspect Ratio Consistency & Golden Ratio ($\phi \approx 1.618$) Adherence Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditShapeAspectRatioAndGoldenRatio(shapes)`, static overload, `FormatAspectRatioGoldenRatioSummary(...)`, records `ShapeGoldenRatioAdherenceItem`, `DiagramGoldenRatioAdherenceAudit`. Evaluates shape bounding box proportions against harmonic aspect ratio standards (Golden Ratio $\phi \approx 1.61803$, Square $1:1$, Video $16:9$, Photo $4:3$, Double Square $2:1$), flags non-proportional aspect ratios, and scores diagram geometric harmony ($0-100\%$); wired to `SelectionAuditAspectRatioGoldenRatioItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Matrix / Quadrant 2x2 Grid Balance & Diagonal Symmetry Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditQuadrantGridBalance(markdown)`, static overload, `FormatQuadrantBalanceSummary(...)`, records `QuadrantCellItem`, `SmartArtQuadrantGridAudit`. Analyzes 4-cell matrix layouts (Q1 Top-Left, Q2 Top-Right, Q3 Bottom-Left, Q4 Bottom-Right), measures text volume balance across horizontal, vertical, and diagonal axes, detects empty or overloaded quadrants, and scores 2x2 grid symmetry ($0-100\%$); wired to `OutlineStatsAuditQuadrantGridBalanceItem` (`\uE8B9`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Diff Line Addition/Deletion Balance & Code Churn Volatility Index Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditCodeChurnVolatilityIndex(unifiedRows)`, static string overload, `FormatCodeChurnVolatilitySummary(...)`, records `CodeChurnVolatilityAudit`. Evaluates total churn ($L_{\text{add}} + L_{\text{del}}$), addition-to-deletion asymmetry ratio, diff hunk scattering density across document rows, and computes the stability index ($0-100\%$) classifying commits into Targeted Surgical Bugfix, Refactoring / Rebalance, Heavy Feature Addition, or High Volatility Churn; wired to `auditChurnVolatility` (`\uE8B9`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace Media Alt-Text Quality, Accessibility & Empty Caption Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceMediaAccessibility(files, fileExistsProvider, contentReader)`, `FormatWorkspaceMediaAccessibilitySummary(...)`, records `WorkspaceMediaAccessibilityItem`, `WorkspaceMediaAccessibilityAudit`. Scans workspace markdown image embeds (`![alt](path)`), audits alt-text descriptions against WCAG 2.1 non-text content criteria, detects missing/empty alt text and generic placeholder filenames (`image.png`, `screenshot`), and scores overall workspace media accessibility ($0-100\%$); wired to `CopyWorkspaceMediaAccessibilityAdvisorItem` (`\uEB9F`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified all `7/7` targeted Run #176 tests passing (`100%` pass rate).
+    - Verified clean live launch of `Marksmith.exe` (`PID=2308`, `Responding=True`, closed cleanly with zero startup crashes).
+
+---
+
+### Run #177 Blueprint — Carried-Forward Refinements & Next Cycle Targets
 1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **Feature**: Markdown Table Column Alignment & Header Delimiter Syntax Auditor.
-   - **Deliverable**: Add `TextSearch.AuditTableColumnAlignmentSyntax(markdownText)` and `FormatTableColumnAlignmentSummary(...)`, validating GFM table header delimiter syntax (`|:---|:---:|---:|`), detecting missing pipes, mismatched column alignment specifiers, and scoring column formatting consistency. Wire to `ShowLinksContextMenu`.
+   - **Feature**: Markdown Footnote Reference Identifier Pairing & Dangling Definition Auditor.
+   - **Deliverable**: Add `TextSearch.AuditFootnoteReferencePairing(markdownText)` and `FormatFootnoteReferencePairingSummary(...)`, validating GFM footnote reference anchors (`[^label]`) against footnote definitions (`[^label]: text`), detecting dangling references (missing definitions) or orphaned definitions (unreferenced definitions), duplicate definition tags, and scoring document reference integrity. Wire to `ShowLinksContextMenu`.
 2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **Feature**: Graph Diameter, Average Path Length & Small-World Phenomenon Index Auditor.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphDiameterAndSmallWorld()` and `FormatSmallWorldSummary(...)`, computing shortest paths between all pairs of nodes (BFS/Dijkstra), graph diameter, and characteristic path length to evaluate small-world navigation efficiency. Wire to `ArrangeDropDownButton.Flyout`.
+   - **Feature**: Graph Node Degree Distribution Skewness, Hub Centrality & Scale-Free Network Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditDegreeDistributionAndHubs()` and `FormatDegreeDistributionSummary(...)`, analyzing node degree distribution $P(k)$, calculating degree variance, skewness, identifying super-hub nodes ($k_i > \mu + 2\sigma$), detecting leaf node sprawl, and scoring scale-free structural organization. Wire to `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **Feature**: Shape Aspect Ratio Consistency & Golden Ratio ($\phi \approx 1.618$) Adherence Auditor.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeAspectRatioAndGoldenRatio(shapes)` and `FormatAspectRatioSummary(...)`, evaluating width-to-height aspect ratios against standard design proportions (1:1 square, 4:3, 16:9, and $\phi \approx 1.61803$ golden ratio) and scoring layout aesthetic harmony. Wire to `SelectionBoundsBorder.ContextFlyout`.
+   - **Feature**: Shape Corner Radius Consistency, Rounded Rectangle Harmony & Fillet Style Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeCornerRadiusConsistency(shapes)` and `FormatCornerRadiusSummary(...)`, inspecting corner radius values across rounded rectangles and cards, detecting inconsistent fillet curvature (e.g. mixed 4px, 8px, 12px radii), and scoring visual corner radius uniformity ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **Feature**: SmartArt Matrix / Quadrant 2x2 Grid Balance & Diagonal Symmetry Auditor.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditQuadrantGridBalance(markdown)` and `FormatQuadrantBalanceSummary(...)`, checking 4-cell quadrant balance, diagonal text volume symmetry, and quadrant header distribution. Wire to `OutlineStatsFlyout`.
-5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #175 Block 3 Idea 5]**:
-   - **Refinement Target**: Semantic Diff Line Addition/Deletion Balance & Code Churn Volatility Index.
-   - **Deliverable**: Add `LineDiff.AuditCodeChurnVolatilityIndex(unifiedRows)` to analyze addition-to-deletion asymmetry, hunk distribution volatility, and classify refactors vs net-new expansions. Wire to `TimelineHeaderBorder` context flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #175 Block 3 Idea 6]**:
-   - **Refinement Target**: Workspace Media Alt-Text Quality, Accessibility & Empty Caption Advisor.
-   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceMediaAccessibility(files)` to evaluate accessibility compliance for embedded workspace media, detecting empty `![]()` or generic alt captions (`image.png`, `diagram`) and scoring WCAG alt-text quality. Wire to `RecentDocsFlyout`.
+   - **Feature**: SmartArt Funnel / Pyramid Progression Volume & Stage Ingestion Taper Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditFunnelPyramidProgression(markdown)` and `FormatFunnelPyramidSummary(...)`, analyzing funnel/pyramid stage text length, hierarchy levels, and stage count to ensure smooth monotonic narrowing/widening without abrupt inversions. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #176 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Token Levenshtein Edit Distance & Inline Modification Intensity Auditor.
+   - **Deliverable**: Add `LineDiff.AuditInlineModificationIntensity(unifiedRows)` to compute token edit distances for paired replacement rows, distinguishing micro-edits (typo fixes, identifier renames) from complete line rewrites. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #176 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Code Fence Language Tag Completeness & Syntax Highlighting Coverage Advisor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceCodeFenceLanguageTags(files)` to scan embedded code fences across workspace documents, detecting untagged generic ` ``` ` code fences vs tagged blocks (` ```csharp `, ` ```json `, ` ```powershell `), and scoring syntax highlighting coverage ($0-100\%$). Wire to `RecentDocsFlyout`.
+
 
 

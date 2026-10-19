@@ -2102,6 +2102,43 @@ public class HistoryPolishTests : IDisposable
             synAudit.SignalToNoiseScore, synAudit.Category);
         Assert.Equal(synAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run176_AuditCodeChurnVolatilityIndex_Comprehensive()
+    {
+        var emptyAudit = LineDiff.AuditCodeChurnVolatilityIndex(Array.Empty<LineDiff.UnifiedRow>());
+        Assert.Equal(0, emptyAudit.TotalDiffRows);
+        Assert.Equal(0, emptyAudit.AddedLines);
+        Assert.Equal(0, emptyAudit.DeletedLines);
+        Assert.Equal(0, emptyAudit.NetDelta);
+        Assert.Equal(100.0, emptyAudit.ChurnStabilityScore);
+        Assert.Equal("Unchanged", emptyAudit.Category);
+
+        // 1. Pure additive expansion
+        string beforeAdd = "line 1\nline 2";
+        string afterAdd = "line 1\nline 2\nline 3\nline 4";
+        var addAudit = LineDiff.AuditCodeChurnVolatilityIndex(beforeAdd, afterAdd);
+        Assert.Equal(2, addAudit.AddedLines);
+        Assert.Equal(0, addAudit.DeletedLines);
+        Assert.Equal(2, addAudit.NetDelta);
+        Assert.Equal("Pure Additive Expansion", addAudit.Category);
+
+        // 2. Symmetric rework
+        string beforeRework = "line 1\nold alpha\nline 3";
+        string afterRework = "line 1\nnew beta\nline 3";
+        var reworkAudit = LineDiff.AuditCodeChurnVolatilityIndex(beforeRework, afterRework);
+        Assert.Equal(1, reworkAudit.AddedLines);
+        Assert.Equal(1, reworkAudit.DeletedLines);
+        Assert.Equal(0, reworkAudit.NetDelta);
+        Assert.Equal(1.0, reworkAudit.AsymmetryRatio);
+        Assert.Equal("Symmetric Balanced Rework", reworkAudit.Category);
+
+        string formatted = LineDiff.FormatCodeChurnVolatilitySummary(
+            reworkAudit.TotalDiffRows, reworkAudit.AddedLines, reworkAudit.DeletedLines,
+            reworkAudit.NetDelta, reworkAudit.ChurnVolatilityIndex, reworkAudit.ChurnStabilityScore,
+            reworkAudit.Category);
+        Assert.Equal(reworkAudit.Summary, formatted);
+    }
 }
 
 

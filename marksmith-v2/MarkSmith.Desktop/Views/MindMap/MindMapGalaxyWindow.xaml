@@ -342,6 +342,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphCyclesFeedbackItem" Text="Audit graph directed cycles &amp; feedback loops (Tarjan SCC)" Click="OnAuditGraphCyclesFeedbackClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphDiameterSmallWorldItem" Text="Audit graph diameter, average path length &amp; small-world navigation" Click="OnAuditGraphDiameterAndSmallWorldClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

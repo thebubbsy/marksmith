@@ -5896,6 +5896,129 @@ public static class LineDiff
         return $"Formatting vs syntactic change entropy audit ({totalRows} rows [{churnLabel}: +{added}/-{removed}] · {category} · {signalToNoise:0.#}% signal): " +
                $"{syntacticLines} syntactic, {whitespaceLines} formatting (entropy ratio {entropyRatio:0.###})";
     }
+
+    public static CodeChurnVolatilityAudit AuditCodeChurnVolatilityIndex(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new CodeChurnVolatilityAudit(
+                0, 0, 0, 0, 0, 1.0, 0.0, 100.0,
+                "Unchanged",
+                "Code churn volatility audit: 0 diff rows · Document unchanged");
+        }
+
+        int totalRows = unifiedRows.Count;
+        int added = 0;
+        int deleted = 0;
+        int hunkCount = 0;
+        bool inHunk = false;
+        var hunkSizes = new List<int>();
+        int currentHunkSize = 0;
+
+        for (int i = 0; i < totalRows; i++)
+        {
+            var row = unifiedRows[i];
+            bool isChange = row.Kind == Kind.Added || row.Kind == Kind.Removed;
+
+            if (row.Kind == Kind.Added) added++;
+            else if (row.Kind == Kind.Removed) deleted++;
+
+            if (isChange)
+            {
+                if (!inHunk)
+                {
+                    inHunk = true;
+                    hunkCount++;
+                    currentHunkSize = 1;
+                }
+                else
+                {
+                    currentHunkSize++;
+                }
+            }
+            else
+            {
+                if (inHunk)
+                {
+                    inHunk = false;
+                    hunkSizes.Add(currentHunkSize);
+                    currentHunkSize = 0;
+                }
+            }
+        }
+
+        if (inHunk)
+        {
+            hunkSizes.Add(currentHunkSize);
+        }
+
+        int totalChurn = added + deleted;
+        int netDelta = added - deleted;
+
+        if (totalChurn == 0)
+        {
+            return new CodeChurnVolatilityAudit(
+                totalRows, 0, 0, 0, 0, 1.0, 0.0, 100.0,
+                "Unchanged (Zero Churn)",
+                "Code churn volatility audit: 0 churn lines · Document unchanged");
+        }
+
+        double asymmetryRatio = Math.Round((double)Math.Max(added, deleted) / Math.Max(1, Math.Min(added, deleted)), 2);
+        double churnDensity = (double)totalChurn / totalRows;
+        double volatilityIndex = Math.Round(Math.Clamp((churnDensity * 50.0) + (hunkCount * 5.0), 0.0, 100.0), 1);
+        double stabilityScore = Math.Round(Math.Clamp(100.0 - volatilityIndex, 10.0, 100.0), 1);
+
+        string category;
+        if (deleted == 0 && added > 0)
+            category = "Pure Additive Expansion";
+        else if (added == 0 && deleted > 0)
+            category = "Pure Deletive Reduction";
+        else if (asymmetryRatio <= 1.5)
+            category = "Symmetric Balanced Rework";
+        else if (added > deleted)
+            category = "Net Growth Refactor";
+        else
+            category = "Net Trimming Refactor";
+
+        if (volatilityIndex >= 65.0)
+            category += " (High Volatility Turbulence)";
+
+        string summary = FormatCodeChurnVolatilitySummary(
+            totalRows, added, deleted, netDelta, volatilityIndex, stabilityScore, category);
+
+        return new CodeChurnVolatilityAudit(
+            totalRows,
+            added,
+            deleted,
+            netDelta,
+            hunkCount,
+            asymmetryRatio,
+            volatilityIndex,
+            stabilityScore,
+            category,
+            summary);
+    }
+
+    public static CodeChurnVolatilityAudit AuditCodeChurnVolatilityIndex(
+        string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditCodeChurnVolatilityIndex(unified);
+    }
+
+    public static string FormatCodeChurnVolatilitySummary(
+        int totalRows, int added, int deleted, int netDelta, double volatilityIndex,
+        double stabilityScore, string category)
+    {
+        if (totalRows == 0 || (added == 0 && deleted == 0))
+            return "Code churn volatility audit: 0 diff rows · Document unchanged";
+
+        string netStr = netDelta >= 0 ? $"+{netDelta}" : $"{netDelta}";
+        return $"Code churn volatility audit ({totalRows} rows [{netStr} net: +{added}/-{deleted}] · {category} · {stabilityScore:0.#}% stability): " +
+               $"volatility index {volatilityIndex:0.#}";
+    }
 }
 
 /// <summary>
@@ -6371,6 +6494,22 @@ public sealed record FormattingVsSyntacticEntropyAudit(
     int SyntacticChangeLines,
     double SyntacticEntropyRatio,
     double SignalToNoiseScore,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff line addition/deletion balance, net delta,
+/// hunk distribution, churn asymmetry ratio, and code churn volatility index.
+/// </summary>
+public sealed record CodeChurnVolatilityAudit(
+    int TotalDiffRows,
+    int AddedLines,
+    int DeletedLines,
+    int NetDelta,
+    int HunkCount,
+    double AsymmetryRatio,
+    double ChurnVolatilityIndex,
+    double ChurnStabilityScore,
     string Category,
     string Summary);
 

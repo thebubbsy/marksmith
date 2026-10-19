@@ -8199,6 +8199,224 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Graph cycle & feedback loop audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% acyclic score): " +
                    $"{cycleLabel} involving {nodesInCycles} node(s) (longest: {longestCycle} nodes)";
         }
+
+        public GraphDiameterAndSmallWorldAudit AuditGraphDiameterAndSmallWorld(bool selectionOnly = false)
+        {
+            var targetNodes = (selectionOnly && HasSelection)
+                ? Nodes.Where(n => n.IsSelected).ToList()
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && HasSelection;
+            var targetNodeIds = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+
+            var targetLinks = Links.Where(l =>
+                targetNodeIds.Contains(l.SourceNodeId) && targetNodeIds.Contains(l.TargetNodeId)).ToList();
+
+            if (targetNodes.Count == 0)
+            {
+                string scope = isSelection ? "Selection · " : "";
+                return new GraphDiameterAndSmallWorldAudit(
+                    0, 0, 0, 0, 0.0, 0.0, 0, 100.0,
+                    Array.Empty<NodePathEccentricityInfo>(),
+                    "Empty Map",
+                    isSelection,
+                    $"Graph diameter & small-world navigation audit ({scope}0 nodes): Empty map");
+            }
+
+            int n = targetNodes.Count;
+            int totalEdges = targetLinks.Count;
+
+            var adj = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var node in targetNodes)
+            {
+                adj[node.Id] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+            foreach (var link in targetLinks)
+            {
+                if (adj.ContainsKey(link.SourceNodeId) && adj.ContainsKey(link.TargetNodeId))
+                {
+                    adj[link.SourceNodeId].Add(link.TargetNodeId);
+                    adj[link.TargetNodeId].Add(link.SourceNodeId);
+                }
+            }
+
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int componentCount = 0;
+            foreach (var node in targetNodes)
+            {
+                if (!visited.Contains(node.Id))
+                {
+                    componentCount++;
+                    var q = new Queue<string>();
+                    q.Enqueue(node.Id);
+                    visited.Add(node.Id);
+                    while (q.Count > 0)
+                    {
+                        var curr = q.Dequeue();
+                        foreach (var neighbor in adj[curr])
+                        {
+                            if (visited.Add(neighbor))
+                            {
+                                q.Enqueue(neighbor);
+                            }
+                        }
+                    }
+                }
+            }
+
+            var nodeMetrics = new List<NodePathEccentricityInfo>();
+            int diameter = 0;
+            long totalDistanceSum = 0;
+            int connectedPairsCount = 0;
+            double globalEfficiencySum = 0.0;
+
+            foreach (var source in targetNodes)
+            {
+                var dist = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var q = new Queue<string>();
+                dist[source.Id] = 0;
+                q.Enqueue(source.Id);
+
+                int eccentricity = 0;
+                long localDistSum = 0;
+                int reachableCount = 0;
+
+                while (q.Count > 0)
+                {
+                    var u = q.Dequeue();
+                    int d = dist[u];
+
+                    foreach (var v in adj[u])
+                    {
+                        if (!dist.ContainsKey(v))
+                        {
+                            dist[v] = d + 1;
+                            q.Enqueue(v);
+
+                            int newDist = d + 1;
+                            if (newDist > eccentricity) eccentricity = newDist;
+                            localDistSum += newDist;
+                            reachableCount++;
+
+                            if (string.Compare(source.Id, v, StringComparison.OrdinalIgnoreCase) < 0)
+                            {
+                                totalDistanceSum += newDist;
+                                connectedPairsCount++;
+                                if (newDist > diameter) diameter = newDist;
+                            }
+
+                            globalEfficiencySum += 1.0 / newDist;
+                        }
+                    }
+                }
+
+                double avgDistToOthers = reachableCount > 0
+                    ? Math.Round((double)localDistSum / reachableCount, 2)
+                    : 0.0;
+
+                nodeMetrics.Add(new NodePathEccentricityInfo(
+                    source.Id,
+                    source.Title ?? "Untitled Node",
+                    eccentricity,
+                    avgDistToOthers,
+                    reachableCount));
+            }
+
+            double characteristicPathLength = connectedPairsCount > 0
+                ? Math.Round((double)totalDistanceSum / connectedPairsCount, 2)
+                : 0.0;
+
+            double maxPossiblePairs = n > 1 ? (double)n * (n - 1) : 1.0;
+            double globalEfficiency = Math.Round((globalEfficiencySum / maxPossiblePairs), 3);
+
+            double smallWorldScore;
+            if (n <= 1)
+            {
+                smallWorldScore = 100.0;
+            }
+            else if (connectedPairsCount == 0)
+            {
+                smallWorldScore = 20.0;
+            }
+            else
+            {
+                double expectedL = Math.Max(1.0, Math.Log(n));
+                double ratio = characteristicPathLength / expectedL;
+                double efficiencyPenalty = (1.0 - globalEfficiency) * 40.0;
+                double fragmentationPenalty = (componentCount - 1) * 10.0;
+                smallWorldScore = Math.Round(Math.Clamp(100.0 - (ratio * 15.0) - efficiencyPenalty - fragmentationPenalty, 10.0, 100.0), 1);
+            }
+
+            string category;
+            if (n <= 1)
+                category = "Trivial Graph";
+            else if (componentCount > 1 && connectedPairsCount == 0)
+                category = "Completely Disconnected Forest (0 Reachable Paths)";
+            else if (componentCount > 1)
+                category = $"Partitioned Graph ({componentCount} Components · Moderate Small-World Reachability)";
+            else if (diameter <= 4 && characteristicPathLength <= 2.5)
+                category = "High Small-World Navigation Efficiency (Tight Semantic Mesh)";
+            else if (diameter <= 6)
+                category = "Balanced Small-World Navigability (Moderate Diameter)";
+            else
+                category = $"Elongated Linear Chain (High Diameter {diameter} · High Navigation Latency)";
+
+            string summary = FormatSmallWorldSummary(
+                n, totalEdges, connectedPairsCount, diameter, characteristicPathLength,
+                globalEfficiency, componentCount, smallWorldScore, category, isSelection);
+
+            return new GraphDiameterAndSmallWorldAudit(
+                n,
+                totalEdges,
+                connectedPairsCount,
+                diameter,
+                characteristicPathLength,
+                globalEfficiency,
+                componentCount,
+                smallWorldScore,
+                nodeMetrics,
+                category,
+                isSelection,
+                summary);
+        }
+
+        public static GraphDiameterAndSmallWorldAudit AuditGraphDiameterAndSmallWorld(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditGraphDiameterAndSmallWorld();
+        }
+
+        public static string FormatSmallWorldSummary(
+            int totalNodes, int totalEdges, int connectedPairs, int diameter, double avgPathLength,
+            double globalEfficiency, int componentCount, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph diameter & small-world navigation audit ({scope}0 nodes): Empty map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string edgeStr = totalEdges == 1 ? "1 edge" : $"{totalEdges} edges";
+
+            if (connectedPairs == 0)
+            {
+                return $"Graph diameter & small-world navigation audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% score): " +
+                       $"0 reachable node pairs across {componentCount} disconnected components";
+            }
+
+            string compNote = componentCount > 1 ? $" across {componentCount} components" : "";
+            return $"Graph diameter & small-world navigation audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% score): " +
+                   $"diameter {diameter}, avg path {avgPathLength:0.##}, efficiency {globalEfficiency:0.###}{compNote}";
+        }
     }
 
 
@@ -8864,6 +9082,34 @@ namespace MarkSmith.ViewModels.MindMap
         double AcyclicityScore,
         IReadOnlyList<GraphCycleComponentInfo> CyclicComponents,
         string TopologyCategory,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated path metrics, eccentricity, and average distance for an individual mind map node.
+    /// </summary>
+    public sealed record NodePathEccentricityInfo(
+        string NodeId,
+        string Title,
+        int Eccentricity,
+        double AvgDistanceToOthers,
+        int ReachableNodes);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph diameter, characteristic path length,
+    /// global network efficiency, connected components, and small-world navigation index.
+    /// </summary>
+    public sealed record GraphDiameterAndSmallWorldAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int ConnectedPairs,
+        int Diameter,
+        double CharacteristicPathLength,
+        double GlobalEfficiency,
+        int ComponentCount,
+        double SmallWorldIndexScore,
+        IReadOnlyList<NodePathEccentricityInfo> NodeMetrics,
+        string Category,
         bool IsSelectionScope,
         string Summary);
 }

@@ -736,6 +736,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditVisualFlowDirectionalityItem" Text="Audit diagram visual flow directionality &amp; arrow vector hierarchy" Click="OnSelectionAuditVisualFlowDirectionalityClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditAspectRatioGoldenRatioItem" Text="Audit shape aspect ratio consistency &amp; golden ratio (&#x03C6; &#x2248; 1.618) adherence" Click="OnSelectionAuditAspectRatioGoldenRatioClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

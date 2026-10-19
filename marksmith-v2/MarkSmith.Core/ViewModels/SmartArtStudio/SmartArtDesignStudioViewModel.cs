@@ -6899,6 +6899,158 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"Cycle process interval audit ({stepLabel} [{angularChord:0.#}° chord] · {category} · {score:0.#}% harmony){alertSuffix}";
     }
 
+    public SmartArtQuadrantGridAudit AuditQuadrantGridBalance(string? markdown = null, string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtQuadrantGridAudit(
+                0, 0, 0, 4, 0.0, 100.0, 100.0,
+                Array.Empty<QuadrantCellItem>(),
+                "Empty Matrix",
+                "2x2 matrix quadrant grid audit: 0 items · Outline contains no quadrant content");
+        }
+
+        var lines = input.Replace("\r", "").Split('\n');
+        var parsedItems = new List<string>();
+
+        foreach (var line in lines)
+        {
+            string trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~")) continue;
+
+            if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ "))
+            {
+                parsedItems.Add(trimmed[2..].Trim());
+            }
+            else if (trimmed.StartsWith("#"))
+            {
+                int hIdx = 0;
+                while (hIdx < trimmed.Length && trimmed[hIdx] == '#') hIdx++;
+                parsedItems.Add(trimmed[hIdx..].Trim());
+            }
+            else
+            {
+                parsedItems.Add(trimmed);
+            }
+        }
+
+        if (parsedItems.Count == 0)
+        {
+            return new SmartArtQuadrantGridAudit(
+                0, 0, 0, 4, 0.0, 100.0, 100.0,
+                Array.Empty<QuadrantCellItem>(),
+                "Empty Matrix",
+                "2x2 matrix quadrant grid audit: 0 items · Outline contains no quadrant content");
+        }
+
+        string[] quadrantNames = { "Q1 Top-Left", "Q2 Top-Right", "Q3 Bottom-Left", "Q4 Bottom-Right" };
+        var cellItems = new List<QuadrantCellItem>();
+
+        int totalWords = 0;
+        int populatedCount = 0;
+        int emptyCount = 0;
+
+        int[] qWords = new int[4];
+        int[] qItemCounts = new int[4];
+
+        for (int q = 0; q < 4; q++)
+        {
+            if (q < parsedItems.Count)
+            {
+                string text = parsedItems[q];
+                int words = text.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                qWords[q] = words;
+                qItemCounts[q] = 1;
+                totalWords += words;
+                populatedCount++;
+
+                bool isSparse = words < 2;
+                bool isOvercrowded = words > 20;
+
+                cellItems.Add(new QuadrantCellItem(
+                    q + 1, quadrantNames[q], text, 1, words, isSparse, isOvercrowded));
+            }
+            else
+            {
+                emptyCount++;
+                cellItems.Add(new QuadrantCellItem(
+                    q + 1, quadrantNames[q], "(Empty Quadrant)", 0, 0, true, false));
+            }
+        }
+
+        if (parsedItems.Count > 4)
+        {
+            for (int i = 4; i < parsedItems.Count; i++)
+            {
+                int qTarget = i % 4;
+                string text = parsedItems[i];
+                int words = text.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                qWords[qTarget] += words;
+                qItemCounts[qTarget]++;
+                totalWords += words;
+            }
+        }
+
+        double meanWords = Math.Round((double)totalWords / 4.0, 1);
+
+        double sym1 = (qWords[0] == 0 && qWords[3] == 0) ? 1.0 :
+            1.0 - (Math.Abs(qWords[0] - qWords[3]) / (double)Math.Max(1, qWords[0] + qWords[3]));
+        double sym2 = (qWords[1] == 0 && qWords[2] == 0) ? 1.0 :
+            1.0 - (Math.Abs(qWords[1] - qWords[2]) / (double)Math.Max(1, qWords[1] + qWords[2]));
+
+        double diagonalSymmetryPct = Math.Round(Math.Clamp((sym1 + sym2) / 2.0 * 100.0, 0.0, 100.0), 1);
+
+        double emptyPenalty = emptyCount * 20.0;
+        double symmetryBonus = (diagonalSymmetryPct / 100.0) * 30.0;
+        double balanceScore = Math.Round(Math.Clamp(70.0 - emptyPenalty + symmetryBonus, 10.0, 100.0), 1);
+
+        string category;
+        if (emptyCount == 0 && diagonalSymmetryPct >= 85.0)
+            category = "Equilateral 2x2 Matrix Grid (High Diagonal Balance)";
+        else if (emptyCount == 0)
+            category = "Fully Populated 4-Quadrant Grid (Moderate Asymmetry)";
+        else if (emptyCount == 1)
+            category = "Asymmetric 3-Quadrant Grid (1 Empty Quadrant)";
+        else
+            category = $"Sparse Matrix ({emptyCount} Empty Quadrants Detected)";
+
+        string summary = FormatQuadrantBalanceSummary(
+            parsedItems.Count, totalWords, qWords[0], qWords[1], qWords[2], qWords[3],
+            diagonalSymmetryPct, balanceScore, category);
+
+        return new SmartArtQuadrantGridAudit(
+            parsedItems.Count,
+            totalWords,
+            populatedCount,
+            emptyCount,
+            meanWords,
+            diagonalSymmetryPct,
+            balanceScore,
+            cellItems,
+            category,
+            summary);
+    }
+
+    public static SmartArtQuadrantGridAudit AuditQuadrantGridBalance(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditQuadrantGridBalance(markdown, layoutName);
+    }
+
+    public static string FormatQuadrantBalanceSummary(
+        int totalItems, int totalWords, int q1Words, int q2Words, int q3Words, int q4Words,
+        double diagonalSymmetry, double score, string category)
+    {
+        if (totalItems == 0) return "2x2 matrix quadrant grid audit: 0 items · Outline contains no quadrant content";
+
+        string itemLabel = totalItems == 1 ? "1 item" : $"{totalItems} items";
+        return $"2x2 matrix quadrant grid audit ({itemLabel} [{totalWords} words] · {category} · {score:0.#}% score): " +
+               $"Q1:{q1Words}w, Q2:{q2Words}w, Q3:{q3Words}w, Q4:{q4Words}w · {diagonalSymmetry:0.#}% diagonal symmetry";
+    }
+
 }
 
 /// <summary>
@@ -7504,6 +7656,34 @@ public sealed record SmartArtCycleIntervalAudit(
     int OvercrowdedStepsCount,
     double RadialHarmonyScore,
     IReadOnlyList<CycleSegmentItem> Segments,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, word count, and density alerts for an individual 2x2 matrix quadrant cell.
+/// </summary>
+public sealed record QuadrantCellItem(
+    int QuadrantIndex,
+    string QuadrantName,
+    string Header,
+    int ItemCount,
+    int WordCount,
+    bool IsSparse,
+    bool IsOvercrowded);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt 2x2 matrix quadrant grid balance, diagonal symmetry,
+/// item distribution across Q1-Q4, and empty quadrant traps.
+/// </summary>
+public sealed record SmartArtQuadrantGridAudit(
+    int TotalItems,
+    int TotalWords,
+    int PopulatedQuadrants,
+    int EmptyQuadrants,
+    double MeanWordsPerQuadrant,
+    double DiagonalSymmetryPercentage,
+    double QuadrantBalanceScore,
+    IReadOnlyList<QuadrantCellItem> Quadrants,
     string Category,
     string Summary);
 

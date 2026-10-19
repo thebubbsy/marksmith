@@ -4136,6 +4136,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditGraphDiameterAndSmallWorldClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphDiameterAndSmallWorld();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5167,6 +5175,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditGraphCyclesItem.Click += OnAuditGraphCyclesFeedbackClick;
             menu.Items.Add(auditGraphCyclesItem);
+
+            var auditGraphDiameterItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph diameter, average path length & small-world navigation",
+                Icon = new FontIcon { Glyph = "\uE8B9" }
+            };
+            auditGraphDiameterItem.Click += OnAuditGraphDiameterAndSmallWorldClick;
+            menu.Items.Add(auditGraphDiameterItem);
 
             var fitItem = new MenuFlyoutItem
 

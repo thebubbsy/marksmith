@@ -2944,6 +2944,57 @@ namespace MarkSmith.Tests
                 dagAudit.TopologyCategory, dagAudit.IsSelectionScope);
             Assert.Equal(dagAudit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run176_AuditGraphDiameterAndSmallWorld_Comprehensive()
+        {
+            var emptyAudit = MindMapStudioViewModel.AuditGraphDiameterAndSmallWorld(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalEdges);
+            Assert.Equal(0, emptyAudit.Diameter);
+            Assert.Equal(100.0, emptyAudit.SmallWorldIndexScore);
+            Assert.Equal("Empty Map", emptyAudit.Category);
+
+            // Linear chain: n1 - n2 - n3 - n4
+            var n1 = new MindMapNode { Id = "n1", Title = "Origin Hub" };
+            var n2 = new MindMapNode { Id = "n2", Title = "Bridge Node" };
+            var n3 = new MindMapNode { Id = "n3", Title = "Relay Node" };
+            var n4 = new MindMapNode { Id = "n4", Title = "Terminal Node" };
+
+            var l1 = new MindMapLink { Id = "l1", SourceNodeId = "n1", TargetNodeId = "n2" };
+            var l2 = new MindMapLink { Id = "l2", SourceNodeId = "n2", TargetNodeId = "n3" };
+            var l3 = new MindMapLink { Id = "l3", SourceNodeId = "n3", TargetNodeId = "n4" };
+
+            var chainAudit = MindMapStudioViewModel.AuditGraphDiameterAndSmallWorld(
+                new[] { n1, n2, n3, n4 },
+                new[] { l1, l2, l3 });
+
+            Assert.Equal(4, chainAudit.TotalNodes);
+            Assert.Equal(3, chainAudit.TotalEdges);
+            Assert.Equal(6, chainAudit.ConnectedPairs);
+            Assert.Equal(3, chainAudit.Diameter);
+            Assert.Equal(1, chainAudit.ComponentCount);
+            Assert.True(chainAudit.CharacteristicPathLength > 1.0);
+            Assert.True(chainAudit.GlobalEfficiency > 0.0);
+            Assert.Equal(4, chainAudit.NodeMetrics.Count);
+
+            // Add shortcut between n1 and n4 (makes it a 4-cycle) -> diameter drops to 2
+            var lShortcut = new MindMapLink { Id = "lshort", SourceNodeId = "n1", TargetNodeId = "n4" };
+            var meshAudit = MindMapStudioViewModel.AuditGraphDiameterAndSmallWorld(
+                new[] { n1, n2, n3, n4 },
+                new[] { l1, l2, l3, lShortcut });
+
+            Assert.Equal(4, meshAudit.TotalNodes);
+            Assert.Equal(4, meshAudit.TotalEdges);
+            Assert.Equal(2, meshAudit.Diameter);
+            Assert.True(meshAudit.GlobalEfficiency > chainAudit.GlobalEfficiency);
+
+            string formatted = MindMapStudioViewModel.FormatSmallWorldSummary(
+                chainAudit.TotalNodes, chainAudit.TotalEdges, chainAudit.ConnectedPairs, chainAudit.Diameter,
+                chainAudit.CharacteristicPathLength, chainAudit.GlobalEfficiency, chainAudit.ComponentCount,
+                chainAudit.SmallWorldIndexScore, chainAudit.Category, chainAudit.IsSelectionScope);
+            Assert.Equal(chainAudit.Summary, formatted);
+        }
     }
 }
 

@@ -8051,6 +8051,183 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Visual flow directionality audit ({scopeStr}{connLabel} [{dominantAxis}] · {category} · {score:0.#}% score): " +
                $"{ltr} LTR, {ttb} TTB{alertSuffix}";
     }
+
+    public DiagramGoldenRatioAdherenceAudit AuditShapeAspectRatioAndGoldenRatio(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = (targetShapes != null) || (selected.Count >= 2);
+
+        var audit = AuditShapeAspectRatioAndGoldenRatio(targets, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramGoldenRatioAdherenceAudit AuditShapeAspectRatioAndGoldenRatio(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes, bool isSelection = false)
+    {
+        var list = (shapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        var validShapes = list.Where(s =>
+            s.Width >= 4.0 && s.Height >= 4.0 &&
+            !(s.ShapeType != null && s.ShapeType.Contains("line", StringComparison.OrdinalIgnoreCase))).ToList();
+
+        if (validShapes.Count == 0)
+        {
+            string shapeLabel = list.Count == 1 ? "1 shape" : $"{list.Count} shapes";
+            return new DiagramGoldenRatioAdherenceAudit(
+                list.Count, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ShapeGoldenRatioAdherenceItem>(),
+                "Empty / Line Shapes",
+                isSelection,
+                $"Golden ratio (\u03C6 \u2248 1.618) adherence audit ({scopeStr}{shapeLabel}): 0 2D geometric shapes to evaluate");
+        }
+
+        const double Phi = 1.6180339887;
+        int goldenCount = 0;
+        int squareCount = 0;
+        int standardAestheticCount = 0;
+        int unalignedCount = 0;
+        double totalDevGoldenPct = 0.0;
+
+        var items = new List<ShapeGoldenRatioAdherenceItem>();
+
+        foreach (var shape in validShapes)
+        {
+            double w = shape.Width;
+            double h = shape.Height;
+            double actualRatio = Math.Round(Math.Max(w, h) / Math.Max(0.001, Math.Min(w, h)), 3);
+
+            double devPhi = Math.Abs(actualRatio - Phi) / Phi * 100.0;
+            double devSquare = Math.Abs(actualRatio - 1.0);
+            double dev43 = Math.Abs(actualRatio - 1.333) / 1.333 * 100.0;
+            double dev32 = Math.Abs(actualRatio - 1.500) / 1.500 * 100.0;
+            double dev169 = Math.Abs(actualRatio - 1.778) / 1.778 * 100.0;
+
+            totalDevGoldenPct += devPhi;
+
+            bool isGolden = devPhi <= 6.0;
+            bool isSquare = devSquare <= 0.06;
+            bool is43 = dev43 <= 5.0;
+            bool is32 = dev32 <= 5.0;
+            bool is169 = dev169 <= 5.0;
+
+            string closestArchetype;
+            double devPct;
+            bool isStandard;
+
+            if (isGolden)
+            {
+                closestArchetype = "Golden Ratio (\u03C6 1.618)";
+                devPct = Math.Round(devPhi, 1);
+                isStandard = true;
+                goldenCount++;
+                standardAestheticCount++;
+            }
+            else if (isSquare)
+            {
+                closestArchetype = "1:1 Square / Circle";
+                devPct = Math.Round(devSquare * 100.0, 1);
+                isStandard = true;
+                squareCount++;
+                standardAestheticCount++;
+            }
+            else if (is43)
+            {
+                closestArchetype = "4:3 Classic Proportions";
+                devPct = Math.Round(dev43, 1);
+                isStandard = true;
+                standardAestheticCount++;
+            }
+            else if (is32)
+            {
+                closestArchetype = "3:2 Standard Photographic";
+                devPct = Math.Round(dev32, 1);
+                isStandard = true;
+                standardAestheticCount++;
+            }
+            else if (is169)
+            {
+                closestArchetype = "16:9 Widescreen";
+                devPct = Math.Round(dev169, 1);
+                isStandard = true;
+                standardAestheticCount++;
+            }
+            else
+            {
+                closestArchetype = $"Custom Ratio ({actualRatio:0.##}:1)";
+                devPct = Math.Round(devPhi, 1);
+                isStandard = false;
+                unalignedCount++;
+            }
+
+            items.Add(new ShapeGoldenRatioAdherenceItem(
+                shape.Id,
+                shape.Name ?? "Shape",
+                w,
+                h,
+                actualRatio,
+                closestArchetype,
+                devPct,
+                isGolden,
+                isSquare,
+                isStandard));
+        }
+
+        double meanGoldenDev = Math.Round(totalDevGoldenPct / validShapes.Count, 1);
+
+        double penalty = (unalignedCount * 12.0) / validShapes.Count * 100.0;
+        double adherenceScore = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category;
+        if (goldenCount == validShapes.Count)
+            category = "Pure Divine Proportions (100% Golden Ratio Adherence)";
+        else if (unalignedCount == 0)
+            category = "Harmonious Canonical Ratios (Golden Ratio, Square & Standard Proportions)";
+        else if (adherenceScore >= 75.0)
+            category = "Strong Aesthetic Aspect Harmony (Controlled Irregular Ratios)";
+        else
+            category = $"Irregular Non-Standard Ratios ({unalignedCount} Shapes with Freeform Aspect Ratios)";
+
+        string summary = FormatAspectRatioGoldenRatioSummary(
+            validShapes.Count, goldenCount, squareCount, standardAestheticCount, unalignedCount,
+            meanGoldenDev, adherenceScore, category, isSelection);
+
+        return new DiagramGoldenRatioAdherenceAudit(
+            validShapes.Count,
+            goldenCount,
+            squareCount,
+            standardAestheticCount,
+            unalignedCount,
+            meanGoldenDev,
+            adherenceScore,
+            items,
+            category,
+            isSelection,
+            summary);
+    }
+
+    public static string FormatAspectRatioGoldenRatioSummary(
+        int totalShapes, int goldenCount, int squareCount, int standardCount, int unalignedCount,
+        double meanGoldenDev, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        if (totalShapes == 0) return $"Golden ratio (\u03C6 \u2248 1.618) adherence audit ({scopeStr}0 shapes): No shapes to evaluate";
+
+        var details = new List<string>();
+        if (goldenCount > 0) details.Add($"{goldenCount} \u03C6 golden");
+        if (squareCount > 0) details.Add($"{squareCount} square");
+        int otherStandard = standardCount - goldenCount - squareCount;
+        if (otherStandard > 0) details.Add($"{otherStandard} 4:3/16:9");
+        if (unalignedCount > 0) details.Add($"⚠ {unalignedCount} custom/freeform");
+
+        string detailStr = details.Count > 0 ? string.Join(", ", details) : "0 standard ratios";
+
+        return $"Golden ratio (\u03C6 \u2248 1.618) adherence audit ({scopeStr}{shapeLabel} [{detailStr}] · {category} · {score:0.#}% score): " +
+               $"\u03C6 deviation avg {meanGoldenDev:0.#}%";
+    }
 }
 
 /// <summary>
@@ -8738,6 +8915,38 @@ public sealed record DiagramVisualFlowAudit(
     string DominantFlowAxis,
     double FlowMonotonicityScore,
     IReadOnlyList<ConnectorVectorFlowItem> Connectors,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated aspect ratio, nearest aesthetic archetype, golden ratio deviation, and conformity for an individual shape.
+/// </summary>
+public sealed record ShapeGoldenRatioAdherenceItem(
+    string ShapeId,
+    string DisplayName,
+    double Width,
+    double Height,
+    double NormalizedRatio,
+    string ClosestRatioArchetype,
+    double DeviationPercentage,
+    bool IsGoldenRatio,
+    bool IsSquare,
+    bool IsStandardAesthetic);
+
+/// <summary>
+/// Represents the result of an audit of shape aspect ratio consistency, Golden Ratio (phi ~ 1.618) adherence,
+/// canonical aesthetic proportion locks, and irregular ratio drift across diagram shapes.
+/// </summary>
+public sealed record DiagramGoldenRatioAdherenceAudit(
+    int TotalShapesEvaluated,
+    int GoldenRatioConformingCount,
+    int SquareCircleCount,
+    int StandardAestheticCount,
+    int UnalignedCount,
+    double MeanGoldenDeviationPercentage,
+    double GoldenRatioAdherenceScore,
+    IReadOnlyList<ShapeGoldenRatioAdherenceItem> Shapes,
     string Category,
     bool IsSelectionScope,
     string Summary);

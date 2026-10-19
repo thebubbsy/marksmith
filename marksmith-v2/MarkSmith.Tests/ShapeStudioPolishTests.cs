@@ -2196,6 +2196,76 @@ public class ShapeStudioPolishTests
             ltrAudit.DominantFlowAxis, ltrAudit.FlowMonotonicityScore, ltrAudit.Category, ltrAudit.IsSelectionScope);
         Assert.Equal(ltrAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run176_AuditShapeAspectRatioAndGoldenRatio_Comprehensive()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        var emptyAudit = vm.AuditShapeAspectRatioAndGoldenRatio();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(100.0, emptyAudit.GoldenRatioAdherenceScore);
+        Assert.Equal("Empty / Line Shapes", emptyAudit.Category);
+
+        // Add 1 Golden Ratio shape: 161.8 x 100
+        var sGolden = new ShapeCanvasItemViewModel
+        {
+            Id = "sgolden",
+            Name = "Golden Card",
+            X = 50,
+            Y = 50,
+            Width = 161.8,
+            Height = 100.0,
+            ShapeType = "roundrect"
+        };
+        vm.Shapes.Add(sGolden);
+
+        // Add 1 Square shape: 100 x 100
+        var sSquare = new ShapeCanvasItemViewModel
+        {
+            Id = "ssquare",
+            Name = "Square Avatar",
+            X = 250,
+            Y = 50,
+            Width = 100.0,
+            Height = 100.0,
+            ShapeType = "circle"
+        };
+        vm.Shapes.Add(sSquare);
+
+        var auditHarmonious = vm.AuditShapeAspectRatioAndGoldenRatio();
+        Assert.Equal(2, auditHarmonious.TotalShapesEvaluated);
+        Assert.Equal(1, auditHarmonious.GoldenRatioConformingCount);
+        Assert.Equal(1, auditHarmonious.SquareCircleCount);
+        Assert.Equal(2, auditHarmonious.StandardAestheticCount);
+        Assert.Equal(0, auditHarmonious.UnalignedCount);
+        Assert.Equal(100.0, auditHarmonious.GoldenRatioAdherenceScore);
+        Assert.Equal("Harmonious Canonical Ratios (Golden Ratio, Square & Standard Proportions)", auditHarmonious.Category);
+
+        // Add 1 irregular non-standard shape: 300 x 50 (Ratio = 6:1)
+        var sIrreg = new ShapeCanvasItemViewModel
+        {
+            Id = "sirreg",
+            Name = "Banner Strip",
+            X = 50,
+            Y = 200,
+            Width = 300.0,
+            Height = 50.0,
+            ShapeType = "rect"
+        };
+        vm.Shapes.Add(sIrreg);
+
+        var auditWithIrreg = vm.AuditShapeAspectRatioAndGoldenRatio();
+        Assert.Equal(3, auditWithIrreg.TotalShapesEvaluated);
+        Assert.Equal(1, auditWithIrreg.UnalignedCount);
+        Assert.True(auditWithIrreg.GoldenRatioAdherenceScore < 100.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatAspectRatioGoldenRatioSummary(
+            auditHarmonious.TotalShapesEvaluated, auditHarmonious.GoldenRatioConformingCount,
+            auditHarmonious.SquareCircleCount, auditHarmonious.StandardAestheticCount,
+            auditHarmonious.UnalignedCount, auditHarmonious.MeanGoldenDeviationPercentage,
+            auditHarmonious.GoldenRatioAdherenceScore, auditHarmonious.Category, auditHarmonious.IsSelectionScope);
+        Assert.Equal(auditHarmonious.Summary, formatted);
+    }
 }
 
 

@@ -3908,6 +3908,97 @@ Some paragraph in between.
         Assert.Contains("OnCopyWorkspaceMediaAssetAdvisorClick", suiteCs);
         Assert.Contains("AuditWorkspaceMediaAssetIntegrity", suiteCs);
     }
+
+    [Fact]
+    public void Run176_AuditWorkspaceMediaAccessibility()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceMediaAccessibility(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(0, emptyAudit.TotalMediaReferences);
+        Assert.Equal(100.0, emptyAudit.AccessibilityComplianceScore);
+        Assert.Equal("Empty Workspace", emptyAudit.Category);
+
+        var files = new[]
+        {
+            @"C:\Projects\spec.md",
+            @"C:\Projects\guide.md"
+        };
+        var fileContents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            {
+                @"C:\Projects\spec.md",
+                "# Specification\n![Architecture Pipeline Flow](pipeline.png)\nSome text.\n<img src=\"diagram.svg\" alt=\"Detailed Sequence Diagram\" />"
+            },
+            {
+                @"C:\Projects\guide.md",
+                "# Guide\n![](unlabelled.png)\n![screenshot.png](shot.png)"
+            }
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceMediaAccessibility(
+            files,
+            fileExistsProvider: p => fileContents.ContainsKey(p),
+            contentReader: p => fileContents[p]);
+
+        Assert.Equal(2, audit.TotalDocumentsEvaluated);
+        Assert.Equal(4, audit.TotalMediaReferences);
+        Assert.Equal(2, audit.DescriptiveAltCount);
+        Assert.Equal(1, audit.EmptyAltCount);
+        Assert.Equal(1, audit.GenericFilenameAltCount);
+        Assert.True(audit.AccessibilityComplianceScore < 100.0);
+
+        var emptyItem = audit.MediaItems.First(m => m.HasEmptyAlt);
+        Assert.True(emptyItem.HasEmptyAlt);
+        Assert.Contains("Critical", emptyItem.AccessibilityQuality);
+
+        string formatted = RecentFilesService.FormatWorkspaceMediaAccessibilitySummary(
+            audit.TotalDocumentsEvaluated, audit.TotalMediaReferences, audit.DescriptiveAltCount,
+            audit.EmptyAltCount, audit.GenericFilenameAltCount, audit.AccessibilityComplianceScore,
+            audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run176_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Table column alignment & delimiter syntax auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditTableAlignmentSyntaxItem", mainCs);
+        Assert.Contains("AuditTableColumnAlignmentSyntax", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph diameter & small-world navigation auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphDiameterSmallWorldItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphDiameterAndSmallWorldClick", galaxyCs);
+        Assert.Contains("AuditGraphDiameterAndSmallWorld", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Shape aspect ratio & golden ratio adherence auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditAspectRatioGoldenRatioItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditAspectRatioGoldenRatioClick", shapeCs);
+        Assert.Contains("AuditShapeAspectRatioAndGoldenRatio", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - 2x2 matrix quadrant grid balance & diagonal symmetry auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditQuadrantGridBalanceItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditQuadrantGridBalanceClick", smartArtCs);
+        Assert.Contains("AuditQuadrantGridBalance", smartArtCs);
+
+        // Surface 5: HistoryWindow - Line addition/deletion churn volatility & change symmetry auditor
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditChurnVolatility", historyCs);
+        Assert.Contains("AuditCodeChurnVolatilityIndex", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace media alt-text accessibility & WCAG caption advisor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceMediaAccessibilityAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceMediaAccessibilityAdvisorClick", suiteCs);
+        Assert.Contains("AuditWorkspaceMediaAccessibility", suiteCs);
+    }
 }
 
 

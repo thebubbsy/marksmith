@@ -3523,6 +3523,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditEntropy);
+
+                var auditChurnVolatility = new MenuFlyoutItem
+                {
+                    Text = "Audit line addition/deletion churn volatility & change symmetry",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditChurnVolatility.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditCodeChurnVolatilityIndex(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditChurnVolatility);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

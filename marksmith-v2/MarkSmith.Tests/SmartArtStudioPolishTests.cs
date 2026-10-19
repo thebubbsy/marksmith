@@ -2004,6 +2004,47 @@ public class SmartArtStudioPolishTests
             harmonicAudit.Category);
         Assert.Equal(harmonicAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run176_AuditQuadrantGridBalance_Comprehensive()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditQuadrantGridBalance("");
+        Assert.Equal(0, emptyAudit.TotalItems);
+        Assert.Equal(0, emptyAudit.TotalWords);
+        Assert.Equal(4, emptyAudit.EmptyQuadrants);
+        Assert.Equal(100.0, emptyAudit.QuadrantBalanceScore);
+        Assert.Equal("Empty Matrix", emptyAudit.Category);
+
+        string balancedMatrix = string.Join("\n",
+            "- Core high performance engine",
+            "- Legacy codebase tech debt",
+            "- Modern enterprise cloud scale",
+            "- Emerging rapid market competitors"
+        );
+        var balancedAudit = SmartArtDesignStudioViewModel.AuditQuadrantGridBalance(balancedMatrix);
+        Assert.Equal(4, balancedAudit.TotalItems);
+        Assert.Equal(4, balancedAudit.PopulatedQuadrants);
+        Assert.Equal(0, balancedAudit.EmptyQuadrants);
+        Assert.True(balancedAudit.DiagonalSymmetryPercentage >= 80.0);
+        Assert.True(balancedAudit.QuadrantBalanceScore >= 80.0);
+        Assert.Contains("Equilateral 2x2 Matrix Grid", balancedAudit.Category);
+
+        string sparseMatrix = string.Join("\n",
+            "- Strength One",
+            "- Weakness One"
+        );
+        var sparseAudit = SmartArtDesignStudioViewModel.AuditQuadrantGridBalance(sparseMatrix);
+        Assert.Equal(2, sparseAudit.TotalItems);
+        Assert.Equal(2, sparseAudit.PopulatedQuadrants);
+        Assert.Equal(2, sparseAudit.EmptyQuadrants);
+        Assert.True(sparseAudit.QuadrantBalanceScore < 70.0);
+        Assert.Contains("Sparse Matrix", sparseAudit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatQuadrantBalanceSummary(
+            balancedAudit.TotalItems, balancedAudit.TotalWords, 4, 4, 4, 4,
+            balancedAudit.DiagonalSymmetryPercentage, balancedAudit.QuadrantBalanceScore, balancedAudit.Category);
+        Assert.Contains("2x2 matrix quadrant grid audit", formatted);
+    }
 }
 
 

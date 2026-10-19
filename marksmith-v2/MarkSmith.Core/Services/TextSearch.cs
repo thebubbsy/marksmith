@@ -6667,6 +6667,244 @@ public static class TextSearch
 
         return $"Task list progress & hierarchy ({completedTasks}/{tasksLabel} [{completionPct:0.#}% done] · {category} · {hierarchyScore:0.#}% hierarchy score){alertSuffix}";
     }
+
+    /// <summary>
+    /// Audits markdown table column alignment syntax, header delimiter rows (|:---|:---:|---:|),
+    /// outer border pipes, and ragged row column counts across the document.
+    /// </summary>
+    public static TableColumnAlignmentSyntaxAudit AuditTableColumnAlignmentSyntax(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new TableColumnAlignmentSyntaxAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<TableColumnAlignmentItem>(),
+                "No Tables",
+                "Markdown table column alignment: 0 tables · Document contains no markdown tables");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        bool inCodeFence = false;
+        bool inHtmlComment = false;
+
+        var tableItems = new List<TableColumnAlignmentItem>();
+        int totalCols = 0;
+        int leftAligned = 0;
+        int centerAligned = 0;
+        int rightAligned = 0;
+        int defaultAligned = 0;
+        int totalRaggedRows = 0;
+        int missingOuterPipes = 0;
+
+        var delimiterCellRegex = new Regex(@"^\s*:?-{1,}:?\s*$", RegexOptions.Compiled);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            if (trimmed.StartsWith("<!--") && !trimmed.EndsWith("-->"))
+            {
+                inHtmlComment = true;
+                continue;
+            }
+            if (inHtmlComment)
+            {
+                if (trimmed.Contains("-->")) inHtmlComment = false;
+                continue;
+            }
+            if (trimmed.StartsWith("<!--") && trimmed.EndsWith("-->")) continue;
+
+            if (i > 0 && trimmed.Contains('|') && trimmed.Contains('-'))
+            {
+                string prevLine = lines[i - 1].Trim();
+                if (string.IsNullOrWhiteSpace(prevLine) || prevLine.StartsWith('#')) continue;
+
+                var rawDelimiterCells = line.Split('|');
+                int startToken = line.StartsWith("|") || trimmed.StartsWith("|") ? 1 : 0;
+                int endToken = line.EndsWith("|") || trimmed.EndsWith("|") ? rawDelimiterCells.Length - 1 : rawDelimiterCells.Length;
+
+                var delimiterCells = new List<string>();
+                for (int t = startToken; t < endToken; t++)
+                {
+                    delimiterCells.Add(rawDelimiterCells[t]);
+                }
+
+                if (delimiterCells.Count == 0) continue;
+
+                bool isDelimiter = true;
+                var alignments = new List<string>();
+                foreach (var cell in delimiterCells)
+                {
+                    string c = cell.Trim();
+                    if (!delimiterCellRegex.IsMatch(c))
+                    {
+                        isDelimiter = false;
+                        break;
+                    }
+
+                    bool startsWithColon = c.StartsWith(":");
+                    bool endsWithColon = c.EndsWith(":");
+
+                    if (startsWithColon && endsWithColon)
+                    {
+                        alignments.Add("Center");
+                    }
+                    else if (startsWithColon)
+                    {
+                        alignments.Add("Left");
+                    }
+                    else if (endsWithColon)
+                    {
+                        alignments.Add("Right");
+                    }
+                    else
+                    {
+                        alignments.Add("Default");
+                    }
+                }
+
+                if (!isDelimiter || alignments.Count == 0) continue;
+
+                int startLine = i;
+                int tableCols = alignments.Count;
+                totalCols += tableCols;
+                foreach (var a in alignments)
+                {
+                    if (a == "Left") leftAligned++;
+                    else if (a == "Center") centerAligned++;
+                    else if (a == "Right") rightAligned++;
+                    else defaultAligned++;
+                }
+
+                bool headerHasOuterPipes = trimmed.StartsWith("|") && trimmed.EndsWith("|");
+                if (!headerHasOuterPipes) missingOuterPipes++;
+
+                int rowCount = 0;
+                int raggedRowsInTable = 0;
+
+                int r = i + 1;
+                while (r < lines.Length)
+                {
+                    string dataLine = lines[r];
+                    string dataTrimmed = dataLine.Trim();
+                    if (string.IsNullOrWhiteSpace(dataTrimmed)) break;
+                    if (dataTrimmed.StartsWith("```") || dataTrimmed.StartsWith("~~~") || dataTrimmed.StartsWith("#")) break;
+                    if (!dataTrimmed.Contains('|')) break;
+
+                    rowCount++;
+                    bool rowHasOuter = dataTrimmed.StartsWith("|") && dataTrimmed.EndsWith("|");
+                    if (!rowHasOuter) missingOuterPipes++;
+
+                    var rawDataCells = dataLine.Split('|');
+                    int ds = dataTrimmed.StartsWith("|") ? 1 : 0;
+                    int de = dataTrimmed.EndsWith("|") ? rawDataCells.Length - 1 : rawDataCells.Length;
+                    int cellCount = Math.Max(0, de - ds);
+
+                    if (cellCount != tableCols)
+                    {
+                        raggedRowsInTable++;
+                    }
+
+                    r++;
+                }
+
+                totalRaggedRows += raggedRowsInTable;
+                string patternStr = string.Join("-", alignments.Select(a => a[0]));
+                string status = raggedRowsInTable == 0
+                    ? $"Standard ({tableCols} cols, {patternStr})"
+                    : $"Ragged ({raggedRowsInTable} rows mismatched)";
+
+                tableItems.Add(new TableColumnAlignmentItem(
+                    tableItems.Count + 1,
+                    startLine,
+                    tableCols,
+                    rowCount,
+                    raggedRowsInTable,
+                    headerHasOuterPipes,
+                    alignments,
+                    patternStr,
+                    status));
+
+                i = r - 1;
+            }
+        }
+
+        if (tableItems.Count == 0)
+        {
+            return new TableColumnAlignmentSyntaxAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<TableColumnAlignmentItem>(),
+                "No Tables",
+                "Markdown table column alignment: 0 tables · Document contains no markdown tables");
+        }
+
+        double penalty = (totalRaggedRows * 15.0) + (missingOuterPipes * 3.0);
+        double consistencyScore = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category;
+        if (totalRaggedRows == 0 && missingOuterPipes == 0)
+            category = "Strict Standard GFM Delimiter Alignment";
+        else if (totalRaggedRows == 0)
+            category = "Consistent Column Alignment (Missing Optional Outer Border Pipes)";
+        else if (consistencyScore >= 70.0)
+            category = $"Minor Table Syntax Drift ({totalRaggedRows} Ragged Row{(totalRaggedRows == 1 ? "" : "s")})";
+        else
+            category = $"High Ragged Table Delimiter Debt ({totalRaggedRows} Mismatched Row{(totalRaggedRows == 1 ? "" : "s")} Detected)";
+
+        string summary = FormatTableColumnAlignmentSummary(
+            tableItems.Count, totalCols, leftAligned, centerAligned, rightAligned, defaultAligned,
+            totalRaggedRows, missingOuterPipes, consistencyScore, category);
+
+        return new TableColumnAlignmentSyntaxAudit(
+            tableItems.Count,
+            totalCols,
+            leftAligned,
+            centerAligned,
+            rightAligned,
+            defaultAligned,
+            totalRaggedRows,
+            missingOuterPipes,
+            consistencyScore,
+            tableItems,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown table column alignment syntax.
+    /// </summary>
+    public static string FormatTableColumnAlignmentSummary(string? markdownText)
+        => AuditTableColumnAlignmentSyntax(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown table column alignment syntax metrics.
+    /// </summary>
+    public static string FormatTableColumnAlignmentSummary(
+        int totalTables, int totalColumns, int leftAligned, int centerAligned, int rightAligned, int defaultAligned,
+        int raggedRowCount, int missingPipeCount, double alignmentConsistencyScore, string category)
+    {
+        if (totalTables == 0)
+            return "Markdown table column alignment: 0 tables · Document contains no markdown tables";
+
+        string tableLabel = totalTables == 1 ? "1 table" : $"{totalTables} tables";
+        string colLabel = totalColumns == 1 ? "1 column" : $"{totalColumns} columns";
+
+        var alerts = new List<string>();
+        if (raggedRowCount > 0) alerts.Add($"⚠ {raggedRowCount} ragged {(raggedRowCount == 1 ? "row" : "rows")}");
+        if (missingPipeCount > 0) alerts.Add($"{missingPipeCount} missing outer pipes");
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% uniform delimiter borders";
+
+        return $"Markdown table column alignment ({tableLabel} [{colLabel}] · {category} · {alignmentConsistencyScore:0.#}% score): " +
+               $"{leftAligned} left, {centerAligned} center, {rightAligned} right, {defaultAligned} default{alertSuffix}";
+    }
 }
 
 /// <summary>
@@ -7304,6 +7542,38 @@ public sealed record TaskListHierarchyAudit(
     double CompletionPercentage,
     double HierarchyConsistencyScore,
     IReadOnlyList<TaskListHierarchyItem> Tasks,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, column count, delimiter alignments, and ragged row count for an individual markdown table.
+/// </summary>
+public sealed record TableColumnAlignmentItem(
+    int TableIndex,
+    int StartLine,
+    int ColumnCount,
+    int RowCount,
+    int RaggedRows,
+    bool HasOuterPipes,
+    IReadOnlyList<string> ColumnAlignments,
+    string AlignmentPattern,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown table column alignment syntax, header delimiter rows (|:---|:---:|---:|),
+/// outer border pipes, and ragged row column counts across the document.
+/// </summary>
+public sealed record TableColumnAlignmentSyntaxAudit(
+    int TotalTables,
+    int TotalColumns,
+    int LeftAlignedCount,
+    int CenterAlignedCount,
+    int RightAlignedCount,
+    int DefaultAlignedCount,
+    int RaggedRowCount,
+    int MissingOuterPipeCount,
+    double AlignmentConsistencyScore,
+    IReadOnlyList<TableColumnAlignmentItem> Tables,
     string Category,
     string Summary);
 

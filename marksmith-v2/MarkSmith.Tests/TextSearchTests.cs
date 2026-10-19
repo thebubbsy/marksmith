@@ -2177,6 +2177,63 @@ public class TextSearchTests
             validAudit.CompletionPercentage, validAudit.HierarchyConsistencyScore, validAudit.Category);
         Assert.Equal(validAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run176_AuditTableColumnAlignmentSyntax_Comprehensive()
+    {
+        var empty = TextSearch.AuditTableColumnAlignmentSyntax("");
+        Assert.Equal(0, empty.TotalTables);
+        Assert.Equal(0, empty.TotalColumns);
+        Assert.Equal(100.0, empty.AlignmentConsistencyScore);
+        Assert.Equal("No Tables", empty.Category);
+        Assert.Equal(empty.Summary, TextSearch.FormatTableColumnAlignmentSummary(""));
+
+        string validDoc = string.Join("\n",
+            "# Document with Table",
+            "",
+            "| Component | Alignment | Status |",
+            "|:---|:---:|---:|",
+            "| Engine | Center | 100% |",
+            "| Pipeline | Balanced | Complete |",
+            "",
+            "```markdown",
+            "| Fenced | Ignored |",
+            "|---|---|",
+            "```"
+        );
+
+        var validAudit = TextSearch.AuditTableColumnAlignmentSyntax(validDoc);
+        Assert.Equal(1, validAudit.TotalTables);
+        Assert.Equal(3, validAudit.TotalColumns);
+        Assert.Equal(1, validAudit.LeftAlignedCount);
+        Assert.Equal(1, validAudit.CenterAlignedCount);
+        Assert.Equal(1, validAudit.RightAlignedCount);
+        Assert.Equal(0, validAudit.DefaultAlignedCount);
+        Assert.Equal(0, validAudit.RaggedRowCount);
+        Assert.Equal(0, validAudit.MissingOuterPipeCount);
+        Assert.Equal(100.0, validAudit.AlignmentConsistencyScore);
+        Assert.Equal("Strict Standard GFM Delimiter Alignment", validAudit.Category);
+
+        string raggedDoc = string.Join("\n",
+            "| Name | Age | City |",
+            "|---|---|---|",
+            "| Alice | 30 |", // Ragged row (2 cells instead of 3)
+            "| Bob | 25 | London |"
+        );
+
+        var raggedAudit = TextSearch.AuditTableColumnAlignmentSyntax(raggedDoc);
+        Assert.Equal(1, raggedAudit.TotalTables);
+        Assert.Equal(1, raggedAudit.RaggedRowCount);
+        Assert.True(raggedAudit.AlignmentConsistencyScore < 100.0);
+        Assert.Contains("Ragged", raggedAudit.Category);
+
+        string formatted = TextSearch.FormatTableColumnAlignmentSummary(
+            validAudit.TotalTables, validAudit.TotalColumns, validAudit.LeftAlignedCount,
+            validAudit.CenterAlignedCount, validAudit.RightAlignedCount, validAudit.DefaultAlignedCount,
+            validAudit.RaggedRowCount, validAudit.MissingOuterPipeCount, validAudit.AlignmentConsistencyScore,
+            validAudit.Category);
+        Assert.Equal(validAudit.Summary, formatted);
+    }
 }
 
 

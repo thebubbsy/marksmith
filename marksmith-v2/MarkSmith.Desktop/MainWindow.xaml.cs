@@ -11739,6 +11739,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditTaskListHierarchyItem);
 
+        var auditTableAlignmentSyntaxItem = new MenuFlyoutItem
+        {
+            Text = "Audit Table Column Alignment & Header Delimiter Syntax",
+            Icon = new FontIcon { Glyph = "\uE80A" }
+        };
+        auditTableAlignmentSyntaxItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditTableColumnAlignmentSyntax(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditTableAlignmentSyntaxItem);
+
         menu.ShowAt(anchor);
     }
 

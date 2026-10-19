@@ -333,6 +333,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceMediaAssetAdvisorItem" Text="Copy workspace media asset integrity &amp; broken image advisor" Click="OnCopyWorkspaceMediaAssetAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyWorkspaceMediaAccessibilityAdvisorItem" Text="Copy workspace media alt-text accessibility &amp; WCAG caption advisor" Click="OnCopyWorkspaceMediaAccessibilityAdvisorClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

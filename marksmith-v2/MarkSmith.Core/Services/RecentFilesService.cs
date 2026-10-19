@@ -5569,6 +5569,229 @@ public sealed class RecentFilesService
 
         return $"Workspace media asset integrity advisor ({docLabel}, {mediaLabel} · {category} · {score:0.#}% score){alertSuffix}";
     }
+
+    public static WorkspaceMediaAccessibilityAudit AuditWorkspaceMediaAccessibility(
+        IReadOnlyList<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var exists = fileExistsProvider ?? File.Exists;
+        var readAll = contentReader ?? File.ReadAllText;
+
+        if (files == null || files.Count == 0)
+        {
+            return new WorkspaceMediaAccessibilityAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceMediaAccessibilityItem>(),
+                "Empty Workspace",
+                "Workspace media alt-text accessibility advisor: 0 documents · Workspace contains no files");
+        }
+
+        var mdFiles = files.Where(f =>
+            !string.IsNullOrWhiteSpace(f) &&
+            (f.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
+             f.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase))).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        if (mdFiles.Count == 0)
+        {
+            return new WorkspaceMediaAccessibilityAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceMediaAccessibilityItem>(),
+                "No Markdown Documents",
+                "Workspace media alt-text accessibility advisor: 0 markdown documents found");
+        }
+
+        var mdImageRegex = new Regex(@"!\[(.*?)\]\((.*?)\)", RegexOptions.Compiled);
+        var htmlImgRegex = new Regex(@"<img\s+[^>]*?src=[""']([^""']+)[""'][^>]*?>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        var htmlAltRegex = new Regex(@"alt=[""'](.*?)[""']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        var mediaItems = new List<WorkspaceMediaAccessibilityItem>();
+        int totalMedia = 0;
+        int descriptiveCount = 0;
+        int emptyCount = 0;
+        int genericFilenameCount = 0;
+
+        string[] genericPlaceholders = { "image", "img", "screenshot", "photo", "pic", "picture", "figure", "fig", "diagram", "icon", "drawing", "graphic" };
+
+        foreach (var docPath in mdFiles)
+        {
+            if (!exists(docPath)) continue;
+
+            string content;
+            try
+            {
+                content = readAll(docPath);
+            }
+            catch
+            {
+                continue;
+            }
+
+            string docName = Path.GetFileName(docPath);
+            var lines = content.Replace("\r", "").Split('\n');
+            bool inCodeBlock = false;
+
+            for (int lineIdx = 0; lineIdx < lines.Length; lineIdx++)
+            {
+                string line = lines[lineIdx];
+                string trimmed = line.Trim();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inCodeBlock = !inCodeBlock;
+                    continue;
+                }
+                if (inCodeBlock) continue;
+
+                var matches = mdImageRegex.Matches(line);
+                foreach (Match m in matches)
+                {
+                    string alt = m.Groups[1].Value.Trim();
+                    string src = m.Groups[2].Value.Trim();
+                    if (src.Contains(' ')) src = src.Split(' ')[0];
+
+                    totalMedia++;
+                    EvaluateAltText(docPath, docName, lineIdx + 1, alt, src, mediaItems,
+                        ref descriptiveCount, ref emptyCount, ref genericFilenameCount, genericPlaceholders);
+                }
+
+                var htmlMatches = htmlImgRegex.Matches(line);
+                foreach (Match hm in htmlMatches)
+                {
+                    string src = hm.Groups[1].Value.Trim();
+                    string fullTag = hm.Value;
+                    var altMatch = htmlAltRegex.Match(fullTag);
+                    string alt = altMatch.Success ? altMatch.Groups[1].Value.Trim() : string.Empty;
+
+                    totalMedia++;
+                    EvaluateAltText(docPath, docName, lineIdx + 1, alt, src, mediaItems,
+                        ref descriptiveCount, ref emptyCount, ref genericFilenameCount, genericPlaceholders);
+                }
+            }
+        }
+
+        if (totalMedia == 0)
+        {
+            return new WorkspaceMediaAccessibilityAudit(
+                mdFiles.Count, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceMediaAccessibilityItem>(),
+                "Pure Text Workspace",
+                $"Workspace media alt-text accessibility advisor ({mdFiles.Count} documents): 0 media embeds detected (100% text-only documents)");
+        }
+
+        double penalty = (emptyCount * 25.0) + (genericFilenameCount * 12.0);
+        double complianceScore = Math.Round(Math.Clamp(100.0 - (penalty / totalMedia), 10.0, 100.0), 1);
+
+        string category;
+        if (emptyCount == 0 && genericFilenameCount == 0)
+            category = "WCAG Compliant (100% Descriptive Media Captions)";
+        else if (emptyCount == 0)
+            category = $"Acceptable Alt-Text Coverage ({genericFilenameCount} Generic Filename Captions)";
+        else if (complianceScore >= 70.0)
+            category = $"Accessibility Debt ({emptyCount} Missing / Empty Alt-Text Tags)";
+        else
+            category = $"Critical WCAG Accessibility Hazard ({emptyCount} Blank Alt-Text Embeds Detected)";
+
+        string summary = FormatWorkspaceMediaAccessibilitySummary(
+            mdFiles.Count, totalMedia, descriptiveCount, emptyCount, genericFilenameCount, complianceScore, category);
+
+        return new WorkspaceMediaAccessibilityAudit(
+            mdFiles.Count,
+            totalMedia,
+            descriptiveCount,
+            emptyCount,
+            genericFilenameCount,
+            complianceScore,
+            mediaItems,
+            category,
+            summary);
+    }
+
+    private static void EvaluateAltText(
+        string docPath, string docName, int lineNumber, string alt, string src,
+        List<WorkspaceMediaAccessibilityItem> items,
+        ref int descriptiveCount, ref int emptyCount, ref int genericFilenameCount,
+        string[] genericPlaceholders)
+    {
+        bool isEmpty = string.IsNullOrWhiteSpace(alt);
+        bool isGenericFilename = false;
+
+        if (!isEmpty)
+        {
+            string lower = alt.ToLowerInvariant();
+            if (lower.EndsWith(".png") || lower.EndsWith(".jpg") || lower.EndsWith(".jpeg") ||
+                lower.EndsWith(".gif") || lower.EndsWith(".svg") || lower.EndsWith(".webp"))
+            {
+                isGenericFilename = true;
+            }
+            else
+            {
+                string stripped = new string(lower.Where(char.IsLetterOrDigit).ToArray());
+                foreach (var g in genericPlaceholders)
+                {
+                    if (stripped == g || stripped.StartsWith(g) && stripped.Length <= g.Length + 2)
+                    {
+                        isGenericFilename = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        bool isDescriptive = !isEmpty && !isGenericFilename && alt.Length >= 8;
+
+        string quality;
+        if (isEmpty)
+        {
+            emptyCount++;
+            quality = "Critical: Empty Alt-Text (WCAG 1.1.1 Non-Text Content Violation)";
+        }
+        else if (isGenericFilename)
+        {
+            genericFilenameCount++;
+            quality = "Warning: Generic Filename Placeholder Alt-Text";
+        }
+        else if (isDescriptive)
+        {
+            descriptiveCount++;
+            quality = "Compliant: Descriptive Alt-Text Caption";
+        }
+        else
+        {
+            quality = "Moderate: Brief Alt-Text Caption (<8 chars)";
+        }
+
+        items.Add(new WorkspaceMediaAccessibilityItem(
+            docPath,
+            docName,
+            lineNumber,
+            alt,
+            src,
+            isEmpty,
+            isGenericFilename,
+            isDescriptive,
+            quality));
+    }
+
+    public static string FormatWorkspaceMediaAccessibilitySummary(
+        int totalDocs, int totalMedia, int descriptive, int empty, int generic,
+        double score, string category)
+    {
+        if (totalDocs == 0) return "Workspace media alt-text accessibility advisor: 0 documents · Workspace contains no files";
+        if (totalMedia == 0) return $"Workspace media alt-text accessibility advisor ({totalDocs} documents): 0 media embeds detected (100% text-only documents)";
+
+        string docLabel = totalDocs == 1 ? "1 document" : $"{totalDocs} documents";
+        string mediaLabel = totalMedia == 1 ? "1 media embed" : $"{totalMedia} media embeds";
+
+        var alerts = new List<string>();
+        if (empty > 0) alerts.Add($"🚨 {empty} empty alt-text");
+        if (generic > 0) alerts.Add($"⚠ {generic} generic placeholders");
+        if (descriptive > 0) alerts.Add($"{descriptive} descriptive captions");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% compliant captions";
+
+        return $"Workspace media alt-text accessibility advisor ({docLabel}, {mediaLabel} · {category} · {score:0.#}% score){alertSuffix}";
+    }
 }
 
 /// <summary>
@@ -6222,6 +6445,35 @@ public sealed record WorkspaceMediaAssetAudit(
     double MediaIntegrityScore,
     IReadOnlyList<WorkspaceMediaItem> MediaItems,
     IReadOnlyList<string> MissingAssetPaths,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated alt-text accessibility compliance, quality rating, and line number for an embedded workspace media item.
+/// </summary>
+public sealed record WorkspaceMediaAccessibilityItem(
+    string DocumentPath,
+    string DocumentName,
+    int LineNumber,
+    string AltText,
+    string MediaSource,
+    bool HasEmptyAlt,
+    bool HasGenericFilenameAlt,
+    bool IsDescriptive,
+    string AccessibilityQuality);
+
+/// <summary>
+/// Represents the result of an audit of workspace embedded media alt-text quality, WCAG non-text content compliance,
+/// empty caption violations, and generic placeholder descriptions.
+/// </summary>
+public sealed record WorkspaceMediaAccessibilityAudit(
+    int TotalDocumentsEvaluated,
+    int TotalMediaReferences,
+    int DescriptiveAltCount,
+    int EmptyAltCount,
+    int GenericFilenameAltCount,
+    double AccessibilityComplianceScore,
+    IReadOnlyList<WorkspaceMediaAccessibilityItem> MediaItems,
     string Category,
     string Summary);
 
