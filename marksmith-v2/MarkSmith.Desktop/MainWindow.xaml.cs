@@ -11714,6 +11714,145 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.ShowAt(anchor);
     }
 
+    private List<(string Language, string Code, int LineCount)> ExtractFencedCodeBlocks()
+    {
+        var md = EditorDocument();
+        var results = new List<(string Language, string Code, int LineCount)>();
+        if (string.IsNullOrWhiteSpace(md)) return results;
+
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(
+            md, @"(?m)^(?<fence>`{3,}|~{3,})(?<lang>[^\r\n]*)\r?\n(?<body>[\s\S]*?)^\k<fence>\s*$"))
+        {
+            var lang = m.Groups["lang"].Value.Trim();
+            if (string.IsNullOrEmpty(lang)) lang = "text";
+            var body = m.Groups["body"].Value.TrimEnd('\r', '\n');
+            var lineCount = string.IsNullOrEmpty(body) ? 0 : body.Split('\n').Length;
+            results.Add((lang, body, lineCount));
+        }
+
+        return results;
+    }
+
+    private void OnStatusCopyCodeButtonClick(object sender, RoutedEventArgs e)
+    {
+        var blocks = ExtractFencedCodeBlocks();
+        if (blocks.Count == 0)
+        {
+            AnnounceStatus("No fenced code blocks found in document");
+            return;
+        }
+
+        var totalLines = blocks.Sum(b => b.LineCount);
+        var formatted = string.Join(
+            Environment.NewLine + Environment.NewLine,
+            blocks.Select(b => $"```{b.Language}{Environment.NewLine}{b.Code}{Environment.NewLine}```"));
+        _ = Services.ClipboardWriter.TrySetTextAsync(formatted);
+        AnnounceStatus($"Copied {blocks.Count:N0} fenced code block(s) ({totalLines:N0} lines) to clipboard");
+    }
+
+    private void OnStatusCopyCodeButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+
+        var menu = new MenuFlyout();
+
+        var fencedItem = new MenuFlyoutItem
+        {
+            Text = "Copy fenced Markdown code blocks (```lang ... ```)",
+            Icon = new FontIcon { Glyph = "\uE943" }
+        };
+        fencedItem.Click += (_, _) => OnStatusCopyCodeButtonClick(sender, new RoutedEventArgs());
+        menu.Items.Add(fencedItem);
+
+        var rawCodeItem = new MenuFlyoutItem
+        {
+            Text = "Copy raw code bodies only (strip fences)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        rawCodeItem.Click += (_, _) =>
+        {
+            var blocks = ExtractFencedCodeBlocks();
+            if (blocks.Count == 0)
+            {
+                AnnounceStatus("No fenced code blocks found in document");
+                return;
+            }
+            var raw = string.Join(Environment.NewLine + Environment.NewLine, blocks.Select(b => b.Code));
+            var totalLines = blocks.Sum(b => b.LineCount);
+            _ = Services.ClipboardWriter.TrySetTextAsync(raw);
+            AnnounceStatus($"Copied {blocks.Count:N0} raw code snippet(s) ({totalLines:N0} lines) to clipboard");
+        };
+        menu.Items.Add(rawCodeItem);
+
+        var breakdownItem = new MenuFlyoutItem
+        {
+            Text = "Copy Code Language Breakdown Table (Markdown)",
+            Icon = new FontIcon { Glyph = "\uE9D9" }
+        };
+        breakdownItem.Click += (_, _) =>
+        {
+            var blocks = ExtractFencedCodeBlocks();
+            if (blocks.Count == 0)
+            {
+                AnnounceStatus("No fenced code blocks found in document");
+                return;
+            }
+            var grouped = blocks
+                .GroupBy(b => b.Language, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(g => g.Count())
+                .ThenByDescending(g => g.Sum(x => x.LineCount))
+                .ToList();
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("| Language | Blocks | Total Lines |");
+            sb.AppendLine("| :--- | ---: | ---: |");
+            foreach (var g in grouped)
+            {
+                sb.AppendLine($"| `{g.Key}` | {g.Count():N0} | {g.Sum(x => x.LineCount):N0} |");
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
+            AnnounceStatus($"Copied Code Language Breakdown ({grouped.Count:N0} languages, {blocks.Count:N0} blocks) to clipboard");
+        };
+        menu.Items.Add(breakdownItem);
+
+        var insertCatalogItem = new MenuFlyoutItem
+        {
+            Text = "Insert Code Language Summary table at cursor",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertCatalogItem.Click += (_, _) =>
+        {
+            var blocks = ExtractFencedCodeBlocks();
+            if (blocks.Count == 0)
+            {
+                AnnounceStatus("No fenced code blocks found in document");
+                return;
+            }
+            var grouped = blocks
+                .GroupBy(b => b.Language, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(g => g.Count())
+                .ThenByDescending(g => g.Sum(x => x.LineCount))
+                .ToList();
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("## Code Snippets Summary");
+            sb.AppendLine();
+            sb.AppendLine("| Language | Blocks | Total Lines |");
+            sb.AppendLine("| :--- | ---: | ---: |");
+            foreach (var g in grouped)
+            {
+                sb.AppendLine($"| `{g.Key}` | {g.Count():N0} | {g.Sum(x => x.LineCount):N0} |");
+            }
+            sb.AppendLine();
+            InsertMarkdown(sb.ToString());
+            AnnounceStatus($"Inserted Code Language Summary ({blocks.Count:N0} blocks) at cursor");
+        };
+        menu.Items.Add(insertCatalogItem);
+
+        menu.ShowAt(anchor);
+    }
+
     private void OnStatusCopyMarkdownButtonClick(object sender, RoutedEventArgs e)
     {
         var selected = PasteTextBox?.SelectedText;
