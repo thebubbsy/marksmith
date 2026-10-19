@@ -12193,3 +12193,44 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #183 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Markdown Dialect Consistency & CommonMark/GFM Feature Advisor.
    - **Deliverable**: Refine `RecentFilesService.AuditWorkspaceMarkdownDialectConsistency` with automated dialect configuration file generation (`.marksmith.json`) for workspace-wide standardization. Wire to `RecentDocsFlyout`.
+
+---
+
+### 2026-10-20 (scheduled routine run #184)
+
+- **AI-Executable 3-Block Cycle + Execution Phase Overview**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Header Anchor Collision, Slug Ambiguity & Table-of-Contents Sync Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditHeaderAnchorsAndTocSync(markdownText)`, static string overload, `GenerateGitHubSlug(...)`, `FormatHeaderAnchorSummary(...)`, records `HeaderAnchorItem`, `HeaderAnchorAndTocAudit`. Detects heading slug collisions, verifies internal TOC links (`[Text](#slug)`), flags broken TOC targets, and scores anchor integrity (0-100%); wired to `auditHeaderAnchorTocItem` (`\uE8B9`) in `ShowLinksContextMenu` with automated clipboard copy and status bar announcement.
+    2. **MindMapGalaxyWindow Graph Visual Mass Center of Gravity, Spatial Balance & Viewport Centering Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditVisualMassCenterAndSpatialBalance(selectionOnly)`, static overload, `FormatSpatialBalanceSummary(...)`, records `SpatialQuadrantMassItem`, `GraphSpatialBalanceAudit`. Computes node bounding box centroids, weighted center of gravity, geometric midpoint offset, and 4-quadrant visual mass distribution variance; wired to `AuditGraphSpatialBalanceItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` with status feedback and clipboard export.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Diagram Z-Order Layer Stacking, Occlusion & Visual Hierarchy Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditLayerStackingAndOcclusion(shapes)`, static overload, `FormatLayerStackingSummary(...)`, records `ShapeLayerOcclusionItem`, `DiagramLayerOcclusionAudit`. Analyzes canvas shape Z-order stacking, computes pairwise bounding box intersections, flags severe (>75%) and complete (>99%) occlusions, and scores visual hierarchy clarity (0-100%); wired to `SelectionAuditLayerOcclusionItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard export and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Funnel / Pyramid Layout Monotonic Staging & Volume Progression Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditFunnelPyramidVolumeProgression(markdown, layoutName)`, static overload, `FormatFunnelPyramidSummary(...)`, records `FunnelPyramidProgressionStageItem`, `SmartArtFunnelPyramidProgressionAudit`. Validates hierarchical funnel and pyramid outlines for monotonic stage volume progression (100% to spout or apex to 100%) and concise titles (<= 12 words); wired to `OutlineStatsAuditFunnelPyramidItem` (`\uE8B9`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Diff Variable Closure Capturing, Scope Escapes & Race Hazards (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Refined `LineDiff.AuditClosureCaptureAndScopeEscapes` with variable lifetime analysis after closure invocations and post-capture mutation detection; added `HasPostCaptureMutation`, `CrossesAsyncAwaitBoundary`, and `ConcurrencyRiskLevel` to `ClosureEscapeItem`, plus `PostCaptureMutationsCount` and `ConcurrencyRaceRiskCount` to `DiffClosureCaptureAudit`; wired to `auditClosureCaptureScope` (`\uE8B9`) in `TimelineHeaderBorder` context flyout.
+    6. **SuiteHubView Standardized `.marksmith.json` Markdown Dialect Configuration Generator (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.GenerateRecommendedDialectConfiguration(audit)` and `RecommendedConfiguration` property on `WorkspaceMarkdownDialectAudit`; serializes audited code fence preferences, list markers, and heading styles into a standardized `.marksmith.json` configuration bundle; wired to `GenerateWorkspaceDialectConfigFileItem` (`\uE8B9`) in `RecentDocsFlyout` with clipboard copy and button check confirmation.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified all `7/7` targeted Run #184 tests passing (`100%` pass rate).
+    - Verified clean live launch of `Marksmith.exe` (`PID=26904`, `Responding=True`, closed cleanly with zero startup crashes).
+
+---
+
+### Run #185 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Callout Alert Semantic Nesting, Quote Depth & Accessibility Tagging Auditor.
+   - **Deliverable**: Add `TextSearch.AuditCalloutDepthAndSemantics(markdownText)` and `FormatCalloutDepthSummary(...)`, auditing GitHub-style callouts (`> [!NOTE]`, `> [!WARNING]`, etc.), validating quotation block depths, preventing invalid nested alert blocks, detecting missing alert contents, and scoring callout semantic integrity ($0-100\%$). Wire to `ShowLinksContextMenu`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Node Bounding Box Collision Avoidance, Proximity Clearance & Repulsion Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditNodeProximityAndOverlaps()` and `FormatNodeProximitySummary(...)`, computing pairwise node bounding box clearance distances, detecting physical overlaps and collision crowding, and scoring graph visual breathing room ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Canvas Symmetric Alignment, Grid Snapping & Distribution Parity Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditAlignmentAndGridSnapping(shapes)` and `FormatAlignmentSnappingSummary(...)`, measuring horizontal/vertical center alignment deviations, grid snapping offset residuals, and spacing interval uniformity across shape clusters ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Timeline & Horizontal Process Milestones Chronological Ordering & Interval Balance Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditTimelineChronologyAndIntervals(markdown, layoutName)` and `FormatTimelineChronologySummary(...)`, evaluating timeline and linear process steps, checking date/step chronological monotonicity, step count bounds ($3 \le N \le 8$), and scoring milestone pacing balance ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #184 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Variable Closure Capturing, Scope Escapes & Race Hazards.
+   - **Deliverable**: Refine `LineDiff.AuditClosureCaptureAndScopeEscapes` with cross-procedural invocation tracking, detecting captured variables passed into external escaping methods, and immutability promotion suggestions (`readonly`, `in`, pure records). Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #184 Block 3 Idea 6]**:
+   - **Refinement Target**: Standardized `.marksmith.json` Markdown Dialect Configuration Generator.
+   - **Deliverable**: Refine `RecentFilesService.AuditWorkspaceMarkdownDialectConsistency` with batch automated dialect normalization dry-run analysis and AST syntax conformity verification. Wire to `RecentDocsFlyout`.

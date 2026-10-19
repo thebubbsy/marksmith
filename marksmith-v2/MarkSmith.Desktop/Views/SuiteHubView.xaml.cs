@@ -2195,6 +2195,26 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnGenerateWorkspaceDialectConfigFileClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var audit = RecentFilesService.AuditWorkspaceMarkdownDialectConsistency(files);
+            string configJson = audit.RecommendedConfiguration ?? RecentFilesService.GenerateRecommendedDialectConfiguration(audit);
+            await Services.ClipboardWriter.TrySetTextAsync(configJson);
+            SetNotification($"Generated & copied .marksmith.json config ({audit.DominantFenceType} · {audit.DialectAlignmentScore:0.#}% alignment)", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Config");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't generate .marksmith.json config: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

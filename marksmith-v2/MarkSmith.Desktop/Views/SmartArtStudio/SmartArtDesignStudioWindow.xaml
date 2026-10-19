@@ -389,6 +389,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantItem" Text="Audit SmartArt matrix quadrant balance &amp; categorical symmetry" Click="OnOutlineStatsAuditMatrixQuadrantClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelPyramidItem" Text="Audit SmartArt funnel &amp; pyramid layout monotonic staging &amp; volume progression" Click="OnOutlineStatsAuditFunnelPyramidClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

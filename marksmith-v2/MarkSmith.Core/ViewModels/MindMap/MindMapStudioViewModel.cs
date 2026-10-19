@@ -9809,6 +9809,174 @@ namespace MarkSmith.ViewModels.MindMap
             string details = string.Join(" · ", alerts);
             return $"Graph edge crossing & planarity audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% score): {details}";
         }
+
+        /// <summary>
+        /// Audits mind map graph nodes for visual mass center of gravity, quadrant mass distribution parity,
+        /// distance offset from geometric midpoint, and spatial balance.
+        /// </summary>
+        public GraphSpatialBalanceAudit AuditVisualMassCenterAndSpatialBalance(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0) ? selected : Nodes.ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+            string scope = isSelection ? "Selection · " : "";
+
+            int n = targetNodes.Count;
+
+            if (n == 0)
+            {
+                return new GraphSpatialBalanceAudit(
+                    0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0,
+                    Array.Empty<SpatialQuadrantMassItem>(),
+                    "Empty Map",
+                    isSelection,
+                    $"Graph spatial balance audit ({scope}0 nodes): Empty map");
+            }
+
+            if (n == 1)
+            {
+                var single = targetNodes[0];
+                var singleItem = new SpatialQuadrantMassItem("Centroid (Single Node)", 1, 100.0, 100.0, 0.0, "✓ Single node centered");
+                return new GraphSpatialBalanceAudit(
+                    1, single.X, single.Y, single.X, single.Y, 0.0, 0.0, 100.0,
+                    new[] { singleItem },
+                    "Balanced Single Node",
+                    isSelection,
+                    $"Graph spatial balance audit ({scope}1 node · Balanced Single Node · 100% score): Centered centroid");
+            }
+
+            double minX = targetNodes.Min(node => node.X);
+            double maxX = targetNodes.Max(node => node.X);
+            double minY = targetNodes.Min(node => node.Y);
+            double maxY = targetNodes.Max(node => node.Y);
+
+            double midX = (minX + maxX) / 2.0;
+            double midY = (minY + maxY) / 2.0;
+
+            double totalMass = 0.0;
+            double weightedSumX = 0.0;
+            double weightedSumY = 0.0;
+
+            var nodeMasses = new List<(MindMapNodeViewModel Node, double Mass)>();
+            foreach (var node in targetNodes)
+            {
+                int childLinks = Links.Count(l => l.SourceNodeId == node.Id || l.TargetNodeId == node.Id);
+                double mass = 50.0 + (node.Title?.Length ?? 0) * 2.0 + childLinks * 15.0;
+                nodeMasses.Add((node, mass));
+                totalMass += mass;
+                weightedSumX += (node.X * mass);
+                weightedSumY += (node.Y * mass);
+            }
+
+            double cogX = totalMass > 0 ? weightedSumX / totalMass : midX;
+            double cogY = totalMass > 0 ? weightedSumY / totalMass : midY;
+
+            double offsetDistance = Math.Sqrt(Math.Pow(cogX - midX, 2) + Math.Pow(cogY - midY, 2));
+
+            var qNodes = new Dictionary<string, (List<MindMapNodeViewModel> Nodes, double Mass)>(StringComparer.Ordinal)
+            {
+                ["Q1 (Top-Right)"] = (new List<MindMapNodeViewModel>(), 0.0),
+                ["Q2 (Top-Left)"] = (new List<MindMapNodeViewModel>(), 0.0),
+                ["Q3 (Bottom-Left)"] = (new List<MindMapNodeViewModel>(), 0.0),
+                ["Q4 (Bottom-Right)"] = (new List<MindMapNodeViewModel>(), 0.0)
+            };
+
+            foreach (var (node, mass) in nodeMasses)
+            {
+                string qName;
+                if (node.X >= midX)
+                {
+                    qName = node.Y < midY ? "Q1 (Top-Right)" : "Q4 (Bottom-Right)";
+                }
+                else
+                {
+                    qName = node.Y < midY ? "Q2 (Top-Left)" : "Q3 (Bottom-Left)";
+                }
+                var entry = qNodes[qName];
+                entry.Nodes.Add(node);
+                qNodes[qName] = (entry.Nodes, entry.Mass + mass);
+            }
+
+            var quadrantItems = new List<SpatialQuadrantMassItem>();
+            double sumSquaredDiffs = 0.0;
+            const double idealPct = 25.0;
+
+            foreach (var kvp in qNodes)
+            {
+                double pct = totalMass > 0 ? (kvp.Value.Mass / totalMass) * 100.0 : 0.0;
+                sumSquaredDiffs += Math.Pow(pct - idealPct, 2);
+
+                double qCogX = kvp.Value.Nodes.Count > 0 ? kvp.Value.Nodes.Average(nd => nd.X) : midX;
+                double qCogY = kvp.Value.Nodes.Count > 0 ? kvp.Value.Nodes.Average(nd => nd.Y) : midY;
+                double qOffset = Math.Sqrt(Math.Pow(qCogX - midX, 2) + Math.Pow(qCogY - midY, 2));
+
+                string status = kvp.Value.Nodes.Count == 0
+                    ? "⚠ Empty quadrant sector"
+                    : pct > 45.0
+                        ? $"⚠ Dense concentration ({pct:0.#}%)"
+                        : $"✓ Well-distributed ({pct:0.#}%)";
+
+                quadrantItems.Add(new SpatialQuadrantMassItem(
+                    kvp.Key,
+                    kvp.Value.Nodes.Count,
+                    Math.Round(kvp.Value.Mass, 1),
+                    Math.Round(pct, 1),
+                    Math.Round(qOffset, 1),
+                    status));
+            }
+
+            double massVariance = Math.Round(sumSquaredDiffs / 4.0, 1);
+
+            double span = Math.Max(1.0, Math.Sqrt(Math.Pow(maxX - minX, 2) + Math.Pow(maxY - minY, 2)));
+            double normalizedOffsetRatio = offsetDistance / span;
+
+            double score = 100.0 - (massVariance * 0.08) - (normalizedOffsetRatio * 40.0);
+            score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+            string category = score >= 90.0
+                ? "Optimal Spatial Balance (≥90%)"
+                : score >= 75.0
+                    ? "Moderate Spatial Asymmetry (75-89%)"
+                    : "Severe Visual Mass Imbalance (<75%)";
+
+            string summary = FormatSpatialBalanceSummary(
+                n, cogX, cogY, midX, midY, offsetDistance, massVariance, score, category, isSelection);
+
+            return new GraphSpatialBalanceAudit(
+                n, Math.Round(cogX, 1), Math.Round(cogY, 1), Math.Round(midX, 1), Math.Round(midY, 1),
+                Math.Round(offsetDistance, 1), massVariance, score, quadrantItems, category, isSelection, summary);
+        }
+
+        public static GraphSpatialBalanceAudit AuditVisualMassCenterAndSpatialBalance(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null) foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            if (links != null) foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            return vm.AuditVisualMassCenterAndSpatialBalance();
+        }
+
+        public static string FormatSpatialBalanceSummary(
+            int totalNodes, double cogX, double cogY, double midX, double midY,
+            double offsetDistance, double massVariance, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph spatial balance audit ({scope}0 nodes): Empty map";
+            if (totalNodes == 1) return $"Graph spatial balance audit ({scope}1 node · Balanced Single Node · 100% score): Centered centroid";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            var alerts = new List<string>();
+            alerts.Add($"CoG offset {offsetDistance:0.#}px from center");
+            alerts.Add($"quadrant variance {massVariance:0.#}");
+            if (score >= 90.0) alerts.Add("uniform 4-quadrant balance");
+            else if (score >= 75.0) alerts.Add("moderate visual mass tilt");
+            else alerts.Add("⚠ heavy asymmetric mass concentration");
+
+            string details = string.Join(" · ", alerts);
+            return $"Graph spatial balance audit ({scope}{nodeStr} · {category} · {score:0.#}% score): {details}";
+        }
     }
 
 
@@ -10728,6 +10896,34 @@ namespace MarkSmith.ViewModels.MindMap
         double CrossingDensity,
         double PlanarityScore,
         IReadOnlyList<EdgeCrossingPairItem> Crossings,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated visual mass, node count, and centering metrics for an individual spatial quadrant.
+    /// </summary>
+    public sealed record SpatialQuadrantMassItem(
+        string QuadrantName,
+        int NodeCount,
+        double TotalVisualMass,
+        double MassPercentage,
+        double CenterOffsetDistance,
+        string Status);
+
+    /// <summary>
+    /// Represents the result of an audit of graph visual mass center of gravity, quadrant balance, and spatial offset.
+    /// </summary>
+    public sealed record GraphSpatialBalanceAudit(
+        int TotalNodes,
+        double CenterOfGravityX,
+        double CenterOfGravityY,
+        double CanvasMidpointX,
+        double CanvasMidpointY,
+        double MidpointOffsetDistance,
+        double MassVariance,
+        double SpatialBalanceScore,
+        IReadOnlyList<SpatialQuadrantMassItem> Quadrants,
         string Category,
         bool IsSelectionScope,
         string Summary);

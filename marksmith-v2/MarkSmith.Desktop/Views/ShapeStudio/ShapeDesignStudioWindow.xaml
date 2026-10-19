@@ -760,6 +760,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditConnectorRoutesItem" Text="Audit connector route directness, bend counts &amp; obstacle collisions" Click="OnSelectionAuditConnectorRoutesClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditLayerOcclusionItem" Text="Audit diagram Z-order layer stacking, occlusions &amp; visual hierarchy" Click="OnSelectionAuditLayerOcclusionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

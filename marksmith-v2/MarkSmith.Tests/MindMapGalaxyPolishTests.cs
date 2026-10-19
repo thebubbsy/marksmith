@@ -3325,6 +3325,57 @@ namespace MarkSmith.Tests
             Assert.True(crossAudit.PlanarityScore < 100.0);
             Assert.NotEmpty(crossAudit.Crossings);
         }
+
+        [Fact]
+        public void Run184_AuditVisualMassCenterAndSpatialBalance_CalculatesCoGAndQuadrants()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditVisualMassCenterAndSpatialBalance(Array.Empty<MindMapNode>(), null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.SpatialBalanceScore);
+            Assert.Equal("Empty Map", emptyAudit.Category);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Single node
+            var singleNode = new MindMapNode { Id = "s1", Title = "Root", X = 150, Y = 150 };
+            var singleAudit = MindMapStudioViewModel.AuditVisualMassCenterAndSpatialBalance(new[] { singleNode }, null);
+            Assert.Equal(1, singleAudit.TotalNodes);
+            Assert.Equal(100.0, singleAudit.SpatialBalanceScore);
+            Assert.Equal("Balanced Single Node", singleAudit.Category);
+
+            // 3. Balanced 4-quadrant diamond graph
+            var q1 = new MindMapNode { Id = "q1", Title = "Node", X = 300, Y = 100 };
+            var q2 = new MindMapNode { Id = "q2", Title = "Node", X = 100, Y = 100 };
+            var q3 = new MindMapNode { Id = "q3", Title = "Node", X = 100, Y = 300 };
+            var q4 = new MindMapNode { Id = "q4", Title = "Node", X = 300, Y = 300 };
+
+            var balancedAudit = MindMapStudioViewModel.AuditVisualMassCenterAndSpatialBalance(
+                new[] { q1, q2, q3, q4 }, null);
+
+            Assert.Equal(4, balancedAudit.TotalNodes);
+            Assert.Equal(4, balancedAudit.Quadrants.Count);
+            Assert.Equal(100.0, balancedAudit.SpatialBalanceScore);
+            Assert.Equal("Optimal Spatial Balance (≥90%)", balancedAudit.Category);
+
+            string formatted = MindMapStudioViewModel.FormatSpatialBalanceSummary(
+                balancedAudit.TotalNodes, balancedAudit.CenterOfGravityX, balancedAudit.CenterOfGravityY,
+                balancedAudit.CanvasMidpointX, balancedAudit.CanvasMidpointY, balancedAudit.MidpointOffsetDistance,
+                balancedAudit.MassVariance, balancedAudit.SpatialBalanceScore, balancedAudit.Category, balancedAudit.IsSelectionScope);
+            Assert.Equal(balancedAudit.Summary, formatted);
+
+            // 4. Heavily lopsided graph (all nodes in Top-Left)
+            var lop1 = new MindMapNode { Id = "l1", Title = "L1", X = 10, Y = 10 };
+            var lop2 = new MindMapNode { Id = "l2", Title = "L2", X = 20, Y = 20 };
+            var lop3 = new MindMapNode { Id = "l3", Title = "L3", X = 30, Y = 30 };
+            var lop4 = new MindMapNode { Id = "l4", Title = "L4", X = 400, Y = 400 };
+
+            var lopsidedAudit = MindMapStudioViewModel.AuditVisualMassCenterAndSpatialBalance(
+                new[] { lop1, lop2, lop3, lop4 }, null);
+
+            Assert.Equal(4, lopsidedAudit.TotalNodes);
+            Assert.True(lopsidedAudit.SpatialBalanceScore < 100.0);
+            Assert.True(lopsidedAudit.MassVariance > 0.0);
+        }
     }
 }
 

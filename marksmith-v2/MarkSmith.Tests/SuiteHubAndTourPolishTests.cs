@@ -4688,6 +4688,109 @@ Some paragraph in between.
         Assert.Contains("OnCopyWorkspaceMarkdownDialectAdvisorClick", suiteCs);
         Assert.Contains("AuditWorkspaceMarkdownDialectConsistency", suiteCs);
     }
+
+    [Fact]
+    public void Run184_GenerateRecommendedDialectConfiguration_ProducesStandardizedJson()
+    {
+        // 1. Empty / default audit
+        string defaultJson = RecentFilesService.GenerateRecommendedDialectConfiguration(null!);
+        Assert.Contains("https://onyachamp.com/schemas/marksmith-config.v1.json", defaultJson);
+        Assert.Contains("\"preferredCodeFence\": \"backtick\"", defaultJson);
+        Assert.Contains("\"enforceStandardDialect\": true", defaultJson);
+
+        // 2. Audit with backtick fences, hyphen lists, ATX headings
+        var doc1 = string.Join("\n",
+            "# Heading 1",
+            "",
+            "- Item 1",
+            "- Item 2",
+            "",
+            "```csharp",
+            "var x = 10;",
+            "```"
+        );
+
+        var audit1 = RecentFilesService.AuditWorkspaceMarkdownDialectConsistency(
+            new[] { @"C:\docs\doc1.md" },
+            _ => true,
+            _ => doc1);
+
+        string json1 = RecentFilesService.GenerateRecommendedDialectConfiguration(audit1);
+        Assert.NotNull(audit1.RecommendedConfiguration);
+        Assert.Contains("\"preferredCodeFence\": \"backtick\"", json1);
+        Assert.Contains("\"requireCodeLanguageTag\": true", json1);
+        Assert.Contains("\"preferredListMarker\": \"-\"", json1);
+        Assert.Contains("\"preferredHeadingStyle\": \"atx\"", json1);
+        Assert.Contains("\"enforceStandardDialect\": true", json1);
+        Assert.Contains("\"totalFiles\": 1", json1);
+
+        // 3. Audit with tilde fences, asterisk lists, Setext headings, untagged code blocks
+        var doc2 = string.Join("\n",
+            "Setext Heading",
+            "==============",
+            "",
+            "* Star item 1",
+            "* Star item 2",
+            "",
+            "~~~",
+            "plain code block",
+            "~~~"
+        );
+
+        var audit2 = RecentFilesService.AuditWorkspaceMarkdownDialectConsistency(
+            new[] { @"C:\docs\doc2.md" },
+            _ => true,
+            _ => doc2);
+
+        string json2 = RecentFilesService.GenerateRecommendedDialectConfiguration(audit2);
+        Assert.Contains("\"preferredCodeFence\": \"tilde\"", json2);
+        Assert.Contains("\"requireCodeLanguageTag\": false", json2);
+        Assert.Contains("\"preferredListMarker\": \"*\"", json2);
+        Assert.Contains("\"preferredHeadingStyle\": \"setext\"", json2);
+    }
+
+    [Fact]
+    public void Run184_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Header Anchor Slug Collisions & TOC Navigation Synchronization Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditHeaderAnchorTocItem", mainCs);
+        Assert.Contains("AuditHeaderAnchorsAndTocSync", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Visual Mass Center of Gravity, Spatial Balance & Viewport Centering Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphSpatialBalanceItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphSpatialBalanceClick", galaxyCs);
+        Assert.Contains("AuditVisualMassCenterAndSpatialBalance", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Z-Order Layer Stacking, Occlusion & Visual Hierarchy Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditLayerOcclusionItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditLayerOcclusionClick", shapeCs);
+        Assert.Contains("AuditLayerStackingAndOcclusion", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Funnel & Pyramid Layout Monotonic Staging & Volume Progression Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditFunnelPyramidItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditFunnelPyramidClick", smartArtCs);
+        Assert.Contains("AuditFunnelPyramidVolumeProgression", smartArtCs);
+
+        // Surface 5: HistoryWindow - Diff Variable Closure Capturing, Scope Escapes & Race Hazards
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditClosureCaptureScope", historyCs);
+        Assert.Contains("Audit variable closure capturing, lifetime escapes & race hazards", historyCs);
+        Assert.Contains("AuditClosureCaptureAndScopeEscapes", historyCs);
+
+        // Surface 6: SuiteHubView - Standardized .marksmith.json Markdown Dialect Configuration Generator
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("GenerateWorkspaceDialectConfigFileItem", suiteXaml);
+        Assert.Contains("OnGenerateWorkspaceDialectConfigFileClick", suiteCs);
+        Assert.Contains("GenerateRecommendedDialectConfiguration", suiteCs);
+    }
 }
 
 

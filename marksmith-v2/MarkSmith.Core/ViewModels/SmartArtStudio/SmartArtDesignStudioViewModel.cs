@@ -8217,6 +8217,164 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", alerts);
         return $"Matrix quadrant balance audit ({layoutName} · {category} · {score:0.#}% symmetry): {details}";
     }
+
+    /// <summary>
+    /// Audits SmartArt outline for funnel and pyramid layout monotonic staging, volume progression, and stage concise sizing.
+    /// </summary>
+    public SmartArtFunnelPyramidProgressionAudit AuditFunnelPyramidVolumeProgression(string? markdown = null, string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? SelectedLayout?.Name ?? "Funnel / Pyramid";
+
+        bool isFunnel = layout.Contains("funnel", StringComparison.OrdinalIgnoreCase);
+        bool isPyramid = layout.Contains("pyramid", StringComparison.OrdinalIgnoreCase);
+        if (!isFunnel && !isPyramid)
+        {
+            if (layout.Contains("inverted", StringComparison.OrdinalIgnoreCase)) isFunnel = true;
+            else if (layout.Contains("stage", StringComparison.OrdinalIgnoreCase)) isFunnel = true;
+            else isPyramid = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtFunnelPyramidProgressionAudit(
+                0, isFunnel, isPyramid, true, 0, 100.0,
+                Array.Empty<FunnelPyramidProgressionStageItem>(),
+                "Empty Outline", layout,
+                $"SmartArt funnel/pyramid progression audit ({layout} · 0 stages): Outline is empty");
+        }
+
+        var lines = input.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var rawStages = new List<(string Title, int LineNumber, List<string> SubBullets)>();
+        (string Title, int LineNumber, List<string> SubBullets)? currentStage = null;
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine.TrimEnd();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            if (line.TrimStart().StartsWith("```") || line.TrimStart().StartsWith("~~~")) continue;
+
+            int indent = line.TakeWhile(char.IsWhiteSpace).Count();
+            string trimmed = line.TrimStart('-', '*', '+', '#', ' ', '\t');
+
+            if (indent == 0 || (!line.StartsWith(" ") && !line.StartsWith("\t") && (line.StartsWith("-") || line.StartsWith("*") || (line.Length > 0 && char.IsDigit(line[0])))))
+            {
+                if (currentStage != null) rawStages.Add(currentStage.Value);
+                currentStage = (trimmed, rawStages.Count + 1, new List<string>());
+            }
+            else
+            {
+                if (currentStage != null)
+                {
+                    currentStage.Value.SubBullets.Add(trimmed);
+                }
+                else
+                {
+                    currentStage = (trimmed, 1, new List<string>());
+                }
+            }
+        }
+        if (currentStage != null) rawStages.Add(currentStage.Value);
+
+        int totalStages = rawStages.Count;
+        if (totalStages == 0)
+        {
+            return new SmartArtFunnelPyramidProgressionAudit(
+                0, isFunnel, isPyramid, true, 0, 100.0,
+                Array.Empty<FunnelPyramidProgressionStageItem>(),
+                "Empty Outline", layout,
+                $"SmartArt funnel/pyramid progression audit ({layout} · 0 stages): Outline is empty");
+        }
+
+        var stageItems = new List<FunnelPyramidProgressionStageItem>();
+        int wordViolations = 0;
+        bool isMonotonic = true;
+
+        for (int i = 0; i < totalStages; i++)
+        {
+            var stg = rawStages[i];
+            int words = stg.Title.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+            foreach (var sub in stg.SubBullets)
+            {
+                words += sub.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+            }
+
+            if (words > 12) wordViolations++;
+
+            double vol;
+            if (isFunnel)
+            {
+                vol = Math.Round(100.0 - ((double)i / Math.Max(1, totalStages - 1)) * (100.0 - (100.0 / totalStages)), 1);
+            }
+            else
+            {
+                vol = Math.Round((100.0 / totalStages) + ((double)i / Math.Max(1, totalStages - 1)) * (100.0 - (100.0 / totalStages)), 1);
+            }
+
+            bool monotonicWithPrev = true;
+            if (i > 0)
+            {
+                double prevVol = stageItems[i - 1].RelativeVolume;
+                if (isFunnel && vol >= prevVol) { monotonicWithPrev = false; isMonotonic = false; }
+                else if (isPyramid && vol <= prevVol) { monotonicWithPrev = false; isMonotonic = false; }
+            }
+
+            string status = words > 12
+                ? $"⚠ Overly verbose ({words} words > 12)"
+                : !monotonicWithPrev
+                    ? "⚠ Volume progression non-monotonic"
+                    : $"✓ Stage {i + 1} progression ({vol:0.#}% volume)";
+
+            stageItems.Add(new FunnelPyramidProgressionStageItem(i + 1, stg.Title, words, vol, monotonicWithPrev, status));
+        }
+
+        double score = 100.0;
+        if (totalStages < 3) score -= 15.0;
+        else if (totalStages > 6) score -= 10.0;
+
+        score -= (wordViolations * 8.0);
+        if (!isMonotonic) score -= 20.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Stage Progression (≥90%)"
+            : score >= 75.0
+                ? "Moderate Volume Variance (75-89%)"
+                : "Irregular Stage Hierarchy (<75%)";
+
+        string summary = FormatFunnelPyramidSummary(
+            totalStages, isFunnel, isPyramid, isMonotonic, wordViolations, score, category, layout);
+
+        return new SmartArtFunnelPyramidProgressionAudit(
+            totalStages, isFunnel, isPyramid, isMonotonic, wordViolations, score, stageItems, category, layout, summary);
+    }
+
+    public static SmartArtFunnelPyramidProgressionAudit AuditFunnelPyramidVolumeProgression(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditFunnelPyramidVolumeProgression(markdown, layoutName);
+    }
+
+    public static string FormatFunnelPyramidSummary(
+        int totalStages, bool isFunnel, bool isPyramid, bool isMonotonic,
+        int wordViolations, double score, string category, string layoutName)
+    {
+        if (totalStages == 0)
+            return $"SmartArt funnel/pyramid progression audit ({layoutName} · 0 stages): Outline is empty";
+
+        string kind = isFunnel ? "Funnel" : "Pyramid";
+        string stageStr = totalStages == 1 ? "1 stage" : $"{totalStages} stages";
+        var alerts = new List<string>();
+        if (isMonotonic) alerts.Add("monotonic volume progression");
+        else alerts.Add("⚠ non-monotonic staging order");
+
+        if (wordViolations > 0) alerts.Add($"⚠ {wordViolations} verbose stage {(wordViolations == 1 ? "label" : "labels")}");
+        else alerts.Add("concise stage labels (≤12w)");
+
+        string details = string.Join(" · ", alerts);
+        return $"SmartArt {kind} progression audit ({layoutName} · {stageStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -9054,6 +9212,33 @@ public sealed record SmartArtMatrixBalanceAudit(
     string Category,
     string LayoutName,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, relative volume, word count, and monotonic ordering for an individual funnel or pyramid stage.
+/// </summary>
+public sealed record FunnelPyramidProgressionStageItem(
+    int StageIndex,
+    string StageLabel,
+    int WordCount,
+    double RelativeVolume,
+    bool IsMonotonicWithPrevious,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt funnel/pyramid layout monotonic staging, volume progression, and stage concise sizing.
+/// </summary>
+public sealed record SmartArtFunnelPyramidProgressionAudit(
+    int TotalStages,
+    bool IsFunnelLayout,
+    bool IsPyramidLayout,
+    bool IsMonotonicallyOrdered,
+    int WordLengthViolations,
+    double VolumeProgressionScore,
+    IReadOnlyList<FunnelPyramidProgressionStageItem> Stages,
+    string Category,
+    string LayoutName,
+    string Summary);
+
 
 
 

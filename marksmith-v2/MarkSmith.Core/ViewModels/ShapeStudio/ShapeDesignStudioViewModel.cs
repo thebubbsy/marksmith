@@ -9376,6 +9376,170 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", alerts);
         return $"Connector route audit ({scopeStr}{connStr} · {category} · {routeScore:0.#}% efficiency): {details}";
     }
+
+    /// <summary>
+    /// Audits diagram shape Z-order stacking, accidental complete/partial occlusion of smaller shapes by larger background shapes,
+    /// and visual hierarchy clarity.
+    /// </summary>
+    public DiagramLayerOcclusionAudit AuditLayerStackingAndOcclusion(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = targetShapes?.ToList() ?? (selected.Count > 0 ? selected : Shapes.ToList());
+        bool isSelection = targetShapes != null || (selected.Count > 0 && targets.Count < Shapes.Count);
+        var audit = AuditLayerStackingAndOcclusion(targets, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramLayerOcclusionAudit AuditLayerStackingAndOcclusion(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapesOnCanvas = null,
+        bool isSelection = false)
+    {
+        var list = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        var allList = (allShapesOnCanvas ?? list).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        int totalShapes = list.Count;
+        if (totalShapes == 0)
+        {
+            return new DiagramLayerOcclusionAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<ShapeLayerOcclusionItem>(),
+                "Empty Canvas",
+                isSelection,
+                $"Diagram layer stacking & occlusion audit ({scopeStr}0 shapes): No shapes to evaluate");
+        }
+
+        if (totalShapes == 1)
+        {
+            var single = list[0];
+            double area = Math.Max(0.0, single.Width * single.Height);
+            string shapeType = single.Prst ?? "shape";
+            var item = new ShapeLayerOcclusionItem(
+                single.Id ?? "s1", shapeType, 0, Math.Round(area, 1), 0, 0.0, false, "✓ Sole shape · Full visibility");
+            return new DiagramLayerOcclusionAudit(
+                1, 0, 0, 0, 100.0,
+                new[] { item },
+                "Optimal Stacking (100%)",
+                isSelection,
+                $"Diagram layer stacking & occlusion audit ({scopeStr}1 shape · Optimal Stacking · 100% score): Clean single layer");
+        }
+
+        var shapeZIndex = new Dictionary<ShapeCanvasItemViewModel, int>();
+        for (int i = 0; i < allList.Count; i++)
+        {
+            shapeZIndex[allList[i]] = i;
+        }
+
+        int overlappingPairs = 0;
+        int severeOcclusionCount = 0;
+        int completelyHiddenCount = 0;
+        var items = new List<ShapeLayerOcclusionItem>();
+
+        foreach (var shape in list)
+        {
+            int zA = shapeZIndex.TryGetValue(shape, out int idxA) ? idxA : 0;
+            double areaA = Math.Max(0.0, shape.Width * shape.Height);
+            string shapeType = shape.Prst ?? "shape";
+
+            if (areaA <= 0.0)
+            {
+                items.Add(new ShapeLayerOcclusionItem(
+                    shape.Id ?? "s", shapeType, zA, 0.0, 0, 0.0, false, "Line/degenerate shape"));
+                continue;
+            }
+
+            int occludingCount = 0;
+            double maxOcclusionPct = 0.0;
+
+            foreach (var other in allList)
+            {
+                if (ReferenceEquals(shape, other)) continue;
+                int zB = shapeZIndex.TryGetValue(other, out int idxB) ? idxB : 0;
+                if (zB <= zA) continue;
+
+                double ax1 = shape.X;
+                double ay1 = shape.Y;
+                double ax2 = shape.X + shape.Width;
+                double ay2 = shape.Y + shape.Height;
+
+                double bx1 = other.X;
+                double by1 = other.Y;
+                double bx2 = other.X + other.Width;
+                double by2 = other.Y + other.Height;
+
+                double ix1 = Math.Max(ax1, bx1);
+                double iy1 = Math.Max(ay1, by1);
+                double ix2 = Math.Min(ax2, bx2);
+                double iy2 = Math.Min(ay2, by2);
+
+                if (ix2 > ix1 && iy2 > iy1)
+                {
+                    double overlapArea = (ix2 - ix1) * (iy2 - iy1);
+                    double pct = (overlapArea / areaA) * 100.0;
+                    if (pct > 0.5)
+                    {
+                        overlappingPairs++;
+                        occludingCount++;
+                        if (pct > maxOcclusionPct) maxOcclusionPct = pct;
+                    }
+                }
+            }
+
+            maxOcclusionPct = Math.Min(100.0, Math.Round(maxOcclusionPct, 1));
+            bool isHidden = maxOcclusionPct >= 99.0;
+            if (isHidden) completelyHiddenCount++;
+            else if (maxOcclusionPct >= 75.0) severeOcclusionCount++;
+
+            string status = isHidden
+                ? $"⚠ Completely hidden by layer above ({maxOcclusionPct:0.#}%)"
+                : maxOcclusionPct >= 75.0
+                    ? $"⚠ Severe occlusion ({maxOcclusionPct:0.#}%)"
+                    : maxOcclusionPct > 0.0
+                        ? $"Partial overlap ({maxOcclusionPct:0.#}%)"
+                        : "✓ Fully visible";
+
+            items.Add(new ShapeLayerOcclusionItem(
+                shape.Id ?? "s", shapeType, zA, Math.Round(areaA, 1), occludingCount, maxOcclusionPct, isHidden, status));
+        }
+
+        double score = 100.0 - (completelyHiddenCount * 25.0) - (severeOcclusionCount * 10.0) - (overlappingPairs * 2.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Layer Stacking & Visibility (≥90%)"
+            : score >= 75.0
+                ? "Acceptable Layering with Minor Overlaps (75-89%)"
+                : "Severe Occlusion & Visual Clutter (<75%)";
+
+        string summary = FormatLayerStackingSummary(
+            totalShapes, overlappingPairs, severeOcclusionCount, completelyHiddenCount,
+            score, category, isSelection);
+
+        return new DiagramLayerOcclusionAudit(
+            totalShapes, overlappingPairs, severeOcclusionCount, completelyHiddenCount,
+            score, items, category, isSelection, summary);
+    }
+
+    public static string FormatLayerStackingSummary(
+        int totalShapes, int overlappingPairs, int severeOcclusions, int completelyHidden,
+        double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        string shapeStr = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        if (totalShapes == 0) return $"Diagram layer stacking & occlusion audit ({scopeStr}0 shapes): No shapes to evaluate";
+        if (totalShapes == 1) return $"Diagram layer stacking & occlusion audit ({scopeStr}1 shape · Optimal Stacking · 100% score): Clean single layer";
+
+        var alerts = new List<string>();
+        if (completelyHidden > 0) alerts.Add($"⚠ {completelyHidden} completely hidden");
+        if (severeOcclusions > 0) alerts.Add($"⚠ {severeOcclusions} severe occlusion");
+        if (overlappingPairs > 0) alerts.Add($"{overlappingPairs} overlapping {(overlappingPairs == 1 ? "pair" : "pairs")}");
+        else alerts.Add("0 overlapping pairs");
+
+        string details = string.Join(" · ", alerts);
+        return $"Diagram layer stacking & occlusion audit ({scopeStr}{shapeStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -10320,6 +10484,34 @@ public sealed record DiagramConnectorRouteAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, bounding box area, occluding shape count, and visibility percentage for an individual shape layer.
+/// </summary>
+public sealed record ShapeLayerOcclusionItem(
+    string ShapeId,
+    string ShapeType,
+    int ZIndex,
+    double Area,
+    int OccludedByCount,
+    double MaxOcclusionPercentage,
+    bool IsCompletelyHidden,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape Z-order stacking, accidental complete/partial occlusion, and visual hierarchy.
+/// </summary>
+public sealed record DiagramLayerOcclusionAudit(
+    int TotalShapes,
+    int OverlappingPairsCount,
+    int SevereOcclusionCount,
+    int CompletelyHiddenCount,
+    double HierarchyClarityScore,
+    IReadOnlyList<ShapeLayerOcclusionItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
 
 
 

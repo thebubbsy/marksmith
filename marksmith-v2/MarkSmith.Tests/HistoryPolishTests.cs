@@ -2455,6 +2455,57 @@ public class HistoryPolishTests : IDisposable
         Assert.NotEmpty(escapeAudit.Escapes);
         Assert.Equal("workerPayload", escapeAudit.Escapes[0].VariableName);
     }
+
+    [Fact]
+    public void Run184_AuditClosureCaptureAndScopeEscapes_DetectsPostCaptureMutationAndRaceHazards()
+    {
+        // 1. Async task closure with post-capture mutation (Critical Race Hazard)
+        string asyncRaceCode = string.Join("\n",
+            "public void ProcessJobs()",
+            "{",
+            "    int retryCount = 0;",
+            "    Task.Run(async () => {",
+            "        await DispatchAsync(retryCount);",
+            "    });",
+            "    retryCount++;",
+            "}"
+        );
+
+        var audit = LineDiff.AuditClosureCaptureAndScopeEscapes("", asyncRaceCode);
+        Assert.True(audit.TotalVariablesEvaluated >= 1);
+        Assert.Equal(1, audit.PostCaptureMutationsCount);
+        Assert.Equal(1, audit.ConcurrencyRaceRiskCount);
+        Assert.True(audit.HighRiskAsyncEscapesCount >= 1);
+        Assert.Contains("post-capture mutation race hazard", audit.Summary);
+        Assert.NotEmpty(audit.Escapes);
+
+        var item = audit.Escapes[0];
+        Assert.Equal("retryCount", item.VariableName);
+        Assert.True(item.HasPostCaptureMutation);
+        Assert.True(item.CrossesAsyncAwaitBoundary);
+        Assert.Equal("Critical", item.ConcurrencyRiskLevel);
+        Assert.Contains("Critical race condition", item.Status);
+
+        // 2. Synchronous delegate with post-capture mutation (Moderate hazard)
+        string syncMutationCode = string.Join("\n",
+            "public void SetupHandlers()",
+            "{",
+            "    int index = 0;",
+            "    Action callback = () => {",
+            "        Console.WriteLine(index);",
+            "    };",
+            "    index = 42;",
+            "}"
+        );
+
+        var syncAudit = LineDiff.AuditClosureCaptureAndScopeEscapes("", syncMutationCode);
+        Assert.True(syncAudit.TotalVariablesEvaluated >= 1);
+        Assert.Equal(1, syncAudit.PostCaptureMutationsCount);
+        Assert.NotEmpty(syncAudit.Escapes);
+        Assert.True(syncAudit.Escapes[0].HasPostCaptureMutation);
+        Assert.Equal("Moderate", syncAudit.Escapes[0].ConcurrencyRiskLevel);
+        Assert.Contains("Modified closure hazard", syncAudit.Escapes[0].Status);
+    }
 }
 
 

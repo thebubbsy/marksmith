@@ -8644,6 +8644,254 @@ public static class TextSearch
         string prefix = $"Markdown math syntax audit ({blockStr} · {category} · {score:0.#}% score)";
         return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} · Symmetrical & balanced";
     }
+
+    /// <summary>
+    /// Audits markdown headings for anchor slug collisions, slug ambiguity, and synchronization with internal table-of-contents links.
+    /// Excludes fenced code blocks and frontmatter.
+    /// </summary>
+    public static HeaderAnchorAndTocAudit AuditHeaderAnchorsAndTocSync(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new HeaderAnchorAndTocAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<HeaderAnchorItem>(),
+                Array.Empty<string>(),
+                "Clean Baseline",
+                "Markdown header anchor & TOC audit: 0 headings · Document contains no headings or TOC links");
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        bool inFence = false;
+        bool inFrontmatter = false;
+        var headerItems = new List<HeaderAnchorItem>();
+        var slugOccurrences = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var customIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var allGeneratedSlugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var customIdRegex = new Regex(@"(?:\{#([a-zA-Z0-9_\-]+)\}|<a\s+name=[""']([a-zA-Z0-9_\-]+)[""'])", RegexOptions.Compiled);
+        var tocLinkRegex = new Regex(@"\[([^\]]+)\]\(#([a-zA-Z0-9_\-]+)\)", RegexOptions.Compiled);
+        var tocLinksFound = new List<(string Label, string Slug, int LineNumber)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (i == 0 && (trimmed == "---" || trimmed == "+++"))
+            {
+                inFrontmatter = true;
+                continue;
+            }
+            if (inFrontmatter)
+            {
+                if (trimmed == "---" || trimmed == "+++") inFrontmatter = false;
+                continue;
+            }
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence) continue;
+
+            var customMatches = customIdRegex.Matches(line);
+            foreach (Match cm in customMatches)
+            {
+                string id = !string.IsNullOrEmpty(cm.Groups[1].Value) ? cm.Groups[1].Value : cm.Groups[2].Value;
+                if (!string.IsNullOrWhiteSpace(id)) customIds.Add(id);
+            }
+
+            var tocMatches = tocLinkRegex.Matches(line);
+            foreach (Match tm in tocMatches)
+            {
+                string label = tm.Groups[1].Value.Trim();
+                string targetSlug = tm.Groups[2].Value.Trim().ToLowerInvariant();
+                tocLinksFound.Add((label, targetSlug, i + 1));
+            }
+
+            var headingMatch = Regex.Match(line, @"^(#{1,6})\s+(.+)$");
+            if (headingMatch.Success)
+            {
+                int level = headingMatch.Groups[1].Length;
+                string headerRaw = headingMatch.Groups[2].Value.Trim();
+
+                headerRaw = Regex.Replace(headerRaw, @"\s+#+\s*$", "").Trim();
+
+                string? explicitId = null;
+                var inlineCustom = customIdRegex.Match(headerRaw);
+                if (inlineCustom.Success)
+                {
+                    explicitId = !string.IsNullOrEmpty(inlineCustom.Groups[1].Value)
+                        ? inlineCustom.Groups[1].Value
+                        : inlineCustom.Groups[2].Value;
+                    headerRaw = customIdRegex.Replace(headerRaw, "").Trim();
+                }
+
+                string baseSlug = GenerateGitHubSlug(headerRaw);
+                if (string.IsNullOrEmpty(baseSlug) && !string.IsNullOrEmpty(explicitId))
+                {
+                    baseSlug = explicitId.ToLowerInvariant();
+                }
+                else if (string.IsNullOrEmpty(baseSlug))
+                {
+                    baseSlug = $"section-{i + 1}";
+                }
+
+                if (!string.IsNullOrEmpty(explicitId))
+                {
+                    customIds.Add(explicitId);
+                }
+
+                bool hasCollision = false;
+                int collisionIdx = 0;
+                string finalSlug = baseSlug;
+
+                if (slugOccurrences.TryGetValue(baseSlug, out int count))
+                {
+                    hasCollision = true;
+                    collisionIdx = count;
+                    finalSlug = $"{baseSlug}-{count}";
+                    slugOccurrences[baseSlug] = count + 1;
+                }
+                else
+                {
+                    slugOccurrences[baseSlug] = 1;
+                }
+
+                allGeneratedSlugs.Add(finalSlug);
+                allGeneratedSlugs.Add(baseSlug);
+
+                string status = hasCollision
+                    ? $"⚠ Duplicate heading slug collision (#{finalSlug} auto-disambiguated)"
+                    : $"✓ Unique slug (#{finalSlug})";
+
+                headerItems.Add(new HeaderAnchorItem(
+                    i + 1, level, headerRaw, finalSlug, hasCollision, collisionIdx, false, status));
+            }
+        }
+
+        var validAnchors = new HashSet<string>(allGeneratedSlugs, StringComparer.OrdinalIgnoreCase);
+        foreach (var cid in customIds) validAnchors.Add(cid);
+
+        var brokenTocSlugs = new List<string>();
+        var referencedSlugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var link in tocLinksFound)
+        {
+            if (validAnchors.Contains(link.Slug))
+            {
+                referencedSlugs.Add(link.Slug);
+            }
+            else
+            {
+                brokenTocSlugs.Add($"Line {link.LineNumber}: [{link.Label}](#{link.Slug})");
+            }
+        }
+
+        var updatedHeaders = new List<HeaderAnchorItem>();
+        int unreferencedCount = 0;
+        foreach (var h in headerItems)
+        {
+            bool isRef = referencedSlugs.Contains(h.Slug);
+            if (!isRef) unreferencedCount++;
+
+            string status = h.Status;
+            if (isRef) status += " · Synced in TOC";
+            else if (tocLinksFound.Count > 0) status += " · Not in TOC";
+
+            updatedHeaders.Add(h with { IsReferencedInToc = isRef, Status = status });
+        }
+
+        int totalHeaders = updatedHeaders.Count;
+        int collisions = updatedHeaders.Count(h => h.HasCollision);
+        int uniqueSlugs = slugOccurrences.Count;
+        int brokenTocCount = brokenTocSlugs.Count;
+        int tocCount = tocLinksFound.Count;
+
+        double score = 100.0;
+        if (totalHeaders > 0 || tocCount > 0)
+        {
+            score -= (collisions * 5.0);
+            score -= (brokenTocCount * 12.0);
+            if (tocCount > 0 && totalHeaders > 0 && unreferencedCount == totalHeaders)
+            {
+                score -= 10.0;
+            }
+        }
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Anchor & TOC Sync (≥90%)"
+            : score >= 75.0
+                ? "Moderate Anchor Collision Risk (75-89%)"
+                : "Degraded Navigation & Broken TOC (<75%)";
+
+        string summary = FormatHeaderAnchorSummary(
+            totalHeaders, uniqueSlugs, collisions, tocCount, brokenTocCount,
+            unreferencedCount, score, category, brokenTocSlugs);
+
+        return new HeaderAnchorAndTocAudit(
+            totalHeaders, uniqueSlugs, collisions, tocCount, brokenTocCount,
+            unreferencedCount, score, updatedHeaders, brokenTocSlugs, category, summary);
+    }
+
+    private static string GenerateGitHubSlug(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        var sb = new StringBuilder();
+        foreach (char c in text.Trim().ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(c) || c == '-' || c == '_')
+            {
+                sb.Append(c);
+            }
+            else if (char.IsWhiteSpace(c))
+            {
+                if (sb.Length > 0 && sb[sb.Length - 1] != '-')
+                {
+                    sb.Append('-');
+                }
+            }
+        }
+        return sb.ToString().Trim('-');
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown header anchor collisions and TOC synchronization.
+    /// </summary>
+    public static string FormatHeaderAnchorSummary(string? markdownText)
+        => AuditHeaderAnchorsAndTocSync(markdownText).Summary;
+
+    public static string FormatHeaderAnchorSummary(
+        int totalHeaders, int uniqueSlugs, int collisions, int tocLinks,
+        int brokenTocCount, int unreferencedHeaders, double score,
+        string category, IReadOnlyList<string>? brokenSlugs = null)
+    {
+        if (totalHeaders == 0 && tocLinks == 0)
+            return "Markdown header anchor & TOC audit: 0 headings · Document contains no headings or TOC links";
+
+        string headerStr = totalHeaders == 1 ? "1 heading" : $"{totalHeaders} headings";
+        var parts = new List<string>();
+        parts.Add($"{uniqueSlugs} unique anchor {(uniqueSlugs == 1 ? "slug" : "slugs")}");
+        if (collisions > 0) parts.Add($"⚠ {collisions} duplicate slug {(collisions == 1 ? "collision" : "collisions")}");
+        else parts.Add("0 slug collisions");
+
+        if (tocLinks > 0)
+        {
+            parts.Add($"{tocLinks} TOC {(tocLinks == 1 ? "link" : "links")}");
+            if (brokenTocCount > 0) parts.Add($"⚠ {brokenTocCount} broken TOC {(brokenTocCount == 1 ? "target" : "targets")}");
+            else parts.Add("100% TOC links resolved");
+        }
+        else
+        {
+            parts.Add("no TOC links defined");
+        }
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown header anchor & TOC audit ({headerStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -9523,5 +9771,36 @@ public sealed record MarkdownMathSyntaxAudit(
     IReadOnlyList<InlineMathItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, anchor slug, collision disambiguation, and TOC synchronization for a markdown heading.
+/// </summary>
+public sealed record HeaderAnchorItem(
+    int LineNumber,
+    int HeaderLevel,
+    string HeaderText,
+    string Slug,
+    bool HasCollision,
+    int CollisionIndex,
+    bool IsReferencedInToc,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown header anchor slug collisions, duplicates,
+/// and internal table-of-contents synchronization.
+/// </summary>
+public sealed record HeaderAnchorAndTocAudit(
+    int TotalHeaders,
+    int UniqueSlugs,
+    int CollisionCount,
+    int TocInternalLinksCount,
+    int BrokenTocLinksCount,
+    int UnreferencedHeadersCount,
+    double AnchorSyncScore,
+    IReadOnlyList<HeaderAnchorItem> Items,
+    IReadOnlyList<string> BrokenTocSlugs,
+    string Category,
+    string Summary);
+
 
 

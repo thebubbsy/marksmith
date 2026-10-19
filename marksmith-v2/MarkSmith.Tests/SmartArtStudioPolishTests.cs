@@ -2327,6 +2327,63 @@ public class SmartArtStudioPolishTests
         Assert.Equal(3, skewedAudit.EmptyQuadrants);
         Assert.True(skewedAudit.SymmetryScore < audit.SymmetryScore);
     }
+
+    [Fact]
+    public void Run184_AuditFunnelPyramidVolumeProgression_EvaluatesStagingAndProgression()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditFunnelPyramidVolumeProgression("", "Funnel");
+        Assert.Equal(0, emptyAudit.TotalStages);
+        Assert.Equal(100.0, emptyAudit.VolumeProgressionScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+        Assert.Contains("0 stages", emptyAudit.Summary);
+
+        // 2. Structured 4-stage funnel outline
+        var funnelMd = string.Join("\n",
+            "- Awareness Stage",
+            "- Consideration & Evaluation",
+            "- Decision & Purchase",
+            "- Retention & Loyalty"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditFunnelPyramidVolumeProgression(funnelMd, "Funnel");
+        Assert.Equal(4, audit.TotalStages);
+        Assert.True(audit.IsFunnelLayout);
+        Assert.True(audit.IsMonotonicallyOrdered);
+        Assert.Equal(0, audit.WordLengthViolations);
+        Assert.Equal(100.0, audit.VolumeProgressionScore);
+        Assert.Equal("Optimal Stage Progression (≥90%)", audit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatFunnelPyramidSummary(
+            audit.TotalStages, audit.IsFunnelLayout, audit.IsPyramidLayout,
+            audit.IsMonotonicallyOrdered, audit.WordLengthViolations,
+            audit.VolumeProgressionScore, audit.Category, audit.LayoutName);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Structured 3-stage pyramid outline
+        var pyramidMd = string.Join("\n",
+            "- Strategic Vision",
+            "- Operational Programs",
+            "- Tactical Execution Tasks"
+        );
+
+        var pyrAudit = SmartArtDesignStudioViewModel.AuditFunnelPyramidVolumeProgression(pyramidMd, "Pyramid");
+        Assert.Equal(3, pyrAudit.TotalStages);
+        Assert.True(pyrAudit.IsPyramidLayout);
+        Assert.True(pyrAudit.IsMonotonicallyOrdered);
+        Assert.Equal(100.0, pyrAudit.VolumeProgressionScore);
+
+        // 4. Overly verbose stages
+        var verboseMd = string.Join("\n",
+            "- First Stage with way too many words in this description that exceeds twelve words in total length violation",
+            "- Second Stage"
+        );
+
+        var verboseAudit = SmartArtDesignStudioViewModel.AuditFunnelPyramidVolumeProgression(verboseMd, "Funnel");
+        Assert.Equal(2, verboseAudit.TotalStages);
+        Assert.True(verboseAudit.WordLengthViolations >= 1);
+        Assert.True(verboseAudit.VolumeProgressionScore < 100.0);
+    }
 }
 
 

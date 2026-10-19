@@ -357,6 +357,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceMarkdownDialectAdvisorItem" Text="Copy workspace markdown syntax dialect conventions &amp; formatting alignment advisor" Click="OnCopyWorkspaceMarkdownDialectAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="GenerateWorkspaceDialectConfigFileItem" Text="Generate &amp; copy workspace .marksmith.json markdown dialect configuration file" Click="OnGenerateWorkspaceDialectConfigFileClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

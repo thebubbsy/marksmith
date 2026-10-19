@@ -7136,10 +7136,36 @@ public static class LineDiff
                         {
                             declaredVars[varName] = (info.DeclLine, info.DeclType, true);
 
-                            string risk = isAsync ? "High Risk (Async Closure Escape)" : "Moderate (Enclosed Callback)";
-                            string status = isAsync
-                                ? $"⚠ Captured in async lambda/task on line {lineNum} (+{lineNum - info.DeclLine} lines)"
-                                : $"✓ Captured in local delegate on line {lineNum} (+{lineNum - info.DeclLine} lines)";
+                            // Variable lifetime analysis after closure invocation
+                            bool hasPostCaptureMutation = false;
+                            int mutationLine = 0;
+                            var mutRegex = new Regex($@"\b{Regex.Escape(varName)}\s*(?:=|\+\+|--|\+=|-=|\*=|/=|%=)", RegexOptions.Compiled);
+                            for (int j = i + 1; j < unifiedRows.Count; j++)
+                            {
+                                string laterLine = unifiedRows[j].Text ?? "";
+                                if (mutRegex.IsMatch(laterLine))
+                                {
+                                    hasPostCaptureMutation = true;
+                                    mutationLine = unifiedRows[j].NewNumber ?? unifiedRows[j].OldNumber ?? (j + 1);
+                                    break;
+                                }
+                            }
+
+                            string risk = isAsync
+                                ? (hasPostCaptureMutation ? "Critical Race Hazard (Post-Async Mutation)" : "High Risk (Async Closure Escape)")
+                                : (hasPostCaptureMutation ? "Moderate (Post-Capture Mutation)" : "Moderate (Enclosed Callback)");
+
+                            string concurrencyRisk = isAsync && hasPostCaptureMutation
+                                ? "Critical"
+                                : isAsync ? "High" : (hasPostCaptureMutation ? "Moderate" : "Low");
+
+                            string status = isAsync && hasPostCaptureMutation
+                                ? $"⚠ Critical race condition: mutated on line {mutationLine} after async capture on line {lineNum}"
+                                : isAsync
+                                    ? $"⚠ Captured in async lambda/task on line {lineNum} (+{lineNum - info.DeclLine} lines)"
+                                    : hasPostCaptureMutation
+                                        ? $"⚠ Modified closure hazard: mutated on line {mutationLine} after capture on line {lineNum}"
+                                        : $"✓ Captured in local delegate on line {lineNum} (+{lineNum - info.DeclLine} lines)";
 
                             escapes.Add(new ClosureEscapeItem(
                                 info.DeclLine,
@@ -7149,9 +7175,12 @@ public static class LineDiff
                                 startsClosure ? "Lambda / Delegate Closure" : "Async/Closure Scope Escape",
                                 isAsync,
                                 risk,
-                                status));
+                                status,
+                                hasPostCaptureMutation,
+                                isAsync,
+                                concurrencyRisk));
 
-                            if (isAsync) highRiskAsyncCount++;
+                            if (isAsync || hasPostCaptureMutation) highRiskAsyncCount++;
                             else escapedCount++;
                         }
                     }
@@ -7181,7 +7210,10 @@ public static class LineDiff
                 "Diff closure capture & scope escape audit: 0 variable declarations in diff · Clean baseline");
         }
 
-        double penalty = (highRiskAsyncCount * 18.0) + (escapedCount * 6.0);
+        int postMutCount = escapes.Count(e => e.HasPostCaptureMutation);
+        int raceCount = escapes.Count(e => e.ConcurrencyRiskLevel == "Critical" || e.ConcurrencyRiskLevel == "High");
+
+        double penalty = (highRiskAsyncCount * 18.0) + (escapedCount * 6.0) + (postMutCount * 10.0);
         double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
         score = Math.Round(score, 1);
 
@@ -7197,7 +7229,8 @@ public static class LineDiff
             totalVars, safeLocalCount, escapedCount, highRiskAsyncCount, score, category, escapes);
 
         return new DiffClosureCaptureAudit(
-            totalVars, safeLocalCount, escapedCount, highRiskAsyncCount, score, escapes, category, summary);
+            totalVars, safeLocalCount, escapedCount, highRiskAsyncCount, score, escapes, category, summary,
+            postMutCount, raceCount);
     }
 
     public static DiffClosureCaptureAudit AuditClosureCaptureAndScopeEscapes(string? beforeText, string? afterText)
@@ -7220,6 +7253,9 @@ public static class LineDiff
         if (escaped > 0) parts.Add($"{escaped} callback capture");
         if (highRiskAsync > 0) parts.Add($"⚠ {highRiskAsync} async closure escape");
         else parts.Add("0 async leaks");
+
+        int postMutations = escapes?.Count(e => e.HasPostCaptureMutation) ?? 0;
+        if (postMutations > 0) parts.Add($"⚠ {postMutations} post-capture mutation race hazard");
 
         string details = string.Join(" · ", parts);
         return $"Diff closure capture & escape audit ({varStr} · {category} · {score:0.#}% encapsulation): {details}";
@@ -7905,7 +7941,10 @@ public sealed record ClosureEscapeItem(
     string EscapeKind,
     bool IsAsyncOrTaskClosure,
     string RiskLevel,
-    string Status);
+    string Status,
+    bool HasPostCaptureMutation = false,
+    bool CrossesAsyncAwaitBoundary = false,
+    string ConcurrencyRiskLevel = "Low");
 
 /// <summary>
 /// Represents the result of an audit of semantic diff variable closure capturing, lambda boundary escapes, and race condition risks.
@@ -7918,7 +7957,9 @@ public sealed record DiffClosureCaptureAudit(
     double EncapsulationScore,
     IReadOnlyList<ClosureEscapeItem> Escapes,
     string Category,
-    string Summary);
+    string Summary,
+    int PostCaptureMutationsCount = 0,
+    int ConcurrencyRaceRiskCount = 0);
 
 
 

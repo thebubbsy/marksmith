@@ -2625,6 +2625,55 @@ public class ShapeStudioPolishTests
         Assert.Equal(2, detourAudit.TotalConnectors);
         Assert.True(detourAudit.AverageDirectnessRatio >= 1.0);
     }
+
+    [Fact]
+    public void Run184_AuditLayerStackingAndOcclusion_EvaluatesZIndexAndOcclusion()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditLayerStackingAndOcclusion();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.HierarchyClarityScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+        Assert.Contains("0 shapes", emptyAudit.Summary);
+
+        // 2. Single shape
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Shape 1", X = 0, Y = 0, Width = 100, Height = 100 };
+        vm.Shapes.Add(s1);
+
+        var singleAudit = vm.AuditLayerStackingAndOcclusion();
+        Assert.Equal(1, singleAudit.TotalShapes);
+        Assert.Equal(100.0, singleAudit.HierarchyClarityScore);
+        Assert.Equal("Optimal Stacking (100%)", singleAudit.Category);
+
+        // 3. Two separate non-overlapping shapes
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Shape 2", X = 200, Y = 0, Width = 100, Height = 100 };
+        vm.Shapes.Add(s2);
+
+        var separateAudit = vm.AuditLayerStackingAndOcclusion();
+        Assert.Equal(2, separateAudit.TotalShapes);
+        Assert.Equal(0, separateAudit.OverlappingPairsCount);
+        Assert.Equal(0, separateAudit.CompletelyHiddenCount);
+        Assert.Equal(100.0, separateAudit.HierarchyClarityScore);
+        Assert.Equal("Optimal Layer Stacking & Visibility (≥90%)", separateAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatLayerStackingSummary(
+            separateAudit.TotalShapes, separateAudit.OverlappingPairsCount,
+            separateAudit.SevereOcclusionCount, separateAudit.CompletelyHiddenCount,
+            separateAudit.HierarchyClarityScore, separateAudit.Category, separateAudit.IsSelectionScope);
+        Assert.Equal(separateAudit.Summary, formatted);
+
+        // 4. Occlusion: Shape 3 stacked directly over Shape 1 (completely hiding it)
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Name = "Cover Shape", X = 0, Y = 0, Width = 150, Height = 150 };
+        vm.Shapes.Add(s3);
+
+        var occlusionAudit = vm.AuditLayerStackingAndOcclusion();
+        Assert.Equal(3, occlusionAudit.TotalShapes);
+        Assert.True(occlusionAudit.OverlappingPairsCount >= 1);
+        Assert.True(occlusionAudit.CompletelyHiddenCount >= 1);
+        Assert.True(occlusionAudit.HierarchyClarityScore < 100.0);
+    }
 }
 
 

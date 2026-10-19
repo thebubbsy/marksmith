@@ -2589,6 +2589,79 @@ public class TextSearchTests
         Assert.True(malformedAudit.UnclosedBraceCount >= 1 || malformedAudit.MalformedBlockCount >= 1);
         Assert.True(malformedAudit.SyntaxIntegrityScore < 100.0);
     }
+
+    [Fact]
+    public void Run184_AuditHeaderAnchorsAndTocSync_EvaluatesSlugsAndCollisions()
+    {
+        // 1. Empty / null input
+        var emptyAudit = TextSearch.AuditHeaderAnchorsAndTocSync(null);
+        Assert.Equal(0, emptyAudit.TotalHeaders);
+        Assert.Equal(100.0, emptyAudit.AnchorSyncScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 headings", emptyAudit.Summary);
+
+        // 2. Structured markdown document with headings and TOC links
+        var doc = string.Join("\n",
+            "# Getting Started",
+            "",
+            "## Table of Contents",
+            "- [Getting Started](#getting-started)",
+            "- [Installation](#installation)",
+            "- [Configuration](#configuration)",
+            "- [Advanced Usage](#advanced-usage)",
+            "",
+            "## Installation",
+            "Run setup commands here.",
+            "",
+            "## Configuration",
+            "Configure settings here.",
+            "",
+            "## Advanced Usage",
+            "Deep dive into advanced topics.",
+            "",
+            "```markdown",
+            "# Ignored Heading inside Code Fence",
+            "```"
+        );
+
+        var audit = TextSearch.AuditHeaderAnchorsAndTocSync(doc);
+        Assert.Equal(5, audit.TotalHeaders);
+        Assert.Equal(5, audit.UniqueSlugs);
+        Assert.Equal(0, audit.CollisionCount);
+        Assert.Equal(4, audit.TocInternalLinksCount);
+        Assert.Equal(0, audit.BrokenTocLinksCount);
+        Assert.Equal(100.0, audit.AnchorSyncScore);
+        Assert.Equal("Optimal Anchor & TOC Sync (≥90%)", audit.Category);
+
+        string formatted = TextSearch.FormatHeaderAnchorSummary(
+            audit.TotalHeaders, audit.UniqueSlugs, audit.CollisionCount,
+            audit.TocInternalLinksCount, audit.BrokenTocLinksCount,
+            audit.UnreferencedHeadersCount, audit.AnchorSyncScore,
+            audit.Category, audit.BrokenTocSlugs);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Document with duplicate headings (collision) and broken TOC link
+        var collisionDoc = string.Join("\n",
+            "# Overview",
+            "- [Overview](#overview)",
+            "- [Broken Section](#non-existent-section)",
+            "",
+            "## Setup",
+            "Initial setup.",
+            "",
+            "## Setup",
+            "Duplicate setup section.",
+            "",
+            "## Setup {#custom-setup-id}",
+            "Explicit custom ID setup."
+        );
+
+        var collisionAudit = TextSearch.AuditHeaderAnchorsAndTocSync(collisionDoc);
+        Assert.True(collisionAudit.TotalHeaders >= 4);
+        Assert.True(collisionAudit.CollisionCount >= 1);
+        Assert.Equal(1, collisionAudit.BrokenTocLinksCount);
+        Assert.True(collisionAudit.AnchorSyncScore < 100.0);
+    }
 }
 
 

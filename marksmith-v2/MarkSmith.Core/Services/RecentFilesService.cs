@@ -6982,10 +6982,11 @@ public sealed class RecentFilesService
             totalTagged, totalUntagged, totalHyphens, totalAsterisks, totalPlus,
             totalAtx, totalSetext, dialectScore, category, items);
 
-        return new WorkspaceMarkdownDialectAudit(
+        var audit = new WorkspaceMarkdownDialectAudit(
             mdFiles.Count, items.Count, dominantFence, totalBackticks, totalTildes,
             totalTagged, totalUntagged, totalHyphens, totalAsterisks, totalPlus,
             totalAtx, totalSetext, dialectScore, items, category, summary);
+        return audit with { RecommendedConfiguration = GenerateRecommendedDialectConfiguration(audit) };
     }
 
     public static WorkspaceMarkdownDialectAudit AuditWorkspaceMarkdownDialectConsistency(
@@ -7013,6 +7014,60 @@ public sealed class RecentFilesService
 
         string details = parts.Count > 0 ? $" · {string.Join(", ", parts)}" : "";
         return $"Workspace markdown dialect advisor ({docStr} · {category} · {score:0.#}% alignment): {details}";
+    }
+
+    /// <summary>
+    /// Generates a standardized .marksmith.json configuration document based on the audited workspace markdown dialect preferences.
+    /// </summary>
+    public static string GenerateRecommendedDialectConfiguration(WorkspaceMarkdownDialectAudit audit)
+    {
+        if (audit == null || audit.TotalFilesScanned == 0)
+        {
+            return """
+{
+  "$schema": "https://onyachamp.com/schemas/marksmith-config.v1.json",
+  "markdown": {
+    "preferredCodeFence": "backtick",
+    "requireCodeLanguageTag": true,
+    "preferredListMarker": "-",
+    "preferredHeadingStyle": "atx",
+    "enforceStandardDialect": true
+  },
+  "auditBaseline": {
+    "totalFiles": 0,
+    "dialectAlignmentScore": 100.0,
+    "category": "Default Baseline"
+  }
+}
+""";
+        }
+
+        string fence = audit.DominantFenceType.Contains("tilde", StringComparison.OrdinalIgnoreCase) ? "tilde" : "backtick";
+        string listMarker = audit.AsteriskListTotal > audit.HyphenListTotal && audit.AsteriskListTotal > audit.PlusListTotal ? "*" : "-";
+        string headingStyle = audit.SetextHeadingsTotal > audit.AtxHeadingsTotal ? "setext" : "atx";
+        bool requireLangTag = audit.UntaggedFencesTotal == 0;
+
+        return $$"""
+{
+  "$schema": "https://onyachamp.com/schemas/marksmith-config.v1.json",
+  "markdown": {
+    "preferredCodeFence": "{{fence}}",
+    "requireCodeLanguageTag": {{requireLangTag.ToString().ToLowerInvariant()}},
+    "preferredListMarker": "{{listMarker}}",
+    "preferredHeadingStyle": "{{headingStyle}}",
+    "enforceStandardDialect": true
+  },
+  "auditBaseline": {
+    "totalFiles": {{audit.TotalFilesScanned}},
+    "filesWithMarkdown": {{audit.FilesWithMarkdown}},
+    "dominantFence": "{{audit.DominantFenceType}}",
+    "taggedCodeBlocks": {{audit.TaggedLanguageFencesTotal}},
+    "untaggedCodeBlocks": {{audit.UntaggedFencesTotal}},
+    "dialectAlignmentScore": {{audit.DialectAlignmentScore:0.#}},
+    "category": "{{audit.Category}}"
+  }
+}
+""";
     }
 }
 
@@ -7901,7 +7956,8 @@ public sealed record WorkspaceMarkdownDialectAudit(
     double DialectAlignmentScore,
     IReadOnlyList<MarkdownDialectFileItem> Files,
     string Category,
-    string Summary);
+    string Summary,
+    string? RecommendedConfiguration = null);
 
 
 

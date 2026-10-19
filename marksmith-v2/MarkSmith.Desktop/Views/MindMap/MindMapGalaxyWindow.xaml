@@ -366,6 +366,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphEdgeCrossingsItem" Text="Audit graph edge crossing density &amp; topological planarity" Click="OnAuditGraphEdgeCrossingsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphSpatialBalanceItem" Text="Audit graph visual mass center of gravity, spatial balance &amp; viewport centering" Click="OnAuditGraphSpatialBalanceClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

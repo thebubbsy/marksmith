@@ -11851,6 +11851,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditMathSyntaxItem);
 
+        var auditHeaderAnchorTocItem = new MenuFlyoutItem
+        {
+            Text = "Audit Header Anchor Slugs, Duplicates & TOC Navigation",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditHeaderAnchorTocItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditHeaderAnchorsAndTocSync(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditHeaderAnchorTocItem);
+
         menu.ShowAt(anchor);
     }
 
