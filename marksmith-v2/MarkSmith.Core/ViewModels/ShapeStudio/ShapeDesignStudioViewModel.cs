@@ -7546,6 +7546,145 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         return $"Connector port snapping audit ({scopeStr}{connLabel}, {shapeLabel} · {category} · {score:0.#}% precision) · {string.Join(", ", alerts)}";
     }
+
+    /// <summary>
+    /// Audits diagram canvas spatial balance, calculating area-weighted centroid (Cx, Cy)
+    /// relative to canvas center, detecting visual lopsidedness, and evaluating outer margin clearances (>= 40px).
+    /// </summary>
+    public CanvasSpatialBalanceAudit AuditCanvasSpatialBalance(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null, double canvasWidth = 1920, double canvasHeight = 1080)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count > 0 ? selected : Shapes)).ToList();
+        bool isSelection = (targetShapes != null) || (selected.Count > 0 && selected.Count < Shapes.Count);
+
+        var audit = AuditCanvasSpatialBalance(targets, canvasWidth, canvasHeight, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static CanvasSpatialBalanceAudit AuditCanvasSpatialBalance(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes,
+        double canvasWidth = 1920,
+        double canvasHeight = 1080,
+        bool isSelection = false)
+    {
+        var list = shapes?.ToList() ?? new List<ShapeCanvasItemViewModel>();
+        string scope = isSelection ? "Selection · " : "";
+
+        if (list.Count == 0)
+        {
+            string emptySummary = $"Canvas spatial balance audit ({scope}0 shapes): Canvas contains no shapes";
+            return new CanvasSpatialBalanceAudit(
+                0, canvasWidth, canvasHeight, canvasWidth / 2.0, canvasHeight / 2.0,
+                0.0, canvasWidth / 2.0, canvasHeight / 2.0, canvasWidth / 2.0, canvasHeight / 2.0,
+                Math.Min(canvasWidth, canvasHeight) / 2.0, 0, 100.0, "Empty Canvas", isSelection, emptySummary);
+        }
+
+        double totalArea = 0.0;
+        double weightedX = 0.0;
+        double weightedY = 0.0;
+
+        double minX = double.MaxValue;
+        double maxX = double.MinValue;
+        double minY = double.MaxValue;
+        double maxY = double.MinValue;
+
+        double leftHalfArea = 0.0;
+        double rightHalfArea = 0.0;
+        double topHalfArea = 0.0;
+        double bottomHalfArea = 0.0;
+
+        double centerX = canvasWidth / 2.0;
+        double centerY = canvasHeight / 2.0;
+
+        foreach (var s in list)
+        {
+            double w = Math.Max(1.0, s.Width);
+            double h = Math.Max(1.0, s.Height);
+            double area = w * h;
+            double shapeCx = s.X + w / 2.0;
+            double shapeCy = s.Y + h / 2.0;
+
+            totalArea += area;
+            weightedX += area * shapeCx;
+            weightedY += area * shapeCy;
+
+            if (s.X < minX) minX = s.X;
+            if (s.X + w > maxX) maxX = s.X + w;
+            if (s.Y < minY) minY = s.Y;
+            if (s.Y + h > maxY) maxY = s.Y + h;
+
+            if (shapeCx < centerX) leftHalfArea += area;
+            else rightHalfArea += area;
+
+            if (shapeCy < centerY) topHalfArea += area;
+            else bottomHalfArea += area;
+        }
+
+        double centroidX = Math.Round(weightedX / totalArea, 1);
+        double centroidY = Math.Round(weightedY / totalArea, 1);
+
+        double offX = centroidX - centerX;
+        double offY = centroidY - centerY;
+        double offsetDist = Math.Round(Math.Sqrt(offX * offX + offY * offY), 1);
+
+        double diag = Math.Sqrt(canvasWidth * canvasWidth + canvasHeight * canvasHeight);
+        double normOffsetPct = Math.Round((offsetDist / (diag / 2.0)) * 100.0, 1);
+
+        double marginLeft = Math.Round(minX, 1);
+        double marginTop = Math.Round(minY, 1);
+        double marginRight = Math.Round(canvasWidth - maxX, 1);
+        double marginBottom = Math.Round(canvasHeight - maxY, 1);
+
+        double minMargin = Math.Min(Math.Min(marginLeft, marginTop), Math.Min(marginRight, marginBottom));
+
+        int edgeCrowdingHazards = 0;
+        const double SafeMarginThreshold = 40.0;
+        if (marginLeft < SafeMarginThreshold) edgeCrowdingHazards++;
+        if (marginTop < SafeMarginThreshold) edgeCrowdingHazards++;
+        if (marginRight < SafeMarginThreshold) edgeCrowdingHazards++;
+        if (marginBottom < SafeMarginThreshold) edgeCrowdingHazards++;
+
+        double penalty = (normOffsetPct * 1.5) + (edgeCrowdingHazards * 15.0);
+        if (minMargin < 0) penalty += Math.Abs(minMargin) * 0.5;
+
+        double balanceScore = Math.Round(Math.Clamp(100.0 - penalty, 0.0, 100.0), 1);
+
+        string category;
+        if (balanceScore >= 90.0 && edgeCrowdingHazards == 0) category = "Equilibrium Spatial Distribution";
+        else if (balanceScore >= 75.0 && edgeCrowdingHazards == 0) category = "Balanced Composition";
+        else if (edgeCrowdingHazards > 0) category = "Edge Crowding Hazard (<40px)";
+        else category = "Moderate Visual Lopsidedness";
+
+        string summary = FormatSpatialBalanceSummary(
+            list.Count, canvasWidth, canvasHeight, centroidX, centroidY, offsetDist,
+            marginLeft, marginTop, marginRight, marginBottom, minMargin,
+            edgeCrowdingHazards, balanceScore, category, isSelection);
+
+        return new CanvasSpatialBalanceAudit(
+            list.Count, canvasWidth, canvasHeight, centroidX, centroidY, offsetDist,
+            marginLeft, marginTop, marginRight, marginBottom, minMargin,
+            edgeCrowdingHazards, balanceScore, category, isSelection, summary);
+    }
+
+    public static string FormatSpatialBalanceSummary(
+        int shapeCount, double width, double height, double cx, double cy, double offsetDist,
+        double ml, double mt, double mr, double mb, double minMargin,
+        int crowdingHazards, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        string shapeLabel = shapeCount == 1 ? "1 shape" : $"{shapeCount} shapes";
+
+        var alerts = new List<string>();
+        if (crowdingHazards > 0) alerts.Add($"🚨 {crowdingHazards} edge crowding (<40px)");
+        if (offsetDist > 50.0) alerts.Add($"⚠ ~{offsetDist:0.#}px center offset");
+        if (minMargin < 0) alerts.Add($"🚨 Canvas overflow ({-minMargin:0.#}px)");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · Uniform margin clearance";
+
+        return $"Canvas spatial balance audit ({scopeStr}{shapeLabel} [{width:0}x{height:0}] · {category} · {score:0.#}% balance): Centroid ({cx:0.#}, {cy:0.#}){alertSuffix}";
+    }
+
 }
 
 /// <summary>
@@ -8148,6 +8287,28 @@ public sealed record ConnectorPortSnappingAudit(
     int SubpixelDriftCount,
     double PortSnappingScore,
     IReadOnlyList<ConnectorPortSnapDetail> Details,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+/// <summary>
+/// Represents the result of an audit of canvas spatial balance, area-weighted center of mass,
+/// directional lopsidedness, and outer margin clearance conformance.
+/// </summary>
+public sealed record CanvasSpatialBalanceAudit(
+    int TotalShapesEvaluated,
+    double CanvasWidth,
+    double CanvasHeight,
+    double CentroidX,
+    double CentroidY,
+    double OffsetFromCenter,
+    double MarginLeft,
+    double MarginTop,
+    double MarginRight,
+    double MarginBottom,
+    double MinMargin,
+    int EdgeCrowdingHazards,
+    double SpatialBalanceScore,
     string Category,
     bool IsSelectionScope,
     string Summary);

@@ -2827,6 +2827,34 @@ namespace MarkSmith.Tests
                 starAudit.IsSelectionScope, starAudit.Nodes);
             Assert.Equal(starAudit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run173_AuditClusteringCoefficientAndTriangles_EvaluatesWattsStrogatzClustering()
+        {
+            var emptyAudit = MindMapStudioViewModel.AuditClusteringCoefficientAndTriangles(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalLinks);
+            Assert.Equal(0, emptyAudit.TotalTriangles);
+
+            // Triangle graph: A - B - C - A
+            var nA = new MindMapNode { Id = "A", Title = "Concept A" };
+            var nB = new MindMapNode { Id = "B", Title = "Concept B" };
+            var nC = new MindMapNode { Id = "C", Title = "Concept C" };
+
+            var e1 = new MindMapLink { Id = "e1", SourceNodeId = "A", TargetNodeId = "B" };
+            var e2 = new MindMapLink { Id = "e2", SourceNodeId = "B", TargetNodeId = "C" };
+            var e3 = new MindMapLink { Id = "e3", SourceNodeId = "C", TargetNodeId = "A" };
+
+            var triAudit = MindMapStudioViewModel.AuditClusteringCoefficientAndTriangles(
+                new[] { nA, nB, nC },
+                new[] { e1, e2, e3 });
+
+            Assert.Equal(3, triAudit.TotalNodes);
+            Assert.Equal(3, triAudit.TotalLinks);
+            Assert.Equal(1, triAudit.TotalTriangles);
+            Assert.Equal(100.0, triAudit.GlobalTransitivity);
+            Assert.Equal(100.0, triAudit.MeanClusteringCoefficient);
+        }
     }
 }
 

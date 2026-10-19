@@ -356,6 +356,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditProcessSequencePacingItem" Text="Audit chevron &amp; linear process sequence pacing &amp; aspect ratio" Click="OnAuditProcessSequencePacingClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyBranchingItem" Text="Audit hierarchy tree aspect ratio, branching balance &amp; fan ergonomics" Click="OnAuditHierarchyBranchingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF158;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -5409,6 +5409,193 @@ public static class LineDiff
         }
         return d0[m];
     }
+
+    /// <summary>
+    /// Audits semantic diff unified rows for identifier symbol scope transitions, detecting declaration moves,
+    /// promotions from local to class member scope (expansion), and encapsulation from member to local scope (contraction).
+    /// </summary>
+    public static IdentifierScopeTransitionsAudit AuditIdentifierScopeTransitions(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new IdentifierScopeTransitionsAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<IdentifierScopeTransition>(),
+                "Empty Diff",
+                "Identifier scope transitions audit: 0 diff rows · No diff rows to audit");
+        }
+
+        var removedDecls = new Dictionary<string, (string Scope, int? Line, string Snippet)>(StringComparer.Ordinal);
+        var addedDecls = new Dictionary<string, (string Scope, int? Line, string Snippet)>(StringComparer.Ordinal);
+
+        string oldScope = "Global / Namespace";
+        string newScope = "Global / Namespace";
+        int oldBraceDepth = 0;
+        int newBraceDepth = 0;
+
+        var typeRegex = new System.Text.RegularExpressions.Regex(@"\b(?:class|struct|interface|record|enum)\s+([A-Za-z_][A-Za-z0-9_]*)", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var memberRegex = new System.Text.RegularExpressions.Regex(@"\b(?:public|private|protected|internal|static|readonly|volatile|virtual|override|abstract|async)\s+(?:[\w<>\[\],\s?]+?)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:[;={]|=>|\()", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var localRegex = new System.Text.RegularExpressions.Regex(@"\b(?:var|int|string|bool|double|float|long|short|byte|char|decimal|object|auto|let|const)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[=;]", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        foreach (var row in unifiedRows)
+        {
+            if (row.IsGap) continue;
+            string raw = (row.Text ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(raw) || raw.StartsWith("//") || raw.StartsWith("/*") || raw.StartsWith("*"))
+                continue;
+
+            int openBraces = raw.Count(c => c == '{');
+            int closeBraces = raw.Count(c => c == '}');
+
+            if (row.Kind == Kind.Removed || row.Kind == Kind.Same)
+            {
+                oldBraceDepth += openBraces - closeBraces;
+                if (typeRegex.IsMatch(raw)) oldScope = "Class Member";
+                else if (oldBraceDepth <= 0) oldScope = "Global / Namespace";
+                else if (oldBraceDepth == 1) oldScope = "Class Member";
+                else oldScope = "Local Method / Block";
+
+                if (row.Kind == Kind.Removed)
+                {
+                    var mMember = memberRegex.Match(raw);
+                    var mLocal = localRegex.Match(raw);
+                    var mType = typeRegex.Match(raw);
+
+                    string? ident = null;
+                    if (mMember.Success && !raw.Contains("class ") && !raw.Contains("struct ")) ident = mMember.Groups[1].Value;
+                    else if (mLocal.Success) ident = mLocal.Groups[1].Value;
+                    else if (mType.Success) ident = mType.Groups[1].Value;
+
+                    if (!string.IsNullOrEmpty(ident) && ident.Length > 1 && !removedDecls.ContainsKey(ident))
+                    {
+                        removedDecls[ident] = (oldScope, row.OldNumber, raw);
+                    }
+                }
+            }
+
+            if (row.Kind == Kind.Added || row.Kind == Kind.Same)
+            {
+                newBraceDepth += openBraces - closeBraces;
+                if (typeRegex.IsMatch(raw)) newScope = "Class Member";
+                else if (newBraceDepth <= 0) newScope = "Global / Namespace";
+                else if (newBraceDepth == 1) newScope = "Class Member";
+                else newScope = "Local Method / Block";
+
+                if (row.Kind == Kind.Added)
+                {
+                    var mMember = memberRegex.Match(raw);
+                    var mLocal = localRegex.Match(raw);
+                    var mType = typeRegex.Match(raw);
+
+                    string? ident = null;
+                    if (mMember.Success && !raw.Contains("class ") && !raw.Contains("struct ")) ident = mMember.Groups[1].Value;
+                    else if (mLocal.Success) ident = mLocal.Groups[1].Value;
+                    else if (mType.Success) ident = mType.Groups[1].Value;
+
+                    if (!string.IsNullOrEmpty(ident) && ident.Length > 1 && !addedDecls.ContainsKey(ident))
+                    {
+                        addedDecls[ident] = (newScope, row.NewNumber, raw);
+                    }
+                }
+            }
+        }
+
+        var transitions = new List<IdentifierScopeTransition>();
+        int expansions = 0;
+        int contractions = 0;
+        int laterals = 0;
+
+        foreach (var kv in removedDecls)
+        {
+            string ident = kv.Key;
+            var from = kv.Value;
+
+            if (addedDecls.TryGetValue(ident, out var to))
+            {
+                if (!string.Equals(from.Scope, to.Scope, StringComparison.OrdinalIgnoreCase))
+                {
+                    string transitionType;
+                    if (from.Scope == "Local Method / Block" && (to.Scope == "Class Member" || to.Scope == "Global / Namespace"))
+                    {
+                        transitionType = "Scope Expansion (Promoted)";
+                        expansions++;
+                    }
+                    else if (from.Scope == "Class Member" && to.Scope == "Global / Namespace")
+                    {
+                        transitionType = "Scope Expansion (Hoisted)";
+                        expansions++;
+                    }
+                    else if ((from.Scope == "Global / Namespace" || from.Scope == "Class Member") && to.Scope == "Local Method / Block")
+                    {
+                        transitionType = "Scope Contraction (Encapsulated)";
+                        contractions++;
+                    }
+                    else if (from.Scope == "Global / Namespace" && to.Scope == "Class Member")
+                    {
+                        transitionType = "Scope Contraction (Member-Scoped)";
+                        contractions++;
+                    }
+                    else
+                    {
+                        transitionType = "Lateral Move";
+                        laterals++;
+                    }
+
+                    transitions.Add(new IdentifierScopeTransition(
+                        ident, from.Scope, to.Scope, transitionType,
+                        from.Line, to.Line, from.Snippet, to.Snippet));
+                }
+            }
+        }
+
+        int totalTransitions = transitions.Count;
+        double penalty = totalTransitions * 12.0;
+        double stabilityScore = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category;
+        if (totalTransitions == 0) category = "Stable Scopes (No Transitions)";
+        else if (expansions > contractions) category = "Scope Expansion Dominant (Promotion/Hoisting)";
+        else if (contractions > expansions) category = "Scope Contraction Dominant (Encapsulation)";
+        else category = "Balanced / Lateral Scope Transitions";
+
+        string summary = FormatIdentifierScopeTransitionsSummary(
+            unifiedRows.Count, totalTransitions, expansions, contractions, laterals, stabilityScore, category);
+
+        return new IdentifierScopeTransitionsAudit(
+            TotalDiffRows: unifiedRows.Count,
+            TotalTransitions: totalTransitions,
+            ScopeExpansions: expansions,
+            ScopeContractions: contractions,
+            LateralMoves: laterals,
+            ScopeStabilityScore: stabilityScore,
+            Transitions: transitions,
+            Category: category,
+            Summary: summary);
+    }
+
+    public static IdentifierScopeTransitionsAudit AuditIdentifierScopeTransitions(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditIdentifierScopeTransitions(unified);
+    }
+
+    public static string FormatIdentifierScopeTransitionsSummary(
+        int totalRows, int totalTransitions, int expansions, int contractions, int laterals,
+        double score, string category)
+    {
+        if (totalRows == 0) return "Identifier scope transitions audit: 0 diff rows · No diff rows to audit";
+        if (totalTransitions == 0) return $"Identifier scope transitions audit ({totalRows} diff rows · {category} · 100% stability): No scope transitions detected";
+
+        string transLabel = totalTransitions == 1 ? "1 transition" : $"{totalTransitions} transitions";
+        var alerts = new List<string>();
+        if (expansions > 0) alerts.Add($"↑ {expansions} expansion{(expansions == 1 ? "" : "s")}");
+        if (contractions > 0) alerts.Add($"↓ {contractions} contraction{(contractions == 1 ? "" : "s")}");
+        if (laterals > 0) alerts.Add($"↔ {laterals} lateral{(laterals == 1 ? "" : "s")}");
+
+        return $"Identifier scope transitions audit ({totalRows} diff rows [{transLabel}] · {category} · {score:0.#}% stability) · {string.Join(", ", alerts)}";
+    }
+
 }
 
 /// <summary>
@@ -5814,4 +6001,32 @@ public sealed record WordLevelDiffResolutionAudit(
     double WordLevelResolutionScore,
     IReadOnlyList<WordLevelDiffPair> Pairs,
     string ResolutionCategory,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated identifier symbol move, origin scope, destination scope, and transition classification across diff hunks.
+/// </summary>
+public sealed record IdentifierScopeTransition(
+    string Identifier,
+    string FromScope,
+    string ToScope,
+    string TransitionType,
+    int? OldLineNumber,
+    int? NewLineNumber,
+    string OldSnippet,
+    string NewSnippet);
+
+/// <summary>
+/// Represents the result of an audit of identifier scope transitions, declaration moves,
+/// promotion/hoisting expansions, and local encapsulation contractions across diff hunks.
+/// </summary>
+public sealed record IdentifierScopeTransitionsAudit(
+    int TotalDiffRows,
+    int TotalTransitions,
+    int ScopeExpansions,
+    int ScopeContractions,
+    int LateralMoves,
+    double ScopeStabilityScore,
+    IReadOnlyList<IdentifierScopeTransition> Transitions,
+    string Category,
     string Summary);

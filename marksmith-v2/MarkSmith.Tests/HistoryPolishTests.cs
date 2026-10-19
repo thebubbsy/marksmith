@@ -1983,6 +1983,33 @@ public class HistoryPolishTests : IDisposable
             typoAudit.WordLevelResolutionScore, typoAudit.ResolutionCategory);
         Assert.Equal(typoAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run173_AuditIdentifierScopeTransitions_TracksScopePromotionsAndEncapsulations()
+    {
+        var empty = LineDiff.AuditIdentifierScopeTransitions(Array.Empty<LineDiff.UnifiedRow>());
+        Assert.Equal(0, empty.TotalDiffRows);
+        Assert.Equal(0, empty.TotalTransitions);
+        Assert.Equal(100.0, empty.ScopeStabilityScore);
+        Assert.Equal("Empty Diff", empty.Category);
+
+        // Transition: Local variable 'resultCount' promoted to class field member
+        var r1 = new LineDiff.UnifiedRow(LineDiff.Kind.Same, 1, 1, "class DocumentAnalyzer {", "");
+        var r2 = new LineDiff.UnifiedRow(LineDiff.Kind.Same, 2, 2, "    void Process() {", "");
+        var r3 = new LineDiff.UnifiedRow(LineDiff.Kind.Removed, 3, null, "        int resultCount = 0;", "- ");
+        var r4 = new LineDiff.UnifiedRow(LineDiff.Kind.Same, 4, 3, "    }", "");
+        var r5 = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 4, "    private int resultCount;", "+ ");
+        var r6 = new LineDiff.UnifiedRow(LineDiff.Kind.Same, 5, 5, "}", "");
+
+        var audit = LineDiff.AuditIdentifierScopeTransitions(new[] { r1, r2, r3, r4, r5, r6 });
+        Assert.Equal(6, audit.TotalDiffRows);
+        Assert.Equal(1, audit.TotalTransitions);
+        Assert.Equal(1, audit.ScopeExpansions);
+        Assert.Equal(0, audit.ScopeContractions);
+        Assert.Equal("Scope Expansion (Promoted)", audit.Transitions[0].TransitionType);
+        Assert.Equal("resultCount", audit.Transitions[0].Identifier);
+        Assert.True(audit.ScopeStabilityScore < 100.0);
+    }
 }
 
 

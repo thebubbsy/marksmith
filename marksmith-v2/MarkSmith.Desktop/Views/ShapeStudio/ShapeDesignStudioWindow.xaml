@@ -727,6 +727,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditConnectorPortSnappingItem" Text="Audit connector port snapping &amp; sub-grid float drift" Click="OnSelectionAuditConnectorPortSnappingClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditCanvasSpatialBalanceItem" Text="Audit canvas spatial balance, center of mass &amp; margin clearances" Click="OnSelectionAuditCanvasSpatialBalanceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

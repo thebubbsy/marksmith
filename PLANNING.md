@@ -11789,9 +11789,46 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #172 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace File Size Distribution, Storage Bloat & Outlier Detection Advisor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceFileSizeDistribution(files)` to compute file size percentiles, detect oversized markdown files (>1MB) or bulky embedded assets, and score workspace compactness. Wire to `RecentDocsFlyout`.
+---
 
+## Scheduled WinUI 3 Desktop Polish Routine — Run #173 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Blockquote Callout Admonition Syntax & Nested Depth Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditBlockquoteCalloutsAndDepth(markdownText)`, `FormatBlockquoteCalloutSummary(...)`, records `BlockquoteCalloutItem`, and `BlockquoteCalloutsAudit`. Validates GitHub-style callouts (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`), detecting unsupported callout tags, malformed brackets, and excessive nesting depth (≥3 levels); wired to `auditBlockquoteCalloutsItem` ("Audit Blockquote Callout Admonitions & Nesting Depth", glyph `\uE9B1`) in `ShowLinksContextMenu` with clipboard copy and toast announcement.
+    2. **MindMapGalaxyWindow Graph Node Clustering Coefficient, Local Triangles & Transitivity Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditClusteringCoefficientAndTriangles()`, static overload, `FormatClusteringCoefficientSummary(...)`, records `NodeClusteringInfo`, and `GraphClusteringAudit`. Computes Watts-Strogatz local clustering coefficients $C_i = \frac{2 T_i}{k_i(k_i - 1)}$, global average clustering $\langle C \rangle$, and network transitivity (triadic closure fraction) to evaluate semantic cohesion and local triangle density; wired to `AuditClusteringTransitivityItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Diagram Canvas Spatial Balance, Center-of-Mass & Margin Clearance Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditCanvasSpatialBalance(shapes)`, static overload, `FormatSpatialBalanceSummary(...)`, records `CanvasSpatialBalanceAudit`. Computes shape mass centroid $(C_x, C_y)$ relative to canvas center, evaluates horizontal/vertical offset eccentricity, and audits outer margin clearances (≥40px) to prevent clipping against canvas viewport edges; wired to `SelectionAuditCanvasSpatialBalanceItem` (`\uE8B9`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Hierarchy Tree Aspect Ratio, Depth-to-Breadth & Branching Balance Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditHierarchyAspectAndBranching(markdown, layoutName)`, static overload, `FormatHierarchyBranchingSummary(...)`, records `HierarchyLevelInfo`, and `SmartArtHierarchyBranchingAudit`. Audits tree width vs height aspect ratio, detects unbalanced single-child chains vs wide root fan bottlenecks, verifies maximum branching fan-out (≤6 optimal), and evaluates organizational chart visual ergonomics; wired to `OutlineStatsAuditHierarchyBranchingItem` (`\uF158`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Diff Identifier Scope Transitions, Promotion & Encapsulation Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditIdentifierScopeTransitions(unifiedRows)`, static string overload, `FormatIdentifierScopeTransitionsSummary(...)`, records `IdentifierScopeTransition`, and `IdentifierScopeTransitionsAudit`. Tracks identifier token movements between local, class/record, and namespace scopes across diff hunks, detecting scope promotions, encapsulations, and renames; wired to `auditScopeTransitions` (`\uE8B9`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace File Size Distribution, Storage Bloat & Outlier Detection Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceFileSizeDistribution(files, fileExistsProvider, fileLengthProvider)` and `FormatWorkspaceFileSizeDistributionSummary(...)`. Computes storage payload tiers (Lightweight, Standard, Substantial, Heavy, Storage Bloat ≥5MB), detects oversized assets, and scores workspace compactness (0-100%); wired to `CopyWorkspaceFileSizeAdvisorItem` (`\uE8B9`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified all `6/6` targeted Run #173 tests passing (`100%` pass rate, total 54 passing).
+    - Verified clean live launch of `Marksmith.exe` (`PID=24016`, `Responding=True`, `MainWindowHandle=8914428`, closed cleanly with zero startup crashes).
 
+---
 
-
-
+### Run #174 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Definition Lists, Glossary Term Anchors & Syntax Consistency Auditor.
+   - **Deliverable**: Add `TextSearch.AuditDefinitionListsAndGlossaryTerms(markdownText)` and `FormatDefinitionListSummary(...)`, detecting standard term-and-definition syntax (`Term\n: Definition`), orphaned terms, multiple definition indentations, and verifying glossary anchor cross-referencing. Wire to `ShowLinksContextMenu`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Community Modularity, Newman-Girvan Partitioning & Cluster Density Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditCommunityModularityAndClusters()` and `FormatModularitySummary(...)`, calculating modularity metric $Q$ across detected concept clusters, comparing internal intra-cluster edge density against inter-cluster bridges. Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Shape Alignment Collinearity, Distribution Spacing & Sub-Grid Snapping Tolerance Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeCollinearityAndSpacing(shapes)` and `FormatCollinearitySummary(...)`, detecting near-collinear shapes with sub-pixel offsets (≤3px) that miss exact alignment, and evaluating equal horizontal/vertical distribution spacing. Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Timeline Milestone Chronology, Date Monotonicity & Interval Spacing Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditTimelineMilestoneChronology(markdown)` and `FormatTimelineChronologySummary(...)`, auditing chronological date ordering, detecting out-of-order timeline milestones, and evaluating milestone label density. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #173 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Structural Block Relocation & Method Movement Auditor.
+   - **Deliverable**: Add `LineDiff.AuditBlockRelocationAndMoves(unifiedRows)` to detect intact code blocks, markdown sections, or methods that were moved or reordered between distant file locations without content alterations. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #173 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Document Linking Graph, Centrality & Orphaned Markdown File Advisor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceDocumentGraphAndOrphans(files)` to build the cross-document markdown link digraph, computing in-degree/out-degree connectivity, detecting orphaned unlinked files, and scoring workspace cross-reference connectedness. Wire to `RecentDocsFlyout`.
 

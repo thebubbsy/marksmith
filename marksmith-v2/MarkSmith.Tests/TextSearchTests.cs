@@ -2048,6 +2048,47 @@ public class TextSearchTests
         Assert.True(brokenAudit.NonMonotonicAnchorCount >= 1);
         Assert.True(brokenAudit.FootnoteConsistencyScore < 100.0);
     }
+
+    [Fact]
+    public void Run173_AuditBlockquoteCalloutsAndDepth_ValidatesGfmAlertsAndNesting()
+    {
+        var empty = TextSearch.AuditBlockquoteCalloutsAndDepth("");
+        Assert.Equal(0, empty.TotalCallouts);
+        Assert.Equal(100.0, empty.ParityScore);
+        Assert.Equal("No Admonitions", empty.Category);
+        Assert.Equal(empty.Summary, TextSearch.FormatBlockquoteCalloutSummary(""));
+
+        string validDoc = string.Join("\n",
+            "> [!NOTE]",
+            "> Essential context for document reader.",
+            "",
+            "> [!TIP]",
+            "> Recommended shortcut for productivity.",
+            "",
+            "> [!WARNING]",
+            "> Cautionary warning regarding security."
+        );
+        var validAudit = TextSearch.AuditBlockquoteCalloutsAndDepth(validDoc);
+        Assert.Equal(3, validAudit.TotalCallouts);
+        Assert.Equal(3, validAudit.StandardCallouts);
+        Assert.Equal(0, validAudit.CustomCallouts);
+        Assert.Equal(100.0, validAudit.ParityScore);
+        Assert.Equal("Pristine GFM Admonition Syntax", validAudit.Category);
+
+        string mixedDoc = string.Join("\n",
+            ">[!NOTE]", // missing spacing after chevron
+            "> First alert with syntax defect.",
+            "",
+            ">>> [!DANGER]", // deep nesting (depth 3) + non-standard tag
+            ">>> Nested severe alert."
+        );
+        var mixedAudit = TextSearch.AuditBlockquoteCalloutsAndDepth(mixedDoc);
+        Assert.Equal(2, mixedAudit.TotalCallouts);
+        Assert.Equal(1, mixedAudit.ImproperSpacingCount);
+        Assert.Equal(1, mixedAudit.CustomCallouts);
+        Assert.True(mixedAudit.MaxNestingDepth >= 3);
+        Assert.True(mixedAudit.ParityScore < 100.0);
+    }
 }
 
 

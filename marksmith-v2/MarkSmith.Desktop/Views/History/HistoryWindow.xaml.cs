@@ -3484,6 +3484,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditWordLevelDiff);
+
+                var auditScopeTransitions = new MenuFlyoutItem
+                {
+                    Text = "Audit identifier scope transitions & declaration promotions",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditScopeTransitions.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditIdentifierScopeTransitions(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditScopeTransitions);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

@@ -2040,6 +2040,55 @@ public class ShapeStudioPolishTests
             snappedAudit.Category, snappedAudit.IsSelectionScope);
         Assert.Equal(snappedAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run173_AuditCanvasSpatialBalance_CalculatesCentroidAndMarginCrowding()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        var empty = vm.AuditCanvasSpatialBalance();
+        Assert.Equal(0, empty.TotalShapesEvaluated);
+        Assert.Equal(100.0, empty.SpatialBalanceScore);
+        Assert.Equal("Empty Canvas", empty.Category);
+
+        // Center a single shape precisely in a 1920x1080 canvas
+        // Center is (960, 540). Shape width=200, height=100 -> X=860, Y=490
+        var sCenter = new ShapeCanvasItemViewModel
+        {
+            Id = "center",
+            Name = "Centered Box",
+            X = 860,
+            Y = 490,
+            Width = 200,
+            Height = 100
+        };
+        vm.Shapes.Add(sCenter);
+
+        var balancedAudit = vm.AuditCanvasSpatialBalance(canvasWidth: 1920, canvasHeight: 1080);
+        Assert.Equal(1, balancedAudit.TotalShapesEvaluated);
+        Assert.Equal(960.0, balancedAudit.CentroidX);
+        Assert.Equal(540.0, balancedAudit.CentroidY);
+        Assert.Equal(0.0, balancedAudit.OffsetFromCenter);
+        Assert.Equal(0, balancedAudit.EdgeCrowdingHazards);
+        Assert.Equal(100.0, balancedAudit.SpatialBalanceScore);
+        Assert.Equal("Equilibrium Spatial Distribution", balancedAudit.Category);
+
+        // Add a shape crowding the extreme top-left border (X=10, Y=10 < 40px)
+        var sCrowded = new ShapeCanvasItemViewModel
+        {
+            Id = "crowded",
+            Name = "Edge Shape",
+            X = 10,
+            Y = 10,
+            Width = 100,
+            Height = 100
+        };
+        vm.Shapes.Add(sCrowded);
+
+        var crowdedAudit = vm.AuditCanvasSpatialBalance(canvasWidth: 1920, canvasHeight: 1080);
+        Assert.Equal(2, crowdedAudit.TotalShapesEvaluated);
+        Assert.True(crowdedAudit.EdgeCrowdingHazards >= 1);
+        Assert.True(crowdedAudit.SpatialBalanceScore < 100.0);
+    }
 }
 
 

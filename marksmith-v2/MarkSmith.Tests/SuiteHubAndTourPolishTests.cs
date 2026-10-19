@@ -3632,6 +3632,106 @@ Some paragraph in between.
         Assert.Contains("CopyWorkspaceTableFormattingAdvisorItem", suiteXaml);
         Assert.Contains("OnCopyWorkspaceTableFormattingAdvisorClick", suiteCs);
     }
+
+    [Fact]
+    public void Run173_AuditWorkspaceFileSizeDistribution_CalculatesPercentilesAndOutliers()
+    {
+        // 1. Empty workspace test
+        var emptyAudit = RecentFilesService.AuditWorkspaceFileSizeDistribution(
+            Array.Empty<string>(),
+            _ => false,
+            _ => 0L);
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(0L, emptyAudit.TotalSizeBytes);
+        Assert.Equal(100.0, emptyAudit.StorageCompactnessScore);
+        Assert.Equal("Empty Workspace", emptyAudit.StorageHealthCategory);
+        Assert.Contains("0 files", emptyAudit.Summary);
+
+        // 2. Multi-tier workspace file size distribution
+        var mockFiles = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\mock\docs\readme.md"] = 12 * 1024,                  // 12 KB -> Lightweight (<50KB)
+            [@"C:\mock\docs\manual.docx"] = 250 * 1024,               // 250 KB -> Standard (50–500KB)
+            [@"C:\mock\images\diagram.png"] = 1200 * 1024,            // 1.2 MB -> Substantial (500KB–2MB)
+            [@"C:\mock\bundles\app.exe"] = 3 * 1024 * 1024,           // 3 MB -> Heavy Asset (2–5MB)
+            [@"C:\mock\videos\screencast.mp4"] = 8 * 1024 * 1024,     // 8 MB -> Storage Bloat (≥5MB)
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceFileSizeDistribution(
+            mockFiles.Keys,
+            p => mockFiles.ContainsKey(p),
+            p => mockFiles[p]);
+
+        Assert.Equal(5, audit.TotalFilesScanned);
+        Assert.Equal(1, audit.HeavyBloatCount);
+        Assert.Equal("screencast.mp4", audit.HeaviestFileName);
+        Assert.Equal(8 * 1024 * 1024, audit.MaxSizeBytes);
+        // compactnessScore: 100 - (1 * 20.0) - (1 * 5.0) = 75.0
+        Assert.Equal(75.0, audit.StorageCompactnessScore);
+        Assert.Equal("Moderate Asset Bloat Detected", audit.StorageHealthCategory);
+
+        // Extension counts
+        Assert.Equal(1, audit.ExtensionCounts[".md"]);
+        Assert.Equal(1, audit.ExtensionCounts[".docx"]);
+        Assert.Equal(1, audit.ExtensionCounts[".png"]);
+        Assert.Equal(1, audit.ExtensionCounts[".exe"]);
+        Assert.Equal(1, audit.ExtensionCounts[".mp4"]);
+
+        // Verify tier labeling
+        var bloatItem = audit.Files.First(f => f.FileName == "screencast.mp4");
+        Assert.True(bloatItem.IsHeavyBloat);
+        Assert.Equal("Storage Bloat (≥5MB)", bloatItem.SizeTier);
+
+        var heavyItem = audit.Files.First(f => f.FileName == "app.exe");
+        Assert.False(heavyItem.IsHeavyBloat);
+        Assert.Equal("Heavy Asset (2–5MB)", heavyItem.SizeTier);
+
+        var lightItem = audit.Files.First(f => f.FileName == "readme.md");
+        Assert.False(lightItem.IsHeavyBloat);
+        Assert.Equal("Lightweight (<50KB)", lightItem.SizeTier);
+
+        // Formatter validation
+        string formatted = RecentFilesService.FormatWorkspaceFileSizeDistributionSummary(
+            audit.TotalFilesScanned, audit.TotalSizeBytes, audit.MeanSizeBytes,
+            audit.MaxSizeBytes, audit.HeaviestFileName, audit.HeavyBloatCount,
+            audit.StorageCompactnessScore, audit.StorageHealthCategory);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Cross-surface XAML / C# wiring verification for Run #173 across all 6 surfaces:
+        // Surface 1: MainWindow - auditBlockquoteCalloutsItem
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditBlockquoteCalloutsItem", mainCs);
+        Assert.Contains("AuditBlockquoteCalloutsAndDepth", mainCs);
+
+        // Surface 2: MindMapGalaxy - AuditClusteringTransitivityItem
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditClusteringTransitivityItem", galaxyXaml);
+        Assert.Contains("OnAuditClusteringTransitivityClick", galaxyCs);
+
+        // Surface 3: ShapeStudio - SelectionAuditCanvasSpatialBalanceItem
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditCanvasSpatialBalanceItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditCanvasSpatialBalanceClick", shapeCs);
+
+        // Surface 4: SmartArtStudio - OutlineStatsAuditHierarchyBranchingItem
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditHierarchyBranchingItem", smartArtXaml);
+        Assert.Contains("OnAuditHierarchyBranchingClick", smartArtCs);
+
+        // Surface 5: HistoryWindow - auditScopeTransitions
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditScopeTransitions", historyCs);
+        Assert.Contains("AuditIdentifierScopeTransitions", historyCs);
+
+        // Surface 6: SuiteHubView - CopyWorkspaceFileSizeAdvisorItem
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceFileSizeAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceFileSizeAdvisorClick", suiteCs);
+    }
 }
 
 

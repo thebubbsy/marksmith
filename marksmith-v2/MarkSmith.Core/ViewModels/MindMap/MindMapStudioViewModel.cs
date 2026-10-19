@@ -6718,6 +6718,19 @@ namespace MarkSmith.ViewModels.MindMap
             return vm.AuditClusteringCoefficientAndTransitivity();
         }
 
+        /// <summary>
+        /// Audits mind map graph node clustering coefficients, local triangles count, and global transitivity.
+        /// </summary>
+        public GraphClusteringAndTransitivityAudit AuditClusteringCoefficientAndTriangles(bool selectionOnly = false)
+            => AuditClusteringCoefficientAndTransitivity(selectionOnly);
+
+        /// <summary>
+        /// Audits mind map graph node clustering coefficients, local triangles count, and global transitivity.
+        /// </summary>
+        public static GraphClusteringAndTransitivityAudit AuditClusteringCoefficientAndTriangles(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+            => AuditClusteringCoefficientAndTransitivity(nodes, links);
+
         public static string FormatClusteringCoefficientSummary(
             int nodeCount, int linkCount, int triangleCount, double transitivity,
             double meanLocalC, string category, int openTriplets = 0, bool isSelection = false)

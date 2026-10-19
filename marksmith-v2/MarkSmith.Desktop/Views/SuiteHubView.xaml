@@ -324,6 +324,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceTableFormattingAdvisorItem" Text="Copy workspace table formatting &amp; column integrity advisor" Click="OnCopyWorkspaceTableFormattingAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF158;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyWorkspaceFileSizeAdvisorItem" Text="Copy workspace file size distribution &amp; storage bloat advisor" Click="OnCopyWorkspaceFileSizeAdvisorClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

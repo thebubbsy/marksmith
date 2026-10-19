@@ -1884,6 +1884,48 @@ public class SmartArtStudioPolishTests
             optimalAudit.PacingBalanceScore, optimalAudit.SequenceCategory);
         Assert.Equal(optimalAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run173_AuditHierarchyAspectAndBranching_EvaluatesDepthBreadthAndFans()
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        var empty = vm.AuditHierarchyAspectAndBranching("");
+        Assert.Equal(0, empty.TotalNodes);
+        Assert.Equal(100.0, empty.HierarchyBalanceScore);
+        Assert.Equal("Empty Hierarchy", empty.Category);
+
+        string balancedTree = string.Join("\n",
+            "- Executive Director",
+            "  - Engineering Lead",
+            "    - Frontend Architect",
+            "    - Systems Engineer",
+            "  - Product Manager",
+            "    - User Researcher",
+            "    - Design Specialist"
+        );
+        var balancedAudit = vm.AuditHierarchyAspectAndBranching(balancedTree);
+        Assert.Equal(7, balancedAudit.TotalNodes);
+        Assert.Equal(2, balancedAudit.MaxDepth);
+        Assert.Equal(4, balancedAudit.MaxBreadth);
+        Assert.Equal(0, balancedAudit.SingleChildChains);
+        Assert.Equal(0, balancedAudit.WideFanNodes);
+        Assert.True(balancedAudit.HierarchyBalanceScore >= 90.0);
+        Assert.Equal("Balanced Organizational Hierarchy", balancedAudit.Category);
+
+        string chainTree = string.Join("\n",
+            "- Level 0 Root",
+            "  - Level 1 Only Child",
+            "    - Level 2 Only Child",
+            "      - Level 3 Only Child",
+            "        - Level 4 Only Child",
+            "          - Level 5 Only Child"
+        );
+        var chainAudit = vm.AuditHierarchyAspectAndBranching(chainTree);
+        Assert.Equal(6, chainAudit.TotalNodes);
+        Assert.Equal(5, chainAudit.MaxDepth);
+        Assert.True(chainAudit.SingleChildChains >= 4);
+        Assert.True(chainAudit.HierarchyBalanceScore < 90.0);
+    }
 }
 
 

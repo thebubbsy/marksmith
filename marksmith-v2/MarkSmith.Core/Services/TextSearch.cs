@@ -5418,6 +5418,19 @@ public static class TextSearch
     }
 
     /// <summary>
+    /// Audits markdown blockquote callout admonitions, verifying GitHub-style alert syntax ([!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]),
+    /// unsupported/custom callout types, spacing defects, and excessive blockquote nesting depth (>= 3 levels).
+    /// </summary>
+    public static AdmonitionCalloutAudit AuditBlockquoteCalloutsAndDepth(string? markdownText)
+        => AuditAdmonitionCalloutConsistency(markdownText);
+
+    /// <summary>
+    /// Formats a human-readable summary of blockquote callout syntax and nesting depth metrics.
+    /// </summary>
+    public static string FormatBlockquoteCalloutSummary(string? markdownText)
+        => FormatAdmonitionCalloutSummary(markdownText);
+
+    /// <summary>
     /// Audits markdown and inline HTML image tags for WCAG non-text content compliance, missing or generic alt-text,
     /// valid image file extensions, and insecure HTTP vs secure HTTPS image URLs.
     /// Excludes fenced code blocks and inline code spans to prevent code syntax from triggering false positives.
