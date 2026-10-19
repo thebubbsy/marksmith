@@ -9980,6 +9980,214 @@ public static class TextSearch
         string details = string.Join(" · ", parts);
         return $"Markdown task list priority & due date audit ({taskStr} · {category} · {score:0.#}% rigor score): {details}";
     }
+
+    /// <summary>
+    /// Audits markdown blockquote callout levels, alert syntax (> [!NOTE]), deep nesting levels (> 3),
+    /// empty quote lines, and citation attribution footers (-- Author).
+    /// </summary>
+    public static MarkdownBlockquoteCalloutAudit AuditBlockquoteCalloutsAndAttribution(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "Markdown blockquote callout & attribution audit: 0 quote lines · Document contains no blockquotes";
+            return new MarkdownBlockquoteCalloutAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<BlockquoteCalloutLevelItem>(),
+                "Clean Baseline",
+                emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        var items = new List<BlockquoteCalloutLevelItem>();
+        bool inCodeFence = false;
+        bool inHtmlComment = false;
+
+        int totalQuoteLines = 0;
+        int totalQuoteBlocks = 0;
+        int maxNestingDepth = 0;
+        int standardAlertCount = 0;
+        int customAlertCount = 0;
+        int excessiveNestingCount = 0;
+        int emptyQuoteCount = 0;
+        int attributionCount = 0;
+        bool inBlockquote = false;
+
+        var standardAlerts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"
+        };
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string rawLine = lines[i];
+            string trimmed = rawLine.Trim();
+
+            // Code fence tracking
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                inBlockquote = false;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            // HTML comment tracking
+            if (trimmed.StartsWith("<!--") && !trimmed.Contains("-->"))
+            {
+                inHtmlComment = true;
+                inBlockquote = false;
+                continue;
+            }
+            if (inHtmlComment)
+            {
+                if (trimmed.Contains("-->")) inHtmlComment = false;
+                continue;
+            }
+
+            if (trimmed.StartsWith(">"))
+            {
+                if (!inBlockquote)
+                {
+                    totalQuoteBlocks++;
+                    inBlockquote = true;
+                }
+
+                totalQuoteLines++;
+
+                // Calculate nesting depth (count of leading > with optional spaces)
+                int depth = 0;
+                int idx = 0;
+                while (idx < trimmed.Length && (trimmed[idx] == '>' || char.IsWhiteSpace(trimmed[idx])))
+                {
+                    if (trimmed[idx] == '>') depth++;
+                    idx++;
+                }
+
+                if (depth > maxNestingDepth) maxNestingDepth = depth;
+                bool isExcessive = depth > 3;
+                if (isExcessive) excessiveNestingCount++;
+
+                string content = idx < trimmed.Length ? trimmed.Substring(idx).Trim() : string.Empty;
+                bool isEmpty = string.IsNullOrWhiteSpace(content);
+                if (isEmpty) emptyQuoteCount++;
+
+                bool isAlert = false;
+                string alertType = string.Empty;
+                bool isCustom = false;
+                bool isAttribution = false;
+                string? attributionText = null;
+
+                if (!isEmpty)
+                {
+                    // Check alert callout pattern [!NOTE]
+                    var matchAlert = System.Text.RegularExpressions.Regex.Match(content, @"^\[!([A-Za-z0-9_-]+)\](?:\+|-)?(?:\s+(.*))?$");
+                    if (matchAlert.Success)
+                    {
+                        isAlert = true;
+                        string tag = matchAlert.Groups[1].Value.ToUpperInvariant();
+                        alertType = tag;
+                        if (standardAlerts.Contains(tag))
+                        {
+                            standardAlertCount++;
+                        }
+                        else
+                        {
+                            isCustom = true;
+                            customAlertCount++;
+                        }
+                    }
+                    else
+                    {
+                        // Check attribution footer: -- Author or — Author or ― Author
+                        var matchAttr = System.Text.RegularExpressions.Regex.Match(content, @"^(?:--|—|―)\s*(.+)$");
+                        if (matchAttr.Success)
+                        {
+                            isAttribution = true;
+                            attributionText = matchAttr.Groups[1].Value.Trim();
+                            attributionCount++;
+                        }
+                    }
+                }
+
+                string status = isExcessive ? "Excessive Nesting (>3)" :
+                                isEmpty ? "Empty Quote Line" :
+                                isAlert ? (isCustom ? $"Custom Alert [{alertType}]" : $"Alert [{alertType}]") :
+                                isAttribution ? $"Attribution: {attributionText}" :
+                                "Standard Quote Content";
+
+                items.Add(new BlockquoteCalloutLevelItem(
+                    i + 1, depth, content, isAlert, alertType, isCustom, isExcessive, isEmpty, isAttribution, attributionText, status));
+            }
+            else
+            {
+                if (inBlockquote && string.IsNullOrWhiteSpace(trimmed))
+                {
+                    inBlockquote = false;
+                }
+            }
+        }
+
+        double score = 100.0;
+        score -= excessiveNestingCount * 12.0;
+        score -= emptyQuoteCount * 8.0;
+        score -= customAlertCount * 6.0;
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category;
+        if (totalQuoteLines == 0) category = "Clean Baseline";
+        else if (score >= 90.0) category = "Optimal Blockquote & Callout Governance (≥90%)";
+        else if (score >= 75.0) category = "Moderate Blockquote Hierarchy (75–89%)";
+        else category = "Excessive Nesting & Callout Irregularities (<75%)";
+
+        string summary = FormatBlockquoteCalloutSummary(
+            totalQuoteLines, totalQuoteBlocks, maxNestingDepth, standardAlertCount,
+            customAlertCount, excessiveNestingCount, emptyQuoteCount, attributionCount, score, category);
+
+        return new MarkdownBlockquoteCalloutAudit(
+            totalQuoteLines, totalQuoteBlocks, maxNestingDepth, standardAlertCount,
+            customAlertCount, excessiveNestingCount, emptyQuoteCount, attributionCount,
+            score, items, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown blockquote nesting levels and callouts.
+    /// </summary>
+    public static string FormatBlockquoteCalloutAndAttributionSummary(string? markdownText)
+        => AuditBlockquoteCalloutsAndAttribution(markdownText).Summary;
+
+    public static string FormatBlockquoteCalloutSummary(
+        int totalQuoteLines, int totalQuoteBlocks, int maxNestingDepth, int standardAlertCount,
+        int customAlertCount, int excessiveNestingCount, int emptyQuoteCount, int attributionCount,
+        double score, string category)
+    {
+        if (totalQuoteLines == 0)
+            return "Markdown blockquote callout & attribution audit: 0 quote lines · Document contains no blockquotes";
+
+        string lineStr = totalQuoteLines == 1 ? "1 quote line" : $"{totalQuoteLines} quote lines";
+        string blockStr = totalQuoteBlocks == 1 ? "1 block" : $"{totalQuoteBlocks} blocks";
+        var parts = new List<string>();
+        parts.Add($"{lineStr} across {blockStr} (Max depth {maxNestingDepth})");
+
+        if (standardAlertCount > 0 || customAlertCount > 0)
+        {
+            string alertStr = customAlertCount > 0
+                ? $"{standardAlertCount} standard + {customAlertCount} custom alerts"
+                : $"{standardAlertCount} alert callouts";
+            parts.Add(alertStr);
+        }
+
+        if (attributionCount > 0)
+            parts.Add($"{attributionCount} citation attributions");
+
+        if (excessiveNestingCount > 0)
+            parts.Add($"⚠ {excessiveNestingCount} deep nested (>3)");
+
+        if (emptyQuoteCount > 0)
+            parts.Add($"⚠ {emptyQuoteCount} empty quote lines");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown blockquote callout & attribution audit ({details} · {category} · {score:0.#}% rigor score)";
+    }
 }
 
 /// <summary>
@@ -11051,3 +11259,36 @@ public sealed record MarkdownTaskPriorityAudit(
     string Category,
     string Summary);
 
+/// <summary>
+/// Represents evaluated metrics, alert tag, quote depth, empty body status, and attribution footer for an individual markdown blockquote item.
+/// </summary>
+public sealed record BlockquoteCalloutLevelItem(
+    int LineNumber,
+    int NestingDepth,
+    string Text,
+    bool IsAlertCallout,
+    string AlertType,
+    bool IsCustomCallout,
+    bool HasExcessiveNesting,
+    bool HasEmptyBody,
+    bool HasAttribution,
+    string? AttributionText,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown blockquote nesting levels, GitHub-style alert callouts ([!NOTE], [!TIP], etc.),
+/// unclosed blocks, empty quote lines, and citation attribution footers.
+/// </summary>
+public sealed record MarkdownBlockquoteCalloutAudit(
+    int TotalQuoteLines,
+    int TotalQuoteBlocks,
+    int MaxNestingDepth,
+    int StandardAlertCount,
+    int CustomAlertCount,
+    int ExcessiveNestingCount,
+    int EmptyQuoteCount,
+    int AttributionCount,
+    double StructuralRigorScore,
+    IReadOnlyList<BlockquoteCalloutLevelItem> Items,
+    string Category,
+    string Summary);

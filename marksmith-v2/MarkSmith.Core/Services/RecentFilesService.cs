@@ -8136,6 +8136,175 @@ public sealed class RecentFilesService
         string details = string.Join(" · ", parts);
         return $"Workspace tag taxonomy audit ({fileStr}, {tagStr} · {category} · {score:0.#}% cohesion score): {details}";
     }
+
+    /// <summary>
+    /// Audits workspace markdown documents for word counts, estimated reading times, length distribution tiers,
+    /// and identifies extreme length outliers.
+    /// </summary>
+    public static WorkspaceWordCountDistributionAudit AuditWorkspaceWordCountsAndReadingTimes(
+        IEnumerable<string>? filePaths,
+        string? workspaceRoot = null,
+        Func<string, bool>? fileExists = null,
+        Func<string, string[]?>? readAllLines = null)
+    {
+        var exists = fileExists ?? (p => File.Exists(p));
+        var reader = readAllLines ?? (p => File.Exists(p) ? File.ReadAllLines(p) : null);
+
+        var candidatePaths = (filePaths ?? Enumerable.Empty<string>())
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (candidatePaths.Count == 0)
+        {
+            return new WorkspaceWordCountDistributionAudit(
+                0, 0, 0.0, 0.0, 0, 0, 0, "(None)", 0, 100.0,
+                Array.Empty<WorkspaceDocumentWordCountItem>(),
+                "Clean Baseline",
+                "Workspace word count & reading time audit (0 files): 0 words across 0 documents");
+        }
+
+        var items = new List<WorkspaceDocumentWordCountItem>();
+        int totalFilesScanned = 0;
+        int totalWords = 0;
+        int quickReadCount = 0;
+        int standardReadCount = 0;
+        int longFormReadCount = 0;
+        string longestDocName = "(None)";
+        int maxWordCount = 0;
+
+        foreach (var file in candidatePaths)
+        {
+            if (!exists(file)) continue;
+            var lines = reader(file);
+            totalFilesScanned++;
+
+            int docWords = 0;
+            if (lines != null)
+            {
+                foreach (var line in lines)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    docWords += parts.Length;
+                }
+            }
+
+            totalWords += docWords;
+            double readingMins = Math.Round(docWords / 200.0, 1);
+            string fileName = Path.GetFileName(file);
+
+            if (docWords > maxWordCount)
+            {
+                maxWordCount = docWords;
+                longestDocName = fileName;
+            }
+
+            string tier;
+            if (readingMins < 3.0)
+            {
+                quickReadCount++;
+                tier = "Quick Read (<3m)";
+            }
+            else if (readingMins <= 10.0)
+            {
+                standardReadCount++;
+                tier = "Standard Read (3-10m)";
+            }
+            else
+            {
+                longFormReadCount++;
+                tier = "Long-Form (>10m)";
+            }
+
+            string status = $"{docWords} words · ~{readingMins:0.#} min read · {tier}";
+            items.Add(new WorkspaceDocumentWordCountItem(file, fileName, docWords, readingMins, tier, status));
+        }
+
+        if (totalFilesScanned == 0)
+        {
+            return new WorkspaceWordCountDistributionAudit(
+                0, 0, 0.0, 0.0, 0, 0, 0, "(None)", 0, 100.0,
+                Array.Empty<WorkspaceDocumentWordCountItem>(),
+                "Clean Baseline",
+                "Workspace word count & reading time audit (0 files): 0 words across 0 documents");
+        }
+
+        double totalReadingMinutes = Math.Round(totalWords / 200.0, 1);
+        double avgWords = Math.Round((double)totalWords / totalFilesScanned, 1);
+
+        double score = 100.0;
+        if (totalWords == 0)
+        {
+            score = 50.0;
+        }
+        else
+        {
+            int emptyDocs = items.Count(i => i.WordCount == 0);
+            if (emptyDocs > 0)
+            {
+                score -= Math.Min(30.0, emptyDocs * 5.0);
+            }
+        }
+
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Balanced Reading Time & Word Count Distribution (≥90%)"
+            : score >= 75.0
+                ? "Standard Multi-Length Workspace Library (75-89%)"
+                : score >= 50.0
+                    ? "Skewed Length Profile or High Empty Document Count (50-74%)"
+                    : "Extreme Word Count Disparity or Empty Documents (<50%)";
+
+        string summary = FormatWorkspaceWordCountSummary(
+            totalFilesScanned, totalWords, totalReadingMinutes, avgWords,
+            quickReadCount, standardReadCount, longFormReadCount, longestDocName, maxWordCount, score, category);
+
+        return new WorkspaceWordCountDistributionAudit(
+            totalFilesScanned,
+            totalWords,
+            totalReadingMinutes,
+            avgWords,
+            quickReadCount,
+            standardReadCount,
+            longFormReadCount,
+            longestDocName,
+            maxWordCount,
+            score,
+            items,
+            category,
+            summary);
+    }
+
+    public static string FormatWorkspaceWordCountSummary(
+        int totalFiles, int totalWords, double readingMinutes, double avgWords,
+        int quickReads, int standardReads, int longReads, string longestDoc, int maxWords,
+        double score, string category)
+    {
+        if (totalFiles == 0)
+            return "Workspace word count & reading time audit (0 files): 0 words across 0 documents";
+
+        string fileStr = totalFiles == 1 ? "1 file" : $"{totalFiles} files";
+        var parts = new List<string>();
+
+        parts.Add($"{totalWords} total words (~{readingMinutes:0.#} mins total read time)");
+        parts.Add($"avg {avgWords:0.#} words/doc");
+
+        var tiers = new List<string>();
+        if (quickReads > 0) tiers.Add($"{quickReads} quick");
+        if (standardReads > 0) tiers.Add($"{standardReads} standard");
+        if (longReads > 0) tiers.Add($"{longReads} long");
+
+        if (tiers.Count > 0)
+            parts.Add(string.Join("/", tiers));
+
+        if (maxWords > 0)
+            parts.Add($"longest: {longestDoc} ({maxWords} words)");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace word count & reading time audit ({fileStr} · {category} · {score:0.#}% balance score): {details}";
+    }
 }
 
 /// <summary>
@@ -9151,4 +9320,35 @@ public sealed record WorkspaceTagTaxonomyAudit(
     IReadOnlyList<TagTaxonomyItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated word count, estimated reading time, and length tier for an individual workspace document.
+/// </summary>
+public sealed record WorkspaceDocumentWordCountItem(
+    string FilePath,
+    string FileName,
+    int WordCount,
+    double EstimatedReadingMinutes,
+    string LengthTier,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown documents for word counts, estimated reading times,
+/// length distribution tiers, and longest document outliers.
+/// </summary>
+public sealed record WorkspaceWordCountDistributionAudit(
+    int TotalFilesScanned,
+    int TotalWords,
+    double TotalReadingMinutes,
+    double AverageWordsPerDocument,
+    int QuickReadCount,
+    int StandardReadCount,
+    int LongFormReadCount,
+    string LongestDocumentName,
+    int MaxWordCount,
+    double DistributionScore,
+    IReadOnlyList<WorkspaceDocumentWordCountItem> Items,
+    string Category,
+    string Summary);
+
 

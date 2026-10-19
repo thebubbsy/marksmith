@@ -2311,6 +2311,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnAuditWorkspaceWordCountsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceWordCountsAndReadingTimes(files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification($"Word Counts: {result.TotalWords} words (~{result.TotalReadingMinutes:0.#} min read across {result.TotalFilesScanned} docs, longest: {result.LongestDocumentName})", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Words");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit workspace word counts: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

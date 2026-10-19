@@ -2629,7 +2629,68 @@ public class SmartArtStudioPolishTests
         Assert.False(probAudit.IsStandardGridSize);
         Assert.True(probAudit.SymmetryScore < 75.0);
     }
+
+    [Fact]
+    public void Run190_AuditHierarchyOrgChartBalance_ValidatesSpanAndDepth()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditHierarchyOrgChartBalance("", "Organization Chart");
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.BalanceScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+        Assert.Contains("0 nodes", emptyAudit.Summary);
+
+        // 2. Clean balanced 3-level organization chart (CEO -> 3 VPs -> 2 Leads each)
+        var cleanMd = string.Join("\n",
+            "- Chief Executive Officer",
+            "  - VP Engineering",
+            "    - Frontend Lead",
+            "    - Backend Lead",
+            "  - VP Product",
+            "    - UX Design Lead",
+            "    - Product Strategy Lead",
+            "  - VP Operations",
+            "    - Infrastructure Lead",
+            "    - Support Lead"
+        );
+
+        var cleanAudit = SmartArtDesignStudioViewModel.AuditHierarchyOrgChartBalance(cleanMd, "Organization Chart");
+        Assert.Equal(10, cleanAudit.TotalNodes);
+        Assert.Equal(3, cleanAudit.MaxDepth);
+        Assert.Equal(1, cleanAudit.RootNodeCount);
+        Assert.Equal(4, cleanAudit.ParentNodeCount);
+        Assert.Equal(6, cleanAudit.LeafNodeCount);
+        Assert.True(cleanAudit.AverageSpanOfControl > 2.0);
+        Assert.Equal(100.0, cleanAudit.BalanceScore);
+        Assert.Equal("Optimal Org Chart Balance & Clean Span of Control (≥90%)", cleanAudit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatHierarchyOrgChartSummary(
+            cleanAudit.TotalNodes, cleanAudit.MaxDepth, cleanAudit.RootNodeCount,
+            cleanAudit.ParentNodeCount, cleanAudit.LeafNodeCount, cleanAudit.AverageSpanOfControl,
+            cleanAudit.BalanceScore, cleanAudit.Category, cleanAudit.LayoutName);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Problematic org chart: multiple disconnected roots and overloaded manager (>7 direct reports)
+        var probMd = string.Join("\n",
+            "- First Root Co-CEO",
+            "- Second Root Co-CEO",
+            "  - Report 1",
+            "  - Report 2",
+            "  - Report 3",
+            "  - Report 4",
+            "  - Report 5",
+            "  - Report 6",
+            "  - Report 7",
+            "  - Report 8"
+        );
+
+        var probAudit = SmartArtDesignStudioViewModel.AuditHierarchyOrgChartBalance(probMd, "Organization Chart");
+        Assert.Equal(10, probAudit.TotalNodes);
+        Assert.Equal(2, probAudit.RootNodeCount);
+        Assert.True(probAudit.BalanceScore < 80.0);
+    }
 }
+
 
 
 

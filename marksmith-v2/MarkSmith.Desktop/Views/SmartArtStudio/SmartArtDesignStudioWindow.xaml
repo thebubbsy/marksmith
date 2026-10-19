@@ -407,6 +407,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixCellSymmetryItem" Text="Audit SmartArt matrix &amp; grid layout cell symmetry, aspect ratio &amp; label balance" Click="OnOutlineStatsAuditMatrixCellSymmetryClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyOrgChartBalanceItem" Text="Audit SmartArt organizational hierarchy balance, depth &amp; span of control" Click="OnOutlineStatsAuditHierarchyOrgChartBalanceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

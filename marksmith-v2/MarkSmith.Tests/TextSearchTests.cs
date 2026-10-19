@@ -2960,6 +2960,68 @@ public class TextSearchTests
         Assert.Equal(2, probAudit.OverdueCount);
         Assert.True(probAudit.TrackingRigorScore < 75.0);
     }
+
+    [Fact]
+    public void Run190_AuditBlockquoteCalloutsAndAttribution_ValidatesNestingAndAlerts()
+    {
+        // 1. Empty document
+        var emptyAudit = TextSearch.AuditBlockquoteCalloutsAndAttribution(null);
+        Assert.Equal(0, emptyAudit.TotalQuoteLines);
+        Assert.Equal(100.0, emptyAudit.StructuralRigorScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 quote lines", emptyAudit.Summary);
+
+        // 2. Clean document with standard alerts, nested quote, and attribution footer
+        var cleanDoc = string.Join("\n",
+            "# Document with Callouts",
+            "> [!NOTE]",
+            "> This is a verified informational note for the user.",
+            "",
+            "> [!TIP]",
+            "> Use keyboard accelerators for faster editing.",
+            "",
+            ">> Second level quote providing further context.",
+            "> -- Donald Knuth",
+            "",
+            "```markdown",
+            "> Ignored blockquote inside code fence",
+            "```"
+        );
+
+        var cleanAudit = TextSearch.AuditBlockquoteCalloutsAndAttribution(cleanDoc);
+        Assert.Equal(6, cleanAudit.TotalQuoteLines);
+        Assert.Equal(3, cleanAudit.TotalQuoteBlocks);
+        Assert.Equal(2, cleanAudit.MaxNestingDepth);
+        Assert.Equal(2, cleanAudit.StandardAlertCount);
+        Assert.Equal(0, cleanAudit.CustomAlertCount);
+        Assert.Equal(0, cleanAudit.ExcessiveNestingCount);
+        Assert.Equal(0, cleanAudit.EmptyQuoteCount);
+        Assert.Equal(1, cleanAudit.AttributionCount);
+        Assert.Equal(100.0, cleanAudit.StructuralRigorScore);
+        Assert.Equal("Optimal Blockquote & Callout Governance (≥90%)", cleanAudit.Category);
+
+        string formatted = TextSearch.FormatBlockquoteCalloutSummary(
+            cleanAudit.TotalQuoteLines, cleanAudit.TotalQuoteBlocks, cleanAudit.MaxNestingDepth,
+            cleanAudit.StandardAlertCount, cleanAudit.CustomAlertCount, cleanAudit.ExcessiveNestingCount,
+            cleanAudit.EmptyQuoteCount, cleanAudit.AttributionCount, cleanAudit.StructuralRigorScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Problematic document with excessive nesting (>3) and empty quotes
+        var probDoc = string.Join("\n",
+            ">>>> [!CUSTOM_ALERT]",
+            ">>>> Level 4 excessive nesting depth.",
+            ">",
+            ">"
+        );
+
+        var probAudit = TextSearch.AuditBlockquoteCalloutsAndAttribution(probDoc);
+        Assert.Equal(4, probAudit.TotalQuoteLines);
+        Assert.Equal(4, probAudit.MaxNestingDepth);
+        Assert.Equal(1, probAudit.CustomAlertCount);
+        Assert.True(probAudit.ExcessiveNestingCount >= 1);
+        Assert.True(probAudit.EmptyQuoteCount >= 2);
+        Assert.True(probAudit.StructuralRigorScore < 75.0);
+    }
 }
 
 

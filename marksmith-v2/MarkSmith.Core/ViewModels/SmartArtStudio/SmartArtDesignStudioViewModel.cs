@@ -9181,6 +9181,193 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"SmartArt matrix symmetry audit ({layoutName} · {cellStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits organizational chart and hierarchy layouts for outline tree depth, branching span of control,
+    /// level node parity, single root node requirement, and deep-branch asymmetry.
+    /// </summary>
+    public SmartArtHierarchyOrgChartAudit AuditHierarchyOrgChartBalance(
+        string? markdown = null, string? layoutName = null)
+    {
+        string text = markdown ?? MarkdownText ?? string.Empty;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Organization Chart";
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            string emptySummary = $"SmartArt hierarchy org chart audit ({layout} · 0 nodes): Outline is empty";
+            StatusMessage = emptySummary;
+            return new SmartArtHierarchyOrgChartAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<OrgChartHierarchyLevelItem>(),
+                "Empty Outline", layout, emptySummary);
+        }
+
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var parsedNodes = new List<(int Level, string Title)>();
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("<!--") || trimmed.StartsWith("```") || trimmed.StartsWith(":::")) continue;
+
+            // Calculate indent level (standard 2 spaces or 1 tab per level)
+            int leadingSpaces = 0;
+            while (leadingSpaces < rawLine.Length && (rawLine[leadingSpaces] == ' ' || rawLine[leadingSpaces] == '\t'))
+            {
+                leadingSpaces += (rawLine[leadingSpaces] == '\t' ? 4 : 1);
+            }
+            int level = leadingSpaces / 2;
+
+            // Strip bullet markers
+            string clean = System.Text.RegularExpressions.Regex.Replace(trimmed, @"^([-*+]|\d+\.)\s*", "").Trim();
+            if (string.IsNullOrWhiteSpace(clean)) continue;
+
+            parsedNodes.Add((level, clean));
+        }
+
+        if (parsedNodes.Count == 0)
+        {
+            string emptySummary = $"SmartArt hierarchy org chart audit ({layout} · 0 nodes): Outline contains no hierarchical items";
+            StatusMessage = emptySummary;
+            return new SmartArtHierarchyOrgChartAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<OrgChartHierarchyLevelItem>(),
+                "Empty Outline", layout, emptySummary);
+        }
+
+        int totalNodes = parsedNodes.Count;
+        var childrenMap = new Dictionary<int, List<int>>();
+        for (int i = 0; i < totalNodes; i++) childrenMap[i] = new List<int>();
+
+        var stack = new Stack<(int Level, int Index)>();
+        int rootNodeCount = 0;
+
+        for (int i = 0; i < totalNodes; i++)
+        {
+            int lvl = parsedNodes[i].Level;
+            while (stack.Count > 0 && stack.Peek().Level >= lvl)
+            {
+                stack.Pop();
+            }
+            if (stack.Count > 0)
+            {
+                childrenMap[stack.Peek().Index].Add(i);
+            }
+            else
+            {
+                rootNodeCount++;
+            }
+            stack.Push((lvl, i));
+        }
+
+        int parentNodeCount = childrenMap.Values.Count(c => c.Count > 0);
+        int leafNodeCount = totalNodes - parentNodeCount;
+        double averageSpan = parentNodeCount > 0
+            ? Math.Round((double)(totalNodes - rootNodeCount) / parentNodeCount, 1)
+            : 0.0;
+
+        int minObservedLevel = parsedNodes.Min(p => p.Level);
+        var levelGroups = parsedNodes
+            .GroupBy(p => p.Level - minObservedLevel + 1)
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        int maxDepth = levelGroups.Count > 0 ? levelGroups.Max(g => g.Key) : 0;
+        var levelItems = new List<OrgChartHierarchyLevelItem>();
+
+        foreach (var group in levelGroups)
+        {
+            int lvl = group.Key;
+            int count = group.Count();
+            int words = group.Sum(n => n.Title.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length);
+            double meanWords = count > 0 ? Math.Round((double)words / count, 1) : 0.0;
+
+            string status = lvl == 1
+                ? (count == 1 ? "✓ Single Executive Root" : $"⚠ Multi-root structure ({count} roots)")
+                : $"Level {lvl}: {count} {(count == 1 ? "node" : "nodes")}, avg {meanWords:0.#} words";
+
+            levelItems.Add(new OrgChartHierarchyLevelItem(lvl, count, words, meanWords, status));
+        }
+
+        double score = 100.0;
+        if (rootNodeCount > 1)
+        {
+            score -= Math.Min(30.0, (rootNodeCount - 1) * 15.0);
+        }
+        if (maxDepth > 5)
+        {
+            score -= Math.Min(25.0, (maxDepth - 5) * 10.0);
+        }
+
+        int overloadedManagers = childrenMap.Values.Count(c => c.Count > 7);
+        int underutilizedManagers = childrenMap.Values.Count(c => c.Count == 1);
+        if (overloadedManagers > 0)
+        {
+            score -= Math.Min(25.0, overloadedManagers * 10.0);
+        }
+        if (underutilizedManagers > 0)
+        {
+            score -= Math.Min(20.0, underutilizedManagers * 5.0);
+        }
+
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Org Chart Balance & Clean Span of Control (≥90%)"
+            : score >= 75.0
+                ? "Good Hierarchy Structure & Moderate Branching (75-89%)"
+                : score >= 50.0
+                    ? "Irregular Hierarchy & Uneven Span of Control (50-74%)"
+                    : "Severe Hierarchy Imbalance or Disconnected Roots (<50%)";
+
+        string summary = FormatHierarchyOrgChartSummary(
+            totalNodes, maxDepth, rootNodeCount, parentNodeCount, leafNodeCount, averageSpan, score, category, layout);
+
+        StatusMessage = summary;
+
+        return new SmartArtHierarchyOrgChartAudit(
+            totalNodes,
+            maxDepth,
+            rootNodeCount,
+            parentNodeCount,
+            leafNodeCount,
+            averageSpan,
+            score,
+            levelItems,
+            category,
+            layout,
+            summary);
+    }
+
+    public static SmartArtHierarchyOrgChartAudit AuditHierarchyOrgChartBalance(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditHierarchyOrgChartBalance(markdown, layoutName);
+    }
+
+    public static string FormatHierarchyOrgChartSummary(
+        int totalNodes, int maxDepth, int rootNodeCount, int parentNodeCount,
+        int leafNodeCount, double averageSpan, double score, string category, string layoutName)
+    {
+        if (totalNodes == 0)
+            return $"SmartArt hierarchy org chart audit ({layoutName} · 0 nodes): Outline is empty";
+
+        string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+        var parts = new List<string>();
+
+        parts.Add(rootNodeCount == 1 ? "single root" : $"{rootNodeCount} roots");
+        parts.Add($"{maxDepth} {(maxDepth == 1 ? "level" : "levels")}");
+
+        if (parentNodeCount > 0)
+            parts.Add($"span {averageSpan:0.#}");
+
+        parts.Add($"{leafNodeCount} {(leafNodeCount == 1 ? "leaf" : "leaves")}");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt hierarchy org chart audit ({layoutName} · {nodeStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -10183,4 +10370,31 @@ public sealed record SmartArtMatrixSymmetryAudit(
     string Category,
     string LayoutName,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, node count, total words, and mean words for an individual level in an organizational hierarchy.
+/// </summary>
+public sealed record OrgChartHierarchyLevelItem(
+    int Level,
+    int NodeCount,
+    int TotalWords,
+    double MeanWordCount,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt organizational hierarchy balance, depth, span of control, and level node parity.
+/// </summary>
+public sealed record SmartArtHierarchyOrgChartAudit(
+    int TotalNodes,
+    int MaxDepth,
+    int RootNodeCount,
+    int ParentNodeCount,
+    int LeafNodeCount,
+    double AverageSpanOfControl,
+    double BalanceScore,
+    IReadOnlyList<OrgChartHierarchyLevelItem> Levels,
+    string Category,
+    string LayoutName,
+    string Summary);
+
 

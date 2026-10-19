@@ -384,6 +384,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphTreeHierarchyItem" Text="Audit graph tree hierarchy depth, fan-out &amp; branching balance" Click="OnAuditGraphTreeHierarchyClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphClusteringCoefficientItem" Text="Audit graph clustering coefficient, small-world topology &amp; triadic closure" Click="OnAuditGraphClusteringCoefficientClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

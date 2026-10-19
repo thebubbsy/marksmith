@@ -3647,6 +3647,62 @@ namespace MarkSmith.Tests
             Assert.Equal(1, overAudit.OverBranchingNodesCount);
             Assert.True(overAudit.HierarchyBalanceScore < 95.0);
         }
+
+        [Fact]
+        public void Run190_AuditClusteringCoefficientAndTopology_ValidatesTrianglesAndTopology()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditClusteringCoefficientAndTopology(Array.Empty<MindMapNode>());
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalTriangles);
+            Assert.Equal(100.0, emptyAudit.SmallWorldInterconnectednessScore);
+            Assert.Equal("Empty MindMap", emptyAudit.Category);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Triangle clique (A - B, B - C, C - A) -> Global C = 1.0, 1 triangle
+            var nodeA = new MindMapNode { Id = "a", Title = "Node A" };
+            var nodeB = new MindMapNode { Id = "b", Title = "Node B" };
+            var nodeC = new MindMapNode { Id = "c", Title = "Node C" };
+
+            var links = new[]
+            {
+                new MindMapLink { SourceNodeId = "a", TargetNodeId = "b" },
+                new MindMapLink { SourceNodeId = "b", TargetNodeId = "c" },
+                new MindMapLink { SourceNodeId = "c", TargetNodeId = "a" }
+            };
+
+            var triangleAudit = MindMapStudioViewModel.AuditClusteringCoefficientAndTopology(new[] { nodeA, nodeB, nodeC }, links);
+            Assert.Equal(3, triangleAudit.TotalNodes);
+            Assert.Equal(3, triangleAudit.TotalLinks);
+            Assert.Equal(1, triangleAudit.TotalTriangles);
+            Assert.Equal(1.0, triangleAudit.GlobalClusteringCoefficient);
+            Assert.Equal(0, triangleAudit.HubAndSpokeCount);
+            Assert.Equal(3, triangleAudit.LatticeClusterCount);
+            Assert.Equal(100.0, triangleAudit.SmallWorldInterconnectednessScore);
+            Assert.Equal("Optimal Clustering & Small-World Topology (≥90%)", triangleAudit.Category);
+
+            string formatted = MindMapStudioViewModel.FormatClusteringCoefficientSummary(
+                triangleAudit.TotalNodes, triangleAudit.TotalLinks, triangleAudit.TotalTriangles,
+                triangleAudit.GlobalClusteringCoefficient, triangleAudit.HubAndSpokeCount,
+                triangleAudit.LatticeClusterCount, triangleAudit.IsolatedCount,
+                triangleAudit.SmallWorldInterconnectednessScore, triangleAudit.Category, triangleAudit.IsSelectionScope);
+            Assert.Equal(triangleAudit.Summary, formatted);
+
+            // 3. Hub-and-spoke star graph (Hub connected to 4 leaves, no triangles)
+            var hub = new MindMapNode { Id = "hub", Title = "Star Hub" };
+            var leaves = Enumerable.Range(1, 4).Select(i => new MindMapNode { Id = $"l_{i}", Title = $"Leaf {i}" }).ToList();
+            var starLinks = leaves.Select(l => new MindMapLink { SourceNodeId = "hub", TargetNodeId = l.Id }).ToList();
+
+            var allNodes = new List<MindMapNode> { hub };
+            allNodes.AddRange(leaves);
+
+            var starAudit = MindMapStudioViewModel.AuditClusteringCoefficientAndTopology(allNodes, starLinks);
+            Assert.Equal(5, starAudit.TotalNodes);
+            Assert.Equal(0, starAudit.TotalTriangles);
+            Assert.Equal(0.0, starAudit.GlobalClusteringCoefficient);
+            Assert.Equal(1, starAudit.HubAndSpokeCount);
+            Assert.True(starAudit.SmallWorldInterconnectednessScore < 100.0);
+        }
     }
 }
 

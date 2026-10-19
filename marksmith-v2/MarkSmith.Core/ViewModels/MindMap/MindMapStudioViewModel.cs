@@ -11007,6 +11007,180 @@ namespace MarkSmith.ViewModels.MindMap
             string details = string.Join(" · ", parts);
             return $"Graph tree hierarchy audit ({scope}{nodeStr} · {category} · {score:0.#}% balance score): {details}";
         }
+
+        /// <summary>
+        /// Audits graph node local and global clustering coefficients, neighbor triadic closure,
+        /// hub-and-spoke vs lattice configurations, and small-world interconnectedness.
+        /// </summary>
+        public GraphClusteringCoefficientAudit AuditClusteringCoefficientAndTopology(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = selectionOnly && selected.Count > 0 ? selected : Nodes.ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+
+            var targetIds = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var relevantLinks = Links.Where(l => targetIds.Contains(l.SourceNodeId) && targetIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditClusteringCoefficientAndTopology(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphClusteringCoefficientAudit AuditClusteringCoefficientAndTopology(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links = null, bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+
+            int totalNodes = nodeList.Count;
+            int totalLinks = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatClusteringCoefficientSummary(0, 0, 0, 0.0, 0, 0, 0, 100.0, "Empty MindMap", isSelection);
+                return new GraphClusteringCoefficientAudit(
+                    0, 0, 0, 0.0, 0, 0, 0, 100.0,
+                    Array.Empty<NodeClusteringCoefficientItem>(),
+                    "Empty MindMap",
+                    isSelection,
+                    emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id);
+            var adjacency = new Dictionary<string, HashSet<string>>();
+            foreach (var n in nodeList)
+            {
+                adjacency[n.Id] = new HashSet<string>();
+            }
+
+            foreach (var l in linkList)
+            {
+                if (adjacency.ContainsKey(l.SourceNodeId) && adjacency.ContainsKey(l.TargetNodeId) && l.SourceNodeId != l.TargetNodeId)
+                {
+                    adjacency[l.SourceNodeId].Add(l.TargetNodeId);
+                    adjacency[l.TargetNodeId].Add(l.SourceNodeId);
+                }
+            }
+
+            var items = new List<NodeClusteringCoefficientItem>();
+            int totalTriangles = 0;
+            double sumClustering = 0.0;
+            int clusterableNodes = 0;
+            int hubAndSpokeCount = 0;
+            int latticeClusterCount = 0;
+            int isolatedCount = 0;
+
+            foreach (var n in nodeList)
+            {
+                var neighbors = adjacency[n.Id].ToList();
+                int degree = neighbors.Count;
+
+                if (degree == 0)
+                {
+                    isolatedCount++;
+                    items.Add(new NodeClusteringCoefficientItem(
+                        n.Id, n.Title ?? "Untitled", 0, 0, 0, 0.0, false, false, "Isolated Vertex", "No Connections"));
+                    continue;
+                }
+
+                if (degree == 1)
+                {
+                    items.Add(new NodeClusteringCoefficientItem(
+                        n.Id, n.Title ?? "Untitled", 1, 0, 0, 0.0, false, false, "Pendant Leaf", "Single Branch"));
+                    continue;
+                }
+
+                int maxPossible = degree * (degree - 1) / 2;
+                int neighborEdges = 0;
+
+                for (int i = 0; i < neighbors.Count; i++)
+                {
+                    for (int j = i + 1; j < neighbors.Count; j++)
+                    {
+                        if (adjacency[neighbors[i]].Contains(neighbors[j]))
+                        {
+                            neighborEdges++;
+                        }
+                    }
+                }
+
+                totalTriangles += neighborEdges;
+                double localC = maxPossible > 0 ? Math.Round((double)neighborEdges / maxPossible, 3) : 0.0;
+                sumClustering += localC;
+                clusterableNodes++;
+
+                bool isHub = degree >= 3 && neighborEdges == 0;
+                bool isLattice = localC >= 0.65;
+
+                if (isHub) hubAndSpokeCount++;
+                if (isLattice) latticeClusterCount++;
+
+                string classification = isHub ? "Hub-and-Spoke Vertex" :
+                                        isLattice ? "Dense Lattice Cluster" :
+                                        "Balanced Graph Transit";
+
+                string status = $"{localC * 100:0.#}% clustering ({neighborEdges}/{maxPossible} triangles)";
+
+                items.Add(new NodeClusteringCoefficientItem(
+                    n.Id, n.Title ?? "Untitled", degree, neighborEdges, maxPossible, localC, isHub, isLattice, classification, status));
+            }
+
+            totalTriangles /= 3; // each triangle counted at its 3 vertices
+            double globalC = clusterableNodes > 0 ? Math.Round(sumClustering / clusterableNodes, 3) : 0.0;
+
+            double score = 100.0;
+            score -= Math.Min(35.0, hubAndSpokeCount * 7.0);
+            score -= Math.Min(25.0, isolatedCount * 5.0);
+            if (globalC >= 0.3) score = Math.Min(100.0, score + 10.0);
+            score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+            string category = score >= 90.0
+                ? "Optimal Clustering & Small-World Topology (≥90%)"
+                : score >= 75.0
+                    ? "Good Triadic Clustering & Local Transit (75-89%)"
+                    : score >= 50.0
+                        ? "Moderate Hub-and-Spoke Sprawl & Low Clustering (50-74%)"
+                        : "Severe Topological Dispersion & Tree Fragmentation (<50%)";
+
+            string summary = FormatClusteringCoefficientSummary(
+                totalNodes, totalLinks, totalTriangles, globalC, hubAndSpokeCount, latticeClusterCount, isolatedCount, score, category, isSelection);
+
+            return new GraphClusteringCoefficientAudit(
+                totalNodes,
+                totalLinks,
+                totalTriangles,
+                globalC,
+                hubAndSpokeCount,
+                latticeClusterCount,
+                isolatedCount,
+                score,
+                items,
+                category,
+                isSelection,
+                summary);
+        }
+
+        public static string FormatClusteringCoefficientSummary(
+            int totalNodes, int totalLinks, int totalTriangles, double globalC,
+            int hubAndSpokeCount, int latticeClusterCount, int isolatedCount, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph clustering coefficient audit ({scope}0 nodes): Empty mind map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            var parts = new List<string>();
+
+            parts.Add($"{totalTriangles} {(totalTriangles == 1 ? "triangle" : "triangles")}, global C={globalC:0.###}");
+
+            if (latticeClusterCount > 0) parts.Add($"{latticeClusterCount} lattice clusters");
+            if (hubAndSpokeCount > 0) parts.Add($"⚠ {hubAndSpokeCount} hub-and-spoke sprawl");
+            else parts.Add("0 pure hub-and-spoke sprawl");
+
+            if (isolatedCount > 0) parts.Add($"⚠ {isolatedCount} isolated");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph clustering coefficient audit ({scope}{nodeStr} · {category} · {score:0.#}% topology score): {details}";
+        }
     }
 
 
@@ -12110,6 +12284,39 @@ namespace MarkSmith.ViewModels.MindMap
         int DeepSprawlNodesCount,
         double HierarchyBalanceScore,
         IReadOnlyList<TreeNodeBranchingItem> Nodes,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated local clustering coefficient, neighbor triangles, and topology classification for an individual node.
+    /// </summary>
+    public sealed record NodeClusteringCoefficientItem(
+        string NodeId,
+        string NodeTitle,
+        int Degree,
+        int NeighborTriangles,
+        int MaxPossibleTriangles,
+        double LocalClusteringCoefficient,
+        bool IsHubAndSpokeVertex,
+        bool IsLatticeClusterVertex,
+        string TopologyClassification,
+        string Status);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph local and global clustering coefficients,
+    /// hub-and-spoke vs lattice configurations, and small-world interconnectedness metrics.
+    /// </summary>
+    public sealed record GraphClusteringCoefficientAudit(
+        int TotalNodes,
+        int TotalLinks,
+        int TotalTriangles,
+        double GlobalClusteringCoefficient,
+        int HubAndSpokeCount,
+        int LatticeClusterCount,
+        int IsolatedCount,
+        double SmallWorldInterconnectednessScore,
+        IReadOnlyList<NodeClusteringCoefficientItem> Nodes,
         string Category,
         bool IsSelectionScope,
         string Summary);

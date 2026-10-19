@@ -2935,7 +2935,49 @@ public class ShapeStudioPolishTests
         Assert.True(piercedAudit.ShapeIntersectionCount >= 1);
         Assert.True(piercedAudit.RoutingEleganceScore < 90.0);
     }
+
+    [Fact]
+    public void Run190_AuditAlignmentGuidesAndSnapping_ValidatesNearMisses()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditAlignmentGuidesAndSnapping();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.AlignmentPrecisionScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+        Assert.Contains("0 shapes", emptyAudit.Summary);
+
+        // 2. Exactly aligned shapes (e.g. left edges aligned at X=50)
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Shape 1", X = 50, Y = 50, Width = 100, Height = 100 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Shape 2", X = 50, Y = 200, Width = 100, Height = 100 };
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+
+        var alignedAudit = vm.AuditAlignmentGuidesAndSnapping();
+        Assert.Equal(2, alignedAudit.TotalShapes);
+        Assert.True(alignedAudit.EvaluatedPairCount >= 1);
+        Assert.Equal(0, alignedAudit.NearMissEdgeCount);
+        Assert.Equal(100.0, alignedAudit.AlignmentPrecisionScore);
+
+        string formatted = ShapeDesignStudioViewModel.FormatAlignmentGuidesSummary(
+            alignedAudit.TotalShapes, alignedAudit.EvaluatedPairCount, alignedAudit.NearMissEdgeCount,
+            alignedAudit.NearMissCenterCount, alignedAudit.UnevenDistributionGapCount,
+            alignedAudit.MeanAlignmentOffsetDelta, alignedAudit.AlignmentPrecisionScore,
+            alignedAudit.Category, alignedAudit.IsSelectionScope);
+        Assert.Equal(alignedAudit.Summary, formatted);
+
+        // 3. Near-miss shape (e.g. X=52, offset by 2px within near-miss threshold of 0.5-3.5px)
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Name = "Shape 3", X = 52, Y = 350, Width = 100, Height = 100 };
+        vm.Shapes.Add(s3);
+
+        var nearMissAudit = vm.AuditAlignmentGuidesAndSnapping();
+        Assert.Equal(3, nearMissAudit.TotalShapes);
+        Assert.True(nearMissAudit.NearMissEdgeCount >= 1);
+        Assert.True(nearMissAudit.AlignmentPrecisionScore < 100.0);
+    }
 }
+
 
 
 

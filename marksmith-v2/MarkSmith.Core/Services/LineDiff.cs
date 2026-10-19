@@ -8044,6 +8044,178 @@ public static class LineDiff
         string details = string.Join(" · ", parts);
         return $"Diff memory allocation & boxing audit ({lineStr} · {category} · {score:0.#}% efficiency score): {details}";
     }
+
+    /// <summary>
+    /// Audits git diff lines and modified code for concurrency primitives, synchronization locks,
+    /// thread-safe collections, and potential deadlock or lock contention anti-patterns.
+    /// </summary>
+    public static DiffThreadSafetyAudit AuditThreadSafetyAndLockPrimitives(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new DiffThreadSafetyAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffThreadSafetyItem>(),
+                "Clean Baseline",
+                "Diff thread safety & lock audit (0 modified lines): 0 concurrency hazards found");
+        }
+
+        var items = new List<DiffThreadSafetyItem>();
+        int modifiedLines = 0;
+        int lockCount = 0;
+        int advancedCount = 0;
+        int concurrentCollectionCount = 0;
+        int atomicCount = 0;
+        int deadlockHazardCount = 0;
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var row = unifiedRows[i];
+            if (row.IsGap || row.IsRemoved) continue;
+
+            string line = row.Text;
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            modifiedLines++;
+
+            string trimmed = line.Trim();
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*")) continue;
+
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            // 1. Critical Deadlock Hazards: lock(this), lock(typeof(...)), lock("string")
+            if (trimmed.Contains("lock (this)") || trimmed.Contains("lock(this)"))
+            {
+                deadlockHazardCount++;
+                items.Add(new DiffThreadSafetyItem(lineNum, trimmed, "Lock(this)", "Critical Hazard",
+                    "Deadlock risk: locking on 'this' instance exposes synchronization object publicly"));
+            }
+            else if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"lock\s*\(\s*typeof\s*\("))
+            {
+                deadlockHazardCount++;
+                items.Add(new DiffThreadSafetyItem(lineNum, trimmed, "Lock(typeof)", "Critical Hazard",
+                    "Deadlock risk: locking on Type object creates AppDomain-wide cross-type contention"));
+            }
+            else if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"lock\s*\(\s*"""))
+            {
+                deadlockHazardCount++;
+                items.Add(new DiffThreadSafetyItem(lineNum, trimmed, "Lock(StringLiteral)", "Critical Hazard",
+                    "Deadlock risk: locking on string literal synchronizes on interned string pool"));
+            }
+            else if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\block\s*\("))
+            {
+                lockCount++;
+                items.Add(new DiffThreadSafetyItem(lineNum, trimmed, "LockStatement", "Safe Primitive",
+                    "Exclusive monitor lock synchronization block"));
+            }
+
+            // 2. Advanced synchronization primitives
+            if (trimmed.Contains("SemaphoreSlim") || trimmed.Contains("ReaderWriterLockSlim") ||
+                trimmed.Contains("Monitor.Enter") || trimmed.Contains("Monitor.Exit") ||
+                trimmed.Contains("ManualResetEventSlim") || trimmed.Contains("AutoResetEvent") ||
+                trimmed.Contains("Mutex") || trimmed.Contains("CountdownEvent"))
+            {
+                advancedCount++;
+                items.Add(new DiffThreadSafetyItem(lineNum, trimmed, "SyncPrimitive", "Safe Primitive",
+                    "Specialized synchronization primitive"));
+            }
+
+            // 3. Thread-safe concurrent collections
+            if (trimmed.Contains("ConcurrentDictionary") || trimmed.Contains("ConcurrentQueue") ||
+                trimmed.Contains("ConcurrentBag") || trimmed.Contains("ConcurrentStack") ||
+                trimmed.Contains("BlockingCollection") || trimmed.Contains("Channel.Create"))
+            {
+                concurrentCollectionCount++;
+                items.Add(new DiffThreadSafetyItem(lineNum, trimmed, "ConcurrentCollection", "Safe Primitive",
+                    "Thread-safe concurrent data structure"));
+            }
+
+            // 4. Atomic operations
+            if (trimmed.Contains("Interlocked.") || trimmed.Contains("Volatile."))
+            {
+                atomicCount++;
+                items.Add(new DiffThreadSafetyItem(lineNum, trimmed, "AtomicOperation", "Safe Primitive",
+                    "Lock-free atomic CPU primitive operation"));
+            }
+        }
+
+        int totalPrimitives = lockCount + advancedCount + concurrentCollectionCount + atomicCount + deadlockHazardCount;
+
+        double score = 100.0;
+        if (deadlockHazardCount > 0)
+        {
+            score -= Math.Min(60.0, deadlockHazardCount * 30.0);
+        }
+
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (modifiedLines == 0)
+        {
+            category = "Clean Baseline";
+        }
+        else if (score >= 90.0)
+        {
+            category = "Thread-Safe Architecture & Clean Synchronization (≥90%)";
+        }
+        else if (score >= 75.0)
+        {
+            category = "Standard Concurrent Operations & Safe Primitives (75-89%)";
+        }
+        else if (score >= 50.0)
+        {
+            category = "Elevated Concurrency Friction or Lock Contention (50-74%)";
+        }
+        else
+        {
+            category = "Critical Deadlock Hazards or Dangerous Lock Primitives (<50%)";
+        }
+
+        string summary = FormatThreadSafetySummary(
+            modifiedLines, totalPrimitives, lockCount, advancedCount,
+            concurrentCollectionCount, atomicCount, deadlockHazardCount, score, category);
+
+        return new DiffThreadSafetyAudit(
+            modifiedLines,
+            totalPrimitives,
+            lockCount,
+            advancedCount,
+            concurrentCollectionCount,
+            atomicCount,
+            deadlockHazardCount,
+            score,
+            items,
+            category,
+            summary);
+    }
+
+    public static DiffThreadSafetyAudit AuditThreadSafetyAndLockPrimitives(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditThreadSafetyAndLockPrimitives(unified);
+    }
+
+    public static string FormatThreadSafetySummary(
+        int modifiedLines, int totalPrimitives, int lockCount, int advancedCount,
+        int concurrentCollectionCount, int atomicCount, int deadlockHazards, double score, string category)
+    {
+        if (totalPrimitives == 0)
+            return $"Diff thread safety & lock audit ({modifiedLines} modified lines): 0 concurrency hazards found";
+
+        string lineStr = modifiedLines == 1 ? "1 modified line" : $"{modifiedLines} modified lines";
+        var parts = new List<string>();
+
+        if (deadlockHazards > 0) parts.Add($"⚠ {deadlockHazards} deadlock {(deadlockHazards == 1 ? "hazard" : "hazards")}");
+        else parts.Add("0 deadlock hazards");
+
+        if (lockCount > 0) parts.Add($"{lockCount} locks");
+        if (advancedCount > 0) parts.Add($"{advancedCount} sync primitives");
+        if (concurrentCollectionCount > 0) parts.Add($"{concurrentCollectionCount} concurrent collections");
+        if (atomicCount > 0) parts.Add($"{atomicCount} atomics");
+
+        string details = string.Join(" · ", parts);
+        return $"Diff thread safety & lock audit ({lineStr} · {category} · {score:0.#}% safety score): {details}";
+    }
 }
 
 /// <summary>
@@ -8861,6 +9033,34 @@ public sealed record DiffMemoryAllocationAudit(
 {
     public int TotalHazardsCount => TotalHazards;
 }
+
+/// <summary>
+/// Represents an identified concurrency primitive, lock statement, concurrent collection, or deadlock hazard on a diff line.
+/// </summary>
+public sealed record DiffThreadSafetyItem(
+    int LineNumber,
+    string LineText,
+    string PrimitiveKind,
+    string SafetyLevel,
+    string Description);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff hunks for concurrency synchronization, thread-safety primitives,
+/// and deadlock hazards.
+/// </summary>
+public sealed record DiffThreadSafetyAudit(
+    int TotalModifiedLines,
+    int TotalPrimitivesCount,
+    int LockStatementCount,
+    int AdvancedPrimitiveCount,
+    int ConcurrentCollectionCount,
+    int AtomicOperationCount,
+    int DeadlockHazardCount,
+    double ConcurrencySafetyScore,
+    IReadOnlyList<DiffThreadSafetyItem> Items,
+    string Category,
+    string Summary);
+
 
 
 

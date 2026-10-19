@@ -5019,6 +5019,14 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnOutlineStatsAuditHierarchyOrgChartBalanceClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditHierarchyOrgChartBalance();
+            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         #endregion
 
 

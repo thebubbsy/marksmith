@@ -5377,7 +5377,98 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceTagTaxonomyClick", suiteCs);
         Assert.Contains("AuditWorkspaceTagTaxonomy", suiteCs);
     }
+
+    [Fact]
+    public void Run190_AuditWorkspaceWordCountsAndReadingTimes()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditWorkspaceWordCountsAndReadingTimes(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(0, emptyAudit.TotalWords);
+        Assert.Equal(100.0, emptyAudit.DistributionScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 files", emptyAudit.Summary);
+
+        // 2. Sample multi-document workspace
+        var docQuick = string.Join("\n",
+            "# Quick Read",
+            "This is a brief markdown memo with just a few words for rapid scanning."
+        );
+
+        // Standard read: ~700 words (3.5 mins read time)
+        var docStandardLines = Enumerable.Range(1, 100).Select(i => $"Paragraph {i} discussing operational and architectural considerations with several words.").ToArray();
+
+        var fileSystem = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\quick.md"] = docQuick.Split('\n'),
+            [@"C:\workspace\standard.md"] = docStandardLines
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceWordCountsAndReadingTimes(
+            fileSystem.Keys,
+            workspaceRoot: @"C:\workspace",
+            fileExists: p => fileSystem.ContainsKey(p),
+            readAllLines: p => fileSystem.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(2, audit.TotalFilesScanned);
+        Assert.True(audit.TotalWords > 700);
+        Assert.True(audit.TotalReadingMinutes > 3.0);
+        Assert.Equal(1, audit.QuickReadCount);
+        Assert.Equal(1, audit.StandardReadCount);
+        Assert.Equal("standard.md", audit.LongestDocumentName);
+        Assert.Equal(100.0, audit.DistributionScore);
+        Assert.Equal("Balanced Reading Time & Word Count Distribution (≥90%)", audit.Category);
+
+        string formatted = RecentFilesService.FormatWorkspaceWordCountSummary(
+            audit.TotalFilesScanned, audit.TotalWords, audit.TotalReadingMinutes, audit.AverageWordsPerDocument,
+            audit.QuickReadCount, audit.StandardReadCount, audit.LongFormReadCount,
+            audit.LongestDocumentName, audit.MaxWordCount, audit.DistributionScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run190_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Blockquote Callouts, Nested Quotations & Attribution Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditBlockquoteCalloutItem", mainCs);
+        Assert.Contains("AuditBlockquoteCalloutsAndAttribution", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Clustering Coefficient, Triangle Density & Network Topology Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphClusteringCoefficientItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphClusteringCoefficientClick", galaxyCs);
+        Assert.Contains("AuditClusteringCoefficientAndTopology", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Alignment Guides, Snapping Proximity & Axis Alignment Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditAlignmentGuidesSnappingItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditAlignmentGuidesSnappingClick", shapeCs);
+        Assert.Contains("AuditAlignmentGuidesAndSnapping", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Organizational Hierarchy Balance, Depth & Span of Control Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditHierarchyOrgChartBalanceItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditHierarchyOrgChartBalanceClick", smartArtCs);
+        Assert.Contains("AuditHierarchyOrgChartBalance", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Thread Safety, Lock Primitives & Concurrency Deadlock Hazard Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditThreadSafety", historyCs);
+        Assert.Contains("AuditThreadSafetyAndLockPrimitives", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Document Word Count, Reading Time & Length Distribution Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceWordCountsItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceWordCountsClick", suiteCs);
+        Assert.Contains("AuditWorkspaceWordCountsAndReadingTimes", suiteCs);
+    }
 }
+
 
 
 

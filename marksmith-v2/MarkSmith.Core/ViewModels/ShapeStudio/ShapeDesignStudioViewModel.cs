@@ -10415,6 +10415,228 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"Diagram connector orthogonal routing audit ({scopeStr}{connStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits diagram shape alignment guide proximity, near-miss collinear edges and centerlines (1-3px),
+    /// smart snap distribution, and gap spacing balance.
+    /// </summary>
+    public DiagramAlignmentGuidesAudit AuditAlignmentGuidesAndSnapping(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes != null ? targetShapes.ToList() : (selected.Count > 0 ? selected : Shapes.ToList()));
+        bool isSelection = targetShapes != null || (selected.Count > 0 && targets.Count < Shapes.Count);
+        var audit = AuditAlignmentGuidesAndSnapping(targets, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramAlignmentGuidesAudit AuditAlignmentGuidesAndSnapping(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes = null,
+        bool isSelection = false)
+    {
+        var list = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        var context = (allShapes ?? list).ToList();
+
+        int totalShapes = list.Count;
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatAlignmentGuidesSummary(0, 0, 0, 0, 0, 0.0, 100.0, "Empty Canvas", isSelection);
+            return new DiagramAlignmentGuidesAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ShapeAlignmentProximityItem>(),
+                "Empty Canvas",
+                isSelection,
+                emptySummary);
+        }
+
+        var items = new List<ShapeAlignmentProximityItem>();
+        int totalNearMissEdges = 0;
+        int totalNearMissCenters = 0;
+        int evaluatedPairs = 0;
+        double sumDelta = 0.0;
+        int deltaCount = 0;
+
+        foreach (var shape in list)
+        {
+            int nearMissEdges = 0;
+            int nearMissCenters = 0;
+            double minDelta = double.MaxValue;
+            string bestRecommendation = "Aligned";
+
+            double aLeft = shape.X;
+            double aRight = shape.X + shape.Width;
+            double aTop = shape.Y;
+            double aBottom = shape.Y + shape.Height;
+            double aCenterX = shape.X + (shape.Width / 2.0);
+            double aCenterY = shape.Y + (shape.Height / 2.0);
+
+            foreach (var other in context)
+            {
+                if (ReferenceEquals(shape, other) || shape.Id == other.Id) continue;
+                evaluatedPairs++;
+
+                double bLeft = other.X;
+                double bRight = other.X + other.Width;
+                double bTop = other.Y;
+                double bBottom = other.Y + other.Height;
+                double bCenterX = other.X + (other.Width / 2.0);
+                double bCenterY = other.Y + (other.Height / 2.0);
+
+                // Edge near-misses (1px to 3.5px)
+                double dLeft = Math.Abs(aLeft - bLeft);
+                double dRight = Math.Abs(aRight - bRight);
+                double dTop = Math.Abs(aTop - bTop);
+                double dBottom = Math.Abs(aBottom - bBottom);
+
+                if (dLeft >= 0.5 && dLeft <= 3.5)
+                {
+                    nearMissEdges++;
+                    if (dLeft < minDelta) { minDelta = dLeft; bestRecommendation = $"Snap Left ({bLeft:0.#}px)"; }
+                    sumDelta += dLeft;
+                    deltaCount++;
+                }
+                if (dRight >= 0.5 && dRight <= 3.5)
+                {
+                    nearMissEdges++;
+                    if (dRight < minDelta) { minDelta = dRight; bestRecommendation = $"Snap Right ({bRight:0.#}px)"; }
+                    sumDelta += dRight;
+                    deltaCount++;
+                }
+                if (dTop >= 0.5 && dTop <= 3.5)
+                {
+                    nearMissEdges++;
+                    if (dTop < minDelta) { minDelta = dTop; bestRecommendation = $"Snap Top ({bTop:0.#}px)"; }
+                    sumDelta += dTop;
+                    deltaCount++;
+                }
+                if (dBottom >= 0.5 && dBottom <= 3.5)
+                {
+                    nearMissEdges++;
+                    if (dBottom < minDelta) { minDelta = dBottom; bestRecommendation = $"Snap Bottom ({bBottom:0.#}px)"; }
+                    sumDelta += dBottom;
+                    deltaCount++;
+                }
+
+                // Centerline near-misses
+                double dCenterX = Math.Abs(aCenterX - bCenterX);
+                double dCenterY = Math.Abs(aCenterY - bCenterY);
+
+                if (dCenterX >= 0.5 && dCenterX <= 3.5)
+                {
+                    nearMissCenters++;
+                    if (dCenterX < minDelta) { minDelta = dCenterX; bestRecommendation = $"Snap CenterX ({bCenterX:0.#}px)"; }
+                    sumDelta += dCenterX;
+                    deltaCount++;
+                }
+                if (dCenterY >= 0.5 && dCenterY <= 3.5)
+                {
+                    nearMissCenters++;
+                    if (dCenterY < minDelta) { minDelta = dCenterY; bestRecommendation = $"Snap CenterY ({bCenterY:0.#}px)"; }
+                    sumDelta += dCenterY;
+                    deltaCount++;
+                }
+            }
+
+            totalNearMissEdges += nearMissEdges;
+            totalNearMissCenters += nearMissCenters;
+
+            double recordedMinDelta = minDelta == double.MaxValue ? 0.0 : Math.Round(minDelta, 1);
+            string status = (nearMissEdges == 0 && nearMissCenters == 0)
+                ? "✓ Snapped / Clean Alignment"
+                : $"⚠ {nearMissEdges + nearMissCenters} near-miss guides (~{recordedMinDelta}px offset)";
+
+            items.Add(new ShapeAlignmentProximityItem(
+                shape.Id,
+                shape.Name ?? "Shape",
+                shape.X,
+                shape.Y,
+                shape.Width,
+                shape.Height,
+                nearMissEdges,
+                nearMissCenters,
+                recordedMinDelta,
+                bestRecommendation,
+                status));
+        }
+
+        // Check for uneven distribution gaps among horizontally or vertically ordered shapes
+        int unevenGapCount = 0;
+        if (list.Count >= 3)
+        {
+            var sortedX = list.OrderBy(s => s.X).ToList();
+            var xGaps = new List<double>();
+            for (int i = 0; i < sortedX.Count - 1; i++)
+            {
+                double gap = sortedX[i + 1].X - (sortedX[i].X + sortedX[i].Width);
+                if (gap > 0) xGaps.Add(gap);
+            }
+            for (int i = 0; i < xGaps.Count - 1; i++)
+            {
+                double diff = Math.Abs(xGaps[i] - xGaps[i + 1]);
+                if (diff >= 1.0 && diff <= 4.0) unevenGapCount++;
+            }
+        }
+
+        double meanOffset = deltaCount > 0 ? Math.Round(sumDelta / deltaCount, 1) : 0.0;
+        double score = 100.0;
+        score -= Math.Min(40.0, totalNearMissEdges * 6.0);
+        score -= Math.Min(30.0, totalNearMissCenters * 5.0);
+        score -= Math.Min(20.0, unevenGapCount * 5.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Alignment & Smart Snap Conformance (≥90%)"
+            : score >= 75.0
+                ? "Good Visual Alignment & Minor Edge Drift (75-89%)"
+                : score >= 50.0
+                    ? "Moderate Alignment Near-Misses & Unsnapped Gaps (50-74%)"
+                    : "Severe Misalignment & Irregular Spacing (<50%)";
+
+        string summary = FormatAlignmentGuidesSummary(
+            totalShapes, evaluatedPairs, totalNearMissEdges, totalNearMissCenters, unevenGapCount,
+            meanOffset, score, category, isSelection);
+
+        return new DiagramAlignmentGuidesAudit(
+            totalShapes,
+            evaluatedPairs,
+            totalNearMissEdges,
+            totalNearMissCenters,
+            unevenGapCount,
+            meanOffset,
+            score,
+            items,
+            category,
+            isSelection,
+            summary);
+    }
+
+    public static string FormatAlignmentGuidesSummary(
+        int totalShapes, int evaluatedPairs, int nearMissEdges, int nearMissCenters,
+        int unevenGaps, double meanOffset, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Diagram alignment guide & smart snap audit ({scopeStr}0 shapes): No shapes to evaluate";
+
+        string shapeStr = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        var parts = new List<string>();
+
+        if (nearMissEdges > 0 || nearMissCenters > 0)
+        {
+            parts.Add($"⚠ {nearMissEdges} edge + {nearMissCenters} center near-misses (~{meanOffset:0.#}px)");
+        }
+        else
+        {
+            parts.Add("0 near-miss alignment guides");
+        }
+
+        if (unevenGaps > 0) parts.Add($"⚠ {unevenGaps} uneven gap sequences");
+        else parts.Add("0 gap irregularities");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram alignment guide & smart snap audit ({scopeStr}{shapeStr} · {category} · {score:0.#}% precision): {details}";
+    }
 }
 
 /// <summary>
@@ -11546,3 +11768,35 @@ public sealed record DiagramConnectorRoutingAudit(
     bool IsSelectionScope,
     string Summary);
 
+/// <summary>
+/// Represents evaluated near-miss alignment offsets, collinear edges, centerline delta, and smart snap recommendation for an individual shape.
+/// </summary>
+public sealed record ShapeAlignmentProximityItem(
+    string ShapeId,
+    string ShapeName,
+    double X,
+    double Y,
+    double Width,
+    double Height,
+    int NearMissEdgeCount,
+    int NearMissCenterCount,
+    double MinOffsetDelta,
+    string AlignmentGuideRecommendation,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape alignment guide proximity, collinear edges,
+/// centerline alignment near-misses (1-3px), smart snap distribution, and precision alignment scoring.
+/// </summary>
+public sealed record DiagramAlignmentGuidesAudit(
+    int TotalShapes,
+    int EvaluatedPairCount,
+    int NearMissEdgeCount,
+    int NearMissCenterCount,
+    int UnevenDistributionGapCount,
+    double MeanAlignmentOffsetDelta,
+    double AlignmentPrecisionScore,
+    IReadOnlyList<ShapeAlignmentProximityItem> Shapes,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

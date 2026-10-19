@@ -23,6 +23,11 @@ namespace MarkSmith.Tests.Email;
 [Collection("EmailOutbox")]
 public class MsgTests
 {
+    static MsgTests()
+    {
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(MsgImporter).TypeHandle);
+    }
+
     private static readonly byte[] Png = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 

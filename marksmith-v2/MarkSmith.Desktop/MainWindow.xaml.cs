@@ -11935,6 +11935,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditTaskListPriorityItem);
 
+        var auditBlockquoteCalloutItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Blockquote Callouts, Alerts & Citation Attributions",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditBlockquoteCalloutItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditBlockquoteCalloutsAndAttribution(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditBlockquoteCalloutItem);
+
         menu.ShowAt(anchor);
     }
 

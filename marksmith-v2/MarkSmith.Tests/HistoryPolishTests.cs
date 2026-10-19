@@ -2768,7 +2768,74 @@ public class HistoryPolishTests : IDisposable
         Assert.True(probAudit.ValueTypeBoxingCount >= 1);
         Assert.True(probAudit.ZeroAllocationScore < 70.0);
     }
+
+    [Fact]
+    public void Run190_AuditThreadSafetyAndLockPrimitives_DetectsLocksAndDeadlockHazards()
+    {
+        // 1. Empty diff
+        var emptyAudit = LineDiff.AuditThreadSafetyAndLockPrimitives("", "");
+        Assert.Equal(0, emptyAudit.TotalModifiedLines);
+        Assert.Equal(0, emptyAudit.TotalPrimitivesCount);
+        Assert.Equal(100.0, emptyAudit.ConcurrencySafetyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 modified lines", emptyAudit.Summary);
+
+        // 2. Safe concurrent code: ConcurrentDictionary, SemaphoreSlim, and Interlocked
+        var safeCode = string.Join("\n",
+            "public class ThreadSafeCache",
+            "{",
+            "    private readonly ConcurrentDictionary<string, int> _cache = new();",
+            "    private readonly SemaphoreSlim _gate = new(1, 1);",
+            "    private int _counter;",
+            "",
+            "    public void Increment()",
+            "    {",
+            "        Interlocked.Increment(ref _counter);",
+            "    }",
+            "}"
+        );
+
+        var safeAudit = LineDiff.AuditThreadSafetyAndLockPrimitives("", safeCode);
+        Assert.True(safeAudit.ConcurrentCollectionCount >= 1);
+        Assert.True(safeAudit.AdvancedPrimitiveCount >= 1);
+        Assert.True(safeAudit.AtomicOperationCount >= 1);
+        Assert.Equal(0, safeAudit.DeadlockHazardCount);
+        Assert.Equal(100.0, safeAudit.ConcurrencySafetyScore);
+        Assert.Equal("Thread-Safe Architecture & Clean Synchronization (≥90%)", safeAudit.Category);
+
+        string formatted = LineDiff.FormatThreadSafetySummary(
+            safeAudit.TotalModifiedLines, safeAudit.TotalPrimitivesCount, safeAudit.LockStatementCount,
+            safeAudit.AdvancedPrimitiveCount, safeAudit.ConcurrentCollectionCount,
+            safeAudit.AtomicOperationCount, safeAudit.DeadlockHazardCount, safeAudit.ConcurrencySafetyScore, safeAudit.Category);
+        Assert.Equal(safeAudit.Summary, formatted);
+
+        // 3. Problematic code with deadlock hazards: lock(this) and lock(typeof(...))
+        var deadlockCode = string.Join("\n",
+            "public class RiskyLocking",
+            "{",
+            "    public void UnsafeLockThis()",
+            "    {",
+            "        lock (this)",
+            "        {",
+            "            DoWork();",
+            "        }",
+            "    }",
+            "    public void UnsafeLockType()",
+            "    {",
+            "        lock (typeof(RiskyLocking))",
+            "        {",
+            "            DoGlobalWork();",
+            "        }",
+            "    }",
+            "}"
+        );
+
+        var deadlockAudit = LineDiff.AuditThreadSafetyAndLockPrimitives("", deadlockCode);
+        Assert.True(deadlockAudit.DeadlockHazardCount >= 2);
+        Assert.True(deadlockAudit.ConcurrencySafetyScore < 60.0);
+    }
 }
+
 
 
 
