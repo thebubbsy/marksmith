@@ -3640,6 +3640,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditControlFlow);
+
+                var auditExceptionHandling = new MenuFlyoutItem
+                {
+                    Text = "Audit exception handling hierarchy, catch specificity & rethrow anti-patterns",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditExceptionHandling.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditExceptionHandlingAndRethrows(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditExceptionHandling);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

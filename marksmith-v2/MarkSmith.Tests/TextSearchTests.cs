@@ -2780,6 +2780,68 @@ public class TextSearchTests
         Assert.Equal(1, probAudit.OverlyVerboseAltCount);
         Assert.True(probAudit.AccessibilityScore < 100.0);
     }
+
+    [Fact]
+    public void Run187_AuditFootnoteAndReferenceDefinitions_DetectsOrphansAndCycles()
+    {
+        // 1. Empty / null document
+        var emptyAudit = TextSearch.AuditFootnoteAndReferenceDefinitions("");
+        Assert.Equal(0, emptyAudit.TotalReferences);
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(100.0, emptyAudit.IntegrityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 references", emptyAudit.Summary);
+
+        // 2. Clean valid footnotes and reference links
+        var cleanDoc = string.Join("\n",
+            "# Document Title",
+            "Here is a footnote reference[^1] and a reference link [Documentation][doc_ref].",
+            "Also a shortcut reference [guide].",
+            "",
+            "[^1]: This is the verified footnote body.",
+            "[doc_ref]: https://marksmith.dev/docs \"Documentation\"",
+            "[guide]: https://marksmith.dev/guide",
+            "```markdown",
+            "Ignored [^99] in code block",
+            "```"
+        );
+
+        var cleanAudit = TextSearch.AuditFootnoteAndReferenceDefinitions(cleanDoc);
+        Assert.True(cleanAudit.TotalReferences >= 2);
+        Assert.Equal(3, cleanAudit.TotalDefinitions);
+        Assert.Equal(0, cleanAudit.OrphanReferencesCount);
+        Assert.Equal(0, cleanAudit.DanglingDefinitionsCount);
+        Assert.Equal(0, cleanAudit.DuplicateDefinitionsCount);
+        Assert.Equal(0, cleanAudit.CyclicReferencesCount);
+        Assert.Equal(100.0, cleanAudit.IntegrityScore);
+        Assert.Equal("Optimal Footnote & Reference Governance (≥90%)", cleanAudit.Category);
+
+        string formatted = TextSearch.FormatFootnoteAndReferenceDefinitionsSummary(
+            cleanAudit.TotalReferences, cleanAudit.TotalDefinitions, cleanAudit.ValidPairsCount,
+            cleanAudit.OrphanReferencesCount, cleanAudit.DanglingDefinitionsCount,
+            cleanAudit.DuplicateDefinitionsCount, cleanAudit.CyclicReferencesCount,
+            cleanAudit.IntegrityScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Problematic document with orphaned reference, dangling definition, and cyclic loop
+        var probDoc = string.Join("\n",
+            "Orphan footnote reference [^missing_fn].",
+            "Orphan link [unlinked_text][missing_link].",
+            "",
+            "[^dangling_fn]: Defined but never cited in body text.",
+            "[loop_a]: [loop_b]",
+            "[loop_b]: [loop_a]",
+            "[dup_key]: https://alpha.com",
+            "[dup_key]: https://beta.com"
+        );
+
+        var probAudit = TextSearch.AuditFootnoteAndReferenceDefinitions(probDoc);
+        Assert.True(probAudit.OrphanReferencesCount >= 2);
+        Assert.True(probAudit.DanglingDefinitionsCount >= 1);
+        Assert.True(probAudit.DuplicateDefinitionsCount >= 1);
+        Assert.True(probAudit.CyclicReferencesCount >= 1);
+        Assert.True(probAudit.IntegrityScore < 80.0);
+    }
 }
 
 

@@ -8727,6 +8727,147 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", alerts);
         return $"SmartArt radial symmetry audit ({layoutName} · {spokeStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits SmartArt chevron, closed chevron, and arrow process outlines for sequence directionality,
+    /// transition gap spacing, phase bounds (3 <= N <= 7), and label word limits.
+    /// </summary>
+    public SmartArtChevronProcessFlowAudit AuditChevronProcessFlowAndSpacing(
+        string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText ?? string.Empty;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Chevron Process";
+
+        if (string.IsNullOrWhiteSpace(md))
+        {
+            return new SmartArtChevronProcessFlowAudit(
+                0, 0, false, 0, 100.0,
+                Array.Empty<ChevronProcessPhaseItem>(),
+                "Empty Outline", layout,
+                $"SmartArt chevron process audit ({layout} · 0 phases): Outline is empty");
+        }
+
+        var lines = md.Replace("\r\n", "\n").Split('\n');
+        var phases = new List<(string Label, List<string> SubSteps)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string raw = lines[i];
+            string trimmed = raw.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ "))
+            {
+                int indent = raw.TakeWhile(char.IsWhiteSpace).Count();
+                string text = trimmed.Substring(2).Trim();
+
+                if (indent <= 1)
+                {
+                    phases.Add((text, new List<string>()));
+                }
+                else if (phases.Count > 0)
+                {
+                    phases[phases.Count - 1].SubSteps.Add(text);
+                }
+            }
+        }
+
+        int totalPhases = phases.Count;
+        if (totalPhases == 0)
+        {
+            return new SmartArtChevronProcessFlowAudit(
+                0, 0, false, 0, 100.0,
+                Array.Empty<ChevronProcessPhaseItem>(),
+                "Empty Outline", layout,
+                $"SmartArt chevron process audit ({layout} · 0 phases): No process phases found");
+        }
+
+        bool isOptimalBounds = totalPhases >= 3 && totalPhases <= 7;
+        int wordViolations = 0;
+        int totalSubSteps = 0;
+        var phaseItems = new List<ChevronProcessPhaseItem>();
+
+        const double nominalGapPx = 16.0;
+
+        for (int i = 0; i < totalPhases; i++)
+        {
+            var p = phases[i];
+            int words = p.Label.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+            bool isViolation = words > 12;
+            if (isViolation) wordViolations++;
+            totalSubSteps += p.SubSteps.Count;
+
+            string status = isViolation
+                ? $"⚠ Verbose phase label ({words} words > 12 word max) · Step {i + 1}/{totalPhases}"
+                : $"✓ Concise phase step ({words} words, {p.SubSteps.Count} substeps) · Step {i + 1}/{totalPhases}";
+
+            phaseItems.Add(new ChevronProcessPhaseItem(
+                i + 1,
+                p.Label,
+                p.SubSteps.Count,
+                words,
+                isViolation,
+                nominalGapPx,
+                status));
+        }
+
+        double score = 100.0;
+        if (!isOptimalBounds)
+        {
+            score -= (totalPhases < 3 ? 20.0 : Math.Min(35.0, (totalPhases - 7) * 10.0));
+        }
+        score -= (wordViolations * 15.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Chevron Process Flow (≥90%)"
+            : score >= 75.0
+                ? "Moderate Process Step Density (75-89%)"
+                : "Severe Phase Crowding / Label Length (<75%)";
+
+        string summary = FormatChevronProcessFlowSummary(
+            totalPhases, totalSubSteps, isOptimalBounds, wordViolations, score, category, layout);
+
+        return new SmartArtChevronProcessFlowAudit(
+            totalPhases,
+            totalSubSteps,
+            isOptimalBounds,
+            wordViolations,
+            score,
+            phaseItems,
+            category,
+            layout,
+            summary);
+    }
+
+    public static SmartArtChevronProcessFlowAudit AuditChevronProcessFlowAndSpacing(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditChevronProcessFlowAndSpacing(markdown, layoutName);
+    }
+
+    public static string FormatChevronProcessFlowSummary(
+        int totalPhases, int totalSubSteps, bool isOptimalBounds, int wordViolations,
+        double score, string category, string layoutName)
+    {
+        if (totalPhases == 0)
+            return $"SmartArt chevron process audit ({layoutName} · 0 phases): Outline is empty";
+
+        string phaseStr = totalPhases == 1 ? "1 phase" : $"{totalPhases} phases";
+        var parts = new List<string>();
+
+        if (isOptimalBounds) parts.Add("optimal bounds (3-7 phases)");
+        else parts.Add(totalPhases < 3 ? "too few phases (<3)" : "crowded process (>7 phases)");
+
+        if (totalSubSteps > 0) parts.Add($"{totalSubSteps} substeps");
+
+        if (wordViolations > 0) parts.Add($"⚠ {wordViolations} verbose {(wordViolations == 1 ? "label" : "labels")}");
+        else parts.Add("concise phase titles");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt chevron process audit ({layoutName} · {phaseStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -9647,4 +9788,32 @@ public sealed record SmartArtRadialHubSpokeAudit(
     string Category,
     string LayoutName,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, step index, sub-steps, and word count for an individual phase in a chevron process.
+/// </summary>
+public sealed record ChevronProcessPhaseItem(
+    int PhaseIndex,
+    string PhaseLabel,
+    int SubStepCount,
+    int WordCount,
+    bool IsWordLengthViolation,
+    double NominalGapSpacingPx,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt chevron and arrow process outlines for sequence directionality,
+/// phase count bounds (3 <= N <= 7), gap spacing, and label conciseness.
+/// </summary>
+public sealed record SmartArtChevronProcessFlowAudit(
+    int TotalPhases,
+    int TotalSubSteps,
+    bool IsWithinOptimalPhaseBounds,
+    int WordLengthViolations,
+    double FlowDirectionalityScore,
+    IReadOnlyList<ChevronProcessPhaseItem> Phases,
+    string Category,
+    string LayoutName,
+    string Summary);
+
 

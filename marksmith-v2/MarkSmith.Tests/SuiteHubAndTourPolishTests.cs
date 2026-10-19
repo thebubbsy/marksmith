@@ -5006,6 +5006,137 @@ Some paragraph in between.
         Assert.Contains("OnApplyWorkspaceDialectNormalizationClick", suiteCs);
         Assert.Contains("ApplyWorkspaceDialectNormalization", suiteCs);
     }
+
+    [Fact]
+    public void Run187_AuditWorkspaceFrontmatterSchemas_ValidatesMetadataAndDates()
+    {
+        // 1. Empty / null files list
+        var emptyAudit = RecentFilesService.AuditWorkspaceFrontmatterSchemas(
+            Array.Empty<string>(),
+            _ => false,
+            _ => null);
+        Assert.Equal(0, emptyAudit.TotalFilesAudited);
+        Assert.Equal(0, emptyAudit.FilesWithFrontmatter);
+        Assert.Equal(100.0, emptyAudit.SchemaIntegrityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 files", emptyAudit.Summary);
+
+        // 2. Conforming YAML and TOML frontmatter documents
+        var doc1 = string.Join("\n",
+            "---",
+            "title: Project Architecture Overview",
+            "date: 2026-10-20",
+            "author: Core Engineering Team",
+            "tags: [architecture, design, openxml]",
+            "---",
+            "# Heading 1",
+            "Content follows..."
+        );
+
+        var doc2 = string.Join("\n",
+            "+++",
+            "title = \"Release Notes v2.5\"",
+            "date = 2026-10-15",
+            "author = \"Release Manager\"",
+            "tags = [\"release\", \"changelog\"]",
+            "+++",
+            "Release details..."
+        );
+
+        var fileContents = new Dictionary<string, string>
+        {
+            [@"C:\workspace\arch.md"] = doc1,
+            [@"C:\workspace\release.md"] = doc2
+        };
+
+        var validAudit = RecentFilesService.AuditWorkspaceFrontmatterSchemas(
+            fileContents.Keys,
+            p => fileContents.ContainsKey(p),
+            p => fileContents.TryGetValue(p, out var c) ? c : null);
+
+        Assert.Equal(2, validAudit.TotalFilesAudited);
+        Assert.Equal(2, validAudit.FilesWithFrontmatter);
+        Assert.Equal(2, validAudit.ConformingFilesCount);
+        Assert.Equal(0, validAudit.MissingKeysViolationsCount);
+        Assert.Equal(0, validAudit.DateFormatViolationsCount);
+        Assert.Equal(0, validAudit.TagFormatViolationsCount);
+        Assert.Equal(100.0, validAudit.SchemaIntegrityScore);
+        Assert.Equal("Optimal Frontmatter Schema Rigor (≥90%)", validAudit.Category);
+
+        string formatted = RecentFilesService.FormatFrontmatterSchemaSummary(
+            validAudit.TotalFilesAudited, validAudit.FilesWithFrontmatter, validAudit.ConformingFilesCount,
+            validAudit.MissingKeysViolationsCount, validAudit.DateFormatViolationsCount,
+            validAudit.TagFormatViolationsCount, validAudit.SchemaIntegrityScore, validAudit.Category);
+        Assert.Equal(validAudit.Summary, formatted);
+
+        // 3. Problematic document missing required keys and malformed date
+        var probDoc = string.Join("\n",
+            "---",
+            "title: Incomplete Metadata Document",
+            "date: not-a-valid-date-string",
+            "---",
+            "Body..."
+        );
+
+        var probFiles = new Dictionary<string, string>
+        {
+            [@"C:\workspace\prob.md"] = probDoc
+        };
+
+        var probAudit = RecentFilesService.AuditWorkspaceFrontmatterSchemas(
+            probFiles.Keys,
+            p => probFiles.ContainsKey(p),
+            p => probFiles.TryGetValue(p, out var c) ? c : null);
+
+        Assert.Equal(1, probAudit.TotalFilesAudited);
+        Assert.Equal(1, probAudit.FilesWithFrontmatter);
+        Assert.Equal(0, probAudit.ConformingFilesCount);
+        Assert.True(probAudit.MissingKeysViolationsCount >= 1);
+        Assert.True(probAudit.DateFormatViolationsCount >= 1);
+        Assert.True(probAudit.SchemaIntegrityScore < 80.0);
+    }
+
+    [Fact]
+    public void Run187_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Footnote & Reference Link Definition Orphan & Cycle Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditFootnoteRefItem", mainCs);
+        Assert.Contains("AuditFootnoteAndReferenceDefinitions", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Cycle Detection, Feedback Loops & Tarjan SCC Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphCyclesItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphCyclesClick", galaxyCs);
+        Assert.Contains("AuditGraphDagFeedbackLoopsAndScc", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Visual Density & Margins Safety Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditVisualDensityMarginsItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditVisualDensityMarginsClick", shapeCs);
+        Assert.Contains("AuditVisualDensityAndMargins", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - Chevron & Arrow Process Flow & Spacing Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditChevronProcessFlowItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditChevronProcessFlowClick", smartArtCs);
+        Assert.Contains("AuditChevronProcessFlowAndSpacing", smartArtCs);
+
+        // Surface 5: HistoryWindow - Exception Handling Hierarchy, Specificity & Rethrow Anti-Pattern Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditExceptionHandling", historyCs);
+        Assert.Contains("AuditExceptionHandlingAndRethrows", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Frontmatter Schema Validator & Date Formats
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceFrontmatterSchemasItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceFrontmatterSchemasClick", suiteCs);
+        Assert.Contains("AuditWorkspaceFrontmatterSchemas", suiteCs);
+    }
 }
 
 

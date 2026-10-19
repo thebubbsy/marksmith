@@ -11893,6 +11893,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditImageAccessibilityItem);
 
+        var auditFootnoteRefItem = new MenuFlyoutItem
+        {
+            Text = "Audit Footnote & Reference Link Definitions, Orphans & Cycles",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditFootnoteRefItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditFootnoteAndReferenceDefinitions(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditFootnoteRefItem);
+
         menu.ShowAt(anchor);
     }
 

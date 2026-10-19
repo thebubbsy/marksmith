@@ -375,6 +375,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphSubtreeDepthItem" Text="Audit graph subtree depth uniformity, branching factors &amp; leaf density" Click="OnAuditGraphSubtreeDepthClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphCyclesItem" Text="Audit graph cycle detection, feedback loops &amp; strongly connected components (SCC)" Click="OnAuditGraphCyclesClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

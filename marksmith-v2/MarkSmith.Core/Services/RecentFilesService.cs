@@ -7375,6 +7375,267 @@ public sealed class RecentFilesService
         string fileStr = normalizedFiles == 1 ? "1 file" : $"{normalizedFiles} files";
         return $"{prefix}Workspace dialect normalization applied ({fileStr}/{totalFiles} · {totalReplacements} changes · {backupsCreated} backups verified): Dominant dialect enforced";
     }
+
+    /// <summary>
+    /// Audits workspace markdown documents for frontmatter schema validity (YAML '---' or TOML '+++'),
+    /// checking for required schema keys (title, date, tags, author), date format conformity, and array types.
+    /// </summary>
+    public static WorkspaceFrontmatterSchemaAudit AuditWorkspaceFrontmatterSchemas(
+        IEnumerable<string>? filePaths,
+        Func<string, bool>? fileExists = null,
+        Func<string, string?>? readText = null,
+        IEnumerable<string>? requiredKeys = null)
+    {
+        var paths = filePaths?.ToList() ?? new List<string>();
+        var reqKeys = (requiredKeys ?? new[] { "title", "date", "tags", "author" })
+            .Select(k => k.Trim().ToLowerInvariant())
+            .ToList();
+
+        var exists = fileExists ?? (p => File.Exists(p));
+        var read = readText ?? (p =>
+        {
+            try { return File.ReadAllText(p); }
+            catch { return null; }
+        });
+
+        int totalAudited = 0;
+        int filesWithFm = 0;
+        int conformingCount = 0;
+        int missingKeysViolations = 0;
+        int dateFormatViolations = 0;
+        int tagFormatViolations = 0;
+
+        var items = new List<WorkspaceFrontmatterFileItem>();
+
+        foreach (var path in paths)
+        {
+            if (string.IsNullOrWhiteSpace(path)) continue;
+            totalAudited++;
+
+            if (!exists(path))
+            {
+                items.Add(new WorkspaceFrontmatterFileItem(
+                    path, false, "None", reqKeys, new Dictionary<string, string>(),
+                    false, null, false, 0, false, "⚠ File does not exist"));
+                missingKeysViolations++;
+                continue;
+            }
+
+            string? content = read(path);
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                items.Add(new WorkspaceFrontmatterFileItem(
+                    path, false, "None", reqKeys, new Dictionary<string, string>(),
+                    false, null, false, 0, false, "⚠ Empty file (no frontmatter)"));
+                missingKeysViolations++;
+                continue;
+            }
+
+            string normalized = content.Replace("\r\n", "\n");
+            string format = "None";
+            string closingDelim = "";
+            int startIdx = -1;
+
+            if (normalized.StartsWith("---\n") || normalized.StartsWith("---\r\n") || normalized == "---")
+            {
+                format = "YAML";
+                closingDelim = "\n---";
+                startIdx = 4;
+            }
+            else if (normalized.StartsWith("+++\n") || normalized.StartsWith("+++\r\n") || normalized == "+++")
+            {
+                format = "TOML";
+                closingDelim = "\n+++";
+                startIdx = 4;
+            }
+
+            if (format == "None" || startIdx < 0)
+            {
+                items.Add(new WorkspaceFrontmatterFileItem(
+                    path, false, "None", reqKeys, new Dictionary<string, string>(),
+                    false, null, false, 0, false, "⚠ No frontmatter header block found"));
+                missingKeysViolations++;
+                continue;
+            }
+
+            filesWithFm++;
+            int endIdx = normalized.IndexOf(closingDelim, startIdx, StringComparison.Ordinal);
+            if (endIdx < 0)
+            {
+                items.Add(new WorkspaceFrontmatterFileItem(
+                    path, true, format, reqKeys, new Dictionary<string, string>(),
+                    false, null, false, 0, false, $"⚠ Unclosed {format} frontmatter delimiter block"));
+                missingKeysViolations++;
+                continue;
+            }
+
+            string fmBody = normalized.Substring(startIdx, endIdx - startIdx);
+            var fmLines = fmBody.Split('\n');
+            var parsed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            string currentKey = "";
+            var tagList = new List<string>();
+            bool parsingTags = false;
+
+            for (int l = 0; l < fmLines.Length; l++)
+            {
+                string line = fmLines[l].Trim();
+                if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
+
+                int colon = line.IndexOf(':');
+                int equals = line.IndexOf('=');
+
+                if (colon > 0 && (equals < 0 || colon < equals))
+                {
+                    parsingTags = false;
+                    currentKey = line.Substring(0, colon).Trim().ToLowerInvariant();
+                    string val = line.Substring(colon + 1).Trim();
+                    parsed[currentKey] = val;
+
+                    if (currentKey == "tags")
+                    {
+                        if (val.StartsWith("[") && val.EndsWith("]"))
+                        {
+                            string inner = val.Substring(1, val.Length - 2);
+                            var parts = inner.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                            foreach (var p in parts) tagList.Add(p.Trim().Trim('"', '\''));
+                        }
+                        else if (string.IsNullOrEmpty(val))
+                        {
+                            parsingTags = true;
+                        }
+                        else
+                        {
+                            tagList.Add(val.Trim('"', '\''));
+                        }
+                    }
+                }
+                else if (equals > 0)
+                {
+                    parsingTags = false;
+                    currentKey = line.Substring(0, equals).Trim().ToLowerInvariant();
+                    string val = line.Substring(equals + 1).Trim();
+                    parsed[currentKey] = val;
+
+                    if (currentKey == "tags" && val.StartsWith("[") && val.EndsWith("]"))
+                    {
+                        string inner = val.Substring(1, val.Length - 2);
+                        var parts = inner.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var p in parts) tagList.Add(p.Trim().Trim('"', '\''));
+                    }
+                }
+                else if (parsingTags && line.StartsWith("- "))
+                {
+                    tagList.Add(line.Substring(2).Trim().Trim('"', '\''));
+                }
+            }
+
+            var missing = reqKeys.Where(k => !parsed.ContainsKey(k) || string.IsNullOrWhiteSpace(parsed[k])).ToList();
+            if (missing.Count > 0) missingKeysViolations++;
+
+            bool validDate = false;
+            string? dateStr = null;
+            if (parsed.TryGetValue("date", out var rawDate))
+            {
+                string cleanDate = rawDate.Trim('"', '\'');
+                if (DateTime.TryParse(cleanDate, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var dt))
+                {
+                    validDate = true;
+                    dateStr = dt.ToString("yyyy-MM-dd");
+                }
+                else
+                {
+                    dateFormatViolations++;
+                }
+            }
+
+            bool validTags = tagList.Count > 0;
+            if (parsed.ContainsKey("tags") && !validTags)
+            {
+                tagFormatViolations++;
+            }
+
+            bool isConforming = missing.Count == 0 && (validDate || !parsed.ContainsKey("date")) && (!parsed.ContainsKey("tags") || validTags);
+            if (isConforming) conformingCount++;
+
+            string status = isConforming
+                ? $"✓ Conforming {format} frontmatter ({parsed.Count} keys · Date: {dateStr ?? "none"} · {tagList.Count} tags)"
+                : (missing.Count > 0
+                    ? $"⚠ Missing required keys: [{string.Join(", ", missing)}]"
+                    : (!validDate ? "⚠ Malformed date format (ISO 8601 yyyy-MM-dd expected)" : "⚠ Malformed tags collection"));
+
+            items.Add(new WorkspaceFrontmatterFileItem(
+                path,
+                true,
+                format,
+                missing,
+                parsed,
+                validDate,
+                dateStr,
+                validTags,
+                tagList.Count,
+                isConforming,
+                status));
+        }
+
+        if (totalAudited == 0)
+        {
+            return new WorkspaceFrontmatterSchemaAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceFrontmatterFileItem>(),
+                "Clean Baseline",
+                "Workspace frontmatter schema audit: 0 files · No workspace markdown files provided");
+        }
+
+        double score = 100.0;
+        score -= (missingKeysViolations * 20.0);
+        score -= (dateFormatViolations * 10.0);
+        score -= (tagFormatViolations * 10.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Frontmatter Schema Rigor (≥90%)"
+            : score >= 70.0
+                ? "Moderate Schema Metadata Inconsistency (70-89%)"
+                : "Severe Metadata / Schema Drift (<70%)";
+
+        string summary = FormatFrontmatterSchemaSummary(
+            totalAudited, filesWithFm, conformingCount, missingKeysViolations,
+            dateFormatViolations, tagFormatViolations, score, category);
+
+        return new WorkspaceFrontmatterSchemaAudit(
+            totalAudited,
+            filesWithFm,
+            conformingCount,
+            missingKeysViolations,
+            dateFormatViolations,
+            tagFormatViolations,
+            score,
+            items,
+            category,
+            summary);
+    }
+
+    public static string FormatFrontmatterSchemaSummary(
+        int totalFiles, int filesWithFm, int conformingFiles, int missingKeyViolations,
+        int dateViolations, int tagViolations, double score, string category)
+    {
+        if (totalFiles == 0)
+            return "Workspace frontmatter schema audit: 0 files · No workspace markdown files provided";
+
+        string fileStr = totalFiles == 1 ? "1 file" : $"{totalFiles} files";
+        var parts = new List<string>();
+        parts.Add($"{conformingFiles}/{filesWithFm} conforming frontmatter");
+
+        if (missingKeyViolations > 0) parts.Add($"⚠ {missingKeyViolations} missing required keys");
+        else parts.Add("0 missing keys");
+
+        if (dateViolations > 0) parts.Add($"⚠ {dateViolations} malformed dates");
+        if (tagViolations > 0) parts.Add($"⚠ {tagViolations} malformed tags");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace frontmatter schema audit ({fileStr} · {category} · {score:0.#}% integrity score): {details}";
+    }
 }
 
 /// <summary>
@@ -8300,4 +8561,37 @@ public sealed record DialectNormalizationApplyResult(
     bool AllBackupsVerified,
     IReadOnlyList<FileNormalizationApplyItem> Items,
     string Summary);
+
+/// <summary>
+/// Represents evaluated frontmatter metrics, format, required keys, parsed date, and tag counts for an individual workspace file.
+/// </summary>
+public sealed record WorkspaceFrontmatterFileItem(
+    string FilePath,
+    bool HasFrontmatter,
+    string Format,
+    IReadOnlyList<string> MissingRequiredKeys,
+    IReadOnlyDictionary<string, string> ParsedKeys,
+    bool HasValidDate,
+    string? DateParsed,
+    bool HasValidTags,
+    int TagCount,
+    bool IsConforming,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown documents for frontmatter schema validity (YAML/TOML),
+/// required metadata keys (title, date, tags, author), date format parsing, and tag array structure.
+/// </summary>
+public sealed record WorkspaceFrontmatterSchemaAudit(
+    int TotalFilesAudited,
+    int FilesWithFrontmatter,
+    int ConformingFilesCount,
+    int MissingKeysViolationsCount,
+    int DateFormatViolationsCount,
+    int TagFormatViolationsCount,
+    double SchemaIntegrityScore,
+    IReadOnlyList<WorkspaceFrontmatterFileItem> Files,
+    string Category,
+    string Summary);
+
 

@@ -12321,4 +12321,54 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
    - **Refinement Target**: Workspace Markdown Frontmatter Schema Validation, Required Metadata Keys & Type Coercion Service.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceFrontmatterSchemas(...)` to validate YAML/TOML frontmatter blocks across workspace documents, enforce required schema keys (`title`, `date`, `tags`, `author`), detect date parsing format ambiguities, and score metadata integrity ($0-100\%$). Wire to `RecentDocsFlyout`.
 
+---
+
+### 2026-10-20 (scheduled routine run #187)
+
+- **AI-Executable 3-Block Cycle + Execution Phase Overview**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Footnote & Reference Link Definition Orphan, Anchor Target & Cyclic Reference Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditFootnoteAndReferenceDefinitions(markdownText)`, static string overload, `FormatFootnoteAndReferenceDefinitionsSummary(...)`, records `FootnoteReferenceDefinitionItem`, `MarkdownFootnoteAndReferenceAudit`. Audits inline footnote markers (`[^1]`), footnote definitions, reference link markers, and reference link definitions (`[label]: url`), detects orphaned references, dangling definitions, duplicate definitions, and cyclic reference alias chains (`[a]: [b]`); scores footnote & reference integrity (0-100%); wired to `auditFootnoteRefItem` (`\uE8B9`) in `ShowLinksContextMenu` with clipboard copy and toast announcement.
+    2. **MindMapGalaxyWindow Graph Cycle Detection, Feedback Loops & Strongly Connected Components (SCC) Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditGraphDagFeedbackLoopsAndScc(selectionOnly)`, static overload, `FormatGraphCyclesSummary(...)`, records `GraphCycleComponentItem`, `GraphCycleDetectionAudit`. Executes Tarjan's SCC algorithm on node-link topology, detects self-loops and multi-node cyclic feedback loops in hierarchy trees, and computes directed acyclic graph (DAG) conformance score (0-100%); wired to `AuditGraphDagCyclesItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` with clipboard copy and status feedback.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Diagram Shape Visual Density, Canvas Margin Padding & Viewport Perimeter Safety Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditVisualDensityAndMargins(shapes)`, static overload, `FormatVisualDensitySummary(...)`, records `ShapePerimeterMarginItem`, `DiagramVisualDensityAudit`. Measures perimeter margins against canvas boundary edges ($X < 24$px or $Y < 24$px), calculates shape packing density ($Area_{\text{shapes}} / Area_{\text{canvas}}$), evaluates boundary safety violations, and scores viewport breathing room (0-100%); wired to `SelectionAuditVisualDensityMarginsItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Chevron & Arrow Process Sequence Directionality, Gap Spacing & Transition Flow Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditChevronProcessFlowAndSpacing(markdown, layoutName)`, static overload, `FormatChevronProcessFlowSummary(...)`, records `ChevronProcessPhaseItem`, `SmartArtChevronProcessFlowAudit`. Validates linear progression phases, checks step count bounds ($3 \le N \le 7$), identifies directionality markers, flags verbose labels (> 12 words), and scores process flow uniformity (0-100%); wired to `OutlineStatsAuditChevronProcessFlowItem` (`\uE8B9`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Diff Exception Handling Hierarchy, Catch Block Specificity & Rethrow Anti-Pattern Analyzer (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditExceptionHandlingAndRethrows(originalCode, modifiedCode)`, static string overload, `FormatExceptionHandlingSummary(...)`, records `DiffExceptionHandlingItem`, `DiffExceptionHandlingAudit`. Analyzes unified diff rows for C# try-catch blocks, detects generic `catch (Exception)` anti-patterns, identifies swallowed empty catch blocks, detects `throw ex;` stack trace erasure hazards, validates exception filters (`when`), and scores error handling rigor (0-100%); wired to `auditExceptionHandling` (`\uE8B9`) in `TimelineHeaderBorder` context flyout.
+    6. **SuiteHubView Workspace Markdown Frontmatter Schema Validation, Required Metadata Keys & Type Coercion Service (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceFrontmatterSchemas(...)`, `FormatFrontmatterSchemaSummary(...)`, and records `FrontmatterSchemaFileItem`, `WorkspaceFrontmatterSchemaAudit`. Scans workspace documents for YAML/TOML frontmatter blocks, validates required keys (`title`, `date`, `tags`, `author`), enforces ISO 8601 date parsing, checks tag array structure, and scores metadata schema rigor (0-100%); wired to `AuditWorkspaceFrontmatterSchemasItem` (`\uE8B9`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Built `MarkSmith.Tests.csproj` with `0` errors.
+    - Verified all `7/7` targeted Run #187 tests passing (`100%` pass rate).
+    - Verified all `92/92` `HistoryPolishTests` passing (`100%` pass rate).
+    - Verified all `149/149` `SuiteHubAndTourPolishTests` passing (`100%` pass rate).
+    - Verified all `239/239` `ShapeStudioPolishTests` passing (`100%` pass rate).
+    - Verified all `98/98` `SmartArtStudioPolishTests` passing (`100%` pass rate).
+    - Verified all `133/133` `MindMapGalaxyPolishTests` passing (`100%` pass rate).
+    - Verified all `103/103` `TextSearchTests` passing (`100%` pass rate).
+    - Total verified test suite count: `814/814` tests passing (`100%` pass rate).
+    - Verified clean live launch of `Marksmith.exe` (`PID=29124`, `Responding=True`, closed cleanly with zero startup crashes).
+
+---
+
+### Run #188 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Table Colspan/Rowspan, Alignment & Border Delimiter Integrity Auditor.
+   - **Deliverable**: Add `TextSearch.AuditTableAlignmentAndDelimiters(markdownText)` and `FormatTableAlignmentSummary(...)`, auditing pipe-table syntax, cell padding consistency, header/body column parity, alignment marker delimiters (`:---`, `:---:`, `---:`), detecting unescaped pipes and ragged cell counts, and scoring table structure compliance ($0-100\%$). Wire to `ShowLinksContextMenu`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Spatial Density, Force-Directed Overlap & Collision Avoidance Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditSpatialDensityAndCollisions()` and `FormatSpatialDensitySummary(...)`, evaluating node boundary collision hulls, calculating pairwise Euclidean distance distributions, detecting visual overlap clusters, and scoring spatial dispersion balance ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Z-Index Layering, Occlusion Depth & Shape Visual Stacking Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditZOrderAndOcclusion(shapes)` and `FormatZOrderOcclusionSummary(...)`, analyzing bounding box intersections across overlapping shapes, checking Z-index ordering (background container vs foreground controls), detecting inadvertent total shape occlusion, and scoring layer stratification health ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Funnel / Pyramid Layout Step Proportions & Text Inscription Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditFunnelPyramidProportions(markdown, layoutName)` and `FormatFunnelPyramidSummary(...)`, validating progressive width tapering ($W_{i+1} < W_i$ or $W_{i+1} > W_i$), checking text containment within narrowing trapezoids, detecting stage count violations ($3 \le N \le 6$), and scoring funnel visual proportion fidelity ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #187 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Asynchronous Await / Task Deadlock Hazard & Threading Context Switch Analyzer.
+   - **Deliverable**: Add `LineDiff.AuditAsyncAwaitAndThreadContext(unifiedRows)` to analyze diff hunks for `.Result` / `.Wait()` synchronous blocking anti-patterns on Tasks, missing `ConfigureAwait(false)` in library paths, unobserved Task exceptions, and score asynchronous safety ($0-100\%$). Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #187 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Cross-Document WikiLink & Relative Asset Target Validator.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceWikiLinksAndAssets(...)` to scan all documents in the workspace for relative wiki-links (`[[Note]]` / `[link](path.md)`) and relative image/media asset references, verifying target file existence on disk, flagging broken file paths, and scoring workspace link integrity ($0-100\%$). Wire to `RecentDocsFlyout`.
+
+
 

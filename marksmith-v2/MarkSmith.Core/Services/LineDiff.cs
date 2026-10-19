@@ -7478,6 +7478,234 @@ public static class LineDiff
         string details = string.Join(" · ", parts);
         return $"Diff control flow & guard clause audit ({condStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits diff rows for C# exception handling quality, catch block specificity, swallowed exceptions,
+    /// and stack-trace-erasing rethrow anti-patterns (throw ex; vs throw;).
+    /// </summary>
+    public static DiffExceptionHandlingAudit AuditExceptionHandlingAndRethrows(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new DiffExceptionHandlingAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffExceptionHandlingItem>(),
+                "Clean Baseline",
+                "Diff exception handling audit: 0 catch blocks · No exception handlers found");
+        }
+
+        var catchRegex = new Regex(@"\bcatch\b(?:\s*\(\s*(?<type>[A-Za-z0-9_.]+)(?:\s+(?<var>[A-Za-z0-9_]+))?\s*\))?(?:\s*when\s*\((?<filter>[^)]*)\))?", RegexOptions.Compiled);
+        var throwExRegex = new Regex(@"\bthrow\s+(?<var>[A-Za-z0-9_]+)\s*;", RegexOptions.Compiled);
+
+        var items = new List<DiffExceptionHandlingItem>();
+        int totalCatch = 0;
+        int specificCount = 0;
+        int genericCount = 0;
+        int swallowedCount = 0;
+        int stackTraceErasureCount = 0;
+        int filterCount = 0;
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var row = unifiedRows[i];
+            string line = row.Text;
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*"))
+                continue;
+
+            var match = catchRegex.Match(trimmed);
+            if (!match.Success) continue;
+
+            int catchIndex = match.Index;
+            string beforeCatch = trimmed.Substring(0, catchIndex).Trim();
+            if (beforeCatch.Length > 0 && !beforeCatch.EndsWith("}") && !beforeCatch.EndsWith("try"))
+                continue;
+
+            totalCatch++;
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            string typeName = match.Groups["type"].Success ? match.Groups["type"].Value.Trim() : string.Empty;
+            string varName = match.Groups["var"].Success ? match.Groups["var"].Value.Trim() : string.Empty;
+            bool hasFilter = match.Groups["filter"].Success;
+
+            bool isGeneric = string.IsNullOrEmpty(typeName) ||
+                             string.Equals(typeName, "Exception", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(typeName, "System.Exception", StringComparison.OrdinalIgnoreCase);
+
+            bool isSpecific = !isGeneric && !string.IsNullOrEmpty(typeName);
+
+            if (isGeneric) genericCount++;
+            if (isSpecific) specificCount++;
+            if (hasFilter) filterCount++;
+
+            bool isEmpty = false;
+            bool hasErasure = false;
+
+            int braceBalance = 0;
+            bool startedBlock = false;
+            int nonWhitespaceLinesInBlock = 0;
+
+            int openBrace = trimmed.IndexOf('{');
+            if (openBrace >= 0)
+            {
+                startedBlock = true;
+                string blockContent = trimmed.Substring(openBrace + 1);
+                int closeBrace = blockContent.IndexOf('}');
+                if (closeBrace >= 0)
+                {
+                    string inner = blockContent.Substring(0, closeBrace).Trim();
+                    if (string.IsNullOrEmpty(inner) || inner == "//" || inner.StartsWith("//"))
+                    {
+                        isEmpty = true;
+                    }
+                    else if (!string.IsNullOrEmpty(varName) && inner.Contains($"throw {varName};"))
+                    {
+                        hasErasure = true;
+                    }
+                }
+            }
+
+            if (!isEmpty && !hasErasure)
+            {
+                for (int j = i + 1; j < Math.Min(unifiedRows.Count, i + 25); j++)
+                {
+                    string fwdLine = unifiedRows[j].Text.Trim();
+                    if (fwdLine.StartsWith("//")) continue;
+
+                    if (!startedBlock)
+                    {
+                        if (fwdLine.Contains("{"))
+                        {
+                            startedBlock = true;
+                            braceBalance += fwdLine.Count(c => c == '{') - fwdLine.Count(c => c == '}');
+                            if (braceBalance <= 0) break;
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        braceBalance += fwdLine.Count(c => c == '{') - fwdLine.Count(c => c == '}');
+
+                        if (fwdLine != "{" && fwdLine != "}")
+                        {
+                            nonWhitespaceLinesInBlock++;
+                        }
+
+                        if (!string.IsNullOrEmpty(varName))
+                        {
+                            var throwMatch = throwExRegex.Match(fwdLine);
+                            if (throwMatch.Success && throwMatch.Groups["var"].Value == varName)
+                            {
+                                hasErasure = true;
+                            }
+                        }
+
+                        if (braceBalance <= 0)
+                        {
+                            if (nonWhitespaceLinesInBlock == 0)
+                            {
+                                isEmpty = true;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (isEmpty) swallowedCount++;
+            if (hasErasure) stackTraceErasureCount++;
+
+            string status;
+            if (hasErasure)
+                status = $"⚠ Stack trace erasure hazard: 'throw {varName};' resets exception stack (use 'throw;' instead)";
+            else if (isEmpty)
+                status = $"⚠ Swallowed exception: empty catch block suppresses errors without logging or rethrowing";
+            else if (isGeneric)
+                status = $"⚠ Generic catch block (catch {(string.IsNullOrEmpty(typeName) ? "{}" : typeName)}) reduces fault isolation";
+            else if (hasFilter)
+                status = $"✓ Filtered specific exception catch: catch ({typeName}) when (...)";
+            else
+                status = $"✓ Specific exception catch: catch ({typeName})";
+
+            items.Add(new DiffExceptionHandlingItem(
+                lineNum,
+                string.IsNullOrEmpty(typeName) ? "bare catch" : typeName,
+                isGeneric,
+                isEmpty,
+                hasErasure,
+                hasFilter,
+                isSpecific,
+                status));
+        }
+
+        if (totalCatch == 0)
+        {
+            return new DiffExceptionHandlingAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffExceptionHandlingItem>(),
+                "Clean Baseline",
+                "Diff exception handling audit: 0 catch blocks · No exception handlers found");
+        }
+
+        double score = 100.0;
+        score -= (genericCount * 25.0);
+        score -= (swallowedCount * 30.0);
+        score -= (stackTraceErasureCount * 35.0);
+        score += (specificCount * 5.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Exception Handling Rigor (≥90%)"
+            : score >= 70.0
+                ? "Moderate Exception Handling Risk (70-89%)"
+                : "Severe Exception Anti-Patterns & Risk (<70%)";
+
+        string summary = FormatExceptionHandlingSummary(
+            totalCatch, specificCount, genericCount, swallowedCount, stackTraceErasureCount,
+            filterCount, score, category);
+
+        return new DiffExceptionHandlingAudit(
+            totalCatch,
+            specificCount,
+            genericCount,
+            swallowedCount,
+            stackTraceErasureCount,
+            filterCount,
+            score,
+            items,
+            category,
+            summary);
+    }
+
+    public static DiffExceptionHandlingAudit AuditExceptionHandlingAndRethrows(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditExceptionHandlingAndRethrows(unified);
+    }
+
+    public static string FormatExceptionHandlingSummary(
+        int totalCatch, int specificCount, int genericCount, int swallowedCount,
+        int stackTraceErasures, int filterCount, double score, string category)
+    {
+        if (totalCatch == 0)
+            return "Diff exception handling audit: 0 catch blocks · No exception handlers found";
+
+        string catchStr = totalCatch == 1 ? "1 catch block" : $"{totalCatch} catch blocks";
+        var parts = new List<string>();
+        parts.Add($"{specificCount} specific");
+
+        if (genericCount > 0) parts.Add($"⚠ {genericCount} generic catch (Exception)");
+        else parts.Add("0 generic catch");
+
+        if (swallowedCount > 0) parts.Add($"⚠ {swallowedCount} swallowed (empty catch)");
+        if (stackTraceErasures > 0) parts.Add($"⚠ {stackTraceErasures} stack trace erasure (throw ex;)");
+        if (filterCount > 0) parts.Add($"{filterCount} filtered (when)");
+
+        string details = string.Join(" · ", parts);
+        return $"Diff exception handling audit ({catchStr} · {category} · {score:0.#}% rigor score): {details}";
+    }
 }
 
 /// <summary>
@@ -8208,6 +8436,36 @@ public sealed record DiffControlFlowAudit(
     IReadOnlyList<ControlFlowGuardClauseItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, exception type, specificity, swallowed state, and stack-trace erasure for an individual catch block in a diff.
+/// </summary>
+public sealed record DiffExceptionHandlingItem(
+    int LineNumber,
+    string ExceptionType,
+    bool IsGenericCatch,
+    bool IsEmptyCatch,
+    bool HasStackTraceErasure,
+    bool HasExceptionFilter,
+    bool IsSpecificException,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diff exception handling hierarchy, catch block specificity,
+/// swallowed exceptions (empty catch), and stack-trace erasing rethrow anti-patterns (throw ex;).
+/// </summary>
+public sealed record DiffExceptionHandlingAudit(
+    int TotalCatchBlocks,
+    int SpecificCatchCount,
+    int GenericCatchCount,
+    int SwallowedExceptionsCount,
+    int StackTraceErasureCount,
+    int ExceptionFilterCount,
+    double RigorScore,
+    IReadOnlyList<DiffExceptionHandlingItem> Items,
+    string Category,
+    string Summary);
+
 
 
 

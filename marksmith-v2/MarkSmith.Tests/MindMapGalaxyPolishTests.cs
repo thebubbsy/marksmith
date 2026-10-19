@@ -3491,6 +3491,64 @@ namespace MarkSmith.Tests
             Assert.True(deepAudit.DeepSprawlCount >= 1);
             Assert.True(deepAudit.CognitiveBalanceScore < 100.0);
         }
+
+        [Fact]
+        public void Run187_AuditGraphCyclesAndFeedbackLoops_ExecutesTarjanScc()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditGraphDagFeedbackLoopsAndScc(Array.Empty<MindMapNode>(), null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalCyclesDetected);
+            Assert.Equal(100.0, emptyAudit.DagConformanceScore);
+            Assert.Equal("Empty MindMap", emptyAudit.Category);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Pure DAG (no cycles)
+            var nodeA = new MindMapNode { Id = "a", Title = "Node A" };
+            var nodeB = new MindMapNode { Id = "b", Title = "Node B" };
+            var nodeC = new MindMapNode { Id = "c", Title = "Node C" };
+
+            var l1 = new MindMapLink { Id = "l1", SourceNodeId = "a", TargetNodeId = "b" };
+            var l2 = new MindMapLink { Id = "l2", SourceNodeId = "b", TargetNodeId = "c" };
+
+            var dagAudit = MindMapStudioViewModel.AuditGraphDagFeedbackLoopsAndScc(
+                new[] { nodeA, nodeB, nodeC }, new[] { l1, l2 });
+
+            Assert.Equal(3, dagAudit.TotalNodes);
+            Assert.Equal(2, dagAudit.TotalLinks);
+            Assert.Equal(3, dagAudit.TotalComponents);
+            Assert.Equal(3, dagAudit.AcyclicComponentCount);
+            Assert.Equal(0, dagAudit.CyclicComponentCount);
+            Assert.Equal(0, dagAudit.TotalCyclesDetected);
+            Assert.Equal(0, dagAudit.SelfLoopsCount);
+            Assert.Equal(100.0, dagAudit.DagConformanceScore);
+            Assert.Equal("Optimal Directed Acyclic Graph (DAG ≥90%)", dagAudit.Category);
+
+            string formatted = MindMapStudioViewModel.FormatGraphCyclesSummary(
+                dagAudit.TotalNodes, dagAudit.TotalLinks, dagAudit.TotalComponents,
+                dagAudit.AcyclicComponentCount, dagAudit.CyclicComponentCount,
+                dagAudit.TotalCyclesDetected, dagAudit.SelfLoopsCount, dagAudit.DagConformanceScore,
+                dagAudit.Category, dagAudit.IsSelectionScope);
+            Assert.Equal(dagAudit.Summary, formatted);
+
+            // 3. Cyclic feedback loop (A -> B -> C -> A) and self loop on D
+            var nodeD = new MindMapNode { Id = "d", Title = "Node D" };
+            var lCycle = new MindMapLink { Id = "l3", SourceNodeId = "c", TargetNodeId = "a" };
+            var lSelf = new MindMapLink { Id = "l4", SourceNodeId = "d", TargetNodeId = "d" };
+
+            var cycleAudit = MindMapStudioViewModel.AuditGraphDagFeedbackLoopsAndScc(
+                new[] { nodeA, nodeB, nodeC, nodeD }, new[] { l1, l2, lCycle, lSelf });
+
+            Assert.Equal(4, cycleAudit.TotalNodes);
+            Assert.Equal(4, cycleAudit.TotalLinks);
+            Assert.True(cycleAudit.CyclicComponentCount >= 2);
+            Assert.True(cycleAudit.TotalCyclesDetected >= 2);
+            Assert.Equal(1, cycleAudit.SelfLoopsCount);
+            Assert.True(cycleAudit.DagConformanceScore < 70.0);
+            Assert.NotEmpty(cycleAudit.Cycles);
+            Assert.Contains(cycleAudit.Cycles, c => c.IsSelfLoop && c.NodeTitles.Contains("Node D"));
+            Assert.Contains(cycleAudit.Cycles, c => c.IsMultiNodeCycle && c.NodeCount == 3);
+        }
     }
 }
 

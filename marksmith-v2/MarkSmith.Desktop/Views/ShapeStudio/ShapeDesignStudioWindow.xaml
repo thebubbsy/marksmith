@@ -769,6 +769,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditConnectionPortRoutingItem" Text="Audit connection port orthogonality, angle snapping &amp; collinear routing" Click="OnSelectionAuditConnectionPortRoutingClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditVisualDensityMarginsItem" Text="Audit diagram shape visual density, canvas margin padding &amp; viewport perimeter safety" Click="OnSelectionAuditVisualDensityMarginsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

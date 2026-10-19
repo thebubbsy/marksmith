@@ -2491,6 +2491,51 @@ public class SmartArtStudioPolishTests
         Assert.True(verboseAudit.WordLengthViolations >= 1);
         Assert.True(verboseAudit.RadialSymmetryScore < 100.0);
     }
+
+    [Fact]
+    public void Run187_AuditChevronProcessFlowAndSpacing_EvaluatesProcessDirectionality()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditChevronProcessFlowAndSpacing("", "Chevron Process");
+        Assert.Equal(0, emptyAudit.TotalPhases);
+        Assert.Equal(100.0, emptyAudit.FlowDirectionalityScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+        Assert.Contains("0 phases", emptyAudit.Summary);
+
+        // 2. Balanced 4-phase chevron process
+        var chevronMd = string.Join("\n",
+            "- Discovery & Analysis",
+            "  - Stakeholder interviews",
+            "- Architecture & Design",
+            "- Implementation & Verification",
+            "- Deployment & Telemetry"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditChevronProcessFlowAndSpacing(chevronMd, "Chevron Process");
+        Assert.Equal(4, audit.TotalPhases);
+        Assert.Equal(1, audit.TotalSubSteps);
+        Assert.True(audit.IsWithinOptimalPhaseBounds);
+        Assert.Equal(0, audit.WordLengthViolations);
+        Assert.Equal(100.0, audit.FlowDirectionalityScore);
+        Assert.Equal("Optimal Chevron Process Flow (≥90%)", audit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatChevronProcessFlowSummary(
+            audit.TotalPhases, audit.TotalSubSteps, audit.IsWithinOptimalPhaseBounds,
+            audit.WordLengthViolations, audit.FlowDirectionalityScore, audit.Category, audit.LayoutName);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Process with too few phases (<3) and verbose title (>12 words)
+        var probMd = string.Join("\n",
+            "- Brief Phase One",
+            "- An excessively verbose phase label that explains every single technical requirement and detail across far too many words violating the limit"
+        );
+
+        var probAudit = SmartArtDesignStudioViewModel.AuditChevronProcessFlowAndSpacing(probMd, "Closed Chevron");
+        Assert.Equal(2, probAudit.TotalPhases);
+        Assert.False(probAudit.IsWithinOptimalPhaseBounds);
+        Assert.True(probAudit.WordLengthViolations >= 1);
+        Assert.True(probAudit.FlowDirectionalityScore < 100.0);
+    }
 }
 
 

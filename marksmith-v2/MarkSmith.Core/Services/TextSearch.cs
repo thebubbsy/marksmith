@@ -9295,6 +9295,262 @@ public static class TextSearch
         string details = string.Join(" · ", parts);
         return $"Markdown image accessibility audit ({imgStr} · {category} · {score:0.#}% WCAG score): {details}";
     }
+
+    /// <summary>
+    /// Audits markdown documents for footnote and reference link definitions, detecting orphaned references,
+    /// dangling definitions, duplicate targets, and cyclic alias chains.
+    /// </summary>
+    public static MarkdownFootnoteAndReferenceAudit AuditFootnoteAndReferenceDefinitions(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new MarkdownFootnoteAndReferenceAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<FootnoteReferenceDefinitionItem>(),
+                "Clean Baseline",
+                "Markdown footnote & reference link audit: 0 references · Document contains no footnote or reference definitions");
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        bool inFence = false;
+
+        var footnoteDefRegex = new Regex(@"^[ ]{0,3}\[\^([^\]]+)\]:\s*(.*)$", RegexOptions.Compiled);
+        var linkDefRegex = new Regex(@"^[ ]{0,3}\[([^\^\]]+)\]:\s*(\S+)(?:\s+(?:"".*?""|'.*?'|\(.*?\)))?$", RegexOptions.Compiled);
+        var footnoteRefRegex = new Regex(@"\[\^([^\]]+)\](?!:)", RegexOptions.Compiled);
+        var fullLinkRefRegex = new Regex(@"(?<!!)\[([^\]]+)\]\[([^\]]*)\]", RegexOptions.Compiled);
+        var shortcutLinkRefRegex = new Regex(@"(?<!!)\[([a-zA-Z0-9_\-]+)\](?![\(:\[])", RegexOptions.Compiled);
+
+        var footnoteDefs = new Dictionary<string, List<(int Line, string Content)>>(StringComparer.OrdinalIgnoreCase);
+        var linkDefs = new Dictionary<string, List<(int Line, string Target)>>(StringComparer.OrdinalIgnoreCase);
+        var footnoteRefs = new List<(int Line, string Label)>();
+        var linkRefs = new List<(int Line, string Label, string Text)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string raw = lines[i];
+            string trimmed = raw.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence) continue;
+
+            // Check if this line is a footnote definition: [^label]: ...
+            var fnDefMatch = footnoteDefRegex.Match(raw);
+            if (fnDefMatch.Success)
+            {
+                string label = fnDefMatch.Groups[1].Value.Trim();
+                string content = fnDefMatch.Groups[2].Value.Trim();
+                if (!footnoteDefs.TryGetValue(label, out var list))
+                {
+                    list = new List<(int, string)>();
+                    footnoteDefs[label] = list;
+                }
+                list.Add((i + 1, content));
+                continue;
+            }
+
+            // Check if this line is a reference link definition: [label]: url
+            var linkDefMatch = linkDefRegex.Match(raw);
+            if (linkDefMatch.Success)
+            {
+                string label = linkDefMatch.Groups[1].Value.Trim();
+                string target = linkDefMatch.Groups[2].Value.Trim();
+                if (!linkDefs.TryGetValue(label, out var list))
+                {
+                    list = new List<(int, string)>();
+                    linkDefs[label] = list;
+                }
+                list.Add((i + 1, target));
+                continue;
+            }
+
+            // Otherwise, search for footnote references: [^label]
+            var fnRefMatches = footnoteRefRegex.Matches(raw);
+            foreach (Match m in fnRefMatches)
+            {
+                footnoteRefs.Add((i + 1, m.Groups[1].Value.Trim()));
+            }
+
+            // Search for full reference links: [text][label] or [text][]
+            var fullMatches = fullLinkRefRegex.Matches(raw);
+            var matchedSpans = new HashSet<int>();
+            foreach (Match m in fullMatches)
+            {
+                string text = m.Groups[1].Value.Trim();
+                string label = m.Groups[2].Value.Trim();
+                if (string.IsNullOrEmpty(label)) label = text;
+                linkRefs.Add((i + 1, label, text));
+                matchedSpans.Add(m.Index);
+            }
+
+            // Search for shortcut reference links: [label]
+            var shortMatches = shortcutLinkRefRegex.Matches(raw);
+            foreach (Match m in shortMatches)
+            {
+                if (matchedSpans.Contains(m.Index)) continue;
+                string label = m.Groups[1].Value.Trim();
+                linkRefs.Add((i + 1, label, label));
+            }
+        }
+
+        // Detect cyclic reference link alias chains: e.g. [a]: [b] and [b]: [a]
+        var cyclicLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kvp in linkDefs)
+        {
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string curr = kvp.Key;
+            visited.Add(curr);
+
+            while (true)
+            {
+                if (!linkDefs.TryGetValue(curr, out var targets) || targets.Count == 0) break;
+                string t = targets[0].Target;
+                if (t.StartsWith("[") && t.EndsWith("]"))
+                {
+                    string next = t.Substring(1, t.Length - 2).Trim();
+                    if (visited.Contains(next))
+                    {
+                        cyclicLabels.Add(curr);
+                        cyclicLabels.Add(next);
+                        break;
+                    }
+                    visited.Add(next);
+                    curr = next;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
+        var items = new List<FootnoteReferenceDefinitionItem>();
+        int validPairs = 0;
+        int orphanRefs = 0;
+        int danglingDefs = 0;
+        int dupDefs = 0;
+        int cyclicCount = cyclicLabels.Count;
+
+        var referencedFnLabels = new HashSet<string>(footnoteRefs.Select(r => r.Label), StringComparer.OrdinalIgnoreCase);
+        var referencedLinkLabels = new HashSet<string>(linkRefs.Select(r => r.Label), StringComparer.OrdinalIgnoreCase);
+
+        // Process Footnote References
+        foreach (var r in footnoteRefs)
+        {
+            bool exists = footnoteDefs.ContainsKey(r.Label);
+            if (!exists) orphanRefs++;
+            else validPairs++;
+
+            string status = exists ? $"✓ Footnote reference [^{r.Label}] bound to definition" : $"⚠ Orphaned footnote reference [^{r.Label}] without definition";
+            items.Add(new FootnoteReferenceDefinitionItem(r.Line, r.Label, "FootnoteReference", null, !exists, false, false, false, status));
+        }
+
+        // Process Footnote Definitions
+        foreach (var kvp in footnoteDefs)
+        {
+            bool referenced = referencedFnLabels.Contains(kvp.Key);
+            bool isDup = kvp.Value.Count > 1;
+            if (isDup) dupDefs += (kvp.Value.Count - 1);
+            if (!referenced) danglingDefs++;
+
+            foreach (var def in kvp.Value)
+            {
+                string status = !referenced ? $"⚠ Dangling footnote definition [^{kvp.Key}]: never referenced in text" : (isDup ? $"⚠ Duplicate footnote definition [^{kvp.Key}]:" : $"✓ Footnote definition [^{kvp.Key}]: bound to {kvp.Value.Count} references");
+                items.Add(new FootnoteReferenceDefinitionItem(def.Line, kvp.Key, "FootnoteDefinition", def.Content, false, !referenced, isDup, false, status));
+            }
+        }
+
+        // Process Link References
+        foreach (var r in linkRefs)
+        {
+            bool exists = linkDefs.ContainsKey(r.Label);
+            bool isCyclic = cyclicLabels.Contains(r.Label);
+            if (!exists) orphanRefs++;
+            else if (!isCyclic) validPairs++;
+
+            string status = isCyclic ? $"⚠ Cyclic reference link alias chain detected for [{r.Label}]" : (exists ? $"✓ Reference link [{r.Label}] bound to definition" : $"⚠ Orphaned reference link [{r.Label}] without definition");
+            items.Add(new FootnoteReferenceDefinitionItem(r.Line, r.Label, "LinkReference", r.Text, !exists, false, false, isCyclic, status));
+        }
+
+        // Process Link Definitions
+        foreach (var kvp in linkDefs)
+        {
+            bool referenced = referencedLinkLabels.Contains(kvp.Key);
+            bool isDup = kvp.Value.Count > 1;
+            bool isCyclic = cyclicLabels.Contains(kvp.Key);
+            if (isDup) dupDefs += (kvp.Value.Count - 1);
+            if (!referenced) danglingDefs++;
+
+            foreach (var def in kvp.Value)
+            {
+                string status = isCyclic ? $"⚠ Cyclic reference alias definition for [{kvp.Key}] -> {def.Target}" : (!referenced ? $"⚠ Dangling link definition [{kvp.Key}]: never referenced in text" : (isDup ? $"⚠ Duplicate link definition [{kvp.Key}]:" : $"✓ Link definition [{kvp.Key}]: bound to '{def.Target}'"));
+                items.Add(new FootnoteReferenceDefinitionItem(def.Line, kvp.Key, "LinkDefinition", def.Target, false, !referenced, isDup, isCyclic, status));
+            }
+        }
+
+        int totalRefs = footnoteRefs.Count + linkRefs.Count;
+        int totalDefs = footnoteDefs.Values.Sum(v => v.Count) + linkDefs.Values.Sum(v => v.Count);
+
+        if (totalRefs == 0 && totalDefs == 0)
+        {
+            return new MarkdownFootnoteAndReferenceAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<FootnoteReferenceDefinitionItem>(),
+                "Clean Baseline",
+                "Markdown footnote & reference link audit: 0 references · Document contains no footnote or reference definitions");
+        }
+
+        double score = 100.0;
+        score -= (orphanRefs * 20.0);
+        score -= (danglingDefs * 10.0);
+        score -= (dupDefs * 10.0);
+        score -= (cyclicCount * 30.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Footnote & Reference Governance (≥90%)"
+            : score >= 75.0
+                ? "Moderate Reference Integrity Risk (75-89%)"
+                : "Degraded Reference Integrity (<75%)";
+
+        string summary = FormatFootnoteAndReferenceDefinitionsSummary(
+            totalRefs, totalDefs, validPairs, orphanRefs, danglingDefs, dupDefs, cyclicCount, score, category);
+
+        return new MarkdownFootnoteAndReferenceAudit(
+            totalRefs, totalDefs, validPairs, orphanRefs, danglingDefs, dupDefs, cyclicCount, score, items, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of footnote and reference definition compliance.
+    /// </summary>
+    public static string FormatFootnoteAndReferenceDefinitionsSummary(string? markdownText)
+        => AuditFootnoteAndReferenceDefinitions(markdownText).Summary;
+
+    public static string FormatFootnoteAndReferenceDefinitionsSummary(
+        int totalRefs, int totalDefs, int validPairs, int orphans, int dangling,
+        int duplicates, int cycles, double score, string category)
+    {
+        if (totalRefs == 0 && totalDefs == 0)
+            return "Markdown footnote & reference link audit: 0 references · Document contains no footnote or reference definitions";
+
+        var parts = new List<string>();
+        parts.Add($"{validPairs} valid {(validPairs == 1 ? "pair" : "pairs")}");
+
+        if (orphans > 0) parts.Add($"⚠ {orphans} orphaned {(orphans == 1 ? "reference" : "references")}");
+        else parts.Add("0 orphans");
+
+        if (dangling > 0) parts.Add($"⚠ {dangling} dangling {(dangling == 1 ? "definition" : "definitions")}");
+        else parts.Add("0 dangling");
+
+        if (duplicates > 0) parts.Add($"⚠ {duplicates} duplicate {(duplicates == 1 ? "definition" : "definitions")}");
+        if (cycles > 0) parts.Add($"⚠ {cycles} cyclic {(cycles == 1 ? "loop" : "loops")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown footnote & reference link audit ({totalRefs} refs, {totalDefs} defs · {category} · {score:0.#}% integrity score): {details}";
+    }
 }
 
 /// <summary>
@@ -10268,4 +10524,36 @@ public sealed record MarkdownImageAccessibilityAudit(
     IReadOnlyList<ImageCaptionAccessibilityItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, label, target, orphan/dangling state, and cyclic loop status for an individual footnote or reference link item.
+/// </summary>
+public sealed record FootnoteReferenceDefinitionItem(
+    int LineNumber,
+    string Label,
+    string ItemKind,
+    string? TargetOrUrl,
+    bool IsOrphanReference,
+    bool IsDanglingDefinition,
+    bool IsDuplicateDefinition,
+    bool IsCyclicReference,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown footnote markers ([^1]), footnote definitions, reference link markers,
+/// and reference link definitions ([label]: url), detecting orphans, dangling definitions, duplicates, and cyclic alias loops.
+/// </summary>
+public sealed record MarkdownFootnoteAndReferenceAudit(
+    int TotalReferences,
+    int TotalDefinitions,
+    int ValidPairsCount,
+    int OrphanReferencesCount,
+    int DanglingDefinitionsCount,
+    int DuplicateDefinitionsCount,
+    int CyclicReferencesCount,
+    double IntegrityScore,
+    IReadOnlyList<FootnoteReferenceDefinitionItem> Items,
+    string Category,
+    string Summary);
+
 

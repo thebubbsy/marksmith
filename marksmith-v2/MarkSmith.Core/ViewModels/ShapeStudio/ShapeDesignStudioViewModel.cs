@@ -9878,6 +9878,157 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"Diagram connection port & routing audit ({scopeStr}{connStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits diagram canvas shape visual density, perimeter margin padding, and viewport edge safety.
+    /// </summary>
+    public DiagramVisualDensityAudit AuditVisualDensityAndMargins(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null,
+        double canvasWidth = 1920.0,
+        double canvasHeight = 1080.0)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes != null ? targetShapes.ToList() : (selected.Count > 0 ? selected : Shapes.ToList()));
+        bool isSelection = targetShapes != null || (selected.Count > 0 && targets.Count < Shapes.Count);
+        var audit = AuditVisualDensityAndMargins(targets, canvasWidth, canvasHeight, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramVisualDensityAudit AuditVisualDensityAndMargins(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes,
+        double canvasWidth = 1920.0,
+        double canvasHeight = 1080.0,
+        bool isSelection = false)
+    {
+        var shapeList = shapes?.ToList() ?? new List<ShapeCanvasItemViewModel>();
+        int totalShapes = shapeList.Count;
+
+        if (totalShapes == 0)
+        {
+            return new DiagramVisualDensityAudit(
+                0, canvasWidth, canvasHeight, canvasWidth * canvasHeight, 0.0, 0.0, 0,
+                24.0, 100.0, Array.Empty<ShapePerimeterMarginItem>(),
+                "Empty Canvas", isSelection,
+                "Diagram visual density & margin audit: 0 shapes · Canvas is empty");
+        }
+
+        double canvasArea = canvasWidth * canvasHeight;
+        double totalShapeArea = 0.0;
+        int perimeterViolations = 0;
+        double minMargin = double.MaxValue;
+        var items = new List<ShapePerimeterMarginItem>();
+
+        const double safetyThreshold = 24.0;
+
+        foreach (var s in shapeList)
+        {
+            double w = Math.Max(0.0, s.Width);
+            double h = Math.Max(0.0, s.Height);
+            double x = s.X;
+            double y = s.Y;
+            double area = w * h;
+            totalShapeArea += area;
+
+            double marginLeft = x;
+            double marginTop = y;
+            double marginRight = canvasWidth - (x + w);
+            double marginBottom = canvasHeight - (y + h);
+
+            double shapeMinMargin = Math.Min(Math.Min(marginLeft, marginTop), Math.Min(marginRight, marginBottom));
+            if (shapeMinMargin < minMargin) minMargin = shapeMinMargin;
+
+            bool hasViolation = marginLeft < safetyThreshold || marginTop < safetyThreshold ||
+                                marginRight < safetyThreshold || marginBottom < safetyThreshold;
+
+            if (hasViolation) perimeterViolations++;
+
+            string status = hasViolation
+                ? $"⚠ Perimeter margin violation (<{safetyThreshold}px) · Min margin: {shapeMinMargin:0.#}px"
+                : $"✓ Safe perimeter margin (≥{safetyThreshold}px) · Min margin: {shapeMinMargin:0.#}px";
+
+            items.Add(new ShapePerimeterMarginItem(
+                s.Id,
+                s.Name ?? "Shape",
+                Math.Round(x, 1),
+                Math.Round(y, 1),
+                Math.Round(w, 1),
+                Math.Round(h, 1),
+                Math.Round(marginLeft, 1),
+                Math.Round(marginTop, 1),
+                Math.Round(marginRight, 1),
+                Math.Round(marginBottom, 1),
+                hasViolation,
+                Math.Round(area, 1),
+                status));
+        }
+
+        if (minMargin == double.MaxValue) minMargin = 0.0;
+        minMargin = Math.Round(minMargin, 1);
+
+        double packingDensity = canvasArea > 0 ? totalShapeArea / canvasArea : 0.0;
+        packingDensity = Math.Round(packingDensity, 3);
+
+        double score = 100.0;
+        score -= Math.Min(45.0, perimeterViolations * 15.0);
+
+        if (packingDensity > 0.40)
+        {
+            double overDensity = (packingDensity - 0.40) / 0.60;
+            score -= (overDensity * 35.0);
+        }
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Viewport Breathing Room (≥90%)"
+            : score >= 75.0
+                ? "Moderate Perimeter Crowding (75-89%)"
+                : "Severe Perimeter / Boundary Violations (<75%)";
+
+        string summary = FormatVisualDensitySummary(
+            totalShapes, canvasWidth, canvasHeight, totalShapeArea, packingDensity,
+            perimeterViolations, minMargin, score, category, isSelection);
+
+        return new DiagramVisualDensityAudit(
+            totalShapes,
+            canvasWidth,
+            canvasHeight,
+            canvasArea,
+            Math.Round(totalShapeArea, 1),
+            packingDensity,
+            perimeterViolations,
+            minMargin,
+            score,
+            items,
+            category,
+            isSelection,
+            summary);
+    }
+
+    public static string FormatVisualDensitySummary(
+        int totalShapes, double width, double height, double shapeArea, double density,
+        int perimeterViolations, double minMargin, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Diagram visual density & margin audit ({scopeStr}0 shapes): Canvas is empty";
+
+        string shapeStr = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        var parts = new List<string>();
+        parts.Add($"packing density {density:P1}");
+        parts.Add($"min margin {minMargin:0.#}px");
+
+        if (perimeterViolations > 0)
+        {
+            parts.Add($"⚠ {perimeterViolations} perimeter {(perimeterViolations == 1 ? "violation" : "violations")} (<24px)");
+        }
+        else
+        {
+            parts.Add("0 boundary violations");
+        }
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram visual density & margin audit ({scopeStr}{shapeStr} on {width:0}x{height:0} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -10912,4 +11063,42 @@ public sealed record DiagramConnectionPortAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated coordinates, margins, shape area, and perimeter violation status for an individual shape item.
+/// </summary>
+public sealed record ShapePerimeterMarginItem(
+    string ShapeId,
+    string ShapeName,
+    double X,
+    double Y,
+    double Width,
+    double Height,
+    double MarginLeft,
+    double MarginTop,
+    double MarginRight,
+    double MarginBottom,
+    bool HasPerimeterViolation,
+    double ShapeArea,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape visual density, canvas packing ratio,
+/// perimeter margin padding, and viewport safety clearances.
+/// </summary>
+public sealed record DiagramVisualDensityAudit(
+    int TotalShapes,
+    double CanvasWidth,
+    double CanvasHeight,
+    double CanvasArea,
+    double TotalShapeArea,
+    double PackingDensityRatio,
+    int PerimeterViolationsCount,
+    double MinPerimeterMargin,
+    double ViewportBreathingRoomScore,
+    IReadOnlyList<ShapePerimeterMarginItem> Shapes,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
 

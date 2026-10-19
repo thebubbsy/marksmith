@@ -2787,6 +2787,63 @@ public class ShapeStudioPolishTests
         Assert.True(angledAudit.NonOrthogonalSegmentsCount >= 1);
         Assert.True(angledAudit.RoutingTidinessScore < 100.0);
     }
+
+    [Fact]
+    public void Run187_AuditVisualDensityAndMargins_EvaluatesPerimeterSafety()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditVisualDensityAndMargins();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.ViewportBreathingRoomScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+        Assert.Contains("0 shapes", emptyAudit.Summary);
+
+        // 2. Safely placed shape with ample margins
+        var s1 = new ShapeCanvasItemViewModel
+        {
+            Id = "s1",
+            Name = "Centered Box",
+            X = 200,
+            Y = 200,
+            Width = 300,
+            Height = 200
+        };
+        vm.Shapes.Add(s1);
+
+        var safeAudit = vm.AuditVisualDensityAndMargins();
+        Assert.Equal(1, safeAudit.TotalShapes);
+        Assert.Equal(0, safeAudit.PerimeterViolationsCount);
+        Assert.True(safeAudit.MinPerimeterMargin >= 24.0);
+        Assert.Equal(100.0, safeAudit.ViewportBreathingRoomScore);
+        Assert.Equal("Optimal Viewport Breathing Room (≥90%)", safeAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatVisualDensitySummary(
+            safeAudit.TotalShapes, safeAudit.CanvasWidth, safeAudit.CanvasHeight,
+            safeAudit.TotalShapeArea, safeAudit.PackingDensityRatio, safeAudit.PerimeterViolationsCount,
+            safeAudit.MinPerimeterMargin, safeAudit.ViewportBreathingRoomScore,
+            safeAudit.Category, safeAudit.IsSelectionScope);
+        Assert.Equal(safeAudit.Summary, formatted);
+
+        // 3. Shape violating canvas margin (< 24px)
+        var s2 = new ShapeCanvasItemViewModel
+        {
+            Id = "s2",
+            Name = "Edge Hugger",
+            X = 5,
+            Y = 10,
+            Width = 100,
+            Height = 100
+        };
+        vm.Shapes.Add(s2);
+
+        var edgeAudit = vm.AuditVisualDensityAndMargins();
+        Assert.Equal(2, edgeAudit.TotalShapes);
+        Assert.Equal(1, edgeAudit.PerimeterViolationsCount);
+        Assert.True(edgeAudit.MinPerimeterMargin < 24.0);
+        Assert.True(edgeAudit.ViewportBreathingRoomScore < 100.0);
+    }
 }
 
 

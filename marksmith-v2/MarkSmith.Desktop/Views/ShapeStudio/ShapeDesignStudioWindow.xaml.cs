@@ -6567,6 +6567,14 @@ namespace MarkSmith.Views.ShapeStudio
             _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
+
+        private void OnSelectionAuditVisualDensityMarginsClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditVisualDensityAndMargins();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
     }
 }
 

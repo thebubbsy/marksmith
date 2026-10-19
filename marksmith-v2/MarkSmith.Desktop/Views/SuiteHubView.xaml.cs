@@ -2254,6 +2254,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnAuditWorkspaceFrontmatterSchemasClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceFrontmatterSchemas(files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification($"Frontmatter: {result.ConformingFilesCount}/{result.FilesWithFrontmatter} conforming ({result.MissingKeysViolationsCount} missing keys, {result.DateFormatViolationsCount} date errors)", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Frontmatter");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit frontmatter schemas: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

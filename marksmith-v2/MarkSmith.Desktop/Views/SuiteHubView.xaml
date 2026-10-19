@@ -366,6 +366,9 @@
                                     <MenuFlyoutItem x:Name="ApplyWorkspaceDialectNormalizationItem" Text="Apply workspace markdown dialect batch normalization &amp; create rollback backups" Click="OnApplyWorkspaceDialectNormalizationClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceFrontmatterSchemasItem" Text="Audit workspace markdown frontmatter schemas, required keys &amp; date formats" Click="OnAuditWorkspaceFrontmatterSchemasClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

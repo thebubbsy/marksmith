@@ -2593,6 +2593,72 @@ public class HistoryPolishTests : IDisposable
         Assert.NotEmpty(nestedAudit.Items);
         Assert.Contains("return;", nestedAudit.Items[0].InversionSuggestion);
     }
+
+    [Fact]
+    public void Run187_AuditExceptionHandlingAndRethrows_DetectsAntiPatterns()
+    {
+        // 1. Empty / null input
+        var emptyAudit = LineDiff.AuditExceptionHandlingAndRethrows("", "");
+        Assert.Equal(0, emptyAudit.TotalCatchBlocks);
+        Assert.Equal(100.0, emptyAudit.RigorScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 catch blocks", emptyAudit.Summary);
+
+        // 2. High-rigor specific exception handling
+        string cleanCode = string.Join("\n",
+            "try",
+            "{",
+            "    File.OpenRead(path);",
+            "}",
+            "catch (FileNotFoundException fnf)",
+            "{",
+            "    Logger.LogError(fnf);",
+            "    throw;",
+            "}",
+            "catch (IOException io) when (io.HResult == 5)",
+            "{",
+            "    HandleLock(io);",
+            "}"
+        );
+
+        var cleanAudit = LineDiff.AuditExceptionHandlingAndRethrows("", cleanCode);
+        Assert.Equal(2, cleanAudit.TotalCatchBlocks);
+        Assert.Equal(2, cleanAudit.SpecificCatchCount);
+        Assert.Equal(0, cleanAudit.GenericCatchCount);
+        Assert.Equal(0, cleanAudit.SwallowedExceptionsCount);
+        Assert.Equal(0, cleanAudit.StackTraceErasureCount);
+        Assert.Equal(1, cleanAudit.ExceptionFilterCount);
+        Assert.Equal(100.0, cleanAudit.RigorScore);
+        Assert.Equal("Optimal Exception Handling Rigor (≥90%)", cleanAudit.Category);
+
+        string formatted = LineDiff.FormatExceptionHandlingSummary(
+            cleanAudit.TotalCatchBlocks, cleanAudit.SpecificCatchCount, cleanAudit.GenericCatchCount,
+            cleanAudit.SwallowedExceptionsCount, cleanAudit.StackTraceErasureCount,
+            cleanAudit.ExceptionFilterCount, cleanAudit.RigorScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Problematic code with generic catch, swallowed exception, and throw ex;
+        string probCode = string.Join("\n",
+            "try",
+            "{",
+            "    Run();",
+            "}",
+            "catch (Exception ex)",
+            "{",
+            "    throw ex;",
+            "}",
+            "catch",
+            "{",
+            "}"
+        );
+
+        var probAudit = LineDiff.AuditExceptionHandlingAndRethrows("", probCode);
+        Assert.Equal(2, probAudit.TotalCatchBlocks);
+        Assert.Equal(2, probAudit.GenericCatchCount);
+        Assert.True(probAudit.StackTraceErasureCount >= 1);
+        Assert.True(probAudit.SwallowedExceptionsCount >= 1);
+        Assert.True(probAudit.RigorScore < 70.0);
+    }
 }
 
 
