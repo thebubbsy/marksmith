@@ -10029,6 +10029,191 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"Diagram visual density & margin audit ({scopeStr}{shapeStr} on {width:0}x{height:0} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits diagram shape Z-index layering, occlusion depth, container nesting, and shape visual stacking stratification.
+    /// </summary>
+    public DiagramZOrderOcclusionAudit AuditZOrderAndOcclusion(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes != null ? targetShapes.ToList() : (selected.Count > 0 ? selected : Shapes.ToList()));
+        bool isSelection = targetShapes != null || (selected.Count > 0 && targets.Count < Shapes.Count);
+        var audit = AuditZOrderAndOcclusion(targets, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramZOrderOcclusionAudit AuditZOrderAndOcclusion(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allCanvasShapes = null,
+        bool isSelection = false)
+    {
+        var shapeList = shapes?.ToList() ?? new List<ShapeCanvasItemViewModel>();
+        var allList = (allCanvasShapes != null ? allCanvasShapes.ToList() : shapeList);
+        int totalShapes = shapeList.Count;
+
+        if (totalShapes == 0)
+        {
+            return new DiagramZOrderOcclusionAudit(
+                0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ShapeOcclusionLayerItem>(),
+                "Empty Canvas", isSelection,
+                "Diagram Z-order & occlusion audit: 0 shapes · Canvas is empty");
+        }
+
+        var shapeZIndex = new Dictionary<ShapeCanvasItemViewModel, int>();
+        for (int i = 0; i < allList.Count; i++)
+        {
+            shapeZIndex[allList[i]] = i;
+        }
+
+        var layers = new List<ShapeOcclusionLayerItem>();
+        int overlappingPairs = 0;
+        int severeOcclusionCount = 0;
+        int invertedContainerCount = 0;
+        var occlusionRatios = new List<double>();
+
+        for (int i = 0; i < shapeList.Count; i++)
+        {
+            var sA = shapeList[i];
+            double xA = sA.X;
+            double yA = sA.Y;
+            double wA = Math.Max(0.0, sA.Width);
+            double hA = Math.Max(0.0, sA.Height);
+            double areaA = wA * hA;
+            int zA = shapeZIndex.TryGetValue(sA, out int idxA) ? idxA : 0;
+
+            int occludedByCount = 0;
+            double maxOcclusionRatio = 0.0;
+            bool invertedHazard = false;
+
+            for (int j = 0; j < allList.Count; j++)
+            {
+                var sB = allList[j];
+                if (ReferenceEquals(sA, sB)) continue;
+
+                double xB = sB.X;
+                double yB = sB.Y;
+                double wB = Math.Max(0.0, sB.Width);
+                double hB = Math.Max(0.0, sB.Height);
+                double areaB = wB * hB;
+                int zB = shapeZIndex.TryGetValue(sB, out int idxB) ? idxB : 0;
+
+                double xI = Math.Max(xA, xB);
+                double yI = Math.Max(yA, yB);
+                double wI = Math.Max(0.0, Math.Min(xA + wA, xB + wB) - xI);
+                double hI = Math.Max(0.0, Math.Min(yA + hA, yB + hB) - yI);
+                double areaI = wI * hI;
+
+                if (areaI > 0.0)
+                {
+                    if (i < j && allList.Contains(sA))
+                    {
+                        overlappingPairs++;
+                    }
+
+                    if (zB > zA)
+                    {
+                        double ratio = areaA > 0.0 ? areaI / areaA : 0.0;
+                        if (ratio > maxOcclusionRatio) maxOcclusionRatio = ratio;
+                        if (ratio > 0.05) occludedByCount++;
+
+                        // Inverted container: much larger shape in front of smaller shape
+                        if (areaB > 2.5 * areaA && ratio > 0.70)
+                        {
+                            invertedHazard = true;
+                        }
+                    }
+                }
+            }
+
+            maxOcclusionRatio = Math.Round(Math.Clamp(maxOcclusionRatio, 0.0, 1.0), 3);
+            occlusionRatios.Add(maxOcclusionRatio);
+
+            bool fullyOccluded = maxOcclusionRatio >= 0.85;
+            if (fullyOccluded) severeOcclusionCount++;
+            else if (maxOcclusionRatio >= 0.50) severeOcclusionCount++;
+
+            if (invertedHazard) invertedContainerCount++;
+
+            string status = invertedHazard
+                ? $"⚠ Inverted container hazard: larger backdrop shape '{sA.Name}' occluded by foreground container"
+                : (fullyOccluded
+                    ? $"⚠ Shape fully occluded ({maxOcclusionRatio:P0} covered by foreground Z-layers)"
+                    : (maxOcclusionRatio >= 0.50
+                        ? $"⚠ Partial occlusion ({maxOcclusionRatio:P0} covered by {occludedByCount} layers)"
+                        : (occludedByCount > 0
+                            ? $"ℹ Minor overlap ({maxOcclusionRatio:P0} covered)"
+                            : $"✓ Unobscured top layer (Z-index {zA})")));
+
+            layers.Add(new ShapeOcclusionLayerItem(
+                sA.Id,
+                sA.Name ?? "Shape",
+                zA,
+                Math.Round(xA, 1),
+                Math.Round(yA, 1),
+                Math.Round(wA, 1),
+                Math.Round(hA, 1),
+                occludedByCount,
+                maxOcclusionRatio,
+                fullyOccluded,
+                invertedHazard,
+                status));
+        }
+
+        double meanOcclusion = occlusionRatios.Count > 0 ? Math.Round(occlusionRatios.Average(), 3) : 0.0;
+
+        double score = 100.0;
+        score -= (invertedContainerCount * 30.0);
+        score -= (severeOcclusionCount * 20.0);
+        score -= (overlappingPairs * 5.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Layer Stratification & Visibility (≥90%)"
+            : score >= 70.0
+                ? "Moderate Stacking Occlusion Risk (70-89%)"
+                : "Severe Occlusion / Inverted Container Stacking (<70%)";
+
+        string summary = FormatZOrderOcclusionSummary(
+            totalShapes, overlappingPairs, severeOcclusionCount, invertedContainerCount,
+            score, category, isSelection);
+
+        return new DiagramZOrderOcclusionAudit(
+            totalShapes,
+            overlappingPairs,
+            severeOcclusionCount,
+            invertedContainerCount,
+            meanOcclusion,
+            score,
+            layers,
+            category,
+            isSelection,
+            summary);
+    }
+
+    public static string FormatZOrderOcclusionSummary(
+        int totalShapes, int overlappingPairs, int severeOcclusions, int invertedContainers,
+        double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Diagram Z-order & occlusion audit ({scopeStr}0 shapes): Canvas is empty";
+
+        string shapeStr = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        var parts = new List<string>();
+
+        if (overlappingPairs > 0) parts.Add($"{overlappingPairs} overlapping {(overlappingPairs == 1 ? "pair" : "pairs")}");
+        else parts.Add("0 overlapping pairs");
+
+        if (severeOcclusions > 0) parts.Add($"⚠ {severeOcclusions} severe {(severeOcclusions == 1 ? "occlusion" : "occlusions")}");
+        else parts.Add("0 severe occlusions");
+
+        if (invertedContainers > 0) parts.Add($"⚠ {invertedContainers} inverted container {(invertedContainers == 1 ? "hazard" : "hazards")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram Z-order & occlusion audit ({scopeStr}{shapeStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -11101,4 +11286,34 @@ public sealed record DiagramVisualDensityAudit(
     bool IsSelectionScope,
     string Summary);
 
+/// <summary>
+/// Represents evaluated Z-index metrics, occlusion depth, and stacking stratification for an individual shape.
+/// </summary>
+public sealed record ShapeOcclusionLayerItem(
+    string ShapeId,
+    string ShapeName,
+    int ZIndex,
+    double Left,
+    double Top,
+    double Width,
+    double Height,
+    int OccludedByCount,
+    double MaxOcclusionRatio,
+    bool IsFullyOccluded,
+    bool IsInvertedContainerHazard,
+    string Status);
 
+/// <summary>
+/// Represents the result of an audit of diagram Z-index layering, occlusion depth, container nesting, and shape visual stacking stratification.
+/// </summary>
+public sealed record DiagramZOrderOcclusionAudit(
+    int TotalShapes,
+    int OverlappingPairsCount,
+    int SevereOcclusionCount,
+    int InvertedContainerCount,
+    double MeanOcclusionRatio,
+    double LayerStratificationScore,
+    IReadOnlyList<ShapeOcclusionLayerItem> Layers,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

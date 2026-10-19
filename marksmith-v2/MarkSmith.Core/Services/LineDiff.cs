@@ -7706,6 +7706,185 @@ public static class LineDiff
         string details = string.Join(" · ", parts);
         return $"Diff exception handling audit ({catchStr} · {category} · {score:0.#}% rigor score): {details}";
     }
+
+    /// <summary>
+    /// Audits diff rows for C# asynchronous await quality, Task deadlock hazards (.Result/.Wait() synchronous blocking),
+    /// async void method declarations, missing ConfigureAwait(false), and unobserved Tasks.
+    /// </summary>
+    public static DiffAsyncThreadingAudit AuditAsyncAwaitAndThreadContext(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new DiffAsyncThreadingAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<AsyncThreadingHazardItem>(),
+                "Clean Baseline",
+                "Diff async & threading audit: 0 modified lines · No concurrency hazards found");
+        }
+
+        var syncBlockingRegex = new Regex(@"(?<!\bawait\s+)\b([A-Za-z0-9_.]+(?:\([^)]*\))?)\.(Result\b|Wait\s*\(\s*\)|GetAwaiter\s*\(\s*\)\.GetResult\s*\(\s*\))", RegexOptions.Compiled);
+        var asyncVoidRegex = new Regex(@"\basync\s+void\s+([A-Za-z0-9_]+)\s*\(", RegexOptions.Compiled);
+        var taskRunRegex = new Regex(@"(?<!\bawait\s+)\bTask\.Run\s*\(", RegexOptions.Compiled);
+        var awaitCallRegex = new Regex(@"\bawait\s+([A-Za-z0-9_.]+\s*\([^)]*\))", RegexOptions.Compiled);
+
+        var hazards = new List<AsyncThreadingHazardItem>();
+        int modifiedLinesCount = 0;
+        int syncBlockingCount = 0;
+        int asyncVoidCount = 0;
+        int missingConfigureAwaitCount = 0;
+        int unobservedTaskCount = 0;
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var row = unifiedRows[i];
+            if (row.IsGap || row.IsRemoved) continue;
+
+            string line = row.Text;
+            string trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*")) continue;
+
+            modifiedLinesCount++;
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            // 1. Check Synchronous Blocking on Tasks (.Result / .Wait() / .GetAwaiter().GetResult())
+            var syncMatch = syncBlockingRegex.Match(trimmed);
+            if (syncMatch.Success && !trimmed.Contains("Task.FromResult") && !trimmed.Contains("DialogResult") && !trimmed.Contains("TestResult"))
+            {
+                syncBlockingCount++;
+                string snippet = syncMatch.Value;
+                hazards.Add(new AsyncThreadingHazardItem(
+                    lineNum,
+                    "SyncBlockingOnTask",
+                    snippet,
+                    $"Synchronous blocking call '{snippet}' on Task risks UI thread deadlock & thread pool starvation",
+                    "Replace with 'await' expression or asynchronous continuation",
+                    $"⚠ Synchronous blocking deadlock hazard: {snippet}"));
+            }
+
+            // 2. Check async void method declarations
+            var voidMatch = asyncVoidRegex.Match(trimmed);
+            if (voidMatch.Success)
+            {
+                string methodName = voidMatch.Groups[1].Value;
+                bool isEventHandler = methodName.EndsWith("Click", StringComparison.OrdinalIgnoreCase) ||
+                                      methodName.EndsWith("Loaded", StringComparison.OrdinalIgnoreCase) ||
+                                      methodName.EndsWith("Unloaded", StringComparison.OrdinalIgnoreCase) ||
+                                      methodName.EndsWith("Opened", StringComparison.OrdinalIgnoreCase) ||
+                                      methodName.EndsWith("Closed", StringComparison.OrdinalIgnoreCase) ||
+                                      methodName.EndsWith("Handler", StringComparison.OrdinalIgnoreCase) ||
+                                      trimmed.Contains("EventArgs");
+
+                if (!isEventHandler)
+                {
+                    asyncVoidCount++;
+                    hazards.Add(new AsyncThreadingHazardItem(
+                        lineNum,
+                        "AsyncVoidDeclaration",
+                        voidMatch.Value,
+                        $"Method '{methodName}' declared as 'async void': unhandled exceptions cannot be caught by callers",
+                        "Change return type from 'void' to 'Task'",
+                        $"⚠ Uncatchable async void method: {methodName}"));
+                }
+            }
+
+            // 3. Check unobserved Task.Run fire-and-forget
+            var taskMatch = taskRunRegex.Match(trimmed);
+            if (taskMatch.Success && !trimmed.StartsWith("return ") && !trimmed.StartsWith("await "))
+            {
+                unobservedTaskCount++;
+                hazards.Add(new AsyncThreadingHazardItem(
+                    lineNum,
+                    "UnobservedTaskRun",
+                    taskMatch.Value,
+                    "Unawaited Task.Run fire-and-forget invocation: exceptions will be unobserved and swallowed",
+                    "Await the Task or attach a .ContinueWith error logging handler",
+                    "⚠ Unobserved background task execution"));
+            }
+
+            // 4. Check missing ConfigureAwait(false) in library I/O calls
+            var awaitMatch = awaitCallRegex.Match(trimmed);
+            if (awaitMatch.Success && !trimmed.Contains("ConfigureAwait(") &&
+                (trimmed.Contains("ReadAsync") || trimmed.Contains("WriteAsync") || trimmed.Contains("SendAsync") || trimmed.Contains("Delay(")))
+            {
+                missingConfigureAwaitCount++;
+                hazards.Add(new AsyncThreadingHazardItem(
+                    lineNum,
+                    "MissingConfigureAwait",
+                    awaitMatch.Value,
+                    "Awaited background I/O call without ConfigureAwait(false) incurs unnecessary UI thread marshaling",
+                    "Append '.ConfigureAwait(false)' to awaited Task",
+                    $"ℹ Missing ConfigureAwait(false): {awaitMatch.Groups[1].Value}"));
+            }
+        }
+
+        int totalHazards = hazards.Count;
+        if (totalHazards == 0)
+        {
+            return new DiffAsyncThreadingAudit(
+                modifiedLinesCount, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<AsyncThreadingHazardItem>(),
+                "Optimal Asynchronous & Threading Concurrency (≥90%)",
+                $"Diff async & threading audit ({modifiedLinesCount} modified lines): 0 concurrency hazards found");
+        }
+
+        double score = 100.0;
+        score -= (syncBlockingCount * 25.0);
+        score -= (asyncVoidCount * 20.0);
+        score -= (unobservedTaskCount * 15.0);
+        score -= (missingConfigureAwaitCount * 5.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Asynchronous & Threading Concurrency (≥90%)"
+            : score >= 70.0
+                ? "Moderate Concurrency / Thread Context Risk (70-89%)"
+                : "Severe Task Deadlock / Thread Starvation Hazard (<70%)";
+
+        string summary = FormatAsyncThreadingSummary(
+            modifiedLinesCount, totalHazards, syncBlockingCount, asyncVoidCount,
+            missingConfigureAwaitCount, unobservedTaskCount, score, category);
+
+        return new DiffAsyncThreadingAudit(
+            modifiedLinesCount,
+            totalHazards,
+            syncBlockingCount,
+            asyncVoidCount,
+            missingConfigureAwaitCount,
+            unobservedTaskCount,
+            score,
+            hazards,
+            category,
+            summary);
+    }
+
+    public static DiffAsyncThreadingAudit AuditAsyncAwaitAndThreadContext(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditAsyncAwaitAndThreadContext(unified);
+    }
+
+    public static string FormatAsyncThreadingSummary(
+        int modifiedLines, int totalHazards, int syncBlocking, int asyncVoid,
+        int missingConfigureAwait, int unobservedTasks, double score, string category)
+    {
+        if (totalHazards == 0)
+            return $"Diff async & threading audit ({modifiedLines} modified lines): 0 concurrency hazards found";
+
+        string lineStr = modifiedLines == 1 ? "1 modified line" : $"{modifiedLines} modified lines";
+        var parts = new List<string>();
+
+        if (syncBlocking > 0) parts.Add($"⚠ {syncBlocking} deadlock hazard (.Result/.Wait)");
+        else parts.Add("0 sync-blocking calls");
+
+        if (asyncVoid > 0) parts.Add($"⚠ {asyncVoid} async void");
+        if (unobservedTasks > 0) parts.Add($"⚠ {unobservedTasks} unobserved tasks");
+        if (missingConfigureAwait > 0) parts.Add($"{missingConfigureAwait} missing ConfigureAwait");
+
+        string details = string.Join(" · ", parts);
+        return $"Diff async & threading audit ({lineStr} · {category} · {score:0.#}% safety score): {details}";
+    }
 }
 
 /// <summary>
@@ -8466,7 +8645,32 @@ public sealed record DiffExceptionHandlingAudit(
     string Category,
     string Summary);
 
+/// <summary>
+/// Represents evaluated metrics, hazard kind, explanation, and remediation for an asynchronous threading pattern in a diff.
+/// </summary>
+public sealed record AsyncThreadingHazardItem(
+    int LineNumber,
+    string HazardType,
+    string CodeSnippet,
+    string Explanation,
+    string ProposedRemediation,
+    string Status);
 
+/// <summary>
+/// Represents the result of an audit of diff rows for C# asynchronous await quality, Task deadlock hazards (.Result/.Wait()),
+/// async void method declarations, missing ConfigureAwait(false), and unobserved Tasks.
+/// </summary>
+public sealed record DiffAsyncThreadingAudit(
+    int TotalModifiedLines,
+    int TotalHazards,
+    int SyncBlockingCount,
+    int AsyncVoidCount,
+    int MissingConfigureAwaitCount,
+    int UnobservedTaskCount,
+    double ConcurrencySafetyScore,
+    IReadOnlyList<AsyncThreadingHazardItem> Hazards,
+    string Category,
+    string Summary);
 
 
 

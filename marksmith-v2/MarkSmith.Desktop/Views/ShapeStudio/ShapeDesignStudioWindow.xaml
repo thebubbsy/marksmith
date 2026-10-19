@@ -772,6 +772,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditVisualDensityMarginsItem" Text="Audit diagram shape visual density, canvas margin padding &amp; viewport perimeter safety" Click="OnSelectionAuditVisualDensityMarginsClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditZOrderOcclusionItem" Text="Audit diagram Z-index layering, occlusion depth &amp; shape visual stacking" Click="OnSelectionAuditZOrderOcclusionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

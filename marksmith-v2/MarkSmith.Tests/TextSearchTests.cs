@@ -2842,6 +2842,64 @@ public class TextSearchTests
         Assert.True(probAudit.CyclicReferencesCount >= 1);
         Assert.True(probAudit.IntegrityScore < 80.0);
     }
+
+    [Fact]
+    public void Run188_AuditTableAlignmentAndDelimiters_ValidatesTableStructureAndParity()
+    {
+        // 1. Empty document
+        var emptyAudit = TextSearch.AuditTableAlignmentAndDelimiters(null);
+        Assert.Equal(0, emptyAudit.TotalTables);
+        Assert.Equal(100.0, emptyAudit.StructureComplianceScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 tables", emptyAudit.Summary);
+
+        // 2. Clean table with valid delimiter and outer pipes
+        var cleanDoc = string.Join("\n",
+            "# Document",
+            "",
+            "| Feature | Status | Alignment |",
+            "| :--- | :---: | ---: |",
+            "| Markdown | Complete | Optimal |",
+            "| WinUI 3 | Verified | Polished |",
+            "",
+            "```markdown",
+            "| Ignored | In Code |",
+            "| --- | --- |",
+            "```"
+        );
+
+        var cleanAudit = TextSearch.AuditTableAlignmentAndDelimiters(cleanDoc);
+        Assert.Equal(1, cleanAudit.TotalTables);
+        Assert.Equal(4, cleanAudit.TotalRows);
+        Assert.Equal(3, cleanAudit.TotalColumns);
+        Assert.Equal(0, cleanAudit.RaggedRowsCount);
+        Assert.Equal(0, cleanAudit.DelimiterIssuesCount);
+        Assert.Equal(0, cleanAudit.UnescapedPipesCount);
+        Assert.Equal(0, cleanAudit.OuterPipesMissingCount);
+        Assert.Equal(100.0, cleanAudit.StructureComplianceScore);
+        Assert.Equal("Optimal Table Structure & Alignment (≥90%)", cleanAudit.Category);
+
+        string formatted = TextSearch.FormatTableAlignmentSummary(
+            cleanAudit.TotalTables, cleanAudit.TotalRows, cleanAudit.TotalColumns,
+            cleanAudit.RaggedRowsCount, cleanAudit.DelimiterIssuesCount,
+            cleanAudit.UnescapedPipesCount, cleanAudit.OuterPipesMissingCount,
+            cleanAudit.StructureComplianceScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Problematic table with ragged rows and invalid delimiter
+        var probDoc = string.Join("\n",
+            "| Header 1 | Header 2 | Header 3 |",
+            "| --- | invalid_delim | --- |",
+            "| Only One Cell |",
+            "| Cell 1 | Cell 2 | Cell 3 | Cell 4 Extra |"
+        );
+
+        var probAudit = TextSearch.AuditTableAlignmentAndDelimiters(probDoc);
+        Assert.Equal(1, probAudit.TotalTables);
+        Assert.True(probAudit.RaggedRowsCount >= 2);
+        Assert.True(probAudit.DelimiterIssuesCount >= 1);
+        Assert.True(probAudit.StructureComplianceScore < 75.0);
+    }
 }
 
 

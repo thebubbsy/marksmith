@@ -10603,6 +10603,216 @@ namespace MarkSmith.ViewModels.MindMap
             string details = string.Join(" · ", parts);
             return $"Graph cycle & SCC audit ({scope}{nodeStr}, {totalLinks} links · {category} · {score:0.#}% DAG score): {details}";
         }
+
+        /// <summary>
+        /// Audits mind map nodes for spatial density, force-directed bounding overlaps, pairwise Euclidean distances,
+        /// collision clusters, and spatial dispersion balance.
+        /// </summary>
+        public GraphSpatialDensityAudit AuditSpatialDensityAndCollisions(bool selectionOnly = false)
+        {
+            var targetList = selectionOnly ? Nodes.Where(n => n.IsSelected).ToList() : Nodes.ToList();
+            bool isSelection = selectionOnly && targetList.Count < Nodes.Count;
+
+            if (targetList.Count == 0)
+            {
+                return new GraphSpatialDensityAudit(
+                    0, 0, 0, 0, 0.0, 0.0, 0.0, 100.0,
+                    Array.Empty<NodeSpatialClusterItem>(),
+                    "Empty Mind Map",
+                    isSelection,
+                    $"Graph spatial density audit ({(isSelection ? "Selection · " : "")}0 nodes): Mind map is empty");
+            }
+
+            if (targetList.Count == 1)
+            {
+                var single = targetList[0];
+                var singleItem = new NodeSpatialClusterItem(
+                    single.Id, single.Title, single.X, single.Y, 0, 0, 0.0, "Isolated Single Node",
+                    "✓ Single node on canvas: no collisions possible");
+                return new GraphSpatialDensityAudit(
+                    1, 0, 0, 1, 0.0, 0.0, 0.0, 100.0,
+                    new[] { singleItem },
+                    "Optimal Spatial Dispersion & Balance (≥90%)",
+                    isSelection,
+                    $"Graph spatial density audit ({(isSelection ? "Selection · " : "")}1 node · Optimal Spatial Dispersion & Balance (≥90%) · 100% score): single isolated node");
+            }
+
+            const double DefaultWidth = 140.0;
+            const double DefaultHeight = 48.0;
+            const double ProximityRadius = 160.0;
+            const double IsolatedThreshold = 600.0;
+
+            var clusters = new List<NodeSpatialClusterItem>();
+            var distances = new List<double>();
+            int collisionPairCount = 0;
+            var overlappingNodeIds = new HashSet<string>();
+            int crowdedCount = 0;
+            int isolatedCount = 0;
+
+            for (int i = 0; i < targetList.Count; i++)
+            {
+                var n1 = targetList[i];
+                double w1 = n1.Width > 0 ? n1.Width : DefaultWidth;
+                double h1 = n1.Height > 0 ? n1.Height : DefaultHeight;
+
+                int overlaps = 0;
+                int neighborsWithinRadius = 0;
+                double nearestDist = double.MaxValue;
+
+                for (int j = 0; j < targetList.Count; j++)
+                {
+                    if (i == j) continue;
+                    var n2 = targetList[j];
+                    double w2 = n2.Width > 0 ? n2.Width : DefaultWidth;
+                    double h2 = n2.Height > 0 ? n2.Height : DefaultHeight;
+
+                    double dx = (n1.X + w1 / 2.0) - (n2.X + w2 / 2.0);
+                    double dy = (n1.Y + h1 / 2.0) - (n2.Y + h2 / 2.0);
+                    double dist = Math.Sqrt(dx * dx + dy * dy);
+                    nearestDist = Math.Min(nearestDist, dist);
+
+                    if (i < j)
+                    {
+                        distances.Add(dist);
+                    }
+
+                    if (dist <= ProximityRadius)
+                    {
+                        neighborsWithinRadius++;
+                    }
+
+                    // AABB overlap check
+                    bool overlapsAabb = !(n1.X + w1 <= n2.X || n2.X + w2 <= n1.X || n1.Y + h1 <= n2.Y || n2.Y + h2 <= n1.Y);
+                    if (overlapsAabb)
+                    {
+                        overlaps++;
+                        overlappingNodeIds.Add(n1.Id);
+                        overlappingNodeIds.Add(n2.Id);
+                        if (i < j)
+                        {
+                            collisionPairCount++;
+                        }
+                    }
+                }
+
+                if (nearestDist == double.MaxValue) nearestDist = 0.0;
+                nearestDist = Math.Round(nearestDist, 1);
+
+                string riskLevel;
+                string status;
+
+                if (overlaps > 0)
+                {
+                    riskLevel = "Collision / Overlap Hazard";
+                    status = $"⚠ Node overlaps with {overlaps} other {(overlaps == 1 ? "node" : "nodes")} (Nearest: {nearestDist:0.#}px)";
+                }
+                else if (nearestDist < 70.0)
+                {
+                    crowdedCount++;
+                    riskLevel = "Crowded Proximity";
+                    status = $"⚠ Crowded layout: nearest neighbor is only {nearestDist:0.#}px away";
+                }
+                else if (nearestDist > IsolatedThreshold)
+                {
+                    isolatedCount++;
+                    riskLevel = "Isolated / Disjointed";
+                    status = $"ℹ Distant node: {nearestDist:0.#}px to nearest neighbor";
+                }
+                else
+                {
+                    riskLevel = "Balanced";
+                    status = $"✓ Well-spaced node: {nearestDist:0.#}px nearest ({neighborsWithinRadius} in {ProximityRadius:0}px radius)";
+                }
+
+                clusters.Add(new NodeSpatialClusterItem(
+                    n1.Id,
+                    n1.Title,
+                    Math.Round(n1.X, 1),
+                    Math.Round(n1.Y, 1),
+                    overlaps,
+                    neighborsWithinRadius,
+                    nearestDist,
+                    riskLevel,
+                    status));
+            }
+
+            double meanDist = distances.Count > 0 ? Math.Round(distances.Average(), 1) : 0.0;
+            double minDist = distances.Count > 0 ? Math.Round(distances.Min(), 1) : 0.0;
+            double maxDist = distances.Count > 0 ? Math.Round(distances.Max(), 1) : 0.0;
+
+            double score = 100.0;
+            score -= (collisionPairCount * 25.0);
+            score -= (crowdedCount * 10.0);
+            score -= (isolatedCount * 5.0);
+            score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+            string category = score >= 90.0
+                ? "Optimal Spatial Dispersion & Balance (≥90%)"
+                : score >= 70.0
+                    ? "Moderate Node Crowding / Proximity Clutter (70-89%)"
+                    : "High Collision Risk & Severe Cluster Overlap (<70%)";
+
+            string summary = FormatSpatialDensitySummary(
+                targetList.Count, collisionPairCount, overlappingNodeIds.Count, isolatedCount,
+                meanDist, minDist, score, category, isSelection);
+
+            StatusMessage = summary;
+
+            return new GraphSpatialDensityAudit(
+                targetList.Count,
+                collisionPairCount,
+                overlappingNodeIds.Count,
+                isolatedCount,
+                meanDist,
+                minDist,
+                maxDist,
+                score,
+                clusters,
+                category,
+                isSelection,
+                summary);
+        }
+
+        public static GraphSpatialDensityAudit AuditSpatialDensityAndCollisions(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links = null)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null) foreach (var nd in nodes) vm.Nodes.Add(new MindMapNodeViewModel(nd));
+            if (links != null) foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            return vm.AuditSpatialDensityAndCollisions();
+        }
+
+        public static string FormatSpatialDensitySummary(
+            int totalNodes, int collisionPairs, int overlappingNodes, int isolatedNodes,
+            double meanDist, double minDist, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph spatial density audit ({scope}0 nodes): Empty mind map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            var parts = new List<string>();
+
+            if (collisionPairs > 0)
+            {
+                parts.Add($"⚠ {collisionPairs} collision {(collisionPairs == 1 ? "overlap" : "overlaps")} ({overlappingNodes} nodes affected)");
+            }
+            else
+            {
+                parts.Add("0 bounding collisions");
+            }
+
+            parts.Add($"mean distance {meanDist:0.#}px (min {minDist:0.#}px)");
+
+            if (isolatedNodes > 0)
+            {
+                parts.Add($"{isolatedNodes} isolated {(isolatedNodes == 1 ? "node" : "nodes")}");
+            }
+
+            string details = string.Join(" · ", parts);
+            return $"Graph spatial density audit ({scope}{nodeStr} · {category} · {score:0.#}% score): {details}";
+        }
     }
 
 
@@ -11642,6 +11852,38 @@ namespace MarkSmith.ViewModels.MindMap
         int SelfLoopsCount,
         double DagConformanceScore,
         IReadOnlyList<GraphCycleComponentItem> Cycles,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated spatial coordinates, bounding overlaps, nearest neighbor distance, and clustering risk for an individual mind map node.
+    /// </summary>
+    public sealed record NodeSpatialClusterItem(
+        string NodeId,
+        string NodeTitle,
+        double X,
+        double Y,
+        int OverlapCount,
+        int NeighborCountWithinRadius,
+        double NearestNeighborDistance,
+        string ClusterRiskLevel,
+        string Status);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph node spatial density, force-directed bounding overlaps,
+    /// pairwise Euclidean distances, collision clusters, and spatial dispersion balance.
+    /// </summary>
+    public sealed record GraphSpatialDensityAudit(
+        int TotalNodes,
+        int TotalCollisions,
+        int OverlappingNodesCount,
+        int IsolatedNodesCount,
+        double MeanPairwiseDistance,
+        double MinDistance,
+        double MaxDistance,
+        double SpatialDispersionScore,
+        IReadOnlyList<NodeSpatialClusterItem> Clusters,
         string Category,
         bool IsSelectionScope,
         string Summary);

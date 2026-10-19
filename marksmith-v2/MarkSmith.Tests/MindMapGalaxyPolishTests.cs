@@ -3549,6 +3549,50 @@ namespace MarkSmith.Tests
             Assert.Contains(cycleAudit.Cycles, c => c.IsSelfLoop && c.NodeTitles.Contains("Node D"));
             Assert.Contains(cycleAudit.Cycles, c => c.IsMultiNodeCycle && c.NodeCount == 3);
         }
+
+        [Fact]
+        public void Run188_AuditSpatialDensityAndCollisions_ValidatesNodeDistancesAndOverlaps()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditSpatialDensityAndCollisions(Array.Empty<MindMapNode>());
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalCollisions);
+            Assert.Equal(100.0, emptyAudit.SpatialDispersionScore);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Single node
+            var singleNode = new MindMapNode { Id = "s", Title = "Single Node", X = 200, Y = 200 };
+            var singleAudit = MindMapStudioViewModel.AuditSpatialDensityAndCollisions(new[] { singleNode });
+            Assert.Equal(1, singleAudit.TotalNodes);
+            Assert.Equal(0, singleAudit.TotalCollisions);
+            Assert.Equal(100.0, singleAudit.SpatialDispersionScore);
+
+            // 3. Balanced, well-spaced nodes
+            var nodeA = new MindMapNode { Id = "a", Title = "Node A", X = 100, Y = 100, Width = 100, Height = 40 };
+            var nodeB = new MindMapNode { Id = "b", Title = "Node B", X = 350, Y = 100, Width = 100, Height = 40 };
+            var nodeC = new MindMapNode { Id = "c", Title = "Node C", X = 100, Y = 300, Width = 100, Height = 40 };
+
+            var balancedAudit = MindMapStudioViewModel.AuditSpatialDensityAndCollisions(new[] { nodeA, nodeB, nodeC });
+            Assert.Equal(3, balancedAudit.TotalNodes);
+            Assert.Equal(0, balancedAudit.TotalCollisions);
+            Assert.Equal(0, balancedAudit.OverlappingNodesCount);
+            Assert.Equal(100.0, balancedAudit.SpatialDispersionScore);
+            Assert.Equal("Optimal Spatial Dispersion & Balance (≥90%)", balancedAudit.Category);
+
+            string formatted = MindMapStudioViewModel.FormatSpatialDensitySummary(
+                balancedAudit.TotalNodes, balancedAudit.TotalCollisions, balancedAudit.OverlappingNodesCount,
+                balancedAudit.IsolatedNodesCount, balancedAudit.MeanPairwiseDistance, balancedAudit.MinDistance,
+                balancedAudit.SpatialDispersionScore, balancedAudit.Category, balancedAudit.IsSelectionScope);
+            Assert.Equal(balancedAudit.Summary, formatted);
+
+            // 4. Overlapping collision nodes
+            var nodeOverlap = new MindMapNode { Id = "o", Title = "Overlap Node", X = 110, Y = 110, Width = 100, Height = 40 };
+            var collisionAudit = MindMapStudioViewModel.AuditSpatialDensityAndCollisions(new[] { nodeA, nodeOverlap });
+            Assert.Equal(2, collisionAudit.TotalNodes);
+            Assert.Equal(1, collisionAudit.TotalCollisions);
+            Assert.Equal(2, collisionAudit.OverlappingNodesCount);
+            Assert.True(collisionAudit.SpatialDispersionScore < 80.0);
+        }
     }
 }
 

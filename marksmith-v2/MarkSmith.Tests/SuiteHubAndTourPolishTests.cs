@@ -5137,6 +5137,142 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceFrontmatterSchemasClick", suiteCs);
         Assert.Contains("AuditWorkspaceFrontmatterSchemas", suiteCs);
     }
+
+    [Fact]
+    public void Run188_AuditWorkspaceWikiLinksAndAssets_ValidatesTargetsAndResolvesPaths()
+    {
+        // 1. Empty / null files list
+        var emptyAudit = RecentFilesService.AuditWorkspaceWikiLinksAndAssets(
+            Array.Empty<string>(),
+            null,
+            _ => false,
+            _ => null);
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(0, emptyAudit.TotalLinksAudited);
+        Assert.Equal(100.0, emptyAudit.LinkIntegrityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 files", emptyAudit.Summary);
+
+        // 2. Document with valid WikiLinks, relative document links, and media asset embeds
+        var doc1 = string.Join("\n",
+            "# Project Wiki Hub",
+            "Welcome to [[architecture]] and check out [[guide|User Guide]].",
+            "Refer to the local [Manual](docs/manual.md) for details.",
+            "![Hero Banner](assets/banner.png)",
+            "External references: [Google](https://google.com) and ![Remote Logo](https://example.com/logo.png) should be excluded.",
+            "Local anchor [Section Link](#header) should also be excluded."
+        );
+
+        var fileSystem = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\index.md"] = doc1.Split('\n')
+        };
+
+        var existingPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            @"C:\workspace\index.md",
+            @"C:\workspace\docs\manual.md",
+            @"C:\workspace\assets\banner.png",
+            @"C:\workspace\architecture.md",
+            @"C:\workspace\guide.md"
+        };
+
+        var validAudit = RecentFilesService.AuditWorkspaceWikiLinksAndAssets(
+            fileSystem.Keys,
+            workspaceRoot: @"C:\workspace",
+            fileExists: p => existingPaths.Contains(p),
+            readAllLines: p => fileSystem.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(1, validAudit.TotalFilesScanned);
+        Assert.Equal(4, validAudit.TotalLinksAudited);
+        Assert.Equal(2, validAudit.WikiLinksCount);
+        Assert.Equal(1, validAudit.RelativeDocLinksCount);
+        Assert.Equal(1, validAudit.AssetLinksCount);
+        Assert.Equal(4, validAudit.ValidTargetsCount);
+        Assert.Equal(0, validAudit.BrokenTargetsCount);
+        Assert.Equal(100.0, validAudit.LinkIntegrityScore);
+        Assert.Equal("Optimal Workspace Hyperlink & Asset Integrity (≥90%)", validAudit.Category);
+        Assert.Contains("4/4 resolved", validAudit.Summary);
+        Assert.Contains("0 broken targets", validAudit.Summary);
+
+        string formatted = RecentFilesService.FormatWorkspaceWikiLinksSummary(
+            validAudit.TotalFilesScanned, validAudit.TotalLinksAudited, validAudit.ValidTargetsCount,
+            validAudit.BrokenTargetsCount, validAudit.WikiLinksCount, validAudit.RelativeDocLinksCount,
+            validAudit.AssetLinksCount, validAudit.LinkIntegrityScore, validAudit.Category);
+        Assert.Equal(validAudit.Summary, formatted);
+
+        // 3. Document with broken targets
+        var docBroken = string.Join("\n",
+            "# Broken Links Test",
+            "Missing note: [[ghost_note]].",
+            "Missing doc: [Missing Spec](specs/missing.md).",
+            "Missing asset: ![Missing Chart](charts/missing.png)."
+        );
+
+        var brokenFileSystem = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\broken.md"] = docBroken.Split('\n')
+        };
+
+        var brokenAudit = RecentFilesService.AuditWorkspaceWikiLinksAndAssets(
+            brokenFileSystem.Keys,
+            workspaceRoot: @"C:\workspace",
+            fileExists: p => p.Equals(@"C:\workspace\broken.md", StringComparison.OrdinalIgnoreCase),
+            readAllLines: p => brokenFileSystem.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(1, brokenAudit.TotalFilesScanned);
+        Assert.Equal(3, brokenAudit.TotalLinksAudited);
+        Assert.Equal(1, brokenAudit.WikiLinksCount);
+        Assert.Equal(1, brokenAudit.RelativeDocLinksCount);
+        Assert.Equal(1, brokenAudit.AssetLinksCount);
+        Assert.Equal(0, brokenAudit.ValidTargetsCount);
+        Assert.Equal(3, brokenAudit.BrokenTargetsCount);
+        Assert.True(brokenAudit.LinkIntegrityScore < 70.0);
+        Assert.Equal("Severe Hyperlink Drift & Missing Assets (<70%)", brokenAudit.Category);
+        Assert.Contains("3 broken targets", brokenAudit.Summary);
+    }
+
+    [Fact]
+    public void Run188_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Table Column Alignment & Pipe Delimiter Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditTableAlignmentItem", mainCs);
+        Assert.Contains("AuditTableAlignmentAndDelimiters", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Spatial Node Density & Collision Proximity Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphSpatialDensityItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphSpatialDensityClick", galaxyCs);
+        Assert.Contains("AuditSpatialDensityAndCollisions", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Z-Order Stacking & Element Occlusion Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditZOrderOcclusionItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditZOrderOcclusionClick", shapeCs);
+        Assert.Contains("AuditZOrderAndOcclusion", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - Funnel & Pyramid Stage Proportions & Inverted Hierarchy Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditFunnelPyramidProportionsItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditFunnelPyramidProportionsClick", smartArtCs);
+        Assert.Contains("AuditFunnelPyramidProportions", smartArtCs);
+
+        // Surface 5: HistoryWindow - Async/Await Task Deadlock Hazard & Threading Context Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditAsyncThreading", historyCs);
+        Assert.Contains("AuditAsyncAwaitAndThreadContext", historyCs);
+
+        // Surface 6: SuiteHubView - Cross-Document Wiki-Link & Relative Asset Integrity Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceWikiLinksItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceWikiLinksClick", suiteCs);
+        Assert.Contains("AuditWorkspaceWikiLinksAndAssets", suiteCs);
+    }
 }
 
 

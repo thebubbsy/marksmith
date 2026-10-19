@@ -2844,6 +2844,51 @@ public class ShapeStudioPolishTests
         Assert.True(edgeAudit.MinPerimeterMargin < 24.0);
         Assert.True(edgeAudit.ViewportBreathingRoomScore < 100.0);
     }
+
+    [Fact]
+    public void Run188_AuditZOrderAndOcclusion_ValidatesLayerStratificationAndOcclusion()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditZOrderAndOcclusion();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(0, emptyAudit.OverlappingPairsCount);
+        Assert.Equal(100.0, emptyAudit.LayerStratificationScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+        Assert.Contains("0 shapes", emptyAudit.Summary);
+
+        // 2. Disjoint non-overlapping shapes
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Shape 1", X = 50, Y = 50, Width = 100, Height = 100 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Shape 2", X = 200, Y = 50, Width = 100, Height = 100 };
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+
+        var cleanAudit = vm.AuditZOrderAndOcclusion();
+        Assert.Equal(2, cleanAudit.TotalShapes);
+        Assert.Equal(0, cleanAudit.OverlappingPairsCount);
+        Assert.Equal(0, cleanAudit.SevereOcclusionCount);
+        Assert.Equal(0, cleanAudit.InvertedContainerCount);
+        Assert.Equal(100.0, cleanAudit.LayerStratificationScore);
+        Assert.Equal("Optimal Layer Stratification & Visibility (≥90%)", cleanAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatZOrderOcclusionSummary(
+            cleanAudit.TotalShapes, cleanAudit.OverlappingPairsCount, cleanAudit.SevereOcclusionCount,
+            cleanAudit.InvertedContainerCount, cleanAudit.LayerStratificationScore,
+            cleanAudit.Category, cleanAudit.IsSelectionScope);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Overlapping shape and inverted container hazard
+        // s1 is child, s3 is large container placed on top (higher Z-index)
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Name = "Large Container Backdrop", X = 40, Y = 40, Width = 300, Height = 300 };
+        vm.Shapes.Add(s3);
+
+        var occludedAudit = vm.AuditZOrderAndOcclusion();
+        Assert.Equal(3, occludedAudit.TotalShapes);
+        Assert.True(occludedAudit.OverlappingPairsCount >= 1);
+        Assert.True(occludedAudit.InvertedContainerCount >= 1 || occludedAudit.SevereOcclusionCount >= 1);
+        Assert.True(occludedAudit.LayerStratificationScore < 80.0);
+    }
 }
 
 

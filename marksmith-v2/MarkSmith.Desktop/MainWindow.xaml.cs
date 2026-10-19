@@ -11907,6 +11907,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditFootnoteRefItem);
 
+        var auditTableAlignmentItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Table Delimiters, Alignments & Column Parity",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditTableAlignmentItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditTableAlignmentAndDelimiters(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditTableAlignmentItem);
+
         menu.ShowAt(anchor);
     }
 

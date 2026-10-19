@@ -2659,6 +2659,60 @@ public class HistoryPolishTests : IDisposable
         Assert.True(probAudit.SwallowedExceptionsCount >= 1);
         Assert.True(probAudit.RigorScore < 70.0);
     }
+
+    [Fact]
+    public void Run188_AuditAsyncAwaitAndThreadContext_DetectsDeadlocksAndHazards()
+    {
+        // 1. Empty / null input
+        var emptyAudit = LineDiff.AuditAsyncAwaitAndThreadContext("", "");
+        Assert.Equal(0, emptyAudit.TotalModifiedLines);
+        Assert.Equal(100.0, emptyAudit.ConcurrencySafetyScore);
+        Assert.Equal("Optimal Asynchronous & Threading Concurrency (≥90%)", emptyAudit.Category);
+        Assert.Contains("0 concurrency hazards", emptyAudit.Summary);
+
+        // 2. Safe async/await code
+        string safeCode = string.Join("\n",
+            "public async Task<int> FetchDataAsync()",
+            "{",
+            "    await Task.Delay(100).ConfigureAwait(false);",
+            "    return 42;",
+            "}",
+            "public async void OnButtonClick(object sender, EventArgs e)",
+            "{",
+            "    await FetchDataAsync();",
+            "}"
+        );
+
+        var safeAudit = LineDiff.AuditAsyncAwaitAndThreadContext("", safeCode);
+        Assert.Equal(0, safeAudit.SyncBlockingCount);
+        Assert.Equal(0, safeAudit.AsyncVoidCount);
+        Assert.Equal(100.0, safeAudit.ConcurrencySafetyScore);
+        Assert.Equal("Optimal Asynchronous & Threading Concurrency (≥90%)", safeAudit.Category);
+
+        string formatted = LineDiff.FormatAsyncThreadingSummary(
+            safeAudit.TotalModifiedLines, safeAudit.TotalHazards, safeAudit.SyncBlockingCount,
+            safeAudit.AsyncVoidCount, safeAudit.MissingConfigureAwaitCount, safeAudit.UnobservedTaskCount,
+            safeAudit.ConcurrencySafetyScore, safeAudit.Category);
+        Assert.Equal(safeAudit.Summary, formatted);
+
+        // 3. Problematic code with synchronous blocking, non-handler async void, and unobserved Task.Run
+        string probCode = string.Join("\n",
+            "public void BadSync()",
+            "{",
+            "    var res = FetchDataAsync().Result;",
+            "}",
+            "public async void BackgroundWorker()",
+            "{",
+            "    Task.Run(() => DoWork());",
+            "}"
+        );
+
+        var probAudit = LineDiff.AuditAsyncAwaitAndThreadContext("", probCode);
+        Assert.True(probAudit.SyncBlockingCount >= 1);
+        Assert.True(probAudit.AsyncVoidCount >= 1);
+        Assert.True(probAudit.UnobservedTaskCount >= 1);
+        Assert.True(probAudit.ConcurrencySafetyScore < 70.0);
+    }
 }
 
 

@@ -378,6 +378,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphCyclesItem" Text="Audit graph cycle detection, feedback loops &amp; strongly connected components (SCC)" Click="OnAuditGraphCyclesClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphSpatialDensityItem" Text="Audit graph spatial density, force-directed overlap &amp; collision avoidance" Click="OnAuditGraphSpatialDensityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

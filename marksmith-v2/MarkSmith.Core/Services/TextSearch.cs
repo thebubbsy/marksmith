@@ -9551,6 +9551,250 @@ public static class TextSearch
         string details = string.Join(" · ", parts);
         return $"Markdown footnote & reference link audit ({totalRefs} refs, {totalDefs} defs · {category} · {score:0.#}% integrity score): {details}";
     }
+
+    /// <summary>
+    /// Audits markdown documents for table structure, pipe column counts, header delimiter rows (|:---|:---:|---:|),
+    /// ragged row parity, unescaped pipes within cells, and outer border pipe consistency.
+    /// </summary>
+    public static MarkdownTableAlignmentAudit AuditTableAlignmentAndDelimiters(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new MarkdownTableAlignmentAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<TableStructureItem>(),
+                "Clean Baseline",
+                "Markdown table structure & alignment audit: 0 tables · Document contains no tables");
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        bool inFence = false;
+
+        var tables = new List<TableStructureItem>();
+        int tableIndexCounter = 1;
+        int totalRowsAcc = 0;
+        int totalColsAcc = 0;
+        int totalRaggedAcc = 0;
+        int totalDelimiterIssuesAcc = 0;
+        int totalUnescapedPipesAcc = 0;
+        int totalOuterPipesMissingAcc = 0;
+
+        var delimiterPattern = new Regex(@"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$", RegexOptions.Compiled);
+
+        int i = 0;
+        while (i < lines.Length)
+        {
+            string raw = lines[i];
+            string trimmed = raw.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inFence = !inFence;
+                i++;
+                continue;
+            }
+            if (inFence)
+            {
+                i++;
+                continue;
+            }
+
+            // A table requires a header line and a delimiter line immediately following
+            if (trimmed.Contains('|') && i + 1 < lines.Length)
+            {
+                string nextRaw = lines[i + 1];
+                string nextTrimmed = nextRaw.Trim();
+
+                if (delimiterPattern.IsMatch(nextTrimmed) || (nextTrimmed.Contains('|') && nextTrimmed.Contains("-")))
+                {
+                    // Found a table starting at line i + 1 (1-based)
+                    int startLine = i + 1;
+                    string headerRaw = raw;
+                    string delimRaw = nextRaw;
+
+                    List<string> ParseRowCells(string rowText)
+                    {
+                        string t = rowText.Trim();
+                        if (t.StartsWith("|")) t = t.Substring(1);
+                        if (t.EndsWith("|") && !t.EndsWith(@"\|")) t = t.Substring(0, t.Length - 1);
+                        var cellList = new List<string>();
+                        var parts = Regex.Split(t, @"(?<!\\)\|");
+                        foreach (var part in parts)
+                        {
+                            cellList.Add(part.Trim());
+                        }
+                        return cellList;
+                    }
+
+                    var headerCells = ParseRowCells(headerRaw);
+                    int headerColCount = headerCells.Count;
+
+                    var delimCells = ParseRowCells(delimRaw);
+                    bool validDelimiter = delimCells.Count == headerColCount;
+                    var alignments = new List<string>();
+
+                    foreach (var dc in delimCells)
+                    {
+                        string d = dc.Trim();
+                        bool startColon = d.StartsWith(":");
+                        bool endColon = d.EndsWith(":");
+                        string dashPart = d.Trim(':');
+                        if (dashPart.Length >= 2 && dashPart.All(c => c == '-'))
+                        {
+                            if (startColon && endColon) alignments.Add("center");
+                            else if (endColon) alignments.Add("right");
+                            else if (startColon) alignments.Add("left");
+                            else alignments.Add("default");
+                        }
+                        else
+                        {
+                            alignments.Add("invalid");
+                            validDelimiter = false;
+                        }
+                    }
+
+                    int tableRows = 2; // header + delimiter
+                    int raggedCount = 0;
+                    int unescapedPipes = 0;
+                    int missingOuterPipes = 0;
+
+                    if (!headerRaw.Trim().StartsWith("|") || !headerRaw.Trim().EndsWith("|")) missingOuterPipes++;
+                    if (!delimRaw.Trim().StartsWith("|") || !delimRaw.Trim().EndsWith("|")) missingOuterPipes++;
+                    if (!validDelimiter) totalDelimiterIssuesAcc++;
+
+                    int bodyIdx = i + 2;
+                    while (bodyIdx < lines.Length)
+                    {
+                        string bodyRaw = lines[bodyIdx];
+                        string bodyTrim = bodyRaw.Trim();
+
+                        if (string.IsNullOrWhiteSpace(bodyTrim) || !bodyTrim.Contains('|'))
+                            break;
+
+                        tableRows++;
+                        if (!bodyTrim.StartsWith("|") || !bodyTrim.EndsWith("|")) missingOuterPipes++;
+
+                        var bodyCells = ParseRowCells(bodyRaw);
+                        if (bodyCells.Count != headerColCount)
+                        {
+                            raggedCount++;
+                        }
+
+                        // Check for unescaped pipe occurrences inside cell content
+                        foreach (var cell in bodyCells)
+                        {
+                            if (cell.Contains('|'))
+                            {
+                                unescapedPipes++;
+                            }
+                        }
+
+                        bodyIdx++;
+                    }
+
+                    int endLine = bodyIdx;
+                    int cellCount = tableRows * headerColCount;
+
+                    totalRowsAcc += tableRows;
+                    totalColsAcc += headerColCount;
+                    totalRaggedAcc += raggedCount;
+                    totalUnescapedPipesAcc += unescapedPipes;
+                    totalOuterPipesMissingAcc += missingOuterPipes;
+
+                    bool isOuterClean = missingOuterPipes == 0;
+                    string status = (raggedCount > 0 || !validDelimiter)
+                        ? $"⚠ Table #{tableIndexCounter} (L{startLine}-L{endLine}): {headerColCount} cols, {raggedCount} ragged rows, {(validDelimiter ? "valid delimiter" : "invalid delimiter")}"
+                        : $"✓ Table #{tableIndexCounter} (L{startLine}-L{endLine}): {headerColCount} cols, {tableRows} rows, balanced alignments ({string.Join("/", alignments)})";
+
+                    tables.Add(new TableStructureItem(
+                        tableIndexCounter++,
+                        startLine,
+                        endLine,
+                        headerColCount,
+                        tableRows,
+                        raggedCount,
+                        cellCount,
+                        unescapedPipes,
+                        isOuterClean,
+                        validDelimiter,
+                        alignments,
+                        status));
+
+                    i = bodyIdx;
+                    continue;
+                }
+            }
+
+            i++;
+        }
+
+        if (tables.Count == 0)
+        {
+            return new MarkdownTableAlignmentAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<TableStructureItem>(),
+                "Clean Baseline",
+                "Markdown table structure & alignment audit: 0 tables · Document contains no tables");
+        }
+
+        double score = 100.0;
+        score -= (totalDelimiterIssuesAcc * 25.0);
+        score -= (totalRaggedAcc * 15.0);
+        score -= (totalUnescapedPipesAcc * 10.0);
+        score -= (totalOuterPipesMissingAcc * 5.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Table Structure & Alignment (≥90%)"
+            : score >= 75.0
+                ? "Moderate Table Delimiter / Parity Risk (75-89%)"
+                : "Degraded Table Syntax & Ragged Rows (<75%)";
+
+        string summary = FormatTableAlignmentSummary(
+            tables.Count, totalRowsAcc, totalColsAcc, totalRaggedAcc,
+            totalDelimiterIssuesAcc, totalUnescapedPipesAcc, totalOuterPipesMissingAcc, score, category);
+
+        return new MarkdownTableAlignmentAudit(
+            tables.Count,
+            totalRowsAcc,
+            totalColsAcc,
+            totalRaggedAcc,
+            totalDelimiterIssuesAcc,
+            totalUnescapedPipesAcc,
+            totalOuterPipesMissingAcc,
+            score,
+            tables,
+            category,
+            summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of table alignment and delimiter integrity.
+    /// </summary>
+    public static string FormatTableAlignmentAndDelimitersSummary(string? markdownText)
+        => AuditTableAlignmentAndDelimiters(markdownText).Summary;
+
+    public static string FormatTableAlignmentSummary(
+        int totalTables, int totalRows, int totalCols, int raggedRows,
+        int delimiterIssues, int unescapedPipes, int outerPipesMissing, double score, string category)
+    {
+        if (totalTables == 0)
+            return "Markdown table structure & alignment audit: 0 tables · Document contains no tables";
+
+        string tblLabel = totalTables == 1 ? "1 table" : $"{totalTables} tables";
+        var parts = new List<string>();
+        parts.Add($"{totalRows} rows, {totalCols} total cols");
+
+        if (raggedRows > 0) parts.Add($"⚠ {raggedRows} ragged {(raggedRows == 1 ? "row" : "rows")}");
+        else parts.Add("0 ragged rows");
+
+        if (delimiterIssues > 0) parts.Add($"⚠ {delimiterIssues} delimiter {(delimiterIssues == 1 ? "issue" : "issues")}");
+        if (unescapedPipes > 0) parts.Add($"⚠ {unescapedPipes} unescaped {(unescapedPipes == 1 ? "pipe" : "pipes")}");
+        if (outerPipesMissing > 0) parts.Add($"⚠ {outerPipesMissing} missing outer pipes");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown table structure & alignment audit ({tblLabel} · {category} · {score:0.#}% compliance score): {details}";
+    }
 }
 
 /// <summary>
@@ -10556,4 +10800,36 @@ public sealed record MarkdownFootnoteAndReferenceAudit(
     string Category,
     string Summary);
 
+/// <summary>
+/// Represents evaluated metrics, row/column counts, delimiter alignments, and ragged row count for an individual markdown table.
+/// </summary>
+public sealed record TableStructureItem(
+    int TableIndex,
+    int StartLine,
+    int EndLine,
+    int HeaderColumns,
+    int TotalRows,
+    int RaggedRows,
+    int CellCount,
+    int UnescapedPipes,
+    bool HasOuterPipes,
+    bool HasValidDelimiterRow,
+    IReadOnlyList<string> ColumnAlignments,
+    string Status);
 
+/// <summary>
+/// Represents the result of an audit of markdown tables for header delimiter rows, column alignment syntax,
+/// ragged row column parity, unescaped pipes, and outer border pipe consistency.
+/// </summary>
+public sealed record MarkdownTableAlignmentAudit(
+    int TotalTables,
+    int TotalRows,
+    int TotalColumns,
+    int RaggedRowsCount,
+    int DelimiterIssuesCount,
+    int UnescapedPipesCount,
+    int OuterPipesMissingCount,
+    double StructureComplianceScore,
+    IReadOnlyList<TableStructureItem> Tables,
+    string Category,
+    string Summary);

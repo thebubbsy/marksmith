@@ -2536,6 +2536,51 @@ public class SmartArtStudioPolishTests
         Assert.True(probAudit.WordLengthViolations >= 1);
         Assert.True(probAudit.FlowDirectionalityScore < 100.0);
     }
+
+    [Fact]
+    public void Run188_AuditFunnelPyramidProportions_ValidatesStageBoundsAndTextOverflow()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditFunnelPyramidProportions("", "Funnel");
+        Assert.Equal(0, emptyAudit.TotalStages);
+        Assert.Equal(100.0, emptyAudit.ProportionFidelityScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+        Assert.Contains("0 stages", emptyAudit.Summary);
+
+        // 2. Balanced 4-stage funnel
+        var funnelMd = string.Join("\n",
+            "- Awareness",
+            "  - Social & Search",
+            "- Consideration",
+            "- Intent",
+            "- Purchase"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditFunnelPyramidProportions(funnelMd, "Funnel");
+        Assert.Equal(4, audit.TotalStages);
+        Assert.Equal(1, audit.TotalSubBullets);
+        Assert.True(audit.IsWithinOptimalStageBounds);
+        Assert.Equal(0, audit.TextOverflowRisksCount);
+        Assert.Equal(100.0, audit.ProportionFidelityScore);
+        Assert.Equal("Optimal Funnel/Pyramid Proportions (≥90%)", audit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatFunnelPyramidSummary(
+            audit.TotalStages, audit.TotalSubBullets, audit.IsWithinOptimalStageBounds,
+            audit.TextOverflowRisksCount, audit.ProportionFidelityScore, audit.Category, audit.LayoutName);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Pyramid with overflow on narrow stage and too few stages (< 3)
+        var probMd = string.Join("\n",
+            "- An excessively long label that will certainly overflow the tiny narrow apex of the pyramid trapezoid",
+            "- Base Stage"
+        );
+
+        var probAudit = SmartArtDesignStudioViewModel.AuditFunnelPyramidProportions(probMd, "Pyramid");
+        Assert.Equal(2, probAudit.TotalStages);
+        Assert.False(probAudit.IsWithinOptimalStageBounds);
+        Assert.True(probAudit.TextOverflowRisksCount >= 1);
+        Assert.True(probAudit.ProportionFidelityScore < 75.0);
+    }
 }
 
 

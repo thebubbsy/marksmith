@@ -7636,6 +7636,248 @@ public sealed class RecentFilesService
         string details = string.Join(" · ", parts);
         return $"Workspace frontmatter schema audit ({fileStr} · {category} · {score:0.#}% integrity score): {details}";
     }
+
+    /// <summary>
+    /// Audits workspace markdown documents for cross-document wiki-links ([[Note]] / [[Note|Alias]]),
+    /// relative document hyperlinks ([text](path.md)), and relative media asset embeds (![alt](path.png)),
+    /// verifying physical target file existence on disk, resolving relative paths against parent directories,
+    /// and scoring workspace hyperlink integrity.
+    /// </summary>
+    public static WorkspaceWikiLinksAudit AuditWorkspaceWikiLinksAndAssets(
+        IEnumerable<string>? filePaths,
+        string? workspaceRoot = null,
+        Func<string, bool>? fileExists = null,
+        Func<string, string[]?>? readAllLines = null)
+    {
+        var files = filePaths?.Where(f => !string.IsNullOrWhiteSpace(f)).Distinct().ToList() ?? new List<string>();
+
+        if (files.Count == 0)
+        {
+            return new WorkspaceWikiLinksAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceLinkTargetItem>(),
+                "Clean Baseline",
+                "Workspace cross-document links audit: 0 files · No workspace markdown files provided");
+        }
+
+        var existsFunc = fileExists ?? (p =>
+        {
+            try { return File.Exists(p) || Directory.Exists(p); }
+            catch { return false; }
+        });
+        var readLinesFunc = readAllLines ?? (p =>
+        {
+            try { return File.ReadAllLines(p); }
+            catch { return null; }
+        });
+
+        var wikiRegex = new Regex(@"\[\[(?<target>[^\]\|]+)(?:\|(?<alias>[^\]]+))?\]\]", RegexOptions.Compiled);
+        var mediaRegex = new Regex(@"!\[(?<alt>[^\]]*)\]\((?<url>[^)]+)\)", RegexOptions.Compiled);
+        var docRegex = new Regex(@"(?<!!)\[(?<text>[^\]]+)\]\((?<url>[^)]+)\)", RegexOptions.Compiled);
+
+        var items = new List<WorkspaceLinkTargetItem>();
+        int scannedCount = 0;
+        int wikiCount = 0;
+        int docCount = 0;
+        int assetCount = 0;
+        int validCount = 0;
+        int brokenCount = 0;
+
+        var fileBasenameSet = new HashSet<string>(
+            files.Select(f => Path.GetFileNameWithoutExtension(f)),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in files)
+        {
+            if (!existsFunc(file)) continue;
+
+            string[]? lines;
+            try
+            {
+                lines = readLinesFunc(file);
+            }
+            catch
+            {
+                continue;
+            }
+            if (lines == null) continue;
+
+            scannedCount++;
+            string dir = Path.GetDirectoryName(file) ?? "";
+            bool inFence = false;
+
+            for (int l = 0; l < lines.Length; l++)
+            {
+                string raw = lines[l];
+                string trimmed = raw.Trim();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inFence = !inFence;
+                    continue;
+                }
+                if (inFence) continue;
+
+                int lineNum = l + 1;
+
+                // 1. Audit Media Asset embeds: ![alt](url)
+                var mediaMatches = mediaRegex.Matches(raw);
+                var matchedMediaIndices = new HashSet<int>();
+
+                foreach (Match m in mediaMatches)
+                {
+                    matchedMediaIndices.Add(m.Index);
+                    string rawUrl = m.Groups["url"].Value.Trim();
+                    if (rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                        rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                        rawUrl.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    assetCount++;
+                    string cleanPath = rawUrl.Split('?')[0].Split('#')[0].Trim();
+                    string resolved = string.IsNullOrEmpty(dir) ? cleanPath : Path.GetFullPath(Path.Combine(dir, cleanPath));
+                    bool exists = existsFunc(resolved);
+
+                    if (exists) validCount++;
+                    else brokenCount++;
+
+                    string status = exists
+                        ? $"✓ Local media asset verified: {cleanPath}"
+                        : $"⚠ Missing local media file: {cleanPath}";
+
+                    items.Add(new WorkspaceLinkTargetItem(
+                        file, lineNum, "MediaAsset", rawUrl, resolved, exists, status));
+                }
+
+                // 2. Audit Document Hyperlinks: [text](url)
+                var docMatches = docRegex.Matches(raw);
+                foreach (Match m in docMatches)
+                {
+                    if (matchedMediaIndices.Contains(m.Index - 1)) continue;
+
+                    string rawUrl = m.Groups["url"].Value.Trim();
+                    if (rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                        rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                        rawUrl.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ||
+                        rawUrl.StartsWith("#"))
+                    {
+                        continue;
+                    }
+
+                    docCount++;
+                    string cleanPath = rawUrl.Split('?')[0].Split('#')[0].Trim();
+                    string resolved = string.IsNullOrEmpty(dir) ? cleanPath : Path.GetFullPath(Path.Combine(dir, cleanPath));
+                    bool exists = existsFunc(resolved);
+
+                    if (exists) validCount++;
+                    else brokenCount++;
+
+                    string status = exists
+                        ? $"✓ Relative document link target exists: {cleanPath}"
+                        : $"⚠ Broken relative document link: {cleanPath}";
+
+                    items.Add(new WorkspaceLinkTargetItem(
+                        file, lineNum, "RelativeDocument", rawUrl, resolved, exists, status));
+                }
+
+                // 3. Audit Wiki-Links: [[Target]] or [[Target|Alias]]
+                var wikiMatches = wikiRegex.Matches(raw);
+                foreach (Match m in wikiMatches)
+                {
+                    string target = m.Groups["target"].Value.Trim();
+                    string cleanTarget = target.Split('#')[0].Trim();
+
+                    wikiCount++;
+                    string resolved = string.IsNullOrEmpty(dir) ? cleanTarget : Path.GetFullPath(Path.Combine(dir, cleanTarget + ".md"));
+                    bool exists = existsFunc(resolved) ||
+                                  existsFunc(Path.Combine(dir, cleanTarget)) ||
+                                  fileBasenameSet.Contains(cleanTarget);
+
+                    if (exists) validCount++;
+                    else brokenCount++;
+
+                    string status = exists
+                        ? $"✓ WikiLink target document resolved: [[{target}]]"
+                        : $"⚠ Broken WikiLink: target [[{target}]] not found in workspace";
+
+                    items.Add(new WorkspaceLinkTargetItem(
+                        file, lineNum, "WikiLink", target, resolved, exists, status));
+                }
+            }
+        }
+
+        int totalLinks = wikiCount + docCount + assetCount;
+        if (totalLinks == 0)
+        {
+            return new WorkspaceWikiLinksAudit(
+                scannedCount, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceLinkTargetItem>(),
+                "Clean Baseline",
+                $"Workspace cross-document links audit ({scannedCount} files): 0 relative links found");
+        }
+
+        double score = 100.0;
+        score -= (brokenCount * 15.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Workspace Hyperlink & Asset Integrity (≥90%)"
+            : score >= 70.0
+                ? "Moderate Broken Target / Missing Asset Risk (70-89%)"
+                : "Severe Hyperlink Drift & Missing Assets (<70%)";
+
+        string summary = FormatWorkspaceWikiLinksSummary(
+            scannedCount, totalLinks, validCount, brokenCount,
+            wikiCount, docCount, assetCount, score, category);
+
+        return new WorkspaceWikiLinksAudit(
+            scannedCount,
+            totalLinks,
+            wikiCount,
+            docCount,
+            assetCount,
+            validCount,
+            brokenCount,
+            score,
+            items,
+            category,
+            summary);
+    }
+
+    public static string FormatWorkspaceWikiLinksSummary(
+        IEnumerable<string>? filePaths,
+        string? workspaceRoot = null,
+        Func<string, bool>? fileExists = null,
+        Func<string, string[]?>? readAllLines = null)
+    {
+        return AuditWorkspaceWikiLinksAndAssets(filePaths, workspaceRoot, fileExists, readAllLines).Summary;
+    }
+
+    public static string FormatWorkspaceWikiLinksSummary(
+        int filesScanned, int totalLinks, int validTargets, int brokenTargets,
+        int wikiLinks, int docLinks, int assetLinks, double score, string category)
+    {
+        if (totalLinks == 0)
+            return $"Workspace cross-document links audit ({filesScanned} files): 0 relative links found";
+
+        string fileStr = filesScanned == 1 ? "1 file" : $"{filesScanned} files";
+        string linkStr = totalLinks == 1 ? "1 link" : $"{totalLinks} links";
+        var parts = new List<string>();
+
+        parts.Add($"{validTargets}/{totalLinks} resolved");
+
+        if (brokenTargets > 0) parts.Add($"⚠ {brokenTargets} broken {(brokenTargets == 1 ? "target" : "targets")}");
+        else parts.Add("0 broken targets");
+
+        if (wikiLinks > 0) parts.Add($"{wikiLinks} wikilinks");
+        if (docLinks > 0) parts.Add($"{docLinks} doc links");
+        if (assetLinks > 0) parts.Add($"{assetLinks} media assets");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace cross-document links audit ({fileStr}, {linkStr} · {category} · {score:0.#}% integrity score): {details}";
+    }
 }
 
 /// <summary>
@@ -8594,4 +8836,31 @@ public sealed record WorkspaceFrontmatterSchemaAudit(
     string Category,
     string Summary);
 
+/// <summary>
+/// Represents evaluated metrics, link type, raw target, resolved path, and disk existence for a workspace link.
+/// </summary>
+public sealed record WorkspaceLinkTargetItem(
+    string SourceFilePath,
+    int LineNumber,
+    string LinkType,
+    string TargetRaw,
+    string TargetResolvedPath,
+    bool TargetExists,
+    string Status);
 
+/// <summary>
+/// Represents the result of an audit of workspace markdown cross-document wiki-links, relative document hyperlinks,
+/// and local media asset embeds for physical file existence and hyperlink integrity.
+/// </summary>
+public sealed record WorkspaceWikiLinksAudit(
+    int TotalFilesScanned,
+    int TotalLinksAudited,
+    int WikiLinksCount,
+    int RelativeDocLinksCount,
+    int AssetLinksCount,
+    int ValidTargetsCount,
+    int BrokenTargetsCount,
+    double LinkIntegrityScore,
+    IReadOnlyList<WorkspaceLinkTargetItem> Items,
+    string Category,
+    string Summary);

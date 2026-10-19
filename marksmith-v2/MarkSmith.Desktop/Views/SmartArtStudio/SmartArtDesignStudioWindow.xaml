@@ -401,6 +401,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditChevronProcessFlowItem" Text="Audit SmartArt chevron &amp; arrow process sequence directionality &amp; transition flow" Click="OnOutlineStatsAuditChevronProcessFlowClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelPyramidProportionsItem" Text="Audit SmartArt funnel &amp; pyramid layout step proportions &amp; text inscription" Click="OnOutlineStatsAuditFunnelPyramidProportionsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

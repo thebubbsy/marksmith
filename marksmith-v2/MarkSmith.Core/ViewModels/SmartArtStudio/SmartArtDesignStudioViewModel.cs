@@ -8868,6 +8868,168 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"SmartArt chevron process audit ({layoutName} · {phaseStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits SmartArt funnel and pyramid layout outlines for step proportions, progressive width tapering,
+    /// stage bounds (3 <= N <= 6), and text containment within narrowing trapezoids.
+    /// </summary>
+    public SmartArtFunnelPyramidProportionsAudit AuditFunnelPyramidProportions(
+        string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText ?? string.Empty;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Funnel";
+
+        if (string.IsNullOrWhiteSpace(md))
+        {
+            return new SmartArtFunnelPyramidProportionsAudit(
+                0, 0, false, 0, 100.0,
+                Array.Empty<FunnelPyramidProportionStageItem>(),
+                layout, "Empty Outline",
+                $"SmartArt funnel/pyramid audit ({layout} · 0 stages): Outline is empty");
+        }
+
+        var lines = md.Replace("\r\n", "\n").Split('\n');
+        var stages = new List<(string Label, List<string> SubBullets)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string raw = lines[i];
+            string trimmed = raw.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ") ||
+                (trimmed.Length >= 3 && char.IsDigit(trimmed[0]) && trimmed[1] == '.' && trimmed[2] == ' '))
+            {
+                int indent = raw.TakeWhile(char.IsWhiteSpace).Count();
+                int prefixLen = (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ")) ? 2 : trimmed.IndexOf(' ') + 1;
+                string text = trimmed.Substring(prefixLen).Trim();
+
+                if (indent <= 1)
+                {
+                    stages.Add((text, new List<string>()));
+                }
+                else if (stages.Count > 0)
+                {
+                    stages[stages.Count - 1].SubBullets.Add(text);
+                }
+            }
+        }
+
+        int totalStages = stages.Count;
+        if (totalStages == 0)
+        {
+            return new SmartArtFunnelPyramidProportionsAudit(
+                0, 0, false, 0, 100.0,
+                Array.Empty<FunnelPyramidProportionStageItem>(),
+                layout, "Empty Outline",
+                $"SmartArt funnel/pyramid audit ({layout} · 0 stages): No stages found in outline");
+        }
+
+        bool isOptimalBounds = totalStages >= 3 && totalStages <= 6;
+        bool isStandardPyramid = layout.IndexOf("pyramid", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                                 layout.IndexOf("inverted", StringComparison.OrdinalIgnoreCase) < 0;
+
+        int overflowRisks = 0;
+        int totalSubBullets = 0;
+        var stageItems = new List<FunnelPyramidProportionStageItem>();
+
+        for (int i = 0; i < totalStages; i++)
+        {
+            var st = stages[i];
+            totalSubBullets += st.SubBullets.Count;
+
+            double widthRatio;
+            if (totalStages == 1)
+            {
+                widthRatio = 1.0;
+            }
+            else
+            {
+                double fraction = (double)i / (totalStages - 1);
+                widthRatio = isStandardPyramid
+                    ? Math.Round(0.35 + 0.65 * fraction, 2)
+                    : Math.Round(1.00 - 0.65 * fraction, 2);
+            }
+
+            int words = st.Label.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+            int textLen = st.Label.Length;
+            int maxChars = Math.Max(10, (int)(widthRatio * 32));
+
+            bool isRisk = textLen > maxChars || words > 7;
+            if (isRisk) overflowRisks++;
+
+            string status = isRisk
+                ? $"⚠ Text overflow risk: '{st.Label}' ({textLen} chars, {words} words > {maxChars} char capacity at {widthRatio:P0} width)"
+                : $"✓ Tapered stage {i + 1}/{totalStages}: {widthRatio:P0} width ({textLen} chars, {words} words within {maxChars} cap)";
+
+            stageItems.Add(new FunnelPyramidProportionStageItem(
+                i + 1,
+                st.Label,
+                textLen,
+                words,
+                widthRatio,
+                maxChars,
+                isRisk,
+                status));
+        }
+
+        double score = 100.0;
+        if (!isOptimalBounds)
+        {
+            score -= (totalStages < 3 ? 20.0 : Math.Min(30.0, (totalStages - 6) * 10.0));
+        }
+        score -= (overflowRisks * 15.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Funnel/Pyramid Proportions (≥90%)"
+            : score >= 75.0
+                ? "Moderate Step Tapering / Text Density (75-89%)"
+                : "Severe Stage Overflow / Proportion Distortion (<75%)";
+
+        string summary = FormatFunnelPyramidSummary(
+            totalStages, totalSubBullets, isOptimalBounds, overflowRisks, score, category, layout);
+
+        return new SmartArtFunnelPyramidProportionsAudit(
+            totalStages,
+            totalSubBullets,
+            isOptimalBounds,
+            overflowRisks,
+            score,
+            stageItems,
+            layout,
+            category,
+            summary);
+    }
+
+    public static SmartArtFunnelPyramidProportionsAudit AuditFunnelPyramidProportions(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditFunnelPyramidProportions(markdown, layoutName);
+    }
+
+    public static string FormatFunnelPyramidSummary(
+        int totalStages, int totalSubBullets, bool isOptimalBounds, int overflowRisks,
+        double score, string category, string layoutName)
+    {
+        if (totalStages == 0)
+            return $"SmartArt funnel/pyramid audit ({layoutName} · 0 stages): Outline is empty";
+
+        string stageStr = totalStages == 1 ? "1 stage" : $"{totalStages} stages";
+        var parts = new List<string>();
+
+        if (isOptimalBounds) parts.Add("optimal bounds (3-6 stages)");
+        else parts.Add(totalStages < 3 ? "too few stages (<3)" : "crowded funnel (>6 stages)");
+
+        if (totalSubBullets > 0) parts.Add($"{totalSubBullets} sub-items");
+
+        if (overflowRisks > 0) parts.Add($"⚠ {overflowRisks} overflow {(overflowRisks == 1 ? "risk" : "risks")}");
+        else parts.Add("proportional text containment");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt funnel/pyramid audit ({layoutName} · {stageStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -9816,4 +9978,30 @@ public sealed record SmartArtChevronProcessFlowAudit(
     string LayoutName,
     string Summary);
 
+/// <summary>
+/// Represents evaluated metrics, stage index, text length, width ratio, and overflow risk for an individual funnel or pyramid stage.
+/// </summary>
+public sealed record FunnelPyramidProportionStageItem(
+    int StageIndex,
+    string Title,
+    int TextLength,
+    int WordCount,
+    double WidthRatio,
+    int MaxRecommendedChars,
+    bool HasTextOverflowRisk,
+    string Status);
 
+/// <summary>
+/// Represents the result of an audit of SmartArt funnel and pyramid layout outlines for step proportions,
+/// progressive width tapering, stage bounds (3 <= N <= 6), and text containment within narrowing trapezoids.
+/// </summary>
+public sealed record SmartArtFunnelPyramidProportionsAudit(
+    int TotalStages,
+    int TotalSubBullets,
+    bool IsWithinOptimalStageBounds,
+    int TextOverflowRisksCount,
+    double ProportionFidelityScore,
+    IReadOnlyList<FunnelPyramidProportionStageItem> Stages,
+    string LayoutName,
+    string Category,
+    string Summary);
