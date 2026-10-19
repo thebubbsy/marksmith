@@ -374,6 +374,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditVennRadialBalanceItem" Text="Audit SmartArt radial / Venn diagram overlap area &amp; intersection balance" Click="OnOutlineStatsAuditVennRadialBalanceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditListTextDensityBalanceItem" Text="Audit SmartArt list item text density &amp; line count balance" Click="OnOutlineStatsAuditListTextDensityBalanceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

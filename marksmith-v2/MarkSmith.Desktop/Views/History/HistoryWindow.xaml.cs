@@ -3562,6 +3562,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditHunkLocality);
+
+                var auditHunkClustering = new MenuFlyoutItem
+                {
+                    Text = "Audit diff hunk inter-hunk distance & semantic clustering",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditHunkClustering.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditDiffHunkClusteringDistance(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditHunkClustering);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

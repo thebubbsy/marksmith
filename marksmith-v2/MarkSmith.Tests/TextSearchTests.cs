@@ -2336,6 +2336,57 @@ public class TextSearchTests
             validAudit.AccessibilityComplianceScore, validAudit.Category);
         Assert.Equal(validAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run179_AuditStrikethroughAndHighlightFormatting()
+    {
+        var emptyAudit = TextSearch.AuditStrikethroughAndHighlightFormatting("");
+        Assert.Equal(0, emptyAudit.TotalSpans);
+        Assert.Equal(100.0, emptyAudit.FormattingBalanceScore);
+        Assert.Contains("0 styled spans", emptyAudit.Summary);
+
+        string validDoc = string.Join("\n",
+            "# Styling Guide",
+            "This text has ~~deleted content~~ and ==highlighted notes==.",
+            "```markdown",
+            "~~inside code fence is ignored~~",
+            "```",
+            "Inline code `~~code~~` is also ignored.",
+            "Nested styles: ~~==both strikethrough and highlight==~~."
+        );
+
+        var validAudit = TextSearch.AuditStrikethroughAndHighlightFormatting(validDoc);
+        Assert.Equal(4, validAudit.TotalSpans);
+        Assert.Equal(2, validAudit.StrikethroughCount);
+        Assert.Equal(2, validAudit.HighlightCount);
+        Assert.Equal(4, validAudit.BalancedSpanCount);
+        Assert.Equal(0, validAudit.UnclosedSpanCount);
+        Assert.Equal(0, validAudit.WhitespaceErrorCount);
+        Assert.Equal(100.0, validAudit.FormattingBalanceScore);
+        Assert.Equal("Flawless Inline Styling Balance", validAudit.Category);
+
+        string flawedDoc = string.Join("\n",
+            "This has ~~unclosed strikethrough",
+            "This has ~~ leading whitespace~~ error",
+            "This has == trailing whitespace ==",
+            "Empty strikethrough ~~~~ here"
+        );
+
+        var flawedAudit = TextSearch.AuditStrikethroughAndHighlightFormatting(flawedDoc);
+        Assert.Equal(4, flawedAudit.TotalSpans);
+        Assert.Equal(1, flawedAudit.UnclosedSpanCount);
+        Assert.Equal(2, flawedAudit.WhitespaceErrorCount);
+        Assert.Equal(1, flawedAudit.EmptySpanCount);
+        Assert.Equal(0, flawedAudit.BalancedSpanCount);
+        Assert.Equal(0.0, flawedAudit.FormattingBalanceScore);
+
+        string formatted = TextSearch.FormatStrikethroughHighlightSummary(
+            validAudit.TotalSpans, validAudit.StrikethroughCount, validAudit.HighlightCount,
+            validAudit.BalancedSpanCount, validAudit.UnclosedSpanCount,
+            validAudit.WhitespaceErrorCount, validAudit.EmptySpanCount,
+            validAudit.FormattingBalanceScore, validAudit.Category);
+        Assert.Equal(validAudit.Summary, formatted);
+    }
 }
 
 

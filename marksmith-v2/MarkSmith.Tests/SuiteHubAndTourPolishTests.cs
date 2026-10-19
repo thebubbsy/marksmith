@@ -4211,6 +4211,95 @@ Some paragraph in between.
         Assert.Contains("OnCopyWorkspaceFrontmatterAdvisorClick", suiteCs);
         Assert.Contains("AuditWorkspaceFrontmatterMetadata", suiteCs);
     }
+
+    [Fact]
+    public void Run179_AuditWorkspaceHeadingHierarchy()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceHeadingHierarchy(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(100.0, emptyAudit.ErgonomicsScore);
+        Assert.Contains("0 documents", emptyAudit.Summary);
+
+        var files = new[]
+        {
+            @"C:\Projects\valid.md",
+            @"C:\Projects\flawed.md"
+        };
+        var contents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\Projects\valid.md"] = string.Join("\n",
+                "# Project Overview",
+                "## System Architecture",
+                "### Frontend Client",
+                "### Backend Service",
+                "## Quality Assurance"),
+            [@"C:\Projects\flawed.md"] = string.Join("\n",
+                "# First Section",
+                "# Multiple Root Section",
+                "#### Skipping to H4 Directly")
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceHeadingHierarchy(
+            files,
+            p => contents.ContainsKey(p),
+            p => contents[p]);
+
+        Assert.Equal(2, audit.TotalDocumentsEvaluated);
+        Assert.Equal(8, audit.TotalHeadingsFound);
+        Assert.Equal(1, audit.DocumentsWithValidOutline);
+        Assert.Equal(1, audit.DocumentsWithMultipleH1);
+        Assert.Equal(1, audit.DocumentsWithSkippedLevels);
+        Assert.Equal(4, audit.MaxDepthAcrossWorkspace);
+        Assert.True(audit.ErgonomicsScore >= 50.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceHeadingSummary(
+            audit.TotalDocumentsEvaluated, audit.TotalHeadingsFound, audit.DocumentsWithValidOutline,
+            audit.DocumentsWithSkippedLevels, audit.DocumentsWithMultipleH1, audit.DocumentsMissingH1,
+            audit.MaxDepthAcrossWorkspace, audit.ErgonomicsScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run179_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Strikethrough & Highlight Formatting Syntax Balance & Nested Span Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditStrikethroughHighlightItem", mainCs);
+        Assert.Contains("AuditStrikethroughAndHighlightFormatting", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Node Closeness & Harmonic Centrality Distribution Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphClosenessCentralityItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphClosenessCentralityClick", galaxyCs);
+        Assert.Contains("AuditClosenessAndHarmonicCentrality", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Connector Arrowhead Style Uniformity & Endpoint Attachment Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditConnectorArrowheadUniformityItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditConnectorArrowheadUniformityClick", shapeCs);
+        Assert.Contains("AuditConnectorArrowheadUniformity", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Horizontal / Vertical List Item Text Density & Line Count Balance Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditListTextDensityBalanceItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditListTextDensityBalanceClick", smartArtCs);
+        Assert.Contains("AuditListTextDensityBalance", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Inter-Hunk Context Distance & Semantic Clustering Advisor
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditHunkClustering", historyCs);
+        Assert.Contains("AuditDiffHunkClusteringDistance", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Heading Hierarchy Depth & Document Outline Ergonomics Advisor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceHeadingHierarchyAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceHeadingHierarchyAdvisorClick", suiteCs);
+        Assert.Contains("AuditWorkspaceHeadingHierarchy", suiteCs);
+    }
 }
 
 

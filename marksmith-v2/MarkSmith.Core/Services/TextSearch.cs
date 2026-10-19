@@ -7369,6 +7369,179 @@ public static class TextSearch
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% descriptive alt text";
         return $"Image alt-text WCAG audit ({imageLabel} · {category} · {score:0.#}% score): {descriptive} descriptive{details}";
     }
+
+    /// <summary>
+    /// Audits markdown strikethrough (~~text~~) and highlight (==text==) syntax balance,
+    /// detecting unclosed spans, inner whitespace errors, empty spans, and scoring formatting balance.
+    /// </summary>
+    public static StrikethroughHighlightFormattingAudit AuditStrikethroughAndHighlightFormatting(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new StrikethroughHighlightFormattingAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<StrikethroughHighlightSpanItem>(),
+                "Zero Styled Spans (Clean Baseline)",
+                "Markdown strikethrough & highlight audit: 0 styled spans · Clean baseline");
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        bool inFence = false;
+        string fenceMarker = "";
+
+        var items = new List<StrikethroughHighlightSpanItem>();
+        int strikethroughCount = 0;
+        int highlightCount = 0;
+        int balancedCount = 0;
+        int unclosedCount = 0;
+        int whitespaceErrorCount = 0;
+        int emptySpanCount = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (!inFence && (trimmed.StartsWith("```") || trimmed.StartsWith("~~~")))
+            {
+                inFence = true;
+                fenceMarker = trimmed[..3];
+                continue;
+            }
+            if (inFence && trimmed.StartsWith(fenceMarker))
+            {
+                inFence = false;
+                fenceMarker = "";
+                continue;
+            }
+            if (inFence) continue;
+
+            // Strip inline code blocks (`...`)
+            string masked = System.Text.RegularExpressions.Regex.Replace(line, @"`+[^`\r\n]*`+", m => new string(' ', m.Length));
+
+            // Process Strikethrough (~~)
+            ProcessDelimiters(masked, line, i + 1, "~~", "Strikethrough", items, ref strikethroughCount, ref balancedCount, ref unclosedCount, ref whitespaceErrorCount, ref emptySpanCount);
+
+            // Process Highlight (==)
+            ProcessDelimiters(masked, line, i + 1, "==", "Highlight", items, ref highlightCount, ref balancedCount, ref unclosedCount, ref whitespaceErrorCount, ref emptySpanCount);
+        }
+
+        int totalSpans = items.Count;
+        if (totalSpans == 0)
+        {
+            return new StrikethroughHighlightFormattingAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<StrikethroughHighlightSpanItem>(),
+                "Zero Styled Spans (Clean Baseline)",
+                "Markdown strikethrough & highlight audit: 0 styled spans · Clean baseline");
+        }
+
+        double score = Math.Round((double)balancedCount / totalSpans * 100.0, 1);
+        string category = score switch
+        {
+            >= 95.0 => "Flawless Inline Styling Balance",
+            >= 75.0 => "High Formatting Fidelity (Minor Spans/Whitespace)",
+            >= 50.0 => "Moderate Inline Delimiter Asymmetry",
+            _ => "Severe Unclosed Delimiters / Broken Formatting"
+        };
+
+        string summary = FormatStrikethroughHighlightSummary(
+            totalSpans, strikethroughCount, highlightCount, balancedCount,
+            unclosedCount, whitespaceErrorCount, emptySpanCount, score, category);
+
+        return new StrikethroughHighlightFormattingAudit(
+            totalSpans, strikethroughCount, highlightCount, balancedCount,
+            unclosedCount, whitespaceErrorCount, emptySpanCount, score,
+            items, category, summary);
+    }
+
+    private static void ProcessDelimiters(
+        string masked, string rawLine, int lineNumber, string delim, string typeName,
+        List<StrikethroughHighlightSpanItem> items,
+        ref int typeCount, ref int balancedCount, ref int unclosedCount,
+        ref int whitespaceErrorCount, ref int emptySpanCount)
+    {
+        int cursor = 0;
+        int dLen = delim.Length;
+
+        while (cursor < masked.Length)
+        {
+            int start = masked.IndexOf(delim, cursor, StringComparison.Ordinal);
+            if (start == -1) break;
+
+            typeCount++;
+
+            int next = masked.IndexOf(delim, start + dLen, StringComparison.Ordinal);
+            if (next == -1)
+            {
+                unclosedCount++;
+                string snippet = rawLine.Substring(start);
+                items.Add(new StrikethroughHighlightSpanItem(
+                    lineNumber, typeName, snippet, snippet, false, false, false, "Unclosed Delimiter (Missing Ending Tag)"));
+                break;
+            }
+
+            int innerStart = start + dLen;
+            int innerLen = next - innerStart;
+            string innerText = rawLine.Substring(innerStart, innerLen);
+            string rawSpan = rawLine.Substring(start, next + dLen - start);
+
+            bool isEmpty = string.IsNullOrEmpty(innerText);
+            bool hasLeadingWs = !isEmpty && char.IsWhiteSpace(innerText[0]);
+            bool hasTrailingWs = !isEmpty && char.IsWhiteSpace(innerText[^1]);
+            bool hasWhitespaceError = hasLeadingWs || hasTrailingWs;
+
+            if (isEmpty)
+            {
+                emptySpanCount++;
+                items.Add(new StrikethroughHighlightSpanItem(
+                    lineNumber, typeName, rawSpan, innerText, true, false, true, "Empty Delimiter Span (Zero Text)"));
+            }
+            else if (hasWhitespaceError)
+            {
+                whitespaceErrorCount++;
+                string wsDetail = (hasLeadingWs && hasTrailingWs) ? "Leading & Trailing Whitespace"
+                    : hasLeadingWs ? "Leading Whitespace Error" : "Trailing Whitespace Error";
+                items.Add(new StrikethroughHighlightSpanItem(
+                    lineNumber, typeName, rawSpan, innerText, true, true, false, $"Invalid Internal Whitespace ({wsDetail})"));
+            }
+            else
+            {
+                balancedCount++;
+                items.Add(new StrikethroughHighlightSpanItem(
+                    lineNumber, typeName, rawSpan, innerText, true, false, false, "Balanced Formatting Span"));
+            }
+
+            cursor = next + dLen;
+        }
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of strikethrough and highlight formatting syntax from markdown text.
+    /// </summary>
+    public static string FormatStrikethroughHighlightSummary(string? markdownText)
+        => AuditStrikethroughAndHighlightFormatting(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of strikethrough and highlight formatting metrics.
+    /// </summary>
+    public static string FormatStrikethroughHighlightSummary(
+        int totalSpans, int strikethrough, int highlight, int balanced, int unclosed,
+        int whitespaceErrors, int emptySpans, double score, string category)
+    {
+        if (totalSpans == 0)
+            return "Markdown strikethrough & highlight audit: 0 styled spans · Clean baseline";
+
+        string spanLabel = totalSpans == 1 ? "1 span" : $"{totalSpans} spans";
+        var alerts = new List<string>();
+        if (unclosed > 0) alerts.Add($"⚠ {unclosed} unclosed");
+        if (whitespaceErrors > 0) alerts.Add($"{whitespaceErrors} whitespace {(whitespaceErrors == 1 ? "error" : "errors")}");
+        if (emptySpans > 0) alerts.Add($"{emptySpans} empty");
+
+        string typeDist = $"{strikethrough} ~~strikethrough~~, {highlight} ==highlight==";
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% balanced formatting";
+        return $"Markdown strikethrough & highlight audit ({spanLabel} [{typeDist}] · {category} · {score:0.#}% score): {balanced} balanced{details}";
+    }
 }
 
 /// <summary>
@@ -8103,4 +8276,32 @@ public sealed record DocumentImageAltTextAccessibilityAudit(
     string Category,
     string Summary);
 
+/// <summary>
+/// Represents evaluated delimiter metrics, tag type, inner text, and syntax balance for an individual strikethrough or highlight span.
+/// </summary>
+public sealed record StrikethroughHighlightSpanItem(
+    int LineNumber,
+    string DelimiterType,
+    string RawText,
+    string InnerText,
+    bool IsClosed,
+    bool HasWhitespaceError,
+    bool IsEmpty,
+    string Status);
 
+/// <summary>
+/// Represents the result of an audit of markdown strikethrough (~~text~~) and highlight (==text==) syntax balance,
+/// unclosed spans, inner whitespace violations, and inline formatting health.
+/// </summary>
+public sealed record StrikethroughHighlightFormattingAudit(
+    int TotalSpans,
+    int StrikethroughCount,
+    int HighlightCount,
+    int BalancedSpanCount,
+    int UnclosedSpanCount,
+    int WhitespaceErrorCount,
+    int EmptySpanCount,
+    double FormattingBalanceScore,
+    IReadOnlyList<StrikethroughHighlightSpanItem> Spans,
+    string Category,
+    string Summary);

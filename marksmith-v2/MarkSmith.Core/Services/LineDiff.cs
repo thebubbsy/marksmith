@@ -6316,6 +6316,195 @@ public static class LineDiff
         return $"Diff hunk locality audit ({hunkLabel}, {lineLabel} across span of {spanLength} rows · {category} · {score:0.#}% score): " +
                $"avg gap {meanGap:0.#} rows (max {maxGap}), locality ratio {localityRatio:0.##}";
     }
+
+    /// <summary>
+    /// Audits diff hunk clustering distances and semantic locality, identifying closely coupled hunk clusters vs sprawling isolated edits.
+    /// </summary>
+    public static DiffHunkClusteringAudit AuditDiffHunkClusteringDistance(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new DiffHunkClusteringAudit(
+                0, 0, 0, 0, 0, 0.0, 0, 0, 100.0,
+                Array.Empty<DiffHunkClusterItem>(),
+                "Pristine Unmodified Document",
+                "Diff hunk clustering audit: 0 diff rows · Document unchanged");
+        }
+
+        var hunks = new List<(int Start, int End, int Added, int Deleted, int Modified)>();
+        int currentStart = -1;
+        int currentAdded = 0;
+        int currentDeleted = 0;
+        int currentModified = 0;
+
+        void CommitHunk(int endRow)
+        {
+            if (currentStart == -1) return;
+            hunks.Add((currentStart, endRow, currentAdded, currentDeleted, currentModified));
+            currentStart = -1;
+            currentAdded = 0;
+            currentDeleted = 0;
+            currentModified = 0;
+        }
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var row = unifiedRows[i];
+            bool isChange = !row.IsGap && (row.IsAdded || row.IsRemoved);
+            if (isChange)
+            {
+                if (currentStart == -1) currentStart = i;
+                if (row.IsAdded) currentAdded++;
+                else if (row.IsRemoved) currentDeleted++;
+            }
+            else
+            {
+                if (currentStart != -1)
+                {
+                    CommitHunk(i - 1);
+                }
+            }
+        }
+        if (currentStart != -1)
+        {
+            CommitHunk(unifiedRows.Count - 1);
+        }
+
+        if (hunks.Count == 0)
+        {
+            return new DiffHunkClusteringAudit(
+                unifiedRows.Count, 0, 0, 0, 0, 0.0, 0, 0, 100.0,
+                Array.Empty<DiffHunkClusterItem>(),
+                "Pristine Unmodified Document",
+                "Diff hunk clustering audit: 0 change hunks · Document unchanged");
+        }
+
+        if (hunks.Count == 1)
+        {
+            var h = hunks[0];
+            int modLines = h.Added + h.Deleted + h.Modified;
+            var singleCluster = new DiffHunkClusterItem(
+                1, h.Start, h.End, 1, modLines, 0, "Single Concentrated Cluster", "✓ 100% concentrated local changes");
+            return new DiffHunkClusteringAudit(
+                unifiedRows.Count, 1, 1, 0, 0, 0.0, 0, 0, 100.0,
+                new[] { singleCluster },
+                "Single Concentrated Change",
+                "Diff hunk clustering audit (1 change hunk in 1 cluster · Single Concentrated Change · 100% score): 100% concentrated in single change cluster");
+        }
+
+        const int ClusterThresholdGap = 6;
+
+        var clusters = new List<DiffHunkClusterItem>();
+        var gaps = new List<int>();
+        int closelyCoupledPairs = 0;
+        int distantPairs = 0;
+
+        int clusterIdx = 0;
+        int clusterStart = hunks[0].Start;
+        int clusterEnd = hunks[0].End;
+        int clusterHunkCount = 1;
+        int clusterModLines = hunks[0].Added + hunks[0].Deleted + hunks[0].Modified;
+        int clusterInternalGaps = 0;
+
+        for (int i = 0; i < hunks.Count - 1; i++)
+        {
+            int gap = hunks[i + 1].Start - hunks[i].End - 1;
+            gaps.Add(gap);
+            if (gap <= ClusterThresholdGap) closelyCoupledPairs++;
+            if (gap > 30) distantPairs++;
+
+            if (gap <= ClusterThresholdGap)
+            {
+                clusterEnd = hunks[i + 1].End;
+                clusterHunkCount++;
+                clusterModLines += hunks[i + 1].Added + hunks[i + 1].Deleted + hunks[i + 1].Modified;
+                clusterInternalGaps += gap;
+            }
+            else
+            {
+                clusterIdx++;
+                string type = clusterHunkCount > 1 ? "Unified Semantic Cluster" : "Isolated Single Hunk";
+                string status = clusterHunkCount > 1
+                    ? $"✓ {clusterHunkCount} hunks coupled within {clusterInternalGaps} gap lines"
+                    : "ℹ Isolated change block";
+
+                clusters.Add(new DiffHunkClusterItem(
+                    clusterIdx, clusterStart, clusterEnd, clusterHunkCount, clusterModLines, clusterInternalGaps, type, status));
+
+                clusterStart = hunks[i + 1].Start;
+                clusterEnd = hunks[i + 1].End;
+                clusterHunkCount = 1;
+                clusterModLines = hunks[i + 1].Added + hunks[i + 1].Deleted + hunks[i + 1].Modified;
+                clusterInternalGaps = 0;
+            }
+        }
+
+        clusterIdx++;
+        string finalType = clusterHunkCount > 1 ? "Unified Semantic Cluster" : "Isolated Single Hunk";
+        string finalStatus = clusterHunkCount > 1
+            ? $"✓ {clusterHunkCount} hunks coupled within {clusterInternalGaps} gap lines"
+            : "ℹ Isolated change block";
+        clusters.Add(new DiffHunkClusterItem(
+            clusterIdx, clusterStart, clusterEnd, clusterHunkCount, clusterModLines, clusterInternalGaps, finalType, finalStatus));
+
+        double meanGap = gaps.Count > 0 ? Math.Round(gaps.Average(), 1) : 0.0;
+        int minGap = gaps.Count > 0 ? gaps.Min() : 0;
+        int maxGap = gaps.Count > 0 ? gaps.Max() : 0;
+
+        int totalHunkPairs = hunks.Count - 1;
+        double couplingRatio = (double)closelyCoupledPairs / totalHunkPairs;
+        double distantRatio = (double)distantPairs / totalHunkPairs;
+
+        double score = Math.Round(Math.Clamp(50.0 + (couplingRatio * 50.0) - (distantRatio * 30.0), 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Tightly Clustered Localized Changes",
+            >= 70.0 => "Cohesive Multi-Hunk Semantic Edit",
+            >= 50.0 => "Moderately Dispersed Change Clusters",
+            _ => "Sprawling Decoupled Diff (Candidate for Modular Commits)"
+        };
+
+        string summary = FormatDiffHunkClusteringSummary(
+            unifiedRows.Count, hunks.Count, clusters.Count, closelyCoupledPairs, distantPairs,
+            meanGap, minGap, maxGap, score, category);
+
+        return new DiffHunkClusteringAudit(
+            unifiedRows.Count, hunks.Count, clusters.Count, closelyCoupledPairs, distantPairs,
+            meanGap, minGap, maxGap, score, clusters, category, summary);
+    }
+
+    public static DiffHunkClusteringAudit AuditDiffHunkClusteringDistance(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditDiffHunkClusteringDistance(unified);
+    }
+
+    public static string FormatDiffHunkClusteringSummary(
+        int totalRows, int hunkCount, int clusterCount, int closelyCoupled, int distantPairs,
+        double meanGap, int minGap, int maxGap, double score, string category)
+    {
+        if (hunkCount == 0)
+            return "Diff hunk clustering audit: 0 change hunks · Document unchanged";
+
+        string hunkStr = hunkCount == 1 ? "1 change hunk" : $"{hunkCount} change hunks";
+        string clusterStr = clusterCount == 1 ? "1 cluster" : $"{clusterCount} clusters";
+
+        if (hunkCount == 1)
+        {
+            return $"Diff hunk clustering audit ({hunkStr} in {clusterStr} · {category} · {score:0.#}% score): " +
+                   $"100% concentrated in single change cluster";
+        }
+
+        var alerts = new List<string>();
+        if (closelyCoupled > 0) alerts.Add($"{closelyCoupled} coupled {(closelyCoupled == 1 ? "pair" : "pairs")} (≤6 rows)");
+        if (distantPairs > 0) alerts.Add($"⚠ {distantPairs} distant {(distantPairs == 1 ? "gap" : "gaps")} (>30 rows)");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
+        return $"Diff hunk clustering audit ({hunkStr} in {clusterStr} · {category} · {score:0.#}% score): " +
+               $"avg gap {meanGap:0.#} rows (min {minGap}, max {maxGap}){details}";
+    }
 }
 
 /// <summary>
@@ -6869,6 +7058,37 @@ public sealed record DiffHunkLocalityAudit(
     double SpatialEntropy,
     double LocalityScore,
     IReadOnlyList<DiffHunkItem> Hunks,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, hunk count, modified lines, and internal gap distance for a contiguous cluster of diff hunks.
+/// </summary>
+public sealed record DiffHunkClusterItem(
+    int ClusterIndex,
+    int StartRow,
+    int EndRow,
+    int HunkCount,
+    int ModifiedLines,
+    int InternalGapLines,
+    string ClusterType,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff inter-hunk context distance, contiguous semantic clustering,
+/// and decoupled diff fragmentation.
+/// </summary>
+public sealed record DiffHunkClusteringAudit(
+    int TotalRows,
+    int TotalHunks,
+    int TotalClusters,
+    int CloselyCoupledHunkPairs,
+    int DistantHunkPairs,
+    double MeanInterHunkDistance,
+    int MinGapDistance,
+    int MaxGapDistance,
+    double ClusteringCoherenceScore,
+    IReadOnlyList<DiffHunkClusterItem> Clusters,
     string Category,
     string Summary);
 

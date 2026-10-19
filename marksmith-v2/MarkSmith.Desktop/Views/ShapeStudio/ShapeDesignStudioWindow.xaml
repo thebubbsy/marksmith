@@ -745,6 +745,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditZIndexOcclusionItem" Text="Audit shape z-index stacking layering &amp; overlap occlusion" Click="OnSelectionAuditZIndexOcclusionClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditConnectorArrowheadUniformityItem" Text="Audit connector arrowhead style uniformity &amp; endpoint attachment" Click="OnSelectionAuditConnectorArrowheadUniformityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

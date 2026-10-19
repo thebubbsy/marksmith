@@ -2206,6 +2206,54 @@ public class HistoryPolishTests : IDisposable
             singleAudit.Category);
         Assert.Equal(singleAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run179_AuditDiffHunkClusteringDistance()
+    {
+        var emptyAudit = LineDiff.AuditDiffHunkClusteringDistance("", "");
+        Assert.Equal(0, emptyAudit.TotalHunks);
+        Assert.Equal(100.0, emptyAudit.ClusteringCoherenceScore);
+        Assert.Contains("0 change hunks", emptyAudit.Summary);
+
+        // Single isolated change hunk
+        string beforeSingle = "line 1\nline 2\nline 3\nline 4\nline 5";
+        string afterSingle = "line 1\nline 2 mod\nline 3\nline 4\nline 5";
+        var singleAudit = LineDiff.AuditDiffHunkClusteringDistance(beforeSingle, afterSingle);
+        Assert.Equal(1, singleAudit.TotalHunks);
+        Assert.Equal(1, singleAudit.TotalClusters);
+        Assert.Equal(100.0, singleAudit.ClusteringCoherenceScore);
+        Assert.Equal("Single Concentrated Change", singleAudit.Category);
+
+        // Two closely coupled hunks (separated by <= 6 lines gap)
+        string beforeClose = "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7";
+        string afterClose = "line 1 mod\nline 2\nline 3 mod\nline 4\nline 5\nline 6\nline 7";
+        var closeAudit = LineDiff.AuditDiffHunkClusteringDistance(beforeClose, afterClose);
+        Assert.Equal(2, closeAudit.TotalHunks);
+        Assert.Equal(1, closeAudit.TotalClusters);
+        Assert.Equal(1, closeAudit.CloselyCoupledHunkPairs);
+        Assert.True(closeAudit.ClusteringCoherenceScore >= 90.0);
+        Assert.Equal("Tightly Clustered Localized Changes", closeAudit.Category);
+
+        // Distant disjoint hunks (gap > 30 lines)
+        var beforeDistantLines = new List<string>();
+        for (int i = 1; i <= 50; i++) beforeDistantLines.Add($"line {i}");
+        var afterDistantLines = new List<string>(beforeDistantLines);
+        afterDistantLines[0] = "line 1 modified";
+        afterDistantLines[45] = "line 46 modified";
+        var distantAudit = LineDiff.AuditDiffHunkClusteringDistance(string.Join("\n", beforeDistantLines), string.Join("\n", afterDistantLines));
+        Assert.Equal(2, distantAudit.TotalHunks);
+        Assert.Equal(2, distantAudit.TotalClusters);
+        Assert.Equal(1, distantAudit.DistantHunkPairs);
+        Assert.True(distantAudit.ClusteringCoherenceScore < 50.0);
+        Assert.Equal("Sprawling Decoupled Diff (Candidate for Modular Commits)", distantAudit.Category);
+
+        string formatted = LineDiff.FormatDiffHunkClusteringSummary(
+            closeAudit.TotalRows, closeAudit.TotalHunks, closeAudit.TotalClusters,
+            closeAudit.CloselyCoupledHunkPairs, closeAudit.DistantHunkPairs, closeAudit.MeanInterHunkDistance,
+            closeAudit.MinGapDistance, closeAudit.MaxGapDistance, closeAudit.ClusteringCoherenceScore,
+            closeAudit.Category);
+        Assert.Equal(closeAudit.Summary, formatted);
+    }
 }
 
 

@@ -4556,6 +4556,219 @@ public sealed class RecentFilesService
     }
 
     /// <summary>
+    /// Audits workspace markdown documents for heading hierarchy depth, level skipping (e.g. H1 to H3),
+    /// multiple top-level H1 tags, and overall document outline ergonomics.
+    /// </summary>
+    public static WorkspaceHeadingHierarchyAudit AuditWorkspaceHeadingHierarchy(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var fileList = (files ?? Enumerable.Empty<string>()).ToList();
+        var exists = fileExistsProvider ?? File.Exists;
+        var reader = contentReader ?? File.ReadAllText;
+
+        if (fileList.Count == 0)
+        {
+            return new WorkspaceHeadingHierarchyAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceDocumentHeadingItem>(),
+                "Workspace Empty",
+                "Workspace heading hierarchy advisor: 0 documents · Workspace is empty");
+        }
+
+        var docItems = new List<WorkspaceDocumentHeadingItem>();
+        int totalHeadingsFound = 0;
+        int validOutlineCount = 0;
+        int skippedLevelDocsCount = 0;
+        int multipleH1DocsCount = 0;
+        int missingH1DocsCount = 0;
+        int maxDepthAcrossWorkspace = 0;
+
+        foreach (var path in fileList)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !exists(path)) continue;
+
+            string content;
+            try { content = reader(path); }
+            catch { continue; }
+
+            string fileName = Path.GetFileName(path);
+            var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+
+            bool inFence = false;
+            string fenceMarker = "";
+            bool inFrontmatter = false;
+
+            int docHeadings = 0;
+            int h1Count = 0;
+            int maxDocDepth = 0;
+            int skippedLevels = 0;
+            int prevLevel = 0;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.Trim();
+
+                if (i == 0 && (trimmed == "---" || trimmed == "+++"))
+                {
+                    inFrontmatter = true;
+                    continue;
+                }
+                if (inFrontmatter)
+                {
+                    if (trimmed == "---" || trimmed == "+++")
+                    {
+                        inFrontmatter = false;
+                    }
+                    continue;
+                }
+
+                if (!inFence && (trimmed.StartsWith("```") || trimmed.StartsWith("~~~")))
+                {
+                    inFence = true;
+                    fenceMarker = trimmed[..3];
+                    continue;
+                }
+                if (inFence && trimmed.StartsWith(fenceMarker))
+                {
+                    inFence = false;
+                    fenceMarker = "";
+                    continue;
+                }
+                if (inFence) continue;
+
+                var atxMatch = System.Text.RegularExpressions.Regex.Match(line, @"^(?<hashes>#{1,6})\s+(?<text>.*)$");
+                if (atxMatch.Success)
+                {
+                    int level = atxMatch.Groups["hashes"].Length;
+                    docHeadings++;
+                    if (level == 1) h1Count++;
+                    if (level > maxDocDepth) maxDocDepth = level;
+
+                    if (prevLevel > 0 && level > prevLevel + 1)
+                    {
+                        skippedLevels += (level - prevLevel - 1);
+                    }
+                    prevLevel = level;
+                    continue;
+                }
+
+                if (i > 0 && !string.IsNullOrWhiteSpace(lines[i - 1]))
+                {
+                    string prevTrimmed = lines[i - 1].Trim();
+                    if (!prevTrimmed.StartsWith("#") && !prevTrimmed.StartsWith("`"))
+                    {
+                        if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^[=]{2,}\s*$"))
+                        {
+                            docHeadings++;
+                            h1Count++;
+                            if (1 > maxDocDepth) maxDocDepth = 1;
+                            prevLevel = 1;
+                            continue;
+                        }
+                        if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^[-]{2,}\s*$"))
+                        {
+                            docHeadings++;
+                            if (2 > maxDocDepth) maxDocDepth = 2;
+                            if (prevLevel > 0 && 2 > prevLevel + 1)
+                            {
+                                skippedLevels += (2 - prevLevel - 1);
+                            }
+                            prevLevel = 2;
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            totalHeadingsFound += docHeadings;
+            if (maxDocDepth > maxDepthAcrossWorkspace) maxDepthAcrossWorkspace = maxDocDepth;
+
+            bool hasMultipleH1 = h1Count > 1;
+            bool hasMissingH1 = docHeadings > 0 && h1Count == 0;
+            bool hasSkipped = skippedLevels > 0;
+
+            if (hasSkipped) skippedLevelDocsCount++;
+            if (hasMultipleH1) multipleH1DocsCount++;
+            if (hasMissingH1) missingH1DocsCount++;
+
+            bool isValid = !hasSkipped && !hasMultipleH1 && !hasMissingH1;
+            if (isValid) validOutlineCount++;
+
+            double docScore = 100.0;
+            if (hasSkipped) docScore -= Math.Min(45.0, skippedLevels * 15.0);
+            if (hasMultipleH1) docScore -= 15.0;
+            if (hasMissingH1) docScore -= 15.0;
+            docScore = Math.Round(Math.Clamp(docScore, 0.0, 100.0), 1);
+
+            string status = isValid
+                ? "✓ Clean ergonomic outline"
+                : $"⚠ {(hasSkipped ? $"{skippedLevels} skipped level(s)" : "")}{(hasMultipleH1 ? " multiple H1s" : "")}{(hasMissingH1 ? " missing H1" : "")}".Trim();
+
+            docItems.Add(new WorkspaceDocumentHeadingItem(
+                path, fileName, docHeadings, h1Count, maxDocDepth, skippedLevels, hasMultipleH1, hasMissingH1, docScore, status));
+        }
+
+        int totalEvaluated = docItems.Count;
+        if (totalEvaluated == 0)
+        {
+            return new WorkspaceHeadingHierarchyAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceDocumentHeadingItem>(),
+                "Workspace Empty",
+                "Workspace heading hierarchy advisor: 0 documents · Workspace is empty");
+        }
+
+        double ergonomicsScore = Math.Round(docItems.Average(d => d.DocumentScore), 1);
+
+        string category = ergonomicsScore switch
+        {
+            >= 90.0 => "Flawless Heading Ergonomics & Outline Depth",
+            >= 75.0 => "Good Structural Hierarchy (Minor Skipped Levels)",
+            >= 50.0 => "Moderate Outline Depth Variance",
+            _ => "Fragmented / Inconsistent Document Hierarchy"
+        };
+
+        string summary = FormatWorkspaceHeadingSummary(
+            totalEvaluated, totalHeadingsFound, validOutlineCount, skippedLevelDocsCount,
+            multipleH1DocsCount, missingH1DocsCount, maxDepthAcrossWorkspace, ergonomicsScore, category);
+
+        return new WorkspaceHeadingHierarchyAudit(
+            totalEvaluated, totalHeadingsFound, validOutlineCount, skippedLevelDocsCount,
+            multipleH1DocsCount, missingH1DocsCount, maxDepthAcrossWorkspace, ergonomicsScore,
+            docItems, category, summary);
+    }
+
+    public static WorkspaceHeadingHierarchyAudit AuditWorkspaceHeadingHierarchy(
+        string filePath,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        return AuditWorkspaceHeadingHierarchy(new[] { filePath }, fileExistsProvider, contentReader);
+    }
+
+    public static string FormatWorkspaceHeadingSummary(
+        int totalDocs, int totalHeadings, int validOutlines, int skippedLevels,
+        int multipleH1, int missingH1, int maxDepth, double score, string category)
+    {
+        if (totalDocs == 0) return "Workspace heading hierarchy advisor: 0 documents · Workspace is empty";
+
+        string docLabel = totalDocs == 1 ? "1 document" : $"{totalDocs} documents";
+        string headingLabel = totalHeadings == 1 ? "1 heading" : $"{totalHeadings} headings";
+
+        var alerts = new List<string>();
+        if (skippedLevels > 0) alerts.Add($"⚠ {skippedLevels} skipped levels");
+        if (multipleH1 > 0) alerts.Add($"⚠ {multipleH1} multiple H1s");
+        if (missingH1 > 0) alerts.Add($"{missingH1} missing H1");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% ergonomic outlines";
+        return $"Workspace heading hierarchy advisor ({docLabel} [{headingLabel}, max H{maxDepth}] · {category} · {score:0.#}% score): " +
+               $"{validOutlines}/{totalDocs} valid outlines{details}";
+    }
+
+    /// <summary>
     /// Audits workspace markdown documents for local and external media link integrity, detecting broken relative paths,
     /// missing image/video/audio assets, portability risks (absolute paths, unencoded spaces), and data URIs.
     /// </summary>
@@ -6723,6 +6936,38 @@ public sealed record WorkspaceFrontmatterMetadataAudit(
     int DescriptionCoverageCount,
     double CompletenessScore,
     IReadOnlyList<WorkspaceFrontmatterDocItem> Documents,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated heading metrics, H1 presence, outline depth, and skipped level status for an individual workspace document.
+/// </summary>
+public sealed record WorkspaceDocumentHeadingItem(
+    string FilePath,
+    string FileName,
+    int TotalHeadings,
+    int H1Count,
+    int MaxDepth,
+    int SkippedLevels,
+    bool HasMultipleH1,
+    bool HasMissingH1,
+    double DocumentScore,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown document heading hierarchy depth, skipped outline levels,
+/// and document structure ergonomics.
+/// </summary>
+public sealed record WorkspaceHeadingHierarchyAudit(
+    int TotalDocumentsEvaluated,
+    int TotalHeadingsFound,
+    int DocumentsWithValidOutline,
+    int DocumentsWithSkippedLevels,
+    int DocumentsWithMultipleH1,
+    int DocumentsMissingH1,
+    int MaxDepthAcrossWorkspace,
+    double ErgonomicsScore,
+    IReadOnlyList<WorkspaceDocumentHeadingItem> Documents,
     string Category,
     string Summary);
 

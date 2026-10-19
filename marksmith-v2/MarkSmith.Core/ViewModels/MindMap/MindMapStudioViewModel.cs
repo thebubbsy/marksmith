@@ -8793,6 +8793,215 @@ namespace MarkSmith.ViewModels.MindMap
             string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% biconnected, 0 single points of failure";
             return $"Graph biconnectivity & articulation points audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% fault tolerance): {cutVertices} cut vertices, {bridges} bridges{details}";
         }
+
+        public GraphClosenessCentralityAudit AuditClosenessAndHarmonicCentrality(bool selectionOnly = false)
+        {
+            var targetNodes = selectionOnly && HasSelection
+                ? Nodes.Where(n => n.IsSelected).ToList()
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && HasSelection;
+            var targetNodeIds = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+
+            var targetLinks = Links.Where(l =>
+                targetNodeIds.Contains(l.SourceNodeId) && targetNodeIds.Contains(l.TargetNodeId)).ToList();
+
+            string scope = isSelection ? "Selection · " : "";
+            if (targetNodes.Count == 0)
+            {
+                return new GraphClosenessCentralityAudit(
+                    0, 0, 0, 0.0, 0.0, 100.0,
+                    "", "", 0.0,
+                    Array.Empty<NodeCentralityMetricInfo>(),
+                    "Empty Map",
+                    isSelection,
+                    $"Graph closeness & harmonic centrality audit ({scope}0 nodes): Empty map");
+            }
+
+            int n = targetNodes.Count;
+            int totalEdges = targetLinks.Count;
+
+            var adj = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var node in targetNodes) adj[node.Id] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var link in targetLinks)
+            {
+                if (adj.ContainsKey(link.SourceNodeId) && adj.ContainsKey(link.TargetNodeId) &&
+                    !string.Equals(link.SourceNodeId, link.TargetNodeId, StringComparison.OrdinalIgnoreCase))
+                {
+                    adj[link.SourceNodeId].Add(link.TargetNodeId);
+                    adj[link.TargetNodeId].Add(link.SourceNodeId);
+                }
+            }
+
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int components = 0;
+            foreach (var node in targetNodes)
+            {
+                if (!visited.Contains(node.Id))
+                {
+                    components++;
+                    var q = new Queue<string>();
+                    q.Enqueue(node.Id);
+                    visited.Add(node.Id);
+                    while (q.Count > 0)
+                    {
+                        var curr = q.Dequeue();
+                        foreach (var neighbor in adj[curr])
+                        {
+                            if (visited.Add(neighbor))
+                            {
+                                q.Enqueue(neighbor);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (n == 1)
+            {
+                var single = targetNodes[0];
+                var singleMetric = new NodeCentralityMetricInfo(
+                    single.Id, single.Title, 0, 0, 1.0, 0.0, 1.0, "Isolated Root / Star Hub");
+                return new GraphClosenessCentralityAudit(
+                    1, totalEdges, 1, 1.0, 1.0, 100.0,
+                    single.Id, single.Title, 1.0,
+                    new[] { singleMetric },
+                    "Single Node (Trivial Hub)",
+                    isSelection,
+                    $"Graph closeness & harmonic centrality audit ({scope}1 node, {totalEdges} edges · Single Node · 100% broadcast efficiency): 1 central node [{single.Title}]");
+            }
+
+            var nodeMetrics = new List<NodeCentralityMetricInfo>();
+            double sumNormalizedHarmonic = 0.0;
+            string topHubId = "";
+            string topHubTitle = "";
+            double topHubScore = -1.0;
+
+            foreach (var source in targetNodes)
+            {
+                var dist = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { [source.Id] = 0 };
+                var queue = new Queue<string>();
+                queue.Enqueue(source.Id);
+
+                while (queue.Count > 0)
+                {
+                    var u = queue.Dequeue();
+                    int d = dist[u];
+                    foreach (var v in adj[u])
+                    {
+                        if (!dist.ContainsKey(v))
+                        {
+                            dist[v] = d + 1;
+                            queue.Enqueue(v);
+                        }
+                    }
+                }
+
+                int reachableCount = 0;
+                int totalGeodesicDist = 0;
+                double harmonicSum = 0.0;
+
+                foreach (var (targetId, distance) in dist)
+                {
+                    if (string.Equals(targetId, source.Id, StringComparison.OrdinalIgnoreCase)) continue;
+                    reachableCount++;
+                    totalGeodesicDist += distance;
+                    if (distance > 0)
+                    {
+                        harmonicSum += 1.0 / distance;
+                    }
+                }
+
+                double closeness = (reachableCount > 0 && totalGeodesicDist > 0)
+                    ? (double)reachableCount / totalGeodesicDist
+                    : 0.0;
+
+                double normalizedHarmonic = harmonicSum / (n - 1);
+                sumNormalizedHarmonic += normalizedHarmonic;
+
+                string tier = normalizedHarmonic switch
+                {
+                    >= 0.8 => "Tier 1: Core Broadcast Hub",
+                    >= 0.5 => "Tier 2: Major Transit Node",
+                    >= 0.25 => "Tier 3: Peripheral Node",
+                    > 0.0 => "Tier 4: Remote Leaf Node",
+                    _ => "Tier 5: Isolated Node"
+                };
+
+                if (normalizedHarmonic > topHubScore)
+                {
+                    topHubScore = normalizedHarmonic;
+                    topHubId = source.Id;
+                    topHubTitle = source.Title;
+                }
+
+                nodeMetrics.Add(new NodeCentralityMetricInfo(
+                    source.Id,
+                    source.Title,
+                    reachableCount,
+                    totalGeodesicDist,
+                    Math.Round(closeness, 4),
+                    Math.Round(harmonicSum, 4),
+                    Math.Round(normalizedHarmonic, 4),
+                    tier));
+            }
+
+            double avgHarmonic = Math.Round(sumNormalizedHarmonic / n, 4);
+            double efficiencyScore = Math.Round(avgHarmonic * 100.0, 1);
+
+            string category = efficiencyScore switch
+            {
+                >= 80.0 => "Ultra-Efficient Star / Compact Broadcast Network",
+                >= 60.0 => "Balanced Modular Navigable Graph",
+                >= 40.0 => "Moderate Linear / Chain Topology",
+                > 0.0 => "Fragmented / High-Diameter Sparse Graph",
+                _ => "Isolated / Disconnected Nodes"
+            };
+
+            string summary = FormatClosenessCentralitySummary(
+                n, totalEdges, components, avgHarmonic, efficiencyScore,
+                topHubTitle, topHubScore, category, isSelection);
+
+            return new GraphClosenessCentralityAudit(
+                n, totalEdges, components, avgHarmonic, avgHarmonic, efficiencyScore,
+                topHubId, topHubTitle, Math.Round(topHubScore, 4),
+                nodeMetrics, category, isSelection, summary);
+        }
+
+        public static GraphClosenessCentralityAudit AuditClosenessAndHarmonicCentrality(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditClosenessAndHarmonicCentrality();
+        }
+
+        public static string FormatClosenessCentralitySummary(
+            int totalNodes, int totalEdges, int components, double avgHarmonic, double score,
+            string topHubTitle, double topHubScore, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph closeness & harmonic centrality audit ({scope}0 nodes): Empty map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string edgeStr = totalEdges == 1 ? "1 edge" : $"{totalEdges} edges";
+
+            var alerts = new List<string>();
+            if (components > 1) alerts.Add($"⚠ {components} disconnected components");
+            if (!string.IsNullOrEmpty(topHubTitle)) alerts.Add($"top hub: \"{topHubTitle}\" ({topHubScore:0.##})");
+
+            string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
+            return $"Graph closeness & harmonic centrality audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% broadcast efficiency): avg harmonic {avgHarmonic:0.###}{details}";
+        }
     }
 
 
@@ -9558,6 +9767,38 @@ namespace MarkSmith.ViewModels.MindMap
         double FaultToleranceScore,
         IReadOnlyList<GraphCutVertexInfo> CutVertices,
         IReadOnlyList<GraphBridgeInfo> Bridges,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated shortest-path geodesic reachability, closeness centrality, and harmonic centrality metrics for an individual mind map node.
+    /// </summary>
+    public sealed record NodeCentralityMetricInfo(
+        string NodeId,
+        string Title,
+        int ReachableCount,
+        int TotalGeodesicDistance,
+        double ClosenessCentrality,
+        double HarmonicCentrality,
+        double NormalizedHarmonicCentrality,
+        string CentralityTier);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph node closeness and harmonic centrality distributions,
+    /// all-pairs shortest paths, broadcast efficiency, and communication hub routing.
+    /// </summary>
+    public sealed record GraphClosenessCentralityAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int ConnectedComponents,
+        double AverageHarmonicCentrality,
+        double NetworkBroadcastEfficiency,
+        double BroadcastEfficiencyScore,
+        string TopHubNodeId,
+        string TopHubNodeTitle,
+        double TopHubHarmonicScore,
+        IReadOnlyList<NodeCentralityMetricInfo> NodeCentralities,
         string Category,
         bool IsSelectionScope,
         string Summary);

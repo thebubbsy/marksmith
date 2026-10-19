@@ -7352,6 +7352,184 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"Venn/Radial intersection balance audit ({setLabel} [{totalWords} words] · {category} · {score:0.#}% score): " +
                $"avg {meanWords:0.#}w (±{stdDev:0.#}w){details}";
     }
+
+    /// <summary>
+    /// Audits SmartArt list items for text volume density, word count standard deviation, line counts, and balance.
+    /// </summary>
+    public SmartArtListTextDensityAudit AuditListTextDensityBalance(string? markdown = null, string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtListTextDensityAudit(
+                0, 0, 0, 0.0, 0.0, 0.0, 0, 100.0,
+                Array.Empty<ListItemDensityInfo>(),
+                "Empty Outline",
+                "List item text density balance audit: 0 list items · Outline contains no items");
+        }
+
+        var lines = input.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var items = new List<ListItemDensityInfo>();
+        int itemIndex = 0;
+
+        string currentTitle = "";
+        int currentWords = 0;
+        int currentChars = 0;
+        int currentLines = 0;
+        int currentSubitems = 0;
+
+        void CommitCurrent()
+        {
+            if (string.IsNullOrWhiteSpace(currentTitle)) return;
+            itemIndex++;
+            items.Add(new ListItemDensityInfo(
+                itemIndex,
+                currentTitle,
+                currentWords,
+                currentChars,
+                Math.Max(1, currentLines),
+                currentSubitems,
+                false,
+                "Normal"));
+            currentTitle = "";
+            currentWords = 0;
+            currentChars = 0;
+            currentLines = 0;
+            currentSubitems = 0;
+        }
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine;
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            string trimmed = line.Trim();
+            int leadingSpaces = line.Length - line.TrimStart().Length;
+            bool isTopLevel = leadingSpaces < 2 &&
+                (trimmed.StartsWith("* ") || trimmed.StartsWith("- ") || trimmed.StartsWith("+ ") ||
+                 System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^\d+[\.\)]\s") ||
+                 trimmed.StartsWith("#"));
+
+            if (isTopLevel)
+            {
+                CommitCurrent();
+                string title = trimmed;
+                if (title.StartsWith("#"))
+                {
+                    title = title.TrimStart('#').Trim();
+                }
+                else if (title.StartsWith("* ") || title.StartsWith("- ") || title.StartsWith("+ "))
+                {
+                    title = title[2..].Trim();
+                }
+                else
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(title, @"^\d+[\.\)]\s*(.*)$");
+                    if (m.Success) title = m.Groups[1].Value.Trim();
+                }
+
+                currentTitle = title;
+                int words = string.IsNullOrWhiteSpace(title) ? 0 : title.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                currentWords = words;
+                currentChars = title.Length;
+                currentLines = 1;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(currentTitle))
+                {
+                    currentTitle = trimmed;
+                    int words = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                    currentWords = words;
+                    currentChars = trimmed.Length;
+                    currentLines = 1;
+                }
+                else
+                {
+                    currentSubitems++;
+                    currentLines++;
+                    int words = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                    currentWords += words;
+                    currentChars += trimmed.Length;
+                }
+            }
+        }
+        CommitCurrent();
+
+        if (items.Count == 0)
+        {
+            return new SmartArtListTextDensityAudit(
+                0, 0, 0, 0.0, 0.0, 0.0, 0, 100.0,
+                Array.Empty<ListItemDensityInfo>(),
+                "Empty Outline",
+                "List item text density balance audit: 0 list items · Outline contains no items");
+        }
+
+        int totalWords = items.Sum(i => i.WordCount);
+        int totalChars = items.Sum(i => i.CharacterCount);
+        double meanWords = Math.Round((double)totalWords / items.Count, 1);
+        double meanLines = Math.Round((double)items.Sum(i => i.LineCount) / items.Count, 1);
+
+        double sumSquares = items.Sum(i => Math.Pow(i.WordCount - meanWords, 2));
+        double stdDev = Math.Round(Math.Sqrt(sumSquares / items.Count), 1);
+
+        var finalItems = new List<ListItemDensityInfo>();
+        int outlierCount = 0;
+        foreach (var it in items)
+        {
+            bool isOutlier = (meanWords >= 4.0 && it.WordCount > 2.2 * meanWords) ||
+                             (meanWords >= 8.0 && it.WordCount < 0.3 * meanWords);
+            if (isOutlier) outlierCount++;
+
+            string status = isOutlier
+                ? (it.WordCount > meanWords ? "⚠ Verbose / Density Outlier" : "⚠ Sparse / Underweight Item")
+                : "✓ Balanced Density";
+
+            finalItems.Add(it with { IsDensityOutlier = isOutlier, Status = status });
+        }
+
+        double cv = meanWords > 0.0 ? (stdDev / meanWords) : 0.0;
+        double penalty = (cv * 35.0) + (outlierCount * 15.0);
+        double score = Math.Round(Math.Clamp(100.0 - penalty, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Balanced Harmonious List Items",
+            >= 75.0 => "Good Readability Balance",
+            >= 50.0 => "Moderate Density Variance / Length Skew",
+            _ => "Severe Text Density Asymmetry / Outlier Items"
+        };
+
+        string summary = FormatListTextDensitySummary(
+            items.Count, totalWords, totalChars, meanWords, stdDev, meanLines, outlierCount, score, category);
+
+        return new SmartArtListTextDensityAudit(
+            items.Count, totalWords, totalChars, meanWords, stdDev, meanLines, outlierCount, score,
+            finalItems, category, summary);
+    }
+
+    public static SmartArtListTextDensityAudit AuditListTextDensityBalance(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditListTextDensityBalance(markdown, layoutName);
+    }
+
+    public static string FormatListTextDensitySummary(
+        int totalItems, int totalWords, int totalChars, double meanWords, double stdDev,
+        double meanLines, int outliers, double score, string category)
+    {
+        if (totalItems == 0)
+            return "List item text density balance audit: 0 list items · Outline contains no items";
+
+        string itemStr = totalItems == 1 ? "1 list item" : $"{totalItems} list items";
+        var alerts = new List<string>();
+        if (outliers > 0) alerts.Add($"⚠ {outliers} density {(outliers == 1 ? "outlier" : "outliers")}");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% harmonious density";
+        return $"List item text density balance audit ({itemStr} [{totalWords} words] · {category} · {score:0.#}% score): " +
+               $"avg {meanWords:0.#}w (±{stdDev:0.#}w), avg {meanLines:0.#} lines{details}";
+    }
 }
 
 /// <summary>
@@ -8041,6 +8219,36 @@ public sealed record SmartArtVennRadialAudit(
     double WordCountStdDev,
     double BalanceScore,
     IReadOnlyList<VennRadialSetItem> Sets,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated text density, character volume, line count, and outlier status for an individual SmartArt list item.
+/// </summary>
+public sealed record ListItemDensityInfo(
+    int ItemIndex,
+    string Title,
+    int WordCount,
+    int CharacterCount,
+    int LineCount,
+    int SubitemCount,
+    bool IsDensityOutlier,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt list item text volume density, word count standard deviation,
+/// line counts, and balance across horizontal, vertical, and block list layouts.
+/// </summary>
+public sealed record SmartArtListTextDensityAudit(
+    int TotalListItems,
+    int TotalWords,
+    int TotalCharacters,
+    double MeanWordCount,
+    double StdDevWordCount,
+    double MeanLineCount,
+    int OutlierCount,
+    double DensityBalanceScore,
+    IReadOnlyList<ListItemDensityInfo> Items,
     string Category,
     string Summary);
 

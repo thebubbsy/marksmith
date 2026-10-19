@@ -3094,6 +3094,46 @@ namespace MarkSmith.Tests
                 cycleAudit.FaultToleranceScore, cycleAudit.Category, cycleAudit.IsSelectionScope);
             Assert.Equal(cycleAudit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run179_AuditClosenessAndHarmonicCentrality()
+        {
+            var emptyAudit = MindMapStudioViewModel.AuditClosenessAndHarmonicCentrality(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.BroadcastEfficiencyScore);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            var n1 = new MindMapNode { Id = "n1", Title = "Center" };
+            var singleAudit = MindMapStudioViewModel.AuditClosenessAndHarmonicCentrality(new[] { n1 }, null);
+            Assert.Equal(1, singleAudit.TotalNodes);
+            Assert.Equal(100.0, singleAudit.BroadcastEfficiencyScore);
+            Assert.Equal("n1", singleAudit.TopHubNodeId);
+
+            var n2 = new MindMapNode { Id = "n2", Title = "Leaf1" };
+            var n3 = new MindMapNode { Id = "n3", Title = "Leaf2" };
+            var n4 = new MindMapNode { Id = "n4", Title = "Leaf3" };
+            var e1 = new MindMapLink { SourceNodeId = "n1", TargetNodeId = "n2" };
+            var e2 = new MindMapLink { SourceNodeId = "n1", TargetNodeId = "n3" };
+            var e3 = new MindMapLink { SourceNodeId = "n1", TargetNodeId = "n4" };
+
+            var starAudit = MindMapStudioViewModel.AuditClosenessAndHarmonicCentrality(
+                new[] { n1, n2, n3, n4 },
+                new[] { e1, e2, e3 });
+
+            Assert.Equal(4, starAudit.TotalNodes);
+            Assert.Equal(3, starAudit.TotalEdges);
+            Assert.Equal(1, starAudit.ConnectedComponents);
+            Assert.Equal("n1", starAudit.TopHubNodeId);
+            Assert.Equal("Center", starAudit.TopHubNodeTitle);
+            Assert.Equal(1.0, starAudit.TopHubHarmonicScore);
+            Assert.True(starAudit.BroadcastEfficiencyScore >= 75.0);
+
+            string formatted = MindMapStudioViewModel.FormatClosenessCentralitySummary(
+                starAudit.TotalNodes, starAudit.TotalEdges, starAudit.ConnectedComponents,
+                starAudit.AverageHarmonicCentrality, starAudit.BroadcastEfficiencyScore,
+                starAudit.TopHubNodeTitle, starAudit.TopHubHarmonicScore, starAudit.Category, starAudit.IsSelectionScope);
+            Assert.Equal(starAudit.Summary, formatted);
+        }
     }
 }
 

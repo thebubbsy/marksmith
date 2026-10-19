@@ -2131,6 +2131,48 @@ public class SmartArtStudioPolishTests
             balancedAudit.Category);
         Assert.Equal(balancedAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run179_AuditListTextDensityBalance()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditListTextDensityBalance("");
+        Assert.Equal(0, emptyAudit.TotalListItems);
+        Assert.Equal(100.0, emptyAudit.DensityBalanceScore);
+        Assert.Contains("0 list items", emptyAudit.Summary);
+
+        // Balanced list items
+        string balancedMarkdown = string.Join("\n",
+            "* First requirement specification and analysis",
+            "* Second architecture design and layout",
+            "* Third system implementation and build",
+            "* Fourth quality assurance and testing"
+        );
+
+        var balancedAudit = SmartArtDesignStudioViewModel.AuditListTextDensityBalance(balancedMarkdown, "horizontal-list");
+        Assert.Equal(4, balancedAudit.TotalListItems);
+        Assert.Equal(0, balancedAudit.OutlierCount);
+        Assert.True(balancedAudit.DensityBalanceScore >= 80.0);
+        Assert.Equal("Balanced Harmonious List Items", balancedAudit.Category);
+
+        // Skewed list with severe word count outlier
+        string skewedMarkdown = string.Join("\n",
+            "* Short item",
+            "* Item two",
+            "* Item three",
+            "* An excessively long item with a massive paragraph of text repeating multiple times to skew the standard deviation and trigger the outlier detection logic inside the audit"
+        );
+
+        var skewedAudit = SmartArtDesignStudioViewModel.AuditListTextDensityBalance(skewedMarkdown, "horizontal-list");
+        Assert.Equal(4, skewedAudit.TotalListItems);
+        Assert.True(skewedAudit.OutlierCount > 0);
+        Assert.True(skewedAudit.DensityBalanceScore < 80.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatListTextDensitySummary(
+            balancedAudit.TotalListItems, balancedAudit.TotalWords, balancedAudit.TotalCharacters,
+            balancedAudit.MeanWordCount, balancedAudit.StdDevWordCount, balancedAudit.MeanLineCount,
+            balancedAudit.OutlierCount, balancedAudit.DensityBalanceScore, balancedAudit.Category);
+        Assert.Equal(balancedAudit.Summary, formatted);
+    }
 }
 
 

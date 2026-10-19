@@ -2100,6 +2100,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyWorkspaceHeadingHierarchyAdvisorClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var audit = RecentFilesService.AuditWorkspaceHeadingHierarchy(files);
+            await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+            SetNotification($"Copied Heading Hierarchy advisor: {audit.Category} · {audit.ErgonomicsScore:0.#}% score", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit workspace heading hierarchy: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

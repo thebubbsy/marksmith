@@ -2384,6 +2384,74 @@ public class ShapeStudioPolishTests
             cleanAudit.StackingClarityScore, cleanAudit.Category, cleanAudit.IsSelectionScope);
         Assert.Equal(cleanAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run179_AuditConnectorArrowheadUniformity()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        var emptyAudit = vm.AuditConnectorArrowheadUniformity();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(100.0, emptyAudit.OverallConnectorHarmonyScore);
+        Assert.Contains("0 shapes", emptyAudit.Summary);
+
+        var n1 = new ShapeCanvasItemViewModel { Id = "n1", Name = "Source", X = 0, Y = 0, Width = 100, Height = 100, Prst = "roundrect" };
+        var n2 = new ShapeCanvasItemViewModel { Id = "n2", Name = "Target", X = 200, Y = 0, Width = 100, Height = 100, Prst = "roundrect" };
+
+        var c1 = new ShapeCanvasItemViewModel
+        {
+            Id = "c1",
+            Name = "Connector 1",
+            Prst = "line",
+            X = 100,
+            Y = 50,
+            Width = 100,
+            Height = 0,
+            ArrowheadStart = "None",
+            ArrowheadEnd = "FilledTriangle"
+        };
+        vm.Shapes.Add(n1);
+        vm.Shapes.Add(n2);
+        vm.Shapes.Add(c1);
+
+        var uniformAudit = vm.AuditConnectorArrowheadUniformity();
+        Assert.Equal(3, uniformAudit.TotalShapesEvaluated);
+        Assert.Equal(1, uniformAudit.TotalConnectors);
+        Assert.Equal(2, uniformAudit.AttachedEndpointsCount);
+        Assert.Equal(0, uniformAudit.DanglingEndpointsCount);
+        Assert.Equal(1, uniformAudit.FullyAttachedConnectors);
+        Assert.Equal("FilledTriangle", uniformAudit.DominantArrowheadType);
+        Assert.Equal(100.0, uniformAudit.ArrowheadUniformityScore);
+        Assert.Equal(100.0, uniformAudit.EndpointAttachmentScore);
+        Assert.Equal(100.0, uniformAudit.OverallConnectorHarmonyScore);
+        Assert.Equal("Pristine Uniform & Docked Connectors", uniformAudit.Category);
+
+        var c2 = new ShapeCanvasItemViewModel
+        {
+            Id = "c2",
+            Name = "Floating Connector",
+            Prst = "line",
+            X = 500,
+            Y = 500,
+            Width = 100,
+            Height = 0,
+            ArrowheadStart = "None",
+            ArrowheadEnd = "Diamond"
+        };
+        vm.Shapes.Add(c2);
+
+        var mixedAudit = vm.AuditConnectorArrowheadUniformity();
+        Assert.Equal(2, mixedAudit.TotalConnectors);
+        Assert.Equal(2, mixedAudit.DanglingEndpointsCount);
+        Assert.Equal(50.0, mixedAudit.ArrowheadUniformityScore);
+        Assert.True(mixedAudit.OverallConnectorHarmonyScore < 100.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatArrowheadUniformitySummary(
+            uniformAudit.TotalShapesEvaluated, uniformAudit.TotalConnectors, uniformAudit.AttachedEndpointsCount,
+            uniformAudit.DanglingEndpointsCount, uniformAudit.FullyAttachedConnectors, uniformAudit.DominantArrowheadType,
+            uniformAudit.DominantTypeCount, uniformAudit.ArrowheadUniformityScore, uniformAudit.EndpointAttachmentScore,
+            uniformAudit.OverallConnectorHarmonyScore, uniformAudit.Category, uniformAudit.IsSelectionScope);
+        Assert.Equal(uniformAudit.Summary, formatted);
+    }
 }
 
 

@@ -11781,6 +11781,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditImageAltTextAccessibilityItem);
 
+        var auditStrikethroughHighlightItem = new MenuFlyoutItem
+        {
+            Text = "Audit Strikethrough & Highlight Formatting Syntax",
+            Icon = new FontIcon { Glyph = "\uEDE1" }
+        };
+        auditStrikethroughHighlightItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditStrikethroughAndHighlightFormatting(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditStrikethroughHighlightItem);
+
         menu.ShowAt(anchor);
     }
 

@@ -70,6 +70,12 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     [ObservableProperty]
     private double _cornerRadius = 0.0;
 
+    [ObservableProperty]
+    private string _arrowheadStart = "None";
+
+    [ObservableProperty]
+    private string _arrowheadEnd = "FilledTriangle";
+
     /// <summary>Curved-stroke polyline (0..100 local space) for sketch/trace lines.</summary>
     public System.Collections.Generic.List<(double X, double Y)>? PathPoints { get; set; }
 
@@ -8561,6 +8567,216 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = alerts.Count > 0 ? $" [{string.Join(", ", alerts)}]" : " · 100% clean visual separation";
         return $"Diagram Z-index stacking & occlusion audit ({scopeStr}{shapeLabel}, {totalOverlaps} overlap {(totalOverlaps == 1 ? "pair" : "pairs")} · {category} · {score:0.#}% score){details}";
     }
+
+    /// <summary>
+    /// Audits diagram connector lines for arrowhead style uniformity and endpoint attachment to shape boundaries.
+    /// </summary>
+    public DiagramConnectorArrowheadAudit AuditConnectorArrowheadUniformity(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = (targetShapes != null) || (selected.Count >= 2);
+
+        var audit = AuditConnectorArrowheadUniformity(targets, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramConnectorArrowheadAudit AuditConnectorArrowheadUniformity(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes, bool isSelection = false)
+    {
+        var list = (shapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        if (list.Count == 0)
+        {
+            string emptySummary = $"Connector arrowhead uniformity & attachment audit ({scopeStr}0 shapes): Canvas is empty";
+            return new DiagramConnectorArrowheadAudit(
+                0, 0, 0, 0, 0, "None", 0, 100.0, 100.0, 100.0,
+                Array.Empty<ConnectorArrowheadItem>(),
+                "Empty Canvas", isSelection, emptySummary);
+        }
+
+        var connectors = list.Where(i => i.IsLine).ToList();
+        var nodes = list.Where(i => !i.IsLine).ToList();
+
+        if (connectors.Count == 0)
+        {
+            string noConnSummary = $"Connector arrowhead uniformity & attachment audit ({scopeStr}{list.Count} shapes): 0 connectors present (Static shape canvas)";
+            return new DiagramConnectorArrowheadAudit(
+                list.Count, 0, 0, 0, 0, "No Connectors", 0, 100.0, 100.0, 100.0,
+                Array.Empty<ConnectorArrowheadItem>(),
+                "No Connectors Present", isSelection, noConnSummary);
+        }
+
+        var connectorItems = new List<ConnectorArrowheadItem>();
+        var arrowheadCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        int attachedEndpointsCount = 0;
+        int danglingEndpointsCount = 0;
+        int fullyAttachedConnectors = 0;
+
+        const double SnapThreshold = 25.0;
+
+        foreach (var conn in connectors)
+        {
+            var pts = new List<(double X, double Y)>();
+            if (conn.PathPoints != null && conn.PathPoints.Count >= 2)
+            {
+                foreach (var p in conn.PathPoints)
+                {
+                    double ax = conn.X + (p.X * conn.Width / 100.0);
+                    double ay = conn.Y + (p.Y * conn.Height / 100.0);
+                    pts.Add((ax, ay));
+                }
+            }
+            else
+            {
+                pts.Add((conn.X, conn.Y));
+                pts.Add((conn.X + conn.Width, conn.Y + conn.Height));
+            }
+
+            var startPt = pts[0];
+            var endPt = pts[^1];
+
+            string startStyle = string.IsNullOrWhiteSpace(conn.ArrowheadStart) ? "None" : conn.ArrowheadStart;
+            string endStyle = string.IsNullOrWhiteSpace(conn.ArrowheadEnd) ? "FilledTriangle" : conn.ArrowheadEnd;
+
+            arrowheadCounts[endStyle] = arrowheadCounts.GetValueOrDefault(endStyle, 0) + 1;
+
+            string attachedStartId = "";
+            string attachedEndId = "";
+            bool isStartAttached = false;
+            bool isEndAttached = false;
+
+            foreach (var node in nodes)
+            {
+                double left = node.X;
+                double top = node.Y;
+                double right = node.X + node.Width;
+                double bottom = node.Y + node.Height;
+
+                if (!isStartAttached)
+                {
+                    double dx = Math.Max(0, Math.Max(left - startPt.X, startPt.X - right));
+                    double dy = Math.Max(0, Math.Max(top - startPt.Y, startPt.Y - bottom));
+                    double distStart = Math.Sqrt(dx * dx + dy * dy);
+                    if (distStart <= SnapThreshold)
+                    {
+                        isStartAttached = true;
+                        attachedStartId = node.Id;
+                    }
+                }
+
+                if (!isEndAttached)
+                {
+                    double dx = Math.Max(0, Math.Max(left - endPt.X, endPt.X - right));
+                    double dy = Math.Max(0, Math.Max(top - endPt.Y, endPt.Y - bottom));
+                    double distEnd = Math.Sqrt(dx * dx + dy * dy);
+                    if (distEnd <= SnapThreshold)
+                    {
+                        isEndAttached = true;
+                        attachedEndId = node.Id;
+                    }
+                }
+            }
+
+            if (isStartAttached) attachedEndpointsCount++;
+            else danglingEndpointsCount++;
+
+            if (isEndAttached) attachedEndpointsCount++;
+            else danglingEndpointsCount++;
+
+            if (isStartAttached && isEndAttached) fullyAttachedConnectors++;
+
+            string status = (isStartAttached && isEndAttached)
+                ? $"Fully Docked ({startStyle} -> {endStyle})"
+                : (isStartAttached || isEndAttached)
+                    ? $"Partially Attached (1 Dangling End · {startStyle} -> {endStyle})"
+                    : $"Unattached Floating Connector ({startStyle} -> {endStyle})";
+
+            connectorItems.Add(new ConnectorArrowheadItem(
+                conn.Id,
+                string.IsNullOrWhiteSpace(conn.Name) ? "Connector" : conn.Name,
+                startStyle,
+                endStyle,
+                isStartAttached,
+                isEndAttached,
+                attachedStartId,
+                attachedEndId,
+                status));
+        }
+
+        int totalEndpoints = connectors.Count * 2;
+        double endpointAttachmentScore = totalEndpoints > 0
+            ? Math.Round((double)attachedEndpointsCount / totalEndpoints * 100.0, 1)
+            : 100.0;
+
+        string dominantType = "None";
+        int dominantCount = 0;
+        foreach (var (type, count) in arrowheadCounts)
+        {
+            if (count > dominantCount)
+            {
+                dominantCount = count;
+                dominantType = type;
+            }
+        }
+
+        double uniformityScore = connectors.Count > 0
+            ? Math.Round((double)dominantCount / connectors.Count * 100.0, 1)
+            : 100.0;
+
+        double harmonyScore = Math.Round((uniformityScore * 0.4) + (endpointAttachmentScore * 0.6), 1);
+
+        string category = harmonyScore switch
+        {
+            >= 95.0 => "Pristine Uniform & Docked Connectors",
+            >= 80.0 => "High Geometric Flow Consistency",
+            >= 60.0 => "Moderate Connector Attachment & Style Variance",
+            _ => "Dangling Connectors / Irregular Arrowhead Mix"
+        };
+
+        string summary = FormatArrowheadUniformitySummary(
+            list.Count, connectors.Count, attachedEndpointsCount, danglingEndpointsCount,
+            fullyAttachedConnectors, dominantType, dominantCount, uniformityScore,
+            endpointAttachmentScore, harmonyScore, category, isSelection);
+
+        return new DiagramConnectorArrowheadAudit(
+            list.Count,
+            connectors.Count,
+            attachedEndpointsCount,
+            danglingEndpointsCount,
+            fullyAttachedConnectors,
+            dominantType,
+            dominantCount,
+            uniformityScore,
+            endpointAttachmentScore,
+            harmonyScore,
+            connectorItems,
+            category,
+            isSelection,
+            summary);
+    }
+
+    public static string FormatArrowheadUniformitySummary(
+        int totalShapes, int totalConnectors, int attachedEndpoints, int danglingEndpoints,
+        int fullyAttached, string dominantType, int dominantCount, double uniformityScore,
+        double attachmentScore, double harmonyScore, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Connector arrowhead uniformity & attachment audit ({scopeStr}0 shapes): Canvas is empty";
+        if (totalConnectors == 0) return $"Connector arrowhead uniformity & attachment audit ({scopeStr}{totalShapes} shapes): 0 connectors present (Static shape canvas)";
+
+        string connStr = totalConnectors == 1 ? "1 connector" : $"{totalConnectors} connectors";
+        var alerts = new List<string>();
+        if (danglingEndpoints > 0) alerts.Add($"⚠ {danglingEndpoints} dangling {(danglingEndpoints == 1 ? "endpoint" : "endpoints")}");
+        if (uniformityScore < 100.0) alerts.Add($"mixed arrowheads ({dominantType}: {dominantCount}/{totalConnectors})");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% uniform & docked";
+        return $"Connector arrowhead uniformity & attachment audit ({scopeStr}{connStr} · {category} · {harmonyScore:0.#}% score): " +
+               $"{dominantType} arrowheads ({uniformityScore:0.#}% uniform), {attachedEndpoints} attached endpoints ({attachmentScore:0.#}% docked){details}";
+    }
 }
 
 /// <summary>
@@ -9346,6 +9562,39 @@ public sealed record DiagramZIndexOcclusionAudit(
     int ContainerNestingCount,
     double StackingClarityScore,
     IReadOnlyList<ShapeOcclusionPairItem> OverlapPairs,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated arrowhead styles and endpoint attachment for an individual diagram connector.
+/// </summary>
+public sealed record ConnectorArrowheadItem(
+    string Id,
+    string Name,
+    string ArrowheadStart,
+    string ArrowheadEnd,
+    bool IsStartAttached,
+    bool IsEndAttached,
+    string AttachedStartShapeId,
+    string AttachedEndShapeId,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram connector arrowhead style uniformity and endpoint attachment to shape boundaries.
+/// </summary>
+public sealed record DiagramConnectorArrowheadAudit(
+    int TotalShapesEvaluated,
+    int TotalConnectors,
+    int AttachedEndpointsCount,
+    int DanglingEndpointsCount,
+    int FullyAttachedConnectors,
+    string DominantArrowheadType,
+    int DominantTypeCount,
+    double ArrowheadUniformityScore,
+    double EndpointAttachmentScore,
+    double OverallConnectorHarmonyScore,
+    IReadOnlyList<ConnectorArrowheadItem> Connectors,
     string Category,
     bool IsSelectionScope,
     string Summary);
