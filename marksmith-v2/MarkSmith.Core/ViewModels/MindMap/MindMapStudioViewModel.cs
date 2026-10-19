@@ -6731,6 +6731,347 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Graph clustering & transitivity audit ({scope} · {nodeStr}, {linkStr}, {triStr} · {category} · {transitivity:0.#}% transitivity · {meanLocalC:0.#}% mean local C · {openTriplets} open triplets)";
         }
+
+        /// <summary>
+        /// Audits the mind map graph for algebraic connectivity (Fiedler value lambda_2),
+        /// spectral bisection, graph cut size, and conductance across nodes.
+        /// Evaluates structural resilience and community partition boundaries.
+        /// </summary>
+        public GraphSpectralBisectionAudit AuditSpectralBisectionAndAlgebraicConnectivity(bool selectionOnly = false)
+        {
+            var targetNodes = (selectionOnly
+                ? Nodes.Where(n => n.IsSelected && !n.IsDimmed).ToList()
+                : Nodes.Where(n => !n.IsDimmed).ToList());
+
+            if (targetNodes.Count == 0 && selectionOnly)
+            {
+                targetNodes = Nodes.Where(n => !n.IsDimmed).ToList();
+                selectionOnly = false;
+            }
+
+            if (targetNodes.Count == 0)
+            {
+                string emptySummary = $"Spectral bisection audit ({(selectionOnly ? "Selection" : "Galaxy")}): 0 nodes · Empty map";
+                return new GraphSpectralBisectionAudit(
+                    TotalNodes: 0,
+                    TotalLinks: 0,
+                    ConnectedComponents: 0,
+                    AlgebraicConnectivity: 0.0,
+                    CutEdgesCount: 0,
+                    Conductance: 0.0,
+                    PartitionASize: 0,
+                    PartitionBSize: 0,
+                    Nodes: Array.Empty<NodeSpectralInfo>(),
+                    BoundaryBridgeNodeTitles: Array.Empty<string>(),
+                    SpectralRobustnessCategory: "Empty Graph",
+                    SpectralFidelityScore: 100.0,
+                    IsSelectionScope: selectionOnly,
+                    Summary: emptySummary);
+            }
+
+            var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+            var idToIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < targetNodes.Count; i++) idToIndex[targetNodes[i].Id] = i;
+
+            var adj = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in targetNodes) adj[n.Id] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            int relevantLinks = 0;
+            // 1. Parent-child links
+            foreach (var n in targetNodes)
+            {
+                if (!string.IsNullOrEmpty(n.ParentId) && nodeIds.Contains(n.ParentId) && n.ParentId != n.Id)
+                {
+                    if (adj[n.Id].Add(n.ParentId))
+                    {
+                        adj[n.ParentId].Add(n.Id);
+                        relevantLinks++;
+                    }
+                }
+            }
+
+            // 2. Explicit links
+            foreach (var l in Links)
+            {
+                if (!string.IsNullOrEmpty(l.SourceNodeId) && !string.IsNullOrEmpty(l.TargetNodeId) &&
+                    nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId) &&
+                    l.SourceNodeId != l.TargetNodeId)
+                {
+                    if (adj[l.SourceNodeId].Add(l.TargetNodeId))
+                    {
+                        adj[l.TargetNodeId].Add(l.SourceNodeId);
+                        relevantLinks++;
+                    }
+                }
+            }
+
+            // 3. Connected components discovery via BFS
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var components = new List<List<string>>();
+
+            foreach (var n in targetNodes)
+            {
+                if (!visited.Contains(n.Id))
+                {
+                    var comp = new List<string>();
+                    var queue = new Queue<string>();
+                    queue.Enqueue(n.Id);
+                    visited.Add(n.Id);
+
+                    while (queue.Count > 0)
+                    {
+                        var curr = queue.Dequeue();
+                        comp.Add(curr);
+                        foreach (var neighbor in adj[curr])
+                        {
+                            if (visited.Add(neighbor))
+                            {
+                                queue.Enqueue(neighbor);
+                            }
+                        }
+                    }
+                    components.Add(comp);
+                }
+            }
+
+            int nNodes = targetNodes.Count;
+            double algebraicConnectivity = 0.0;
+            int cutEdges = 0;
+            double conductance = 0.0;
+            var partitionA = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var partitionB = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            double[] fiedlerVector = new double[nNodes];
+
+            if (components.Count > 1)
+            {
+                // Disconnected graph: lambda_2 = 0 identically
+                algebraicConnectivity = 0.0;
+                // Partition into component 0 vs all other components
+                foreach (var id in components[0]) partitionA.Add(id);
+                for (int c = 1; c < components.Count; c++)
+                {
+                    foreach (var id in components[c]) partitionB.Add(id);
+                }
+
+                for (int i = 0; i < nNodes; i++)
+                {
+                    fiedlerVector[i] = partitionA.Contains(targetNodes[i].Id) ? 1.0 : -1.0;
+                }
+                cutEdges = 0;
+                conductance = 0.0;
+            }
+            else if (nNodes == 1)
+            {
+                algebraicConnectivity = 0.0;
+                partitionA.Add(targetNodes[0].Id);
+                fiedlerVector[0] = 0.0;
+            }
+            else
+            {
+                // Connected graph (k == 1): Power iteration for Fiedler vector
+                int[] degrees = new int[nNodes];
+                int maxDegree = 1;
+                for (int i = 0; i < nNodes; i++)
+                {
+                    degrees[i] = adj[targetNodes[i].Id].Count;
+                    if (degrees[i] > maxDegree) maxDegree = degrees[i];
+                }
+
+                // Initial vector orthogonal to 1
+                double[] x = new double[nNodes];
+                for (int i = 0; i < nNodes; i++) x[i] = (i % 2 == 0) ? 1.0 : -1.0;
+                double meanInit = x.Average();
+                for (int i = 0; i < nNodes; i++) x[i] -= meanInit;
+
+                double normInit = Math.Sqrt(x.Sum(v => v * v));
+                if (normInit > 1e-10) for (int i = 0; i < nNodes; i++) x[i] /= normInit;
+
+                // Power iteration on M = I - (1/d_max) L
+                for (int iter = 0; iter < 45; iter++)
+                {
+                    double[] y = new double[nNodes];
+                    for (int i = 0; i < nNodes; i++)
+                    {
+                        double sumNeighbors = 0.0;
+                        foreach (var nbrId in adj[targetNodes[i].Id])
+                        {
+                            sumNeighbors += x[idToIndex[nbrId]];
+                        }
+                        y[i] = (1.0 - (double)degrees[i] / maxDegree) * x[i] + (1.0 / maxDegree) * sumNeighbors;
+                    }
+
+                    double meanY = y.Average();
+                    for (int i = 0; i < nNodes; i++) y[i] -= meanY;
+
+                    double normY = Math.Sqrt(y.Sum(v => v * v));
+                    if (normY < 1e-12) break;
+
+                    for (int i = 0; i < nNodes; i++) x[i] = y[i] / normY;
+                }
+
+                // Compute Rayleigh quotient lambda_2 = x^T L x
+                double lambdaSum = 0.0;
+                for (int i = 0; i < nNodes; i++)
+                {
+                    double lx = degrees[i] * x[i];
+                    foreach (var nbrId in adj[targetNodes[i].Id])
+                    {
+                        lx -= x[idToIndex[nbrId]];
+                    }
+                    lambdaSum += x[i] * lx;
+                }
+                algebraicConnectivity = Math.Max(0.0, Math.Round(lambdaSum, 3));
+                fiedlerVector = x;
+
+                for (int i = 0; i < nNodes; i++)
+                {
+                    if (x[i] >= 0.0) partitionA.Add(targetNodes[i].Id);
+                    else partitionB.Add(targetNodes[i].Id);
+                }
+
+                // If one partition is empty (all values same sign), split at median
+                if (partitionA.Count == 0 || partitionB.Count == 0)
+                {
+                    partitionA.Clear();
+                    partitionB.Clear();
+                    var sortedIndices = Enumerable.Range(0, nNodes).OrderBy(i => x[i]).ToList();
+                    int half = nNodes / 2;
+                    for (int i = 0; i < nNodes; i++)
+                    {
+                        if (i < half) partitionA.Add(targetNodes[sortedIndices[i]].Id);
+                        else partitionB.Add(targetNodes[sortedIndices[i]].Id);
+                    }
+                }
+
+                // Calculate cut edges
+                int volA = 0;
+                int volB = 0;
+                for (int i = 0; i < nNodes; i++)
+                {
+                    string uid = targetNodes[i].Id;
+                    bool inA = partitionA.Contains(uid);
+                    if (inA) volA += degrees[i];
+                    else volB += degrees[i];
+
+                    foreach (var vid in adj[uid])
+                    {
+                        if (idToIndex[vid] > i)
+                        {
+                            bool vInA = partitionA.Contains(vid);
+                            if (inA != vInA) cutEdges++;
+                        }
+                    }
+                }
+
+                int minVol = Math.Min(volA, volB);
+                conductance = minVol > 0 ? (double)cutEdges / minVol : 0.0;
+            }
+
+            var boundaryNodes = new List<string>();
+            var nodeMetrics = new List<NodeSpectralInfo>();
+
+            for (int i = 0; i < nNodes; i++)
+            {
+                var n = targetNodes[i];
+                bool inA = partitionA.Contains(n.Id);
+                string cluster = inA ? "Cluster A (+)" : "Cluster B (−)";
+                bool isBoundary = adj[n.Id].Any(nbr => partitionA.Contains(nbr) != inA);
+
+                if (isBoundary)
+                {
+                    boundaryNodes.Add(string.IsNullOrWhiteSpace(n.Title) ? n.Id : n.Title);
+                }
+
+                nodeMetrics.Add(new NodeSpectralInfo(
+                    NodeId: n.Id,
+                    NodeTitle: string.IsNullOrWhiteSpace(n.Title) ? n.Id : n.Title,
+                    Degree: adj[n.Id].Count,
+                    FiedlerValue: Math.Round(fiedlerVector[i], 3),
+                    PartitionCluster: cluster,
+                    IsCutBoundaryNode: isBoundary));
+            }
+
+            string category;
+            double fidelityScore;
+
+            if (components.Count > 1)
+            {
+                category = $"Disconnected Topology ({components.Count} components · λ₂ = 0)";
+                fidelityScore = 70.0;
+            }
+            else if (algebraicConnectivity < 0.25)
+            {
+                category = "Fragile Semantic Bottleneck / Sparse Bridge";
+                fidelityScore = 80.0;
+            }
+            else if (algebraicConnectivity < 0.8)
+            {
+                category = "Moderate Cohesion / Clustered Communities";
+                fidelityScore = 90.0;
+            }
+            else if (algebraicConnectivity < 1.5)
+            {
+                category = "Robust Small-World Mesh";
+                fidelityScore = 95.0;
+            }
+            else
+            {
+                category = "Highly Dense Interconnected Topology";
+                fidelityScore = 100.0;
+            }
+
+            string summary = FormatSpectralBisectionSummary(
+                nNodes, relevantLinks, components.Count, algebraicConnectivity, cutEdges, conductance,
+                partitionA.Count, partitionB.Count, category, isSelection: selectionOnly);
+
+            return new GraphSpectralBisectionAudit(
+                TotalNodes: nNodes,
+                TotalLinks: relevantLinks,
+                ConnectedComponents: components.Count,
+                AlgebraicConnectivity: algebraicConnectivity,
+                CutEdgesCount: cutEdges,
+                Conductance: Math.Round(conductance, 3),
+                PartitionASize: partitionA.Count,
+                PartitionBSize: partitionB.Count,
+                Nodes: nodeMetrics,
+                BoundaryBridgeNodeTitles: boundaryNodes.Take(5).ToList(),
+                SpectralRobustnessCategory: category,
+                SpectralFidelityScore: Math.Round(fidelityScore, 1),
+                IsSelectionScope: selectionOnly,
+                Summary: summary);
+        }
+
+        public static GraphSpectralBisectionAudit AuditSpectralBisectionAndAlgebraicConnectivity(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditSpectralBisectionAndAlgebraicConnectivity();
+        }
+
+        public static string FormatSpectralBisectionSummary(
+            int nodeCount, int linkCount, int components, double lambda2, int cutEdges, double conductance,
+            int partASize, int partBSize, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection" : "Galaxy";
+            if (nodeCount == 0) return $"Spectral bisection audit ({scope}): 0 nodes · Empty map";
+
+            string nodeStr = nodeCount == 1 ? "1 node" : $"{nodeCount} nodes";
+            string linkStr = linkCount == 1 ? "1 link" : $"{linkCount} links";
+            string cutStr = cutEdges == 1 ? "1 cut edge" : $"{cutEdges} cut edges";
+            string compStr = components == 1 ? "1 component" : $"{components} components";
+
+            return $"Spectral bisection audit ({scope} · {nodeStr}, {linkStr} · λ₂={lambda2:0.###} · {category} · Cut: {cutStr}, {conductance:0.###} cond · {partASize} vs {partBSize} bisection · {compStr})";
+        }
     }
 
 
@@ -7199,6 +7540,37 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<string> BridgeBottleneckNodeTitles,
         string TopologyCategory,
         double ClusteringFidelityScore,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents calculated Fiedler eigenvector value, bisection cluster assignment, and degree for a mind map node.
+    /// </summary>
+    public sealed record NodeSpectralInfo(
+        string NodeId,
+        string NodeTitle,
+        int Degree,
+        double FiedlerValue,
+        string PartitionCluster,
+        bool IsCutBoundaryNode);
+
+    /// <summary>
+    /// Represents the result of an audit of graph algebraic connectivity (second-smallest Laplacian eigenvalue lambda_2),
+    /// Fiedler vector spectral bisection, graph cut size, and conductance across mind map nodes.
+    /// </summary>
+    public sealed record GraphSpectralBisectionAudit(
+        int TotalNodes,
+        int TotalLinks,
+        int ConnectedComponents,
+        double AlgebraicConnectivity,
+        int CutEdgesCount,
+        double Conductance,
+        int PartitionASize,
+        int PartitionBSize,
+        IReadOnlyList<NodeSpectralInfo> Nodes,
+        IReadOnlyList<string> BoundaryBridgeNodeTitles,
+        string SpectralRobustnessCategory,
+        double SpectralFidelityScore,
         bool IsSelectionScope,
         string Summary);
 }

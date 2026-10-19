@@ -4851,6 +4851,14 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditPyramidTaperingClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditPyramidTaperingAndMassBalance();
+            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         #endregion
 
 

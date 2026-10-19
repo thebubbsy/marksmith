@@ -324,6 +324,9 @@
                                     <MenuFlyoutItem x:Name="AuditClusteringTransitivityItem" Text="Audit graph clustering coefficient &amp; triadic closure" Click="OnAuditClusteringTransitivityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditSpectralBisectionItem" Text="Audit spectral bisection &amp; algebraic connectivity" Click="OnAuditSpectralBisectionClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE91B;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

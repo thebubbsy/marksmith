@@ -344,6 +344,9 @@
                                         <MenuFlyoutItem x:Name="AuditRadialCycleBalanceItem" Text="Audit radial cycle / hub-and-spoke angular balance &amp; orbital pacing" Click="OnAuditRadialCycleBalanceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C1;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditPyramidTaperingItem" Text="Audit pyramid &amp; funnel layer mass tapering &amp; apex overload" Click="OnAuditPyramidTaperingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

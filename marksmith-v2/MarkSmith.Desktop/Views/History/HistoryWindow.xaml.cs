@@ -3432,6 +3432,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditDiffLineWrap);
+
+                var auditGitConflictMarkers = new MenuFlyoutItem
+                {
+                    Text = "Audit Git conflict markers, unmerged hunks & rebase residue",
+                    Icon = new FontIcon { Glyph = "\uE8E4" }
+                };
+                auditGitConflictMarkers.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditGitConflictMarkersAndRebaseResidue(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditGitConflictMarkers);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

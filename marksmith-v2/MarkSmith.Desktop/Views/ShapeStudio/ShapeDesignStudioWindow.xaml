@@ -715,6 +715,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditAspectRatioScalingItem" Text="Audit shape aspect ratio lock &amp; geometric primitive scaling" Click="OnSelectionAuditAspectRatioScalingClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE799;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditStrokeAlignmentItem" Text="Audit stroke alignment, corner radius uniformity &amp; miter limits" Click="OnSelectionAuditStrokeAlignmentClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

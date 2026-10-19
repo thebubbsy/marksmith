@@ -6423,6 +6423,14 @@ namespace MarkSmith.Views.ShapeStudio
             _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
+
+        private void OnSelectionAuditStrokeAlignmentClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditStrokeAlignmentAndCornerRadius();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
     }
 }
 

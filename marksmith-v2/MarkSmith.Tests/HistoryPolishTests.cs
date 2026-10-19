@@ -1820,6 +1820,54 @@ public class HistoryPolishTests : IDisposable
         Assert.Single(overflowAudit.Overflows);
         Assert.Equal(170, overflowAudit.Overflows[0].ColumnLength);
     }
+
+    [Fact]
+    public void Run169_AuditGitConflictMarkersAndRebaseResidue_DetectsConflictBlocksAndOrphans()
+    {
+        // 1. Clean diff / document
+        var cleanAudit = LineDiff.AuditGitConflictMarkersAndRebaseResidue("line 1\nline 2\nline 3");
+        Assert.Equal(3, cleanAudit.TotalLinesEvaluated);
+        Assert.Equal(0, cleanAudit.ConflictBlockCount);
+        Assert.Equal(0, cleanAudit.UnresolvedMarkerCount);
+        Assert.False(cleanAudit.HasActiveConflicts);
+        Assert.Equal(100.0, cleanAudit.ConflictFreeIntegrityScore);
+        Assert.Equal("Clean Working Tree / Zero Conflict Residue", cleanAudit.Category);
+
+        // 2. Document with valid Git merge conflict block
+        var conflictDoc = string.Join("\n",
+            "# Document",
+            "<<<<<<< HEAD",
+            "feature: added in local branch",
+            "=======",
+            "feature: modified in incoming branch",
+            ">>>>>>> feature-branch",
+            "Footer note"
+        );
+        var conflictAudit = LineDiff.AuditGitConflictMarkersAndRebaseResidue(conflictDoc);
+        Assert.Equal(7, conflictAudit.TotalLinesEvaluated);
+        Assert.Equal(1, conflictAudit.ConflictBlockCount);
+        Assert.Equal(3, conflictAudit.UnresolvedMarkerCount);
+        Assert.Equal(0, conflictAudit.MalformedConflictCount);
+        Assert.True(conflictAudit.HasActiveConflicts);
+        Assert.Equal("HEAD", conflictAudit.ConflictBlocks[0].OursLabel);
+        Assert.Equal("feature-branch", conflictAudit.ConflictBlocks[0].TheirsLabel);
+        Assert.Equal(1, conflictAudit.ConflictBlocks[0].OursLineCount);
+        Assert.Equal(1, conflictAudit.ConflictBlocks[0].TheirsLineCount);
+        Assert.False(conflictAudit.ConflictBlocks[0].IsMalformed);
+        Assert.Equal("Active Merge Conflict Block(s) Detected", conflictAudit.Category);
+
+        // 3. Document with orphan conflict marker residue
+        var orphanDoc = string.Join("\n",
+            "line 1",
+            "=======",
+            "line 2"
+        );
+        var orphanAudit = LineDiff.AuditGitConflictMarkersAndRebaseResidue(orphanDoc);
+        Assert.Equal(1, orphanAudit.ConflictBlockCount);
+        Assert.Equal(1, orphanAudit.MalformedConflictCount);
+        Assert.True(orphanAudit.ConflictBlocks[0].IsMalformed);
+        Assert.Equal("Malformed / Corrupted Git Conflict Markers", orphanAudit.Category);
+    }
 }
 
 

@@ -6713,6 +6713,197 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
         return $"Shape aspect ratio audit ({scopeStr}{shapeLabel} · {category} · {score:0.#}% score){details}";
     }
+
+    /// <summary>
+    /// Audits shape border stroke alignment, corner radius uniformity on rounded rectangles,
+    /// heavy stroke disproportion, ghost shapes, and miter limit spike risks.
+    /// </summary>
+    public DiagramStrokeCornerAudit AuditStrokeAlignmentAndCornerRadius(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var rawTargets = targetShapes?.ToList() ?? (selected.Count > 0 ? selected : Shapes.ToList());
+        bool isSelection = targetShapes != null || selected.Count > 0;
+        var audit = AuditStrokeAlignmentAndCornerRadius(rawTargets, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    /// <summary>
+    /// Evaluates stroke weight balance, corner radius uniformity, ghost shapes, and miter spike risks
+    /// across a provided set of shapes.
+    /// </summary>
+    public static DiagramStrokeCornerAudit AuditStrokeAlignmentAndCornerRadius(
+        IReadOnlyList<ShapeCanvasItemViewModel> shapes,
+        bool isSelection = false)
+    {
+        var geometricShapes = shapes.Where(s => s != null && s.Width > 0 && s.Height > 0).ToList();
+
+        if (geometricShapes.Count == 0)
+        {
+            string emptySummary = FormatStrokeAlignmentSummary(0, 0, 0, 0, 0, 0, 0, 0.0, 100.0, "Empty Canvas", isSelection);
+            return new DiagramStrokeCornerAudit(
+                0, 0, 0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ShapeStrokeCornerInfo>(),
+                "Empty Canvas",
+                isSelection,
+                emptySummary);
+        }
+
+        var evaluated = new List<ShapeStrokeCornerInfo>();
+        int uniformCount = 0;
+        int heavyCount = 0;
+        int ghostCount = 0;
+        int roundRectCount = 0;
+        int uniformCornerCount = 0;
+        int miterSpikeCount = 0;
+        double totalStrokePt = 0.0;
+
+        var roundRectRadii = new List<double>();
+        foreach (var s in geometricShapes)
+        {
+            if (string.Equals(s.Prst, "roundrect", StringComparison.OrdinalIgnoreCase))
+            {
+                double r = Math.Min(s.Width, s.Height) * 0.1667;
+                roundRectRadii.Add(r);
+            }
+        }
+        double meanRoundRectRadius = roundRectRadii.Count > 0 ? roundRectRadii.Average() : 0.0;
+
+        foreach (var s in geometricShapes)
+        {
+            double w = Math.Max(0.1, s.Width);
+            double h = Math.Max(0.1, s.Height);
+            double minDim = Math.Min(w, h);
+            double strokePt = s.StrokeWidthPt;
+            totalStrokePt += strokePt;
+
+            double strokeToDim = strokePt / minDim;
+            bool isGhost = (w < 2.0 || h < 2.0) || (strokePt <= 0.25 && (string.IsNullOrWhiteSpace(s.Fill) || string.Equals(s.Fill, "transparent", StringComparison.OrdinalIgnoreCase) || string.Equals(s.Fill, CanvasBackgroundHex, StringComparison.OrdinalIgnoreCase)));
+            bool isHeavy = strokeToDim > 0.15 || (strokePt >= 8.0 && minDim < 60.0);
+
+            bool isRoundRect = string.Equals(s.Prst, "roundrect", StringComparison.OrdinalIgnoreCase);
+            double estimatedCornerRadius = isRoundRect ? Math.Round(minDim * 0.1667, 1) : 0.0;
+            bool cornerDiscrepancy = false;
+            if (isRoundRect)
+            {
+                roundRectCount++;
+                if (roundRectRadii.Count > 1 && Math.Abs(estimatedCornerRadius - meanRoundRectRadius) > (meanRoundRectRadius * 0.35))
+                {
+                    cornerDiscrepancy = true;
+                }
+                else
+                {
+                    uniformCornerCount++;
+                }
+            }
+
+            bool hasMiterSpike = strokePt >= 4.0 && (
+                string.Equals(s.Prst, "diamond", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(s.Prst, "triangle", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(s.Prst, "star5", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(s.Prst, "chevron", StringComparison.OrdinalIgnoreCase));
+
+            if (hasMiterSpike) miterSpikeCount++;
+
+            string status;
+            if (isGhost)
+            {
+                ghostCount++;
+                status = "Ghost Shape (Near-Zero Contrast/Dimensions)";
+            }
+            else if (isHeavy)
+            {
+                heavyCount++;
+                status = "Heavy Stroke Weight (Dominates Shape Fill)";
+            }
+            else if (hasMiterSpike)
+            {
+                status = "Miter Spike Risk (Sharp Vertex Outer Bleed)";
+            }
+            else if (cornerDiscrepancy)
+            {
+                status = "Non-Uniform Corner Radius";
+            }
+            else
+            {
+                uniformCount++;
+                status = "Conforming Stroke & Corner";
+            }
+
+            string shapeTitle = !string.IsNullOrWhiteSpace(s.Text)
+                ? s.Text
+                : (!string.IsNullOrWhiteSpace(s.Name) ? s.Name : (!string.IsNullOrWhiteSpace(s.ShapeType) ? s.ShapeType : $"Shape #{s.Id}"));
+
+            evaluated.Add(new ShapeStrokeCornerInfo(
+                ShapeId: s.Id,
+                DisplayName: shapeTitle,
+                ShapeType: s.Prst,
+                Width: Math.Round(w, 1),
+                Height: Math.Round(h, 1),
+                StrokeWidthPt: Math.Round(strokePt, 2),
+                StrokeToDimensionRatio: Math.Round(strokeToDim, 3),
+                HasHeavyStroke: isHeavy,
+                IsGhostShape: isGhost,
+                EstimatedCornerRadius: estimatedCornerRadius,
+                HasCornerRadiusDiscrepancy: cornerDiscrepancy,
+                HasMiterSpikeRisk: hasMiterSpike,
+                Status: status));
+        }
+
+        double meanStrokePt = totalStrokePt / geometricShapes.Count;
+        int cornerIssues = roundRectCount - uniformCornerCount;
+        double penalty = ((heavyCount * 12.0) + (ghostCount * 20.0) + (cornerIssues * 10.0) + (miterSpikeCount * 8.0)) / geometricShapes.Count;
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 when heavyCount == 0 && ghostCount == 0 && cornerIssues == 0 => "Uniform Pixel-Perfect Strokes & Corners",
+            >= 80.0 => "Harmonized Stroke Hierarchy & Radii",
+            >= 60.0 => "Moderate Stroke & Corner Inconsistencies",
+            _ => "Disparate Stroke Weights & Corner Mismatch"
+        };
+
+        string summary = FormatStrokeAlignmentSummary(
+            geometricShapes.Count, uniformCount, heavyCount, ghostCount,
+            roundRectCount, uniformCornerCount, miterSpikeCount,
+            meanStrokePt, score, category, isSelection);
+
+        return new DiagramStrokeCornerAudit(
+            TotalShapesEvaluated: geometricShapes.Count,
+            UniformStrokeCount: uniformCount,
+            HeavyStrokeCount: heavyCount,
+            GhostShapeCount: ghostCount,
+            RoundedRectCount: roundRectCount,
+            UniformCornerRadiusCount: uniformCornerCount,
+            MiterSpikeRiskCount: miterSpikeCount,
+            MeanStrokeWidthPt: Math.Round(meanStrokePt, 1),
+            StrokeFidelityScore: Math.Round(score, 1),
+            Shapes: evaluated,
+            Category: category,
+            IsSelectionScope: isSelection,
+            Summary: summary);
+    }
+
+    public static string FormatStrokeAlignmentSummary(
+        int totalShapes, int uniformCount, int heavyCount, int ghostCount,
+        int roundRectCount, int uniformCornerCount, int miterSpikeCount,
+        double meanStrokePt, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Shape stroke & corner audit ({scopeStr}0 shapes): Empty canvas";
+
+        string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        var alerts = new List<string>();
+        if (heavyCount > 0) alerts.Add($"⚠ {heavyCount} heavy stroke{(heavyCount == 1 ? "" : "s")}");
+        if (ghostCount > 0) alerts.Add($"⚠ {ghostCount} ghost");
+        if (miterSpikeCount > 0) alerts.Add($"⚠ {miterSpikeCount} miter spike{(miterSpikeCount == 1 ? "" : "s")}");
+        int cornerMismatch = roundRectCount - uniformCornerCount;
+        if (cornerMismatch > 0) alerts.Add($"⚠ {cornerMismatch} corner mismatch{(cornerMismatch == 1 ? "" : "es")}");
+        if (uniformCount > 0) alerts.Add($"{uniformCount} uniform");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
+        return $"Shape stroke & corner audit ({scopeStr}{shapeLabel} · {category} · {score:0.#}% score · Mean {meanStrokePt:0.#}pt){details}";
+    }
 }
 
 /// <summary>
@@ -7172,3 +7363,41 @@ public sealed record DiagramAspectRatioAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated stroke weight, boundary alignment, corner radius, and miter limit metrics for an individual shape.
+/// </summary>
+public sealed record ShapeStrokeCornerInfo(
+    string ShapeId,
+    string DisplayName,
+    string ShapeType,
+    double Width,
+    double Height,
+    double StrokeWidthPt,
+    double StrokeToDimensionRatio,
+    bool HasHeavyStroke,
+    bool IsGhostShape,
+    double EstimatedCornerRadius,
+    bool HasCornerRadiusDiscrepancy,
+    bool HasMiterSpikeRisk,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of shape border stroke alignment, corner radius uniformity,
+/// and miter limit conformance.
+/// </summary>
+public sealed record DiagramStrokeCornerAudit(
+    int TotalShapesEvaluated,
+    int UniformStrokeCount,
+    int HeavyStrokeCount,
+    int GhostShapeCount,
+    int RoundedRectCount,
+    int UniformCornerRadiusCount,
+    int MiterSpikeRiskCount,
+    double MeanStrokeWidthPt,
+    double StrokeFidelityScore,
+    IReadOnlyList<ShapeStrokeCornerInfo> Shapes,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+

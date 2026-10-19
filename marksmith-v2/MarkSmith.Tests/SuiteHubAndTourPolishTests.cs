@@ -3242,6 +3242,88 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("CopyWorkspaceHeadingAdvisorItem", suiteXaml);
         Assert.Contains("OnCopyWorkspaceHeadingAdvisorClick", suiteCs);
     }
+
+    [Fact]
+    public void Run169_Polish_Elements_Wired_Across_Surfaces_And_CodeFenceLanguageTags()
+    {
+        // 1. AuditWorkspaceCodeFenceLanguageTags with empty list
+        var emptyAudit = RecentFilesService.AuditWorkspaceCodeFenceLanguageTags(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(100.0, emptyAudit.CoverageScore);
+        Assert.Equal("Workspace Empty", emptyAudit.Category);
+
+        // 2. AuditWorkspaceCodeFenceLanguageTags with in-memory files
+        var virtualFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["C:\\workspace\\doc1.md"] = string.Join("\n",
+                "# Doc 1",
+                "```csharp",
+                "int x = 42;",
+                "```",
+                "```markdown",
+                "- Item 1",
+                "```"),
+            ["C:\\workspace\\doc2.md"] = string.Join("\n",
+                "# Doc 2",
+                "```cs",
+                "int y = 99;",
+                "```",
+                "```",
+                "untagged code block",
+                "```")
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceCodeFenceLanguageTags(
+            virtualFiles.Keys,
+            fileExistsProvider: path => virtualFiles.ContainsKey(path),
+            contentReader: path => virtualFiles[path]);
+
+        Assert.Equal(2, audit.TotalDocumentsEvaluated);
+        Assert.Equal(4, audit.TotalCodeFencesFound);
+        Assert.Equal(3, audit.TaggedFencesCount);
+        Assert.Equal(1, audit.UntaggedFencesCount);
+        Assert.Equal(3, audit.SupportedHighlighterCount);
+        Assert.Equal(1, audit.NonCanonicalAliasCount);
+        Assert.True(audit.CoverageScore < 100.0);
+        Assert.Equal("Good Syntax Highlighter Coverage", audit.Category);
+
+        // 3. Cross-surface XAML / C# wiring verification for Run #169 across all 6 surfaces:
+        // MainWindow: StatusCopyLinksButton & image accessibility
+        var mainXaml = File.ReadAllText(DesktopPath("MainWindow.xaml"));
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("StatusCopyLinksButton", mainXaml);
+        Assert.Contains("OnStatusCopyLinksButtonClick", mainCs);
+        Assert.Contains("FormatImageAccessibilitySummary", mainCs);
+
+        // MindMapGalaxy: AuditSpectralBisectionItem
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditSpectralBisectionItem", galaxyXaml);
+        Assert.Contains("OnAuditSpectralBisectionClick", galaxyCs);
+
+        // ShapeStudio: SelectionAuditStrokeAlignmentItem
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditStrokeAlignmentItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditStrokeAlignmentClick", shapeCs);
+
+        // SmartArtStudio: AuditPyramidTaperingItem
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("AuditPyramidTaperingItem", smartArtXaml);
+        Assert.Contains("OnAuditPyramidTaperingClick", smartArtCs);
+
+        // HistoryWindow: auditGitConflictMarkers
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditGitConflictMarkers", historyCs);
+        Assert.Contains("AuditGitConflictMarkersAndRebaseResidue", historyCs);
+
+        // SuiteHubView: CopyWorkspaceCodeFenceAdvisorItem
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceCodeFenceAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceCodeFenceAdvisorClick", suiteCs);
+    }
 }
 
 

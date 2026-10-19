@@ -11647,6 +11647,49 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
    - **Refinement Target**: Workspace Markdown Code Fence Language Tag Consistency & Syntax Highlighter Coverage Advisor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceCodeFenceLanguageTags(files)` to scan workspace documents for untagged code fences (``` without language specifier), unknown language aliases, and assess syntax highlighting readiness across the project. Wire to `RecentDocsFlyout`.
 
+---
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #169 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Image Tag, Alt-Text & WCAG Accessibility Auditor + Status Bar Copy Links Button (`MainWindow.xaml`, `MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditImageLinkAndAltTextAccessibility(markdownText)`, `FormatImageAccessibilitySummary(...)`, records `ImageAccessibilityItem`, and `ImageAccessibilityAudit`. Audits markdown and inline HTML image tags for missing or generic alt-text, insecure HTTP URLs, data URIs, valid image file extensions, and calculates WCAG 1.1.1 accessibility compliance score ($0-100\%$). In `MainWindow.xaml`, added `StatusCopyLinksButton` with glyph `&#xE71B;` and right-click "Audit Image & Link Accessibility (WCAG 1.1.1)" (`\uEB9F`) with clipboard copy and toast announcement.
+    2. **MindMapGalaxyWindow Graph Algebraic Connectivity (Fiedler Vector $\lambda_2$) & Spectral Bisection / Conductance Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditSpectralBisectionAndAlgebraicConnectivity()`, static overload, `FormatSpectralBisectionSummary(...)`, records `NodeSpectralInfo`, and `GraphSpectralBisectionAudit`. Computes normalized graph Laplacian $L$, second-smallest eigenvalue $\lambda_2$ (algebraic connectivity) via mean-zero power iteration, Fiedler vector bisection (Cluster A / Cluster B), cut boundary edges, and graph conductance $\phi = \frac{|E(A, B)|}{\min(\text{vol}(A), \text{vol}(B))}$; wired to `AuditSpectralBisectionItem` (`\uE91B`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Shape Border Stroke Alignment, Corner Radius Uniformity & Miter Limit Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditStrokeAlignmentAndCornerRadius(shapes)`, `FormatStrokeAlignmentSummary(...)`, records `ShapeStrokeCornerInfo`, and `DiagramStrokeCornerAudit`. Evaluates shape border stroke-to-dimension ratios, ghost shapes, rounded rectangle corner radii uniformity across adjacent primitives, and sharp vertex miter spike risks on diamonds/triangles/stars/chevrons; wired to `SelectionAuditStrokeAlignmentItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status notification.
+    4. **SmartArtDesignStudioWindow SmartArt Pyramid & Funnel Layer Volume / Height Tapering & Proportional Mass Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditPyramidTaperingAndMassBalance(markdown, isInverted)`, static overload, `FormatPyramidTaperingSummary(...)`, records `PyramidTierInfo`, and `SmartArtPyramidTaperingAudit`. Accurately models trapezoidal geometric capacity $\frac{2k-1}{N^2}$ across tiers, evaluates word density ratios, detects "Inverted Mass Traps" where apex tiers are overloaded with dense paragraphs, and evaluates standard apex-up vs inverted funnel modes; wired to `AuditPyramidTaperingItem` (`\uE8B9`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Diff Git Conflict Marker Syntax, Unmerged Hunk Boundary & Rebase Residue Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditGitConflictMarkersAndRebaseResidue(unifiedRows)`, string content overload, `FormatGitConflictMarkersSummary(...)`, records `ConflictBlockInfo`, and `GitConflictMarkerAudit`. Robustly detects standard Git merge conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`, `|||||||`), branch labels, unclosed blocks before EOF, and orphaned divider residue; wired to `auditGitConflictMarkers` (`\uE8E4`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace Markdown Code Fence Language Tag Consistency & Syntax Highlighter Coverage Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceCodeFenceLanguageTags(files, fileExistsProvider, contentReader)`, `FormatWorkspaceCodeFenceLanguageSummary(...)`, records `WorkspaceCodeFenceItem`, and `WorkspaceCodeFenceLanguageAudit`. Scans workspace markdown files for untagged code blocks (bare ` ``` `), unknown/unsupported language tags, and canonical language aliases (`cs` $\to$ `csharp`, `py` $\to$ `python`, `sh` $\to$ `bash`), scoring overall syntax highlighting readiness; wired to `CopyWorkspaceCodeFenceAdvisorItem` (`\uE8D2`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `5155/5155` passing unit tests in `MarkSmith.Tests.csproj` (1 skipped) with `100%` pass rate.
+    - Verified clean smoke launch of `Marksmith.exe` with zero startup crashes.
+
+---
+
+### Run #170 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Math Formula KaTeX Delimiter Pairing, Macro Expansion & MathML Interop Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMathDelimiterAndMacroIntegrity(markdownText)` and `FormatMathDelimiterSummary(...)`, validating inline `$...$` and display `$$...$$` LaTeX math environments, unbalanced curly braces, undefined macros, and scoring KaTeX rendering compatibility ($0-100\%$). Wire to `StatusSectionBreadcrumbButton` and `FindCountText` context flyouts.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Biconnected Components, Articulation Points (Cut Vertices) & Bridge Edge Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditArticulationPointsAndBridges()` and `FormatArticulationPointsSummary(...)`, using Tarjan/Hopcroft biconnectivity algorithm with DFS discovery and low-point values to detect critical single-point failure bottleneck nodes whose removal disconnects the knowledge graph. Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Connector Routing Orthogonal Obstacle Avoidance & Shape Bounding Box Collision Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditConnectorObstacleCollisions(shapes)` and `FormatConnectorCollisionSummary(...)`, checking connector path segments against non-connected shape bounding boxes to detect visual collisions, accidental clipping, and scoring routing clearance ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Matrix / 2x2 Quadrant Axis Symmetry & Quadrant Distribution Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditMatrixQuadrantBalance(markdown)` and `FormatMatrixQuadrantSummary(...)`, verifying 4-quadrant balance, axis label alignment, and equal item distribution across 2x2 SWOT / Priority / BCG matrix diagrams. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #169 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Line Grouping & Co-Change Cluster Auditor.
+   - **Deliverable**: Add `LineDiff.AuditSemanticDiffCoChangeClusters(unifiedRows)` to cluster related added/deleted lines across distant hunks sharing common identifiers or structural tokens into co-change groups. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #169 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Image and Media Asset Relative Path Resolution & Missing Link Auditor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceMediaLinkIntegrity(files)` to resolve all image and link target paths across all workspace documents against the local filesystem, detecting missing/broken referenced media files. Wire to `RecentDocsFlyout`.
+
+
 
 
 

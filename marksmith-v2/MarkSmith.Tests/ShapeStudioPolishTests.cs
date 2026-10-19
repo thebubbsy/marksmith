@@ -1810,6 +1810,48 @@ public class ShapeStudioPolishTests
         Assert.True(driftAudit.MeanDriftPercentage >= 5.0 && driftAudit.MeanDriftPercentage <= 7.0);
         Assert.True(driftAudit.AspectRatioFidelityScore < 100.0);
     }
+
+    [Fact]
+    public void Run169_AuditStrokeAlignmentAndCornerRadius_DetectsHeavyStrokesAndCornerDiscrepancy()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditStrokeAlignmentAndCornerRadius();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(100.0, emptyAudit.StrokeFidelityScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+
+        // 2. Conforming strokes
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Text = "Box 1", Prst = "roundrect", Width = 120, Height = 60, StrokeWidthPt = 2.0 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Text = "Box 2", Prst = "roundrect", Width = 120, Height = 60, StrokeWidthPt = 2.0 };
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+
+        var cleanAudit = vm.AuditStrokeAlignmentAndCornerRadius();
+        Assert.Equal(2, cleanAudit.TotalShapesEvaluated);
+        Assert.Equal(2, cleanAudit.UniformCornerRadiusCount);
+        Assert.Equal(0, cleanAudit.HeavyStrokeCount);
+        Assert.Equal(0, cleanAudit.GhostShapeCount);
+        Assert.Equal(0, cleanAudit.MiterSpikeRiskCount);
+        Assert.Equal(100.0, cleanAudit.StrokeFidelityScore);
+        Assert.Equal("Uniform Pixel-Perfect Strokes & Corners", cleanAudit.Category);
+
+        // 3. Heavy stroke, corner discrepancy, and miter spike on sharp vertex
+        var sHeavy = new ShapeCanvasItemViewModel { Id = "s3", Text = "Heavy Mini Box", Prst = "rect", Width = 30, Height = 30, StrokeWidthPt = 8.0 };
+        var sTinyRoundRect = new ShapeCanvasItemViewModel { Id = "s4", Text = "Tiny Round", Prst = "roundrect", Width = 10, Height = 10, StrokeWidthPt = 1.0 };
+        var sDiamondMiter = new ShapeCanvasItemViewModel { Id = "s5", Text = "Sharp Diamond", Prst = "diamond", Width = 100, Height = 100, StrokeWidthPt = 6.0 };
+
+        vm.Shapes.Add(sHeavy);
+        vm.Shapes.Add(sTinyRoundRect);
+        vm.Shapes.Add(sDiamondMiter);
+
+        var mixedAudit = vm.AuditStrokeAlignmentAndCornerRadius();
+        Assert.Equal(5, mixedAudit.TotalShapesEvaluated);
+        Assert.True(mixedAudit.HeavyStrokeCount >= 1);
+        Assert.True(mixedAudit.MiterSpikeRiskCount >= 1);
+        Assert.True(mixedAudit.StrokeFidelityScore < 100.0);
+    }
 }
 
 

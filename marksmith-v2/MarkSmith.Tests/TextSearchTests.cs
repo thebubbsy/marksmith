@@ -1831,6 +1831,53 @@ public class TextSearchTests
         Assert.True(mixedAudit.ParityScore < 100.0);
         Assert.Equal(mixedAudit.Summary, TextSearch.FormatAdmonitionCalloutSummary(mixedDoc));
     }
+
+    [Fact]
+    public void Run169_AuditImageLinkAndAltTextAccessibility_ValidatesWcagAltTextAndHttp()
+    {
+        // 1. Empty / null document
+        var emptyAudit = TextSearch.AuditImageLinkAndAltTextAccessibility(null);
+        Assert.Equal(0, emptyAudit.TotalImages);
+        Assert.Equal(100.0, emptyAudit.AccessibilityScore);
+        Assert.Equal("No Images Detected", emptyAudit.ComplianceCategory);
+
+        // 2. Clean accessible document with markdown and HTML images
+        var cleanDoc = string.Join("\n",
+            "# Accessibility Showcase",
+            "![Diagram showing system flow architecture](https://example.com/system-flow.svg)",
+            "<img src=\"https://example.com/photo-nature.jpg\" alt=\"Mountain range at sunset\" />",
+            "![Embedded SVG icon](data:image/svg+xml;utf8,<svg></svg>)"
+        );
+        var cleanAudit = TextSearch.AuditImageLinkAndAltTextAccessibility(cleanDoc);
+        Assert.Equal(3, cleanAudit.TotalImages);
+        Assert.Equal(3, cleanAudit.ValidAccessibleImages);
+        Assert.Equal(0, cleanAudit.MissingAltCount);
+        Assert.Equal(0, cleanAudit.GenericAltCount);
+        Assert.Equal(0, cleanAudit.InsecureHttpCount);
+        Assert.Equal(1, cleanAudit.DataUriCount);
+        Assert.Equal(100.0, cleanAudit.AccessibilityScore);
+        Assert.Equal("WCAG AAA Compliant Image Content", cleanAudit.ComplianceCategory);
+        Assert.True(cleanAudit.Images[1].IsHtmlTag);
+        Assert.True(cleanAudit.Images[2].IsDataUri);
+
+        // 3. Document with missing alt, generic alt, insecure HTTP, and code fences (which must be ignored)
+        var mixedDoc = string.Join("\n",
+            "```markdown",
+            "![ignored in fence](http://insecure.com/fake.png)",
+            "```",
+            "Here is an inline code snippet `![ignored in span](http://insecure.com/fake2.png)`.",
+            "![](https://example.com/missing-alt.png)",
+            "![picture](https://example.com/generic-alt.jpg)",
+            "![Valid description](http://insecure.example.com/banner.png)"
+        );
+        var mixedAudit = TextSearch.AuditImageLinkAndAltTextAccessibility(mixedDoc);
+        Assert.Equal(3, mixedAudit.TotalImages);
+        Assert.Equal(1, mixedAudit.MissingAltCount);
+        Assert.Equal(1, mixedAudit.GenericAltCount);
+        Assert.Equal(1, mixedAudit.InsecureHttpCount);
+        Assert.True(mixedAudit.AccessibilityScore < 100.0);
+        Assert.Equal(mixedAudit.Summary, TextSearch.FormatImageAccessibilitySummary(mixedDoc));
+    }
 }
 
 

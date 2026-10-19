@@ -2625,6 +2625,54 @@ namespace MarkSmith.Tests
             Assert.Equal("Acyclic Tree Hierarchy (0 Triangles)", treeAudit.TopologyCategory);
             Assert.Equal(95.0, treeAudit.ClusteringFidelityScore);
         }
+
+        [Fact]
+        public void Run169_AuditSpectralBisectionAndAlgebraicConnectivity_ComputesFiedlerAndConductance()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditSpectralBisectionAndAlgebraicConnectivity(
+                Array.Empty<MindMapNode>(), Array.Empty<MindMapLink>());
+
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalLinks);
+            Assert.Equal(0.0, emptyAudit.AlgebraicConnectivity);
+            Assert.Equal(100.0, emptyAudit.SpectralFidelityScore);
+            Assert.Equal("Empty Graph", emptyAudit.SpectralRobustnessCategory);
+
+            // 2. Disconnected graph (2 separate islands: n1-n2 and n3-n4)
+            var n1 = new MindMapNode { Id = "n1", Title = "Node 1" };
+            var n2 = new MindMapNode { Id = "n2", Title = "Node 2" };
+            var n3 = new MindMapNode { Id = "n3", Title = "Node 3" };
+            var n4 = new MindMapNode { Id = "n4", Title = "Node 4" };
+
+            var l1 = new MindMapLink { Id = "l1", SourceNodeId = "n1", TargetNodeId = "n2" };
+            var l2 = new MindMapLink { Id = "l2", SourceNodeId = "n3", TargetNodeId = "n4" };
+
+            var disconAudit = MindMapStudioViewModel.AuditSpectralBisectionAndAlgebraicConnectivity(
+                new[] { n1, n2, n3, n4 }, new[] { l1, l2 });
+
+            Assert.Equal(4, disconAudit.TotalNodes);
+            Assert.Equal(2, disconAudit.TotalLinks);
+            Assert.Equal(2, disconAudit.ConnectedComponents);
+            Assert.Equal(0.0, disconAudit.AlgebraicConnectivity);
+            Assert.Contains("Disconnected Topology", disconAudit.SpectralRobustnessCategory);
+            Assert.Equal(0, disconAudit.CutEdgesCount);
+
+            // 3. Connected graph: path (n1 - n2 - n3 - n4)
+            var bridgeLink = new MindMapLink { Id = "l_bridge", SourceNodeId = "n2", TargetNodeId = "n3" };
+            var connectedAudit = MindMapStudioViewModel.AuditSpectralBisectionAndAlgebraicConnectivity(
+                new[] { n1, n2, n3, n4 }, new[] { l1, l2, bridgeLink });
+
+            Assert.Equal(4, connectedAudit.TotalNodes);
+            Assert.Equal(3, connectedAudit.TotalLinks);
+            Assert.Equal(1, connectedAudit.ConnectedComponents);
+            Assert.True(connectedAudit.AlgebraicConnectivity > 0.0);
+            Assert.True(connectedAudit.PartitionASize > 0);
+            Assert.True(connectedAudit.PartitionBSize > 0);
+            Assert.True(connectedAudit.CutEdgesCount >= 1);
+            Assert.True(connectedAudit.Conductance > 0.0);
+            Assert.NotEmpty(connectedAudit.BoundaryBridgeNodeTitles);
+        }
     }
 }
 

@@ -8009,6 +8009,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(admonitionCalloutItem);
 
+        var imageAccessibilityItem = new MenuFlyoutItem
+        {
+            Text = "Copy image accessibility & alt-text audit",
+            Icon = new FontIcon { Glyph = "\uEB9F" }
+        };
+        imageAccessibilityItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatImageAccessibilitySummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(imageAccessibilityItem);
+
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9520,6 +9534,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(admonitionCalloutItem);
+
+        var imageAccessibilityItem = new MenuFlyoutItem
+        {
+            Text = "Copy image accessibility & alt-text audit",
+            Icon = new FontIcon { Glyph = "\uEB9F" },
+            IsEnabled = !string.IsNullOrWhiteSpace(PasteTextBox?.Text)
+        };
+        imageAccessibilityItem.Click += (_, _) =>
+        {
+            var text = PasteTextBox?.Text ?? string.Empty;
+            var summary = MarkSmith.Services.TextSearch.FormatImageAccessibilitySummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(imageAccessibilityItem);
 
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 
@@ -11609,6 +11638,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus($"Inserted Link Index ({links.Count:N0} links) at cursor");
         };
         menu.Items.Add(insertLinksItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var auditImageLinksItem = new MenuFlyoutItem
+        {
+            Text = "Audit Image & Link Accessibility (WCAG 1.1.1)",
+            Icon = new FontIcon { Glyph = "\uEB9F" }
+        };
+        auditImageLinksItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.FormatImageAccessibilitySummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditImageLinksItem);
 
         menu.ShowAt(anchor);
     }

@@ -5409,6 +5409,227 @@ public static class TextSearch
 
         return $"Markdown admonition callout audit ({calloutLabel} · {category} · {parityScore:0.#}% score){alertSuffix}";
     }
+
+    /// <summary>
+    /// Audits markdown and inline HTML image tags for WCAG non-text content compliance, missing or generic alt-text,
+    /// valid image file extensions, and insecure HTTP vs secure HTTPS image URLs.
+    /// Excludes fenced code blocks and inline code spans to prevent code syntax from triggering false positives.
+    /// </summary>
+    public static ImageAccessibilityAudit AuditImageLinkAndAltTextAccessibility(string? markdownText)
+    {
+        var images = new List<ImageAccessibilityItem>();
+        var issues = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new ImageAccessibilityAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                images, issues, "No Images Detected",
+                "Markdown image accessibility audit: 0 images · Document contains no embedded media");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        bool inFence = false;
+        string fenceMarker = string.Empty;
+
+        var mdImgRegex = new Regex(@"!\[(?<alt>[^\]]*)\]\((?<url>[^)\s]+)(?:\s+""(?<title>[^""]*)"")?\)", RegexOptions.Compiled);
+        var htmlImgRegex = new Regex(@"<img\s+[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        var htmlSrcRegex = new Regex(@"src\s*=\s*[""'](?<url>[^""']+)[""']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        var htmlAltRegex = new Regex(@"alt\s*=\s*[""'](?<alt>[^""']*)[""']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        var genericNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "image", "img", "photo", "picture", "screenshot", "graphic", "untitled", "icon", "banner", "figure", "drawing", "diagram"
+        };
+
+        var validExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif", ".bmp", ".ico", ".tiff", ".avif"
+        };
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                string tag = trimmed.Length >= 3 ? trimmed.Substring(0, 3) : trimmed;
+                if (!inFence)
+                {
+                    inFence = true;
+                    fenceMarker = tag;
+                }
+                else if (tag == fenceMarker || trimmed == ":::")
+                {
+                    inFence = false;
+                    fenceMarker = string.Empty;
+                }
+                continue;
+            }
+
+            if (inFence) continue;
+
+            // Strip inline code `...`
+            string lineWithoutCode = Regex.Replace(line, @"`[^`]*`", " ");
+
+            // 1. Markdown Images ![alt](url)
+            foreach (Match m in mdImgRegex.Matches(lineWithoutCode))
+            {
+                string alt = m.Groups["alt"].Value.Trim();
+                string url = m.Groups["url"].Value.Trim();
+                ProcessImageItem(i + 1, alt, url, isHtml: false);
+            }
+
+            // 2. HTML Images <img ...>
+            foreach (Match m in htmlImgRegex.Matches(lineWithoutCode))
+            {
+                string tag = m.Value;
+                var srcMatch = htmlSrcRegex.Match(tag);
+                if (!srcMatch.Success) continue;
+                string url = srcMatch.Groups["url"].Value.Trim();
+                var altMatch = htmlAltRegex.Match(tag);
+                string alt = altMatch.Success ? altMatch.Groups["alt"].Value.Trim() : string.Empty;
+                ProcessImageItem(i + 1, alt, url, isHtml: true);
+            }
+        }
+
+        void ProcessImageItem(int lineNumber, string alt, string url, bool isHtml)
+        {
+            bool hasAlt = !string.IsNullOrWhiteSpace(alt);
+            bool isGeneric = hasAlt && genericNames.Contains(alt);
+            bool isDataUri = url.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase);
+            bool isHttp = url.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
+            bool isHttps = url.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+            bool isLocalRelative = !isDataUri && !isHttp && !isHttps;
+
+            string ext = "";
+            if (!isDataUri)
+            {
+                try
+                {
+                    int queryIdx = url.IndexOfAny(new[] { '?', '#' });
+                    string cleanPath = queryIdx >= 0 ? url.Substring(0, queryIdx) : url;
+                    ext = Path.GetExtension(cleanPath);
+                }
+                catch { }
+            }
+            bool hasValidExt = isDataUri || (!string.IsNullOrEmpty(ext) && validExtensions.Contains(ext));
+
+            string? warning = null;
+            if (!hasAlt)
+            {
+                warning = "Missing alt-text description (WCAG 1.1.1 failure)";
+                issues.Add($"Line {lineNumber}: Missing alt-text for image '{TruncateUrl(url)}'");
+            }
+            else if (isGeneric)
+            {
+                warning = $"Generic placeholder alt-text '{alt}'";
+                issues.Add($"Line {lineNumber}: Non-descriptive generic alt-text '{alt}'");
+            }
+            else if (isHttp)
+            {
+                warning = "Insecure HTTP image URL (mixed content hazard)";
+                issues.Add($"Line {lineNumber}: Insecure HTTP image '{TruncateUrl(url)}'");
+            }
+            else if (!hasValidExt && !isLocalRelative)
+            {
+                warning = "Missing standard image file extension";
+                issues.Add($"Line {lineNumber}: Image URL lacks standard image extension");
+            }
+
+            images.Add(new ImageAccessibilityItem(
+                LineNumber: lineNumber,
+                AltText: alt,
+                SourceUrl: url,
+                IsHtmlTag: isHtml,
+                HasAltText: hasAlt,
+                HasGenericAltText: isGeneric,
+                IsLocalRelative: isLocalRelative,
+                IsSecureWeb: isHttps,
+                IsInsecureHttp: isHttp,
+                IsDataUri: isDataUri,
+                HasValidImageExtension: hasValidExt,
+                WarningMessage: warning));
+        }
+
+        static string TruncateUrl(string u) => u.Length <= 40 ? u : u.Substring(0, 37) + "…";
+
+        int totalImages = images.Count;
+        if (totalImages == 0)
+        {
+            return new ImageAccessibilityAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                images, issues, "No Images Detected",
+                "Markdown image accessibility audit: 0 images · Document contains no embedded media");
+        }
+
+        int missingAlt = images.Count(img => !img.HasAltText);
+        int genericAlt = images.Count(img => img.HasGenericAltText);
+        int insecureHttp = images.Count(img => img.IsInsecureHttp);
+        int dataUris = images.Count(img => img.IsDataUri);
+        int localRelative = images.Count(img => img.IsLocalRelative);
+        int invalidExt = images.Count(img => !img.HasValidImageExtension);
+        int validAccessible = images.Count(img => img.HasAltText && !img.HasGenericAltText && !img.IsInsecureHttp);
+
+        double penalty = (missingAlt * 25.0) + (genericAlt * 10.0) + (insecureHttp * 10.0) + (invalidExt * 5.0);
+        double score = Math.Clamp(100.0 - (penalty / totalImages), 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 when missingAlt == 0 && genericAlt == 0 => "WCAG AAA Compliant Image Content",
+            >= 80.0 => "Accessible with Minor Polish Opportunities",
+            >= 60.0 => "Missing Alt-Text or Insecure Protocols",
+            _ => "Non-Compliant Image Accessibility Hazards"
+        };
+
+        string summary = FormatImageAccessibilitySummary(
+            totalImages, validAccessible, missingAlt, genericAlt, insecureHttp, dataUris, localRelative, score, category);
+
+        return new ImageAccessibilityAudit(
+            TotalImages: totalImages,
+            ValidAccessibleImages: validAccessible,
+            MissingAltCount: missingAlt,
+            GenericAltCount: genericAlt,
+            BrokenOrMalformedCount: invalidExt,
+            InsecureHttpCount: insecureHttp,
+            DataUriCount: dataUris,
+            LocalRelativeCount: localRelative,
+            AccessibilityScore: Math.Round(score, 1),
+            Images: images,
+            Issues: issues,
+            ComplianceCategory: category,
+            Summary: summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown image accessibility and alt-text compliance metrics.
+    /// </summary>
+    public static string FormatImageAccessibilitySummary(string? markdownText)
+        => AuditImageLinkAndAltTextAccessibility(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown image accessibility and alt-text compliance metrics.
+    /// </summary>
+    public static string FormatImageAccessibilitySummary(
+        int totalImages, int validAccessible, int missingAlt, int genericAlt, int insecureHttp,
+        int dataUris, int localRelative, double score, string category)
+    {
+        if (totalImages == 0)
+            return "Markdown image accessibility audit: 0 images · Document contains no embedded media";
+
+        string imgLabel = totalImages == 1 ? "1 image" : $"{totalImages} images";
+        var alerts = new List<string>();
+        if (missingAlt > 0) alerts.Add($"🚨 {missingAlt} missing alt-text");
+        if (genericAlt > 0) alerts.Add($"⚠ {genericAlt} generic alt");
+        if (insecureHttp > 0) alerts.Add($"🔓 {insecureHttp} insecure http");
+        if (dataUris > 0) alerts.Add($"{dataUris} data-uri");
+        if (localRelative > 0) alerts.Add($"{localRelative} local relative");
+
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% descriptive alt-text";
+
+        return $"Markdown image accessibility audit ({imgLabel} · {category} · {score:0.#}% compliance){alertSuffix}";
+    }
 }
 
 /// <summary>
@@ -5892,3 +6113,40 @@ public sealed record AdmonitionCalloutAudit(
     IReadOnlyList<string> Issues,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, alt-text presence, and URL validity for an individual markdown or HTML image.
+/// </summary>
+public sealed record ImageAccessibilityItem(
+    int LineNumber,
+    string AltText,
+    string SourceUrl,
+    bool IsHtmlTag,
+    bool HasAltText,
+    bool HasGenericAltText,
+    bool IsLocalRelative,
+    bool IsSecureWeb,
+    bool IsInsecureHttp,
+    bool IsDataUri,
+    bool HasValidImageExtension,
+    string? WarningMessage);
+
+/// <summary>
+/// Represents the result of an audit of markdown image accessibility, WCAG alt-text compliance,
+/// standard image file extensions, and insecure HTTP vs secure HTTPS protocols.
+/// </summary>
+public sealed record ImageAccessibilityAudit(
+    int TotalImages,
+    int ValidAccessibleImages,
+    int MissingAltCount,
+    int GenericAltCount,
+    int BrokenOrMalformedCount,
+    int InsecureHttpCount,
+    int DataUriCount,
+    int LocalRelativeCount,
+    double AccessibilityScore,
+    IReadOnlyList<ImageAccessibilityItem> Images,
+    IReadOnlyList<string> Issues,
+    string ComplianceCategory,
+    string Summary);
+

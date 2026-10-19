@@ -312,6 +312,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceHeadingAdvisorItem" Text="Copy workspace markdown header depth uniformity &amp; slug advisor" Click="OnCopyWorkspaceHeadingAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyWorkspaceCodeFenceAdvisorItem" Text="Copy workspace code fence language &amp; highlighter coverage advisor" Click="OnCopyWorkspaceCodeFenceAdvisorClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

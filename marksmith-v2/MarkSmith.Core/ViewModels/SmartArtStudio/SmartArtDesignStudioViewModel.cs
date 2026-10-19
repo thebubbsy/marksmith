@@ -5595,6 +5595,202 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Radial cycle orbital balance audit (Hub: \"{hubTitle}\" · {spokeLabel} [{angleStep:0.#}° step] · {category} · {score:0.#}% score): Text std dev ±{stdDev:0.#}w{imbalanceAlert}";
     }
+
+    /// <summary>
+    /// Audits SmartArt pyramid and funnel diagrams for layer volume, height tapering,
+    /// proportional mass balance, and apex overloading ("Inverted Mass Traps").
+    /// </summary>
+    public SmartArtPyramidTaperingAudit AuditPyramidTaperingAndMassBalance(string? markdown = null, bool isInverted = false)
+    {
+        string text = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            string emptySummary = "Pyramid tapering audit: 0 tiers · Outline is empty";
+            StatusMessage = emptySummary;
+            return new SmartArtPyramidTaperingAudit(
+                0, 0, isInverted, 0, 100.0, 1.0,
+                Array.Empty<PyramidTierInfo>(), "Empty Outline", emptySummary);
+        }
+
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var parsedTiers = new List<(string Title, int Words, int Chars, int SubBullets)>();
+
+        string? currentTitle = null;
+        int currentWords = 0;
+        int currentChars = 0;
+        int currentSubBullets = 0;
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::")) continue;
+
+            int indent = rawLine.TakeWhile(c => c == ' ' || c == '\t').Sum(c => c == '\t' ? 4 : 1);
+            bool isBullet = trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ") || Regex.IsMatch(trimmed, @"^\d+\.\s");
+            string clean = Regex.Replace(trimmed, @"^[-*+#\d.]+\s*", "").Trim();
+            if (string.IsNullOrWhiteSpace(clean)) continue;
+
+            int words = clean.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+
+            if ((isBullet && indent <= 2) || (indent == 0 && isBullet) || trimmed.StartsWith("# "))
+            {
+                if (currentTitle != null)
+                {
+                    parsedTiers.Add((currentTitle, currentWords, currentChars, currentSubBullets));
+                }
+                currentTitle = clean;
+                currentWords = words;
+                currentChars = clean.Length;
+                currentSubBullets = 0;
+            }
+            else
+            {
+                if (currentTitle != null)
+                {
+                    currentWords += words;
+                    currentChars += clean.Length;
+                    currentSubBullets++;
+                }
+                else
+                {
+                    currentTitle = clean;
+                    currentWords = words;
+                    currentChars = clean.Length;
+                    currentSubBullets = 0;
+                }
+            }
+        }
+
+        if (currentTitle != null)
+        {
+            parsedTiers.Add((currentTitle, currentWords, currentChars, currentSubBullets));
+        }
+
+        int totalTiers = parsedTiers.Count;
+        if (totalTiers == 0)
+        {
+            string emptySummary = "Pyramid tapering audit: 0 tiers · No tiers found in outline";
+            StatusMessage = emptySummary;
+            return new SmartArtPyramidTaperingAudit(
+                0, 0, isInverted, 0, 100.0, 1.0,
+                Array.Empty<PyramidTierInfo>(), "Empty Outline", emptySummary);
+        }
+
+        int totalWords = Math.Max(1, parsedTiers.Sum(t => t.Words));
+        double nSq = totalTiers * totalTiers;
+        var evaluatedTiers = new List<PyramidTierInfo>();
+        int trapCount = 0;
+        double sumDensity = 0.0;
+
+        for (int i = 0; i < totalTiers; i++)
+        {
+            var tier = parsedTiers[i];
+            int tierRank = i + 1; // 1-based
+
+            // Standard pyramid: Tier 1 is apex (smallest), Tier N is base (largest)
+            // Inverted pyramid: Tier 1 is base (largest), Tier N is apex (smallest)
+            double areaFraction = isInverted
+                ? (2.0 * (totalTiers - tierRank + 1) - 1.0) / nSq
+                : (2.0 * tierRank - 1.0) / nSq;
+
+            double expectedWords = Math.Max(1.0, totalWords * areaFraction);
+            double densityRatio = Math.Round(tier.Words / expectedWords, 2);
+            sumDensity += densityRatio;
+
+            bool isApexTier = isInverted ? (tierRank == totalTiers) : (tierRank == 1);
+            bool isBaseTier = isInverted ? (tierRank == 1) : (tierRank == totalTiers);
+
+            bool isTrap = false;
+            if (isApexTier && totalTiers >= 2)
+            {
+                var oppositeTier = isInverted ? parsedTiers[0] : parsedTiers[^1];
+                if ((densityRatio >= 2.0 && tier.Words >= 5) || (tier.Words > oppositeTier.Words && tier.Words >= 6))
+                {
+                    isTrap = true;
+                }
+            }
+            else if (areaFraction <= 0.25 && densityRatio >= 2.0)
+            {
+                isTrap = true;
+            }
+
+            if (isTrap) trapCount++;
+
+            string grade;
+            if (isTrap)
+            {
+                grade = "Inverted Mass Trap (Apex Overloaded)";
+            }
+            else if (isBaseTier && densityRatio < 0.35 && tier.Words < 4)
+            {
+                grade = "Base Starved (Excess Gutter)";
+            }
+            else
+            {
+                grade = "Balanced Taper";
+            }
+
+            evaluatedTiers.Add(new PyramidTierInfo(
+                TierIndex: tierRank,
+                Title: tier.Title,
+                WordCount: tier.Words,
+                CharacterCount: tier.Chars,
+                SubBulletCount: tier.SubBullets,
+                GeometricRelativeArea: Math.Round(areaFraction * 100.0, 1),
+                TextDensityRatio: densityRatio,
+                HasInvertedMassTrap: isTrap,
+                TaperGrade: grade));
+        }
+
+        double meanDensity = Math.Round(sumDensity / totalTiers, 2);
+        double score = 100.0 - (trapCount * 28.0);
+        if (totalTiers == 1) score = 60.0;
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 90.0 when trapCount == 0 => "Harmonic Proportional Mass Taper",
+            >= 75.0 when trapCount == 0 => "Balanced Pyramid Stacking",
+            >= 50.0 => "Moderate Text Mass Inversion",
+            _ => "Severe Inverted Mass Trap"
+        };
+
+        string summary = FormatPyramidTaperingSummary(
+            totalTiers, totalWords, isInverted, trapCount, score, category);
+
+        StatusMessage = summary;
+
+        return new SmartArtPyramidTaperingAudit(
+            TotalTiers: totalTiers,
+            TotalWords: totalWords,
+            IsInverted: isInverted,
+            InvertedMassTrapCount: trapCount,
+            TaperSmoothnessScore: score,
+            MeanDensityRatio: meanDensity,
+            Tiers: evaluatedTiers,
+            Category: category,
+            Summary: summary);
+    }
+
+    public static SmartArtPyramidTaperingAudit AuditPyramidTaperingAndMassBalance(string? markdown, bool isInverted = false, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditPyramidTaperingAndMassBalance(markdown, isInverted);
+    }
+
+    public static string FormatPyramidTaperingSummary(
+        int totalTiers, int totalWords, bool isInverted, int trapCount,
+        double score, string category)
+    {
+        if (totalTiers == 0) return "Pyramid tapering audit: 0 tiers · Outline is empty";
+
+        string tierLabel = totalTiers == 1 ? "1 tier" : $"{totalTiers} tiers";
+        string modeLabel = isInverted ? "Inverted/Funnel" : "Standard Apex-Up";
+        string trapAlert = trapCount > 0 ? $" · ⚠ {trapCount} inverted mass trap{(trapCount == 1 ? "" : "s")}" : " · Proportional mass aligned";
+
+        return $"Pyramid & funnel tapering audit ({tierLabel} [{totalWords} words · {modeLabel}] · {category} · {score:0.#}% score){trapAlert}";
+    }
 }
 
 /// <summary>
@@ -5999,3 +6195,33 @@ public sealed record SmartArtRadialCycleAudit(
     IReadOnlyList<RadialSpokeInfo> Spokes,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated text volume, geometric capacity, density ratio, and inverted mass trap detection for an individual pyramid or funnel tier.
+/// </summary>
+public sealed record PyramidTierInfo(
+    int TierIndex,
+    string Title,
+    int WordCount,
+    int CharacterCount,
+    int SubBulletCount,
+    double GeometricRelativeArea,
+    double TextDensityRatio,
+    bool HasInvertedMassTrap,
+    string TaperGrade);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt pyramid and funnel layer volume, height tapering,
+/// proportional mass balance, and apex overloading.
+/// </summary>
+public sealed record SmartArtPyramidTaperingAudit(
+    int TotalTiers,
+    int TotalWords,
+    bool IsInverted,
+    int InvertedMassTrapCount,
+    double TaperSmoothnessScore,
+    double MeanDensityRatio,
+    IReadOnlyList<PyramidTierInfo> Tiers,
+    string Category,
+    string Summary);
+

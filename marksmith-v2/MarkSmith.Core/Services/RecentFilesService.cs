@@ -4114,6 +4114,235 @@ public sealed class RecentFilesService
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · Consistent hierarchy";
         return $"Workspace heading uniformity advisor ({docLabel}, {headingLabel} · {category} · {score:0.#}% score){details}";
     }
+
+    /// <summary>
+    /// Audits markdown documents across the workspace for code fence language tags,
+    /// syntax highlighter support coverage, canonical language aliases, and untagged/bare code blocks.
+    /// </summary>
+    public static WorkspaceCodeFenceLanguageAudit AuditWorkspaceCodeFenceLanguageTags(
+        IEnumerable<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var fileList = (files ?? Enumerable.Empty<string>()).ToList();
+        var exists = fileExistsProvider ?? File.Exists;
+        var reader = contentReader ?? File.ReadAllText;
+
+        if (fileList.Count == 0)
+        {
+            string emptySummary = "Workspace code fence language advisor: 0 documents · Workspace is empty";
+            return new WorkspaceCodeFenceLanguageAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceCodeFenceItem>(),
+                new Dictionary<string, int>(),
+                "Workspace Empty",
+                emptySummary);
+        }
+
+        var canonicalAliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["cs"] = "csharp",
+            ["py"] = "python",
+            ["js"] = "javascript",
+            ["ts"] = "typescript",
+            ["sh"] = "bash",
+            ["ps1"] = "powershell",
+            ["yml"] = "yaml",
+            ["md"] = "markdown",
+            ["rb"] = "ruby",
+            ["rs"] = "rust",
+            ["docker"] = "dockerfile"
+        };
+
+        var supportedLanguages = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "csharp", "cs", "c#", "python", "py", "javascript", "js", "typescript", "ts",
+            "json", "xml", "html", "css", "sql", "yaml", "yml", "bash", "sh", "powershell", "ps1",
+            "markdown", "md", "mermaid", "rust", "rs", "go", "cpp", "c", "diff", "dockerfile",
+            "docker", "svg", "ini", "toml", "r", "ruby", "rb", "java", "kotlin", "swift",
+            "php", "perl", "scala", "latex", "tex", "text", "plaintext"
+        };
+
+        var allFences = new List<WorkspaceCodeFenceItem>();
+        var langDistribution = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        int evaluatedDocCount = 0;
+        int untaggedCount = 0;
+        int supportedCount = 0;
+        int aliasCount = 0;
+        int unsupportedCount = 0;
+
+        foreach (var file in fileList)
+        {
+            if (string.IsNullOrWhiteSpace(file)) continue;
+            string ext = Path.GetExtension(file);
+            if (!string.Equals(ext, ".md", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(ext, ".markdown", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!exists(file)) continue;
+
+            string text;
+            try
+            {
+                text = reader(file);
+            }
+            catch
+            {
+                continue;
+            }
+
+            evaluatedDocCount++;
+            var lines = text.Replace("\r\n", "\n").Split('\n');
+            bool inCodeFence = false;
+            string fenceMarker = string.Empty;
+            string fileName = Path.GetFileName(file);
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                var trimmed = line.Trim();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    string marker = trimmed.Length >= 3 ? trimmed.Substring(0, 3) : trimmed;
+
+                    if (!inCodeFence)
+                    {
+                        inCodeFence = true;
+                        fenceMarker = marker;
+
+                        string rawTag = trimmed.Length > 3 ? trimmed.Substring(3).Trim() : string.Empty;
+                        string cleanTag = rawTag.Split(new[] { ' ', '\t', '{' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
+
+                        bool isUntagged = string.IsNullOrWhiteSpace(cleanTag);
+                        string normalized;
+                        bool isAlias = false;
+                        string recommended;
+                        bool hasSupport = false;
+
+                        if (isUntagged)
+                        {
+                            untaggedCount++;
+                            normalized = "unspecified";
+                            recommended = "text";
+                        }
+                        else
+                        {
+                            if (canonicalAliases.TryGetValue(cleanTag, out var canonical))
+                            {
+                                isAlias = true;
+                                aliasCount++;
+                                normalized = canonical;
+                                recommended = canonical;
+                                hasSupport = true;
+                            }
+                            else
+                            {
+                                normalized = cleanTag.ToLowerInvariant();
+                                recommended = cleanTag.ToLowerInvariant();
+                                hasSupport = supportedLanguages.Contains(cleanTag);
+                            }
+
+                            if (hasSupport) supportedCount++;
+                            else unsupportedCount++;
+                        }
+
+                        langDistribution[normalized] = langDistribution.TryGetValue(normalized, out int cnt) ? cnt + 1 : 1;
+
+                        allFences.Add(new WorkspaceCodeFenceItem(
+                            FilePath: file,
+                            FileName: fileName,
+                            LineNumber: i + 1,
+                            RawFenceTag: rawTag,
+                            NormalizedLanguage: normalized,
+                            IsUntagged: isUntagged,
+                            HasHighlighterSupport: hasSupport,
+                            IsNonCanonicalAlias: isAlias,
+                            RecommendedTag: recommended));
+                    }
+                    else if (marker == fenceMarker)
+                    {
+                        inCodeFence = false;
+                        fenceMarker = string.Empty;
+                    }
+                }
+            }
+        }
+
+        int totalFences = allFences.Count;
+        int taggedCount = totalFences - untaggedCount;
+        double coverageScore;
+
+        if (totalFences == 0)
+        {
+            coverageScore = 100.0;
+        }
+        else
+        {
+            double untaggedPenalty = (untaggedCount * 40.0) / totalFences;
+            double unsupportedPenalty = (unsupportedCount * 15.0) / totalFences;
+            double aliasPenalty = (aliasCount * 5.0) / totalFences;
+            coverageScore = Math.Clamp(100.0 - untaggedPenalty - unsupportedPenalty - aliasPenalty, 0.0, 100.0);
+        }
+
+        string category = coverageScore switch
+        {
+            >= 95.0 when untaggedCount == 0 => "Full Syntax Highlighting Coverage & Canonical Tags",
+            >= 80.0 => "Good Syntax Highlighter Coverage",
+            >= 60.0 => "Untagged / Bare Code Fences Detected",
+            _ => "Widespread Untagged Code Blocks"
+        };
+
+        string summary = FormatWorkspaceCodeFenceLanguageSummary(
+            evaluatedDocCount, totalFences, taggedCount, untaggedCount,
+            supportedCount, aliasCount, coverageScore, category);
+
+        return new WorkspaceCodeFenceLanguageAudit(
+            TotalDocumentsEvaluated: evaluatedDocCount,
+            TotalCodeFencesFound: totalFences,
+            TaggedFencesCount: taggedCount,
+            UntaggedFencesCount: untaggedCount,
+            SupportedHighlighterCount: supportedCount,
+            UnsupportedOrUnknownCount: unsupportedCount,
+            NonCanonicalAliasCount: aliasCount,
+            CoverageScore: Math.Round(coverageScore, 1),
+            CodeFences: allFences,
+            LanguageDistribution: langDistribution,
+            Category: category,
+            Summary: summary);
+    }
+
+    /// <summary>
+    /// Audits a single markdown file for code fence language tags.
+    /// </summary>
+    public static WorkspaceCodeFenceLanguageAudit AuditWorkspaceCodeFenceLanguageTags(
+        string filePath,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        return AuditWorkspaceCodeFenceLanguageTags(new[] { filePath }, fileExistsProvider, contentReader);
+    }
+
+    public static string FormatWorkspaceCodeFenceLanguageSummary(
+        int totalDocs, int totalFences, int taggedCount, int untaggedCount,
+        int supportedCount, int aliasCount, double score, string category)
+    {
+        if (totalDocs == 0) return "Workspace code fence language advisor: 0 documents · Workspace is empty";
+        if (totalFences == 0) return $"Workspace code fence language advisor ({totalDocs} docs): 0 code fences found";
+
+        string docLabel = totalDocs == 1 ? "1 document" : $"{totalDocs} documents";
+        string fenceLabel = totalFences == 1 ? "1 fence" : $"{totalFences} fences";
+
+        var alerts = new List<string>();
+        if (untaggedCount > 0) alerts.Add($"⚠ {untaggedCount} untagged");
+        if (aliasCount > 0) alerts.Add($"{aliasCount} non-canonical alias{(aliasCount == 1 ? "" : "es")}");
+        if (supportedCount > 0) alerts.Add($"{supportedCount} highlighted");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% highlighted";
+        return $"Workspace code fence language advisor ({docLabel}, {fenceLabel} · {category} · {score:0.#}% score){details}";
+    }
 }
 
 /// <summary>
@@ -4570,3 +4799,36 @@ public sealed record WorkspaceHeadingUniformityAudit(
     IReadOnlyList<string> Issues,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated code fence language tag, highlighter support, and canonical alias recommendations for a code block.
+/// </summary>
+public sealed record WorkspaceCodeFenceItem(
+    string FilePath,
+    string FileName,
+    int LineNumber,
+    string RawFenceTag,
+    string NormalizedLanguage,
+    bool IsUntagged,
+    bool HasHighlighterSupport,
+    bool IsNonCanonicalAlias,
+    string RecommendedTag);
+
+/// <summary>
+/// Represents the result of an audit of workspace code fence language tags, syntax highlighter coverage,
+/// and canonical language alias consistency.
+/// </summary>
+public sealed record WorkspaceCodeFenceLanguageAudit(
+    int TotalDocumentsEvaluated,
+    int TotalCodeFencesFound,
+    int TaggedFencesCount,
+    int UntaggedFencesCount,
+    int SupportedHighlighterCount,
+    int UnsupportedOrUnknownCount,
+    int NonCanonicalAliasCount,
+    double CoverageScore,
+    IReadOnlyList<WorkspaceCodeFenceItem> CodeFences,
+    IReadOnlyDictionary<string, int> LanguageDistribution,
+    string Category,
+    string Summary);
+

@@ -4088,6 +4088,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditSpectralBisectionClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditSpectralBisectionAndAlgebraicConnectivity();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5071,6 +5079,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditClusteringTransitivityItem.Click += OnAuditClusteringTransitivityClick;
             menu.Items.Add(auditClusteringTransitivityItem);
+
+            var auditSpectralBisectionItem = new MenuFlyoutItem
+            {
+                Text = "Audit spectral bisection & algebraic connectivity",
+                Icon = new FontIcon { Glyph = "\uE91B" }
+            };
+            auditSpectralBisectionItem.Click += OnAuditSpectralBisectionClick;
+            menu.Items.Add(auditSpectralBisectionItem);
 
             var fitItem = new MenuFlyoutItem
 

@@ -4648,6 +4648,187 @@ public static class LineDiff
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : $" · All ≤{maxWidth} cols";
         return $"Diff line-wrap & overflow audit ({rowLabel} [limit {maxWidth} cols] · {category} · {stabilityScore:0.#}% score){details}";
     }
+
+    /// <summary>
+    /// Audits unified diff rows or source text for unresolved Git merge conflict markers
+    /// (&lt;&lt;&lt;&lt;&lt;&lt;&lt;, =======, &gt;&gt;&gt;&gt;&gt;&gt;&gt;, |||||||), branch labels, unmerged hunk boundaries,
+    /// and orphaned rebase residue.
+    /// </summary>
+    public static GitConflictMarkerAudit AuditGitConflictMarkersAndRebaseResidue(
+        IEnumerable<UnifiedRow>? unifiedRows)
+    {
+        var lines = unifiedRows?.Select(r => r.Text ?? string.Empty).ToList() ?? new List<string>();
+        return AuditGitConflictMarkersAndRebaseResidue(lines);
+    }
+
+    /// <summary>
+    /// Audits text content for unresolved Git merge conflict markers and rebase residue.
+    /// </summary>
+    public static GitConflictMarkerAudit AuditGitConflictMarkersAndRebaseResidue(string? content)
+    {
+        if (string.IsNullOrEmpty(content))
+        {
+            return AuditGitConflictMarkersAndRebaseResidue(Array.Empty<string>());
+        }
+        var lines = content.Replace("\r\n", "\n").Split('\n');
+        return AuditGitConflictMarkersAndRebaseResidue(lines);
+    }
+
+    /// <summary>
+    /// Core scanner for Git conflict markers across an indexed list of text lines.
+    /// </summary>
+    public static GitConflictMarkerAudit AuditGitConflictMarkersAndRebaseResidue(IReadOnlyList<string> lines)
+    {
+        if (lines == null || lines.Count == 0)
+        {
+            string emptySummary = "Git conflict marker audit: 0 lines · Clean Working Tree · 100% score (Zero conflict residue)";
+            return new GitConflictMarkerAudit(
+                0, 0, 0, 0, false, 100.0,
+                Array.Empty<ConflictBlockInfo>(),
+                "Clean Working Tree / Zero Conflict Residue",
+                emptySummary);
+        }
+
+        var blocks = new List<ConflictBlockInfo>();
+        int totalMarkers = 0;
+        int malformedCount = 0;
+        int i = 0;
+
+        while (i < lines.Count)
+        {
+            string line = lines[i];
+            string trimmed = line.TrimStart();
+
+            if (trimmed.StartsWith("<<<<<<<"))
+            {
+                totalMarkers++;
+                int startRow = i;
+                string oursLabel = trimmed.Length > 7 ? trimmed[7..].Trim() : "HEAD";
+                int dividerRow = -1;
+                int endRow = -1;
+                string theirsLabel = "";
+                int j = i + 1;
+
+                while (j < lines.Count)
+                {
+                    string innerTrimmed = lines[j].TrimStart();
+                    if (innerTrimmed.StartsWith("<<<<<<<"))
+                    {
+                        // Nested / unclosed marker before finding previous resolution
+                        break;
+                    }
+                    if (innerTrimmed.StartsWith("=======") && dividerRow == -1)
+                    {
+                        totalMarkers++;
+                        dividerRow = j;
+                    }
+                    else if (innerTrimmed.StartsWith(">>>>>>>"))
+                    {
+                        totalMarkers++;
+                        endRow = j;
+                        theirsLabel = innerTrimmed.Length > 7 ? innerTrimmed[7..].Trim() : "Incoming";
+                        j++;
+                        break;
+                    }
+                    else if (innerTrimmed.StartsWith("|||||||"))
+                    {
+                        totalMarkers++; // diff3 common ancestor marker
+                    }
+                    j++;
+                }
+
+                bool isMalformed = dividerRow == -1 || endRow == -1;
+                if (isMalformed) malformedCount++;
+
+                int oursLines = dividerRow != -1 ? Math.Max(0, dividerRow - startRow - 1) : Math.Max(0, (endRow != -1 ? endRow : j) - startRow - 1);
+                int theirsLines = (dividerRow != -1 && endRow != -1) ? Math.Max(0, endRow - dividerRow - 1) : 0;
+
+                string snippet = $"Rows {startRow + 1}..{(endRow != -1 ? endRow + 1 : j)}: [{oursLabel} ({oursLines}L) vs {theirsLabel} ({theirsLines}L)]";
+
+                blocks.Add(new ConflictBlockInfo(
+                    StartRowIndex: startRow,
+                    DividerRowIndex: dividerRow,
+                    EndRowIndex: endRow,
+                    OursLabel: oursLabel,
+                    TheirsLabel: theirsLabel,
+                    OursLineCount: oursLines,
+                    TheirsLineCount: theirsLines,
+                    IsMalformed: isMalformed,
+                    Snippet: snippet));
+
+                i = j;
+            }
+            else
+            {
+                if (trimmed.StartsWith("=======") || trimmed.StartsWith(">>>>>>>") || trimmed.StartsWith("|||||||"))
+                {
+                    totalMarkers++;
+                    malformedCount++;
+                    blocks.Add(new ConflictBlockInfo(
+                        StartRowIndex: i,
+                        DividerRowIndex: trimmed.StartsWith("=======") ? i : -1,
+                        EndRowIndex: trimmed.StartsWith(">>>>>>>") ? i : -1,
+                        OursLabel: "Orphan",
+                        TheirsLabel: trimmed.Length > 7 ? trimmed[7..].Trim() : "Orphan",
+                        OursLineCount: 0,
+                        TheirsLineCount: 0,
+                        IsMalformed: true,
+                        Snippet: $"Row {i + 1}: Orphaned conflict marker residue ('{trimmed}')"));
+                }
+                i++;
+            }
+        }
+
+        bool hasActiveConflicts = blocks.Count > 0 || totalMarkers > 0;
+        double integrityScore;
+        string category;
+
+        if (!hasActiveConflicts)
+        {
+            integrityScore = 100.0;
+            category = "Clean Working Tree / Zero Conflict Residue";
+        }
+        else
+        {
+            double penalty = (blocks.Count * 35.0) + (malformedCount * 25.0);
+            integrityScore = Math.Round(Math.Clamp(100.0 - penalty, 0.0, 50.0), 1);
+            category = malformedCount > 0
+                ? "Malformed / Corrupted Git Conflict Markers"
+                : "Active Merge Conflict Block(s) Detected";
+        }
+
+        string summary = FormatGitConflictMarkersSummary(
+            lines.Count, blocks.Count, totalMarkers, malformedCount, integrityScore, category);
+
+        return new GitConflictMarkerAudit(
+            TotalLinesEvaluated: lines.Count,
+            ConflictBlockCount: blocks.Count,
+            UnresolvedMarkerCount: totalMarkers,
+            MalformedConflictCount: malformedCount,
+            HasActiveConflicts: hasActiveConflicts,
+            ConflictFreeIntegrityScore: integrityScore,
+            ConflictBlocks: blocks,
+            Category: category,
+            Summary: summary);
+    }
+
+    public static string FormatGitConflictMarkersSummary(
+        int totalLines, int blockCount, int markerCount, int malformedCount,
+        double score, string category)
+    {
+        string lineLabel = totalLines == 1 ? "1 line" : $"{totalLines} lines";
+        if (blockCount == 0 && markerCount == 0)
+        {
+            return $"Git conflict marker audit ({lineLabel} · Clean Working Tree · 100% score): Zero conflict markers or rebase residue";
+        }
+
+        var alerts = new List<string>();
+        alerts.Add($"⚠ {blockCount} conflict block{(blockCount == 1 ? "" : "s")}");
+        alerts.Add($"{markerCount} marker{(markerCount == 1 ? "" : "s")}");
+        if (malformedCount > 0) alerts.Add($"🚨 {malformedCount} malformed/orphan");
+
+        return $"Git conflict marker audit ({lineLabel} · {category} · {score:0.#}% score): {string.Join(", ", alerts)}";
+    }
 }
 
 /// <summary>
@@ -4936,3 +5117,33 @@ public sealed record DiffLineWrapOverflowAudit(
     IReadOnlyList<DiffLineOverflowInfo> Overflows,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated conflict hunk coordinates, branch labels, line counts, and syntax validity for an individual Git conflict block.
+/// </summary>
+public sealed record ConflictBlockInfo(
+    int StartRowIndex,
+    int DividerRowIndex,
+    int EndRowIndex,
+    string OursLabel,
+    string TheirsLabel,
+    int OursLineCount,
+    int TheirsLineCount,
+    bool IsMalformed,
+    string Snippet);
+
+/// <summary>
+/// Represents the result of an audit of Git merge conflict markers (&lt;&lt;&lt;&lt;&lt;&lt;&lt;, =======, &gt;&gt;&gt;&gt;&gt;&gt;&gt;),
+/// unmerged hunk boundaries, and rebase residue.
+/// </summary>
+public sealed record GitConflictMarkerAudit(
+    int TotalLinesEvaluated,
+    int ConflictBlockCount,
+    int UnresolvedMarkerCount,
+    int MalformedConflictCount,
+    bool HasActiveConflicts,
+    double ConflictFreeIntegrityScore,
+    IReadOnlyList<ConflictBlockInfo> ConflictBlocks,
+    string Category,
+    string Summary);
+

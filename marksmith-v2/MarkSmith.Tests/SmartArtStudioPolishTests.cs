@@ -1683,6 +1683,46 @@ public class SmartArtStudioPolishTests
         Assert.Equal(65.0, degenerateAudit.SpokeBalanceScore);
         Assert.Contains("< 3 Spokes", degenerateAudit.Category);
     }
+
+    [Fact]
+    public void Run169_AuditPyramidTaperingAndMassBalance_DetectsInvertedMassTraps()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditPyramidTaperingAndMassBalance("");
+        Assert.Equal(0, emptyAudit.TotalTiers);
+        Assert.Equal(100.0, emptyAudit.TaperSmoothnessScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        // 2. Balanced standard pyramid (Apex is brief, base is broad and descriptive)
+        var balancedMd = string.Join("\n",
+            "- Vision & Executive Strategy",
+            "- Tactical Objectives & Milestone Plan",
+            "- Detailed Operational Execution Workflows and Infrastructure Requirements Across Global Engineering Teams");
+
+        var balancedAudit = SmartArtDesignStudioViewModel.AuditPyramidTaperingAndMassBalance(balancedMd, isInverted: false);
+        Assert.Equal(3, balancedAudit.TotalTiers);
+        Assert.False(balancedAudit.IsInverted);
+        Assert.Equal(0, balancedAudit.InvertedMassTrapCount);
+        Assert.True(balancedAudit.TaperSmoothnessScore >= 90.0);
+        Assert.Equal("Harmonic Proportional Mass Taper", balancedAudit.Category);
+
+        // 3. Inverted mass trap (Apex has massive word dump while base is tiny single word)
+        var trapMd = string.Join("\n",
+            "- Highly Verbose Apex Strategy Requiring Extensive Elaboration and Deep Strategic Architectural Justification Across Multiple Paradigms",
+            "- Mid Layer",
+            "- Base");
+
+        var trapAudit = SmartArtDesignStudioViewModel.AuditPyramidTaperingAndMassBalance(trapMd, isInverted: false);
+        Assert.Equal(3, trapAudit.TotalTiers);
+        Assert.True(trapAudit.InvertedMassTrapCount >= 1);
+        Assert.True(trapAudit.Tiers[0].HasInvertedMassTrap);
+        Assert.True(trapAudit.TaperSmoothnessScore < 90.0);
+
+        // 4. Inverted funnel mode
+        var funnelAudit = SmartArtDesignStudioViewModel.AuditPyramidTaperingAndMassBalance(balancedMd, isInverted: true);
+        Assert.True(funnelAudit.IsInverted);
+        Assert.Equal(3, funnelAudit.TotalTiers);
+    }
 }
 
 
