@@ -1901,6 +1901,50 @@ public class HistoryPolishTests : IDisposable
             audit.SemanticCouplingScore, audit.CouplingCategory);
         Assert.Equal(audit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run171_AuditSemanticHunkCouplingAndPropagation_ValidatesCrossHunkDependencies()
+    {
+        // 1. Empty rows
+        var emptyAudit = LineDiff.AuditSemanticHunkCouplingAndPropagation(Array.Empty<LineDiff.UnifiedRow>());
+        Assert.Equal(0, emptyAudit.TotalHunks);
+        Assert.Equal(0, emptyAudit.CoupledHunkCount);
+        Assert.Equal(0, emptyAudit.IndependentHunkCount);
+        Assert.Equal(100.0, emptyAudit.HunkPropagationScore);
+        Assert.Equal("Zero Diffs (Unchanged)", emptyAudit.CouplingCategory);
+
+        // 2. Single isolated hunk
+        var rSingle = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 1, "var customerService = new CustomerService();", "+ ");
+        var singleAudit = LineDiff.AuditSemanticHunkCouplingAndPropagation(new[] { rSingle });
+        Assert.Equal(1, singleAudit.TotalHunks);
+        Assert.Equal(0, singleAudit.CoupledHunkCount);
+        Assert.Equal(1, singleAudit.IndependentHunkCount);
+        Assert.Equal(0, singleAudit.TotalCouplingLinks);
+        Assert.Equal("Isolated Single Hunk (Local Change)", singleAudit.CouplingCategory);
+
+        // 3. Multi-hunk edit sharing identifiers
+        var r1 = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 1, "public class CustomerService", "+ ");
+        var r2 = new LineDiff.UnifiedRow(LineDiff.Kind.Same, 2, 2, "    // context line 1", "  ");
+        var r3 = new LineDiff.UnifiedRow(LineDiff.Kind.Same, 3, 3, "    // context line 2", "  ");
+        var r4 = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 25, "var cs = new CustomerService();", "+ ");
+        var coupledAudit = LineDiff.AuditSemanticHunkCouplingAndPropagation(new[] { r1, r2, r3, r4 });
+
+        Assert.Equal(2, coupledAudit.TotalHunks);
+        Assert.Equal(2, coupledAudit.CoupledHunkCount);
+        Assert.Equal(0, coupledAudit.IndependentHunkCount);
+        Assert.Equal(1, coupledAudit.TotalCouplingLinks);
+        Assert.Equal(100.0, coupledAudit.HunkPropagationScore);
+        Assert.Equal("CustomerService", coupledAudit.Couplings[0].SharedToken);
+        Assert.Contains("High Semantic Propagation", coupledAudit.CouplingCategory);
+        Assert.Contains("CustomerService", coupledAudit.SharedDominantIdentifiers);
+
+        // 4. Formatter test
+        string formatted = LineDiff.FormatSemanticHunkCouplingSummary(
+            coupledAudit.TotalHunks, coupledAudit.CoupledHunkCount, coupledAudit.IndependentHunkCount,
+            coupledAudit.TotalCouplingLinks, coupledAudit.MeanCouplingStrength, coupledAudit.HunkPropagationScore,
+            coupledAudit.CouplingCategory, coupledAudit.SharedDominantIdentifiers);
+        Assert.Equal(coupledAudit.Summary, formatted);
+    }
 }
 
 

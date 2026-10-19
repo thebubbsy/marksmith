@@ -6099,6 +6099,165 @@ public static class TextSearch
 
         return $"LaTeX math delimiter audit ({formulaLabel} · {displayCount} display, {inlineCount} inline · {category} · {score:0.#}% interop){alertSuffix}";
     }
+
+    /// <summary>
+    /// Audits markdown document reading time, syllable counts, Flesch Reading Ease score,
+    /// Flesch-Kincaid Grade Level, and estimated silent reading and speaking duration.
+    /// Strips code fences, raw HTML, image tags, and LaTeX math blocks to isolate natural language prose.
+    /// </summary>
+    public static DocumentReadingEaseAudit AuditDocumentReadingEaseAndGradeLevel(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new DocumentReadingEaseAudit(
+                0, 0, 0, 0, 0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                Array.Empty<ReadingGradeMetricInfo>(),
+                "Empty Document",
+                "Document reading ease audit: 0 words · Document contains no readable prose");
+        }
+
+        // 1. Strip code blocks (```...``` and ~~~...~~~)
+        string cleaned = System.Text.RegularExpressions.Regex.Replace(
+            markdownText, @"(?s)(```|~~~).*?\1", " ");
+
+        // 2. Strip display math blocks ($$...$$ and \[...\])
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned, @"(?s)\$\$.*?\$\$|\\\[.*?\\\]", " ");
+
+        // 3. Strip inline math ($...$ and \(...\))
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned, @"(?s)\$.*?\$|\\\(.*?\\\)", " ");
+
+        // 4. Strip inline code (`...`)
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned, @"`[^`\r\n]+`", " ");
+
+        // 5. Strip HTML tags
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned, @"<[^>]+>", " ");
+
+        // 6. Strip image links ![alt](url)
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned, @"!\[.*?\]\(.*?\)", " ");
+
+        // 7. Unwrap standard markdown links [text](url) -> text
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned, @"\[(.*?)\]\(.*?\)", "$1");
+
+        // 8. Strip markdown headings (# Header -> Header)
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned, @"(?m)^#{1,6}\s+", "");
+
+        // 9. Strip blockquote markers (> )
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned, @"(?m)^>\s*", "");
+
+        // 10. Strip list markers (* , - , 1. )
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned, @"(?m)^\s*([-*+]|\d+\.)\s+", "");
+
+        // Tokenize sentences
+        var sentenceDelimiters = new[] { '.', '!', '?' };
+        var rawSentences = cleaned.Split(sentenceDelimiters, StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => s.Trim())
+            .Where(s => s.Length > 0 && s.Any(char.IsLetter))
+            .ToList();
+
+        // Tokenize words
+        var wordMatches = System.Text.RegularExpressions.Regex.Matches(cleaned, @"\b[A-Za-z]+(?:'[A-Za-z]+)?\b");
+        var words = wordMatches.Cast<System.Text.RegularExpressions.Match>()
+            .Select(m => m.Value)
+            .ToList();
+
+        if (words.Count == 0)
+        {
+            return new DocumentReadingEaseAudit(
+                0, 0, 0, 0, 0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                Array.Empty<ReadingGradeMetricInfo>(),
+                "No Readable Prose",
+                "Document reading ease audit: 0 words · Document contains no readable prose");
+        }
+
+        int totalWords = words.Count;
+        int totalSentences = Math.Max(1, rawSentences.Count);
+        int totalSyllables = 0;
+        int monosyllableCount = 0;
+        int polysyllableCount = 0;
+
+        foreach (var word in words)
+        {
+            int syllables = CountWordSyllables(word);
+            totalSyllables += syllables;
+            if (syllables == 1) monosyllableCount++;
+            else if (syllables >= 3) polysyllableCount++;
+        }
+
+        double wordsPerSentence = Math.Round((double)totalWords / totalSentences, 1);
+        double syllablesPerWord = Math.Round((double)totalSyllables / totalWords, 2);
+
+        // Standard Flesch Reading Ease formula
+        double rawFlesch = 206.835 - (1.015 * (totalWords / (double)totalSentences)) - (84.6 * (totalSyllables / (double)totalWords));
+        double fleschReadingEase = Math.Round(Math.Clamp(rawFlesch, 0.0, 100.0), 1);
+
+        // Flesch-Kincaid Grade Level formula
+        double rawGrade = (0.39 * (totalWords / (double)totalSentences)) + (11.8 * (totalSyllables / (double)totalWords)) - 15.59;
+        double gradeLevel = Math.Round(Math.Max(0.0, rawGrade), 1);
+
+        // Reading speeds: 225 wpm silent, 140 wpm speaking
+        double silentReadingMinutes = Math.Round((double)totalWords / 225.0, 1);
+        double speakingMinutes = Math.Round((double)totalWords / 140.0, 1);
+
+        string category;
+        if (fleschReadingEase >= 90.0) category = "Very Easy (5th Grade)";
+        else if (fleschReadingEase >= 80.0) category = "Easy (6th Grade)";
+        else if (fleschReadingEase >= 70.0) category = "Fairly Easy (7th Grade)";
+        else if (fleschReadingEase >= 60.0) category = "Standard / Plain English (8th–9th Grade)";
+        else if (fleschReadingEase >= 50.0) category = "Fairly Difficult (10th–12th Grade)";
+        else if (fleschReadingEase >= 30.0) category = "Difficult (College Level)";
+        else category = "Very Difficult / Technical (Graduate Level)";
+
+        var metrics = new List<ReadingGradeMetricInfo>
+        {
+            new("Flesch Reading Ease", fleschReadingEase, $"{fleschReadingEase:0.#}/100", "60–70 (Plain English)", category),
+            new("Flesch-Kincaid Grade Level", gradeLevel, $"Grade {gradeLevel:0.#}", "7.0–9.0 (General Audience)", $"Requires ~{Math.Ceiling(gradeLevel)} years of formal education"),
+            new("Average Sentence Length", wordsPerSentence, $"{wordsPerSentence:0.#} words/sentence", "15–20 words", wordsPerSentence > 25 ? "Long complex sentences" : "Well-paced sentences"),
+            new("Syllable Complexity", syllablesPerWord, $"{syllablesPerWord:0.##} syllables/word", "1.3–1.6 syllables", syllablesPerWord > 1.8 ? "Heavy multisyllabic vocabulary" : "Accessible vocabulary"),
+            new("Silent Reading Duration", silentReadingMinutes, $"~{silentReadingMinutes:0.#} min", "225 words/min", $"{totalWords} total words"),
+            new("Spoken Presentation Duration", speakingMinutes, $"~{speakingMinutes:0.#} min", "140 words/min", $"{totalWords} total words")
+        };
+
+        string summary = FormatReadingEaseSummary(
+            totalWords, totalSentences, totalSyllables, fleschReadingEase, gradeLevel,
+            silentReadingMinutes, category);
+
+        return new DocumentReadingEaseAudit(
+            totalWords, totalSentences, totalSyllables, monosyllableCount, polysyllableCount,
+            fleschReadingEase, gradeLevel, wordsPerSentence, syllablesPerWord,
+            silentReadingMinutes, speakingMinutes, metrics, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of document reading ease, Flesch score, and estimated duration.
+    /// </summary>
+    public static string FormatReadingEaseSummary(string? markdownText)
+        => AuditDocumentReadingEaseAndGradeLevel(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of document reading ease, Flesch score, and estimated duration metrics.
+    /// </summary>
+    public static string FormatReadingEaseSummary(
+        int totalWords, int totalSentences, int totalSyllables, double readingEase,
+        double gradeLevel, double readingTimeMins, string category)
+    {
+        if (totalWords == 0)
+            return "Document reading ease audit: 0 words · Document contains no readable prose";
+
+        string wordLabel = totalWords == 1 ? "1 word" : $"{totalWords} words";
+        string sentenceLabel = totalSentences == 1 ? "1 sentence" : $"{totalSentences} sentences";
+
+        return $"Document reading ease ({wordLabel}, {sentenceLabel} · {category}): " +
+               $"Flesch score {readingEase:0.#}/100 · Grade Level {gradeLevel:0.#} · ~{readingTimeMins:0.#} min read";
+    }
 }
 
 /// <summary>
@@ -6651,5 +6810,35 @@ public sealed record MathDelimiterAndMacroAudit(
     IReadOnlyList<string> GlobalIssues,
     string CompatibilityCategory,
     string Summary);
+
+/// <summary>
+/// Represents calculated reading metric values and interpretations for document comprehension.
+/// </summary>
+public sealed record ReadingGradeMetricInfo(
+    string MetricName,
+    double Value,
+    string FormattedValue,
+    string TargetBenchmark,
+    string Interpretation);
+
+/// <summary>
+/// Represents evaluated metrics, syllable counts, readability scores, and estimated reading/speaking times for markdown text.
+/// </summary>
+public sealed record DocumentReadingEaseAudit(
+    int TotalWords,
+    int TotalSentences,
+    int TotalSyllables,
+    int MonosyllableWords,
+    int PolysyllableWords,
+    double FleschReadingEase,
+    double FleschKincaidGradeLevel,
+    double AverageWordsPerSentence,
+    double AverageSyllablesPerWord,
+    double SilentReadingTimeMinutes,
+    double SpeakingTimeMinutes,
+    IReadOnlyList<ReadingGradeMetricInfo> Metrics,
+    string ReadabilityCategory,
+    string Summary);
+
 
 

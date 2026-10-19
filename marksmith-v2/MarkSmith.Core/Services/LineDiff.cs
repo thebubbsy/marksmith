@@ -5056,6 +5056,175 @@ public static class LineDiff
 
         return $"Semantic diff co-change audit ({clusterLabel} · {lineLabel} [{clusteredCount} grouped, {isolatedCount} isolated] · {category} · {score:0.#}% coupling)";
     }
+
+    /// <summary>
+    /// Audits version diff hunks for cross-hunk semantic coupling, identifier token co-change propagation,
+    /// and coordinated multi-site modification density across distant diff hunks.
+    /// </summary>
+    public static SemanticHunkCouplingAudit AuditSemanticHunkCouplingAndPropagation(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new SemanticHunkCouplingAudit(
+                0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<HunkCouplingInfo>(),
+                Array.Empty<string>(),
+                "Zero Diffs (Unchanged)",
+                "Semantic hunk coupling audit: 0 diff rows · Document is unchanged");
+        }
+
+        var hunks = new List<List<UnifiedRow>>();
+        List<UnifiedRow>? currentHunk = null;
+
+        foreach (var r in unifiedRows)
+        {
+            if (r.Kind is Kind.Added or Kind.Removed)
+            {
+                currentHunk ??= new List<UnifiedRow>();
+                currentHunk.Add(r);
+            }
+            else
+            {
+                if (currentHunk != null && currentHunk.Count > 0)
+                {
+                    hunks.Add(currentHunk);
+                    currentHunk = null;
+                }
+            }
+        }
+        if (currentHunk != null && currentHunk.Count > 0)
+        {
+            hunks.Add(currentHunk);
+        }
+
+        if (hunks.Count == 0)
+        {
+            return new SemanticHunkCouplingAudit(
+                0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<HunkCouplingInfo>(),
+                Array.Empty<string>(),
+                "Unchanged (No Modified Hunks)",
+                "Semantic hunk coupling audit: 0 hunks · No modified lines");
+        }
+
+        var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "the", "and", "for", "with", "from", "this", "that", "var", "val", "let", "new", "get", "set", "true", "false", "null"
+        };
+
+        var hunkTokens = new List<HashSet<string>>();
+        foreach (var hunk in hunks)
+        {
+            var tokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in hunk)
+            {
+                string text = row.Text ?? "";
+                var matches = System.Text.RegularExpressions.Regex.Matches(text, @"\b[A-Za-z_][A-Za-z0-9_]{2,}\b");
+                foreach (System.Text.RegularExpressions.Match m in matches)
+                {
+                    if (!stopWords.Contains(m.Value))
+                    {
+                        tokens.Add(m.Value);
+                    }
+                }
+            }
+            hunkTokens.Add(tokens);
+        }
+
+        var couplings = new List<HunkCouplingInfo>();
+        var coupledHunkIndices = new HashSet<int>();
+        var dominantIdentifiers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        for (int i = 0; i < hunks.Count; i++)
+        {
+            for (int j = i + 1; j < hunks.Count; j++)
+            {
+                var common = hunkTokens[i].Intersect(hunkTokens[j], StringComparer.OrdinalIgnoreCase).ToList();
+                if (common.Count > 0)
+                {
+                    coupledHunkIndices.Add(i);
+                    coupledHunkIndices.Add(j);
+
+                    double strength = Math.Round((2.0 * common.Count) / (hunkTokens[i].Count + hunkTokens[j].Count) * 100.0, 1);
+                    string primary = common.OrderByDescending(t => t.Length).First();
+
+                    string kind;
+                    if (char.IsUpper(primary[0])) kind = "Type / Interface Propagation";
+                    else if (primary.Contains('_')) kind = "Identifier / Field Dependency";
+                    else kind = "Semantic Token Co-Change";
+
+                    couplings.Add(new HunkCouplingInfo(
+                        i + 1,
+                        j + 1,
+                        primary,
+                        kind,
+                        strength));
+
+                    foreach (var c in common)
+                    {
+                        dominantIdentifiers[c] = dominantIdentifiers.TryGetValue(c, out int cnt) ? cnt + 1 : 1;
+                    }
+                }
+            }
+        }
+
+        int totalHunks = hunks.Count;
+        int coupledCount = coupledHunkIndices.Count;
+        int independentCount = totalHunks - coupledCount;
+        double meanStrength = couplings.Count > 0 ? Math.Round(couplings.Average(c => c.CouplingStrength), 1) : 0.0;
+        double propagationScore = totalHunks > 0 ? Math.Round((double)coupledCount * 100.0 / totalHunks, 1) : 0.0;
+
+        var topIdentifiers = dominantIdentifiers.OrderByDescending(kv => kv.Value).Take(5).Select(kv => kv.Key).ToList();
+
+        string category;
+        if (totalHunks <= 1) category = "Isolated Single Hunk (Local Change)";
+        else if (propagationScore >= 75.0) category = "High Semantic Propagation (Coordinated Multi-Hunk Edits)";
+        else if (propagationScore >= 40.0) category = "Moderate Cross-Hunk Coupling";
+        else category = "Decoupled / Independent Hunks";
+
+        string summary = FormatSemanticHunkCouplingSummary(
+            totalHunks, coupledCount, independentCount, couplings.Count, meanStrength,
+            propagationScore, category, topIdentifiers);
+
+        return new SemanticHunkCouplingAudit(
+            totalHunks,
+            coupledCount,
+            independentCount,
+            couplings.Count,
+            meanStrength,
+            propagationScore,
+            couplings,
+            topIdentifiers,
+            category,
+            summary);
+    }
+
+    public static SemanticHunkCouplingAudit AuditSemanticHunkCouplingAndPropagation(string? oldText, string? newText)
+    {
+        var diff = Diff(oldText ?? string.Empty, newText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditSemanticHunkCouplingAndPropagation(unified);
+    }
+
+    public static string FormatSemanticHunkCouplingSummary(
+        int totalHunks, int coupledHunks, int independentHunks, int totalCouplings,
+        double meanStrength, double score, string category, IReadOnlyList<string>? keyTokens = null)
+    {
+        if (totalHunks == 0) return "Semantic hunk coupling audit: 0 hunks · Document is unchanged";
+        if (totalHunks == 1) return $"Semantic hunk coupling audit (1 isolated hunk · {category}): Local single-site edit";
+
+        string hunkLabel = $"{totalHunks} hunks";
+        string linkLabel = totalCouplings == 1 ? "1 coupling link" : $"{totalCouplings} coupling links";
+        string breakdown = $"{coupledHunks} coupled, {independentHunks} independent";
+
+        string tokenSummary = "";
+        if (keyTokens != null && keyTokens.Count > 0)
+        {
+            tokenSummary = $" · Key tokens: {string.Join(", ", keyTokens.Take(3))}";
+        }
+
+        return $"Semantic hunk coupling audit ({hunkLabel} [{breakdown}] · {linkLabel} · {category} · {score:0.#}% propagation){tokenSummary}";
+    }
 }
 
 /// <summary>
@@ -5402,5 +5571,32 @@ public sealed record SemanticCoChangeClusterAudit(
     IReadOnlyList<string> KeyCoChangeConcepts,
     string CouplingCategory,
     string Summary);
+
+/// <summary>
+/// Represents an identified co-varying token or dependency relationship between two distinct diff hunks.
+/// </summary>
+public sealed record HunkCouplingInfo(
+    int SourceHunkIndex,
+    int TargetHunkIndex,
+    string SharedToken,
+    string CouplingKind,
+    double CouplingStrength);
+
+/// <summary>
+/// Represents the result of an audit of diff hunk semantic coupling, cross-hunk identifier propagation,
+/// and coordinated multi-site code edits across document hunks.
+/// </summary>
+public sealed record SemanticHunkCouplingAudit(
+    int TotalHunks,
+    int CoupledHunkCount,
+    int IndependentHunkCount,
+    int TotalCouplingLinks,
+    double MeanCouplingStrength,
+    double HunkPropagationScore,
+    IReadOnlyList<HunkCouplingInfo> Couplings,
+    IReadOnlyList<string> SharedDominantIdentifiers,
+    string CouplingCategory,
+    string Summary);
+
 
 

@@ -2722,6 +2722,55 @@ namespace MarkSmith.Tests
                 treeAudit.BiconnectivityScore, treeAudit.TopologyCategory, treeAudit.IsSelectionScope);
             Assert.Equal(treeAudit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run171_AuditKCoreDecompositionAndShells_ValidatesDegeneracyAndNucleus()
+        {
+            // 1. Empty graph
+            var empty = MindMapStudioViewModel.AuditKCoreDecompositionAndShells(Array.Empty<MindMapNode>(), null);
+            Assert.Equal(0, empty.TotalNodes);
+            Assert.Equal(0, empty.MaxCoreness);
+            Assert.Equal("Empty Graph", empty.CoreStructureCategory);
+
+            // 2. Triangle mesh (A-B-C-A) plus a pendant leaf D connected to C
+            var nA = new MindMapNode { Id = "a", Title = "Nucleus Alpha" };
+            var nB = new MindMapNode { Id = "b", Title = "Nucleus Beta" };
+            var nC = new MindMapNode { Id = "c", Title = "Nucleus Gamma" };
+            var nD = new MindMapNode { Id = "d", Title = "Leaf Delta" };
+
+            var lAB = new MindMapLink { Id = "l1", SourceNodeId = "a", TargetNodeId = "b" };
+            var lBC = new MindMapLink { Id = "l2", SourceNodeId = "b", TargetNodeId = "c" };
+            var lCA = new MindMapLink { Id = "l3", SourceNodeId = "c", TargetNodeId = "a" };
+            var lCD = new MindMapLink { Id = "l4", SourceNodeId = "c", TargetNodeId = "d" };
+
+            var audit = MindMapStudioViewModel.AuditKCoreDecompositionAndShells(
+                new[] { nA, nB, nC, nD },
+                new[] { lAB, lBC, lCA, lCD });
+
+            Assert.Equal(4, audit.TotalNodes);
+            Assert.Equal(4, audit.TotalEdges);
+            Assert.Equal(2, audit.MaxCoreness);
+            Assert.Equal(3, audit.NucleusNodeCount);
+            Assert.Equal(1, audit.PeripheralNodeCount);
+            Assert.Equal(1.75, audit.MeanCoreness);
+            Assert.Equal("Hierarchical Mesh / Ring", audit.CoreStructureCategory);
+
+            var dInfo = audit.Nodes.First(n => n.NodeId == "d");
+            Assert.Equal(1, dInfo.CorenessShell);
+            Assert.True(dInfo.IsPeripheral);
+            Assert.False(dInfo.IsInNucleus);
+
+            var aInfo = audit.Nodes.First(n => n.NodeId == "a");
+            Assert.Equal(2, aInfo.CorenessShell);
+            Assert.True(aInfo.IsInNucleus);
+
+            // 3. Formatter test
+            string formatted = MindMapStudioViewModel.FormatKCoreSummary(
+                audit.TotalNodes, audit.TotalEdges, audit.MaxCoreness, audit.NucleusNodeCount,
+                audit.PeripheralNodeCount, audit.CorePeripheryRatio, audit.CoreStructureCategory,
+                audit.IsSelectionScope, audit.Nodes);
+            Assert.Equal(audit.Summary, formatted);
+        }
     }
 }
 

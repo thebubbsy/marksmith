@@ -6013,6 +6013,173 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(text)) return 0;
         return text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Length;
     }
+
+    /// <summary>
+    /// Audits SmartArt Venn diagram circular overlap chord geometry, 2-set and 3-set lens intersection areas,
+    /// item density balance, and empty intersection traps.
+    /// </summary>
+    public SmartArtVennOverlapAudit AuditVennDiagramOverlapAndSetBalance(string? markdown = null, string? layoutName = null)
+    {
+        string text = markdown ?? MarkdownText ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return new SmartArtVennOverlapAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<VennSetRegionInfo>(),
+                Array.Empty<string>(),
+                "Empty Outline",
+                "Venn diagram overlap audit: 0 items · Outline contains no set data");
+        }
+
+        var lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .ToList();
+
+        var sections = new List<(string Header, List<string> Items)>();
+        string currentHeader = "";
+        var currentItems = new List<string>();
+
+        foreach (var line in lines)
+        {
+            int indent = line.TakeWhile(char.IsWhiteSpace).Count();
+            string trimmed = line.Trim().TrimStart('-', '*', '+', '#').Trim();
+
+            if (indent == 0 || (sections.Count == 0 && string.IsNullOrEmpty(currentHeader)))
+            {
+                if (!string.IsNullOrEmpty(currentHeader))
+                {
+                    sections.Add((currentHeader, currentItems));
+                    currentItems = new List<string>();
+                }
+                currentHeader = trimmed;
+            }
+            else
+            {
+                currentItems.Add(trimmed);
+            }
+        }
+        if (!string.IsNullOrEmpty(currentHeader))
+        {
+            sections.Add((currentHeader, currentItems));
+        }
+
+        static bool IsIntersectionHeader(string h)
+        {
+            string lower = h.ToLowerInvariant();
+            return lower.Contains('&') || lower.Contains("both") || lower.Contains("intersection") ||
+                   lower.Contains("all") || lower.Contains("shared") || lower.Contains("overlap");
+        }
+
+        var primarySets = sections.Where(s => !IsIntersectionHeader(s.Header)).ToList();
+        var intersectionSections = sections.Where(s => IsIntersectionHeader(s.Header)).ToList();
+
+        int primarySetCount = primarySets.Count >= 3 ? 3 : 2;
+        int totalExpectedRegions = primarySetCount == 3 ? 7 : 3;
+
+        double lensOverlapFraction = primarySetCount == 3 ? 0.08 : 0.285;
+
+        var regionInfos = new List<VennSetRegionInfo>();
+        var balanceAlerts = new List<string>();
+        int populatedRegions = 0;
+        int emptyTrapCount = 0;
+        int overloadedCount = 0;
+        int totalItemsCount = 0;
+
+        foreach (var sec in sections)
+        {
+            bool isInter = IsIntersectionHeader(sec.Header);
+            int itemCount = sec.Items.Count > 0 ? sec.Items.Count : 1;
+            totalItemsCount += itemCount;
+
+            double geomArea = isInter ? lensOverlapFraction : (1.0 - lensOverlapFraction);
+            double density = Math.Round((double)itemCount / Math.Max(0.1, geomArea), 1);
+
+            bool isEmptyTrap = isInter && (sec.Items.Count == 0 || (sec.Items.Count == 1 && string.IsNullOrWhiteSpace(sec.Items[0])));
+            if (isEmptyTrap)
+            {
+                emptyTrapCount++;
+                balanceAlerts.Add($"⚠ Empty intersection trap: '{sec.Header}' has no shared items");
+            }
+            else
+            {
+                populatedRegions++;
+            }
+
+            if (isInter && density > 15.0)
+            {
+                overloadedCount++;
+                balanceAlerts.Add($"⚠ Overloaded intersection: '{sec.Header}' density {density} exceeds geometric lens capacity");
+            }
+
+            regionInfos.Add(new VennSetRegionInfo(
+                Guid.NewGuid().ToString("N")[..6],
+                sec.Header,
+                isInter ? "Intersection Lens" : "Primary Set",
+                itemCount,
+                sec.Items,
+                Math.Round(geomArea, 3),
+                density,
+                isEmptyTrap));
+        }
+
+        if (intersectionSections.Count == 0 && primarySets.Count >= 2)
+        {
+            emptyTrapCount++;
+            balanceAlerts.Add("⚠ Missing intersection region: Sets are disjoint or overlap is unlabelled");
+        }
+
+        double baseScore = 100.0;
+        if (emptyTrapCount > 0) baseScore -= (emptyTrapCount * 30.0);
+        if (overloadedCount > 0) baseScore -= (overloadedCount * 15.0);
+        double vennScore = Math.Round(Math.Clamp(baseScore, 0.0, 100.0), 1);
+
+        string category;
+        if (emptyTrapCount > 0) category = "Disjoint / Empty Intersection Traps";
+        else if (overloadedCount > 0) category = "Overloaded Intersection Density";
+        else if (primarySetCount == 3) category = "Balanced 3-Set Triadic Overlap";
+        else category = "Balanced 2-Set Dual Overlap";
+
+        string summary = FormatVennDiagramSummary(
+            primarySetCount, sections.Count, totalItemsCount, emptyTrapCount,
+            lensOverlapFraction, vennScore, category);
+
+        return new SmartArtVennOverlapAudit(
+            primarySetCount,
+            totalExpectedRegions,
+            populatedRegions,
+            emptyTrapCount,
+            totalItemsCount,
+            lensOverlapFraction,
+            vennScore,
+            regionInfos,
+            balanceAlerts,
+            category,
+            summary);
+    }
+
+    public static SmartArtVennOverlapAudit AuditVennDiagramOverlapAndSetBalance(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditVennDiagramOverlapAndSetBalance(markdown, layoutName);
+    }
+
+    public static string FormatVennDiagramSummary(
+        int setCount, int definedRegions, int totalItems, int emptyTraps,
+        double lensOverlapFraction, double score, string category)
+    {
+        if (definedRegions == 0) return "Venn diagram overlap audit: 0 regions · Outline is empty";
+
+        string setLabel = $"{setCount}-set Venn ({definedRegions} regions, {totalItems} items)";
+        string chordLabel = $"lens ~{lensOverlapFraction * 100.0:0.#}% area";
+
+        var alerts = new List<string>();
+        if (emptyTraps > 0) alerts.Add($"⚠ {emptyTraps} empty trap");
+        if (alerts.Count == 0) alerts.Add("✓ set inclusion balanced");
+
+        return $"Venn overlap & set inclusion audit ({setLabel} · {chordLabel} · {category} · {score:0.#}% balance) · {string.Join(", ", alerts)}";
+    }
 }
 
 /// <summary>
@@ -6478,5 +6645,36 @@ public sealed record SmartArtMatrixQuadrantAudit(
     IReadOnlyList<string> BalanceAlerts,
     string SymmetryCategory,
     string Summary);
+
+/// <summary>
+/// Represents evaluated geometric lens area, relative chord dimension, and item density for a Venn diagram set region.
+/// </summary>
+public sealed record VennSetRegionInfo(
+    string RegionId,
+    string RegionLabel,
+    string RegionType,
+    int ItemCount,
+    IReadOnlyList<string> Items,
+    double GeometricRelativeArea,
+    double ItemDensityRatio,
+    bool IsEmptyTrap);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt Venn diagram circular overlap chord geometry,
+/// 2-set and 3-set lens intersection areas, item density balance, and empty intersection traps.
+/// </summary>
+public sealed record SmartArtVennOverlapAudit(
+    int PrimarySetCount,
+    int TotalRegions,
+    int PopulatedRegions,
+    int EmptyTrapRegions,
+    int TotalItems,
+    double LensOverlapChordAreaFraction,
+    double VennBalanceScore,
+    IReadOnlyList<VennSetRegionInfo> Regions,
+    IReadOnlyList<string> BalanceAlerts,
+    string Category,
+    string Summary);
+
 
 

@@ -3420,6 +3420,105 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("CopyWorkspaceMediaLinksAdvisorItem", suiteXaml);
         Assert.Contains("OnCopyWorkspaceMediaLinksAdvisorClick", suiteCs);
     }
+
+    [Fact]
+    public void Run171_AuditWorkspaceCrossDocumentAnchors_ValidatesTargetFilesAndHeadingSlugs()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditWorkspaceCrossDocumentAnchors(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(0, emptyAudit.TotalCrossDocLinksFound);
+        Assert.Equal(100.0, emptyAudit.CrossDocAnchorIntegrityScore);
+        Assert.Equal("Empty Workspace", emptyAudit.Category);
+
+        // 2. Mock documents with valid cross-doc link, missing target file, and missing heading anchor slug
+        var sourceDoc = string.Join("\n",
+            "# Source Document",
+            "See [Target Reference](target.md#existing-heading) for details.",
+            "See [Missing File](missing.md#some-heading) for missing doc.",
+            "See [Broken Anchor](target.md#non-existent-heading) for bad anchor.",
+            "```markdown",
+            "[Fenced Link](target.md#ignored-heading)",
+            "```"
+        );
+
+        var targetDoc = string.Join("\n",
+            "# Existing Heading",
+            "Target document body prose."
+        );
+
+        var docFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\mock\source.md"] = sourceDoc,
+            [@"C:\mock\target.md"] = targetDoc
+        };
+
+        var existingFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            @"C:\mock\source.md",
+            @"C:\mock\target.md"
+        };
+
+        bool MockFileExists(string p) => existingFiles.Contains(p);
+        string MockContentReader(string p) => docFiles.TryGetValue(p, out var content) ? content : "";
+
+        var audit = RecentFilesService.AuditWorkspaceCrossDocumentAnchors(
+            new[] { @"C:\mock\source.md", @"C:\mock\target.md" },
+            MockFileExists,
+            MockContentReader);
+
+        Assert.Equal(2, audit.TotalDocumentsEvaluated);
+        Assert.Equal(3, audit.TotalCrossDocLinksFound);
+        Assert.Equal(1, audit.ValidLinksCount);
+        Assert.Equal(1, audit.BrokenTargetFileCount);
+        Assert.Equal(1, audit.BrokenAnchorSlugCount);
+        Assert.Equal(33.3, audit.CrossDocAnchorIntegrityScore);
+        Assert.Equal("Missing Target Documents Detected", audit.Category);
+        Assert.Equal(2, audit.MissingAnchors.Count);
+
+        // Formatter test
+        string formatted = RecentFilesService.FormatWorkspaceCrossDocumentAnchorSummary(
+            audit.TotalDocumentsEvaluated, audit.TotalCrossDocLinksFound,
+            audit.ValidLinksCount, audit.BrokenTargetFileCount,
+            audit.BrokenAnchorSlugCount, audit.CrossDocAnchorIntegrityScore,
+            audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Cross-surface XAML / C# wiring verification for Run #171 across all 6 surfaces:
+        // Surface 1: MainWindow - auditReadingEaseItem
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditReadingEaseItem", mainCs);
+        Assert.Contains("FormatReadingEaseSummary", mainCs);
+
+        // Surface 2: MindMapGalaxy - AuditKCoreDecompositionItem
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditKCoreDecompositionItem", galaxyXaml);
+        Assert.Contains("OnAuditKCoreDecompositionClick", galaxyCs);
+
+        // Surface 3: ShapeStudio - SelectionAuditCompoundGroupsItem
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditCompoundGroupsItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditCompoundGroupsClick", shapeCs);
+
+        // Surface 4: SmartArtStudio - OutlineStatsAuditVennOverlapItem
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditVennOverlapItem", smartArtXaml);
+        Assert.Contains("OnAuditVennOverlapClick", smartArtCs);
+
+        // Surface 5: HistoryWindow - auditHunkCoupling
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditHunkCoupling", historyCs);
+        Assert.Contains("AuditSemanticHunkCouplingAndPropagation", historyCs);
+
+        // Surface 6: SuiteHubView - CopyWorkspaceCrossDocAnchorsAdvisorItem
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceCrossDocAnchorsAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceCrossDocAnchorsAdvisorClick", suiteCs);
+    }
 }
 
 

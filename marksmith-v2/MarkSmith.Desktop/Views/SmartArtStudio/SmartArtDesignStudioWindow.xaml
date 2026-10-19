@@ -350,6 +350,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantSymmetryItem" Text="Audit 2x2 matrix quadrant axis symmetry &amp; item distribution" Click="OnAuditMatrixQuadrantSymmetryClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF158;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditVennOverlapItem" Text="Audit Venn diagram circular overlap geometry &amp; set inclusion balance" Click="OnAuditVennOverlapClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -4104,6 +4104,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditKCoreDecompositionClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditKCoreDecompositionAndShells();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5103,6 +5111,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditBiconnectivityItem.Click += OnAuditBiconnectivityClick;
             menu.Items.Add(auditBiconnectivityItem);
+
+            var auditKCoreItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph core-periphery structure & k-core shell decomposition",
+                Icon = new FontIcon { Glyph = "\uF158" }
+            };
+            auditKCoreItem.Click += OnAuditKCoreDecompositionClick;
+            menu.Items.Add(auditKCoreItem);
 
             var fitItem = new MenuFlyoutItem
 

@@ -721,6 +721,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditConnectorObstaclesItem" Text="Audit connector routing &amp; shape obstacle collisions" Click="OnSelectionAuditConnectorObstaclesClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditCompoundGroupsItem" Text="Audit compound group bounds, child containment &amp; z-stacking" Click="OnSelectionAuditCompoundGroupsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71D;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

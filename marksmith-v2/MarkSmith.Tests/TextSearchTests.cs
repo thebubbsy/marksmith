@@ -1952,6 +1952,59 @@ public class TextSearchTests
         Assert.Equal(0, audit.SyntaxIssueCount);
         Assert.Equal(100.0, audit.KaTeXInteropScore);
     }
+
+    [Fact]
+    public void Run171_AuditDocumentReadingEaseAndGradeLevel_ValidatesSyllablesAndScores()
+    {
+        // 1. Empty document
+        var empty = TextSearch.AuditDocumentReadingEaseAndGradeLevel("");
+        Assert.Equal(0, empty.TotalWords);
+        Assert.Equal(0, empty.TotalSentences);
+        Assert.Equal(100.0, empty.FleschReadingEase);
+        Assert.Equal(0.0, empty.FleschKincaidGradeLevel);
+        Assert.Equal(empty.Summary, TextSearch.FormatReadingEaseSummary(""));
+
+        // 2. Simple plain English document
+        string simpleDoc = string.Join("\n",
+            "# Welcome to MarkSmith",
+            "The quick dog ran to the park. The cat sat on the soft rug.",
+            "We can write clean text each day. It is easy and fun to read."
+        );
+        var simpleAudit = TextSearch.AuditDocumentReadingEaseAndGradeLevel(simpleDoc);
+        Assert.True(simpleAudit.TotalWords >= 20);
+        Assert.True(simpleAudit.TotalSentences >= 4);
+        Assert.True(simpleAudit.MonosyllableWords > simpleAudit.PolysyllableWords);
+        Assert.True(simpleAudit.FleschReadingEase >= 75.0);
+        Assert.True(simpleAudit.FleschKincaidGradeLevel <= 6.0);
+        Assert.True(simpleAudit.SilentReadingTimeMinutes > 0.0);
+        Assert.NotEmpty(simpleAudit.Metrics);
+
+        // 3. Technical academic text with polysyllabic complexity
+        string complexDoc = string.Join("\n",
+            "Philosophical investigations regarding multidimensional epistemological architectures " +
+            "demonstrate comprehensive incomprehensibility within counterproductive computational infrastructures."
+        );
+        var complexAudit = TextSearch.AuditDocumentReadingEaseAndGradeLevel(complexDoc);
+        Assert.True(complexAudit.PolysyllableWords >= 5);
+        Assert.True(complexAudit.AverageSyllablesPerWord > 2.0);
+        Assert.True(complexAudit.FleschReadingEase < 50.0);
+        Assert.True(complexAudit.FleschKincaidGradeLevel >= 12.0);
+
+        // 4. Code fences and HTML immunity
+        string mixedDoc = string.Join("\n",
+            "```csharp",
+            "public static void LongMethodWithComplexNames(int paramA, string paramB) { }",
+            "```",
+            "$$",
+            "\\int_{0}^{\\infty} e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}",
+            "$$",
+            "<div><span><img src='test.png'/></span></div>",
+            "This is simple clean text for our readers."
+        );
+        var mixedAudit = TextSearch.AuditDocumentReadingEaseAndGradeLevel(mixedDoc);
+        Assert.True(mixedAudit.TotalWords <= 10);
+        Assert.True(mixedAudit.FleschReadingEase >= 60.0);
+    }
 }
 
 

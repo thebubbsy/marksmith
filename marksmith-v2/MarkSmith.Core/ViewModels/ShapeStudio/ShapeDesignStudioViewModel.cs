@@ -7148,6 +7148,213 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
         return $"Connector obstacle collision audit ({scopeStr}{connLabel} vs {obstacleCount} shapes · {category} · {score:0.#}% clearance){details}";
     }
+
+    /// <summary>
+    /// Audits shape compound grouping hierarchy, nested child bounding box containment,
+    /// visual overflow detection, and z-index depth order stacking monotonicity.
+    /// </summary>
+    public ShapeCompoundGroupAudit AuditCompoundGroupBoundsAndStacking(IEnumerable<ShapeCanvasItemViewModel>? targetItems = null)
+    {
+        var rawTargets = targetItems?.ToList() ?? (SelectedShape != null && SelectionCount > 1
+            ? Shapes.Where(s => s.IsSelected).ToList()
+            : Shapes.ToList());
+
+        bool isSelection = targetItems != null || (SelectedShape != null && SelectionCount > 1);
+        var audit = AuditCompoundGroupBoundsAndStacking(rawTargets, isSelection);
+        StatusMessage = $"✓ {audit.Summary}";
+        return audit;
+    }
+
+    public static ShapeCompoundGroupAudit AuditCompoundGroupBoundsAndStacking(
+        IReadOnlyList<ShapeCanvasItemViewModel>? shapes, bool isSelection = false)
+    {
+        if (shapes == null || shapes.Count == 0)
+        {
+            string emptySummary = isSelection
+                ? "Compound group audit (Selection · 0 shapes): No shapes selected"
+                : "Compound group audit (0 shapes): Canvas contains no shapes";
+            return new ShapeCompoundGroupAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<CompoundGroupInfo>(),
+                Array.Empty<string>(),
+                "Empty Canvas",
+                isSelection,
+                emptySummary);
+        }
+
+        var shapeList = shapes.Where(s => !s.IsLine).ToList();
+        if (shapeList.Count == 0)
+        {
+            return new ShapeCompoundGroupAudit(
+                shapes.Count, 0, 0, shapes.Count, 0, 0, 100.0,
+                Array.Empty<CompoundGroupInfo>(),
+                Array.Empty<string>(),
+                "Connectors Only (No Groups)",
+                isSelection,
+                "Compound group audit: Connectors only · No enclosed compound shapes");
+        }
+
+        var shapeIndices = new Dictionary<ShapeCanvasItemViewModel, int>();
+        for (int i = 0; i < shapes.Count; i++) shapeIndices[shapes[i]] = i;
+
+        var groups = new List<CompoundGroupInfo>();
+        var groupedChildSet = new HashSet<ShapeCanvasItemViewModel>();
+        var structuralAlerts = new List<string>();
+
+        int zOrderInversionCount = 0;
+        int overflowingGroupCount = 0;
+
+        var candidateContainers = shapeList.OrderByDescending(s => s.Width * s.Height).ToList();
+
+        foreach (var container in candidateContainers)
+        {
+            double cLeft = container.X;
+            double cTop = container.Y;
+            double cRight = container.X + container.Width;
+            double cBottom = container.Y + container.Height;
+            double cArea = container.Width * container.Height;
+
+            var children = new List<ShapeCanvasItemViewModel>();
+            foreach (var child in shapeList)
+            {
+                if (ReferenceEquals(child, container)) continue;
+                if (child.Width * child.Height >= cArea) continue;
+
+                double childCenterX = child.X + child.Width / 2.0;
+                double childCenterY = child.Y + child.Height / 2.0;
+
+                if (childCenterX >= cLeft && childCenterX <= cRight &&
+                    childCenterY >= cTop && childCenterY <= cBottom)
+                {
+                    children.Add(child);
+                }
+            }
+
+            if (children.Count > 0)
+            {
+                foreach (var ch in children) groupedChildSet.Add(ch);
+
+                double minX = children.Min(ch => ch.X);
+                double minY = children.Min(ch => ch.Y);
+                double maxX = children.Max(ch => ch.X + ch.Width);
+                double maxY = children.Max(ch => ch.Y + ch.Height);
+
+                bool overflowsLeft = minX < cLeft - 2.0;
+                bool overflowsTop = minY < cTop - 2.0;
+                bool overflowsRight = maxX > cRight + 2.0;
+                bool overflowsBottom = maxY > cBottom + 2.0;
+                bool hasOverflow = overflowsLeft || overflowsTop || overflowsRight || overflowsBottom;
+
+                double overflowArea = 0.0;
+                if (hasOverflow)
+                {
+                    overflowingGroupCount++;
+                    double unionWidth = Math.Max(cRight, maxX) - Math.Min(cLeft, minX);
+                    double unionHeight = Math.Max(cBottom, maxY) - Math.Min(cTop, minY);
+                    overflowArea = Math.Max(0.0, (unionWidth * unionHeight) - cArea);
+                    structuralAlerts.Add($"⚠ '{container.ListTitle}' has {children.Count} children overflowing container bounds");
+                }
+
+                int containerZ = shapeIndices.TryGetValue(container, out int cz) ? cz : 0;
+                bool isZMonotonic = true;
+                foreach (var ch in children)
+                {
+                    int childZ = shapeIndices.TryGetValue(ch, out int chz) ? chz : 0;
+                    if (containerZ > childZ)
+                    {
+                        isZMonotonic = false;
+                        zOrderInversionCount++;
+                        structuralAlerts.Add($"🚨 Z-order inversion: Container '{container.ListTitle}' (Z={containerZ}) renders above child '{ch.ListTitle}' (Z={childZ})");
+                    }
+                }
+
+                groups.Add(new CompoundGroupInfo(
+                    container.Id,
+                    container.ListTitle,
+                    children.Count,
+                    container.X,
+                    container.Y,
+                    container.Width,
+                    container.Height,
+                    minX,
+                    minY,
+                    maxX,
+                    maxY,
+                    hasOverflow,
+                    Math.Round(overflowArea, 1),
+                    isZMonotonic));
+            }
+        }
+
+        int totalGroups = groups.Count;
+        int groupedChildren = groupedChildSet.Count;
+        int standaloneShapes = shapeList.Count - totalGroups - groupedChildren;
+        if (standaloneShapes < 0) standaloneShapes = 0;
+
+        double baseScore = 100.0;
+        if (overflowingGroupCount > 0) baseScore -= (overflowingGroupCount * 25.0);
+        if (zOrderInversionCount > 0) baseScore -= (zOrderInversionCount * 20.0);
+        double containmentScore = Math.Round(Math.Clamp(baseScore, 0.0, 100.0), 1);
+
+        string category;
+        if (totalGroups == 0)
+        {
+            category = "Flat Hierarchy (No Compound Groups)";
+        }
+        else if (overflowingGroupCount == 0 && zOrderInversionCount == 0)
+        {
+            category = "Perfect Nested Containment (100%)";
+        }
+        else if (zOrderInversionCount > 0)
+        {
+            category = "Z-Order Occlusion Hazard";
+        }
+        else
+        {
+            category = "Boundary Overflow Drift";
+        }
+
+        string summary = FormatCompoundGroupSummary(
+            shapes.Count, totalGroups, groupedChildren, standaloneShapes,
+            overflowingGroupCount, zOrderInversionCount, containmentScore, category, isSelection);
+
+        return new ShapeCompoundGroupAudit(
+            shapes.Count,
+            totalGroups,
+            groupedChildren,
+            standaloneShapes,
+            overflowingGroupCount,
+            zOrderInversionCount,
+            containmentScore,
+            groups,
+            structuralAlerts,
+            category,
+            isSelection,
+            summary);
+    }
+
+    public static string FormatCompoundGroupSummary(
+        int totalShapes, int groupCount, int childCount, int standaloneCount,
+        int overflowCount, int zOrderViolations, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Compound group audit ({scopeStr}0 shapes): No shapes to audit";
+
+        if (groupCount == 0)
+        {
+            return $"Compound group audit ({scopeStr}{totalShapes} shapes · {category}): All shapes are standalone items";
+        }
+
+        string groupLabel = groupCount == 1 ? "1 compound group" : $"{groupCount} compound groups";
+        string childLabel = $"{childCount} children";
+
+        var alerts = new List<string>();
+        if (overflowCount > 0) alerts.Add($"⚠ {overflowCount} overflow");
+        if (zOrderViolations > 0) alerts.Add($"🚨 {zOrderViolations} z-inversion");
+        if (alerts.Count == 0) alerts.Add("✓ 100% contained");
+
+        return $"Compound group audit ({scopeStr}{groupLabel} [{childLabel}], {standaloneCount} standalone · {category} · {score:0.#}% containment) · {string.Join(", ", alerts)}";
+    }
 }
 
 /// <summary>
@@ -7678,5 +7885,43 @@ public sealed record ConnectorObstacleCollisionAudit(
     string ClearanceCategory,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated bounding box containment, child count, and z-order monotonicity for a compound shape group.
+/// </summary>
+public sealed record CompoundGroupInfo(
+    string GroupId,
+    string GroupName,
+    int ChildCount,
+    double GroupX,
+    double GroupY,
+    double GroupWidth,
+    double GroupHeight,
+    double ChildrenBoundsLeft,
+    double ChildrenBoundsTop,
+    double ChildrenBoundsRight,
+    double ChildrenBoundsBottom,
+    bool HasOverflow,
+    double OverflowArea,
+    bool IsZOrderMonotonic);
+
+/// <summary>
+/// Represents the result of an audit of shape compound grouping hierarchy,
+/// nested child bounding box containment, overflow detection, and z-index depth order stacking.
+/// </summary>
+public sealed record ShapeCompoundGroupAudit(
+    int TotalShapesEvaluated,
+    int TotalGroupsFound,
+    int GroupedChildrenCount,
+    int StandaloneShapesCount,
+    int OverflowingGroupCount,
+    int ZOrderInversionCount,
+    double GroupContainmentScore,
+    IReadOnlyList<CompoundGroupInfo> Groups,
+    IReadOnlyList<string> StructuralAlerts,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
 
 

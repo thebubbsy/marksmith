@@ -1904,6 +1904,70 @@ public class ShapeStudioPolishTests
             collisionAudit.RoutingClearanceScore, collisionAudit.ClearanceCategory, collisionAudit.IsSelectionScope);
         Assert.Equal(collisionAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run171_AuditCompoundGroupBoundsAndStacking_ValidatesContainmentAndZOrder()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Empty canvas
+        var empty = vm.AuditCompoundGroupBoundsAndStacking();
+        Assert.Equal(0, empty.TotalShapesEvaluated);
+        Assert.Equal(0, empty.TotalGroupsFound);
+        Assert.Equal(100.0, empty.GroupContainmentScore);
+        Assert.Equal("Empty Canvas", empty.Category);
+
+        // 2. Perfectly contained compound group with correct Z-order (container first, children second)
+        var container = new ShapeCanvasItemViewModel { Id = "g1", Text = "Container Frame", X = 10, Y = 10, Width = 200, Height = 200 };
+        var c1 = new ShapeCanvasItemViewModel { Id = "c1", Text = "Child A", X = 30, Y = 30, Width = 50, Height = 50 };
+        var c2 = new ShapeCanvasItemViewModel { Id = "c2", Text = "Child B", X = 100, Y = 100, Width = 60, Height = 60 };
+        vm.Shapes.Add(container);
+        vm.Shapes.Add(c1);
+        vm.Shapes.Add(c2);
+
+        var cleanAudit = vm.AuditCompoundGroupBoundsAndStacking();
+        Assert.Equal(3, cleanAudit.TotalShapesEvaluated);
+        Assert.Equal(1, cleanAudit.TotalGroupsFound);
+        Assert.Equal(2, cleanAudit.GroupedChildrenCount);
+        Assert.Equal(0, cleanAudit.OverflowingGroupCount);
+        Assert.Equal(0, cleanAudit.ZOrderInversionCount);
+        Assert.Equal(100.0, cleanAudit.GroupContainmentScore);
+        Assert.Equal("Perfect Nested Containment (100%)", cleanAudit.Category);
+
+        var groupInfo = cleanAudit.Groups.First();
+        Assert.False(groupInfo.HasOverflow);
+        Assert.True(groupInfo.IsZOrderMonotonic);
+
+        // 3. Overflow and Z-order inversion
+        // Make c2 extend far outside the container boundary and move container to top of Z-stack
+        c2.X = 250; // exceeds 10 + 200 = 210
+        vm.Shapes.Remove(container);
+        vm.Shapes.Add(container); // container is now last (renders on top of children)
+
+        var defectAudit = vm.AuditCompoundGroupBoundsAndStacking();
+        // Since c2 center is at 250 + 30 = 280, it is no longer inside container center.
+        // Let's test overflow by having center inside but right edge outside:
+        c2.X = 180;
+        c2.Width = 80; // Right edge = 260 > 210, center = 220 which is outside, let's make container width 200 (X=10..210), child X=150, W=100 (Center=200 inside, Right=250 outside!)
+        c2.X = 150;
+        c2.Width = 100; // Center is 200 (inside 10..210), Right is 250 (outside 210)
+
+        var overflowAudit = vm.AuditCompoundGroupBoundsAndStacking();
+        Assert.Equal(1, overflowAudit.TotalGroupsFound);
+        Assert.True(overflowAudit.OverflowingGroupCount >= 1);
+        Assert.True(overflowAudit.ZOrderInversionCount >= 1);
+        Assert.True(overflowAudit.GroupContainmentScore < 80.0);
+        Assert.NotEmpty(overflowAudit.StructuralAlerts);
+
+        // 4. Formatter test
+        string formatted = ShapeDesignStudioViewModel.FormatCompoundGroupSummary(
+            cleanAudit.TotalShapesEvaluated, cleanAudit.TotalGroupsFound,
+            cleanAudit.GroupedChildrenCount, cleanAudit.StandaloneShapesCount,
+            cleanAudit.OverflowingGroupCount, cleanAudit.ZOrderInversionCount,
+            cleanAudit.GroupContainmentScore, cleanAudit.Category, cleanAudit.IsSelectionScope);
+        Assert.Equal(cleanAudit.Summary, formatted);
+    }
 }
 
 

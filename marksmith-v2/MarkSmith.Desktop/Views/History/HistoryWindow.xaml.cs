@@ -3458,6 +3458,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditSemanticCoChange);
+
+                var auditHunkCoupling = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff hunk coupling & cross-hunk propagation",
+                    Icon = new FontIcon { Glyph = "\uE71D" }
+                };
+                auditHunkCoupling.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditSemanticHunkCouplingAndPropagation(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditHunkCoupling);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

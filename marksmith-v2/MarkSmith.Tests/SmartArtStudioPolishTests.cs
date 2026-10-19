@@ -1788,6 +1788,60 @@ public class SmartArtStudioPolishTests
             imbalancedAudit.SymmetryCategory);
         Assert.Equal(imbalancedAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run171_AuditVennDiagramOverlapAndSetBalance_ValidatesLensAndSetInclusion()
+    {
+        // 1. Empty outline
+        var empty = SmartArtDesignStudioViewModel.AuditVennDiagramOverlapAndSetBalance("");
+        Assert.Equal(0, empty.PrimarySetCount);
+        Assert.Equal(0, empty.PopulatedRegions);
+        Assert.Equal(100.0, empty.VennBalanceScore);
+        Assert.Equal("Empty Outline", empty.Category);
+
+        // 2. Balanced 2-set Venn with shared intersection
+        string balancedMd = string.Join("\n",
+            "- Set A: Product Engineering",
+            "  - Architecture",
+            "  - Implementation",
+            "- Set B: User Research",
+            "  - Usability Testing",
+            "  - User Interviews",
+            "- Shared Intersection (A & B)",
+            "  - Interactive Prototyping"
+        );
+
+        var balanced = SmartArtDesignStudioViewModel.AuditVennDiagramOverlapAndSetBalance(balancedMd);
+        Assert.Equal(2, balanced.PrimarySetCount);
+        Assert.Equal(3, balanced.PopulatedRegions);
+        Assert.Equal(0, balanced.EmptyTrapRegions);
+        Assert.Equal(0.285, balanced.LensOverlapChordAreaFraction);
+        Assert.Equal(100.0, balanced.VennBalanceScore);
+        Assert.Equal("Balanced 2-Set Dual Overlap", balanced.Category);
+        Assert.Empty(balanced.BalanceAlerts);
+
+        // 3. Disjoint / Empty intersection trap
+        string disjointMd = string.Join("\n",
+            "- Set Alpha: Front-end Systems",
+            "  - HTML/CSS",
+            "- Set Beta: Embedded Microcontrollers",
+            "  - Firmware Assembly"
+        );
+
+        var disjoint = SmartArtDesignStudioViewModel.AuditVennDiagramOverlapAndSetBalance(disjointMd);
+        Assert.Equal(2, disjoint.PrimarySetCount);
+        Assert.True(disjoint.EmptyTrapRegions >= 1);
+        Assert.True(disjoint.VennBalanceScore < 80.0);
+        Assert.Equal("Disjoint / Empty Intersection Traps", disjoint.Category);
+        Assert.NotEmpty(disjoint.BalanceAlerts);
+
+        // 4. Formatter test
+        string formatted = SmartArtDesignStudioViewModel.FormatVennDiagramSummary(
+            balanced.PrimarySetCount, balanced.Regions.Count, balanced.TotalItems,
+            balanced.EmptyTrapRegions, balanced.LensOverlapChordAreaFraction,
+            balanced.VennBalanceScore, balanced.Category);
+        Assert.Equal(balanced.Summary, formatted);
+    }
 }
 
 

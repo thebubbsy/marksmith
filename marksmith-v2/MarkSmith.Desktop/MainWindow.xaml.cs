@@ -11669,6 +11669,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditMathDelimitersItem);
 
+        var auditReadingEaseItem = new MenuFlyoutItem
+        {
+            Text = "Audit Document Reading Ease & Flesch-Kincaid Grade Level",
+            Icon = new FontIcon { Glyph = "\uE736" }
+        };
+        auditReadingEaseItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.FormatReadingEaseSummary(text);
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditReadingEaseItem);
+
         menu.ShowAt(anchor);
     }
 

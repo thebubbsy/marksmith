@@ -7373,6 +7373,206 @@ namespace MarkSmith.ViewModels.MindMap
 
             return $"Biconnectivity audit ({scope} · {nodeStr}, {linkStr} · {category} · {artStr}, {bridgeStr} · {blockStr} · {score:0.#}% robustness)";
         }
+
+        /// <summary>
+        /// Audits mind map knowledge graph core-periphery structure using k-core decomposition.
+        /// Identifies concept shell indices, isolates the dense conceptual nucleus (k-max core),
+        /// and evaluates core-periphery balance.
+        /// </summary>
+        public GraphKCoreDecompositionAudit AuditKCoreDecompositionAndShells(bool selectionOnly = false)
+        {
+            var targetNodes = (selectionOnly
+                ? Nodes.Where(n => n.IsSelected && !n.IsDimmed).ToList()
+                : Nodes.Where(n => !n.IsDimmed).ToList());
+
+            bool isSelection = selectionOnly && Nodes.Any(n => n.IsSelected);
+
+            if (targetNodes.Count == 0)
+            {
+                string emptySummary = isSelection
+                    ? "K-Core decomposition audit (Selection): 0 nodes · No nodes selected"
+                    : "K-Core decomposition audit (Galaxy): 0 nodes · Knowledge graph is empty";
+                return new GraphKCoreDecompositionAudit(
+                    0, 0, 0, 0, 0, 0, 0.0, 0.0,
+                    Array.Empty<NodeKCoreShellInfo>(),
+                    new Dictionary<int, int>(),
+                    "Empty Graph",
+                    isSelection,
+                    emptySummary);
+            }
+
+            var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+
+            var relevantLinks = Links
+                .Where(l => !string.IsNullOrEmpty(l.SourceNodeId) &&
+                            !string.IsNullOrEmpty(l.TargetNodeId) &&
+                            nodeIds.Contains(l.SourceNodeId) &&
+                            nodeIds.Contains(l.TargetNodeId) &&
+                            !string.Equals(l.SourceNodeId, l.TargetNodeId, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            // Build undirected adjacency list with deduplicated edges
+            var adj = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in targetNodes) adj[n.Id] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            int totalEdges = 0;
+            foreach (var l in relevantLinks)
+            {
+                if (adj[l.SourceNodeId].Add(l.TargetNodeId))
+                {
+                    adj[l.TargetNodeId].Add(l.SourceNodeId);
+                    totalEdges++;
+                }
+            }
+
+            // Fallback for hierarchical ParentId relationships when no explicit link exists
+            foreach (var n in targetNodes)
+            {
+                if (!string.IsNullOrEmpty(n.ParentId) && nodeIds.Contains(n.ParentId))
+                {
+                    if (adj[n.ParentId].Add(n.Id))
+                    {
+                        adj[n.Id].Add(n.ParentId);
+                        totalEdges++;
+                    }
+                }
+            }
+
+            // K-Core decomposition via iterative degree pruning
+            var degrees = targetNodes.ToDictionary(n => n.Id, n => adj[n.Id].Count, StringComparer.OrdinalIgnoreCase);
+            var remaining = new HashSet<string>(nodeIds, StringComparer.OrdinalIgnoreCase);
+            var shellAssignment = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            int currentK = 0;
+            while (remaining.Count > 0)
+            {
+                var toRemove = remaining.Where(id => degrees[id] <= currentK).ToList();
+                if (toRemove.Count == 0)
+                {
+                    currentK++;
+                    continue;
+                }
+
+                foreach (var id in toRemove)
+                {
+                    shellAssignment[id] = currentK;
+                    remaining.Remove(id);
+                    foreach (var neighbor in adj[id])
+                    {
+                        if (remaining.Contains(neighbor))
+                        {
+                            degrees[neighbor] = Math.Max(0, degrees[neighbor] - 1);
+                        }
+                    }
+                }
+            }
+
+            int maxCoreness = shellAssignment.Values.Count > 0 ? shellAssignment.Values.Max() : 0;
+            var shellDistribution = shellAssignment.Values
+                .GroupBy(k => k)
+                .OrderBy(g => g.Key)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            var nodeInfos = new List<NodeKCoreShellInfo>();
+            int nucleusCount = 0;
+            int peripheralCount = 0;
+            int intermediateCount = 0;
+
+            foreach (var n in targetNodes)
+            {
+                int shell = shellAssignment.TryGetValue(n.Id, out int sVal) ? sVal : 0;
+                int deg = adj[n.Id].Count;
+                bool isNucleus = maxCoreness > 0 ? shell == maxCoreness : true;
+                bool isPeripheral = shell <= 1;
+
+                if (isNucleus) nucleusCount++;
+                if (isPeripheral) peripheralCount++;
+                if (!isNucleus && !isPeripheral) intermediateCount++;
+
+                nodeInfos.Add(new NodeKCoreShellInfo(
+                    n.Id,
+                    n.Title ?? "Untitled",
+                    deg,
+                    shell,
+                    isNucleus,
+                    isPeripheral));
+            }
+
+            nodeInfos = nodeInfos.OrderByDescending(n => n.CorenessShell).ThenByDescending(n => n.Degree).ToList();
+
+            double meanCoreness = Math.Round(nodeInfos.Average(n => n.CorenessShell), 2);
+            double corePeripheryRatio = peripheralCount > 0
+                ? Math.Round((double)nucleusCount / peripheralCount, 2)
+                : (nucleusCount > 0 ? 1.0 : 0.0);
+
+            string category;
+            if (targetNodes.Count <= 2) category = "Trivial Subgraph";
+            else if (maxCoreness >= 3) category = "Dense Multi-Tiered Nucleus";
+            else if (maxCoreness == 2) category = "Hierarchical Mesh / Ring";
+            else if (maxCoreness == 1 && totalEdges >= targetNodes.Count - 1) category = "Tree / Star Hierarchy";
+            else if (maxCoreness == 1) category = "Sparse Forest";
+            else category = "Isolated Concepts (Disconnected)";
+
+            string summary = FormatKCoreSummary(
+                targetNodes.Count, totalEdges, maxCoreness, nucleusCount, peripheralCount,
+                corePeripheryRatio, category, isSelection, nodeInfos);
+
+            return new GraphKCoreDecompositionAudit(
+                targetNodes.Count,
+                totalEdges,
+                maxCoreness,
+                nucleusCount,
+                peripheralCount,
+                intermediateCount,
+                corePeripheryRatio,
+                meanCoreness,
+                nodeInfos,
+                shellDistribution,
+                category,
+                isSelection,
+                summary);
+        }
+
+        public static GraphKCoreDecompositionAudit AuditKCoreDecompositionAndShells(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditKCoreDecompositionAndShells();
+        }
+
+        public static string FormatKCoreSummary(
+            int totalNodes, int totalEdges, int maxCoreness, int nucleusCount, int peripheralCount,
+            double corePeripheryRatio, string category, bool isSelection = false,
+            IReadOnlyList<NodeKCoreShellInfo>? nodes = null)
+        {
+            string scope = isSelection ? "Selection" : "Galaxy";
+            if (totalNodes == 0) return $"K-Core decomposition audit ({scope}): 0 nodes · Empty map";
+
+            string nodeLabel = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string edgeLabel = totalEdges == 1 ? "1 edge" : $"{totalEdges} edges";
+            string shellLabel = $"Max Core k={maxCoreness}";
+            string breakdown = $"{nucleusCount} nucleus, {peripheralCount} peripheral";
+
+            string topNucleus = "";
+            if (nodes != null && nodes.Count > 0)
+            {
+                var top = nodes.Where(n => n.IsInNucleus).Take(3).Select(n => n.Label);
+                if (top.Any()) topNucleus = $" · Core: {string.Join(", ", top)}";
+            }
+
+            return $"K-Core decomposition audit ({scope} · {nodeLabel}, {edgeLabel} · {shellLabel} [{breakdown}] · {category}): " +
+                   $"C/P ratio {corePeripheryRatio:0.##}{topNucleus}";
+        }
     }
 
 
@@ -7921,6 +8121,36 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<BridgeEdgeInfo> Bridges,
         IReadOnlyList<BiconnectedBlockInfo> Blocks,
         string TopologyCategory,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated degree, shell index, and coreness classification for an individual concept node.
+    /// </summary>
+    public sealed record NodeKCoreShellInfo(
+        string NodeId,
+        string Label,
+        int Degree,
+        int CorenessShell,
+        bool IsInNucleus,
+        bool IsPeripheral);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph core-periphery structure,
+    /// k-core decomposition, concept degeneracy, and conceptual nucleus vs leaf shell distribution.
+    /// </summary>
+    public sealed record GraphKCoreDecompositionAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int MaxCoreness,
+        int NucleusNodeCount,
+        int PeripheralNodeCount,
+        int IntermediateNodeCount,
+        double CorePeripheryRatio,
+        double MeanCoreness,
+        IReadOnlyList<NodeKCoreShellInfo> Nodes,
+        IReadOnlyDictionary<int, int> ShellDistribution,
+        string CoreStructureCategory,
         bool IsSelectionScope,
         string Summary);
 }
