@@ -12153,3 +12153,43 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
    - **Refinement Target**: Workspace Markdown Code Block Fence Formatting & Indentation Consistency Advisor.
    - **Deliverable**: Refine `RecentFilesService.AuditWorkspaceCodeFenceIndentation` with automated one-click normalization suggestions and workspace-wide delimiter preference alignment. Wire to `RecentDocsFlyout`.
 
+---
+
+### 2026-10-20 (scheduled routine run #183)
+
+- **AI-Executable 3-Block Cycle + Execution Phase Overview**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Inline Math Delimiter Balancing & TeX Macro Syntax Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditInlineMathAndTexSyntax(markdownText)`, static string overload, `FormatInlineMathSummary(...)`, records `InlineMathItem`, `MarkdownMathSyntaxAudit`. Audits inline math (`$...$` / `\(...\)`) and display math (`$$...$$` / `\[...\]`), checks delimiter symmetry, detects unclosed braces within TeX expressions, guards against currency symbol collision false positives, and scores math syntax integrity (0-100%); wired to `auditMathSyntaxItem` (`\uE8B9`) in `ShowLinksContextMenu` with automated clipboard copy and info bar notice.
+    2. **MindMapGalaxyWindow Graph Edge Crossing Density & Planarity Topology Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditEdgeCrossingsAndPlanarity(selectionOnly)`, static overload, `FormatEdgeCrossingSummary(...)`, records `EdgeCrossingPairItem`, `GraphEdgeCrossingPlanarityAudit`. Performs pairwise segment intersection analysis across edge geometries, excludes incident edges sharing common source or target nodes, detects acute-angle crossing tangles (< 45°), evaluates crossing density, and scores graph planarity (0-100%); wired to `AuditGraphEdgeCrossingsItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Diagram Connector Route Directness, Bend Count & Obstacle Clipping Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditConnectorRouteDirectness(targetShapes)`, static overload, `FormatConnectorRouteSummary(...)`, records `ConnectorRouteItem`, `DiagramConnectorRouteAudit`. Measures connector route segment lengths against Euclidean straight-line distance, detects excessive orthogonal bends (> 3 bends), flags route obstacle clipping through unrelated shape bounding boxes, and scores connector route directness (0-100%); wired to `SelectionAuditConnectorRoutesItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Matrix / Grid Layout Quadrant Balance & Categorical Symmetry Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditMatrixQuadrantBalance(markdown, layoutName)`, static overload, `FormatMatrixQuadrantSummary(...)`, records `QuadrantBalanceItem`, `SmartArtMatrixBalanceAudit`. Analyzes matrix, grid, and quadrant layouts (e.g. SWOT, 2x2 matrix), evaluates item distribution parity across Q1..Q4 sectors, flags empty or overloaded quadrants, calculates item count variance, and scores matrix balance (0-100%); wired to `OutlineStatsAuditMatrixQuadrantItem` (`\uE8B9`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Diff Closure Capture & Scope Escape Risk Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditClosureCaptureAndScopeEscapes(unifiedRows)`, static string overload, `FormatClosureCaptureSummary(...)`, records `ClosureEscapeItem`, `DiffClosureCaptureAudit`. Tracks variable declarations across unified diff rows, analyzes lambda and nested function boundary escapes, detects high-risk asynchronous Task / thread closures, and scores local encapsulation (0-100%); wired to `auditClosureCaptureScope` (`\uE8B9`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and status notice.
+    6. **SuiteHubView Workspace Markdown Dialect Consistency & CommonMark/GFM Feature Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceMarkdownDialectConsistency(files, fileExistsProvider, contentReader)`, `FormatWorkspaceMarkdownDialectSummary(...)`, records `MarkdownDialectFileItem`, `WorkspaceMarkdownDialectAudit`. Scans all workspace markdown documents for CommonMark, GitHub Flavored Markdown (GFM), and extended dialect markers (tables, math, YAML frontmatter, footnotes, task lists), evaluates dialect uniformity, and scores workspace markdown dialect consistency (0-100%); wired to `CopyWorkspaceMarkdownDialectAdvisorItem` (`\uE8B9`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified all `7/7` targeted Run #183 tests passing (`100%` pass rate).
+    - Verified clean live launch of `Marksmith.exe` (`PID=31148`, `Responding=True`, closed cleanly with zero startup crashes).
+
+---
+
+### Run #184 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Header Anchor Collision, Slug Ambiguity & Table-of-Contents Sync Auditor.
+   - **Deliverable**: Add `TextSearch.AuditHeaderAnchorsAndTocSync(markdownText)` and `FormatHeaderAnchorSummary(...)`, scanning headings (`# Header`), generating deterministic GitHub/CommonMark slug IDs, detecting duplicate anchor slug collisions, validating internal TOC links (`[Intro](#intro)`), and scoring anchor navigation integrity ($0-100\%$). Wire to `ShowLinksContextMenu`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Visual Mass Center of Gravity, Spatial Balance & Viewport Centering Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditVisualMassCenterAndSpatialBalance()` and `FormatSpatialBalanceSummary(...)`, computing node bounding box centroids, measuring spatial center-of-gravity offset from canvas midpoint, evaluating quadrant mass distribution balance, and scoring spatial balance ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Z-Order Layer Stacking, Occlusion & Visual Hierarchy Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditLayerStackingAndOcclusion(shapes)` and `FormatLayerStackingSummary(...)`, analyzing shape Z-index stacking orders, detecting accidental full or partial occlusions of smaller shapes by larger background shapes, and scoring layering hierarchy clarity ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Funnel / Pyramid Layout Monotonic Staging & Volume Progression Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditFunnelPyramidVolumeProgression(markdown, layoutName)` and `FormatFunnelPyramidSummary(...)`, evaluating hierarchical funnel and pyramid diagrams, verifying monotonic stage ordering, stage text concise sizing, and scoring progressive flow balance ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #183 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Closure Capture & Scope Escape Risk Auditor.
+   - **Deliverable**: Refine `LineDiff.AuditClosureCaptureAndScopeEscapes` with variable lifetime analysis after closure invocations and race condition warning indicators. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #183 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Dialect Consistency & CommonMark/GFM Feature Advisor.
+   - **Deliverable**: Refine `RecentFilesService.AuditWorkspaceMarkdownDialectConsistency` with automated dialect configuration file generation (`.marksmith.json`) for workspace-wide standardization. Wire to `RecentDocsFlyout`.

@@ -2279,6 +2279,54 @@ public class SmartArtStudioPolishTests
         Assert.False(shortAudit.IsClosedLoop);
         Assert.True(shortAudit.BalanceScore < audit.BalanceScore);
     }
+
+    [Fact]
+    public void Run183_AuditMatrixQuadrantBalance_EvaluatesSymmetryAndVariance()
+    {
+        // 1. Empty markdown
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantBalance("", "Quadrant Matrix");
+        Assert.Equal(4, emptyAudit.TotalQuadrants);
+        Assert.Equal(0, emptyAudit.PopulatedQuadrants);
+        Assert.Equal(4, emptyAudit.EmptyQuadrants);
+        Assert.Equal(100.0, emptyAudit.SymmetryScore);
+        Assert.Contains("0 items", emptyAudit.Summary);
+
+        // 2. Symmetric 4-quadrant layout with 1 item per quadrant
+        string matrixMd = string.Join("\n",
+            "- Strengths: Strong brand and patents",
+            "- Weaknesses: Limited global supply chain",
+            "- Opportunities: Expanding AI automation demand",
+            "- Threats: Volatile macroeconomic climate"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantBalance(matrixMd, "2x2 SWOT Matrix");
+        Assert.Equal(4, audit.TotalQuadrants);
+        Assert.Equal(4, audit.PopulatedQuadrants);
+        Assert.Equal(0, audit.EmptyQuadrants);
+        Assert.Equal(4, audit.TotalItems);
+        Assert.Equal(0.0, audit.ItemVariance);
+        Assert.Equal(100.0, audit.SymmetryScore);
+        Assert.Equal("Harmonious Quadrant Balance (≥90%)", audit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatMatrixQuadrantSummary(
+            audit.TotalQuadrants, audit.PopulatedQuadrants, audit.EmptyQuadrants,
+            audit.TotalItems, audit.TotalWords, audit.ItemVariance,
+            audit.SymmetryScore, audit.Category, audit.LayoutName);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Skewed matrix with empty quadrants
+        string skewedMd = string.Join("\n",
+            "- Solo Quadrant Item",
+            "  - Sub item 1",
+            "  - Sub item 2"
+        );
+
+        var skewedAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantBalance(skewedMd, "Quadrant Matrix");
+        Assert.Equal(4, skewedAudit.TotalQuadrants);
+        Assert.Equal(1, skewedAudit.PopulatedQuadrants);
+        Assert.Equal(3, skewedAudit.EmptyQuadrants);
+        Assert.True(skewedAudit.SymmetryScore < audit.SymmetryScore);
+    }
 }
 
 

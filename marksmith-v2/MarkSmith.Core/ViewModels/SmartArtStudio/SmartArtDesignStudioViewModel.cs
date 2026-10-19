@@ -8037,6 +8037,186 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", alerts);
         return $"Cycle sequence audit ({layoutName} · {stepStr} · {category} · {score:0.#}% balance): {details}";
     }
+
+    /// <summary>
+    /// Audits SmartArt matrix, grid, and quadrant layouts for structural balance, item distribution parity,
+    /// and categorical symmetry across quadrant sectors (Q1..Q4).
+    /// </summary>
+    public SmartArtMatrixBalanceAudit AuditMatrixQuadrantBalance(string? markdown = null, string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? SelectedLayout?.Name ?? "Quadrant Matrix";
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtMatrixBalanceAudit(
+                4, 0, 4, 0, 0, 0.0, 100.0,
+                Array.Empty<QuadrantBalanceItem>(),
+                "Empty Outline", layout,
+                $"SmartArt matrix quadrant audit ({layout} · 0 items): Outline is empty");
+        }
+
+        var lines = input.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var rawSteps = new List<(string Title, int LineNumber, List<string> SubBullets)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            int indent = 0;
+            while (indent < line.Length && (line[indent] == ' ' || line[indent] == '\t'))
+            {
+                indent += line[indent] == '\t' ? 4 : 1;
+            }
+
+            string trimmed = line.Trim();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+                continue;
+
+            int level = indent / 2;
+            string nodeText = trimmed;
+
+            if (trimmed.StartsWith('#'))
+            {
+                int hashCount = trimmed.TakeWhile(c => c == '#').Count();
+                level = Math.Max(0, hashCount - 1);
+                nodeText = trimmed.TrimStart('#').Trim();
+            }
+            else if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ "))
+            {
+                nodeText = trimmed.Substring(2).Trim();
+            }
+            else
+            {
+                var numMatch = System.Text.RegularExpressions.Regex.Match(trimmed, @"^\d+[.)]\s+(.*)$");
+                if (numMatch.Success)
+                {
+                    nodeText = numMatch.Groups[1].Value.Trim();
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(nodeText)) continue;
+
+            if (level == 0)
+            {
+                rawSteps.Add((nodeText, i + 1, new List<string>()));
+            }
+            else if (rawSteps.Count > 0)
+            {
+                rawSteps[rawSteps.Count - 1].SubBullets.Add(nodeText);
+            }
+            else
+            {
+                rawSteps.Add((nodeText, i + 1, new List<string>()));
+            }
+        }
+
+        string[] defaultQuadrantNames = new[] { "Quadrant 1 (Top-Left)", "Quadrant 2 (Top-Right)", "Quadrant 3 (Bottom-Left)", "Quadrant 4 (Bottom-Right)" };
+        int totalQuadrants = 4;
+        var quadrantItems = new List<QuadrantBalanceItem>();
+
+        int totalItems = 0;
+        int totalWords = 0;
+        var itemCounts = new List<int>();
+
+        for (int q = 0; q < totalQuadrants; q++)
+        {
+            if (q < rawSteps.Count)
+            {
+                var step = rawSteps[q];
+                int itemsInQuadrant = 1 + step.SubBullets.Count;
+                int words = step.Title.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+                foreach (var sb in step.SubBullets)
+                {
+                    words += sb.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+                }
+
+                totalItems += itemsInQuadrant;
+                totalWords += words;
+                itemCounts.Add(itemsInQuadrant);
+
+                double meanWord = itemsInQuadrant > 0 ? (double)words / itemsInQuadrant : 0.0;
+                string qName = !string.IsNullOrWhiteSpace(step.Title) ? step.Title : defaultQuadrantNames[q];
+
+                quadrantItems.Add(new QuadrantBalanceItem(
+                    q + 1, qName, itemsInQuadrant, words, Math.Round(meanWord, 1), false, false));
+            }
+            else
+            {
+                itemCounts.Add(0);
+                quadrantItems.Add(new QuadrantBalanceItem(
+                    q + 1, defaultQuadrantNames[q], 0, 0, 0.0, true, false));
+            }
+        }
+
+        int populatedCount = quadrantItems.Count(qi => !qi.IsEmpty);
+        int emptyCount = totalQuadrants - populatedCount;
+
+        double avgItems = totalQuadrants > 0 ? (double)totalItems / totalQuadrants : 0.0;
+        double varianceSum = 0;
+        foreach (var c in itemCounts)
+        {
+            varianceSum += Math.Pow(c - avgItems, 2);
+        }
+        double itemVariance = Math.Round(varianceSum / totalQuadrants, 2);
+
+        // Mark overloaded quadrants
+        for (int i = 0; i < quadrantItems.Count; i++)
+        {
+            var qi = quadrantItems[i];
+            if (!qi.IsEmpty && avgItems > 0 && qi.ItemCount >= avgItems * 1.8 && qi.ItemCount > 2)
+            {
+                quadrantItems[i] = qi with { IsOverloaded = true };
+            }
+        }
+
+        double penalty = (emptyCount * 14.0) + (itemVariance * 5.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Harmonious Quadrant Balance (≥90%)",
+            >= 75.0 => "Symmetric Matrix Grid (75–89%)",
+            >= 50.0 => "Asymmetric Quadrant Distribution (50–74%)",
+            _ => "Severely Warped / Skewed Matrix (<50%)"
+        };
+
+        string summary = FormatMatrixQuadrantSummary(
+            totalQuadrants, populatedCount, emptyCount, totalItems, totalWords, itemVariance, score, category, layout);
+
+        StatusMessage = summary;
+
+        return new SmartArtMatrixBalanceAudit(
+            totalQuadrants, populatedCount, emptyCount, totalItems, totalWords, itemVariance,
+            score, quadrantItems, category, layout, summary);
+    }
+
+    public static SmartArtMatrixBalanceAudit AuditMatrixQuadrantBalance(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditMatrixQuadrantBalance(markdown, layoutName);
+    }
+
+    public static string FormatMatrixQuadrantSummary(
+        int totalQuadrants, int populatedCount, int emptyCount, int totalItems, int totalWords,
+        double itemVariance, double score, string category, string layoutName)
+    {
+        if (totalItems == 0)
+            return $"SmartArt matrix quadrant audit ({layoutName} · 0 items): Outline is empty";
+
+        var alerts = new List<string>();
+        if (emptyCount > 0) alerts.Add($"⚠ {emptyCount} empty {(emptyCount == 1 ? "quadrant" : "quadrants")}");
+        else alerts.Add("4/4 quadrants populated");
+
+        alerts.Add($"{totalItems} total items ({totalWords} words)");
+        alerts.Add($"item variance {itemVariance:0.##}");
+
+        string details = string.Join(" · ", alerts);
+        return $"Matrix quadrant balance audit ({layoutName} · {category} · {score:0.#}% symmetry): {details}";
+    }
 }
 
 /// <summary>
@@ -8846,6 +9026,35 @@ public sealed record SmartArtCycleSequenceAudit(
     string Category,
     string LayoutName,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics and distribution parity for an individual quadrant or grid sector in a matrix layout.
+/// </summary>
+public sealed record QuadrantBalanceItem(
+    int QuadrantIndex,
+    string QuadrantName,
+    int ItemCount,
+    int TotalWords,
+    double MeanWordCount,
+    bool IsEmpty,
+    bool IsOverloaded);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt matrix and grid quadrant balance, item variance, and categorical symmetry.
+/// </summary>
+public sealed record SmartArtMatrixBalanceAudit(
+    int TotalQuadrants,
+    int PopulatedQuadrants,
+    int EmptyQuadrants,
+    int TotalItems,
+    int TotalWords,
+    double ItemVariance,
+    double SymmetryScore,
+    IReadOnlyList<QuadrantBalanceItem> Quadrants,
+    string Category,
+    string LayoutName,
+    string Summary);
+
 
 
 

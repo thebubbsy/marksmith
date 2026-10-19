@@ -3268,6 +3268,63 @@ namespace MarkSmith.Tests
             Assert.True(cycleAudit.CycleNodeCount >= 3);
             Assert.True(cycleAudit.AcyclicityScore < 100.0);
         }
+
+        [Fact]
+        public void Run183_AuditEdgeCrossingsAndPlanarity_EvaluatesClutterAndPlanarity()
+        {
+            // 1. Empty / null input
+            var emptyAudit = MindMapStudioViewModel.AuditEdgeCrossingsAndPlanarity(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalEdges);
+            Assert.Equal(100.0, emptyAudit.PlanarityScore);
+            Assert.Equal("Empty Map", emptyAudit.Category);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Pure planar graph (triangle or non-crossing grid)
+            // Node positions:
+            // n1: (0, 0), n2: (100, 0), n3: (50, 100)
+            var n1 = new MindMapNode { Id = "n1", Title = "Top-Left", X = 0, Y = 0, Width = 50, Height = 30 };
+            var n2 = new MindMapNode { Id = "n2", Title = "Top-Right", X = 200, Y = 0, Width = 50, Height = 30 };
+            var n3 = new MindMapNode { Id = "n3", Title = "Bottom", X = 100, Y = 200, Width = 50, Height = 30 };
+
+            var e1 = new MindMapLink { SourceNodeId = "n1", TargetNodeId = "n2" };
+            var e2 = new MindMapLink { SourceNodeId = "n2", TargetNodeId = "n3" };
+
+            var planarAudit = MindMapStudioViewModel.AuditEdgeCrossingsAndPlanarity(
+                new[] { n1, n2, n3 },
+                new[] { e1, e2 });
+
+            Assert.Equal(3, planarAudit.TotalNodes);
+            Assert.Equal(2, planarAudit.TotalEdges);
+            Assert.Equal(0, planarAudit.CrossingCount);
+            Assert.Equal(100.0, planarAudit.PlanarityScore);
+            Assert.Equal("Planar (Zero Crossings)", planarAudit.Category);
+
+            string formatted = MindMapStudioViewModel.FormatEdgeCrossingSummary(
+                planarAudit.TotalNodes, planarAudit.TotalEdges, planarAudit.TotalEdgePairsChecked,
+                planarAudit.CrossingCount, planarAudit.AcuteAngleCrossingCount, planarAudit.CrossingDensity,
+                planarAudit.PlanarityScore, planarAudit.Category, planarAudit.IsSelectionScope);
+            Assert.Equal(planarAudit.Summary, formatted);
+
+            // 3. Crossing edges (X-shaped graph: (0,0)->(200,200) and (200,0)->(0,200))
+            var p1 = new MindMapNode { Id = "p1", Title = "TL", X = 0, Y = 0, Width = 20, Height = 20 };
+            var p2 = new MindMapNode { Id = "p2", Title = "BR", X = 200, Y = 200, Width = 20, Height = 20 };
+            var p3 = new MindMapNode { Id = "p3", Title = "TR", X = 200, Y = 0, Width = 20, Height = 20 };
+            var p4 = new MindMapNode { Id = "p4", Title = "BL", X = 0, Y = 200, Width = 20, Height = 20 };
+
+            var cx1 = new MindMapLink { SourceNodeId = "p1", TargetNodeId = "p2" };
+            var cx2 = new MindMapLink { SourceNodeId = "p3", TargetNodeId = "p4" };
+
+            var crossAudit = MindMapStudioViewModel.AuditEdgeCrossingsAndPlanarity(
+                new[] { p1, p2, p3, p4 },
+                new[] { cx1, cx2 });
+
+            Assert.Equal(4, crossAudit.TotalNodes);
+            Assert.Equal(2, crossAudit.TotalEdges);
+            Assert.Equal(1, crossAudit.CrossingCount);
+            Assert.True(crossAudit.PlanarityScore < 100.0);
+            Assert.NotEmpty(crossAudit.Crossings);
+        }
     }
 }
 

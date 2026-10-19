@@ -7043,6 +7043,187 @@ public static class LineDiff
         string details = string.Join(" · ", parts);
         return $"Diff variable scope locality audit ({varStr} · {category} · {score:0.#}% locality): {details}";
     }
+
+    /// <summary>
+    /// Audits unified diff rows for variable declarations and identifies when variables escape their declaring block
+    /// into lambdas, callbacks, Task closures, or nested functions, evaluating closure capture safety and race condition risks.
+    /// </summary>
+    public static DiffClosureCaptureAudit AuditClosureCaptureAndScopeEscapes(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new DiffClosureCaptureAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<ClosureEscapeItem>(),
+                "Clean Baseline",
+                "Diff closure capture & scope escape audit: 0 variable declarations in diff · Clean baseline");
+        }
+
+        var declRegex = new Regex(@"\b(?:var|val|let|const|int|long|double|float|string|bool|byte\[\]|List<[^>]+>|Dictionary<[^>]+>|[A-Z][a-zA-Z0-9_]*)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|;)", RegexOptions.Compiled);
+        var closurePattern = new Regex(@"(=>|\bfunction\b|\bdelegate\b|\bTask\.Run\b|\bAction<|\bFunc<|\bThreadPool\b|\bContinueWith\b|\.Subscribe\()", RegexOptions.Compiled);
+        var asyncPattern = new Regex(@"(\basync\b|\bawait\b|\bTask\.Run\b|\bThreadPool\b|\bBeginInvoke\b)", RegexOptions.Compiled);
+
+        var declaredVars = new Dictionary<string, (int DeclLine, string DeclType, bool Escaped)>(StringComparer.Ordinal);
+        var escapes = new List<ClosureEscapeItem>();
+
+        int safeLocalCount = 0;
+        int escapedCount = 0;
+        int highRiskAsyncCount = 0;
+        int closureBlockDepth = 0;
+        bool closureBlockIsAsync = false;
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var row = unifiedRows[i];
+            string line = row.Text ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            string trimmed = line.Trim();
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*"))
+                continue;
+
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            int openBraces = 0;
+            int closeBraces = 0;
+            foreach (char c in line)
+            {
+                if (c == '{') openBraces++;
+                else if (c == '}') closeBraces++;
+            }
+
+            // Check if this line declares a variable
+            var match = declRegex.Match(line);
+            if (match.Success)
+            {
+                string varName = match.Groups[1].Value;
+                // Exclude common language keywords
+                if (varName != "if" && varName != "for" && varName != "while" && varName != "switch" &&
+                    varName != "return" && varName != "new" && varName != "class" && varName != "void")
+                {
+                    if (!declaredVars.ContainsKey(varName))
+                    {
+                        string declType = match.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+                        declaredVars[varName] = (lineNum, declType, false);
+                    }
+                }
+            }
+
+            // Check if line contains a closure boundary or is inside an active closure block
+            bool startsClosure = closurePattern.IsMatch(line);
+            bool lineIsAsync = asyncPattern.IsMatch(line);
+
+            if (startsClosure && openBraces > closeBraces)
+            {
+                closureBlockDepth += (openBraces - closeBraces);
+                closureBlockIsAsync = lineIsAsync;
+            }
+
+            bool isInClosure = startsClosure || closureBlockDepth > 0;
+            bool isAsync = lineIsAsync || closureBlockIsAsync;
+
+            if (isInClosure)
+            {
+                foreach (var kvp in declaredVars.ToList())
+                {
+                    string varName = kvp.Key;
+                    var info = kvp.Value;
+
+                    if (lineNum > info.DeclLine && !info.Escaped)
+                    {
+                        var usageRegex = new Regex($@"\b{Regex.Escape(varName)}\b");
+                        if (usageRegex.IsMatch(line))
+                        {
+                            declaredVars[varName] = (info.DeclLine, info.DeclType, true);
+
+                            string risk = isAsync ? "High Risk (Async Closure Escape)" : "Moderate (Enclosed Callback)";
+                            string status = isAsync
+                                ? $"⚠ Captured in async lambda/task on line {lineNum} (+{lineNum - info.DeclLine} lines)"
+                                : $"✓ Captured in local delegate on line {lineNum} (+{lineNum - info.DeclLine} lines)";
+
+                            escapes.Add(new ClosureEscapeItem(
+                                info.DeclLine,
+                                lineNum,
+                                varName,
+                                info.DeclType,
+                                startsClosure ? "Lambda / Delegate Closure" : "Async/Closure Scope Escape",
+                                isAsync,
+                                risk,
+                                status));
+
+                            if (isAsync) highRiskAsyncCount++;
+                            else escapedCount++;
+                        }
+                    }
+                }
+            }
+
+            if (!startsClosure && closureBlockDepth > 0)
+            {
+                closureBlockDepth += (openBraces - closeBraces);
+                if (closureBlockDepth <= 0)
+                {
+                    closureBlockDepth = 0;
+                    closureBlockIsAsync = false;
+                }
+            }
+        }
+
+        safeLocalCount = declaredVars.Values.Count(v => !v.Escaped);
+        int totalVars = declaredVars.Count;
+
+        if (totalVars == 0)
+        {
+            return new DiffClosureCaptureAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<ClosureEscapeItem>(),
+                "Clean Baseline",
+                "Diff closure capture & scope escape audit: 0 variable declarations in diff · Clean baseline");
+        }
+
+        double penalty = (highRiskAsyncCount * 18.0) + (escapedCount * 6.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Hermetic Local Encapsulation (≥90%)",
+            >= 75.0 => "Bounded Closure Captures (75–89%)",
+            >= 50.0 => "Moderate Closure Escape Risk (50–74%)",
+            _ => "High-Risk Async Scope Leaks (<50%)"
+        };
+
+        string summary = FormatClosureCaptureSummary(
+            totalVars, safeLocalCount, escapedCount, highRiskAsyncCount, score, category, escapes);
+
+        return new DiffClosureCaptureAudit(
+            totalVars, safeLocalCount, escapedCount, highRiskAsyncCount, score, escapes, category, summary);
+    }
+
+    public static DiffClosureCaptureAudit AuditClosureCaptureAndScopeEscapes(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditClosureCaptureAndScopeEscapes(unified);
+    }
+
+    public static string FormatClosureCaptureSummary(
+        int totalVars, int safeLocal, int escaped, int highRiskAsync,
+        double score, string category, IReadOnlyList<ClosureEscapeItem>? escapes = null)
+    {
+        if (totalVars == 0)
+            return "Diff closure capture & scope escape audit: 0 variable declarations in diff · Clean baseline";
+
+        string varStr = totalVars == 1 ? "1 variable" : $"{totalVars} variables";
+        var parts = new List<string>();
+        if (safeLocal > 0) parts.Add($"{safeLocal} safe local");
+        if (escaped > 0) parts.Add($"{escaped} callback capture");
+        if (highRiskAsync > 0) parts.Add($"⚠ {highRiskAsync} async closure escape");
+        else parts.Add("0 async leaks");
+
+        string details = string.Join(" · ", parts);
+        return $"Diff closure capture & escape audit ({varStr} · {category} · {score:0.#}% encapsulation): {details}";
+    }
 }
 
 /// <summary>
@@ -7712,6 +7893,33 @@ public sealed record DiffVariableScopeLocalityAudit(
     IReadOnlyList<VariableScopeLocalityItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics and closure risk for an individual variable escaping into a lambda, callback, or task.
+/// </summary>
+public sealed record ClosureEscapeItem(
+    int DeclarationLine,
+    int EscapeLine,
+    string VariableName,
+    string VariableType,
+    string EscapeKind,
+    bool IsAsyncOrTaskClosure,
+    string RiskLevel,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff variable closure capturing, lambda boundary escapes, and race condition risks.
+/// </summary>
+public sealed record DiffClosureCaptureAudit(
+    int TotalVariablesEvaluated,
+    int SafeLocalVariablesCount,
+    int EscapedClosureVariablesCount,
+    int HighRiskAsyncEscapesCount,
+    double EncapsulationScore,
+    IReadOnlyList<ClosureEscapeItem> Escapes,
+    string Category,
+    string Summary);
+
 
 
 

@@ -2573,6 +2573,58 @@ public class ShapeStudioPolishTests
         Assert.True(sliverAudit.ExtremeDistortionCount >= 1);
         Assert.True(sliverAudit.HarmonyScore < audit.HarmonyScore);
     }
+
+    [Fact]
+    public void Run183_AuditConnectorRouteDirectness_EvaluatesBendsAndDirectness()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditConnectorRouteDirectness();
+        Assert.Equal(0, emptyAudit.TotalConnectors);
+        Assert.Equal(100.0, emptyAudit.RouteEfficiencyScore);
+        Assert.Equal("Zero Connectors", emptyAudit.Category);
+        Assert.Contains("0 connectors", emptyAudit.Summary);
+
+        // 2. Direct connector between shapes
+        var box1 = new ShapeCanvasItemViewModel { Id = "b1", Name = "Source Box", X = 0, Y = 0, Width = 100, Height = 100, ShapeType = "rect" };
+        var box2 = new ShapeCanvasItemViewModel { Id = "b2", Name = "Target Box", X = 300, Y = 0, Width = 100, Height = 100, ShapeType = "rect" };
+        var connDirect = new ShapeCanvasItemViewModel { Id = "c1", Name = "Direct Arrow", X = 100, Y = 50, Width = 200, Height = 0, ShapeType = "connector" };
+
+        vm.Shapes.Add(box1);
+        vm.Shapes.Add(box2);
+        vm.Shapes.Add(connDirect);
+
+        var audit = vm.AuditConnectorRouteDirectness();
+        Assert.Equal(1, audit.TotalConnectors);
+        Assert.Equal(1, audit.DirectRouteCount);
+        Assert.Equal(0, audit.ObstacleClippingCount);
+        Assert.True(audit.RouteEfficiencyScore >= 90.0);
+        Assert.Equal("Optimal Direct Routing (≥90%)", audit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatConnectorRouteSummary(
+            audit.TotalConnectors, audit.DirectRouteCount, audit.ModerateDetourCount,
+            audit.ConvolutedRouteCount, audit.ObstacleClippingCount, audit.AverageDirectnessRatio,
+            audit.RouteEfficiencyScore, audit.Category, audit.IsSelectionScope ? "Selection · " : "");
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Convoluted detour connector
+        var connDetour = new ShapeCanvasItemViewModel
+        {
+            Id = "c2",
+            Name = "Detour Polyline",
+            X = 50,
+            Y = 50,
+            Width = 200,
+            Height = 200,
+            ShapeType = "orthogonal connector"
+        };
+        vm.Shapes.Add(connDetour);
+
+        var detourAudit = vm.AuditConnectorRouteDirectness();
+        Assert.Equal(2, detourAudit.TotalConnectors);
+        Assert.True(detourAudit.AverageDirectnessRatio >= 1.0);
+    }
 }
 
 

@@ -4584,6 +4584,110 @@ Some paragraph in between.
         Assert.Contains("OnCopyWorkspaceCodeFenceIndentationAdvisorClick", suiteCs);
         Assert.Contains("AuditWorkspaceCodeFenceIndentation", suiteCs);
     }
+
+    [Fact]
+    public void RecentFilesService_AuditWorkspaceMarkdownDialectConsistency_EvaluatesDialects()
+    {
+        // 1. Empty / null input
+        var emptyAudit = RecentFilesService.AuditWorkspaceMarkdownDialectConsistency(
+            Array.Empty<string>(),
+            _ => true,
+            _ => "");
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(100.0, emptyAudit.DialectAlignmentScore);
+        Assert.Equal("Empty Workspace", emptyAudit.Category);
+        Assert.Contains("0 documents", emptyAudit.Summary);
+
+        // 2. Structured markdown files with backticks and tagged language
+        var doc1 = string.Join("\n",
+            "# Heading 1",
+            "",
+            "- List item 1",
+            "- List item 2",
+            "",
+            "```csharp",
+            "var x = 10;",
+            "```"
+        );
+
+        var doc2 = string.Join("\n",
+            "# Heading 2",
+            "",
+            "- Item A",
+            "- Item B",
+            "",
+            "```python",
+            "print('Hello')",
+            "```"
+        );
+
+        var files = new[] { @"C:\test\doc1.md", @"C:\test\doc2.md" };
+        var audit = RecentFilesService.AuditWorkspaceMarkdownDialectConsistency(
+            files,
+            _ => true,
+            f => f.Contains("doc1") ? doc1 : doc2);
+
+        Assert.Equal(2, audit.TotalFilesScanned);
+        Assert.Equal(2, audit.FilesWithMarkdown);
+        Assert.Equal(2, audit.BacktickTotal);
+        Assert.Equal(0, audit.TildeTotal);
+        Assert.Equal(2, audit.TaggedLanguageFencesTotal);
+        Assert.Equal(0, audit.UntaggedFencesTotal);
+        Assert.Equal(4, audit.HyphenListTotal);
+        Assert.Equal(0, audit.AsteriskListTotal);
+        Assert.Equal(100.0, audit.DialectAlignmentScore);
+        Assert.Equal("Unified Markdown Dialect (≥90%)", audit.Category);
+
+        string formatted = RecentFilesService.FormatWorkspaceMarkdownDialectSummary(
+            audit.TotalFilesScanned, audit.FilesWithMarkdown, audit.DominantFenceType,
+            audit.BacktickTotal, audit.TildeTotal, audit.TaggedLanguageFencesTotal,
+            audit.UntaggedFencesTotal, audit.HyphenListTotal, audit.AsteriskListTotal,
+            audit.PlusListTotal, audit.AtxHeadingsTotal, audit.SetextHeadingsTotal,
+            audit.DialectAlignmentScore, audit.Category, audit.Files);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run183_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Inline Math Delimiter Balancing & TeX Macro Expansion Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditMathSyntaxItem", mainCs);
+        Assert.Contains("AuditInlineMathAndTexSyntax", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Edge Crossing Density & Planarity Topology Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphEdgeCrossingsItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphEdgeCrossingsClick", galaxyCs);
+        Assert.Contains("AuditEdgeCrossingsAndPlanarity", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Connector Route Directness, Bend Count & Obstacle Clipping Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditConnectorRoutesItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditConnectorRoutesClick", shapeCs);
+        Assert.Contains("AuditConnectorRouteDirectness", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Matrix / Grid Layout Quadrant Balance & Categorical Symmetry Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditMatrixQuadrantItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditMatrixQuadrantClick", smartArtCs);
+        Assert.Contains("AuditMatrixQuadrantBalance", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Variable Scope Locality, Lifetime Span & Closure Boundary Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditClosureCaptureScope", historyCs);
+        Assert.Contains("AuditClosureCaptureAndScopeEscapes", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Code Block Fence Formatting, Indentation Alignment & Delimiter Consistency Advisor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceMarkdownDialectAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceMarkdownDialectAdvisorClick", suiteCs);
+        Assert.Contains("AuditWorkspaceMarkdownDialectConsistency", suiteCs);
+    }
 }
 
 

@@ -386,6 +386,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditCycleSequenceItem" Text="Audit SmartArt cycle layout sequence monotonicity &amp; loop closure" Click="OnOutlineStatsAuditCycleSequenceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantItem" Text="Audit SmartArt matrix quadrant balance &amp; categorical symmetry" Click="OnOutlineStatsAuditMatrixQuadrantClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

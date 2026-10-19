@@ -11837,6 +11837,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditFootnoteOrderItem);
 
+        var auditMathSyntaxItem = new MenuFlyoutItem
+        {
+            Text = "Audit Inline & Display Math Delimiters & KaTeX Syntax",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditMathSyntaxItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditInlineMathAndTexSyntax(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditMathSyntaxItem);
+
         menu.ShowAt(anchor);
     }
 

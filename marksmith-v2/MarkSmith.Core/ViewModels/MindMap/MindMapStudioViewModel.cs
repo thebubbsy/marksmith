@@ -9622,6 +9622,193 @@ namespace MarkSmith.ViewModels.MindMap
             string details = string.Join(" · ", alerts);
             return $"Graph topological hierarchy & cycle audit ({scope}{nodeStr}, {edgeStr} · {category} · {acyclicityScore:0.#}% acyclic): {details}";
         }
+
+        /// <summary>
+        /// Audits mind map graph topology for edge crossings and planarity, calculating pairwise edge segment
+        /// intersections, identifying acute-angle crossing tangles, computing crossing density, and scoring graph planarity.
+        /// Ignores incident edges sharing common source or target nodes.
+        /// </summary>
+        public GraphEdgeCrossingPlanarityAudit AuditEdgeCrossingsAndPlanarity(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0) ? selected : Nodes.ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+            string scope = isSelection ? "Selection · " : "";
+
+            int n = targetNodes.Count;
+
+            if (n == 0)
+            {
+                return new GraphEdgeCrossingPlanarityAudit(
+                    0, 0, 0, 0, 0, 0.0, 100.0,
+                    Array.Empty<EdgeCrossingPairItem>(),
+                    "Empty Map",
+                    isSelection,
+                    $"Graph edge crossing & planarity audit ({scope}0 nodes): Empty map");
+            }
+
+            var nodeMap = targetNodes.ToDictionary(
+                node => node.Id,
+                node => (X: node.X + (node.Width > 0 ? node.Width / 2.0 : 60.0),
+                         Y: node.Y + (node.Height > 0 ? node.Height / 2.0 : 20.0),
+                         Title: node.Title ?? node.Id));
+
+            var targetLinks = Links.Where(l => !string.IsNullOrEmpty(l.SourceNodeId) &&
+                                               !string.IsNullOrEmpty(l.TargetNodeId) &&
+                                               nodeMap.ContainsKey(l.SourceNodeId) &&
+                                               nodeMap.ContainsKey(l.TargetNodeId) &&
+                                               !string.Equals(l.SourceNodeId, l.TargetNodeId, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            int totalEdges = targetLinks.Count;
+            if (totalEdges < 2)
+            {
+                string edgeSummary = FormatEdgeCrossingSummary(n, totalEdges, 0, 0, 0, 0.0, 100.0, "Planar (Zero Crossings)", isSelection);
+                return new GraphEdgeCrossingPlanarityAudit(
+                    n, totalEdges, 0, 0, 0, 0.0, 100.0,
+                    Array.Empty<EdgeCrossingPairItem>(),
+                    "Planar (Zero Crossings)",
+                    isSelection,
+                    edgeSummary);
+            }
+
+            var crossings = new List<EdgeCrossingPairItem>();
+            int pairsChecked = 0;
+            int acuteCount = 0;
+
+            int maxEdgeComparisons = Math.Min(totalEdges, 400); // Guard against runaway O(E^2)
+
+            for (int i = 0; i < maxEdgeComparisons; i++)
+            {
+                var l1 = targetLinks[i];
+                var p1_0 = nodeMap[l1.SourceNodeId];
+                var p1_1 = nodeMap[l1.TargetNodeId];
+
+                for (int j = i + 1; j < maxEdgeComparisons; j++)
+                {
+                    var l2 = targetLinks[j];
+
+                    // Incident edges (sharing endpoints) meet at a common node; do not count as a crossing
+                    if (string.Equals(l1.SourceNodeId, l2.SourceNodeId, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(l1.SourceNodeId, l2.TargetNodeId, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(l1.TargetNodeId, l2.SourceNodeId, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(l1.TargetNodeId, l2.TargetNodeId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    pairsChecked++;
+                    var p2_0 = nodeMap[l2.SourceNodeId];
+                    var p2_1 = nodeMap[l2.TargetNodeId];
+
+                    if (CheckSegmentIntersection(
+                        p1_0.X, p1_0.Y, p1_1.X, p1_1.Y,
+                        p2_0.X, p2_0.Y, p2_1.X, p2_1.Y,
+                        out double intX, out double intY, out double angleDeg))
+                    {
+                        bool isAcute = angleDeg < 25.0;
+                        if (isAcute) acuteCount++;
+
+                        crossings.Add(new EdgeCrossingPairItem(
+                            p1_0.Title, p1_1.Title,
+                            p2_0.Title, p2_1.Title,
+                            intX, intY, angleDeg, isAcute));
+                    }
+                }
+            }
+
+            int crossingCount = crossings.Count;
+            double density = totalEdges > 0 ? Math.Round((double)crossingCount / totalEdges, 2) : 0.0;
+            double penalty = (crossingCount * 12.0) + (acuteCount * 8.0);
+            double planarityScore = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+            planarityScore = Math.Round(planarityScore, 1);
+
+            string category = crossingCount switch
+            {
+                0 => "Planar (Zero Crossings)",
+                _ when planarityScore >= 80.0 => "Near-Planar (Sparse Crossings)",
+                _ when planarityScore >= 50.0 => "Moderate Crossing Clutter",
+                _ => "Dense Crossing Matrix"
+            };
+
+            string summary = FormatEdgeCrossingSummary(
+                n, totalEdges, pairsChecked, crossingCount, acuteCount, density, planarityScore, category, isSelection);
+
+            return new GraphEdgeCrossingPlanarityAudit(
+                n, totalEdges, pairsChecked, crossingCount, acuteCount, density, planarityScore,
+                crossings, category, isSelection, summary);
+        }
+
+        private static bool CheckSegmentIntersection(
+            double p0_x, double p0_y, double p1_x, double p1_y,
+            double p2_x, double p2_y, double p3_x, double p3_y,
+            out double intersectX, out double intersectY, out double angleDegrees)
+        {
+            intersectX = 0; intersectY = 0; angleDegrees = 0;
+            double s1_x = p1_x - p0_x;
+            double s1_y = p1_y - p0_y;
+            double s2_x = p3_x - p2_x;
+            double s2_y = p3_y - p2_y;
+
+            double denom = -s2_x * s1_y + s1_x * s2_y;
+            if (Math.Abs(denom) < 1e-9) return false;
+
+            double s = (-s1_y * (p0_x - p2_x) + s1_x * (p0_y - p2_y)) / denom;
+            double t = ( s2_x * (p0_y - p2_y) - s2_y * (p0_x - p2_x)) / denom;
+
+            if (s > 0.001 && s < 0.999 && t > 0.001 && t < 0.999)
+            {
+                intersectX = Math.Round(p0_x + (t * s1_x), 1);
+                intersectY = Math.Round(p0_y + (t * s1_y), 1);
+
+                double dot = s1_x * s2_x + s1_y * s2_y;
+                double mag1 = Math.Sqrt(s1_x * s1_x + s1_y * s1_y);
+                double mag2 = Math.Sqrt(s2_x * s2_x + s2_y * s2_y);
+                if (mag1 > 1e-9 && mag2 > 1e-9)
+                {
+                    double cosTheta = Math.Clamp(dot / (mag1 * mag2), -1.0, 1.0);
+                    double angleRad = Math.Acos(Math.Abs(cosTheta));
+                    angleDegrees = Math.Round(angleRad * 180.0 / Math.PI, 1);
+                }
+                return true;
+            }
+            return false;
+        }
+
+        public static GraphEdgeCrossingPlanarityAudit AuditEdgeCrossingsAndPlanarity(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null) foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            if (links != null) foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            return vm.AuditEdgeCrossingsAndPlanarity();
+        }
+
+        public static string FormatEdgeCrossingSummary(
+            int totalNodes, int totalEdges, int pairsChecked, int crossingCount,
+            int acuteCount, double density, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph edge crossing & planarity audit ({scope}0 nodes): Empty map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string edgeStr = totalEdges == 1 ? "1 edge" : $"{totalEdges} edges";
+
+            var alerts = new List<string>();
+            if (crossingCount == 0)
+            {
+                alerts.Add("0 crossings (pure planar)");
+            }
+            else
+            {
+                alerts.Add($"⚠ {crossingCount} {(crossingCount == 1 ? "crossing" : "crossings")} (density {density:0.##})");
+                if (acuteCount > 0) alerts.Add($"⚠ {acuteCount} acute-angle tangle(s)");
+            }
+
+            string details = string.Join(" · ", alerts);
+            return $"Graph edge crossing & planarity audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% score): {details}";
+        }
     }
 
 
@@ -10513,6 +10700,35 @@ namespace MarkSmith.ViewModels.MindMap
         double AcyclicityScore,
         IReadOnlyList<TopologicalStratumNodeInfo> Items,
         string HierarchyClassification,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents an individual detected intersection between two non-incident graph edge segments.
+    /// </summary>
+    public sealed record EdgeCrossingPairItem(
+        string SourceLink1,
+        string TargetLink1,
+        string SourceLink2,
+        string TargetLink2,
+        double IntersectionX,
+        double IntersectionY,
+        double CrossingAngleDegrees,
+        bool IsAcuteAngle);
+
+    /// <summary>
+    /// Represents the result of an audit of graph edge crossings, planarity score, crossing density, and visual clutter.
+    /// </summary>
+    public sealed record GraphEdgeCrossingPlanarityAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int TotalEdgePairsChecked,
+        int CrossingCount,
+        int AcuteAngleCrossingCount,
+        double CrossingDensity,
+        double PlanarityScore,
+        IReadOnlyList<EdgeCrossingPairItem> Crossings,
+        string Category,
         bool IsSelectionScope,
         string Summary);
 }

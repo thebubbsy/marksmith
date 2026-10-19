@@ -9203,6 +9203,179 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", alerts);
         return $"Aspect ratio harmony audit ({scopeStr}{shapeStr} · {category} · {harmonyScore:0.#}% harmony): {details}";
     }
+
+    /// <summary>
+    /// Audits diagram connector routes for directness, excessive orthogonal bend counts, and obstacle clipping
+    /// through unrelated shape bounding boxes.
+    /// </summary>
+    public DiagramConnectorRouteAudit AuditConnectorRouteDirectness(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = SelectedItems.ToList();
+        var targets = targetShapes?.ToList() ?? (selected.Count > 0 ? selected : Shapes.ToList());
+        bool isSelection = targetShapes != null || (selected.Count > 0 && targets.Count < Shapes.Count);
+        var audit = AuditConnectorRouteDirectness(targets, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramConnectorRouteAudit AuditConnectorRouteDirectness(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapesOnCanvas = null,
+        bool isSelection = false)
+    {
+        var list = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        var allList = (allShapesOnCanvas ?? list).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        // Find connectors in list
+        var connectors = list.Where(s => s.ShapeType != null && (
+            s.ShapeType.Contains("connector", StringComparison.OrdinalIgnoreCase) ||
+            s.ShapeType.Contains("line", StringComparison.OrdinalIgnoreCase) ||
+            s.ShapeType.Contains("path", StringComparison.OrdinalIgnoreCase) ||
+            s.ShapeType.Contains("polyline", StringComparison.OrdinalIgnoreCase) ||
+            s.ShapeType.Contains("curve", StringComparison.OrdinalIgnoreCase))).ToList();
+
+        if (connectors.Count == 0)
+        {
+            connectors = list.Where(s => Math.Abs(s.Width) <= 6.0 || Math.Abs(s.Height) <= 6.0).ToList();
+        }
+
+        if (connectors.Count == 0)
+        {
+            return new DiagramConnectorRouteAudit(
+                0, 0, 0, 0, 0, 1.0, 100.0,
+                Array.Empty<ConnectorRouteItem>(),
+                "Zero Connectors",
+                isSelection,
+                $"Diagram connector route audit ({scopeStr}0 connectors): Canvas contains no connector routes");
+        }
+
+        var obstacleShapes = allList.Where(s => !connectors.Contains(s) && Math.Abs(s.Width) > 10.0 && Math.Abs(s.Height) > 10.0).ToList();
+
+        var items = new List<ConnectorRouteItem>();
+        int directCount = 0;
+        int moderateCount = 0;
+        int convolutedCount = 0;
+        int totalObstacleClipping = 0;
+        double directnessSum = 0;
+
+        foreach (var conn in connectors)
+        {
+            double w = Math.Abs(conn.Width);
+            double h = Math.Abs(conn.Height);
+            double euclidean = Math.Round(Math.Sqrt(w * w + h * h), 1);
+            if (euclidean < 1.0) euclidean = 1.0;
+
+            bool isOrthogonal = conn.ShapeType != null && (
+                conn.ShapeType.Contains("orthogonal", StringComparison.OrdinalIgnoreCase) ||
+                conn.ShapeType.Contains("elbow", StringComparison.OrdinalIgnoreCase) ||
+                conn.ShapeType.Contains("polyline", StringComparison.OrdinalIgnoreCase));
+
+            int bendCount = isOrthogonal ? (w > 10 && h > 10 ? 2 : 1) : 0;
+            double actualLength = isOrthogonal ? (w + h) : euclidean;
+
+            double directnessRatio = Math.Round(actualLength / euclidean, 2);
+            directnessSum += directnessRatio;
+
+            double connMinX = conn.X;
+            double connMaxX = conn.X + w;
+            double connMinY = conn.Y;
+            double connMaxY = conn.Y + h;
+
+            int clippingCount = 0;
+            foreach (var obs in obstacleShapes)
+            {
+                double obsMinX = obs.X;
+                double obsMaxX = obs.X + Math.Abs(obs.Width);
+                double obsMinY = obs.Y;
+                double obsMaxY = obs.Y + Math.Abs(obs.Height);
+
+                bool overlaps = (connMinX < obsMaxX - 5 && connMaxX > obsMinX + 5 &&
+                                 connMinY < obsMaxY - 5 && connMaxY > obsMinY + 5);
+                if (overlaps)
+                {
+                    clippingCount++;
+                }
+            }
+
+            if (clippingCount > 0) totalObstacleClipping += clippingCount;
+
+            string routeQuality;
+            if (clippingCount > 0)
+            {
+                routeQuality = $"⚠ Obstacle collision ({clippingCount} shape clipping)";
+            }
+            else if (directnessRatio <= 1.15 && bendCount <= 1)
+            {
+                directCount++;
+                routeQuality = "✓ Direct route";
+            }
+            else if (directnessRatio <= 1.55 && bendCount <= 2)
+            {
+                moderateCount++;
+                routeQuality = "✓ Normal orthogonal elbow";
+            }
+            else
+            {
+                convolutedCount++;
+                routeQuality = "⚠ Convoluted route detour";
+            }
+
+            string label = !string.IsNullOrWhiteSpace(conn.Name) ? conn.Name :
+                           (!string.IsNullOrWhiteSpace(conn.Text) ? conn.Text : $"Connector #{conn.Id}");
+
+            items.Add(new ConnectorRouteItem(
+                conn.Id,
+                label,
+                actualLength,
+                euclidean,
+                directnessRatio,
+                bendCount,
+                clippingCount,
+                routeQuality));
+        }
+
+        double avgDirectness = Math.Round(directnessSum / connectors.Count, 2);
+        double penalty = (convolutedCount * 15.0) + (totalObstacleClipping * 12.0) + (moderateCount * 3.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Optimal Direct Routing (≥90%)",
+            >= 75.0 => "Efficient Orthogonal Routes (75–89%)",
+            >= 50.0 => "Moderate Detours & Routing Clutter (50–74%)",
+            _ => "Convoluted Routing & Obstacle Collisions (<50%)"
+        };
+
+        string summary = FormatConnectorRouteSummary(
+            connectors.Count, directCount, moderateCount, convolutedCount, totalObstacleClipping,
+            avgDirectness, score, category, scopeStr);
+
+        return new DiagramConnectorRouteAudit(
+            connectors.Count, directCount, moderateCount, convolutedCount, totalObstacleClipping,
+            avgDirectness, score, items, category, isSelection, summary);
+    }
+
+    public static string FormatConnectorRouteSummary(
+        int totalConnectors, int directCount, int moderateCount, int convolutedCount,
+        int obstacleClipping, double avgDirectness, double routeScore, string category,
+        string scopeStr = "")
+    {
+        if (totalConnectors == 0) return $"Diagram connector route audit ({scopeStr}0 connectors): Canvas contains no connector routes";
+
+        string connStr = totalConnectors == 1 ? "1 connector" : $"{totalConnectors} connectors";
+        var alerts = new List<string>();
+        alerts.Add($"avg directness {avgDirectness:0.##}x");
+        if (directCount > 0) alerts.Add($"{directCount} direct");
+        if (moderateCount > 0) alerts.Add($"{moderateCount} elbow");
+        if (convolutedCount > 0) alerts.Add($"⚠ {convolutedCount} convoluted");
+        if (obstacleClipping > 0) alerts.Add($"⚠ {obstacleClipping} obstacle clipping");
+        else alerts.Add("0 obstacle collisions");
+
+        string details = string.Join(" · ", alerts);
+        return $"Connector route audit ({scopeStr}{connStr} · {category} · {routeScore:0.#}% efficiency): {details}";
+    }
 }
 
 /// <summary>
@@ -10118,6 +10291,36 @@ public sealed record DiagramAspectRatioHarmonyAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated routing metrics, directness ratio, bend count, and obstacle clipping for an individual connector.
+/// </summary>
+public sealed record ConnectorRouteItem(
+    string Id,
+    string Name,
+    double ActualLength,
+    double EuclideanDistance,
+    double DirectnessRatio,
+    int BendCount,
+    int ObstacleClippingCount,
+    string RouteQuality);
+
+/// <summary>
+/// Represents the result of an audit of diagram connector route directness, bend count, and obstacle clipping.
+/// </summary>
+public sealed record DiagramConnectorRouteAudit(
+    int TotalConnectors,
+    int DirectRouteCount,
+    int ModerateDetourCount,
+    int ConvolutedRouteCount,
+    int ObstacleClippingCount,
+    double AverageDirectnessRatio,
+    double RouteEfficiencyScore,
+    IReadOnlyList<ConnectorRouteItem> Connectors,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
 
 
 

@@ -757,6 +757,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditAspectRatioHarmonyItem" Text="Audit shape aspect ratio harmony &amp; visual mass distribution" Click="OnSelectionAuditAspectRatioHarmonyClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditConnectorRoutesItem" Text="Audit connector route directness, bend counts &amp; obstacle collisions" Click="OnSelectionAuditConnectorRoutesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

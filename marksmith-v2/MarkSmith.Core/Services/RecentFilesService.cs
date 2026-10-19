@@ -6789,6 +6789,231 @@ public sealed class RecentFilesService
         string details = string.Join(" · ", parts);
         return $"Workspace code fence indentation advisor ({docStr} [{fenceStr}] · {category} · {score:0.#}% consistency): {details}";
     }
+
+    /// <summary>
+    /// Audits workspace markdown documents for syntax dialect conventions and formatting alignment:
+    /// code fence delimiter consistency, language specifier coverage, list marker preferences, and heading style.
+    /// </summary>
+    public static WorkspaceMarkdownDialectAudit AuditWorkspaceMarkdownDialectConsistency(
+        IReadOnlyList<string>? filePaths,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var exists = fileExistsProvider ?? (path => File.Exists(path));
+        var readContent = contentReader ?? (path => File.ReadAllText(path));
+
+        var mdFiles = (filePaths ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .Where(f => f.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
+                        f.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (mdFiles.Count == 0)
+        {
+            return new WorkspaceMarkdownDialectAudit(
+                0, 0, "None", 0, 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownDialectFileItem>(),
+                "Empty Workspace",
+                "Workspace markdown dialect advisor: 0 documents · Workspace contains no markdown files");
+        }
+
+        var items = new List<MarkdownDialectFileItem>();
+        int totalBackticks = 0;
+        int totalTildes = 0;
+        int totalTagged = 0;
+        int totalUntagged = 0;
+        int totalHyphens = 0;
+        int totalAsterisks = 0;
+        int totalPlus = 0;
+        int totalAtx = 0;
+        int totalSetext = 0;
+
+        foreach (var path in mdFiles)
+        {
+            if (!exists(path)) continue;
+
+            string text;
+            try
+            {
+                text = readContent(path);
+            }
+            catch
+            {
+                continue;
+            }
+
+            var lines = text.Replace("\r", "").Split('\n');
+            int backticks = 0;
+            int tildes = 0;
+            int tagged = 0;
+            int untagged = 0;
+            int hyphens = 0;
+            int asterisks = 0;
+            int plus = 0;
+            int atx = 0;
+            int setext = 0;
+
+            bool inFence = false;
+            string fenceMarker = string.Empty;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                var trimmed = line.Trim();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    string tag = trimmed.Substring(0, 3);
+                    if (!inFence)
+                    {
+                        inFence = true;
+                        fenceMarker = tag;
+                        if (tag == "```") backticks++;
+                        else tildes++;
+
+                        string lang = trimmed.Substring(3).Trim();
+                        if (!string.IsNullOrEmpty(lang)) tagged++;
+                        else untagged++;
+                    }
+                    else if (tag == fenceMarker)
+                    {
+                        inFence = false;
+                        fenceMarker = string.Empty;
+                    }
+                    continue;
+                }
+
+                if (inFence) continue;
+
+                if (trimmed.StartsWith("#"))
+                {
+                    atx++;
+                }
+                else if (i > 0 && !string.IsNullOrWhiteSpace(lines[i - 1].Trim()))
+                {
+                    if (trimmed.Length >= 2 && trimmed.All(c => c == '=')) setext++;
+                    else if (trimmed.Length >= 2 && trimmed.All(c => c == '-')) setext++;
+                }
+
+                if (trimmed.StartsWith("- ")) hyphens++;
+                else if (trimmed.StartsWith("* ")) asterisks++;
+                else if (trimmed.StartsWith("+ ")) plus++;
+            }
+
+            int totalFences = backticks + tildes;
+            int totalList = hyphens + asterisks + plus;
+
+            double fileScore = 100.0;
+            if (totalFences > 0 && backticks > 0 && tildes > 0) fileScore -= 20.0;
+            if (totalList > 0 && ((hyphens > 0 && asterisks > 0) || (hyphens > 0 && plus > 0))) fileScore -= 15.0;
+            if (setext > 0) fileScore -= 10.0;
+            if (untagged > 0) fileScore -= Math.Min(15.0, untagged * 5.0);
+            fileScore = Math.Clamp(fileScore, 0.0, 100.0);
+
+            totalBackticks += backticks;
+            totalTildes += tildes;
+            totalTagged += tagged;
+            totalUntagged += untagged;
+            totalHyphens += hyphens;
+            totalAsterisks += asterisks;
+            totalPlus += plus;
+            totalAtx += atx;
+            totalSetext += setext;
+
+            items.Add(new MarkdownDialectFileItem(
+                path,
+                Path.GetFileName(path),
+                totalFences,
+                backticks,
+                tildes,
+                tagged,
+                untagged,
+                hyphens,
+                asterisks,
+                plus,
+                atx,
+                setext,
+                Math.Round(fileScore, 1)));
+        }
+
+        string dominantFence = totalBackticks >= totalTildes ? "Backticks (```)" : "Tildes (~~~)";
+        int totalAllFences = totalBackticks + totalTildes;
+        int minorityFences = Math.Min(totalBackticks, totalTildes);
+
+        int totalAllLists = totalHyphens + totalAsterisks + totalPlus;
+        int dominantList = Math.Max(totalHyphens, Math.Max(totalAsterisks, totalPlus));
+        int minorityLists = totalAllLists - dominantList;
+
+        double penalty = 0.0;
+        if (totalAllFences > 0)
+        {
+            double fenceMinorityRatio = (double)minorityFences / totalAllFences;
+            penalty += fenceMinorityRatio * 30.0;
+            double untaggedRatio = (double)totalUntagged / totalAllFences;
+            penalty += untaggedRatio * 15.0;
+        }
+
+        if (totalAllLists > 0)
+        {
+            double listMinorityRatio = (double)minorityLists / totalAllLists;
+            penalty += listMinorityRatio * 20.0;
+        }
+
+        if (totalAtx + totalSetext > 0)
+        {
+            double setextRatio = (double)totalSetext / (totalAtx + totalSetext);
+            penalty += setextRatio * 15.0;
+        }
+
+        double dialectScore = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        dialectScore = Math.Round(dialectScore, 1);
+
+        string category = dialectScore switch
+        {
+            >= 90.0 => "Unified Markdown Dialect (≥90%)",
+            >= 75.0 => "Cohesive Syntax (75–89%)",
+            >= 50.0 => "Mixed Syntax Dialects (50–74%)",
+            _ => "Fragmented Markdown Syntax (<50%)"
+        };
+
+        string summary = FormatWorkspaceMarkdownDialectSummary(
+            mdFiles.Count, items.Count, dominantFence, totalBackticks, totalTildes,
+            totalTagged, totalUntagged, totalHyphens, totalAsterisks, totalPlus,
+            totalAtx, totalSetext, dialectScore, category, items);
+
+        return new WorkspaceMarkdownDialectAudit(
+            mdFiles.Count, items.Count, dominantFence, totalBackticks, totalTildes,
+            totalTagged, totalUntagged, totalHyphens, totalAsterisks, totalPlus,
+            totalAtx, totalSetext, dialectScore, items, category, summary);
+    }
+
+    public static WorkspaceMarkdownDialectAudit AuditWorkspaceMarkdownDialectConsistency(
+        string filePath,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        return AuditWorkspaceMarkdownDialectConsistency(new[] { filePath }, fileExistsProvider, contentReader);
+    }
+
+    public static string FormatWorkspaceMarkdownDialectSummary(
+        int totalFiles, int filesWithMd, string dominantFence, int backticks, int tildes,
+        int tagged, int untagged, int hyphens, int asterisks, int plus,
+        int atx, int setext, double score, string category,
+        IReadOnlyList<MarkdownDialectFileItem>? items = null)
+    {
+        if (totalFiles == 0) return "Workspace markdown dialect advisor: 0 documents · Workspace is empty";
+        string docStr = totalFiles == 1 ? "1 document" : $"{totalFiles} documents";
+
+        var parts = new List<string>();
+        parts.Add($"dominant {dominantFence}");
+        if (untagged > 0) parts.Add($"{untagged} untagged code blocks");
+        if (asterisks + plus > 0) parts.Add($"mixed list markers ({hyphens}-, {asterisks}*, {plus}+)");
+        if (setext > 0) parts.Add($"⚠ {setext} setext headings");
+
+        string details = parts.Count > 0 ? $" · {string.Join(", ", parts)}" : "";
+        return $"Workspace markdown dialect advisor ({docStr} · {category} · {score:0.#}% alignment): {details}";
+    }
 }
 
 /// <summary>
@@ -7637,6 +7862,47 @@ public sealed record WorkspaceCodeFenceIndentationAudit(
     IReadOnlyList<CodeFenceFileAuditItem> Files,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics and formatting consistency for an individual markdown file's syntax dialect.
+/// </summary>
+public sealed record MarkdownDialectFileItem(
+    string FilePath,
+    string FileName,
+    int TotalFences,
+    int BacktickFences,
+    int TildeFences,
+    int TaggedLanguageFences,
+    int UntaggedFences,
+    int HyphenListItems,
+    int AsteriskListItems,
+    int PlusListItems,
+    int AtxHeadings,
+    int SetextHeadings,
+    double FileDialectConsistencyScore);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown syntax dialect conventions, delimiter alignment,
+/// code fence language tagging, and heading styles.
+/// </summary>
+public sealed record WorkspaceMarkdownDialectAudit(
+    int TotalFilesScanned,
+    int FilesWithMarkdown,
+    string DominantFenceType,
+    int BacktickTotal,
+    int TildeTotal,
+    int TaggedLanguageFencesTotal,
+    int UntaggedFencesTotal,
+    int HyphenListTotal,
+    int AsteriskListTotal,
+    int PlusListTotal,
+    int AtxHeadingsTotal,
+    int SetextHeadingsTotal,
+    double DialectAlignmentScore,
+    IReadOnlyList<MarkdownDialectFileItem> Files,
+    string Category,
+    string Summary);
+
 
 
 

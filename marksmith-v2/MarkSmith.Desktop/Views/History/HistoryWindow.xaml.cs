@@ -3614,6 +3614,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditVariableScopeLocality);
+
+                var auditClosureCaptureScope = new MenuFlyoutItem
+                {
+                    Text = "Audit variable closure capturing & async lambda scope escapes",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditClosureCaptureScope.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditClosureCaptureAndScopeEscapes(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditClosureCaptureScope);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

@@ -2396,6 +2396,65 @@ public class HistoryPolishTests : IDisposable
         Assert.True(wideAudit.LeakingScopeVariablesCount >= 1);
         Assert.True(wideAudit.LocalityScore < audit.LocalityScore);
     }
+
+    [Fact]
+    public void Run183_AuditClosureCaptureAndScopeEscapes_EvaluatesEscapesAndRisk()
+    {
+        // 1. Empty / null input
+        var emptyAudit = LineDiff.AuditClosureCaptureAndScopeEscapes("", "");
+        Assert.Equal(0, emptyAudit.TotalVariablesEvaluated);
+        Assert.Equal(100.0, emptyAudit.EncapsulationScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 variable declarations", emptyAudit.Summary);
+
+        // 2. Local variable without closure escape (safe)
+        string beforeCode = string.Join("\n",
+            "public void ComputeTotal()",
+            "{",
+            "    int total = 0;",
+            "    total += 5;",
+            "}"
+        );
+
+        string afterCode = string.Join("\n",
+            "public void ComputeTotal()",
+            "{",
+            "    int total = 10;",
+            "    total += 20;",
+            "}"
+        );
+
+        var safeAudit = LineDiff.AuditClosureCaptureAndScopeEscapes(beforeCode, afterCode);
+        Assert.True(safeAudit.TotalVariablesEvaluated >= 1);
+        Assert.Equal(0, safeAudit.EscapedClosureVariablesCount);
+        Assert.Equal(0, safeAudit.HighRiskAsyncEscapesCount);
+        Assert.Equal(100.0, safeAudit.EncapsulationScore);
+        Assert.Equal("Hermetic Local Encapsulation (≥90%)", safeAudit.Category);
+
+        string formatted = LineDiff.FormatClosureCaptureSummary(
+            safeAudit.TotalVariablesEvaluated, safeAudit.SafeLocalVariablesCount,
+            safeAudit.EscapedClosureVariablesCount, safeAudit.HighRiskAsyncEscapesCount,
+            safeAudit.EncapsulationScore, safeAudit.Category, safeAudit.Escapes);
+        Assert.Equal(safeAudit.Summary, formatted);
+
+        // 3. Variable captured in async Task.Run closure
+        string closureCode = string.Join("\n",
+            "public void LaunchWorker()",
+            "{",
+            "    var workerPayload = new byte[256];",
+            "    Task.Run(async () => {",
+            "        await SendNetworkPacket(workerPayload);",
+            "    });",
+            "}"
+        );
+
+        var escapeAudit = LineDiff.AuditClosureCaptureAndScopeEscapes("", closureCode);
+        Assert.True(escapeAudit.TotalVariablesEvaluated >= 1);
+        Assert.True(escapeAudit.HighRiskAsyncEscapesCount >= 1 || escapeAudit.EscapedClosureVariablesCount >= 1);
+        Assert.True(escapeAudit.EncapsulationScore < 100.0);
+        Assert.NotEmpty(escapeAudit.Escapes);
+        Assert.Equal("workerPayload", escapeAudit.Escapes[0].VariableName);
+    }
 }
 
 

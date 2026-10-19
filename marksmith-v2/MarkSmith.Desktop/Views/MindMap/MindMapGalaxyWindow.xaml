@@ -363,6 +363,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphTopologicalHierarchyAndCyclesItem" Text="Audit graph topological hierarchy stratification &amp; DAG cycle resolution" Click="OnAuditGraphTopologicalHierarchyAndCyclesClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphEdgeCrossingsItem" Text="Audit graph edge crossing density &amp; topological planarity" Click="OnAuditGraphEdgeCrossingsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

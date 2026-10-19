@@ -8280,6 +8280,370 @@ public static class TextSearch
         string prefix = $"Markdown footnote order & orphan audit ({refStr}, {defStr} · {category} · {score:0.#}% score)";
         return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} · Sequential & balanced";
     }
+    /// <summary>
+    /// Audits markdown text for inline ($...$ / \(...\)) and display ($$...$$ / \[...\]) math formulas,
+    /// verifying delimiter symmetry, detecting unclosed braces within TeX expressions, checking for
+    /// currency collision false positives, and evaluating KaTeX formula syntax.
+    /// Excludes fenced code blocks, frontmatter, and inline code spans.
+    /// </summary>
+    public static MarkdownMathSyntaxAudit AuditInlineMathAndTexSyntax(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new MarkdownMathSyntaxAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<InlineMathItem>(),
+                "Clean Baseline",
+                "Markdown math syntax audit: 0 math blocks · Document contains no math formulas");
+        }
+
+        var lines = markdownText.Replace("\r", "").Split('\n');
+        var maskedLines = new string[lines.Length];
+        bool inFence = false;
+        string fenceMarker = string.Empty;
+        bool inFrontmatter = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+
+            if (i == 0 && (trimmed == "---" || trimmed == "+++"))
+            {
+                inFrontmatter = true;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            if (inFrontmatter)
+            {
+                if (trimmed == "---" || trimmed == "+++") inFrontmatter = false;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~") || trimmed.StartsWith(":::"))
+            {
+                string tag = trimmed.Length >= 3 ? trimmed.Substring(0, 3) : trimmed;
+                if (!inFence)
+                {
+                    inFence = true;
+                    fenceMarker = tag;
+                }
+                else if (tag == fenceMarker || trimmed == ":::")
+                {
+                    inFence = false;
+                    fenceMarker = string.Empty;
+                }
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            if (inFence)
+            {
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            maskedLines[i] = line;
+        }
+
+        var items = new List<InlineMathItem>();
+        int inlineCount = 0;
+        int displayCount = 0;
+        int malformedCount = 0;
+        int unclosedBraceCount = 0;
+        int currencyCollisionCount = 0;
+
+        var inlineCodeRegex = new Regex(@"`[^`]*`", RegexOptions.Compiled);
+        bool inDisplayBlock = false;
+        int displayStartLine = 0;
+        var displayContentBuilder = new System.Text.StringBuilder();
+
+        for (int i = 0; i < maskedLines.Length; i++)
+        {
+            var rawLine = maskedLines[i];
+            if (string.IsNullOrWhiteSpace(rawLine))
+            {
+                if (inDisplayBlock)
+                {
+                    displayContentBuilder.AppendLine();
+                }
+                continue;
+            }
+
+            if (inDisplayBlock)
+            {
+                int closeIndex = rawLine.IndexOf("$$", StringComparison.Ordinal);
+                if (closeIndex >= 0)
+                {
+                    displayContentBuilder.Append(rawLine.Substring(0, closeIndex));
+                    inDisplayBlock = false;
+                    string formula = displayContentBuilder.ToString().Trim();
+                    int unclosed = CountUnclosedBraces(formula);
+                    if (unclosed > 0) unclosedBraceCount++;
+
+                    string snippet = formula.Length > 40 ? formula.Substring(0, 37) + "..." : formula;
+                    bool isClean = unclosed == 0;
+                    if (!isClean) malformedCount++;
+
+                    items.Add(new InlineMathItem(
+                        displayStartLine,
+                        "Display Math ($$)",
+                        snippet,
+                        isClean,
+                        unclosed,
+                        false,
+                        isClean ? $"✓ Valid display block ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
+                    displayCount++;
+
+                    rawLine = rawLine.Substring(closeIndex + 2);
+                }
+                else
+                {
+                    displayContentBuilder.AppendLine(rawLine);
+                    continue;
+                }
+            }
+
+            var line = inlineCodeRegex.Replace(rawLine, " ");
+
+            // Check display math markers \[ ... \]
+            var bracketDisplayRegex = new Regex(@"\\\[(.*?)\\\]", RegexOptions.Compiled);
+            line = bracketDisplayRegex.Replace(line, m =>
+            {
+                displayCount++;
+                string formula = m.Groups[1].Value.Trim();
+                int unclosed = CountUnclosedBraces(formula);
+                if (unclosed > 0) unclosedBraceCount++;
+                bool isClean = unclosed == 0;
+                if (!isClean) malformedCount++;
+                string snippet = formula.Length > 40 ? formula.Substring(0, 37) + "..." : formula;
+                items.Add(new InlineMathItem(
+                    i + 1,
+                    @"Display Math (\[)",
+                    snippet,
+                    isClean,
+                    unclosed,
+                    false,
+                    isClean ? $"✓ Valid display math ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
+                return " ";
+            });
+
+            // Check single line display math $$ ... $$
+            var doubleDollarRegex = new Regex(@"\$\$(.*?)\$\$", RegexOptions.Compiled);
+            line = doubleDollarRegex.Replace(line, m =>
+            {
+                displayCount++;
+                string formula = m.Groups[1].Value.Trim();
+                int unclosed = CountUnclosedBraces(formula);
+                if (unclosed > 0) unclosedBraceCount++;
+                bool isClean = unclosed == 0;
+                if (!isClean) malformedCount++;
+                string snippet = formula.Length > 40 ? formula.Substring(0, 37) + "..." : formula;
+                items.Add(new InlineMathItem(
+                    i + 1,
+                    "Display Math ($$)",
+                    snippet,
+                    isClean,
+                    unclosed,
+                    false,
+                    isClean ? $"✓ Valid display math ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
+                return " ";
+            });
+
+            // Check opening multi-line display math $$
+            int openDisplayIndex = line.IndexOf("$$", StringComparison.Ordinal);
+            if (openDisplayIndex >= 0)
+            {
+                inDisplayBlock = true;
+                displayStartLine = i + 1;
+                displayContentBuilder.Clear();
+                displayContentBuilder.Append(line.Substring(openDisplayIndex + 2));
+                line = line.Substring(0, openDisplayIndex);
+            }
+
+            // Check \( ... \) inline math
+            var parenInlineRegex = new Regex(@"\\\((.*?)\\\)", RegexOptions.Compiled);
+            line = parenInlineRegex.Replace(line, m =>
+            {
+                inlineCount++;
+                string formula = m.Groups[1].Value.Trim();
+                int unclosed = CountUnclosedBraces(formula);
+                if (unclosed > 0) unclosedBraceCount++;
+                bool isClean = unclosed == 0;
+                if (!isClean) malformedCount++;
+                string snippet = formula.Length > 35 ? formula.Substring(0, 32) + "..." : formula;
+                items.Add(new InlineMathItem(
+                    i + 1,
+                    @"Inline Math (\()",
+                    snippet,
+                    isClean,
+                    unclosed,
+                    false,
+                    isClean ? $"✓ Valid inline math ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
+                return " ";
+            });
+
+            // Check standard inline math $...$
+            // KaTeX rule: $ not preceded by \, opener not followed by space, closer not preceded by space
+            var dollarInlineRegex = new Regex(@"(?<!\\)\$(?!\s)(.*?)(?<!\s)(?<!\\)\$", RegexOptions.Compiled);
+            line = dollarInlineRegex.Replace(line, m =>
+            {
+                string formula = m.Groups[1].Value;
+                // If it looks like plain currency e.g. "$50 to $100" without math symbols or letters
+                if (Regex.IsMatch(formula, @"^\d+(\.\d{2})?$"))
+                {
+                    // Likely currency number, ignore or count
+                    return " ";
+                }
+
+                inlineCount++;
+                int unclosed = CountUnclosedBraces(formula);
+                if (unclosed > 0) unclosedBraceCount++;
+                bool isClean = unclosed == 0;
+                if (!isClean) malformedCount++;
+                string snippet = formula.Length > 35 ? formula.Substring(0, 32) + "..." : formula;
+                items.Add(new InlineMathItem(
+                    i + 1,
+                    "Inline Math ($)",
+                    snippet,
+                    isClean,
+                    unclosed,
+                    false,
+                    isClean ? $"✓ Valid inline math ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
+                return " ";
+            });
+
+            // Look for stray unescaped dollars that were not closed
+            var strayDollarRegex = new Regex(@"(?<!\\)\$", RegexOptions.Compiled);
+            var strayMatches = strayDollarRegex.Matches(line);
+            if (strayMatches.Count > 0)
+            {
+                foreach (Match sm in strayMatches)
+                {
+                    // Check if adjacent characters are digits (currency)
+                    int idx = sm.Index;
+                    bool isCurrency = idx + 1 < line.Length && char.IsDigit(line[idx + 1]);
+                    if (isCurrency)
+                    {
+                        currencyCollisionCount++;
+                    }
+                    else
+                    {
+                        malformedCount++;
+                        items.Add(new InlineMathItem(
+                            i + 1,
+                            "Stray Delimiter ($)",
+                            "$",
+                            false,
+                            0,
+                            true,
+                            "⚠ Unclosed math delimiter or unescaped dollar"));
+                    }
+                }
+            }
+        }
+
+        if (inDisplayBlock)
+        {
+            malformedCount++;
+            items.Add(new InlineMathItem(
+                displayStartLine,
+                "Display Math ($$)",
+                "$$",
+                false,
+                0,
+                true,
+                "⚠ Unclosed display math block ($$)"));
+        }
+
+        int totalBlocks = inlineCount + displayCount + malformedCount;
+        if (totalBlocks == 0 && currencyCollisionCount == 0)
+        {
+            return new MarkdownMathSyntaxAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<InlineMathItem>(),
+                "Clean Baseline",
+                "Markdown math syntax audit: 0 math blocks · Document contains no math formulas");
+        }
+
+        double penalty = (malformedCount * 15.0) + (unclosedBraceCount * 10.0) + (currencyCollisionCount * 4.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Optimal",
+            >= 75.0 => "Consistent",
+            >= 60.0 => "Fair",
+            >= 40.0 => "Irregular",
+            _ => "Fragmented"
+        };
+
+        string summary = FormatInlineMathSummary(
+            totalBlocks, inlineCount, displayCount, malformedCount, unclosedBraceCount, currencyCollisionCount, score, category);
+
+        return new MarkdownMathSyntaxAudit(
+            totalBlocks, inlineCount, displayCount, malformedCount, unclosedBraceCount, currencyCollisionCount,
+            score, items, category, summary);
+    }
+
+    private static int CountUnclosedBraces(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return 0;
+        int depth = 0;
+        int unclosed = 0;
+        for (int i = 0; i < text.Length; i++)
+        {
+            char c = text[i];
+            if (c == '\\' && i + 1 < text.Length)
+            {
+                // Escaped brace \{ or \}
+                if (text[i + 1] == '{' || text[i + 1] == '}')
+                {
+                    i++;
+                    continue;
+                }
+            }
+            if (c == '{') depth++;
+            else if (c == '}')
+            {
+                if (depth > 0) depth--;
+                else unclosed++;
+            }
+        }
+        return depth + unclosed;
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown inline and display math syntax integrity.
+    /// </summary>
+    public static string FormatInlineMathSummary(string? markdownText)
+        => AuditInlineMathAndTexSyntax(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of math syntax audit metrics.
+    /// </summary>
+    public static string FormatInlineMathSummary(
+        int totalBlocks, int inlineCount, int displayCount, int malformedCount,
+        int unclosedBraceCount, int currencyCollisions, double score, string category)
+    {
+        if (totalBlocks == 0 && currencyCollisions == 0)
+            return "Markdown math syntax audit: 0 math blocks · Document contains no math formulas";
+
+        string blockStr = totalBlocks == 1 ? "1 math block" : $"{totalBlocks} math blocks";
+        var parts = new List<string>();
+        if (inlineCount > 0) parts.Add($"{inlineCount} inline");
+        if (displayCount > 0) parts.Add($"{displayCount} display");
+        if (malformedCount > 0) parts.Add($"⚠ {malformedCount} malformed/unclosed");
+        if (unclosedBraceCount > 0) parts.Add($"⚠ {unclosedBraceCount} brace mismatch");
+        if (currencyCollisions > 0) parts.Add($"{currencyCollisions} unescaped $ currency");
+
+        string details = parts.Count > 0 ? $" · {string.Join(", ", parts)}" : "";
+        string prefix = $"Markdown math syntax audit ({blockStr} · {category} · {score:0.#}% score)";
+        return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} · Symmetrical & balanced";
+    }
 }
 
 /// <summary>
@@ -9131,4 +9495,33 @@ public sealed record FootnoteOrderAndOrphanAudit(
     IReadOnlyList<FootnoteOrderItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics and syntax integrity for an individual markdown math block.
+/// </summary>
+public sealed record InlineMathItem(
+    int LineNumber,
+    string FormulaType,
+    string MathSnippet,
+    bool IsBalanced,
+    int UnclosedBraceCount,
+    bool HasUnclosedDelimiter,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown inline and display math syntax, delimiter symmetry,
+/// TeX brace balance, and currency collision detection.
+/// </summary>
+public sealed record MarkdownMathSyntaxAudit(
+    int TotalMathBlocks,
+    int InlineMathCount,
+    int DisplayMathCount,
+    int MalformedBlockCount,
+    int UnclosedBraceCount,
+    int CurrencyCollisionCount,
+    double SyntaxIntegrityScore,
+    IReadOnlyList<InlineMathItem> Items,
+    string Category,
+    string Summary);
+
 

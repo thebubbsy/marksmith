@@ -2537,6 +2537,58 @@ public class TextSearchTests
         Assert.Equal(1, disorderedAudit.OutOfOrderReferences);
         Assert.True(disorderedAudit.IntegrityScore < 100.0);
     }
+
+    [Fact]
+    public void Run183_AuditInlineMathAndTexSyntax_EvaluatesDelimitersAndSyntax()
+    {
+        // 1. Empty / null input
+        var emptyAudit = TextSearch.AuditInlineMathAndTexSyntax(null);
+        Assert.Equal(0, emptyAudit.TotalMathBlocks);
+        Assert.Equal(100.0, emptyAudit.SyntaxIntegrityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 math blocks", emptyAudit.Summary);
+
+        // 2. Structured valid markdown with inline and display math
+        var doc = string.Join("\n",
+            "# Physics Notes",
+            "",
+            "Einstein showed that $E = mc^2$ holds universally.",
+            "",
+            "$$\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$",
+            "",
+            "Here is bracket math \\[ \\int_0^\\infty e^{-x} dx = 1 \\] and inline paren \\( \\alpha + \\beta \\).",
+            "",
+            "```latex",
+            "$Ignored inside code fence$ with unclosed { brace",
+            "```"
+        );
+
+        var audit = TextSearch.AuditInlineMathAndTexSyntax(doc);
+        Assert.True(audit.TotalMathBlocks >= 4);
+        Assert.True(audit.InlineMathCount >= 2);
+        Assert.True(audit.DisplayMathCount >= 2);
+        Assert.Equal(0, audit.MalformedBlockCount);
+        Assert.Equal(0, audit.UnclosedBraceCount);
+        Assert.Equal(100.0, audit.SyntaxIntegrityScore);
+        Assert.Equal("Optimal", audit.Category);
+
+        string formatted = TextSearch.FormatInlineMathSummary(
+            audit.TotalMathBlocks, audit.InlineMathCount, audit.DisplayMathCount,
+            audit.MalformedBlockCount, audit.UnclosedBraceCount, audit.CurrencyCollisionCount,
+            audit.SyntaxIntegrityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Document with unclosed braces and stray delimiters
+        var malformedDoc = string.Join("\n",
+            "Malformed formula $\\frac{a}{b$ with missing brace.",
+            "Stray dollar without math $ and price is $50 item."
+        );
+
+        var malformedAudit = TextSearch.AuditInlineMathAndTexSyntax(malformedDoc);
+        Assert.True(malformedAudit.TotalMathBlocks >= 1);
+        Assert.True(malformedAudit.UnclosedBraceCount >= 1 || malformedAudit.MalformedBlockCount >= 1);
+        Assert.True(malformedAudit.SyntaxIntegrityScore < 100.0);
+    }
 }
 
 
