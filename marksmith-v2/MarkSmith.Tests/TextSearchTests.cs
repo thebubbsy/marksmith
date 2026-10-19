@@ -3022,6 +3022,61 @@ public class TextSearchTests
         Assert.True(probAudit.EmptyQuoteCount >= 2);
         Assert.True(probAudit.StructuralRigorScore < 75.0);
     }
+
+    [Fact]
+    public void Run191_AuditHtmlEntitiesAndEscapedCharacters_ValidatesEntitiesAndAmbiguities()
+    {
+        // 1. Empty / null input
+        var emptyAudit = TextSearch.AuditHtmlEntitiesAndEscapedCharacters(null);
+        Assert.Equal(0, emptyAudit.TotalEntities);
+        Assert.Equal(100.0, emptyAudit.HygieneScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 entities", emptyAudit.Summary);
+
+        // 2. Document with valid named/numeric entities and code blocks
+        var validDoc = string.Join("\n",
+            "# Entities and Unicode",
+            "This document has &nbsp; spaces, &amp; ampersands, and &copy; copyright notices.",
+            "Numeric entity: &#123; and hex &#x7B; bracket symbols.",
+            "",
+            "Inline code with generics should be ignored: `List<string>` and `Dictionary<int, string>`.",
+            "",
+            "```csharp",
+            "var brokenInFence = &amp without semicolon is ignored;",
+            "int a = x < y ? 1 : 2;",
+            "```"
+        );
+
+        var validAudit = TextSearch.AuditHtmlEntitiesAndEscapedCharacters(validDoc);
+        Assert.Equal(5, validAudit.TotalEntities);
+        Assert.Equal(3, validAudit.NamedEntityCount);
+        Assert.Equal(2, validAudit.NumericEntityCount);
+        Assert.Equal(0, validAudit.BrokenEntityCount);
+        Assert.Equal(0, validAudit.AmbiguousEscapeCount);
+        Assert.Equal(0, validAudit.UnescapedBracketCount);
+        Assert.Equal(100.0, validAudit.HygieneScore);
+        Assert.Equal("Optimal Entity & Character Encoding Governance (≥90%)", validAudit.Category);
+
+        string formatted = TextSearch.FormatHtmlEntitiesSummary(
+            validAudit.TotalEntities, validAudit.NamedEntityCount, validAudit.NumericEntityCount,
+            validAudit.BrokenEntityCount, validAudit.AmbiguousEscapeCount, validAudit.UnescapedBracketCount,
+            validAudit.HygieneScore, validAudit.Category);
+        Assert.Equal(validAudit.Summary, formatted);
+
+        // 3. Document with broken entities missing semicolon, ambiguous escapes, and raw unescaped angle brackets
+        var problemDoc = string.Join("\n",
+            "Here is broken entity &amp without semicolon.",
+            "Another broken entity &copy in text.",
+            "Ambiguous regex escape \\w and \\d in markdown.",
+            "Unescaped bracket: if x < y then y > x."
+        );
+
+        var problemAudit = TextSearch.AuditHtmlEntitiesAndEscapedCharacters(problemDoc);
+        Assert.True(problemAudit.BrokenEntityCount >= 2);
+        Assert.True(problemAudit.AmbiguousEscapeCount >= 2);
+        Assert.True(problemAudit.UnescapedBracketCount >= 2);
+        Assert.True(problemAudit.HygieneScore < 75.0);
+    }
 }
 
 

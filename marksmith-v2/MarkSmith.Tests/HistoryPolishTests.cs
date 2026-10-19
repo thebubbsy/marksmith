@@ -2834,6 +2834,69 @@ public class HistoryPolishTests : IDisposable
         Assert.True(deadlockAudit.DeadlockHazardCount >= 2);
         Assert.True(deadlockAudit.ConcurrencySafetyScore < 60.0);
     }
+
+    [Fact]
+    public void Run191_AuditDefensiveCopyingAndStructParameters_ValidatesStructImmutability()
+    {
+        // 1. Empty / null input
+        var emptyAudit = LineDiff.AuditDefensiveCopyingAndStructParameters("", "");
+        Assert.Equal(0, emptyAudit.TotalModifiedLines);
+        Assert.Equal(0, emptyAudit.TotalHazardsCount);
+        Assert.Equal(100.0, emptyAudit.ValueTypeEfficiencyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 modified lines", emptyAudit.Summary);
+
+        // 2. Optimal C# code with readonly struct and in parameter
+        var cleanCode = string.Join("\n",
+            "public readonly struct CoordinatePoint",
+            "{",
+            "    public readonly double X { get; }",
+            "    public readonly double Y { get; }",
+            "}",
+            "",
+            "public class GeometryCalculator",
+            "{",
+            "    public double CalculateDistance(in CoordinatePoint p1, in CoordinatePoint p2)",
+            "    {",
+            "        return Math.Sqrt(p1.X * p1.X + p2.Y * p2.Y);",
+            "    }",
+            "}"
+        );
+
+        var cleanAudit = LineDiff.AuditDefensiveCopyingAndStructParameters("", cleanCode);
+        Assert.Equal(0, cleanAudit.MutableStructCount);
+        Assert.Equal(0, cleanAudit.StructParamByValCount);
+        Assert.Equal(100.0, cleanAudit.ValueTypeEfficiencyScore);
+        Assert.Equal("Optimal Struct Immutability & Parameter Efficiency (≥90%)", cleanAudit.Category);
+
+        string formatted = LineDiff.FormatDefensiveCopyingSummary(
+            cleanAudit.TotalModifiedLines, cleanAudit.TotalHazardsCount, cleanAudit.MutableStructCount,
+            cleanAudit.StructParamByValCount, cleanAudit.ReadonlyFieldMutationCount,
+            cleanAudit.ReturnByValCount, cleanAudit.ValueTypeEfficiencyScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Problematic code with mutable struct and parameter passed by value without in
+        var probCode = string.Join("\n",
+            "public struct MutableVector",
+            "{",
+            "    public double X;",
+            "    public double Y;",
+            "}",
+            "",
+            "public class Renderer",
+            "{",
+            "    public void Draw(CoordinatePoint pt)",
+            "    {",
+            "        DoDraw(pt);",
+            "    }",
+            "}"
+        );
+
+        var probAudit = LineDiff.AuditDefensiveCopyingAndStructParameters("", probCode);
+        Assert.True(probAudit.MutableStructCount >= 1);
+        Assert.True(probAudit.StructParamByValCount >= 1);
+        Assert.True(probAudit.ValueTypeEfficiencyScore < 90.0);
+    }
 }
 
 

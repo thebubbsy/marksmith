@@ -8216,6 +8216,157 @@ public static class LineDiff
         string details = string.Join(" · ", parts);
         return $"Diff thread safety & lock audit ({lineStr} · {category} · {score:0.#}% safety score): {details}";
     }
+
+    public static DiffDefensiveCopyingAudit AuditDefensiveCopyingAndStructParameters(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            string emptySummary = "Diff defensive copying & struct parameter audit (0 modified lines): 0 value-type hazards found";
+            return new DiffDefensiveCopyingAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DefensiveCopyingHazardItem>(),
+                "Clean Baseline",
+                emptySummary);
+        }
+
+        var items = new List<DefensiveCopyingHazardItem>();
+        int modifiedLines = 0;
+        int mutableStructCount = 0;
+        int structParamByValCount = 0;
+        int readonlyFieldMutationCount = 0;
+        int returnByValCount = 0;
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var row = unifiedRows[i];
+            if (row.IsGap || row.IsRemoved) continue;
+
+            string line = row.Text;
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            modifiedLines++;
+
+            string trimmed = line.Trim();
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*"))
+                continue;
+
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            // 1. Check non-readonly struct declaration: e.g. "public struct MyPoint" without "readonly" or "ref"
+            var structDeclMatch = System.Text.RegularExpressions.Regex.Match(trimmed, @"\b(?:public|private|internal|protected)?\s*(?<!readonly\s+|ref\s+)struct\s+([A-Za-z0-9_]+)\b");
+            if (structDeclMatch.Success && !trimmed.Contains("readonly struct") && !trimmed.Contains("ref struct"))
+            {
+                mutableStructCount++;
+                items.Add(new DefensiveCopyingHazardItem(
+                    lineNum, trimmed, "MutableStructDeclaration", "High",
+                    "Add 'readonly' modifier to struct declaration to avoid defensive copying",
+                    $"Non-readonly struct [{structDeclMatch.Groups[1].Value}]"));
+            }
+
+            // 2. Check struct parameter passed by value without 'in' or 'ref'
+            var paramMatches = System.Text.RegularExpressions.Regex.Matches(trimmed, @"(?<!\bin\s+|\bref\s+|\bout\s+)\b([A-Z][A-Za-z0-9_]*(?:Struct|Point|Matrix|Bounds|Vector|Metrics))\s+([a-z][A-Za-z0-9_]*)\b");
+            foreach (System.Text.RegularExpressions.Match m in paramMatches)
+            {
+                if (trimmed.Contains("(") && !trimmed.StartsWith("var ") && !trimmed.StartsWith("new "))
+                {
+                    structParamByValCount++;
+                    items.Add(new DefensiveCopyingHazardItem(
+                        lineNum, trimmed, "StructParameterByValue", "Medium",
+                        $"Pass struct parameter with 'in' modifier: 'in {m.Groups[1].Value} {m.Groups[2].Value}'",
+                        $"Struct parameter [{m.Groups[1].Value} {m.Groups[2].Value}] passed by value"));
+                }
+            }
+
+            // 3. Check readonly field of non-readonly struct being accessed/invoked
+            var readonlyFieldMatch = System.Text.RegularExpressions.Regex.Match(trimmed, @"\breadonly\s+([A-Z][A-Za-z0-9_]*(?:Struct|State|Options))\s+([a-z_][A-Za-z0-9_]*);");
+            if (readonlyFieldMatch.Success)
+            {
+                readonlyFieldMutationCount++;
+                items.Add(new DefensiveCopyingHazardItem(
+                    lineNum, trimmed, "ReadonlyStructField", "Medium",
+                    "Ensure target struct type is declared 'readonly struct' to eliminate defensive copy on member access",
+                    $"Readonly field [{readonlyFieldMatch.Groups[2].Value}] of struct type [{readonlyFieldMatch.Groups[1].Value}]"));
+            }
+
+            // 4. Check large struct return by value
+            var returnMatch = System.Text.RegularExpressions.Regex.Match(trimmed, @"\b(?:public|internal|private)\s+(?:static\s+)?([A-Z][A-Za-z0-9_]*(?:Matrix|Bounds|Metrics|Geometry))\s+[A-Z][A-Za-z0-9_]*\s*\(");
+            if (returnMatch.Success && !trimmed.Contains("ref readonly"))
+            {
+                returnByValCount++;
+                items.Add(new DefensiveCopyingHazardItem(
+                    lineNum, trimmed, "LargeStructReturnByValue", "Low",
+                    $"Consider returning 'ref readonly {returnMatch.Groups[1].Value}' to avoid copying large return value",
+                    $"Large value-type [{returnMatch.Groups[1].Value}] returned by value"));
+            }
+        }
+
+        if (modifiedLines == 0)
+        {
+            string emptySummary = "Diff defensive copying & struct parameter audit (0 modified lines): 0 value-type hazards found";
+            return new DiffDefensiveCopyingAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DefensiveCopyingHazardItem>(),
+                "Clean Baseline",
+                emptySummary);
+        }
+
+        int totalHazards = mutableStructCount + structParamByValCount + readonlyFieldMutationCount + returnByValCount;
+        double score = 100.0;
+        score -= Math.Min(35.0, mutableStructCount * 12.0);
+        score -= Math.Min(35.0, structParamByValCount * 8.0);
+        score -= Math.Min(20.0, readonlyFieldMutationCount * 8.0);
+        score -= Math.Min(15.0, returnByValCount * 6.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Struct Immutability & Parameter Efficiency (≥90%)"
+            : score >= 75.0
+                ? "Good Value-Type Layout with Minor Defensive Copy Hazards (75-89%)"
+                : score >= 50.0
+                    ? "Moderate Defensive Copying & Value-Type Parameter Churn (50-74%)"
+                    : "Severe Struct Mutability & Defensive Copying Bottlenecks (<50%)";
+
+        string summary = FormatDefensiveCopyingSummary(
+            modifiedLines, totalHazards, mutableStructCount, structParamByValCount,
+            readonlyFieldMutationCount, returnByValCount, score, category);
+
+        return new DiffDefensiveCopyingAudit(
+            modifiedLines,
+            totalHazards,
+            mutableStructCount,
+            structParamByValCount,
+            readonlyFieldMutationCount,
+            returnByValCount,
+            score,
+            items,
+            category,
+            summary);
+    }
+
+    public static DiffDefensiveCopyingAudit AuditDefensiveCopyingAndStructParameters(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditDefensiveCopyingAndStructParameters(unified);
+    }
+
+    public static string FormatDefensiveCopyingSummary(
+        int modifiedLines, int totalHazards, int mutableStructCount, int structParamByValCount,
+        int readonlyFieldMutationCount, int returnByValCount, double score, string category)
+    {
+        if (totalHazards == 0)
+            return $"Diff defensive copying & struct parameter audit ({modifiedLines} modified lines): 0 value-type hazards found";
+
+        string lineStr = modifiedLines == 1 ? "1 modified line" : $"{modifiedLines} modified lines";
+        var parts = new List<string>();
+
+        if (mutableStructCount > 0) parts.Add($"⚠ {mutableStructCount} non-readonly struct declarations");
+        if (structParamByValCount > 0) parts.Add($"⚠ {structParamByValCount} struct parameters by value (missing 'in')");
+        if (readonlyFieldMutationCount > 0) parts.Add($"⚠ {readonlyFieldMutationCount} readonly field method calls (defensive copy risk)");
+        if (returnByValCount > 0) parts.Add($"⚠ {returnByValCount} large struct return-by-value");
+
+        string details = string.Join(" · ", parts);
+        return $"Diff defensive copying & struct parameter audit ({lineStr} · {category} · {score:0.#}% efficiency score): {details}";
+    }
 }
 
 /// <summary>
@@ -9060,6 +9211,34 @@ public sealed record DiffThreadSafetyAudit(
     IReadOnlyList<DiffThreadSafetyItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents an identified value-type defensive copying hazard, mutable struct, or by-value parameter on a diff line.
+/// </summary>
+public sealed record DefensiveCopyingHazardItem(
+    int LineNumber,
+    string LineText,
+    string HazardType,
+    string Severity,
+    string Recommendation,
+    string Description);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff hunks for defensive copying, non-readonly struct declarations,
+/// struct parameters passed by value without 'in', and large struct return values.
+/// </summary>
+public sealed record DiffDefensiveCopyingAudit(
+    int TotalModifiedLines,
+    int TotalHazardsCount,
+    int MutableStructCount,
+    int StructParamByValCount,
+    int ReadonlyFieldMutationCount,
+    int ReturnByValCount,
+    double ValueTypeEfficiencyScore,
+    IReadOnlyList<DefensiveCopyingHazardItem> Hazards,
+    string Category,
+    string Summary);
+
 
 
 

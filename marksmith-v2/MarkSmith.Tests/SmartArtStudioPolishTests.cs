@@ -2689,6 +2689,55 @@ public class SmartArtStudioPolishTests
         Assert.Equal(2, probAudit.RootNodeCount);
         Assert.True(probAudit.BalanceScore < 80.0);
     }
+
+    [Fact]
+    public void Run191_AuditAlternatingFlowAndRhythm_ValidatesStepParityAndWordRatio()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditAlternatingFlowAndRhythm("");
+        Assert.Equal(0, emptyAudit.TotalSteps);
+        Assert.Equal(100.0, emptyAudit.RhythmScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+        Assert.Contains("0 steps", emptyAudit.Summary);
+
+        // 2. Symmetrical alternating flow (4 steps: 2 Left vs 2 Right, similar word counts)
+        var cleanMd = string.Join("\n",
+            "- Step One Kickoff Discovery",
+            "- Step Two Architecture Design",
+            "- Step Three Engine Implementation",
+            "- Step Four Quality Verification"
+        );
+
+        var cleanAudit = SmartArtDesignStudioViewModel.AuditAlternatingFlowAndRhythm(cleanMd, "Alternating Hexagons");
+        Assert.Equal(4, cleanAudit.TotalSteps);
+        Assert.Equal(2, cleanAudit.LeftSteps);
+        Assert.Equal(2, cleanAudit.RightSteps);
+        Assert.True(cleanAudit.WordBalanceRatio >= 0.85);
+        Assert.Equal(100.0, cleanAudit.RhythmScore);
+        Assert.Equal("Optimal Bilateral Alternating Rhythm (≥90%)", cleanAudit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatAlternatingFlowSummary(
+            cleanAudit.TotalSteps, cleanAudit.LeftSteps, cleanAudit.RightSteps,
+            cleanAudit.LeftWords, cleanAudit.RightWords, cleanAudit.WordBalanceRatio,
+            cleanAudit.RhythmScore, cleanAudit.Category, cleanAudit.LayoutName);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Problematic alternating flow: unbalanced parity (4 Left vs 1 Right) and skewed text
+        var probMd = string.Join("\n",
+            "- Left Step A with lots and lots of extra detailed description and verbosity",
+            "- Right Step B",
+            "- Left Step C",
+            "- Left Step D",
+            "- Left Step E"
+        );
+
+        var probAudit = SmartArtDesignStudioViewModel.AuditAlternatingFlowAndRhythm(probMd, "Alternating Timeline");
+        Assert.Equal(5, probAudit.TotalSteps);
+        Assert.Equal(3, probAudit.LeftSteps);
+        Assert.Equal(2, probAudit.RightSteps);
+        Assert.True(probAudit.WordBalanceRatio < 0.8);
+        Assert.True(probAudit.RhythmScore < 95.0);
+    }
 }
 
 

@@ -11181,6 +11181,203 @@ namespace MarkSmith.ViewModels.MindMap
             string details = string.Join(" · ", parts);
             return $"Graph clustering coefficient audit ({scope}{nodeStr} · {category} · {score:0.#}% topology score): {details}";
         }
+
+        public GraphBipartiteAudit AuditBipartitePartitionAndModularity(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = targetNodes.Select(n => n.Id).ToHashSet();
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditBipartitePartitionAndModularity(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphBipartiteAudit AuditBipartitePartitionAndModularity(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+
+            int totalNodes = nodeList.Count;
+            int totalLinks = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatBipartitePartitionSummary(0, 0, true, 0, 0, 0, 0, 100.0, "Empty MindMap", isSelection);
+                return new GraphBipartiteAudit(
+                    0, 0, true, 0, 0, 0, 0, 0, 100.0,
+                    Array.Empty<NodeBipartiteItem>(),
+                    "Empty MindMap",
+                    isSelection,
+                    emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id);
+            var adjacency = new Dictionary<string, HashSet<string>>();
+            foreach (var n in nodeList)
+            {
+                adjacency[n.Id] = new HashSet<string>();
+            }
+
+            foreach (var l in linkList)
+            {
+                if (adjacency.ContainsKey(l.SourceNodeId) && adjacency.ContainsKey(l.TargetNodeId) && l.SourceNodeId != l.TargetNodeId)
+                {
+                    adjacency[l.SourceNodeId].Add(l.TargetNodeId);
+                    adjacency[l.TargetNodeId].Add(l.SourceNodeId);
+                }
+            }
+
+            // BFS 2-coloring for each connected component
+            var colorMap = new Dictionary<string, int>(); // 0: uncolored, 1: Partition A, 2: Partition B
+            var componentMap = new Dictionary<string, int>();
+            foreach (var n in nodeList) colorMap[n.Id] = 0;
+
+            int componentCount = 0;
+            int conflictEdgeCount = 0;
+            var processedEdges = new HashSet<string>();
+            var nodeConflictCount = new Dictionary<string, int>();
+            foreach (var n in nodeList) nodeConflictCount[n.Id] = 0;
+
+            foreach (var rootNode in nodeList)
+            {
+                if (colorMap[rootNode.Id] != 0) continue;
+
+                componentCount++;
+                int compId = componentCount;
+                var queue = new Queue<string>();
+
+                colorMap[rootNode.Id] = 1;
+                componentMap[rootNode.Id] = compId;
+                queue.Enqueue(rootNode.Id);
+
+                while (queue.Count > 0)
+                {
+                    string currId = queue.Dequeue();
+                    int currColor = colorMap[currId];
+                    int nextColor = currColor == 1 ? 2 : 1;
+
+                    foreach (var neighborId in adjacency[currId])
+                    {
+                        if (colorMap[neighborId] == 0)
+                        {
+                            colorMap[neighborId] = nextColor;
+                            componentMap[neighborId] = compId;
+                            queue.Enqueue(neighborId);
+                        }
+                        else if (colorMap[neighborId] == currColor)
+                        {
+                            // Conflict: odd cycle detected between currId and neighborId
+                            string edgeKey = string.CompareOrdinal(currId, neighborId) < 0
+                                ? $"{currId}->{neighborId}"
+                                : $"{neighborId}->{currId}";
+
+                            if (processedEdges.Add(edgeKey))
+                            {
+                                conflictEdgeCount++;
+                                nodeConflictCount[currId]++;
+                                nodeConflictCount[neighborId]++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            int partition1Count = colorMap.Values.Count(c => c == 1);
+            int partition2Count = colorMap.Values.Count(c => c == 2);
+            int isolatedCount = nodeList.Count(n => adjacency[n.Id].Count == 0);
+            bool isBipartite = conflictEdgeCount == 0;
+
+            var items = new List<NodeBipartiteItem>();
+            foreach (var n in nodeList)
+            {
+                int deg = adjacency[n.Id].Count;
+                int part = colorMap[n.Id];
+                int conflicts = nodeConflictCount[n.Id];
+                bool isConflicted = conflicts > 0;
+                int compId = componentMap.GetValueOrDefault(n.Id, 1);
+
+                string status = deg == 0 ? "Isolated Vertex" :
+                                isConflicted ? $"Odd-Cycle Conflict ({conflicts} same-partition edge{(conflicts == 1 ? "" : "s")})" :
+                                part == 1 ? "Partition Set A (Valid Bipartite)" : "Partition Set B (Valid Bipartite)";
+
+                items.Add(new NodeBipartiteItem(
+                    n.Id, n.Title ?? "Untitled", deg, compId, part, conflicts, isConflicted, status));
+            }
+
+            double score = 100.0;
+            if (conflictEdgeCount > 0)
+            {
+                score -= Math.Min(50.0, conflictEdgeCount * 12.0);
+            }
+            if (isBipartite && totalLinks > 0 && partition1Count > 0 && partition2Count > 0)
+            {
+                double balanceRatio = (double)Math.Min(partition1Count, partition2Count) / Math.Max(partition1Count, partition2Count);
+                score -= (1.0 - balanceRatio) * 15.0;
+            }
+            score -= Math.Min(20.0, isolatedCount * 4.0);
+            score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+            string category;
+            if (totalNodes == 0) category = "Empty MindMap";
+            else if (score >= 90.0) category = "Optimal Bipartite Partition & Modularity Balance (≥90%)";
+            else if (score >= 75.0) category = "Good Bipartite Symmetry with Minor Partition Asymmetry (75-89%)";
+            else if (score >= 50.0) category = "Moderate Odd-Cycle Conflicts or High Partition Skew (50-74%)";
+            else category = "Severe Graph Mesh Contention & Non-Bipartite Topology (<50%)";
+
+            string summary = FormatBipartitePartitionSummary(
+                totalNodes, totalLinks, isBipartite, partition1Count, partition2Count,
+                conflictEdgeCount, componentCount, score, category, isSelection);
+
+            return new GraphBipartiteAudit(
+                totalNodes,
+                totalLinks,
+                isBipartite,
+                partition1Count,
+                partition2Count,
+                conflictEdgeCount,
+                componentCount,
+                isolatedCount,
+                score,
+                items,
+                category,
+                isSelection,
+                summary);
+        }
+
+        public static string FormatBipartitePartitionSummary(
+            int totalNodes, int totalLinks, bool isBipartite, int partition1Count,
+            int partition2Count, int conflictEdgeCount, int componentCount, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph bipartite partition audit ({scope}0 nodes): Empty mind map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            var parts = new List<string>();
+
+            if (isBipartite)
+            {
+                parts.Add($"Pure Bipartite ({partition1Count} vs {partition2Count} partition sets)");
+            }
+            else
+            {
+                parts.Add($"Non-Bipartite ({conflictEdgeCount} odd-cycle conflict {(conflictEdgeCount == 1 ? "edge" : "edges")})");
+            }
+
+            if (componentCount > 1)
+                parts.Add($"{componentCount} components");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph bipartite partition audit ({scope}{nodeStr} · {category} · {score:0.#}% modularity score): {details}";
+        }
     }
 
 
@@ -12317,6 +12514,37 @@ namespace MarkSmith.ViewModels.MindMap
         int IsolatedCount,
         double SmallWorldInterconnectednessScore,
         IReadOnlyList<NodeClusteringCoefficientItem> Nodes,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated bipartite partition set, degree, odd-cycle conflict, and modularity status for an individual mind map node.
+    /// </summary>
+    public sealed record NodeBipartiteItem(
+        string NodeId,
+        string NodeTitle,
+        int Degree,
+        int ComponentId,
+        int AssignedPartition,
+        int ConflictDegree,
+        bool IsConflicted,
+        string Status);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph bipartite 2-mode network partition, odd cycles, and modularity symmetry.
+    /// </summary>
+    public sealed record GraphBipartiteAudit(
+        int TotalNodes,
+        int TotalLinks,
+        bool IsBipartite,
+        int Partition1Count,
+        int Partition2Count,
+        int ConflictEdgeCount,
+        int ComponentCount,
+        int IsolatedCount,
+        double ModularityScore,
+        IReadOnlyList<NodeBipartiteItem> Nodes,
         string Category,
         bool IsSelectionScope,
         string Summary);

@@ -781,6 +781,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditAlignmentGuidesSnappingItem" Text="Audit diagram shape alignment guide proximity &amp; smart snap distribution" Click="OnSelectionAuditAlignmentGuidesSnappingClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditGroupHierarchyPaddingItem" Text="Audit diagram shape grouping hierarchy, container bounds &amp; padding" Click="OnSelectionAuditGroupHierarchyPaddingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

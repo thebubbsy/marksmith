@@ -410,6 +410,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyOrgChartBalanceItem" Text="Audit SmartArt organizational hierarchy balance, depth &amp; span of control" Click="OnOutlineStatsAuditHierarchyOrgChartBalanceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditAlternatingFlowItem" Text="Audit SmartArt alternating flow rhythm, step parity &amp; bilateral balance" Click="OnOutlineStatsAuditAlternatingFlowClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

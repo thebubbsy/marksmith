@@ -10637,6 +10637,214 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"Diagram alignment guide & smart snap audit ({scopeStr}{shapeStr} · {category} · {score:0.#}% precision): {details}";
     }
+
+    public DiagramGroupHierarchyAudit AuditGroupHierarchyAndPadding(bool selectionOnly = false)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (selectionOnly && selected.Count > 0)
+            ? selected
+            : Shapes.ToList();
+
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditGroupHierarchyAndPadding(targets, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramGroupHierarchyAudit AuditGroupHierarchyAndPadding(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes,
+        bool isSelection = false)
+    {
+        var list = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var targets = (targetShapes ?? list).Where(s => s != null).ToList();
+
+        int totalShapes = list.Count;
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatGroupHierarchySummary(0, 0, 0, 0, 0, 100.0, "Empty Canvas", isSelection);
+            return new DiagramGroupHierarchyAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ShapeContainerHierarchyItem>(),
+                "Empty Canvas",
+                isSelection,
+                emptySummary);
+        }
+
+        // Determine containers: Shape C is a container if it encloses other shapes
+        // (Area of C >= 1.3 * Area of S, and S's center falls inside C's bounds)
+        var containers = new HashSet<string>();
+        var containerChildren = new Dictionary<string, List<ShapeCanvasItemViewModel>>();
+        var childToContainer = new Dictionary<string, ShapeCanvasItemViewModel>();
+
+        foreach (var c in list)
+        {
+            double cArea = c.Width * c.Height;
+            if (cArea <= 0) continue;
+
+            var children = new List<ShapeCanvasItemViewModel>();
+            foreach (var s in list)
+            {
+                if (s.Id == c.Id) continue;
+                double sArea = s.Width * s.Height;
+                if (sArea <= 0 || cArea < sArea * 1.3) continue;
+
+                double sCenterX = s.X + (s.Width / 2.0);
+                double sCenterY = s.Y + (s.Height / 2.0);
+
+                if (sCenterX >= c.X && sCenterX <= c.X + c.Width &&
+                    sCenterY >= c.Y && sCenterY <= c.Y + c.Height)
+                {
+                    children.Add(s);
+                }
+            }
+
+            if (children.Count > 0)
+            {
+                containers.Add(c.Id);
+                containerChildren[c.Id] = children;
+                foreach (var ch in children)
+                {
+                    if (!childToContainer.ContainsKey(ch.Id) || (childToContainer[ch.Id].Width * childToContainer[ch.Id].Height > cArea))
+                    {
+                        childToContainer[ch.Id] = c;
+                    }
+                }
+            }
+        }
+
+        int containerCount = containers.Count;
+        int enclosedChildCount = childToContainer.Count;
+        int childOverflowCount = 0;
+        int tightPaddingCount = 0;
+
+        var items = new List<ShapeContainerHierarchyItem>();
+
+        foreach (var shape in targets)
+        {
+            bool isContainer = containers.Contains(shape.Id);
+            int childCount = isContainer ? containerChildren[shape.Id].Count : 0;
+            string enclosingName = childToContainer.TryGetValue(shape.Id, out var parent) ? (parent.Name ?? "Container") : "(None)";
+
+            bool isOverflowing = false;
+            double minPad = double.MaxValue;
+
+            if (parent != null)
+            {
+                // Measure bounds of shape relative to parent
+                double pLeft = parent.X;
+                double pRight = parent.X + parent.Width;
+                double pTop = parent.Y;
+                double pBottom = parent.Y + parent.Height;
+
+                double sLeft = shape.X;
+                double sRight = shape.X + shape.Width;
+                double sTop = shape.Y;
+                double sBottom = shape.Y + shape.Height;
+
+                if (sLeft < pLeft || sRight > pRight || sTop < pTop || sBottom > pBottom)
+                {
+                    isOverflowing = true;
+                    childOverflowCount++;
+                }
+
+                double padLeft = sLeft - pLeft;
+                double padRight = pRight - sRight;
+                double padTop = sTop - pTop;
+                double padBottom = pBottom - sBottom;
+                minPad = Math.Round(Math.Min(Math.Min(padLeft, padRight), Math.Min(padTop, padBottom)), 1);
+
+                if (!isOverflowing && minPad < 12.0)
+                {
+                    tightPaddingCount++;
+                }
+            }
+
+            double recordedMinPad = minPad == double.MaxValue ? 0.0 : minPad;
+            string status;
+            if (isContainer)
+            {
+                status = $"Container Group ({childCount} enclosed {(childCount == 1 ? "child" : "children")})";
+            }
+            else if (parent != null)
+            {
+                status = isOverflowing ? $"⚠ Overflowing boundary of [{enclosingName}]" :
+                         recordedMinPad < 12.0 ? $"⚠ Tight padding ({recordedMinPad}px) in [{enclosingName}]" :
+                         $"Enclosed in [{enclosingName}] ({recordedMinPad}px padding)";
+            }
+            else
+            {
+                status = "Standalone Canvas Shape";
+            }
+
+            items.Add(new ShapeContainerHierarchyItem(
+                shape.Id,
+                shape.Name ?? "Shape",
+                isContainer,
+                childCount,
+                enclosingName,
+                isOverflowing,
+                recordedMinPad,
+                status));
+        }
+
+        double score = 100.0;
+        score -= Math.Min(40.0, childOverflowCount * 12.0);
+        score -= Math.Min(30.0, tightPaddingCount * 6.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Container Hierarchy & Padding Margin (≥90%)"
+            : score >= 75.0
+                ? "Good Grouping Structure & Minor Margin Drift (75-89%)"
+                : score >= 50.0
+                    ? "Moderate Child Overflow or Insufficient Padding (50-74%)"
+                    : "Severe Container Clipping & Boundary Violations (<50%)";
+
+        string summary = FormatGroupHierarchySummary(
+            totalShapes, containerCount, enclosedChildCount, childOverflowCount, tightPaddingCount, score, category, isSelection);
+
+        return new DiagramGroupHierarchyAudit(
+            totalShapes,
+            containerCount,
+            enclosedChildCount,
+            childOverflowCount,
+            tightPaddingCount,
+            score,
+            items,
+            category,
+            isSelection,
+            summary);
+    }
+
+    public static string FormatGroupHierarchySummary(
+        int totalShapes, int containerCount, int enclosedCount, int overflowCount,
+        int tightPaddingCount, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Diagram grouping hierarchy & container padding audit ({scopeStr}0 shapes): No shapes to evaluate";
+
+        string shapeStr = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        var parts = new List<string>();
+
+        if (containerCount > 0)
+        {
+            parts.Add($"{containerCount} {(containerCount == 1 ? "container" : "containers")}, {enclosedCount} enclosed {(enclosedCount == 1 ? "child" : "children")}");
+        }
+        else
+        {
+            parts.Add("0 container groups");
+        }
+
+        if (overflowCount > 0)
+            parts.Add($"⚠ {overflowCount} clipping child overflows");
+
+        if (tightPaddingCount > 0)
+            parts.Add($"⚠ {tightPaddingCount} tight padding (<12px)");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram grouping hierarchy & container padding audit ({scopeStr}{shapeStr} · {category} · {score:0.#}% integrity): {details}";
+    }
 }
 
 /// <summary>
@@ -11800,3 +12008,32 @@ public sealed record DiagramAlignmentGuidesAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated bounding containment, child count, parent container, overflow state, and margin padding for an individual shape.
+/// </summary>
+public sealed record ShapeContainerHierarchyItem(
+    string ShapeId,
+    string ShapeName,
+    bool IsContainer,
+    int ContainedChildCount,
+    string EnclosingContainerName,
+    bool IsOverflowing,
+    double MinPadding,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape grouping hierarchy, container bounds, child overflows, and padding margins.
+/// </summary>
+public sealed record DiagramGroupHierarchyAudit(
+    int TotalShapes,
+    int ContainerCount,
+    int EnclosedChildCount,
+    int ChildOverflowCount,
+    int TightPaddingCount,
+    double HierarchyIntegrityScore,
+    IReadOnlyList<ShapeContainerHierarchyItem> Shapes,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+

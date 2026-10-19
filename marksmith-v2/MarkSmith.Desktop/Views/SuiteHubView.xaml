@@ -378,6 +378,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceWordCountsItem" Text="Audit workspace markdown document word counts, reading times &amp; length tiers" Click="OnAuditWorkspaceWordCountsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceCodeFenceLanguagesItem" Text="Audit workspace markdown code fence languages, missing tags &amp; alias consistency" Click="OnAuditWorkspaceCodeFenceLanguagesClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

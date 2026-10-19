@@ -387,6 +387,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphClusteringCoefficientItem" Text="Audit graph clustering coefficient, small-world topology &amp; triadic closure" Click="OnAuditGraphClusteringCoefficientClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphBipartiteItem" Text="Audit graph bipartite 2-mode network partition, odd cycles &amp; modularity balance" Click="OnAuditGraphBipartiteClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

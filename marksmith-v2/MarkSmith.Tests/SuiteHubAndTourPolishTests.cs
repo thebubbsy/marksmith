@@ -5467,6 +5467,104 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceWordCountsClick", suiteCs);
         Assert.Contains("AuditWorkspaceWordCountsAndReadingTimes", suiteCs);
     }
+
+    [Fact]
+    public void Run191_AuditWorkspaceCodeFenceLanguages_ValidatesLanguagesAndAliases()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditWorkspaceCodeFenceLanguages(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(0, emptyAudit.TotalCodeBlocks);
+        Assert.Equal(100.0, emptyAudit.MetadataRigorScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 code blocks", emptyAudit.Summary);
+
+        // 2. Structured workspace with canonical language fences and common aliases
+        var docCsharp = string.Join("\n",
+            "# Code Document",
+            "```csharp",
+            "public class Program { }",
+            "```",
+            "",
+            "```js",
+            "console.log('hello');",
+            "```"
+        );
+
+        var docBare = string.Join("\n",
+            "# Untagged Document",
+            "```",
+            "raw untagged content",
+            "```"
+        );
+
+        var fileSystem = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\csharp.md"] = docCsharp.Split('\n'),
+            [@"C:\workspace\bare.md"] = docBare.Split('\n')
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceCodeFenceLanguages(
+            fileSystem.Keys,
+            workspaceRoot: @"C:\workspace",
+            fileExists: p => fileSystem.ContainsKey(p),
+            readAllLines: p => fileSystem.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(2, audit.TotalFilesScanned);
+        Assert.Equal(3, audit.TotalCodeBlocks);
+        Assert.Equal(2, audit.TaggedCodeBlocks);
+        Assert.Equal(1, audit.UntaggedCodeBlocks);
+        Assert.Equal(1, audit.AliasCodeBlocks);
+        Assert.True(audit.MetadataRigorScore < 100.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceCodeFenceSummary(
+            audit.TotalFilesScanned, audit.TotalCodeBlocks, audit.TaggedCodeBlocks,
+            audit.UntaggedCodeBlocks, audit.AliasCodeBlocks, audit.UniqueLanguagesCount,
+            audit.MetadataRigorScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run191_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Inline HTML Entities, Escaped Characters & Encoding Ambiguity Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditHtmlEntitiesItem", mainCs);
+        Assert.Contains("AuditHtmlEntitiesAndEscapedCharacters", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Bipartite 2-Mode Network Partition, Odd Cycles & Modularity Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphBipartiteItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphBipartiteClick", galaxyCs);
+        Assert.Contains("AuditBipartitePartitionAndModularity", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Grouping Hierarchy, Container Bounds & Margin Padding Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditGroupHierarchyPaddingItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditGroupHierarchyPaddingClick", shapeCs);
+        Assert.Contains("AuditGroupHierarchyAndPadding", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Alternating Flow Rhythm, Step Parity & Bilateral Balance Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditAlternatingFlowItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditAlternatingFlowClick", smartArtCs);
+        Assert.Contains("AuditAlternatingFlowAndRhythm", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Defensive Copying, Struct Immutability & 'in' Parameter Optimization Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditDefensiveCopying", historyCs);
+        Assert.Contains("AuditDefensiveCopyingAndStructParameters", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Code Fence Language Tags, Missing Tags & Syntax Alias Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceCodeFenceLanguagesItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceCodeFenceLanguagesClick", suiteCs);
+        Assert.Contains("AuditWorkspaceCodeFenceLanguages", suiteCs);
+    }
 }
 
 

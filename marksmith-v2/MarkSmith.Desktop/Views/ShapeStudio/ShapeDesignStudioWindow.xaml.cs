@@ -6599,6 +6599,14 @@ namespace MarkSmith.Views.ShapeStudio
             _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
+
+        private void OnSelectionAuditGroupHierarchyPaddingClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGroupHierarchyAndPadding();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
     }
 }
 

@@ -10188,6 +10188,199 @@ public static class TextSearch
         string details = string.Join(" · ", parts);
         return $"Markdown blockquote callout & attribution audit ({details} · {category} · {score:0.#}% rigor score)";
     }
+
+    /// <summary>
+    /// Audits markdown text for raw and numeric HTML entities, malformed/broken entities missing semicolons,
+    /// ambiguous character escapes, and unescaped angle brackets outside code blocks.
+    /// </summary>
+    public static MarkdownHtmlEntitiesAudit AuditHtmlEntitiesAndEscapedCharacters(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "Markdown HTML entities & character escape audit: Clean text · 0 entities or escapes detected";
+            return new MarkdownHtmlEntitiesAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<HtmlEntityEscapeItem>(),
+                "Clean Baseline",
+                emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        var items = new List<HtmlEntityEscapeItem>();
+
+        int totalEntities = 0;
+        int namedCount = 0;
+        int numericCount = 0;
+        int brokenCount = 0;
+        int ambiguousEscapeCount = 0;
+        int unescapedBracketCount = 0;
+
+        bool inCodeFence = false;
+        bool inHtmlComment = false;
+
+        var recognizedNamedEntities = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "nbsp", "amp", "lt", "gt", "quot", "apos", "copy", "reg", "trade", "mdash", "ndash",
+            "hellip", "euro", "pound", "yen", "cent", "bull", "sect", "para", "middot", "deg",
+            "plusmn", "frac12", "frac14", "times", "divide", "laquo", "raquo", "shy", "micro",
+            "acute", "macr", "not", "brvbar", "curren", "iexcl", "iquest"
+        };
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            // Track multi-line code fences
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            // Track HTML comments
+            if (trimmed.StartsWith("<!--") && !trimmed.Contains("-->"))
+            {
+                inHtmlComment = true;
+                continue;
+            }
+            if (inHtmlComment)
+            {
+                if (trimmed.Contains("-->")) inHtmlComment = false;
+                continue;
+            }
+
+            // Remove inline code spans (`...`) so code like `List<string>` isn't flagged
+            string scrubbedLine = System.Text.RegularExpressions.Regex.Replace(line, @"`[^`]+`", m => new string(' ', m.Length));
+
+            // Check valid named entities: &name;
+            var namedMatches = System.Text.RegularExpressions.Regex.Matches(scrubbedLine, @"&([a-zA-Z]{2,12});");
+            foreach (System.Text.RegularExpressions.Match m in namedMatches)
+            {
+                totalEntities++;
+                namedCount++;
+                string entName = m.Groups[1].Value;
+                bool isRecognized = recognizedNamedEntities.Contains(entName);
+                string status = isRecognized ? $"Recognized Entity [&{entName};]" : $"Custom Named Entity [&{entName};]";
+                items.Add(new HtmlEntityEscapeItem(
+                    i + 1, m.Index + 1, m.Value, "NamedEntity", entName, true, false, false, "Standard named entity", status));
+            }
+
+            // Check valid numeric entities: &#123; or &#x7B;
+            var numMatches = System.Text.RegularExpressions.Regex.Matches(scrubbedLine, @"&#(?:([0-9]{1,7})|x([0-9a-fA-F]{1,6}));");
+            foreach (System.Text.RegularExpressions.Match m in numMatches)
+            {
+                totalEntities++;
+                numericCount++;
+                string numVal = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
+                string kind = m.Groups[1].Success ? "DecimalEntity" : "HexEntity";
+                items.Add(new HtmlEntityEscapeItem(
+                    i + 1, m.Index + 1, m.Value, kind, numVal, true, false, false, "Standard numeric entity", $"Numeric Entity [{m.Value}]"));
+            }
+
+            // Check broken entities missing semicolon: &amp or &nbsp followed by space, punctuation or end of line (not preceded by alphanumeric)
+            var brokenMatches = System.Text.RegularExpressions.Regex.Matches(scrubbedLine, @"&([a-zA-Z]{2,10})(?=[ \t\r\n,\.!?]|$)(?!;)");
+            foreach (System.Text.RegularExpressions.Match m in brokenMatches)
+            {
+                string ent = m.Groups[1].Value;
+                if (recognizedNamedEntities.Contains(ent))
+                {
+                    brokenCount++;
+                    items.Add(new HtmlEntityEscapeItem(
+                        i + 1, m.Index + 1, m.Value, "BrokenEntity", ent, false, true, false, $"Append missing semicolon: &{ent};", $"Broken Entity [&{ent}] missing semicolon"));
+                }
+            }
+
+            // Check ambiguous character escapes: \(alphanumeric)
+            var escapeMatches = System.Text.RegularExpressions.Regex.Matches(scrubbedLine, @"\\([a-zA-Z0-9])");
+            foreach (System.Text.RegularExpressions.Match m in escapeMatches)
+            {
+                ambiguousEscapeCount++;
+                string escChar = m.Groups[1].Value;
+                items.Add(new HtmlEntityEscapeItem(
+                    i + 1, m.Index + 1, m.Value, "AmbiguousEscape", escChar, false, false, true, $"Remove backslash or use standard punctuation escape: '{escChar}'", $"Ambiguous escape sequence [\\{escChar}]"));
+            }
+
+            // Check unescaped raw angle brackets outside HTML tags/autolinks
+            string lineWithoutTags = System.Text.RegularExpressions.Regex.Replace(scrubbedLine, @"</?[a-zA-Z][a-zA-Z0-9_-]*(?:\s+[^>]*)?/?>", m => new string(' ', m.Length));
+            lineWithoutTags = System.Text.RegularExpressions.Regex.Replace(lineWithoutTags, @"<https?://[^>]+>", m => new string(' ', m.Length));
+            
+            if (lineWithoutTags.TrimStart().StartsWith(">"))
+            {
+                int firstGt = lineWithoutTags.IndexOf('>');
+                if (firstGt >= 0)
+                {
+                    lineWithoutTags = lineWithoutTags.Substring(0, firstGt) + " " + lineWithoutTags.Substring(firstGt + 1);
+                }
+            }
+
+            var bracketMatches = System.Text.RegularExpressions.Regex.Matches(lineWithoutTags, @"[<>]");
+            foreach (System.Text.RegularExpressions.Match m in bracketMatches)
+            {
+                unescapedBracketCount++;
+                string bracket = m.Value;
+                string rec = bracket == "<" ? "Replace with &lt; or wrap in code span" : "Replace with &gt; or wrap in code span";
+                items.Add(new HtmlEntityEscapeItem(
+                    i + 1, m.Index + 1, bracket, "UnescapedBracket", bracket, false, false, true, rec, $"Unescaped raw bracket [{bracket}]"));
+            }
+        }
+
+        double score = 100.0;
+        score -= brokenCount * 12.0;
+        score -= unescapedBracketCount * 6.0;
+        score -= ambiguousEscapeCount * 4.0;
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category;
+        if (totalEntities == 0 && brokenCount == 0 && ambiguousEscapeCount == 0 && unescapedBracketCount == 0) category = "Clean Baseline";
+        else if (score >= 90.0) category = "Optimal Entity & Character Encoding Governance (≥90%)";
+        else if (score >= 75.0) category = "Moderate Encoding Regularity with Minor Drift (75–89%)";
+        else category = "Severe Broken Entities & Escape Ambiguities (<75%)";
+
+        string summary = FormatHtmlEntitiesSummary(
+            totalEntities, namedCount, numericCount, brokenCount, ambiguousEscapeCount, unescapedBracketCount, score, category);
+
+        return new MarkdownHtmlEntitiesAudit(
+            totalEntities, namedCount, numericCount, brokenCount, ambiguousEscapeCount, unescapedBracketCount,
+            score, items, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown HTML entities and character escape audits.
+    /// </summary>
+    public static string FormatHtmlEntitiesSummary(string? markdownText)
+        => AuditHtmlEntitiesAndEscapedCharacters(markdownText).Summary;
+
+    public static string FormatHtmlEntitiesSummary(
+        int totalEntities, int namedCount, int numericCount, int brokenCount,
+        int ambiguousEscapeCount, int unescapedBracketCount, double score, string category)
+    {
+        if (totalEntities == 0 && ambiguousEscapeCount == 0 && unescapedBracketCount == 0 && brokenCount == 0)
+            return "Markdown HTML entities & character escape audit: Clean text · 0 entities or escapes detected";
+
+        var parts = new List<string>();
+        if (totalEntities > 0)
+        {
+            parts.Add($"{totalEntities} entities ({namedCount} named, {numericCount} numeric)");
+        }
+        else
+        {
+            parts.Add("0 entities");
+        }
+
+        if (brokenCount > 0)
+            parts.Add($"⚠ {brokenCount} broken entities missing ';'");
+
+        if (ambiguousEscapeCount > 0)
+            parts.Add($"⚠ {ambiguousEscapeCount} ambiguous escapes");
+
+        if (unescapedBracketCount > 0)
+            parts.Add($"⚠ {unescapedBracketCount} unescaped brackets");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown HTML entities & character escape audit ({details} · {category} · {score:0.#}% hygiene score)";
+    }
 }
 
 /// <summary>
@@ -11292,3 +11485,35 @@ public sealed record MarkdownBlockquoteCalloutAudit(
     IReadOnlyList<BlockquoteCalloutLevelItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, column offset, entity name, and encoding status for an individual HTML entity or character escape.
+/// </summary>
+public sealed record HtmlEntityEscapeItem(
+    int LineNumber,
+    int Column,
+    string RawMatch,
+    string Kind,
+    string EntityOrEscapeName,
+    bool IsValid,
+    bool IsBroken,
+    bool IsAmbiguous,
+    string Recommendation,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown text for HTML entities, malformed entities missing semicolons,
+/// ambiguous character escapes, and unescaped angle brackets.
+/// </summary>
+public sealed record MarkdownHtmlEntitiesAudit(
+    int TotalEntities,
+    int NamedEntityCount,
+    int NumericEntityCount,
+    int BrokenEntityCount,
+    int AmbiguousEscapeCount,
+    int UnescapedBracketCount,
+    double HygieneScore,
+    IReadOnlyList<HtmlEntityEscapeItem> Items,
+    string Category,
+    string Summary);
+

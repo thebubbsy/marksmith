@@ -3692,6 +3692,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditThreadSafety);
+
+                var auditDefensiveCopying = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff defensive copying, struct immutability & 'in' parameter hazards",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditDefensiveCopying.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditDefensiveCopyingAndStructParameters(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditDefensiveCopying);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

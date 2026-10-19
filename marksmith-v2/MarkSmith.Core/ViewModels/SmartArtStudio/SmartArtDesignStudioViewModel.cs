@@ -9368,6 +9368,151 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"SmartArt hierarchy org chart audit ({layoutName} · {nodeStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    public SmartArtAlternatingFlowAudit AuditAlternatingFlowAndRhythm(
+        string? markdown = null,
+        string? layoutName = null)
+    {
+        string text = markdown ?? MarkdownText ?? string.Empty;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Alternating Flow";
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            string emptySummary = $"SmartArt alternating flow audit ({layout} · 0 steps): Outline is empty";
+            StatusMessage = emptySummary;
+            return new SmartArtAlternatingFlowAudit(
+                0, 0, 0, 0, 0, 1.0, 100.0,
+                Array.Empty<AlternatingFlowStepItem>(),
+                "Empty Outline", layout, emptySummary);
+        }
+
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var parsedSteps = new List<string>();
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("<!--") || trimmed.StartsWith("```") || trimmed.StartsWith(":::")) continue;
+
+            string clean = System.Text.RegularExpressions.Regex.Replace(trimmed, @"^([-*+]|\d+\.)\s*", "").Trim();
+            if (string.IsNullOrWhiteSpace(clean)) continue;
+
+            parsedSteps.Add(clean);
+        }
+
+        if (parsedSteps.Count == 0)
+        {
+            string emptySummary = $"SmartArt alternating flow audit ({layout} · 0 steps): Outline contains no steps";
+            StatusMessage = emptySummary;
+            return new SmartArtAlternatingFlowAudit(
+                0, 0, 0, 0, 0, 1.0, 100.0,
+                Array.Empty<AlternatingFlowStepItem>(),
+                "Empty Outline", layout, emptySummary);
+        }
+
+        int totalSteps = parsedSteps.Count;
+        var stepItems = new List<AlternatingFlowStepItem>();
+        int leftSteps = 0;
+        int rightSteps = 0;
+        int leftWords = 0;
+        int rightWords = 0;
+
+        for (int i = 0; i < totalSteps; i++)
+        {
+            int stepIndex = i + 1;
+            bool isLeft = (stepIndex % 2 != 0);
+            string title = parsedSteps[i];
+
+            int words = title.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+            int chars = title.Length;
+
+            if (isLeft)
+            {
+                leftSteps++;
+                leftWords += words;
+            }
+            else
+            {
+                rightSteps++;
+                rightWords += words;
+            }
+
+            string side = isLeft ? "Left / Upper Phase" : "Right / Lower Phase";
+            string status = $"Step {stepIndex} [{side}]: {words} words, {chars} chars";
+
+            stepItems.Add(new AlternatingFlowStepItem(
+                stepIndex, side, title, words, chars, isLeft, status));
+        }
+
+        double wordRatio = (leftWords > 0 && rightWords > 0)
+            ? Math.Round((double)Math.Min(leftWords, rightWords) / Math.Max(leftWords, rightWords), 2)
+            : (totalSteps <= 1 ? 1.0 : 0.0);
+
+        int parityDelta = Math.Abs(leftSteps - rightSteps);
+
+        double score = 100.0;
+        if (parityDelta > 1)
+        {
+            score -= Math.Min(30.0, (parityDelta - 1) * 15.0);
+        }
+        if (totalSteps >= 2 && wordRatio < 0.8)
+        {
+            score -= Math.Min(35.0, (1.0 - wordRatio) * 40.0);
+        }
+
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Bilateral Alternating Rhythm (≥90%)"
+            : score >= 75.0
+                ? "Balanced Alternating Flow with Minor Text Drift (75-89%)"
+                : score >= 50.0
+                    ? "Asymmetrical Step Volume or Uneven Parity (50-74%)"
+                    : "Severe Alternating Flow Skew (<50%)";
+
+        string summary = FormatAlternatingFlowSummary(
+            totalSteps, leftSteps, rightSteps, leftWords, rightWords, wordRatio, score, category, layout);
+
+        StatusMessage = summary;
+
+        return new SmartArtAlternatingFlowAudit(
+            totalSteps,
+            leftSteps,
+            rightSteps,
+            leftWords,
+            rightWords,
+            wordRatio,
+            score,
+            stepItems,
+            category,
+            layout,
+            summary);
+    }
+
+    public static SmartArtAlternatingFlowAudit AuditAlternatingFlowAndRhythm(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditAlternatingFlowAndRhythm(markdown, layoutName);
+    }
+
+    public static string FormatAlternatingFlowSummary(
+        int totalSteps, int leftSteps, int rightSteps, int leftWords, int rightWords,
+        double wordRatio, double rhythmScore, string category, string layoutName)
+    {
+        if (totalSteps == 0)
+            return $"SmartArt alternating flow audit ({layoutName} · 0 steps): Outline is empty";
+
+        string stepStr = totalSteps == 1 ? "1 step" : $"{totalSteps} steps";
+        var parts = new List<string>();
+
+        parts.Add($"{leftSteps} Left/Top vs {rightSteps} Right/Bottom");
+        parts.Add($"{leftWords} vs {rightWords} words (ratio {wordRatio:0.##})");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt alternating flow audit ({layoutName} · {stepStr} · {category} · {rhythmScore:0.#}% rhythm): {details}";
+    }
 }
 
 /// <summary>
@@ -10396,5 +10541,34 @@ public sealed record SmartArtHierarchyOrgChartAudit(
     string Category,
     string LayoutName,
     string Summary);
+
+/// <summary>
+/// Represents evaluated step index, lateral phase, word count, and character length for an individual alternating flow step.
+/// </summary>
+public sealed record AlternatingFlowStepItem(
+    int StepIndex,
+    string SideName,
+    string Title,
+    int WordCount,
+    int CharacterCount,
+    bool IsLeftPhase,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt alternating flow and serpentine zigzag layouts for bilateral step parity and word balance.
+/// </summary>
+public sealed record SmartArtAlternatingFlowAudit(
+    int TotalSteps,
+    int LeftSteps,
+    int RightSteps,
+    int LeftWords,
+    int RightWords,
+    double WordBalanceRatio,
+    double RhythmScore,
+    IReadOnlyList<AlternatingFlowStepItem> Steps,
+    string Category,
+    string LayoutName,
+    string Summary);
+
 
 

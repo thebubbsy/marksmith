@@ -3703,6 +3703,68 @@ namespace MarkSmith.Tests
             Assert.Equal(1, starAudit.HubAndSpokeCount);
             Assert.True(starAudit.SmallWorldInterconnectednessScore < 100.0);
         }
+
+        [Fact]
+        public void Run191_AuditBipartitePartitionAndModularity_ValidatesBipartiteAndOddCycles()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditBipartitePartitionAndModularity(Array.Empty<MindMapNode>(), Array.Empty<MindMapLink>());
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalLinks);
+            Assert.True(emptyAudit.IsBipartite);
+            Assert.Equal(100.0, emptyAudit.ModularityScore);
+            Assert.Equal("Empty MindMap", emptyAudit.Category);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Pure bipartite 2-mode graph: Set A {a1, a2} connected to Set B {b1, b2} (even cycle C4)
+            var a1 = new MindMapNode { Id = "a1", Title = "Actor 1" };
+            var a2 = new MindMapNode { Id = "a2", Title = "Actor 2" };
+            var b1 = new MindMapNode { Id = "b1", Title = "Task 1" };
+            var b2 = new MindMapNode { Id = "b2", Title = "Task 2" };
+
+            var bipLinks = new[]
+            {
+                new MindMapLink { SourceNodeId = "a1", TargetNodeId = "b1" },
+                new MindMapLink { SourceNodeId = "a1", TargetNodeId = "b2" },
+                new MindMapLink { SourceNodeId = "a2", TargetNodeId = "b1" },
+                new MindMapLink { SourceNodeId = "a2", TargetNodeId = "b2" }
+            };
+
+            var bipAudit = MindMapStudioViewModel.AuditBipartitePartitionAndModularity(new[] { a1, a2, b1, b2 }, bipLinks);
+            Assert.Equal(4, bipAudit.TotalNodes);
+            Assert.Equal(4, bipAudit.TotalLinks);
+            Assert.True(bipAudit.IsBipartite);
+            Assert.Equal(0, bipAudit.ConflictEdgeCount);
+            Assert.Equal(2, bipAudit.Partition1Count);
+            Assert.Equal(2, bipAudit.Partition2Count);
+            Assert.Equal(100.0, bipAudit.ModularityScore);
+            Assert.Equal("Optimal Bipartite Partition & Modularity Balance (≥90%)", bipAudit.Category);
+
+            string formatted = MindMapStudioViewModel.FormatBipartitePartitionSummary(
+                bipAudit.TotalNodes, bipAudit.TotalLinks, bipAudit.IsBipartite,
+                bipAudit.Partition1Count, bipAudit.Partition2Count, bipAudit.ConflictEdgeCount,
+                bipAudit.ComponentCount, bipAudit.ModularityScore, bipAudit.Category, bipAudit.IsSelectionScope);
+            Assert.Equal(bipAudit.Summary, formatted);
+
+            // 3. Non-bipartite graph with odd cycle (Triangle: t1 - t2 - t3 - t1)
+            var t1 = new MindMapNode { Id = "t1", Title = "Tri 1" };
+            var t2 = new MindMapNode { Id = "t2", Title = "Tri 2" };
+            var t3 = new MindMapNode { Id = "t3", Title = "Tri 3" };
+
+            var triLinks = new[]
+            {
+                new MindMapLink { SourceNodeId = "t1", TargetNodeId = "t2" },
+                new MindMapLink { SourceNodeId = "t2", TargetNodeId = "t3" },
+                new MindMapLink { SourceNodeId = "t3", TargetNodeId = "t1" }
+            };
+
+            var nonBipAudit = MindMapStudioViewModel.AuditBipartitePartitionAndModularity(new[] { t1, t2, t3 }, triLinks);
+            Assert.Equal(3, nonBipAudit.TotalNodes);
+            Assert.Equal(3, nonBipAudit.TotalLinks);
+            Assert.False(nonBipAudit.IsBipartite);
+            Assert.True(nonBipAudit.ConflictEdgeCount >= 1);
+            Assert.True(nonBipAudit.ModularityScore < 100.0);
+        }
     }
 }
 

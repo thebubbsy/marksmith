@@ -2976,6 +2976,50 @@ public class ShapeStudioPolishTests
         Assert.True(nearMissAudit.NearMissEdgeCount >= 1);
         Assert.True(nearMissAudit.AlignmentPrecisionScore < 100.0);
     }
+
+    [Fact]
+    public void Run191_AuditGroupHierarchyAndPadding_ValidatesContainmentAndOverflow()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditGroupHierarchyAndPadding();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(0, emptyAudit.ContainerCount);
+        Assert.Equal(100.0, emptyAudit.HierarchyIntegrityScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+        Assert.Contains("0 shapes", emptyAudit.Summary);
+
+        // 2. Container shape (e.g. Card at 0, 0, 400x300) with well-padded enclosed child (at 50, 50, 100x100)
+        var container = new ShapeCanvasItemViewModel { Id = "c1", Name = "Parent Container", X = 0, Y = 0, Width = 400, Height = 300 };
+        var child = new ShapeCanvasItemViewModel { Id = "ch1", Name = "Enclosed Child", X = 50, Y = 50, Width = 100, Height = 100 };
+        vm.Shapes.Add(container);
+        vm.Shapes.Add(child);
+
+        var cleanAudit = vm.AuditGroupHierarchyAndPadding();
+        Assert.Equal(2, cleanAudit.TotalShapes);
+        Assert.Equal(1, cleanAudit.ContainerCount);
+        Assert.Equal(1, cleanAudit.EnclosedChildCount);
+        Assert.Equal(0, cleanAudit.ChildOverflowCount);
+        Assert.Equal(0, cleanAudit.TightPaddingCount);
+        Assert.Equal(100.0, cleanAudit.HierarchyIntegrityScore);
+        Assert.Equal("Optimal Container Hierarchy & Padding Margin (≥90%)", cleanAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatGroupHierarchySummary(
+            cleanAudit.TotalShapes, cleanAudit.ContainerCount, cleanAudit.EnclosedChildCount,
+            cleanAudit.ChildOverflowCount, cleanAudit.TightPaddingCount, cleanAudit.HierarchyIntegrityScore,
+            cleanAudit.Category, cleanAudit.IsSelectionScope);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Overflowing child (at 350, 50, 100x100 -> extends to X=450, exceeding container width 400)
+        var overflowChild = new ShapeCanvasItemViewModel { Id = "ch2", Name = "Overflowing Child", X = 350, Y = 50, Width = 100, Height = 100 };
+        vm.Shapes.Add(overflowChild);
+
+        var overflowAudit = vm.AuditGroupHierarchyAndPadding();
+        Assert.Equal(3, overflowAudit.TotalShapes);
+        Assert.True(overflowAudit.ChildOverflowCount >= 1);
+        Assert.True(overflowAudit.HierarchyIntegrityScore < 100.0);
+    }
 }
 
 

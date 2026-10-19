@@ -2330,6 +2330,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnAuditWorkspaceCodeFenceLanguagesClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceCodeFenceLanguages(files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification($"Code Blocks: {result.TotalCodeBlocks} blocks ({result.TaggedCodeBlocks} tagged across {result.TotalFilesScanned} docs)", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Fences");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit workspace code fence languages: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

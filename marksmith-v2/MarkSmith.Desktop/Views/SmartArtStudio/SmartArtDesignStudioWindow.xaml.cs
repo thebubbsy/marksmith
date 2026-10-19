@@ -5027,6 +5027,14 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnOutlineStatsAuditAlternatingFlowClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditAlternatingFlowAndRhythm();
+            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         #endregion
 
 

@@ -11949,6 +11949,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditBlockquoteCalloutItem);
 
+        var auditHtmlEntitiesItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Inline HTML Entities, Escapes & Encoding Ambiguity",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditHtmlEntitiesItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditHtmlEntitiesAndEscapedCharacters(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditHtmlEntitiesItem);
+
         menu.ShowAt(anchor);
     }
 
