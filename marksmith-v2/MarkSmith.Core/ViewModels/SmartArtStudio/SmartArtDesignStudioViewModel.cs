@@ -8551,6 +8551,182 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", alerts);
         return $"SmartArt timeline chronology audit ({layoutName} · {milestoneStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits SmartArt radial cycle, diverging radial, and hub-and-spoke layouts for angular step separation,
+    /// spoke count bounds (3 &lt;= N &lt;= 8), text length balance, and radial symmetry.
+    /// </summary>
+    public SmartArtRadialHubSpokeAudit AuditRadialHubSpokeSymmetry(
+        string? markdown = null,
+        string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? SelectedLayout?.Name ?? "Radial / Hub-and-Spoke";
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtRadialHubSpokeAudit(
+                0, null, 0.0, false, 0, 0.0, 100.0,
+                Array.Empty<RadialHubSpokeSectorItem>(),
+                "Empty Outline", layout,
+                $"SmartArt radial symmetry audit ({layout} · 0 spokes): Outline is empty");
+        }
+
+        var lines = input.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var rawItems = new List<(string Label, int Indent)>();
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine.TrimEnd();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            if (line.TrimStart().StartsWith("```") || line.TrimStart().StartsWith("~~~")) continue;
+
+            int indent = line.TakeWhile(char.IsWhiteSpace).Count();
+            string trimmed = line.TrimStart('-', '*', '+', '#', ' ', '\t');
+            if (!string.IsNullOrWhiteSpace(trimmed))
+            {
+                rawItems.Add((trimmed, indent));
+            }
+        }
+
+        if (rawItems.Count == 0)
+        {
+            return new SmartArtRadialHubSpokeAudit(
+                0, null, 0.0, false, 0, 0.0, 100.0,
+                Array.Empty<RadialHubSpokeSectorItem>(),
+                "Empty Outline", layout,
+                $"SmartArt radial symmetry audit ({layout} · 0 spokes): Outline is empty");
+        }
+
+        string? hubLabel = null;
+        var spokeLabels = new List<string>();
+
+        // Check if layout is hub-and-spoke or has a hierarchy
+        bool isHubLayout = layout.Contains("Hub", StringComparison.OrdinalIgnoreCase) ||
+                           layout.Contains("Diverging", StringComparison.OrdinalIgnoreCase);
+
+        if (rawItems.Count > 1 && (isHubLayout || rawItems.Any(r => r.Indent > 0)))
+        {
+            // First item with min indent is Hub, rest (or indented items) are spokes
+            hubLabel = rawItems[0].Label;
+            for (int i = 1; i < rawItems.Count; i++)
+            {
+                spokeLabels.Add(rawItems[i].Label);
+            }
+        }
+        else
+        {
+            // All items are radial cycle spokes/sectors
+            foreach (var item in rawItems)
+            {
+                spokeLabels.Add(item.Label);
+            }
+        }
+
+        int totalSpokes = spokeLabels.Count;
+        if (totalSpokes == 0)
+        {
+            return new SmartArtRadialHubSpokeAudit(
+                0, hubLabel, 0.0, false, 0, 0.0, 100.0,
+                Array.Empty<RadialHubSpokeSectorItem>(),
+                "Empty Outline", layout,
+                $"SmartArt radial symmetry audit ({layout} · 0 spokes): No spokes found");
+        }
+
+        double angleStep = Math.Round(360.0 / totalSpokes, 1);
+        bool isOptimalBounds = totalSpokes >= 3 && totalSpokes <= 8;
+
+        var sectors = new List<RadialHubSpokeSectorItem>();
+        int wordViolations = 0;
+        var charLengths = new List<int>();
+
+        for (int i = 0; i < totalSpokes; i++)
+        {
+            string label = spokeLabels[i];
+            double idealAngle = Math.Round(i * (360.0 / totalSpokes), 1);
+            int words = label.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+            int chars = label.Length;
+            charLengths.Add(chars);
+
+            bool isViolation = words > 12;
+            if (isViolation) wordViolations++;
+
+            string status;
+            if (isViolation)
+                status = $"⚠ Verbose spoke label ({words} words > 12 max recommended) at {idealAngle:0.#}°";
+            else
+                status = $"✓ Balanced sector at {idealAngle:0.#}° ({words} words · {chars} chars)";
+
+            sectors.Add(new RadialHubSpokeSectorItem(
+                i + 1,
+                label,
+                idealAngle,
+                words,
+                chars,
+                isViolation,
+                status));
+        }
+
+        double avgLength = charLengths.Average();
+        double variance = charLengths.Count > 1
+            ? charLengths.Select(c => Math.Pow(c - avgLength, 2)).Average()
+            : 0.0;
+        variance = Math.Round(variance, 1);
+
+        double score = 100.0;
+        if (totalSpokes < 3) score -= 30.0;
+        else if (totalSpokes > 8) score -= ((totalSpokes - 8) * 8.0);
+
+        score -= (wordViolations * 5.0);
+        if (variance > 400.0) score -= 15.0;
+        else if (variance > 100.0) score -= 8.0;
+
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Radial Symmetry & Balance (≥90%)"
+            : score >= 75.0
+                ? "Moderate Radial Disparity (75-89%)"
+                : "Severe Angular Crowding / Asymmetry (<75%)";
+
+        string summary = FormatRadialHubSpokeSummary(
+            totalSpokes, hubLabel, angleStep, isOptimalBounds, wordViolations,
+            variance, score, category, layout);
+
+        return new SmartArtRadialHubSpokeAudit(
+            totalSpokes, hubLabel, angleStep, isOptimalBounds, wordViolations,
+            variance, score, sectors, category, layout, summary);
+    }
+
+    public static SmartArtRadialHubSpokeAudit AuditRadialHubSpokeSymmetry(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditRadialHubSpokeSymmetry(markdown, layoutName);
+    }
+
+    public static string FormatRadialHubSpokeSummary(
+        int totalSpokes, string? hubLabel, double angleStep, bool isOptimalBounds,
+        int wordViolations, double textVariance, double score, string category, string layoutName)
+    {
+        if (totalSpokes == 0)
+            return $"SmartArt radial symmetry audit ({layoutName} · 0 spokes): Outline is empty";
+
+        string spokeStr = totalSpokes == 1 ? "1 spoke" : $"{totalSpokes} spokes";
+        var alerts = new List<string>();
+
+        if (!string.IsNullOrEmpty(hubLabel)) alerts.Add($"hub: '{hubLabel}'");
+        alerts.Add($"angular step {angleStep:0.#}°");
+
+        if (isOptimalBounds) alerts.Add("optimal spoke bounds (3-8)");
+        else alerts.Add(totalSpokes < 3 ? "sparse spoke count (<3)" : "crowded circle (>8)");
+
+        if (wordViolations > 0) alerts.Add($"⚠ {wordViolations} verbose {(wordViolations == 1 ? "label" : "labels")}");
+        else alerts.Add("concise labels");
+
+        string details = string.Join(" · ", alerts);
+        return $"SmartArt radial symmetry audit ({layoutName} · {spokeStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -9442,3 +9618,33 @@ public sealed record SmartArtTimelineIntervalAudit(
     string Category,
     string LayoutName,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, spoke index, ideal angle in degrees, and text metrics for an individual spoke in a radial or hub-and-spoke layout.
+/// </summary>
+public sealed record RadialHubSpokeSectorItem(
+    int SectorIndex,
+    string NodeLabel,
+    double IdealAngleDegrees,
+    int WordCount,
+    int CharacterCount,
+    bool IsWordLengthViolation,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt radial cycle, diverging radial, and hub-and-spoke layouts for angular step separation,
+/// spoke count bounds (3 <= N <= 8), text length balance, and radial symmetry.
+/// </summary>
+public sealed record SmartArtRadialHubSpokeAudit(
+    int TotalSpokes,
+    string? HubLabel,
+    double AngularSeparationDegrees,
+    bool IsWithinOptimalSpokeBounds,
+    int WordLengthViolations,
+    double TextLengthVariance,
+    double RadialSymmetryScore,
+    IReadOnlyList<RadialHubSpokeSectorItem> Sectors,
+    string Category,
+    string LayoutName,
+    string Summary);
+

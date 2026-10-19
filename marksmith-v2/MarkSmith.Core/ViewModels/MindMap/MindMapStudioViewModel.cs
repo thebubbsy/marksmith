@@ -10136,6 +10136,238 @@ namespace MarkSmith.ViewModels.MindMap
             string details = string.Join(" · ", alerts);
             return $"Graph node proximity audit ({scope}{nodeStr} · {category} · {score:0.#}% score): {details}";
         }
+
+        /// <summary>
+        /// Audits mind map graph subtree depth uniformity, branching factors, leaf density, and cognitive balance.
+        /// </summary>
+        public GraphSubtreeDepthAudit AuditSubtreeDepthAndBranching(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var targetNodes = isSelection ? selected : Nodes.ToList();
+            int totalNodes = targetNodes.Count;
+            string scope = isSelection ? "Selection · " : "";
+
+            if (totalNodes == 0)
+            {
+                return new GraphSubtreeDepthAudit(
+                    0, 0, 0.0, 0, 0.0, 0.0, 0, 0, 100.0,
+                    Array.Empty<SubtreeBranchingItem>(),
+                    "Empty Map",
+                    isSelection,
+                    $"Graph subtree depth audit ({scope}0 nodes): Empty map");
+            }
+
+            if (totalNodes == 1)
+            {
+                var sole = targetNodes[0];
+                var singleItem = new SubtreeBranchingItem(
+                    sole.Id ?? "root",
+                    sole.Title ?? "Root",
+                    1,
+                    0,
+                    true,
+                    false,
+                    false,
+                    "✓ Root leaf node (Depth 1)");
+
+                return new GraphSubtreeDepthAudit(
+                    1, 1, 1.0, 1, 1.0, 0.0, 0, 0, 100.0,
+                    new[] { singleItem },
+                    "Single Node · Uniform Depth",
+                    isSelection,
+                    $"Graph subtree depth audit ({scope}1 node · Single Node · 100% score): Depth 1 · 0 branches · 1 leaf");
+            }
+
+            var idMap = targetNodes.ToDictionary(n => n.Id ?? string.Empty, n => n);
+            var childrenMap = new Dictionary<string, List<MindMapNodeViewModel>>();
+            foreach (var node in targetNodes)
+            {
+                string id = node.Id ?? string.Empty;
+                if (!childrenMap.ContainsKey(id)) childrenMap[id] = new List<MindMapNodeViewModel>();
+            }
+
+            foreach (var node in targetNodes)
+            {
+                if (!string.IsNullOrEmpty(node.ParentId) && childrenMap.ContainsKey(node.ParentId))
+                {
+                    childrenMap[node.ParentId].Add(node);
+                }
+            }
+
+            // Also check Links if childrenMap is empty or sparse
+            foreach (var link in Links)
+            {
+                if (!string.IsNullOrEmpty(link.SourceNodeId) && !string.IsNullOrEmpty(link.TargetNodeId))
+                {
+                    if (childrenMap.ContainsKey(link.SourceNodeId) && idMap.ContainsKey(link.TargetNodeId))
+                    {
+                        var childNode = idMap[link.TargetNodeId];
+                        if (!childrenMap[link.SourceNodeId].Contains(childNode))
+                        {
+                            childrenMap[link.SourceNodeId].Add(childNode);
+                        }
+                    }
+                }
+            }
+
+            // Determine root candidates
+            var rootCandidates = targetNodes.Where(n => string.IsNullOrEmpty(n.ParentId) || !idMap.ContainsKey(n.ParentId)).ToList();
+            if (rootCandidates.Count == 0) rootCandidates = new List<MindMapNodeViewModel> { targetNodes[0] };
+
+            var depthMap = new Dictionary<string, int>();
+            var queue = new Queue<(MindMapNodeViewModel Node, int Depth)>();
+            var visited = new HashSet<string>();
+
+            foreach (var root in rootCandidates)
+            {
+                string rootId = root.Id ?? string.Empty;
+                if (visited.Add(rootId))
+                {
+                    queue.Enqueue((root, 1));
+                    depthMap[rootId] = 1;
+                }
+            }
+
+            while (queue.Count > 0)
+            {
+                var (curr, d) = queue.Dequeue();
+                string cId = curr.Id ?? string.Empty;
+
+                if (childrenMap.TryGetValue(cId, out var kids))
+                {
+                    foreach (var k in kids)
+                    {
+                        string kId = k.Id ?? string.Empty;
+                        if (visited.Add(kId))
+                        {
+                            depthMap[kId] = d + 1;
+                            queue.Enqueue((k, d + 1));
+                        }
+                    }
+                }
+            }
+
+            // Handle unvisited components
+            foreach (var node in targetNodes)
+            {
+                string nId = node.Id ?? string.Empty;
+                if (!depthMap.ContainsKey(nId))
+                {
+                    depthMap[nId] = 1;
+                }
+            }
+
+            var items = new List<SubtreeBranchingItem>();
+            int maxDepth = 1;
+            long sumDepth = 0;
+            int leafCount = 0;
+            int sumBranches = 0;
+            int nonLeafCount = 0;
+            int deepSprawlCount = 0;
+            int excessiveBranchingCount = 0;
+
+            foreach (var node in targetNodes)
+            {
+                string nId = node.Id ?? string.Empty;
+                int depth = depthMap[nId];
+                if (depth > maxDepth) maxDepth = depth;
+                sumDepth += depth;
+
+                int childCount = childrenMap.TryGetValue(nId, out var kids) ? kids.Count : 0;
+                bool isLeaf = childCount == 0;
+                if (isLeaf) leafCount++;
+                else
+                {
+                    nonLeafCount++;
+                    sumBranches += childCount;
+                }
+
+                bool hasDeepSprawl = depth > 6;
+                if (hasDeepSprawl) deepSprawlCount++;
+
+                bool hasExcessiveBranching = childCount > 7;
+                if (hasExcessiveBranching) excessiveBranchingCount++;
+
+                string status;
+                if (hasDeepSprawl)
+                    status = $"⚠ Deep cognitive sprawl (Depth {depth} > 6 max recommended)";
+                else if (hasExcessiveBranching)
+                    status = $"⚠ Excessive branching ({childCount} children > 7 Miller's law)";
+                else if (isLeaf)
+                    status = $"✓ Leaf node (Depth {depth})";
+                else
+                    status = $"✓ Balanced branch node (Depth {depth} · {childCount} children)";
+
+                items.Add(new SubtreeBranchingItem(
+                    nId,
+                    node.Title ?? "Node",
+                    depth,
+                    childCount,
+                    isLeaf,
+                    hasExcessiveBranching,
+                    hasDeepSprawl,
+                    status));
+            }
+
+            double avgDepth = Math.Round((double)sumDepth / totalNodes, 1);
+            double leafRatio = Math.Round((double)leafCount / totalNodes, 2);
+            double avgBranching = nonLeafCount > 0 ? Math.Round((double)sumBranches / nonLeafCount, 1) : 0.0;
+
+            double score = 100.0;
+            score -= (deepSprawlCount * 12.0);
+            score -= (excessiveBranchingCount * 8.0);
+            if (maxDepth >= 7) score -= 10.0;
+            score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+            string category = score >= 90.0
+                ? "Optimal Subtree Balance & Depth (≥90%)"
+                : score >= 75.0
+                    ? "Moderate Subtree Sprawl & Asymmetry (75-89%)"
+                    : "Severe Cognitive Sprawl & Deep Hierarchy (<75%)";
+
+            string summary = FormatSubtreeDepthSummary(
+                totalNodes, maxDepth, avgDepth, leafCount, leafRatio, avgBranching,
+                deepSprawlCount, excessiveBranchingCount, score, category, isSelection);
+
+            return new GraphSubtreeDepthAudit(
+                totalNodes, maxDepth, avgDepth, leafCount, leafRatio, avgBranching,
+                deepSprawlCount, excessiveBranchingCount, score, items, category, isSelection, summary);
+        }
+
+        public static GraphSubtreeDepthAudit AuditSubtreeDepthAndBranching(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null) foreach (var nd in nodes) vm.Nodes.Add(new MindMapNodeViewModel(nd));
+            if (links != null) foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            return vm.AuditSubtreeDepthAndBranching();
+        }
+
+        public static string FormatSubtreeDepthSummary(
+            int totalNodes, int maxDepth, double avgDepth, int leafCount, double leafRatio,
+            double avgBranching, int deepSprawl, int excessiveBranching, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph subtree depth audit ({scope}0 nodes): Empty map";
+            if (totalNodes == 1) return $"Graph subtree depth audit ({scope}1 node · Single Node · 100% score): Depth 1 · 0 branches · 1 leaf";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            var parts = new List<string>();
+            parts.Add($"max depth {maxDepth} (avg {avgDepth:0.#})");
+            parts.Add($"{leafCount} leaves ({leafRatio:P0})");
+            parts.Add($"avg branching {avgBranching:0.#}");
+
+            if (deepSprawl > 0) parts.Add($"⚠ {deepSprawl} deep sprawl (>6 levels)");
+            else parts.Add("0 deep sprawl");
+
+            if (excessiveBranching > 0) parts.Add($"⚠ {excessiveBranching} excessive branching (>7)");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph subtree depth audit ({scope}{nodeStr} · {category} · {score:0.#}% score): {details}";
+        }
     }
 
 
@@ -11113,6 +11345,37 @@ namespace MarkSmith.ViewModels.MindMap
         double AverageClearanceDistance,
         double BreathingRoomScore,
         IReadOnlyList<NodeProximityPairItem> ProximalPairs,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated hierarchy depth, branching factor, leaf status, and sprawl risk for an individual mind map node.
+    /// </summary>
+    public sealed record SubtreeBranchingItem(
+        string NodeId,
+        string Title,
+        int Depth,
+        int ChildCount,
+        bool IsLeaf,
+        bool HasExcessiveBranching,
+        bool HasDeepSprawl,
+        string Status);
+
+    /// <summary>
+    /// Represents the result of an audit of graph subtree depth uniformity, branching factors, leaf density, and cognitive balance.
+    /// </summary>
+    public sealed record GraphSubtreeDepthAudit(
+        int TotalNodes,
+        int MaxDepth,
+        double AverageDepth,
+        int LeafNodeCount,
+        double LeafRatio,
+        double AverageBranchingFactor,
+        int DeepSprawlCount,
+        int ExcessiveBranchingCount,
+        double CognitiveBalanceScore,
+        IReadOnlyList<SubtreeBranchingItem> Nodes,
         string Category,
         bool IsSelectionScope,
         string Summary);

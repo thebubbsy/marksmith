@@ -395,6 +395,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditTimelineIntervalsItem" Text="Audit SmartArt timeline &amp; process milestones chronological ordering &amp; interval balance" Click="OnOutlineStatsAuditTimelineIntervalsClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditRadialSymmetryItem" Text="Audit SmartArt radial &amp; hub-and-spoke angular distribution &amp; symmetry" Click="OnOutlineStatsAuditRadialSymmetryClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

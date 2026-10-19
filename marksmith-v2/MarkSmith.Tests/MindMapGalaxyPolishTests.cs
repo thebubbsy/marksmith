@@ -3430,6 +3430,67 @@ namespace MarkSmith.Tests
             Assert.NotEmpty(collisionAudit.ProximalPairs);
             Assert.True(collisionAudit.ProximalPairs[0].IsOverlapping);
         }
+
+        [Fact]
+        public void Run186_AuditSubtreeDepthAndBranching_EvaluatesDepthAndSprawl()
+        {
+            // 1. Empty map
+            var emptyAudit = MindMapStudioViewModel.AuditSubtreeDepthAndBranching(
+                Array.Empty<MindMapNode>(), null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.CognitiveBalanceScore);
+            Assert.Equal("Empty Map", emptyAudit.Category);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Single root node
+            var root = new MindMapNode { Id = "r", Title = "Root Node" };
+            var singleAudit = MindMapStudioViewModel.AuditSubtreeDepthAndBranching(
+                new[] { root }, null);
+            Assert.Equal(1, singleAudit.TotalNodes);
+            Assert.Equal(1, singleAudit.MaxDepth);
+            Assert.Equal(1, singleAudit.LeafNodeCount);
+            Assert.Equal(100.0, singleAudit.CognitiveBalanceScore);
+            Assert.Equal("Single Node · Uniform Depth", singleAudit.Category);
+
+            // 3. Balanced 2-level hierarchy (root + 3 children)
+            var c1 = new MindMapNode { Id = "c1", ParentId = "r", Title = "Child 1" };
+            var c2 = new MindMapNode { Id = "c2", ParentId = "r", Title = "Child 2" };
+            var c3 = new MindMapNode { Id = "c3", ParentId = "r", Title = "Child 3" };
+
+            var balancedAudit = MindMapStudioViewModel.AuditSubtreeDepthAndBranching(
+                new[] { root, c1, c2, c3 }, null);
+
+            Assert.Equal(4, balancedAudit.TotalNodes);
+            Assert.Equal(2, balancedAudit.MaxDepth);
+            Assert.Equal(3, balancedAudit.LeafNodeCount);
+            Assert.Equal(0, balancedAudit.DeepSprawlCount);
+            Assert.Equal(0, balancedAudit.ExcessiveBranchingCount);
+            Assert.Equal(100.0, balancedAudit.CognitiveBalanceScore);
+            Assert.Equal("Optimal Subtree Balance & Depth (≥90%)", balancedAudit.Category);
+
+            string formatted = MindMapStudioViewModel.FormatSubtreeDepthSummary(
+                balancedAudit.TotalNodes, balancedAudit.MaxDepth, balancedAudit.AverageDepth,
+                balancedAudit.LeafNodeCount, balancedAudit.LeafRatio, balancedAudit.AverageBranchingFactor,
+                balancedAudit.DeepSprawlCount, balancedAudit.ExcessiveBranchingCount,
+                balancedAudit.CognitiveBalanceScore, balancedAudit.Category, balancedAudit.IsSelectionScope);
+            Assert.Equal(balancedAudit.Summary, formatted);
+
+            // 4. Deep sprawl hierarchy (> 6 levels)
+            var deepNodes = new List<MindMapNode> { root };
+            string lastId = "r";
+            for (int i = 1; i <= 8; i++)
+            {
+                string id = $"level_{i}";
+                deepNodes.Add(new MindMapNode { Id = id, ParentId = lastId, Title = $"Sprawl Node {i}" });
+                lastId = id;
+            }
+
+            var deepAudit = MindMapStudioViewModel.AuditSubtreeDepthAndBranching(deepNodes, null);
+            Assert.Equal(9, deepAudit.TotalNodes);
+            Assert.Equal(9, deepAudit.MaxDepth);
+            Assert.True(deepAudit.DeepSprawlCount >= 1);
+            Assert.True(deepAudit.CognitiveBalanceScore < 100.0);
+        }
     }
 }
 

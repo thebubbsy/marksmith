@@ -3627,6 +3627,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditClosureCaptureScope);
+
+                var auditControlFlow = new MenuFlyoutItem
+                {
+                    Text = "Audit control flow nesting, cyclomatic complexity delta & guard clause inversion",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditControlFlow.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditControlFlowAndGuardClauses(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditControlFlow);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

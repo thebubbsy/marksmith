@@ -12277,3 +12277,48 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
    - **Refinement Target**: Workspace Markdown Dialect Batch Normalization Apply & Backup Restoration Service.
    - **Deliverable**: Add `RecentFilesService.ApplyWorkspaceDialectNormalization(...)` to automate the execution of dry-run normalized dialect transforms across selected workspace files with automatic timestamped `.bak` rollback backups and atomic commit simulation. Wire to `RecentDocsFlyout`.
 
+---
+
+### 2026-10-20 (scheduled routine run #186)
+
+- **AI-Executable 3-Block Cycle + Execution Phase Overview**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Image Alt-Text Accessibility, Screen Reader Contrast & Caption Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditImageAccessibilityAndCaptions(markdownText)`, static string overload, `FormatImageCaptionAccessibilitySummary(...)`, records `ImageCaptionAccessibilityItem`, `MarkdownImageAccessibilityAudit`. Audits inline markdown images (`![Alt](src "title")`) and `<img ... />`, detects missing alt text, generic placeholder filenames, overly verbose alt (>150 chars), figure captions/titles, and scores WCAG image accessibility compliance (0-100%); wired to `auditImageAccessibilityItem` (`\uEB9F`) in `ShowLinksContextMenu` with clipboard copy and toast announcement.
+    2. **MindMapGalaxyWindow Graph Subtree Depth Uniformity, Branching Factor & Leaf Density Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditSubtreeDepthAndBranching(selectionOnly)`, static overload, `FormatSubtreeDepthSummary(...)`, records `SubtreeBranchingItem`, `GraphSubtreeDepthAudit`. Analyzes hierarchy trees rooted at selected/root nodes, computes subtree depth, branching factors, leaf density, detects deep asymmetrical sprawl (>6 levels), and scores cognitive hierarchy balance (0-100%); wired to `AuditGraphSubtreeDepthItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` with clipboard copy and status feedback.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Diagram Connection Port Orthogonality, Angle Snapping & Collinear Routing Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditConnectionPortOrthogonality(targetShapes)`, static overload, `FormatConnectionPortSummary(...)`, records `ConnectionPortRoutingItem`, `DiagramConnectionPortAudit`. Measures connector endpoints against target shape anchor cardinal directions (N/S/E/W), flags off-axis angled departures, detects near-collinear segment kinks, and scores connection routing tidiness (0-100%); wired to `SelectionAuditConnectionPortRoutingItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Radial / Hub-and-Spoke Layout Angular Distribution & Symmetry Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditRadialHubSpokeSymmetry(markdown, layoutName)`, static overload, `FormatRadialHubSpokeSummary(...)`, records `RadialHubSpokeSectorItem`, `SmartArtRadialHubSpokeAudit`. Evaluates radial cycle and hub-and-spoke diagram outlines, calculates angular step separation variance ($360^\circ / N$), identifies chord length imbalances, and scores radial symmetry (0-100%); wired to `OutlineStatsAuditRadialSymmetryItem` (`\uE8B9`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Diff Control Flow Inversion, Guard Clause Simplification & Cyclomatic Complexity Delta Analyzer (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditControlFlowAndGuardClauses(originalCode, modifiedCode)`, static string overload, `FormatControlFlowSummary(...)`, records `ControlFlowGuardClauseItem`, `DiffControlFlowAudit`. Analyzes unified diff rows for nested conditionals, detects single-line and multi-line clean early exit guard clauses, identifies inversion candidates, computes cyclomatic complexity delta, and scores code simplicity (0-100%); wired to `auditControlFlow` (`\uE8B9`) in `TimelineHeaderBorder` context flyout.
+    6. **SuiteHubView Workspace Markdown Dialect Batch Normalization Apply & Backup Restoration Service (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.ApplyWorkspaceDialectNormalization(...)`, `FormatDialectNormalizationApplySummary(...)`, and records `FileNormalizationApplyItem`, `DialectNormalizationApplyResult`. Executes dry-run verified dialect transformations across workspace files with automatic timestamped `.bak` rollback backups and atomic commit simulation; wired to `ApplyWorkspaceDialectNormalizationItem` (`\uE8B9`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified all `7/7` targeted Run #186 tests passing (`100%` pass rate).
+    - Verified all `147/147` `SuiteHubAndTourPolishTests` passing (`100%` pass rate).
+    - Verified all `825/825` `PolishTests` passing (`100%` pass rate).
+    - Verified all `102/102` `TextSearchTests` passing (`100%` pass rate).
+    - Verified clean live launch of `Marksmith.exe` (`PID=3176`, `Responding=True`, closed cleanly with zero startup crashes).
+
+---
+
+### Run #187 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Footnote & Reference Link Definition Orphan, Anchor Target & Cyclic Reference Auditor.
+   - **Deliverable**: Add `TextSearch.AuditFootnoteAndReferenceDefinitions(markdownText)` and `FormatFootnoteReferenceSummary(...)`, auditing inline footnote markers (`[^1]`), reference link definitions (`[label]: url`), detecting orphaned labels without target definitions, dangling definitions without body references, and circular alias chains. Wire to `ShowLinksContextMenu`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Cycle Detection, Feedback Loops & Strongly Connected Components (SCC) Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphCyclesAndFeedbackLoops()` and `FormatGraphCyclesSummary(...)`, executing Tarjan's SCC algorithm on node-link topology, detecting cyclic reference loops in directed hierarchy trees, and computing directed acyclic graph (DAG) conformance score ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Shape Visual Density, Canvas Margin Padding & Viewport Perimeter Safety Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditVisualDensityAndMargins(shapes)` and `FormatVisualDensitySummary(...)`, measuring perimeter margins against canvas boundary edges ($X < 24$px or $Y < 24$px), calculating shape packing density ($Area_{\text{shapes}} / Area_{\text{canvas}}$), and scoring viewport breathing room ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Chevron & Arrow Process Sequence Directionality, Gap Spacing & Transition Flow Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditChevronProcessFlowAndSpacing(markdown, layoutName)` and `FormatChevronProcessFlowSummary(...)`, validating linear progression arrows, checking chevron overlap offsets, detecting irregular gap margins between sequential phases, and scoring process flow uniformity ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #186 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Exception Handling Hierarchy, Catch Block Specificity & Rethrow Anti-Pattern Analyzer.
+   - **Deliverable**: Add `LineDiff.AuditExceptionHandlingAndRethrows(originalCode, modifiedCode)` to analyze try-catch blocks in diff hunks, detect generic `catch (Exception)` anti-patterns, identify `throw ex;` stack trace erasure hazards, verify specific exception hierarchies, and score error handling rigor ($0-100\%$). Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #186 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Frontmatter Schema Validation, Required Metadata Keys & Type Coercion Service.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceFrontmatterSchemas(...)` to validate YAML/TOML frontmatter blocks across workspace documents, enforce required schema keys (`title`, `date`, `tags`, `author`), detect date parsing format ambiguities, and score metadata integrity ($0-100\%$). Wire to `RecentDocsFlyout`.
+
+

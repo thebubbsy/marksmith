@@ -9703,6 +9703,181 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", alerts);
         return $"Diagram alignment & grid snapping audit ({scopeStr}{shapeStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits diagram connection lines and connectors for segment orthogonality, cardinal angle snapping,
+    /// collinear routing kinks, and connection routing tidiness.
+    /// </summary>
+    public DiagramConnectionPortAudit AuditConnectionPortOrthogonality(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes != null ? targetShapes.ToList() : (selected.Count > 0 ? selected : Shapes.ToList()));
+        bool isSelection = targetShapes != null || (selected.Count > 0 && targets.Count < Shapes.Count);
+        var audit = AuditConnectionPortOrthogonality(targets, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramConnectionPortAudit AuditConnectionPortOrthogonality(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        bool isSelection = false)
+    {
+        var list = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        // Identify connector/line shapes
+        var connectors = list.Where(s =>
+            (s.PathPoints != null && s.PathPoints.Count >= 2) ||
+            string.Equals(s.ShapeType, "line", StringComparison.OrdinalIgnoreCase) ||
+            (s.Name != null && s.Name.Contains("Connector", StringComparison.OrdinalIgnoreCase))
+        ).ToList();
+
+        int totalConnectors = connectors.Count;
+        if (totalConnectors == 0)
+        {
+            return new DiagramConnectionPortAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ConnectionPortRoutingItem>(),
+                "No Connectors",
+                isSelection,
+                $"Diagram connection port & routing audit ({scopeStr}0 connectors): No connector lines to evaluate");
+        }
+
+        int totalSegments = 0;
+        int orthogonalSegments = 0;
+        int nonOrthogonalSegments = 0;
+        int collinearKinks = 0;
+        double sumAngleDeviation = 0.0;
+        var items = new List<ConnectionPortRoutingItem>();
+
+        const double angleToleranceDegrees = 2.5;
+
+        foreach (var conn in connectors)
+        {
+            var pts = ConnectorPoints(conn);
+            if (pts.Count < 2)
+            {
+                // Fallback to bounding box corners if no explicit PathPoints
+                pts = new List<(double X, double Y)>
+                {
+                    (conn.X, conn.Y),
+                    (conn.X + conn.Width, conn.Y + conn.Height)
+                };
+            }
+
+            int segCount = pts.Count - 1;
+            totalSegments += segCount;
+            int connNonOrthogonal = 0;
+            int connKinks = 0;
+            double connMaxDev = 0.0;
+
+            var segmentAngles = new List<double>();
+
+            for (int i = 0; i < segCount; i++)
+            {
+                double dx = pts[i + 1].X - pts[i].X;
+                double dy = pts[i + 1].Y - pts[i].Y;
+
+                double angleDeg = Math.Atan2(Math.Abs(dy), Math.Abs(dx)) * 180.0 / Math.PI; // 0 to 90
+                double dev = Math.Min(angleDeg, 90.0 - angleDeg); // distance to nearest horizontal or vertical (0 or 90)
+
+                sumAngleDeviation += dev;
+                if (dev > connMaxDev) connMaxDev = dev;
+
+                bool isOrthogonal = dev <= angleToleranceDegrees || Math.Abs(dx) < 1.0 || Math.Abs(dy) < 1.0;
+                if (isOrthogonal)
+                {
+                    orthogonalSegments++;
+                }
+                else
+                {
+                    nonOrthogonalSegments++;
+                    connNonOrthogonal++;
+                }
+
+                double fullAngle = Math.Atan2(dy, dx) * 180.0 / Math.PI;
+                segmentAngles.Add(fullAngle);
+            }
+
+            // Check collinear kinks between consecutive segments
+            for (int i = 0; i < segmentAngles.Count - 1; i++)
+            {
+                double diff = Math.Abs(segmentAngles[i] - segmentAngles[i + 1]);
+                if (diff > 180.0) diff = 360.0 - diff;
+
+                // If consecutive segments point in nearly identical direction (diff < 5 degrees), it's a redundant kink
+                if (diff > 0.1 && diff <= 5.0)
+                {
+                    collinearKinks++;
+                    connKinks++;
+                }
+            }
+
+            bool isFullyOrthogonal = connNonOrthogonal == 0;
+            string status;
+            if (isFullyOrthogonal && connKinks == 0)
+                status = $"✓ Fully orthogonal route ({segCount} {(segCount == 1 ? "segment" : "segments")})";
+            else if (connKinks > 0)
+                status = $"⚠ {connKinks} collinear kink {(connKinks == 1 ? "vertex" : "vertices")} · Max deviation: {connMaxDev:0.#}°";
+            else
+                status = $"⚠ {connNonOrthogonal}/{segCount} angled {(connNonOrthogonal == 1 ? "segment" : "segments")} (max deviation {connMaxDev:0.#}°)";
+
+            items.Add(new ConnectionPortRoutingItem(
+                conn.Id,
+                conn.Name ?? "Connector",
+                segCount,
+                isFullyOrthogonal,
+                connNonOrthogonal,
+                connKinks,
+                Math.Round(connMaxDev, 1),
+                status));
+        }
+
+        double avgAngleDev = totalSegments > 0 ? Math.Round(sumAngleDeviation / totalSegments, 1) : 0.0;
+        double score = 100.0;
+        if (totalSegments > 0)
+        {
+            double nonOrthoRatio = (double)nonOrthogonalSegments / totalSegments;
+            score -= (nonOrthoRatio * 50.0);
+            score -= (collinearKinks * 10.0);
+        }
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Orthogonal Routing (≥90%)"
+            : score >= 75.0
+                ? "Moderate Routing Angularity (75-89%)"
+                : "Non-Orthogonal / Disordered Routing (<75%)";
+
+        string summary = FormatConnectionPortSummary(
+            totalConnectors, totalSegments, orthogonalSegments, nonOrthogonalSegments,
+            collinearKinks, avgAngleDev, score, category, isSelection);
+
+        return new DiagramConnectionPortAudit(
+            totalConnectors, totalSegments, orthogonalSegments, nonOrthogonalSegments,
+            collinearKinks, avgAngleDev, score, items, category, isSelection, summary);
+    }
+
+    public static string FormatConnectionPortSummary(
+        int totalConnectors, int totalSegments, int orthogonalCount, int nonOrthogonalCount,
+        int collinearKinks, double avgAngleDev, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalConnectors == 0) return $"Diagram connection port & routing audit ({scopeStr}0 connectors): No connector lines to evaluate";
+
+        string connStr = totalConnectors == 1 ? "1 connector" : $"{totalConnectors} connectors";
+        var parts = new List<string>();
+        parts.Add($"{orthogonalCount}/{totalSegments} orthogonal {(orthogonalCount == 1 ? "segment" : "segments")}");
+
+        if (nonOrthogonalCount > 0) parts.Add($"⚠ {nonOrthogonalCount} angled (avg dev {avgAngleDev:0.#}°)");
+        else parts.Add("0 angled segments");
+
+        if (collinearKinks > 0) parts.Add($"⚠ {collinearKinks} collinear {(collinearKinks == 1 ? "kink" : "kinks")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram connection port & routing audit ({scopeStr}{connStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -10707,3 +10882,34 @@ public sealed record DiagramAlignmentAndSnappingAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, segment counts, orthogonality, and collinear kinks for an individual diagram connector line.
+/// </summary>
+public sealed record ConnectionPortRoutingItem(
+    string ShapeId,
+    string ShapeName,
+    int SegmentCount,
+    bool IsFullyOrthogonal,
+    int NonOrthogonalSegmentCount,
+    int CollinearKinksCount,
+    double MaxAngleDeviationDegrees,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram connection lines and connectors for segment orthogonality,
+/// cardinal angle snapping, collinear routing kinks, and connection routing tidiness.
+/// </summary>
+public sealed record DiagramConnectionPortAudit(
+    int TotalConnectors,
+    int TotalSegments,
+    int OrthogonalSegmentsCount,
+    int NonOrthogonalSegmentsCount,
+    int CollinearKinksCount,
+    double AverageAngleDeviation,
+    double RoutingTidinessScore,
+    IReadOnlyList<ConnectionPortRoutingItem> Connectors,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+

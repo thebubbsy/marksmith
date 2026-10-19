@@ -2534,6 +2534,65 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("readonly", item.ImmutabilityPromotionSuggestion);
         Assert.Contains("Escapes across external procedure boundary", item.Status);
     }
+
+    [Fact]
+    public void Run186_AuditControlFlowAndGuardClauses_DetectsNestingAndComplexity()
+    {
+        // 1. Empty / null input
+        var emptyAudit = LineDiff.AuditControlFlowAndGuardClauses("", "");
+        Assert.Equal(0, emptyAudit.TotalConditionals);
+        Assert.Equal(100.0, emptyAudit.SimplicityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 conditionals", emptyAudit.Summary);
+
+        // 2. Code with clean guard clauses (early returns)
+        string guardCode = string.Join("\n",
+            "public void Process(string input)",
+            "{",
+            "    if (string.IsNullOrEmpty(input)) return;",
+            "    if (input.Length > 100) throw new ArgumentException();",
+            "    DoWork(input);",
+            "}"
+        );
+
+        var guardAudit = LineDiff.AuditControlFlowAndGuardClauses("", guardCode);
+        Assert.Equal(2, guardAudit.TotalConditionals);
+        Assert.Equal(2, guardAudit.CleanGuardClausesCount);
+        Assert.Equal(0, guardAudit.DeeplyNestedConditionalsCount);
+        Assert.Equal(0, guardAudit.InversionOpportunitiesCount);
+        Assert.Equal(100.0, guardAudit.SimplicityScore);
+        Assert.Equal("Optimal Guard Clauses & Flat Flow (≥90%)", guardAudit.Category);
+
+        string formatted = LineDiff.FormatControlFlowSummary(
+            guardAudit.TotalConditionals, guardAudit.CleanGuardClausesCount,
+            guardAudit.DeeplyNestedConditionalsCount, guardAudit.InversionOpportunitiesCount,
+            guardAudit.CyclomaticComplexityDelta, guardAudit.SimplicityScore, guardAudit.Category);
+        Assert.Equal(guardAudit.Summary, formatted);
+
+        // 3. Deeply nested conditionals without early return
+        string nestedCode = string.Join("\n",
+            "public void ProcessNested(Data d)",
+            "{",
+            "    if (d != null)",
+            "    {",
+            "        if (d.IsValid)",
+            "        {",
+            "            if (d.Payload != null)",
+            "            {",
+            "                Execute(d.Payload);",
+            "            }",
+            "        }",
+            "    }",
+            "}"
+        );
+
+        var nestedAudit = LineDiff.AuditControlFlowAndGuardClauses("", nestedCode);
+        Assert.True(nestedAudit.TotalConditionals >= 3);
+        Assert.True(nestedAudit.DeeplyNestedConditionalsCount >= 1 || nestedAudit.InversionOpportunitiesCount >= 1);
+        Assert.True(nestedAudit.SimplicityScore < 100.0);
+        Assert.NotEmpty(nestedAudit.Items);
+        Assert.Contains("return;", nestedAudit.Items[0].InversionSuggestion);
+    }
 }
 
 

@@ -372,6 +372,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphNodeProximityItem" Text="Audit graph node bounding box collisions, clearance distances &amp; visual breathing room" Click="OnAuditGraphNodeProximityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphSubtreeDepthItem" Text="Audit graph subtree depth uniformity, branching factors &amp; leaf density" Click="OnAuditGraphSubtreeDepthClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

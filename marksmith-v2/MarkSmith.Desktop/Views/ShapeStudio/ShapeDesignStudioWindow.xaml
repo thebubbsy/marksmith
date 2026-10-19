@@ -766,6 +766,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditAlignmentSnappingItem" Text="Audit diagram canvas symmetric alignment, grid snapping &amp; distribution parity" Click="OnSelectionAuditAlignmentSnappingClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditConnectionPortRoutingItem" Text="Audit connection port orthogonality, angle snapping &amp; collinear routing" Click="OnSelectionAuditConnectionPortRoutingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

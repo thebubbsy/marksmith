@@ -2235,6 +2235,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnApplyWorkspaceDialectNormalizationClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.ApplyWorkspaceDialectNormalization(files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification($"Applied: {result.TotalReplacementsApplied} replacements across {result.FilesNormalized} files ({result.BackupsCreatedCount} backups)", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Applied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't apply dialect normalization: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

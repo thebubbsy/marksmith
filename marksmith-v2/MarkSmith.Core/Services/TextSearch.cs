@@ -9116,6 +9116,185 @@ public static class TextSearch
         string details = string.Join(" · ", parts);
         return $"Markdown callout alert audit ({alertStr} · {category} · {score:0.#}% score): {details}";
     }
+
+    /// <summary>
+    /// Audits markdown image references (![alt](src "title") and &lt;img src="..." alt="..." /&gt;), evaluating alt-text accessibility,
+    /// screen reader contrast, missing alt attributes, generic filename placeholders, overly verbose descriptions, and captions.
+    /// </summary>
+    public static MarkdownImageAccessibilityAudit AuditImageAccessibilityAndCaptions(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new MarkdownImageAccessibilityAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ImageCaptionAccessibilityItem>(),
+                "Clean Baseline",
+                "Markdown image accessibility audit: 0 images · Document contains no image references");
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var items = new List<ImageCaptionAccessibilityItem>();
+        bool inFence = false;
+
+        var mdImgRegex = new Regex(@"!\[(?<alt>[^\]]*)\]\((?<src>[^\s\)\""]+)(?:\s+""(?<title>[^""]*)"")?\)", RegexOptions.Compiled);
+        var htmlImgRegex = new Regex(@"<img\s+(?:[^>]*?\s+)?src=[""'](?<src>[^""']+)[""'](?:[^>]*?\s+)?(?:alt=[""'](?<alt>[^""']*)[""'])?(?:[^>]*?\s+)?(?:title=[""'](?<title>[^""']*)[""'])?[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        var genericFilenameRegex = new Regex(@"^(?:image|img|screenshot|screen_shot|photo|picture|pic|graphic|figure|untitled|placeholder)(?:[-_]?\d+)?\.(?:png|jpe?g|gif|webp|svg|bmp|ico)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        var placeholderTextRegex = new Regex(@"^(?:image|photo|picture|graphic|figure|placeholder|screenshot|untitled)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        int descriptiveCount = 0;
+        int emptyAltCount = 0;
+        int genericFilenameCount = 0;
+        int overlyVerboseCount = 0;
+        int captionedCount = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string raw = lines[i];
+            string trimmed = raw.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence) continue;
+
+            // 1. Markdown syntax images
+            var mdMatches = mdImgRegex.Matches(raw);
+            foreach (Match m in mdMatches)
+            {
+                string alt = m.Groups["alt"].Value.Trim();
+                string src = m.Groups["src"].Value.Trim();
+                string? title = m.Groups["title"].Success ? m.Groups["title"].Value.Trim() : null;
+
+                ProcessImageItem(i + 1, alt, src, title);
+            }
+
+            // 2. HTML img tags (when not already matched as markdown)
+            if (!raw.Contains("![") && raw.Contains("<img", StringComparison.OrdinalIgnoreCase))
+            {
+                var htmlMatches = htmlImgRegex.Matches(raw);
+                foreach (Match m in htmlMatches)
+                {
+                    string alt = m.Groups["alt"].Success ? m.Groups["alt"].Value.Trim() : string.Empty;
+                    string src = m.Groups["src"].Value.Trim();
+                    string? title = m.Groups["title"].Success ? m.Groups["title"].Value.Trim() : null;
+
+                    ProcessImageItem(i + 1, alt, src, title);
+                }
+            }
+        }
+
+        void ProcessImageItem(int lineNum, string alt, string src, string? title)
+        {
+            bool hasEmptyAlt = string.IsNullOrWhiteSpace(alt);
+            string srcFilename = Path.GetFileName(src);
+
+            bool isGeneric = false;
+            if (!hasEmptyAlt)
+            {
+                if (genericFilenameRegex.IsMatch(alt) || placeholderTextRegex.IsMatch(alt))
+                {
+                    isGeneric = true;
+                }
+                else if (string.Equals(alt, srcFilename, StringComparison.OrdinalIgnoreCase))
+                {
+                    isGeneric = true;
+                }
+            }
+
+            bool isOverlyVerbose = alt.Length > 150;
+            bool hasCaption = !string.IsNullOrWhiteSpace(title);
+            bool isDescriptive = !hasEmptyAlt && !isGeneric && !isOverlyVerbose;
+
+            if (hasEmptyAlt) emptyAltCount++;
+            else if (isGeneric) genericFilenameCount++;
+            else if (isOverlyVerbose) overlyVerboseCount++;
+            else descriptiveCount++;
+
+            if (hasCaption) captionedCount++;
+
+            string status;
+            if (hasEmptyAlt)
+                status = "⚠ Missing alt text (Critical screen reader accessibility barrier)";
+            else if (isGeneric)
+                status = $"⚠ Generic placeholder / filename used as alt text ('{alt}')";
+            else if (isOverlyVerbose)
+                status = $"⚠ Overly verbose alt text ({alt.Length} chars > 150 max recommended)";
+            else
+                status = $"✓ Accessible descriptive alt text ({alt.Length} chars)" + (hasCaption ? $" · Caption: '{title}'" : "");
+
+            items.Add(new ImageCaptionAccessibilityItem(
+                lineNum,
+                alt,
+                src,
+                title,
+                hasEmptyAlt,
+                isGeneric,
+                isOverlyVerbose,
+                hasCaption,
+                isDescriptive,
+                status));
+        }
+
+        int totalImages = items.Count;
+        if (totalImages == 0)
+        {
+            return new MarkdownImageAccessibilityAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ImageCaptionAccessibilityItem>(),
+                "Clean Baseline",
+                "Markdown image accessibility audit: 0 images · Document contains no image references");
+        }
+
+        double score = 100.0;
+        score -= (emptyAltCount * 25.0);
+        score -= (genericFilenameCount * 15.0);
+        score -= (overlyVerboseCount * 8.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Image Accessibility (≥90%)"
+            : score >= 75.0
+                ? "Moderate Accessibility Risk (75-89%)"
+                : "Degraded Accessibility Governance (<75%)";
+
+        string summary = FormatImageCaptionAccessibilitySummary(
+            totalImages, descriptiveCount, emptyAltCount, genericFilenameCount,
+            overlyVerboseCount, captionedCount, score, category);
+
+        return new MarkdownImageAccessibilityAudit(
+            totalImages, descriptiveCount, emptyAltCount, genericFilenameCount,
+            overlyVerboseCount, captionedCount, score, items, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of markdown image accessibility and caption compliance.
+    /// </summary>
+    public static string FormatImageCaptionAccessibilitySummary(string? markdownText)
+        => AuditImageAccessibilityAndCaptions(markdownText).Summary;
+
+    public static string FormatImageCaptionAccessibilitySummary(
+        int totalImages, int descriptiveCount, int emptyAltCount, int genericFilenameCount,
+        int overlyVerboseCount, int captionedCount, double score, string category)
+    {
+        if (totalImages == 0)
+            return "Markdown image accessibility audit: 0 images · Document contains no image references";
+
+        string imgStr = totalImages == 1 ? "1 image" : $"{totalImages} images";
+        var parts = new List<string>();
+        parts.Add($"{descriptiveCount} descriptive alt");
+        if (emptyAltCount > 0) parts.Add($"⚠ {emptyAltCount} missing alt");
+        else parts.Add("0 missing alt");
+
+        if (genericFilenameCount > 0) parts.Add($"⚠ {genericFilenameCount} generic placeholder");
+        if (overlyVerboseCount > 0) parts.Add($"⚠ {overlyVerboseCount} overly verbose (>150 chars)");
+        if (captionedCount > 0) parts.Add($"{captionedCount} captioned");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown image accessibility audit ({imgStr} · {category} · {score:0.#}% WCAG score): {details}";
+    }
 }
 
 /// <summary>
@@ -10058,3 +10237,35 @@ public sealed record MarkdownCalloutAudit(
     IReadOnlyList<CalloutItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, alt-text quality, screen reader compliance, and caption metadata for an individual markdown image reference.
+/// </summary>
+public sealed record ImageCaptionAccessibilityItem(
+    int LineNumber,
+    string AltText,
+    string Source,
+    string? Title,
+    bool HasEmptyAlt,
+    bool IsGenericFilenameAlt,
+    bool IsOverlyVerbose,
+    bool HasCaption,
+    bool IsDescriptive,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown image alt-text accessibility, screen reader contrast,
+/// missing alt attributes, generic filename placeholders, and figure captions (WCAG compliance).
+/// </summary>
+public sealed record MarkdownImageAccessibilityAudit(
+    int TotalImages,
+    int DescriptiveAltCount,
+    int EmptyAltCount,
+    int GenericFilenameAltCount,
+    int OverlyVerboseAltCount,
+    int CaptionedCount,
+    double AccessibilityScore,
+    IReadOnlyList<ImageCaptionAccessibilityItem> Items,
+    string Category,
+    string Summary);
+

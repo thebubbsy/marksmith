@@ -2724,6 +2724,69 @@ public class ShapeStudioPolishTests
         Assert.True(offGridAudit.OffGridShapesCount >= 1);
         Assert.True(offGridAudit.AlignmentPrecisionScore < 100.0);
     }
+
+    [Fact]
+    public void Run186_AuditConnectionPortOrthogonality_EvaluatesAnglesAndRouting()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+
+        // 1. Empty canvas / no connectors
+        var emptyAudit = vm.AuditConnectionPortOrthogonality();
+        Assert.Equal(0, emptyAudit.TotalConnectors);
+        Assert.Equal(100.0, emptyAudit.RoutingTidinessScore);
+        Assert.Equal("No Connectors", emptyAudit.Category);
+        Assert.Contains("0 connectors", emptyAudit.Summary);
+
+        // 2. Fully orthogonal connector (horizontal line)
+        var c1 = new ShapeCanvasItemViewModel
+        {
+            Id = "c1",
+            Name = "Connector 1",
+            ShapeType = "line",
+            X = 50,
+            Y = 50,
+            Width = 100,
+            Height = 2,
+            PathPoints = new List<(double X, double Y)> { (0, 50), (100, 50) }
+        };
+        vm.Shapes.Add(c1);
+
+        var orthoAudit = vm.AuditConnectionPortOrthogonality();
+        Assert.Equal(1, orthoAudit.TotalConnectors);
+        Assert.Equal(1, orthoAudit.TotalSegments);
+        Assert.Equal(1, orthoAudit.OrthogonalSegmentsCount);
+        Assert.Equal(0, orthoAudit.NonOrthogonalSegmentsCount);
+        Assert.Equal(0, orthoAudit.CollinearKinksCount);
+        Assert.Equal(100.0, orthoAudit.RoutingTidinessScore);
+        Assert.Equal("Optimal Orthogonal Routing (≥90%)", orthoAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatConnectionPortSummary(
+            orthoAudit.TotalConnectors, orthoAudit.TotalSegments, orthoAudit.OrthogonalSegmentsCount,
+            orthoAudit.NonOrthogonalSegmentsCount, orthoAudit.CollinearKinksCount,
+            orthoAudit.AverageAngleDeviation, orthoAudit.RoutingTidinessScore,
+            orthoAudit.Category, orthoAudit.IsSelectionScope);
+        Assert.Equal(orthoAudit.Summary, formatted);
+
+        // 3. Angled / non-orthogonal connector (45 degree line)
+        var c2 = new ShapeCanvasItemViewModel
+        {
+            Id = "c2",
+            Name = "Angled Connector",
+            ShapeType = "line",
+            X = 100,
+            Y = 100,
+            Width = 100,
+            Height = 100,
+            PathPoints = new List<(double X, double Y)> { (0, 0), (100, 100) }
+        };
+        vm.Shapes.Add(c2);
+
+        var angledAudit = vm.AuditConnectionPortOrthogonality();
+        Assert.Equal(2, angledAudit.TotalConnectors);
+        Assert.Equal(2, angledAudit.TotalSegments);
+        Assert.True(angledAudit.NonOrthogonalSegmentsCount >= 1);
+        Assert.True(angledAudit.RoutingTidinessScore < 100.0);
+    }
 }
 
 

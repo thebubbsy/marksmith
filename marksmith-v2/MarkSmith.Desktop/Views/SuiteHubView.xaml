@@ -363,6 +363,9 @@
                                     <MenuFlyoutItem x:Name="SimulateWorkspaceDialectNormalizationItem" Text="Simulate batch automated markdown dialect normalization dry-run" Click="OnSimulateWorkspaceDialectNormalizationClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="ApplyWorkspaceDialectNormalizationItem" Text="Apply workspace markdown dialect batch normalization &amp; create rollback backups" Click="OnApplyWorkspaceDialectNormalizationClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

@@ -7288,6 +7288,196 @@ public static class LineDiff
         string details = string.Join(" · ", parts);
         return $"Diff closure capture & escape audit ({varStr} · {category} · {score:0.#}% encapsulation): {details}";
     }
+
+    /// <summary>
+    /// Audits diff code lines for control flow nesting, cyclomatic complexity delta,
+    /// deeply nested conditionals, and guard clause inversion opportunities (early returns).
+    /// </summary>
+    public static DiffControlFlowAudit AuditControlFlowAndGuardClauses(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new DiffControlFlowAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ControlFlowGuardClauseItem>(),
+                "Clean Baseline",
+                "Diff control flow & guard clause audit: 0 conditionals in diff · Clean baseline");
+        }
+
+        var ifRegex = new Regex(@"\bif\s*\((?<cond>.*)\)", RegexOptions.Compiled);
+        var branchRegex = new Regex(@"\b(if|else\s+if|switch|case|for|foreach|while|catch)\b|&&|\|\|", RegexOptions.Compiled);
+
+        int addedBranches = 0;
+        int removedBranches = 0;
+        var items = new List<ControlFlowGuardClauseItem>();
+
+        int cleanGuardCount = 0;
+        int deeplyNestedCount = 0;
+        int inversionOpportunitiesCount = 0;
+
+        for (int i = 0; i < unifiedRows.Count; i++)
+        {
+            var row = unifiedRows[i];
+            string line = row.Text ?? string.Empty;
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*"))
+                continue;
+
+            if (row.Kind == Kind.Added)
+            {
+                addedBranches += branchRegex.Matches(trimmed).Count;
+            }
+            else if (row.Kind == Kind.Removed)
+            {
+                removedBranches += branchRegex.Matches(trimmed).Count;
+            }
+
+            if (row.Kind == Kind.Removed)
+                continue; // Audit structure in current/added code
+
+            int leadingSpaces = line.TakeWhile(char.IsWhiteSpace).Count();
+            int estimatedDepth = leadingSpaces / 4;
+
+            var match = ifRegex.Match(trimmed);
+            if (match.Success)
+            {
+                string cond = match.Groups["cond"].Value.Trim();
+                int lineNum = row.NewNumber ?? (i + 1);
+
+                // Check if the current line itself contains an early-exit statement (e.g. single-line if (...) return;)
+                bool isEarlyReturn = trimmed.Contains("return;") || trimmed.Contains("return ") ||
+                                     trimmed.Contains("throw ") || trimmed.Contains("throw;") ||
+                                     trimmed.Contains("continue;") || trimmed.Contains("break;");
+
+                if (!isEarlyReturn)
+                {
+                    // Lookahead to check if this is an early return guard clause on subsequent lines
+                    for (int j = i + 1; j < Math.Min(unifiedRows.Count, i + 5); j++)
+                    {
+                        string nextTrimmed = unifiedRows[j].Text?.Trim() ?? string.Empty;
+                        if (nextTrimmed.StartsWith("return") || nextTrimmed.StartsWith("throw") ||
+                            nextTrimmed.StartsWith("continue") || nextTrimmed.StartsWith("break") ||
+                            nextTrimmed.Contains("return ") || nextTrimmed.Contains("throw "))
+                        {
+                            isEarlyReturn = true;
+                            break;
+                        }
+                        if (nextTrimmed.StartsWith("if ") || nextTrimmed.StartsWith("if(") || nextTrimmed.Contains("}"))
+                        {
+                            break;
+                        }
+                    }
+                }
+
+                bool isDeep = estimatedDepth >= 3;
+                if (isDeep) deeplyNestedCount++;
+
+                bool isInversionCandidate = !isEarlyReturn && estimatedDepth >= 1;
+                if (isInversionCandidate) inversionOpportunitiesCount++;
+
+                if (isEarlyReturn) cleanGuardCount++;
+
+                string inversion = SuggestInversion(cond);
+                string status;
+                if (isEarlyReturn)
+                    status = $"✓ Clean early-exit guard clause (Depth {estimatedDepth})";
+                else if (isDeep)
+                    status = $"⚠ Deeply nested conditional (Depth {estimatedDepth}) · Candidate for inverted guard clause";
+                else if (isInversionCandidate)
+                    status = $"⚠ Inversion candidate: replace nested block with guard clause";
+                else
+                    status = $"✓ Standard top-level branching (Depth {estimatedDepth})";
+
+                items.Add(new ControlFlowGuardClauseItem(
+                    lineNum,
+                    cond,
+                    estimatedDepth,
+                    isInversionCandidate,
+                    inversion,
+                    status));
+            }
+        }
+
+        static string SuggestInversion(string condition)
+        {
+            condition = condition.Trim();
+            if (condition.StartsWith("!") && !condition.Contains("&&") && !condition.Contains("||"))
+                return $"if ({condition.Substring(1)}) return;";
+            if (condition.EndsWith("== null"))
+                return $"if ({condition.Substring(0, condition.Length - 7).Trim()} != null) return;";
+            if (condition.EndsWith("!= null"))
+                return $"if ({condition.Substring(0, condition.Length - 7).Trim()} == null) return;";
+            if (condition.Contains("==") && !condition.Contains("&&") && !condition.Contains("||"))
+                return $"if ({condition.Replace("==", "!=")}) return;";
+            if (condition.Contains("!=") && !condition.Contains("&&") && !condition.Contains("||"))
+                return $"if ({condition.Replace("!=", "==")}) return;";
+            return $"if (!({condition})) return;";
+        }
+
+        int totalConditionals = items.Count;
+        int complexityDelta = addedBranches - removedBranches;
+
+        if (totalConditionals == 0)
+        {
+            return new DiffControlFlowAudit(
+                0, 0, 0, 0, complexityDelta, 100.0,
+                Array.Empty<ControlFlowGuardClauseItem>(),
+                "Clean Baseline",
+                $"Diff control flow & guard clause audit: 0 conditionals · Complexity delta: {(complexityDelta >= 0 ? "+" : "")}{complexityDelta}");
+        }
+
+        double score = 100.0;
+        score -= (deeplyNestedCount * 15.0);
+        score -= (inversionOpportunitiesCount * 8.0);
+        if (complexityDelta > 3) score -= ((complexityDelta - 3) * 5.0);
+        score += (cleanGuardCount * 2.0);
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category = score >= 90.0
+            ? "Optimal Guard Clauses & Flat Flow (≥90%)"
+            : score >= 75.0
+                ? "Moderate Nested Branching (75-89%)"
+                : "Deeply Nested Control Flow (<75%)";
+
+        string summary = FormatControlFlowSummary(
+            totalConditionals, cleanGuardCount, deeplyNestedCount,
+            inversionOpportunitiesCount, complexityDelta, score, category);
+
+        return new DiffControlFlowAudit(
+            totalConditionals, cleanGuardCount, deeplyNestedCount,
+            inversionOpportunitiesCount, complexityDelta, score, items, category, summary);
+    }
+
+    public static DiffControlFlowAudit AuditControlFlowAndGuardClauses(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditControlFlowAndGuardClauses(unified);
+    }
+
+    public static string FormatControlFlowSummary(
+        int totalConditionals, int cleanGuards, int deeplyNested, int inversionCandidates,
+        int complexityDelta, double score, string category)
+    {
+        if (totalConditionals == 0)
+            return $"Diff control flow & guard clause audit: 0 conditionals · Complexity delta: {(complexityDelta >= 0 ? "+" : "")}{complexityDelta}";
+
+        string condStr = totalConditionals == 1 ? "1 conditional" : $"{totalConditionals} conditionals";
+        var parts = new List<string>();
+
+        if (cleanGuards > 0) parts.Add($"{cleanGuards} early-exit {(cleanGuards == 1 ? "guard" : "guards")}");
+        if (deeplyNested > 0) parts.Add($"⚠ {deeplyNested} deeply nested (depth ≥3)");
+        else parts.Add("0 deeply nested");
+
+        if (inversionCandidates > 0) parts.Add($"⚠ {inversionCandidates} inversion {(inversionCandidates == 1 ? "opportunity" : "opportunities")}");
+
+        string deltaSign = complexityDelta >= 0 ? "+" : "";
+        parts.Add($"complexity delta: {deltaSign}{complexityDelta}");
+
+        string details = string.Join(" · ", parts);
+        return $"Diff control flow & guard clause audit ({condStr} · {category} · {score:0.#}% score): {details}";
+    }
 }
 
 /// <summary>
@@ -7992,6 +8182,33 @@ public sealed record DiffClosureCaptureAudit(
     int ConcurrencyRaceRiskCount = 0,
     int ExternalEscapingInvocationsCount = 0,
     int ImmutabilityPromotionCandidatesCount = 0);
+
+/// <summary>
+/// Represents evaluated metrics, nesting depth, inversion suggestion, and guard clause candidacy for an individual conditional statement in a diff.
+/// </summary>
+public sealed record ControlFlowGuardClauseItem(
+    int LineNumber,
+    string ConditionSnippet,
+    int NestingDepth,
+    bool IsGuardClauseCandidate,
+    string InversionSuggestion,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diff control flow nesting, cyclomatic complexity delta,
+/// deeply nested conditionals, and guard clause inversion opportunities (early return simplification).
+/// </summary>
+public sealed record DiffControlFlowAudit(
+    int TotalConditionals,
+    int CleanGuardClausesCount,
+    int DeeplyNestedConditionalsCount,
+    int InversionOpportunitiesCount,
+    int CyclomaticComplexityDelta,
+    double SimplicityScore,
+    IReadOnlyList<ControlFlowGuardClauseItem> Items,
+    string Category,
+    string Summary);
+
 
 
 

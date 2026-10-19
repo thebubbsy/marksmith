@@ -4899,6 +4899,113 @@ Some paragraph in between.
         Assert.Contains("OnSimulateWorkspaceDialectNormalizationClick", suiteCs);
         Assert.Contains("SimulateDialectNormalizationDryRun", suiteCs);
     }
+
+    [Fact]
+    public void Run186_ApplyWorkspaceDialectNormalization_ExecutesTransformsAndGeneratesBackups()
+    {
+        // 1. Empty workspace
+        var emptyResult = RecentFilesService.ApplyWorkspaceDialectNormalization(
+            Array.Empty<string>(),
+            _ => false,
+            _ => null);
+        Assert.Equal(0, emptyResult.TotalFilesAudited);
+        Assert.Equal(0, emptyResult.FilesNormalized);
+        Assert.Equal(0, emptyResult.TotalReplacementsApplied);
+        Assert.True(emptyResult.AllBackupsVerified);
+        Assert.Contains("0 files", emptyResult.Summary);
+
+        // 2. Normalization execution with backup generation
+        var doc1 = string.Join("\n",
+            "# Standard Master Doc",
+            "- Bullet A",
+            "- Bullet B",
+            "```csharp",
+            "int a = 1;",
+            "```"
+        );
+
+        var doc2 = string.Join("\n",
+            "Legacy Header",
+            "=============",
+            "* Non-standard bullet",
+            "~~~",
+            "tilde fence",
+            "~~~"
+        );
+
+        var fileContents = new Dictionary<string, string>
+        {
+            [@"C:\workspace\master.md"] = doc1,
+            [@"C:\workspace\legacy.md"] = doc2
+        };
+        var writtenFiles = new Dictionary<string, string>();
+        var backupFiles = new Dictionary<string, string>();
+
+        var result = RecentFilesService.ApplyWorkspaceDialectNormalization(
+            fileContents.Keys,
+            p => fileContents.ContainsKey(p),
+            p => fileContents.TryGetValue(p, out var c) ? c : null,
+            (p, txt) => writtenFiles[p] = txt,
+            (p, bak) => backupFiles[p] = bak,
+            dryRun: false);
+
+        Assert.Equal(2, result.TotalFilesAudited);
+        Assert.Equal(1, result.FilesNormalized);
+        Assert.True(result.TotalReplacementsApplied >= 1);
+        Assert.Equal(1, result.BackupsCreatedCount);
+        Assert.True(result.AllBackupsVerified);
+        Assert.Single(backupFiles);
+        Assert.True(backupFiles.ContainsKey(@"C:\workspace\legacy.md.bak"));
+        Assert.Single(writtenFiles);
+        Assert.Contains("# Legacy Header", writtenFiles[@"C:\workspace\legacy.md"]);
+
+        string formatted = RecentFilesService.FormatDialectNormalizationApplySummary(
+            result.TotalFilesAudited, result.FilesNormalized, result.TotalReplacementsApplied,
+            result.BackupsCreatedCount, result.AllBackupsVerified, dryRun: false);
+        Assert.Equal(result.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run186_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Image Alt-Text Accessibility & Caption Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditImageAccessibilityItem", mainCs);
+        Assert.Contains("AuditImageAccessibilityAndCaptions", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Subtree Depth & Branching Factor Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphSubtreeDepthItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphSubtreeDepthClick", galaxyCs);
+        Assert.Contains("AuditSubtreeDepthAndBranching", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Connection Port Orthogonality & Routing Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditConnectionPortRoutingItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditConnectionPortRoutingClick", shapeCs);
+        Assert.Contains("AuditConnectionPortOrthogonality", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - Radial & Hub-and-Spoke Angular Symmetry Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditRadialSymmetryItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditRadialSymmetryClick", smartArtCs);
+        Assert.Contains("AuditRadialHubSpokeSymmetry", smartArtCs);
+
+        // Surface 5: HistoryWindow - Control Flow Inversion & Guard Clause Simplification
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditControlFlow", historyCs);
+        Assert.Contains("AuditControlFlowAndGuardClauses", historyCs);
+
+        // Surface 6: SuiteHubView - Apply Markdown Dialect Normalization & Backups
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("ApplyWorkspaceDialectNormalizationItem", suiteXaml);
+        Assert.Contains("OnApplyWorkspaceDialectNormalizationClick", suiteCs);
+        Assert.Contains("ApplyWorkspaceDialectNormalization", suiteCs);
+    }
 }
 
 

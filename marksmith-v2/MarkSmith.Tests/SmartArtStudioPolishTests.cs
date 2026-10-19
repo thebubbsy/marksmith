@@ -2431,6 +2431,66 @@ public class SmartArtStudioPolishTests
         Assert.True(invAudit.InvertedOrderCount >= 1);
         Assert.True(invAudit.ChronologyBalanceScore < 100.0);
     }
+
+    [Fact]
+    public void Run186_AuditRadialHubSpokeSymmetry_EvaluatesAngularSeparationAndBalance()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditRadialHubSpokeSymmetry("", "Radial Cycle");
+        Assert.Equal(0, emptyAudit.TotalSpokes);
+        Assert.Equal(100.0, emptyAudit.RadialSymmetryScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+        Assert.Contains("0 spokes", emptyAudit.Summary);
+
+        // 2. Balanced 4-spoke radial layout
+        var radialMd = string.Join("\n",
+            "- Plan Phase",
+            "- Execute Phase",
+            "- Review Phase",
+            "- Improve Phase"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditRadialHubSpokeSymmetry(radialMd, "Radial Cycle");
+        Assert.Equal(4, audit.TotalSpokes);
+        Assert.Equal(90.0, audit.AngularSeparationDegrees);
+        Assert.True(audit.IsWithinOptimalSpokeBounds);
+        Assert.Equal(0, audit.WordLengthViolations);
+        Assert.Equal(100.0, audit.RadialSymmetryScore);
+        Assert.Equal("Optimal Radial Symmetry & Balance (≥90%)", audit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatRadialHubSpokeSummary(
+            audit.TotalSpokes, audit.HubLabel, audit.AngularSeparationDegrees,
+            audit.IsWithinOptimalSpokeBounds, audit.WordLengthViolations,
+            audit.TextLengthVariance, audit.RadialSymmetryScore, audit.Category, audit.LayoutName);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Hub and spoke layout with central hub
+        var hubSpokeMd = string.Join("\n",
+            "- Central Platform Hub",
+            "- Analytics Module",
+            "- Ingestion Engine",
+            "- Visualization Client"
+        );
+
+        var hubAudit = SmartArtDesignStudioViewModel.AuditRadialHubSpokeSymmetry(hubSpokeMd, "Hub and Spoke");
+        Assert.Equal(3, hubAudit.TotalSpokes);
+        Assert.Equal("Central Platform Hub", hubAudit.HubLabel);
+        Assert.Equal(120.0, hubAudit.AngularSeparationDegrees);
+        Assert.True(hubAudit.IsWithinOptimalSpokeBounds);
+        Assert.Equal(100.0, hubAudit.RadialSymmetryScore);
+
+        // 4. Overly verbose spoke violating word limits
+        var verboseMd = string.Join("\n",
+            "- Concise Spoke One",
+            "- Extremely verbose spoke label that includes way too many redundant words exceeding twelve words in total length violation",
+            "- Concise Spoke Three"
+        );
+
+        var verboseAudit = SmartArtDesignStudioViewModel.AuditRadialHubSpokeSymmetry(verboseMd, "Radial Cycle");
+        Assert.Equal(3, verboseAudit.TotalSpokes);
+        Assert.True(verboseAudit.WordLengthViolations >= 1);
+        Assert.True(verboseAudit.RadialSymmetryScore < 100.0);
+    }
 }
 
 

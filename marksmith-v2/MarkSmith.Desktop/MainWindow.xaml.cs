@@ -11879,6 +11879,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditCalloutSemanticsItem);
 
+        var auditImageAccessibilityItem = new MenuFlyoutItem
+        {
+            Text = "Audit Image Alt-Text Accessibility, Screen Reader Contrast & Captions (WCAG)",
+            Icon = new FontIcon { Glyph = "\uEB9F" }
+        };
+        auditImageAccessibilityItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditImageAccessibilityAndCaptions(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditImageAccessibilityItem);
+
         menu.ShowAt(anchor);
     }
 

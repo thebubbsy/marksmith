@@ -2727,6 +2727,59 @@ public class TextSearchTests
         Assert.True(invalidAudit.UnknownTypeCallouts >= 1);
         Assert.True(invalidAudit.SemanticIntegrityScore < 100.0);
     }
+
+    [Fact]
+    public void Run186_AuditImageAccessibilityAndCaptions_EvaluatesAltTextAndCaptions()
+    {
+        // 1. Empty / null document
+        var emptyAudit = TextSearch.AuditImageAccessibilityAndCaptions("");
+        Assert.Equal(0, emptyAudit.TotalImages);
+        Assert.Equal(100.0, emptyAudit.AccessibilityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 images", emptyAudit.Summary);
+
+        // 2. Clean accessible images
+        var cleanDoc = string.Join("\n",
+            "# Document Title",
+            "![System Architecture Diagram](images/arch.png \"High-level system topology\")",
+            "Some descriptive text.",
+            "![User Authentication Flow](diagrams/auth.svg)",
+            "```markdown",
+            "![Ignored Image In Code Block](ignored.png)",
+            "```"
+        );
+
+        var cleanAudit = TextSearch.AuditImageAccessibilityAndCaptions(cleanDoc);
+        Assert.Equal(2, cleanAudit.TotalImages);
+        Assert.Equal(2, cleanAudit.DescriptiveAltCount);
+        Assert.Equal(0, cleanAudit.EmptyAltCount);
+        Assert.Equal(0, cleanAudit.GenericFilenameAltCount);
+        Assert.Equal(0, cleanAudit.OverlyVerboseAltCount);
+        Assert.Equal(1, cleanAudit.CaptionedCount);
+        Assert.Equal(100.0, cleanAudit.AccessibilityScore);
+        Assert.Equal("Optimal Image Accessibility (≥90%)", cleanAudit.Category);
+
+        string formatted = TextSearch.FormatImageCaptionAccessibilitySummary(
+            cleanAudit.TotalImages, cleanAudit.DescriptiveAltCount, cleanAudit.EmptyAltCount,
+            cleanAudit.GenericFilenameAltCount, cleanAudit.OverlyVerboseAltCount,
+            cleanAudit.CaptionedCount, cleanAudit.AccessibilityScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Document with missing alt, generic placeholder, and overly verbose alt
+        var verboseAlt = new string('x', 160);
+        var problematicDoc = string.Join("\n",
+            "![](/images/unlabelled.jpg)",
+            "![screenshot.png](/images/screenshot.png)",
+            $"![{verboseAlt}](/images/verbose.png)"
+        );
+
+        var probAudit = TextSearch.AuditImageAccessibilityAndCaptions(problematicDoc);
+        Assert.Equal(3, probAudit.TotalImages);
+        Assert.Equal(1, probAudit.EmptyAltCount);
+        Assert.Equal(1, probAudit.GenericFilenameAltCount);
+        Assert.Equal(1, probAudit.OverlyVerboseAltCount);
+        Assert.True(probAudit.AccessibilityScore < 100.0);
+    }
 }
 
 
