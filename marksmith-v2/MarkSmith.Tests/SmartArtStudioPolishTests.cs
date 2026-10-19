@@ -2045,6 +2045,50 @@ public class SmartArtStudioPolishTests
             balancedAudit.DiagonalSymmetryPercentage, balancedAudit.QuadrantBalanceScore, balancedAudit.Category);
         Assert.Contains("2x2 matrix quadrant grid audit", formatted);
     }
+
+    [Fact]
+    public void Run177_AuditFunnelPyramidProgression_And_FormatFunnelPyramidSummary()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditFunnelPyramidProgression("");
+        Assert.Equal(0, emptyAudit.TotalStages);
+        Assert.Equal(0, emptyAudit.TotalWords);
+        Assert.Equal(100.0, emptyAudit.TaperUniformityScore);
+        Assert.Equal("Empty Funnel/Pyramid", emptyAudit.Category);
+        Assert.Contains("0 stages", emptyAudit.Summary);
+
+        string smoothFunnel = string.Join("\n",
+            "- Top Funnel Lead Awareness Stage",
+            "- Middle Evaluation And Interest Stage",
+            "- Lower Qualified Decision Stage",
+            "- Final Transactional Action Stage"
+        );
+
+        var smoothAudit = SmartArtDesignStudioViewModel.AuditFunnelPyramidProgression(smoothFunnel);
+        Assert.Equal(4, smoothAudit.TotalStages);
+        Assert.Equal(0, smoothAudit.InversionCount);
+        Assert.True(smoothAudit.IsMonotonicProgression);
+        Assert.Equal(100.0, smoothAudit.TaperUniformityScore);
+        Assert.Equal("Smooth Monotonic Stage Taper", smoothAudit.Category);
+
+        string jaggedFunnel = string.Join("\n",
+            "- Stage One",
+            "- Stage Two With A Massive Paragraph Describing Extremely Verbose And Elaborate Architectural Enterprise Details Far Exceeding Any Reasonable Proportions",
+            "- Stage Three"
+        );
+
+        var jaggedAudit = SmartArtDesignStudioViewModel.AuditFunnelPyramidProgression(jaggedFunnel);
+        Assert.Equal(3, jaggedAudit.TotalStages);
+        Assert.True(jaggedAudit.InversionCount > 0);
+        Assert.False(jaggedAudit.IsMonotonicProgression);
+        Assert.Contains("Abrupt Volume Inversion", jaggedAudit.Category);
+        Assert.True(jaggedAudit.TaperUniformityScore < 100.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatFunnelPyramidSummary(
+            smoothAudit.TotalStages, smoothAudit.TotalWords, smoothAudit.InversionCount,
+            smoothAudit.MeanStageWords, smoothAudit.WordCountStdDev, smoothAudit.TaperUniformityScore,
+            smoothAudit.Category);
+        Assert.Equal(smoothAudit.Summary, formatted);
+    }
 }
 
 

@@ -345,6 +345,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphDiameterSmallWorldItem" Text="Audit graph diameter, average path length &amp; small-world navigation" Click="OnAuditGraphDiameterAndSmallWorldClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionItem" Text="Audit node degree distribution skewness, hub centrality &amp; scale-free network" Click="OnAuditGraphDegreeDistributionClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

@@ -8417,6 +8417,175 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Graph diameter & small-world navigation audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% score): " +
                    $"diameter {diameter}, avg path {avgPathLength:0.##}, efficiency {globalEfficiency:0.###}{compNote}";
         }
+
+        public GraphDegreeDistributionAudit AuditDegreeDistributionAndHubs(bool selectionOnly = false)
+        {
+            var targetNodes = (selectionOnly && HasSelection)
+                ? Nodes.Where(n => n.IsSelected).ToList()
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && HasSelection;
+            var targetNodeIds = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+
+            var targetLinks = Links.Where(l =>
+                targetNodeIds.Contains(l.SourceNodeId) && targetNodeIds.Contains(l.TargetNodeId)).ToList();
+
+            int totalNodes = targetNodes.Count;
+            int totalEdges = targetLinks.Count;
+
+            if (totalNodes == 0)
+            {
+                string scope = isSelection ? "Selection · " : "";
+                return new GraphDegreeDistributionAudit(
+                    0, 0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 100.0,
+                    Array.Empty<NodeDegreeDistributionInfo>(),
+                    "Empty Map",
+                    isSelection,
+                    $"Graph degree distribution & hub centrality audit ({scope}0 nodes): Empty map");
+            }
+
+            var inDegrees = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var outDegrees = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in targetNodes)
+            {
+                inDegrees[n.Id] = 0;
+                outDegrees[n.Id] = 0;
+            }
+
+            foreach (var link in targetLinks)
+            {
+                if (outDegrees.ContainsKey(link.SourceNodeId)) outDegrees[link.SourceNodeId]++;
+                if (inDegrees.ContainsKey(link.TargetNodeId)) inDegrees[link.TargetNodeId]++;
+            }
+
+            var degrees = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in targetNodes)
+            {
+                degrees[n.Id] = inDegrees[n.Id] + outDegrees[n.Id];
+            }
+
+            double meanDegree = degrees.Values.Average();
+            double variance = degrees.Values.Select(d => (d - meanDegree) * (d - meanDegree)).Average();
+            double stdDev = Math.Sqrt(variance);
+
+            double skewness = 0.0;
+            if (stdDev > 0.0001 && totalNodes >= 3)
+            {
+                double m3 = degrees.Values.Select(d => Math.Pow(d - meanDegree, 3)).Average();
+                skewness = Math.Round(m3 / Math.Pow(stdDev, 3), 2);
+            }
+
+            int maxDegree = degrees.Values.Count > 0 ? degrees.Values.Max() : 0;
+            double superHubThreshold = meanDegree + 2.0 * stdDev;
+
+            var nodeMetrics = new List<NodeDegreeDistributionInfo>();
+            int superHubCount = 0;
+            int leafCount = 0;
+            int isolatedCount = 0;
+
+            foreach (var n in targetNodes)
+            {
+                int deg = degrees[n.Id];
+                int inDeg = inDegrees[n.Id];
+                int outDeg = outDegrees[n.Id];
+
+                bool isSuperHub = stdDev > 0.5 && deg >= 3 && deg > superHubThreshold;
+                bool isLeaf = deg == 1;
+                bool isIsolated = deg == 0;
+
+                if (isSuperHub) superHubCount++;
+                if (isLeaf) leafCount++;
+                if (isIsolated) isolatedCount++;
+
+                string role = isIsolated ? "Isolated Node"
+                    : isSuperHub ? "Super-Hub Node"
+                    : deg >= Math.Max(2, (int)Math.Ceiling(meanDegree)) ? "Core Hub"
+                    : isLeaf ? "Leaf Node"
+                    : "Intermediate Node";
+
+                nodeMetrics.Add(new NodeDegreeDistributionInfo(
+                    n.Id, n.Title, deg, inDeg, outDeg, isSuperHub, isLeaf, isIsolated, role));
+            }
+
+            double score = 100.0;
+            score -= isolatedCount * 15.0;
+            if (leafCount > totalNodes * 0.7 && totalNodes >= 4) score -= 15.0;
+            if (maxDegree == 0 && totalNodes > 1) score -= 25.0;
+            score = Math.Round(Math.Clamp(score, 10.0, 100.0), 1);
+
+            string category;
+            if (totalNodes <= 2)
+            {
+                category = "Trivial Graph";
+            }
+            else if (isolatedCount > 0)
+            {
+                category = $"Fragmented Graph ({isolatedCount} Isolated {(isolatedCount == 1 ? "Node" : "Nodes")})";
+            }
+            else if (skewness >= 1.0)
+            {
+                category = "Scale-Free Heavy-Tailed Hub Distribution";
+            }
+            else if (skewness <= -0.5)
+            {
+                category = "Uniform / Regular Lattice Topology";
+            }
+            else if (leafCount > totalNodes * 0.6)
+            {
+                category = $"High Leaf Node Sprawl ({leafCount} Leaves)";
+            }
+            else
+            {
+                category = "Balanced Power-Law Semantic Network";
+            }
+
+            string summary = FormatDegreeDistributionSummary(
+                totalNodes, totalEdges, meanDegree, stdDev, skewness, maxDegree, superHubCount,
+                leafCount, isolatedCount, score, category, isSelection);
+
+            return new GraphDegreeDistributionAudit(
+                totalNodes, totalEdges, Math.Round(meanDegree, 2), Math.Round(variance, 2),
+                Math.Round(stdDev, 2), skewness, maxDegree, superHubCount, leafCount,
+                isolatedCount, score, nodeMetrics, category, isSelection, summary);
+        }
+
+        public static GraphDegreeDistributionAudit AuditDegreeDistributionAndHubs(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditDegreeDistributionAndHubs();
+        }
+
+        public static string FormatDegreeDistributionSummary(
+            int totalNodes, int totalEdges, double meanDegree, double stdDev, double skewness,
+            int maxDegree, int superHubs, int leafCount, int isolatedCount, double score,
+            string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph degree distribution & hub centrality audit ({scope}0 nodes): Empty map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string edgeStr = totalEdges == 1 ? "1 edge" : $"{totalEdges} edges";
+
+            var alerts = new List<string>();
+            if (superHubs > 0) alerts.Add($"{superHubs} {(superHubs == 1 ? "super-hub" : "super-hubs")}");
+            if (leafCount > 0) alerts.Add($"{leafCount} {(leafCount == 1 ? "leaf" : "leaves")}");
+            if (isolatedCount > 0) alerts.Add($"⚠ {isolatedCount} isolated");
+            string alertSuffix = alerts.Count > 0 ? $" [{string.Join(", ", alerts)}]" : "";
+
+            return $"Graph degree distribution & hub centrality audit ({scope}{nodeStr}, {edgeStr} · {category} · {score:0.#}% score): " +
+                   $"mean degree {meanDegree:0.##} (±{stdDev:0.##}), skewness {skewness:0.##}, max {maxDegree}{alertSuffix}";
+        }
     }
 
 
@@ -9109,6 +9278,41 @@ namespace MarkSmith.ViewModels.MindMap
         int ComponentCount,
         double SmallWorldIndexScore,
         IReadOnlyList<NodePathEccentricityInfo> NodeMetrics,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents evaluated node degree, in/out degree breakdown, hub role, and centrality for an individual mind map node.
+    /// </summary>
+    public sealed record NodeDegreeDistributionInfo(
+        string NodeId,
+        string Title,
+        int TotalDegree,
+        int InDegree,
+        int OutDegree,
+        bool IsSuperHub,
+        bool IsLeaf,
+        bool IsIsolated,
+        string Role);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph node degree distribution skewness,
+    /// hub centrality, variance, leaf node sprawl, and scale-free network topology.
+    /// </summary>
+    public sealed record GraphDegreeDistributionAudit(
+        int TotalNodes,
+        int TotalEdges,
+        double MeanDegree,
+        double DegreeVariance,
+        double DegreeStdDev,
+        double DegreeSkewness,
+        int MaxDegree,
+        int SuperHubCount,
+        int LeafCount,
+        int IsolatedCount,
+        double ScaleFreeFitScore,
+        IReadOnlyList<NodeDegreeDistributionInfo> NodeMetrics,
         string Category,
         bool IsSelectionScope,
         string Summary);

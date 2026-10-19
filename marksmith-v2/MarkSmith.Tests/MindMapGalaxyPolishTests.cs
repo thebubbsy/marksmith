@@ -2995,6 +2995,59 @@ namespace MarkSmith.Tests
                 chainAudit.SmallWorldIndexScore, chainAudit.Category, chainAudit.IsSelectionScope);
             Assert.Equal(chainAudit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run177_AuditDegreeDistributionAndHubs_And_FormatDegreeDistributionSummary()
+        {
+            var emptyAudit = MindMapStudioViewModel.AuditDegreeDistributionAndHubs(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.TotalEdges);
+            Assert.Equal(100.0, emptyAudit.ScaleFreeFitScore);
+            Assert.Equal("Empty Map", emptyAudit.Category);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // Star topology: 1 central super-hub connected to 5 leaf nodes
+            var hub = new MindMapNode { Id = "hub", Title = "Central Super Hub" };
+            var l1 = new MindMapNode { Id = "l1", Title = "Leaf 1" };
+            var l2 = new MindMapNode { Id = "l2", Title = "Leaf 2" };
+            var l3 = new MindMapNode { Id = "l3", Title = "Leaf 3" };
+            var l4 = new MindMapNode { Id = "l4", Title = "Leaf 4" };
+            var l5 = new MindMapNode { Id = "l5", Title = "Leaf 5" };
+
+            var e1 = new MindMapLink { Id = "e1", SourceNodeId = "hub", TargetNodeId = "l1" };
+            var e2 = new MindMapLink { Id = "e2", SourceNodeId = "hub", TargetNodeId = "l2" };
+            var e3 = new MindMapLink { Id = "e3", SourceNodeId = "hub", TargetNodeId = "l3" };
+            var e4 = new MindMapLink { Id = "e4", SourceNodeId = "hub", TargetNodeId = "l4" };
+            var e5 = new MindMapLink { Id = "e5", SourceNodeId = "hub", TargetNodeId = "l5" };
+
+            var starAudit = MindMapStudioViewModel.AuditDegreeDistributionAndHubs(
+                new[] { hub, l1, l2, l3, l4, l5 },
+                new[] { e1, e2, e3, e4, e5 });
+
+            Assert.Equal(6, starAudit.TotalNodes);
+            Assert.Equal(5, starAudit.TotalEdges);
+            Assert.Equal(5, starAudit.MaxDegree);
+            Assert.Equal(5, starAudit.LeafCount);
+            Assert.Equal(0, starAudit.IsolatedCount);
+            Assert.True(starAudit.DegreeSkewness > 0.5);
+            Assert.Contains("Scale-Free", starAudit.Category);
+
+            // Isolated node test
+            var iso = new MindMapNode { Id = "iso", Title = "Disconnected Node" };
+            var fragAudit = MindMapStudioViewModel.AuditDegreeDistributionAndHubs(
+                new[] { hub, l1, l2, iso },
+                new[] { e1, e2 });
+
+            Assert.Equal(4, fragAudit.TotalNodes);
+            Assert.Equal(1, fragAudit.IsolatedCount);
+            Assert.Contains("Fragmented", fragAudit.Category);
+
+            string formatted = MindMapStudioViewModel.FormatDegreeDistributionSummary(
+                starAudit.TotalNodes, starAudit.TotalEdges, starAudit.MeanDegree, starAudit.DegreeStdDev,
+                starAudit.DegreeSkewness, starAudit.MaxDegree, starAudit.SuperHubCount, starAudit.LeafCount,
+                starAudit.IsolatedCount, starAudit.ScaleFreeFitScore, starAudit.Category, starAudit.IsSelectionScope);
+            Assert.Equal(starAudit.Summary, formatted);
+        }
     }
 }
 

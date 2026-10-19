@@ -2139,6 +2139,41 @@ public class HistoryPolishTests : IDisposable
             reworkAudit.Category);
         Assert.Equal(reworkAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run177_AuditInlineModificationIntensity_And_FormatInlineModificationIntensitySummary()
+    {
+        var emptyAudit = LineDiff.AuditInlineModificationIntensity(Array.Empty<LineDiff.UnifiedRow>());
+        Assert.Equal(0, emptyAudit.TotalDiffRows);
+        Assert.Equal(0, emptyAudit.ModifiedPairsCount);
+        Assert.Equal(100.0, emptyAudit.InlineRefinementScore);
+        Assert.Equal("Zero Inline Replacements", emptyAudit.Category);
+        Assert.Contains("0 diff rows", emptyAudit.Summary);
+
+        // Surgical typo fix (Initialise -> Initialize)
+        string beforeTypo = "public void InitialiseSystem()";
+        string afterTypo = "public void InitializeSystem()";
+        var typoAudit = LineDiff.AuditInlineModificationIntensity(beforeTypo, afterTypo);
+        Assert.Equal(1, typoAudit.ModifiedPairsCount);
+        Assert.Equal(1, typoAudit.MicroEditsCount);
+        Assert.True(typoAudit.InlineRefinementScore >= 85.0);
+        Assert.Equal("Surgical Micro-Edits & Typo Corrections", typoAudit.Category);
+
+        // Substantial line rewrite
+        string beforeRewrite = "var x = 10;";
+        string afterRewrite = "System.Threading.Tasks.Parallel.ForEach(items, item => item.Process());";
+        var rewriteAudit = LineDiff.AuditInlineModificationIntensity(beforeRewrite, afterRewrite);
+        Assert.Equal(1, rewriteAudit.ModifiedPairsCount);
+        Assert.Equal(1, rewriteAudit.SubstantialRewritesCount);
+        Assert.Equal("Predominantly Substantial Line Rewrites", rewriteAudit.Category);
+        Assert.True(rewriteAudit.InlineRefinementScore < 50.0);
+
+        string formatted = LineDiff.FormatInlineModificationIntensitySummary(
+            typoAudit.TotalDiffRows, typoAudit.ModifiedPairsCount, typoAudit.MicroEditsCount,
+            typoAudit.SubtleAdjustmentsCount, typoAudit.ModerateRevisionsCount, typoAudit.SubstantialRewritesCount,
+            typoAudit.MeanSimilarity, typoAudit.InlineRefinementScore, typoAudit.Category);
+        Assert.Equal(typoAudit.Summary, formatted);
+    }
 }
 
 

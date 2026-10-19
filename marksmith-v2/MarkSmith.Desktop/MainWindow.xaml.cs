@@ -11753,6 +11753,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditTableAlignmentSyntaxItem);
 
+        var auditFootnotePairingItem = new MenuFlyoutItem
+        {
+            Text = "Audit Footnote Reference Identifier Pairing & Dangling Definitions",
+            Icon = new FontIcon { Glyph = "\uE71B" }
+        };
+        auditFootnotePairingItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditFootnoteReferencePairing(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditFootnotePairingItem);
+
         menu.ShowAt(anchor);
     }
 

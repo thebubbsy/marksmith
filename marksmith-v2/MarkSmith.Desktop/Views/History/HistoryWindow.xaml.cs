@@ -3536,6 +3536,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditChurnVolatility);
+
+                var auditInlineIntensity = new MenuFlyoutItem
+                {
+                    Text = "Audit inline modification intensity & token Levenshtein edit distance",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditInlineIntensity.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditInlineModificationIntensity(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditInlineIntensity);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

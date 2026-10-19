@@ -7051,6 +7051,144 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
                $"Q1:{q1Words}w, Q2:{q2Words}w, Q3:{q3Words}w, Q4:{q4Words}w · {diagonalSymmetry:0.#}% diagonal symmetry";
     }
 
+    public SmartArtFunnelPyramidAudit AuditFunnelPyramidProgression(string? markdown = null, string? layoutName = null)
+    {
+        string input = markdown ?? MarkdownText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new SmartArtFunnelPyramidAudit(
+                0, 0, 0, 0.0, 0.0, true, 100.0,
+                Array.Empty<FunnelPyramidStageItem>(),
+                "Empty Funnel/Pyramid",
+                "Funnel/Pyramid progression audit: 0 stages · Outline contains no funnel/pyramid content");
+        }
+
+        var lines = input.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var stageData = new List<(string Title, List<string> Subitems)>();
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~")) continue;
+
+            int leadingSpaces = rawLine.Length - rawLine.TrimStart().Length;
+            bool isSubitem = leadingSpaces >= 2 && stageData.Count > 0;
+
+            string clean = trimmed.TrimStart('-', '*', '+', '#', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', ')', ' ');
+
+            if (isSubitem)
+            {
+                stageData[^1].Subitems.Add(clean);
+            }
+            else
+            {
+                stageData.Add((clean, new List<string>()));
+            }
+        }
+
+        if (stageData.Count == 0)
+        {
+            return new SmartArtFunnelPyramidAudit(
+                0, 0, 0, 0.0, 0.0, true, 100.0,
+                Array.Empty<FunnelPyramidStageItem>(),
+                "Empty Funnel/Pyramid",
+                "Funnel/Pyramid progression audit: 0 stages · Outline contains no funnel/pyramid content");
+        }
+
+        var stageWordCounts = new List<int>();
+        var stageCharCounts = new List<int>();
+
+        foreach (var stage in stageData)
+        {
+            string combinedText = stage.Title + " " + string.Join(" ", stage.Subitems);
+            int words = combinedText.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+            int chars = combinedText.Length;
+            stageWordCounts.Add(words);
+            stageCharCounts.Add(chars);
+        }
+
+        int totalStages = stageData.Count;
+        int totalWords = stageWordCounts.Sum();
+        double meanWords = stageWordCounts.Average();
+        double variance = stageWordCounts.Select(w => (w - meanWords) * (w - meanWords)).Average();
+        double stdDev = Math.Round(Math.Sqrt(variance), 1);
+
+        int maxChars = stageCharCounts.Max();
+        var stageItems = new List<FunnelPyramidStageItem>();
+        int inversionCount = 0;
+
+        for (int i = 0; i < totalStages; i++)
+        {
+            int w = stageWordCounts[i];
+            int c = stageCharCounts[i];
+            double relRatio = maxChars > 0 ? Math.Round((double)c / maxChars, 2) : 1.0;
+
+            bool hasInversion = false;
+            if (i > 0)
+            {
+                int prevW = stageWordCounts[i - 1];
+                if (prevW > 0 && w > 0)
+                {
+                    double ratio = (double)w / prevW;
+                    if (ratio > 2.5 || ratio < 0.4)
+                    {
+                        hasInversion = true;
+                        inversionCount++;
+                    }
+                }
+            }
+
+            string status = hasInversion
+                ? $"Abrupt Volume Inversion ({w}w vs adjacent {stageWordCounts[Math.Max(0, i - 1)]}w)"
+                : $"Paced ({w} words)";
+
+            stageItems.Add(new FunnelPyramidStageItem(
+                i + 1, stageData[i].Title, w, c, stageData[i].Subitems.Count, relRatio, hasInversion, status));
+        }
+
+        double penalty = (inversionCount * 20.0);
+        if (totalStages < 3 || totalStages > 7) penalty += 15.0;
+        double score = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category;
+        if (totalStages < 3)
+            category = "Under-Utilized Stage Count (<3 stages)";
+        else if (totalStages > 7)
+            category = $"Overcrowded Stage Sprawl ({totalStages} stages)";
+        else if (inversionCount > 0)
+            category = $"Abrupt Volume Inversion ({inversionCount} stage jumps)";
+        else
+            category = "Smooth Monotonic Stage Taper";
+
+        string summary = FormatFunnelPyramidSummary(
+            totalStages, totalWords, inversionCount, meanWords, stdDev, score, category);
+
+        return new SmartArtFunnelPyramidAudit(
+            totalStages, totalWords, inversionCount, Math.Round(meanWords, 1),
+            stdDev, inversionCount == 0, score, stageItems, category, summary);
+    }
+
+    public static SmartArtFunnelPyramidAudit AuditFunnelPyramidProgression(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditFunnelPyramidProgression(markdown, layoutName);
+    }
+
+    public static string FormatFunnelPyramidSummary(
+        int totalStages, int totalWords, int inversions, double meanWords, double stdDev, double score, string category)
+    {
+        if (totalStages == 0) return "Funnel/Pyramid progression audit: 0 stages · Outline contains no funnel/pyramid content";
+
+        string stageLabel = totalStages == 1 ? "1 stage" : $"{totalStages} stages";
+        var alerts = new List<string>();
+        if (inversions > 0) alerts.Add($"⚠ {inversions} volume {(inversions == 1 ? "inversion" : "inversions")}");
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% smooth monotonic taper";
+
+        return $"Funnel/Pyramid progression audit ({stageLabel} [{totalWords} words] · {category} · {score:0.#}% score): " +
+               $"avg {meanWords:0.#}w (±{stdDev:0.#}w){alertSuffix}";
+    }
 }
 
 /// <summary>
@@ -7686,4 +7824,34 @@ public sealed record SmartArtQuadrantGridAudit(
     IReadOnlyList<QuadrantCellItem> Quadrants,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, stage title, word count, character volume, and taper consistency for an individual funnel or pyramid stage.
+/// </summary>
+public sealed record FunnelPyramidStageItem(
+    int StageIndex,
+    string Title,
+    int WordCount,
+    int CharacterCount,
+    int SubitemCount,
+    double RelativeVolumeRatio,
+    bool HasAbruptVolumeInversion,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt funnel/pyramid progression volume, stage ingestion taper,
+/// word density variance, and monotonic narrowing/widening without abrupt volume inversions.
+/// </summary>
+public sealed record SmartArtFunnelPyramidAudit(
+    int TotalStages,
+    int TotalWords,
+    int InversionCount,
+    double MeanStageWords,
+    double WordCountStdDev,
+    bool IsMonotonicProgression,
+    double TaperUniformityScore,
+    IReadOnlyList<FunnelPyramidStageItem> Stages,
+    string Category,
+    string Summary);
+
 

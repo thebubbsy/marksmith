@@ -4144,6 +4144,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditGraphDegreeDistributionClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditDegreeDistributionAndHubs();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5183,6 +5191,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditGraphDiameterItem.Click += OnAuditGraphDiameterAndSmallWorldClick;
             menu.Items.Add(auditGraphDiameterItem);
+
+            var auditGraphDegreeItem = new MenuFlyoutItem
+            {
+                Text = "Audit node degree distribution skewness, hub centrality & scale-free network",
+                Icon = new FontIcon { Glyph = "\uE8B9" }
+            };
+            auditGraphDegreeItem.Click += OnAuditGraphDegreeDistributionClick;
+            menu.Items.Add(auditGraphDegreeItem);
 
             var fitItem = new MenuFlyoutItem
 

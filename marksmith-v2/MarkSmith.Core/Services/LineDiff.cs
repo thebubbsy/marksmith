@@ -6019,6 +6019,133 @@ public static class LineDiff
         return $"Code churn volatility audit ({totalRows} rows [{netStr} net: +{added}/-{deleted}] · {category} · {stabilityScore:0.#}% stability): " +
                $"volatility index {volatilityIndex:0.#}";
     }
+
+    public static InlineModificationIntensityAudit AuditInlineModificationIntensity(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            return new InlineModificationIntensityAudit(
+                0, 0, 0, 0, 0, 0, 1.0, 100.0,
+                Array.Empty<InlineModificationPair>(),
+                "Zero Inline Replacements",
+                "Inline modification intensity audit: 0 diff rows · Document unchanged");
+        }
+
+        var rows = unifiedRows.Where(r => !r.IsGap).ToList();
+        var pairs = new List<InlineModificationPair>();
+
+        int microEdits = 0;
+        int subtle = 0;
+        int moderate = 0;
+        int rewrites = 0;
+
+        int i = 0;
+        while (i < rows.Count)
+        {
+            if (rows[i].IsSame)
+            {
+                i++;
+                continue;
+            }
+
+            var removedChunk = new List<UnifiedRow>();
+            while (i < rows.Count && rows[i].IsRemoved)
+            {
+                removedChunk.Add(rows[i]);
+                i++;
+            }
+
+            var addedChunk = new List<UnifiedRow>();
+            while (i < rows.Count && rows[i].IsAdded)
+            {
+                addedChunk.Add(rows[i]);
+                i++;
+            }
+
+            int paired = Math.Min(removedChunk.Count, addedChunk.Count);
+            for (int k = 0; k < paired; k++)
+            {
+                var r = removedChunk[k];
+                var a = addedChunk[k];
+
+                int dist = ComputeLevenshteinDistance(r.Text, a.Text);
+                int maxLen = Math.Max(1, Math.Max(r.Text.Length, a.Text.Length));
+                double similarity = Math.Round(Math.Clamp(1.0 - ((double)dist / maxLen), 0.0, 1.0), 3);
+
+                string tier;
+                if (similarity >= 0.85)
+                {
+                    tier = "Micro-Edit / Typo (>=85%)";
+                    microEdits++;
+                }
+                else if (similarity >= 0.60)
+                {
+                    tier = "Subtle Adjustment (60-84%)";
+                    subtle++;
+                }
+                else if (similarity >= 0.35)
+                {
+                    tier = "Moderate Revision (35-59%)";
+                    moderate++;
+                }
+                else
+                {
+                    tier = "Substantial Rewrite (<35%)";
+                    rewrites++;
+                }
+
+                string status = $"{tier}: dist {dist}, sim {similarity:0.##}";
+                pairs.Add(new InlineModificationPair(r.OldNumber ?? (k + 1), r.Text, a.Text, dist, similarity, tier, status));
+            }
+        }
+
+        if (pairs.Count == 0)
+        {
+            return new InlineModificationIntensityAudit(
+                rows.Count, 0, 0, 0, 0, 0, 1.0, 100.0,
+                Array.Empty<InlineModificationPair>(),
+                "Zero Inline Replacements (Structural Only)",
+                "Inline modification intensity audit: 0 replacement pairs · Pure additions or deletions");
+        }
+
+        double meanSimilarity = Math.Round(pairs.Average(p => p.NormalizedSimilarity), 3);
+        double score = Math.Round(meanSimilarity * 100.0, 1);
+
+        string category;
+        if (microEdits == pairs.Count)
+            category = "Surgical Micro-Edits & Typo Corrections";
+        else if (subtle + microEdits >= pairs.Count * 0.75)
+            category = "High Precision Inline Modifications";
+        else if (rewrites >= pairs.Count * 0.5)
+            category = "Predominantly Substantial Line Rewrites";
+        else
+            category = "Balanced Inline Revisions & Adjustments";
+
+        string summary = FormatInlineModificationIntensitySummary(
+            rows.Count, pairs.Count, microEdits, subtle, moderate, rewrites, meanSimilarity, score, category);
+
+        return new InlineModificationIntensityAudit(
+            rows.Count, pairs.Count, microEdits, subtle, moderate, rewrites, meanSimilarity, score, pairs, category, summary);
+    }
+
+    public static InlineModificationIntensityAudit AuditInlineModificationIntensity(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditInlineModificationIntensity(unified);
+    }
+
+    public static string FormatInlineModificationIntensitySummary(
+        int totalRows, int modifiedPairs, int microEdits, int subtle, int moderate, int rewrites,
+        double meanSimilarity, double score, string category)
+    {
+        if (modifiedPairs == 0)
+            return "Inline modification intensity audit: 0 replacement pairs · Pure additions or deletions";
+
+        string pairLabel = modifiedPairs == 1 ? "1 modified pair" : $"{modifiedPairs} modified pairs";
+        return $"Inline modification intensity audit ({pairLabel} · {category} · {score:0.#}% score): " +
+               $"{microEdits} micro, {subtle} subtle, {moderate} moderate, {rewrites} rewrite · avg similarity {meanSimilarity:0.##}";
+    }
 }
 
 /// <summary>
@@ -6512,4 +6639,34 @@ public sealed record CodeChurnVolatilityAudit(
     double ChurnStabilityScore,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, token Levenshtein edit distance, normalized similarity, and edit intensity for an individual paired replacement diff row.
+/// </summary>
+public sealed record InlineModificationPair(
+    int RowIndex,
+    string DeletedText,
+    string AddedText,
+    int EditDistance,
+    double NormalizedSimilarity,
+    string IntensityTier,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff token Levenshtein edit distance,
+/// inline modification intensity, micro-edit / typo fix ratios, and line rewrite severity.
+/// </summary>
+public sealed record InlineModificationIntensityAudit(
+    int TotalDiffRows,
+    int ModifiedPairsCount,
+    int MicroEditsCount,
+    int SubtleAdjustmentsCount,
+    int ModerateRevisionsCount,
+    int SubstantialRewritesCount,
+    double MeanSimilarity,
+    double InlineRefinementScore,
+    IReadOnlyList<InlineModificationPair> Pairs,
+    string Category,
+    string Summary);
+
 

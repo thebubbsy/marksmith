@@ -368,6 +368,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditQuadrantGridBalanceItem" Text="Audit 2x2 matrix quadrant grid balance &amp; diagonal symmetry" Click="OnOutlineStatsAuditQuadrantGridBalanceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelPyramidProgressionItem" Text="Audit funnel/pyramid progression volume &amp; stage ingestion taper" Click="OnOutlineStatsAuditFunnelPyramidProgressionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

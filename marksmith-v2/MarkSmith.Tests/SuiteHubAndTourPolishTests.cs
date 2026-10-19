@@ -3999,6 +3999,115 @@ Some paragraph in between.
         Assert.Contains("OnCopyWorkspaceMediaAccessibilityAdvisorClick", suiteCs);
         Assert.Contains("AuditWorkspaceMediaAccessibility", suiteCs);
     }
+
+    [Fact]
+    public void Run177_AuditWorkspaceCodeFenceLanguageTags_And_FormatWorkspaceCodeFenceLanguageSummary()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceCodeFenceLanguageTags(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(0, emptyAudit.TotalCodeFencesFound);
+        Assert.Equal(100.0, emptyAudit.CoverageScore);
+        Assert.Equal("Workspace Empty", emptyAudit.Category);
+        Assert.Contains("0 documents", emptyAudit.Summary);
+
+        var nonMdFiles = new[] { @"C:\test\data.csv", @"C:\test\photo.png" };
+        var nonMdAudit = RecentFilesService.AuditWorkspaceCodeFenceLanguageTags(nonMdFiles);
+        Assert.Equal(0, nonMdAudit.TotalDocumentsEvaluated);
+        Assert.Equal(0, nonMdAudit.TotalCodeFencesFound);
+        Assert.Equal("Full Syntax Highlighting Coverage & Canonical Tags", nonMdAudit.Category);
+
+        var files = new[]
+        {
+            @"C:\workspace\readme.md",
+            @"C:\workspace\guide.markdown"
+        };
+
+        var contents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\readme.md"] = string.Join("\n",
+                "# Readme",
+                "```csharp",
+                "Console.WriteLine(\"Hello\");",
+                "int a = 1;",
+                "```",
+                "Here is untagged code:",
+                "```",
+                "plain text 1",
+                "plain text 2",
+                "```"
+            ),
+            [@"C:\workspace\guide.markdown"] = string.Join("\n",
+                "# Guide",
+                "```json",
+                "{",
+                "  \"active\": true",
+                "}",
+                "```"
+            )
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceCodeFenceLanguageTags(
+            files,
+            p => contents.ContainsKey(p),
+            p => contents[p]);
+
+        Assert.Equal(2, audit.TotalDocumentsEvaluated);
+        Assert.Equal(3, audit.TotalCodeFencesFound);
+        Assert.Equal(2, audit.TaggedFencesCount);
+        Assert.Equal(1, audit.UntaggedFencesCount);
+        Assert.Equal(86.7, audit.CoverageScore);
+        Assert.True(audit.LanguageDistribution.ContainsKey("csharp"));
+        Assert.True(audit.LanguageDistribution.ContainsKey("json"));
+        Assert.Equal("Good Syntax Highlighter Coverage", audit.Category);
+
+        string formatted = RecentFilesService.FormatWorkspaceCodeFenceLanguageSummary(
+            audit.TotalDocumentsEvaluated, audit.TotalCodeFencesFound, audit.TaggedFencesCount,
+            audit.UntaggedFencesCount, audit.SupportedHighlighterCount, audit.NonCanonicalAliasCount,
+            audit.CoverageScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run177_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Footnote reference identifier pairing & dangling definition auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditFootnotePairingItem", mainCs);
+        Assert.Contains("AuditFootnoteReferencePairing", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph node degree distribution skewness & hub centrality auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphDegreeDistributionItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphDegreeDistributionClick", galaxyCs);
+        Assert.Contains("AuditDegreeDistributionAndHubs", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Shape corner radius consistency & rounded rectangle harmony auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditCornerRadiusConsistencyItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditCornerRadiusConsistencyClick", shapeCs);
+        Assert.Contains("AuditShapeCornerRadiusConsistency", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - Funnel/pyramid progression volume & stage ingestion taper auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditFunnelPyramidProgressionItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditFunnelPyramidProgressionClick", smartArtCs);
+        Assert.Contains("AuditFunnelPyramidProgression", smartArtCs);
+
+        // Surface 5: HistoryWindow - Inline modification intensity & token Levenshtein edit distance auditor
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditInlineIntensity", historyCs);
+        Assert.Contains("AuditInlineModificationIntensity", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace markdown code fence language tag completeness & syntax highlighting advisor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceCodeFenceLanguageAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceCodeFenceLanguageAdvisorClick", suiteCs);
+        Assert.Contains("AuditWorkspaceCodeFenceLanguageTags", suiteCs);
+    }
 }
 
 

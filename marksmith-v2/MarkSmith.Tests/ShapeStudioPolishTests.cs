@@ -2266,6 +2266,78 @@ public class ShapeStudioPolishTests
             auditHarmonious.GoldenRatioAdherenceScore, auditHarmonious.Category, auditHarmonious.IsSelectionScope);
         Assert.Equal(auditHarmonious.Summary, formatted);
     }
+
+    [Fact]
+    public void Run177_AuditShapeCornerRadiusConsistency_And_FormatCornerRadiusConsistencySummary()
+    {
+        var emptyAudit = ShapeDesignStudioViewModel.AuditShapeCornerRadiusConsistency(null);
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(100.0, emptyAudit.UniformityScore);
+        Assert.Equal("No Shapes to Evaluate", emptyAudit.Category);
+        Assert.Contains("0 shapes", emptyAudit.Summary);
+
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // Add 2 uniform rounded rectangle shapes with 8px radius
+        var s1 = new ShapeCanvasItemViewModel
+        {
+            Id = "s1",
+            Name = "Card 1",
+            Width = 120.0,
+            Height = 80.0,
+            Prst = "roundrect",
+            CornerRadius = 8.0
+        };
+        var s2 = new ShapeCanvasItemViewModel
+        {
+            Id = "s2",
+            Name = "Card 2",
+            Width = 140.0,
+            Height = 90.0,
+            Prst = "roundrect",
+            CornerRadius = 8.0
+        };
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+
+        var auditUniform = vm.AuditShapeCornerRadiusConsistency();
+        Assert.Equal(2, auditUniform.TotalShapesEvaluated);
+        Assert.Equal(2, auditUniform.RoundedRectCount);
+        Assert.Equal(0, auditUniform.SharpRectCount);
+        Assert.Equal(2, auditUniform.MediumRadiusCount);
+        Assert.Equal(1, auditUniform.DistinctRadiiCount);
+        Assert.Equal(8.0, auditUniform.DominantRadius);
+        Assert.Equal(100.0, auditUniform.UniformityScore);
+        Assert.Equal("100% Uniform Fillet Curvature", auditUniform.Category);
+
+        // Add 1 sharp rectangular shape with 0px corner radius
+        var sSharp = new ShapeCanvasItemViewModel
+        {
+            Id = "ssharp",
+            Name = "Header Bar",
+            Width = 200.0,
+            Height = 40.0,
+            Prst = "rect",
+            CornerRadius = 0.0
+        };
+        vm.Shapes.Add(sSharp);
+
+        var auditMixed = vm.AuditShapeCornerRadiusConsistency();
+        Assert.Equal(3, auditMixed.TotalShapesEvaluated);
+        Assert.Equal(2, auditMixed.RoundedRectCount);
+        Assert.Equal(1, auditMixed.SharpRectCount);
+        Assert.Equal(2, auditMixed.DistinctRadiiCount);
+        Assert.Contains("Mixed Fillet Styles", auditMixed.Category);
+        Assert.True(auditMixed.UniformityScore < 100.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatCornerRadiusConsistencySummary(
+            auditUniform.TotalShapesEvaluated, auditUniform.RoundedRectCount, auditUniform.SharpRectCount,
+            auditUniform.SubtleRadiusCount, auditUniform.MediumRadiusCount, auditUniform.PillRadiusCount,
+            auditUniform.DistinctRadiiCount, auditUniform.DominantRadius, auditUniform.UniformityScore,
+            auditUniform.Category, auditUniform.IsSelectionScope);
+        Assert.Equal(auditUniform.Summary, formatted);
+    }
 }
 
 

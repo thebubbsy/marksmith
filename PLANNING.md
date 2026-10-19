@@ -11885,7 +11885,7 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
    - **Deliverable**: Add `MindMapStudioViewModel.AuditDegreeDistributionAndHubs()` and `FormatDegreeDistributionSummary(...)`, analyzing node degree distribution $P(k)$, calculating degree variance, skewness, identifying super-hub nodes ($k_i > \mu + 2\sigma$), detecting leaf node sprawl, and scoring scale-free structural organization. Wire to `ArrangeDropDownButton.Flyout`.
 3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
    - **Feature**: Shape Corner Radius Consistency, Rounded Rectangle Harmony & Fillet Style Auditor.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeCornerRadiusConsistency(shapes)` and `FormatCornerRadiusSummary(...)`, inspecting corner radius values across rounded rectangles and cards, detecting inconsistent fillet curvature (e.g. mixed 4px, 8px, 12px radii), and scoring visual corner radius uniformity ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeCornerRadiusConsistency(shapes)` and `FormatCornerRadiusConsistencySummary(...)`, inspecting corner radius values across rounded rectangles and cards, detecting inconsistent fillet curvature (e.g. mixed 4px, 8px, 12px radii), and scoring visual corner radius uniformity ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
 4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
    - **Feature**: SmartArt Funnel / Pyramid Progression Volume & Stage Ingestion Taper Auditor.
    - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditFunnelPyramidProgression(markdown)` and `FormatFunnelPyramidSummary(...)`, analyzing funnel/pyramid stage text length, hierarchy levels, and stage count to ensure smooth monotonic narrowing/widening without abrupt inversions. Wire to `OutlineStatsFlyout`.
@@ -11895,6 +11895,50 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
 6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #176 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Markdown Code Fence Language Tag Completeness & Syntax Highlighting Coverage Advisor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceCodeFenceLanguageTags(files)` to scan embedded code fences across workspace documents, detecting untagged generic ` ``` ` code fences vs tagged blocks (` ```csharp `, ` ```json `, ` ```powershell `), and scoring syntax highlighting coverage ($0-100\%$). Wire to `RecentDocsFlyout`.
+
+---
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #177 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Footnote Reference Identifier Pairing & Dangling Definition Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditFootnoteReferencePairing(markdownText)`, `FormatFootnoteReferencePairingSummary(...)` (audit and string overloads), records `FootnoteReferencePairingItem`, `FootnoteReferencePairingAudit`. Validates GFM inline footnote callouts (`[^label]`) against multi-line footnote definitions (`[^label]: content`), detects dangling references, orphaned definitions, duplicate tag conflicts, provides code-fence immunity, and scores footnote reference integrity ($0-100\%$); wired to `auditFootnotePairingItem` ("Audit Footnote Reference Identifier Pairing", glyph `\uE71B`) in `ShowLinksContextMenu` with clipboard copy and toast announcement.
+    2. **MindMapGalaxyWindow Graph Node Degree Distribution Skewness, Hub Centrality & Scale-Free Network Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditDegreeDistributionAndHubs()`, static overload, `FormatDegreeDistributionSummary(...)`, records `NodeDegreeDistributionInfo`, `GraphDegreeDistributionAudit`. Analyzes degree distribution $P(k)$, calculates degree variance, skewness, isolates super-hub nodes ($k_i > \mu + 2\sigma$), leaf node sprawl, and scores network scale-free topological balance ($0-100\%$); wired to `AuditGraphDegreeDistributionItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Shape Corner Radius Consistency, Rounded Rectangle Harmony & Fillet Style Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditShapeCornerRadiusConsistency(shapes)`, static overload, `FormatCornerRadiusConsistencySummary(...)`, records `ShapeCornerRadiusItem`, `ShapeCornerRadiusConsistencyAudit`, backed by `_cornerRadius` property on `ShapeCanvasItemViewModel`. Audits corner radius values across rounded rectangles and container cards, identifies dominant fillet curvature, flags mixed irregular radii, and scores visual corner radius uniformity ($0-100\%$); wired to `SelectionAuditCornerRadiusConsistencyItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow SmartArt Funnel / Pyramid Progression Volume & Stage Ingestion Taper Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditFunnelPyramidProgression(markdown, layoutName)`, static overload, `FormatFunnelPyramidSummary(...)`, records `FunnelPyramidStageItem`, `SmartArtFunnelPyramidAudit`. Analyzes hierarchical funnel and pyramid stages, tracks step character volumes, audits monotonic stage tapering, flags volume bottlenecks, and scores progression linearity ($0-100\%$); wired to `OutlineStatsAuditFunnelPyramidProgressionItem` (`\uE8B9`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Semantic Diff Token Levenshtein Edit Distance & Inline Modification Intensity Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditInlineModificationIntensity(unifiedRows)`, static string overload, `FormatInlineModificationIntensitySummary(...)`, records `InlineModificationPair`, `InlineModificationIntensityAudit`. Computes normalized Levenshtein token edit distances for contiguous replacement pairs across git diff hunks, isolating micro-edits (minor typos, identifier renames) from macro line rewrites, and scores overall inline edit precision ($0-100\%$); wired to `auditInlineIntensity` (`\uE8B9`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace Markdown Code Fence Language Tag Completeness & Syntax Highlighting Coverage Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Enhanced `RecentFilesService.AuditWorkspaceCodeFenceLanguageTags(files)` and `FormatWorkspaceCodeFenceLanguageSummary(...)`. Scans workspace markdown files for embedded code fences, audits language tag completeness, flags bare untagged code blocks, checks syntax highlighter support, recognizes canonical language aliases, and scores overall syntax highlighting coverage ($0-100\%$); wired to `CopyWorkspaceCodeFenceLanguageAdvisorItem` (`\uE943`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified all targeted test suites: `792/792` tests passing (`100%` pass rate), including `Run177_AllSixSurfacesXamlAndCodeBehindWiring`.
+    - Verified clean live launch of `Marksmith.exe` (`PID=13680`, `Responding=True`, closed cleanly with zero startup crashes).
+
+---
+
+### Run #178 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Image Alt-Text Quality, Meaningful Description & WCAG Accessibility Auditor.
+   - **Deliverable**: Add `TextSearch.AuditDocumentImageAltTextAndAccessibility(markdownText)` and `FormatImageAltTextAccessibilitySummary(...)`, auditing document-level image embeds (`![alt](src)`), flagging empty alt-text, generic filenames (`image.png`, `screenshot.jpg`), and evaluating descriptive caption completeness against WCAG 2.1 AA criteria. Wire to `ShowLinksContextMenu`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Biconnected Components, Cut Vertices (Articulation Points) & Bridge Edge Fragility Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditArticulationPointsAndBiconnectivity()` and `FormatArticulationPointsSummary(...)` using Hopcroft-Tarjan DFS traversal to detect single-point-of-failure bridge edges and articulation cut vertices whose removal disconnects the graph, scoring structural fault tolerance ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Shape Z-Index Stacking Layering & Overlap Occlusion Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeZIndexLayeringAndOcclusion(shapes)` and `FormatZIndexOcclusionSummary(...)`, evaluating geometric intersections between overlapping shapes, detecting full or partial text label occlusion by foreground shapes, and scoring diagram stacking layer clarity ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Radial / Venn Diagram Overlap Area & Intersection Balance Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditVennRadialIntersectionBalance(markdown, layoutName)` and `FormatVennRadialBalanceSummary(...)`, analyzing 2-set and 3-set Venn / radial cluster items, verifying intersection text distribution balance, and scoring diagram overlap symmetry ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #177 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Multi-Hunk Locality & Spatial Fragmentation Entropy Auditor.
+   - **Deliverable**: Add `LineDiff.AuditDiffHunkLocalityAndFragmentation(unifiedRows)` to measure spatial spread and dispersion of diff hunks across line coordinates, scoring diff concentration vs fragmentation entropy. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #177 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Frontmatter YAML / TOML Schema Completeness & Metadata Consistency Advisor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceFrontmatterMetadata(files)` to scan workspace documents for frontmatter blocks (`---` / `+++`), validating required fields (`title`, `date`, `tags`, `author`), detecting missing or malformed frontmatter, and scoring workspace metadata completeness ($0-100\%$). Wire to `RecentDocsFlyout`.
+
 
 
 

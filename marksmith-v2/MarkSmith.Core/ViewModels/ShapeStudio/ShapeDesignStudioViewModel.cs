@@ -67,6 +67,9 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isEditingText;
 
+    [ObservableProperty]
+    private double _cornerRadius = 0.0;
+
     /// <summary>Curved-stroke polyline (0..100 local space) for sketch/trace lines.</summary>
     public System.Collections.Generic.List<(double X, double Y)>? PathPoints { get; set; }
 
@@ -8228,6 +8231,166 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Golden ratio (\u03C6 \u2248 1.618) adherence audit ({scopeStr}{shapeLabel} [{detailStr}] · {category} · {score:0.#}% score): " +
                $"\u03C6 deviation avg {meanGoldenDev:0.#}%";
     }
+
+    public ShapeCornerRadiusConsistencyAudit AuditShapeCornerRadiusConsistency(IEnumerable<ShapeCanvasItemViewModel>? targetShapes = null)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (targetShapes ?? (selected.Count >= 2 ? selected : Shapes)).ToList();
+        bool isSelection = (targetShapes != null) || (selected.Count >= 2);
+
+        var audit = AuditShapeCornerRadiusConsistency(targets, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static ShapeCornerRadiusConsistencyAudit AuditShapeCornerRadiusConsistency(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes, bool isSelection = false)
+    {
+        var list = (shapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        var validShapes = list.Where(s =>
+            s.Width >= 4.0 && s.Height >= 4.0 &&
+            !(s.ShapeType != null && s.ShapeType.Contains("line", StringComparison.OrdinalIgnoreCase))).ToList();
+
+        if (validShapes.Count == 0)
+        {
+            return new ShapeCornerRadiusConsistencyAudit(
+                0, 0, 0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ShapeCornerRadiusItem>(),
+                "No Shapes to Evaluate",
+                isSelection,
+                $"Shape corner radius consistency audit ({scopeStr}0 shapes): No shapes to evaluate");
+        }
+
+        var radii = new List<double>();
+        var items = new List<ShapeCornerRadiusItem>();
+
+        int roundedCount = 0;
+        int sharpCount = 0;
+        int subtleCount = 0;
+        int mediumCount = 0;
+        int pillCount = 0;
+
+        foreach (var s in validShapes)
+        {
+            double r = s.CornerRadius;
+            bool isRoundRectPrst = string.Equals(s.Prst, "roundrect", StringComparison.OrdinalIgnoreCase) ||
+                                   string.Equals(s.Prst, "roundedrectangle", StringComparison.OrdinalIgnoreCase);
+
+            if (r <= 0.0 && isRoundRectPrst)
+            {
+                r = Math.Round(Math.Min(s.Width, s.Height) * 0.1667, 1);
+            }
+
+            radii.Add(r);
+
+            if (r <= 0.0)
+            {
+                sharpCount++;
+            }
+            else if (r <= 4.0)
+            {
+                subtleCount++;
+                roundedCount++;
+            }
+            else if (r <= 8.0)
+            {
+                mediumCount++;
+                roundedCount++;
+            }
+            else
+            {
+                pillCount++;
+                roundedCount++;
+            }
+        }
+
+        var distinctRadii = radii.Select(r => Math.Round(r, 1)).Distinct().ToList();
+        double dominantRadius = radii.GroupBy(r => Math.Round(r, 1))
+                                     .OrderByDescending(g => g.Count())
+                                     .Select(g => g.Key)
+                                     .FirstOrDefault();
+
+        int discrepancyCount = 0;
+        for (int i = 0; i < validShapes.Count; i++)
+        {
+            var s = validShapes[i];
+            double r = radii[i];
+            bool hasDiscrepancy = (roundedCount > 0 && sharpCount > 0 && r <= 0.0) ||
+                                  (distinctRadii.Count > 1 && Math.Abs(r - dominantRadius) > 2.0);
+
+            if (hasDiscrepancy) discrepancyCount++;
+
+            string status = hasDiscrepancy
+                ? $"Discrepancy ({r:0.#}px vs dominant {dominantRadius:0.#}px)"
+                : $"Uniform ({r:0.#}px)";
+
+            string tier = r <= 0.0 ? "Sharp (0px)" : r <= 4.0 ? "Subtle (1-4px)" : r <= 8.0 ? "Medium (5-8px)" : "Deep / Pill (>8px)";
+            items.Add(new ShapeCornerRadiusItem(
+                s.Id, s.Name, s.Prst, s.Width, s.Height, r, r > 0.0, tier, hasDiscrepancy, status));
+        }
+
+        double penalty = (discrepancyCount * 15.0) / validShapes.Count * 100.0;
+        double uniformityScore = Math.Round(Math.Clamp(100.0 - penalty, 10.0, 100.0), 1);
+
+        string category;
+        if (distinctRadii.Count <= 1)
+        {
+            category = roundedCount > 0
+                ? "100% Uniform Fillet Curvature"
+                : "100% Crisp Sharp Corners (0px)";
+        }
+        else if (roundedCount > 0 && sharpCount > 0)
+        {
+            category = $"Mixed Fillet Styles ({roundedCount} Rounded vs {sharpCount} Sharp Corners)";
+        }
+        else if (uniformityScore >= 80.0)
+        {
+            category = "High Corner Radius Harmony";
+        }
+        else
+        {
+            category = $"Irregular Corner Radius Variance ({distinctRadii.Count} Distinct Radii)";
+        }
+
+        string summary = FormatCornerRadiusConsistencySummary(
+            validShapes.Count, roundedCount, sharpCount, subtleCount, mediumCount, pillCount,
+            distinctRadii.Count, dominantRadius, uniformityScore, category, isSelection);
+
+        return new ShapeCornerRadiusConsistencyAudit(
+            validShapes.Count,
+            roundedCount,
+            sharpCount,
+            subtleCount,
+            mediumCount,
+            pillCount,
+            distinctRadii.Count,
+            dominantRadius,
+            uniformityScore,
+            items,
+            category,
+            isSelection,
+            summary);
+    }
+
+    public static string FormatCornerRadiusConsistencySummary(
+        int totalShapes, int roundedCount, int sharpCount, int subtleCount, int mediumCount, int pillCount,
+        int distinctRadiiCount, double dominantRadius, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        string shapeLabel = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        if (totalShapes == 0) return $"Shape corner radius consistency audit ({scopeStr}0 shapes): No shapes to evaluate";
+
+        var details = new List<string>();
+        if (roundedCount > 0) details.Add($"{roundedCount} rounded (dominant {dominantRadius:0.#}px)");
+        if (sharpCount > 0) details.Add($"{sharpCount} sharp");
+        if (distinctRadiiCount > 1) details.Add($"{distinctRadiiCount} distinct radii");
+        string detailStr = details.Count > 0 ? string.Join(", ", details) : "uniform radii";
+
+        return $"Shape corner radius consistency audit ({scopeStr}{shapeLabel} [{detailStr}] · {category} · {score:0.#}% score): " +
+               $"{subtleCount} subtle, {mediumCount} medium, {pillCount} pill";
+    }
 }
 
 /// <summary>
@@ -8950,4 +9113,39 @@ public sealed record DiagramGoldenRatioAdherenceAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated corner radius metrics, fillet curvature tier, and consistency status for an individual shape.
+/// </summary>
+public sealed record ShapeCornerRadiusItem(
+    string Id,
+    string Name,
+    string Prst,
+    double Width,
+    double Height,
+    double CornerRadius,
+    bool IsRounded,
+    string RadiusTier,
+    bool HasDiscrepancy,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of shape corner radius consistency, rounded rectangle harmony,
+/// fillet style uniformity, and sharp vs rounded corner mixing across diagram shapes.
+/// </summary>
+public sealed record ShapeCornerRadiusConsistencyAudit(
+    int TotalShapesEvaluated,
+    int RoundedRectCount,
+    int SharpRectCount,
+    int SubtleRadiusCount,
+    int MediumRadiusCount,
+    int PillRadiusCount,
+    int DistinctRadiiCount,
+    double DominantRadius,
+    double UniformityScore,
+    IReadOnlyList<ShapeCornerRadiusItem> Shapes,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
 

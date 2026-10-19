@@ -6905,6 +6905,183 @@ public static class TextSearch
         return $"Markdown table column alignment ({tableLabel} [{colLabel}] · {category} · {alignmentConsistencyScore:0.#}% score): " +
                $"{leftAligned} left, {centerAligned} center, {rightAligned} right, {defaultAligned} default{alertSuffix}";
     }
+
+    /// <summary>
+    /// Audits markdown footnote reference anchors ([^label]) against footnote definitions ([^label]: text),
+    /// detecting dangling references (missing definitions), orphaned definitions (unreferenced definitions),
+    /// duplicate definition tags, and scoring document reference integrity with code fence immunity.
+    /// </summary>
+    public static FootnoteReferencePairingAudit AuditFootnoteReferencePairing(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            return new FootnoteReferencePairingAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<FootnoteReferencePairingItem>(),
+                "Zero Footnotes (Clean Baseline)",
+                "Footnote reference pairing: 0 footnotes · Document contains no footnote references or definitions");
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        bool inFence = false;
+        string fenceMarker = "";
+
+        var refCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var defCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var canonicalCasing = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var defRegex = new System.Text.RegularExpressions.Regex(@"^\s*\[\^([^\]]+)\]:\s*(.*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var refRegex = new System.Text.RegularExpressions.Regex(@"\[\^([^\]]+)\](?!:)", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+
+            if (!inFence)
+            {
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inFence = true;
+                    fenceMarker = trimmed.Substring(0, 3);
+                    continue;
+                }
+            }
+            else
+            {
+                if (trimmed.StartsWith(fenceMarker))
+                {
+                    inFence = false;
+                }
+                continue;
+            }
+
+            string cleanLine = rawLine;
+            while (cleanLine.TrimStart().StartsWith(">"))
+            {
+                int gtIdx = cleanLine.IndexOf('>');
+                cleanLine = cleanLine.Substring(gtIdx + 1);
+            }
+
+            var defMatch = defRegex.Match(cleanLine);
+            if (defMatch.Success)
+            {
+                string id = defMatch.Groups[1].Value.Trim();
+                if (!string.IsNullOrEmpty(id))
+                {
+                    defCounts[id] = defCounts.TryGetValue(id, out int dc) ? dc + 1 : 1;
+                    if (!canonicalCasing.ContainsKey(id)) canonicalCasing[id] = id;
+                }
+            }
+            else
+            {
+                var refMatches = refRegex.Matches(cleanLine);
+                foreach (System.Text.RegularExpressions.Match rm in refMatches)
+                {
+                    string id = rm.Groups[1].Value.Trim();
+                    if (!string.IsNullOrEmpty(id))
+                    {
+                        refCounts[id] = refCounts.TryGetValue(id, out int rc) ? rc + 1 : 1;
+                        if (!canonicalCasing.ContainsKey(id)) canonicalCasing[id] = id;
+                    }
+                }
+            }
+        }
+
+        int totalRefs = refCounts.Values.Sum();
+        int totalDefs = defCounts.Values.Sum();
+        int uniqueRefs = refCounts.Count;
+        int uniqueDefs = defCounts.Count;
+
+        if (totalRefs == 0 && totalDefs == 0)
+        {
+            return new FootnoteReferencePairingAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<FootnoteReferencePairingItem>(),
+                "Zero Footnotes (Clean Baseline)",
+                "Footnote reference pairing: 0 footnotes · Document contains no footnote references or definitions");
+        }
+
+        var allIds = new HashSet<string>(refCounts.Keys.Concat(defCounts.Keys), StringComparer.OrdinalIgnoreCase);
+        var items = new List<FootnoteReferencePairingItem>();
+
+        int danglingCount = 0;
+        int orphanCount = 0;
+        int duplicateDefs = 0;
+        int matchedPairs = 0;
+
+        foreach (var id in allIds.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
+        {
+            int rCount = refCounts.TryGetValue(id, out int rc) ? rc : 0;
+            int dCount = defCounts.TryGetValue(id, out int dc) ? dc : 0;
+            bool isDangling = rCount > 0 && dCount == 0;
+            bool isOrphan = dCount > 0 && rCount == 0;
+            bool hasDupes = dCount > 1;
+
+            if (isDangling) danglingCount++;
+            if (isOrphan) orphanCount++;
+            if (hasDupes) duplicateDefs += (dCount - 1);
+            if (rCount > 0 && dCount > 0) matchedPairs++;
+
+            string status = isDangling ? "Dangling (Missing Definition)"
+                : isOrphan ? "Orphan (Unreferenced Definition)"
+                : hasDupes ? $"Duplicate Definitions ({dCount})"
+                : $"Matched ({rCount} ref, {dCount} def)";
+
+            string displayId = canonicalCasing.TryGetValue(id, out var c) ? c : id;
+            items.Add(new FootnoteReferencePairingItem(displayId, rCount, dCount, isDangling, isOrphan, hasDupes, status));
+        }
+
+        double score = 100.0;
+        score -= danglingCount * 25.0;
+        score -= duplicateDefs * 15.0;
+        score -= orphanCount * 10.0;
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category;
+        if (danglingCount == 0 && orphanCount == 0 && duplicateDefs == 0)
+            category = "Complete Bi-Directional Footnote Pairing";
+        else if (danglingCount > 0 && orphanCount == 0)
+            category = $"Dangling Footnote References Present ({danglingCount} Unresolved)";
+        else if (orphanCount > 0 && danglingCount == 0)
+            category = $"Orphan Footnote Definitions Present ({orphanCount} Unreferenced)";
+        else if (duplicateDefs > 0 && danglingCount == 0 && orphanCount == 0)
+            category = $"Duplicate Footnote Definitions Present ({duplicateDefs} Redundant)";
+        else
+            category = "Mixed Footnote Pairing Inconsistencies";
+
+        string summary = FormatFootnoteReferencePairingSummary(
+            totalRefs, uniqueRefs, totalDefs, uniqueDefs, danglingCount, orphanCount, duplicateDefs, matchedPairs, score, category);
+
+        return new FootnoteReferencePairingAudit(
+            totalRefs, uniqueRefs, totalDefs, uniqueDefs, danglingCount, orphanCount, duplicateDefs,
+            matchedPairs, score, items, category, summary);
+    }
+
+    /// <summary>
+    /// Formats a human-readable summary of footnote reference pairing and dangling definitions from markdown text.
+    /// </summary>
+    public static string FormatFootnoteReferencePairingSummary(string? markdownText)
+        => AuditFootnoteReferencePairing(markdownText).Summary;
+
+    /// <summary>
+    /// Formats a human-readable summary of footnote reference pairing metrics.
+    /// </summary>
+    public static string FormatFootnoteReferencePairingSummary(
+        int totalRefs, int uniqueRefs, int totalDefs, int uniqueDefs, int dangling, int orphans, int duplicates,
+        int matched, double score, string category)
+    {
+        if (totalRefs == 0 && totalDefs == 0)
+            return "Footnote reference pairing: 0 footnotes · Document contains no footnote references or definitions";
+
+        var alerts = new List<string>();
+        if (dangling > 0) alerts.Add($"⚠ {dangling} dangling {(dangling == 1 ? "ref" : "refs")}");
+        if (orphans > 0) alerts.Add($"{orphans} orphan {(orphans == 1 ? "def" : "defs")}");
+        if (duplicates > 0) alerts.Add($"{duplicates} duplicate {(duplicates == 1 ? "def" : "defs")}");
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% paired bi-directional anchors";
+
+        return $"Footnote reference pairing ({totalRefs} refs [{uniqueRefs} unique], {totalDefs} defs [{uniqueDefs} unique] · {category} · {score:0.#}% score): " +
+               $"{matched} matched {(matched == 1 ? "pair" : "pairs")}{alertSuffix}";
+    }
 }
 
 /// <summary>
@@ -7576,4 +7753,35 @@ public sealed record TableColumnAlignmentSyntaxAudit(
     IReadOnlyList<TableColumnAlignmentItem> Tables,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, reference count, definition count, and pairing state for an individual footnote identifier.
+/// </summary>
+public sealed record FootnoteReferencePairingItem(
+    string Identifier,
+    int ReferenceCount,
+    int DefinitionCount,
+    bool IsDanglingReference,
+    bool IsOrphanDefinition,
+    bool HasDuplicateDefinitions,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown footnote reference anchors ([^label]) against definitions ([^label]: text),
+/// detecting dangling references, orphan definitions, duplicates, and scoring document reference integrity.
+/// </summary>
+public sealed record FootnoteReferencePairingAudit(
+    int TotalReferences,
+    int UniqueReferences,
+    int TotalDefinitions,
+    int UniqueDefinitions,
+    int DanglingReferences,
+    int OrphanDefinitions,
+    int DuplicateDefinitions,
+    int MatchedPairs,
+    double PairingIntegrityScore,
+    IReadOnlyList<FootnoteReferencePairingItem> Items,
+    string Category,
+    string Summary);
+
 

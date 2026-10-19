@@ -2234,6 +2234,62 @@ public class TextSearchTests
             validAudit.Category);
         Assert.Equal(validAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run177_AuditFootnoteReferencePairing_And_FormatFootnoteReferencePairingSummary()
+    {
+        var emptyAudit = TextSearch.AuditFootnoteReferencePairing("");
+        Assert.Equal(0, emptyAudit.TotalReferences);
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(100.0, emptyAudit.PairingIntegrityScore);
+        Assert.Contains("0 footnotes", emptyAudit.Summary);
+
+        string validDoc = string.Join("\n",
+            "# Footnote Document",
+            "This document references the first note[^1] and a named note[^alpha].",
+            "```markdown",
+            "Code fence demonstrating [^fenced-fake] which should be ignored.",
+            "```",
+            "[^1]: This is the first definition.",
+            "[^alpha]: This is the named alpha definition."
+        );
+
+        var validAudit = TextSearch.AuditFootnoteReferencePairing(validDoc);
+        Assert.Equal(2, validAudit.TotalReferences);
+        Assert.Equal(2, validAudit.UniqueReferences);
+        Assert.Equal(2, validAudit.TotalDefinitions);
+        Assert.Equal(2, validAudit.UniqueDefinitions);
+        Assert.Equal(0, validAudit.DanglingReferences);
+        Assert.Equal(0, validAudit.OrphanDefinitions);
+        Assert.Equal(0, validAudit.DuplicateDefinitions);
+        Assert.Equal(2, validAudit.MatchedPairs);
+        Assert.Equal(100.0, validAudit.PairingIntegrityScore);
+        Assert.Equal("Complete Bi-Directional Footnote Pairing", validAudit.Category);
+
+        string inconsistentDoc = string.Join("\n",
+            "Here is an unresolved reference[^dangling].",
+            "Here is a reference with duplicate definitions[^multi].",
+            "[^multi]: Definition 1.",
+            "[^multi]: Definition 2.",
+            "[^orphan]: Orphaned definition with no references."
+        );
+
+        var inconsistentAudit = TextSearch.AuditFootnoteReferencePairing(inconsistentDoc);
+        Assert.Equal(2, inconsistentAudit.TotalReferences);
+        Assert.Equal(3, inconsistentAudit.TotalDefinitions);
+        Assert.Equal(1, inconsistentAudit.DanglingReferences);
+        Assert.Equal(1, inconsistentAudit.OrphanDefinitions);
+        Assert.Equal(1, inconsistentAudit.DuplicateDefinitions);
+        Assert.Equal(1, inconsistentAudit.MatchedPairs);
+        Assert.True(inconsistentAudit.PairingIntegrityScore < 100.0);
+        Assert.Contains("Mixed", inconsistentAudit.Category);
+
+        string formatted = TextSearch.FormatFootnoteReferencePairingSummary(
+            validAudit.TotalReferences, validAudit.UniqueReferences, validAudit.TotalDefinitions, validAudit.UniqueDefinitions,
+            validAudit.DanglingReferences, validAudit.OrphanDefinitions, validAudit.DuplicateDefinitions, validAudit.MatchedPairs,
+            validAudit.PairingIntegrityScore, validAudit.Category);
+        Assert.Equal(validAudit.Summary, formatted);
+    }
 }
 
 
