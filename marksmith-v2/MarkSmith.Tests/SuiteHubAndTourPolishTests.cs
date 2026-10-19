@@ -3519,6 +3519,119 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("CopyWorkspaceCrossDocAnchorsAdvisorItem", suiteXaml);
         Assert.Contains("OnCopyWorkspaceCrossDocAnchorsAdvisorClick", suiteCs);
     }
+
+    [Fact]
+    public void Run172_AuditWorkspaceTableFormatting_ValidatesColumnsAndDelimiters()
+    {
+        // 1. Empty workspace test
+        var emptyAudit = RecentFilesService.AuditWorkspaceTableFormatting(
+            Array.Empty<string>(),
+            _ => false,
+            _ => "");
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(0, emptyAudit.TotalTablesFound);
+        Assert.Equal(0, emptyAudit.ValidTablesCount);
+        Assert.Equal(100.0, emptyAudit.TabularIntegrityScore);
+        Assert.Equal("Empty Workspace", emptyAudit.Category);
+
+        // 2. Multi-table document with compliant, ragged, and missing delimiter tables
+        string docContent = @"# Documentation
+
+| Name | Role | City |
+| :--- | :---: | ---: |
+| Alice | Architect | Sydney |
+| Bob | Engineer | Melbourne |
+
+```markdown
+| InCodeFence | Col2 |
+| --- | --- |
+| Should | BeIgnored |
+```
+
+Some paragraph in between.
+
+| Product | Price | Stock |
+| --- | --- | --- |
+| Widget | $10 |
+
+| Missing | Delimiter |
+| Data1 | Data2 |
+";
+
+        var files = new[] { @"C:\mock\docs\tables.md" };
+        var audit = RecentFilesService.AuditWorkspaceTableFormatting(
+            files,
+            p => p.Equals(@"C:\mock\docs\tables.md", StringComparison.OrdinalIgnoreCase),
+            _ => docContent);
+
+        Assert.Equal(1, audit.TotalDocumentsEvaluated);
+        Assert.Equal(3, audit.TotalTablesFound);
+        Assert.Equal(1, audit.ValidTablesCount);
+        Assert.Equal(1, audit.RaggedTablesCount);
+        Assert.Equal(1, audit.MissingDelimiterTablesCount);
+        Assert.Equal(0, audit.EmptyHeaderOnlyTablesCount);
+        Assert.Equal("Ragged Table Columns Detected", audit.Category);
+
+        // Verify alignments of Table 1
+        var validTable = audit.Tables[0];
+        Assert.Equal(3, validTable.HeaderColumnCount);
+        Assert.Equal(2, validTable.DataRowCount);
+        Assert.True(validTable.HasDelimiterRow);
+        Assert.False(validTable.HasRaggedRows);
+        Assert.Equal(new[] { "left", "center", "right" }, validTable.ColumnAlignments);
+
+        // Verify ragged table
+        var raggedTable = audit.Tables[1];
+        Assert.True(raggedTable.HasRaggedRows);
+        Assert.Equal(1, raggedTable.RaggedRowCount);
+
+        // Verify missing delimiter table
+        var missingDelimTable = audit.Tables[2];
+        Assert.False(missingDelimTable.HasDelimiterRow);
+
+        // Formatter validation
+        string formatted = RecentFilesService.FormatWorkspaceTableFormattingSummary(
+            audit.TotalDocumentsEvaluated, audit.TotalTablesFound,
+            audit.ValidTablesCount, audit.RaggedTablesCount,
+            audit.MissingDelimiterTablesCount, audit.EmptyHeaderOnlyTablesCount,
+            audit.TabularIntegrityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Cross-surface XAML / C# wiring verification for Run #172 across all 6 surfaces:
+        // Surface 1: MainWindow - auditFootnotesItem
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditFootnotesItem", mainCs);
+        Assert.Contains("AuditFootnoteReferenceIntegrity", mainCs);
+
+        // Surface 2: MindMapGalaxy - AuditGraphAssortativityItem
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphAssortativityItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphAssortativityClick", galaxyCs);
+
+        // Surface 3: ShapeStudio - SelectionAuditConnectorPortSnappingItem
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditConnectorPortSnappingItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditConnectorPortSnappingClick", shapeCs);
+
+        // Surface 4: SmartArtStudio - OutlineStatsAuditProcessSequencePacingItem
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditProcessSequencePacingItem", smartArtXaml);
+        Assert.Contains("OnAuditProcessSequencePacingClick", smartArtCs);
+
+        // Surface 5: HistoryWindow - auditWordLevelDiff
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditWordLevelDiff", historyCs);
+        Assert.Contains("AuditWordLevelDiffResolution", historyCs);
+
+        // Surface 6: SuiteHubView - CopyWorkspaceTableFormattingAdvisorItem
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("CopyWorkspaceTableFormattingAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceTableFormattingAdvisorClick", suiteCs);
+    }
 }
 
 

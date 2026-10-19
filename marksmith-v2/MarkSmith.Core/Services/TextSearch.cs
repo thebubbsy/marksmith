@@ -5156,6 +5156,13 @@ public static class TextSearch
     }
 
     /// <summary>
+    /// Audits markdown documents for footnote and reference anchor integrity, bi-directional linking,
+    /// duplicate definitions, unreferenced orphan footnotes, missing targets, and numerical monotonicity.
+    /// </summary>
+    public static FootnoteReferenceConsistencyAudit AuditFootnoteReferenceIntegrity(string? markdownText)
+        => AuditFootnoteAndReferenceConsistency(markdownText);
+
+    /// <summary>
     /// Formats a human-readable summary of footnote and reference consistency metrics from markdown text.
     /// </summary>
     public static string FormatFootnoteReferenceSummary(string? markdownText)

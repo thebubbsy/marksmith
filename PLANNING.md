@@ -11747,10 +11747,49 @@ This section documents the comprehensive audit of what the MarkSmith WinUI 3 Des
    - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditProcessSequencePacing(markdown)` and `FormatProcessSequenceSummary(...)`, auditing sequential linear process chevrons, step word count variance, arrow head angles, and step pacing uniformity. Wire to `OutlineStatsFlyout`.
 5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #171 Block 3 Idea 5]**:
    - **Refinement Target**: Semantic Diff Token Levenshtein Distance & Word-Level Granularity Auditor.
-   - **Deliverable**: Add `LineDiff.AuditWordLevelDiffResolution(unifiedRows)` to compute intra-line character-level and word-level substitutions, differentiating minor typos/whitespace tweaks from semantic rewrites. Wire to `TimelineHeaderBorder` context flyout.
-6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #171 Block 3 Idea 6]**:
+---
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #172 (3-Block Cycle + Execution Phase Protocol — Completed)
+- **Date**: 2026-10-19
+- **Scope**: `marksmith-v2/MarkSmith.Desktop`, `marksmith-v2/MarkSmith.Core`, `marksmith-v2/MarkSmith.Tests`
+- **3-Block Iterative Cycle & Execution Summary**:
+  - **Block 1 (Ideas 1 & 2)**:
+    1. **MainWindow Markdown Footnote Reference Linkage, Anchor Matching & Monotonic Ordering Auditor (`MainWindow.xaml.cs`, `TextSearch.cs`)**: Added `TextSearch.AuditFootnoteReferenceIntegrity(markdownText)`, `FormatFootnoteReferenceSummary(...)`, records `FootnoteReferenceMatchInfo`, and `FootnoteReferenceConsistencyAudit`. Audits unresolved inline footnote anchors (`[^1]`), orphaned footnote definitions, and verifies strictly monotonic footnote sequence ordering; wired to `auditFootnotesItem` ("Audit Footnote Reference Linkage & Monotonic Ordering", glyph `\uE8B9`) in `ShowLinksContextMenu` with clipboard copy and toast announcement.
+    2. **MindMapGalaxyWindow Graph Assortative Mixing, Degree-Degree Correlation & Network Resilience Auditor (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**: Added `MindMapStudioViewModel.AuditGraphAssortativityAndMixing()`, static overload, `FormatAssortativitySummary(...)`, records `NodeDegreeAssortativityInfo`, and `GraphAssortativityAudit`. Calculates Pearson degree correlation $r \in [-1, 1]$, classifies assortative core-clustering vs disassortative hub-and-spoke star topologies, partitions hub-hub vs hub-leaf edge distributions, and evaluates network resilience with division-by-zero guards; wired to `AuditGraphAssortativityItem` (`\uE8B9`) in `ArrangeDropDownButton.Flyout` and right-tap canvas context menu.
+  - **Block 2 (Ideas 3 & 4 + Block 1 Refinement)**:
+    3. **ShapeDesignStudioWindow Connector Port Snapping Accuracy, Canonical Perimeter Snapping & Fractional Pixel Drift Auditor (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**: Added `ShapeDesignStudioViewModel.AuditConnectorPortSnapping(shapes)`, static overload, `FormatConnectorPortSnappingSummary(...)`, records `ConnectorPortSnapDetail`, and `ConnectorPortSnappingAudit`. Audits connector endpoint snapping to 5 canonical perimeter ports (Top, Right, Bottom, Left, Center) with $\le 4\text{px}$ tolerance, detects near-miss hazards ($\le 16\text{px}$), and flags sub-pixel floating-point coordinate drift; wired to `SelectionAuditConnectorPortSnappingItem` (`\uE790`) in `SelectionBoundsBorder.ContextFlyout` with clipboard copy and status feedback.
+    4. **SmartArtDesignStudioWindow Process Sequence Pacing, Step Word Count Variance & Chevron Aspect Ratio Auditor (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**: Added `SmartArtDesignStudioViewModel.AuditProcessSequencePacing(markdown, layoutName)`, static overload, `FormatProcessSequenceSummary(...)`, records `ProcessSequenceStepInfo`, and `SmartArtProcessSequenceAudit`. Audits sequential chevron and linear flow step counts ($3-6$ steps optimal), word density standard deviation ($\sigma$), text brevity, and estimated chevron aspect ratio ($W/H \approx 2.5$ target); wired to `OutlineStatsAuditProcessSequencePacingItem` (`\uE8B9`) in `OutlineStatsFlyout`.
+  - **Block 3 (Ideas 5 & 6 + Block 1 & 2 Refinement)**:
+    5. **HistoryWindow Word-Level Diff Resolution, Intra-Line Levenshtein Distance & Typo Detection Auditor (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**: Added `LineDiff.AuditWordLevelDiffResolution(unifiedRows)`, static string overload, `FormatWordLevelDiffResolutionSummary(...)`, records `WordLevelDiffPair`, and `WordLevelDiffResolutionAudit`. Implements dynamic programming Levenshtein distance, classifying hunk replacements into Whitespace Only, Minor Typo/Rename ($\ge 70\%$), Moderate Edit, and Substantial Rewrite, calculating normalized intra-line edit clarity score ($0-100\%$); wired to `auditWordLevelDiff` (`\uE8B9`) in `TimelineHeaderBorder` context flyout with automated clipboard copy and feedback notice.
+    6. **SuiteHubView Workspace Markdown Table Formatting, Column Uniformity & Delimiter Syntax Advisor (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**: Added `RecentFilesService.AuditWorkspaceTableFormatting(files, fileExistsProvider, contentReader)`, `FormatWorkspaceTableFormattingSummary(...)`, records `WorkspaceTableItem`, and `WorkspaceTableFormattingAudit`. Scans workspace markdown documents for table structures, ragged rows (mismatched cell count vs header), missing delimiter rows (`|---|`), alignment markers (`:---`, `:---:`, `---:`), ignoring code fences (` ``` `, `~~~`); wired to `CopyWorkspaceTableFormattingAdvisorItem` (`\uF158`) in `RecentDocsFlyout`.
+  - **Block 4 (Execution & Empirical Verification)**:
+    - Built `MarkSmith.Desktop.csproj` (`x64 Debug`) with `0` errors (23 baseline warnings).
+    - Verified `48/48` `CommandIconsTests` icon governance tests passing (`100%` pass rate).
+    - Verified all `6/6` targeted Run #172 tests passing (`100%` pass rate, total 54 passing).
+    - Verified clean live launch of `Marksmith.exe` (`PID=22848`, `alive=True`, closed cleanly with zero startup crashes).
+
+---
+
+### Run #173 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Blockquote Callout Admonition Syntax & Nested Level Depth Auditor.
+   - **Deliverable**: Add `TextSearch.AuditBlockquoteCalloutsAndDepth(markdownText)` and `FormatBlockquoteCalloutSummary(...)`, validating GitHub-style callouts (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`), detecting unsupported callout tags, malformed brackets, and excessive nesting depth ($\ge 3$ levels). Wire to `ShowLinksContextMenu`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Node Clustering Coefficient, Local Triangles & Transitivity Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditClusteringCoefficientAndTriangles()` and `FormatClusteringCoefficientSummary(...)`, computing Watts-Strogatz local clustering coefficients $C_i = \frac{2 T_i}{k_i(k_i - 1)}$ and overall transitivity to evaluate semantic cohesion and triangle density. Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Canvas Spatial Balance, Center-of-Mass & Margin Uniformity Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditCanvasSpatialBalance(shapes)` and `FormatSpatialBalanceSummary(...)`, computing shape mass centroid $(C_x, C_y)$ relative to canvas center, detecting visual lopsidedness, and verifying outer margin clearances ($\ge 40\text{px}$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Hierarchy Tree Depth-to-Breadth Aspect Ratio & Branching Balance Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditHierarchyAspectAndBranching(markdown)` and `FormatHierarchyBranchingSummary(...)`, auditing tree width vs height, detecting unbalanced single-child chains vs wide root fans, and evaluating organizational chart visual ergonomics. Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #172 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Identifier Scope Contraction & Expansion Auditor.
+   - **Deliverable**: Add `LineDiff.AuditIdentifierScopeTransitions(unifiedRows)` to detect identifier symbol declaration moves between local, class, and namespace scopes across diff hunks. Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #172 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace File Size Distribution, Storage Bloat & Outlier Detection Advisor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceFileSizeDistribution(files)` to compute file size percentiles, detect oversized markdown files (>1MB) or bulky embedded assets, and score workspace compactness. Wire to `RecentDocsFlyout`.
+
 
 
 

@@ -333,6 +333,9 @@
                                     <MenuFlyoutItem x:Name="AuditKCoreDecompositionItem" Text="Audit graph core-periphery structure &amp; k-core shell decomposition" Click="OnAuditKCoreDecompositionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF158;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphAssortativityItem" Text="Audit graph assortative mixing &amp; hub-degree correlation" Click="OnAuditGraphAssortativityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

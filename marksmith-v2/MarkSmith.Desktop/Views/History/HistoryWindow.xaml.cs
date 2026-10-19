@@ -3471,6 +3471,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditHunkCoupling);
+
+                var auditWordLevelDiff = new MenuFlyoutItem
+                {
+                    Text = "Audit word-level diff granularity & Levenshtein edit distance",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditWordLevelDiff.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditWordLevelDiffResolution(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditWordLevelDiff);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

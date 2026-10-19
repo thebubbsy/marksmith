@@ -4112,6 +4112,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnAuditGraphAssortativityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphAssortativityAndMixing();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
@@ -5119,6 +5127,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditKCoreItem.Click += OnAuditKCoreDecompositionClick;
             menu.Items.Add(auditKCoreItem);
+
+            var auditAssortativityItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph assortative mixing & hub-degree correlation",
+                Icon = new FontIcon { Glyph = "\uE8B9" }
+            };
+            auditAssortativityItem.Click += OnAuditGraphAssortativityClick;
+            menu.Items.Add(auditAssortativityItem);
 
             var fitItem = new MenuFlyoutItem
 

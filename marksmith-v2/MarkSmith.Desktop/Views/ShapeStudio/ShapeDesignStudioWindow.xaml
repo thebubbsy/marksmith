@@ -724,6 +724,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditCompoundGroupsItem" Text="Audit compound group bounds, child containment &amp; z-stacking" Click="OnSelectionAuditCompoundGroupsClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71D;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditConnectorPortSnappingItem" Text="Audit connector port snapping &amp; sub-grid float drift" Click="OnSelectionAuditConnectorPortSnappingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

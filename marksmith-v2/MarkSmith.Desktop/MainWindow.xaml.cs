@@ -11683,6 +11683,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditReadingEaseItem);
 
+        var auditFootnotesItem = new MenuFlyoutItem
+        {
+            Text = "Audit Footnote Reference Linkage & Monotonic Ordering",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditFootnotesItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditFootnoteReferenceIntegrity(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditFootnotesItem);
+
         menu.ShowAt(anchor);
     }
 

@@ -7355,6 +7355,197 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         return $"Compound group audit ({scopeStr}{groupLabel} [{childLabel}], {standaloneCount} standalone · {category} · {score:0.#}% containment) · {string.Join(", ", alerts)}";
     }
+
+    public ConnectorPortSnappingAudit AuditConnectorPortSnapping(IEnumerable<ShapeCanvasItemViewModel>? targetItems = null)
+    {
+        var rawTargets = targetItems?.ToList() ?? (SelectedShape != null && SelectionCount > 1
+            ? Shapes.Where(s => s.IsSelected).ToList()
+            : Shapes.ToList());
+
+        bool isSelection = targetItems != null || (SelectedShape != null && SelectionCount > 1);
+        var audit = AuditConnectorPortSnapping(rawTargets, isSelection);
+        StatusMessage = $"✓ {audit.Summary}";
+        return audit;
+    }
+
+    public static ConnectorPortSnappingAudit AuditConnectorPortSnapping(
+        IReadOnlyList<ShapeCanvasItemViewModel>? items, bool isSelection = false)
+    {
+        if (items == null || items.Count == 0)
+        {
+            string emptySummary = isSelection
+                ? "Connector port snapping audit (Selection · 0 items): No shapes selected"
+                : "Connector port snapping audit (0 items): Canvas contains no shapes";
+            return new ConnectorPortSnappingAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ConnectorPortSnapDetail>(),
+                "Empty Canvas", isSelection, emptySummary);
+        }
+
+        var connectors = items.Where(i => i.IsLine).ToList();
+        var shapes = items.Where(i => !i.IsLine && i.Width > 0 && i.Height > 0).ToList();
+
+        if (connectors.Count == 0)
+        {
+            string noConnSummary = isSelection
+                ? $"Connector port snapping audit (Selection · {shapes.Count} shapes): No connectors selected"
+                : $"Connector port snapping audit ({shapes.Count} shapes): Canvas contains no connectors";
+            return new ConnectorPortSnappingAudit(
+                0, shapes.Count, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ConnectorPortSnapDetail>(),
+                "No Connectors Present", isSelection, noConnSummary);
+        }
+
+        const double SnapThreshold = 4.0;
+        const double NearMissThreshold = 16.0;
+
+        var details = new List<ConnectorPortSnapDetail>();
+        int fullySnappedCount = 0;
+        int partiallySnappedCount = 0;
+        int floatingCount = 0;
+        int nearMissHazards = 0;
+        int subpixelDriftCount = 0;
+
+        foreach (var conn in connectors)
+        {
+            var pts = new List<(double X, double Y)>();
+            if (conn.PathPoints != null && conn.PathPoints.Count >= 2)
+            {
+                foreach (var p in conn.PathPoints)
+                {
+                    double ax = conn.X + (p.X * conn.Width / 100.0);
+                    double ay = conn.Y + (p.Y * conn.Height / 100.0);
+                    pts.Add((ax, ay));
+                }
+            }
+            else
+            {
+                pts.Add((conn.X, conn.Y));
+                pts.Add((conn.X + conn.Width, conn.Y + conn.Height));
+            }
+
+            var startPt = pts[0];
+            var endPt = pts[^1];
+
+            bool startSubpixel = Math.Abs(startPt.X - Math.Round(startPt.X)) > 0.05 || Math.Abs(startPt.Y - Math.Round(startPt.Y)) > 0.05;
+            bool endSubpixel = Math.Abs(endPt.X - Math.Round(endPt.X)) > 0.05 || Math.Abs(endPt.Y - Math.Round(endPt.Y)) > 0.05;
+            if (startSubpixel || endSubpixel) subpixelDriftCount++;
+
+            (bool snapped, string? shapeName, string? portName, double minDistance) EvalEndpoint((double X, double Y) pt)
+            {
+                double bestDist = double.MaxValue;
+                string? bestShape = null;
+                string? bestPort = null;
+
+                foreach (var s in shapes)
+                {
+                    var ports = new (string Name, double X, double Y)[]
+                    {
+                        ("Top", s.X + s.Width / 2.0, s.Y),
+                        ("Right", s.X + s.Width, s.Y + s.Height / 2.0),
+                        ("Bottom", s.X + s.Width / 2.0, s.Y + s.Height),
+                        ("Left", s.X, s.Y + s.Height / 2.0),
+                        ("Center", s.X + s.Width / 2.0, s.Y + s.Height / 2.0)
+                    };
+
+                    foreach (var port in ports)
+                    {
+                        double dx = pt.X - port.X;
+                        double dy = pt.Y - port.Y;
+                        double dist = Math.Sqrt(dx * dx + dy * dy);
+                        if (dist < bestDist)
+                        {
+                            bestDist = dist;
+                            bestShape = s.Name ?? s.ShapeType ?? "Shape";
+                            bestPort = port.Name;
+                        }
+                    }
+                }
+
+                if (bestDist <= SnapThreshold)
+                {
+                    return (true, bestShape, bestPort, bestDist);
+                }
+                return (false, bestShape, bestPort, bestDist);
+            }
+
+            var startEval = EvalEndpoint(startPt);
+            var endEval = EvalEndpoint(endPt);
+
+            bool startNearMiss = !startEval.snapped && startEval.minDistance <= NearMissThreshold;
+            bool endNearMiss = !endEval.snapped && endEval.minDistance <= NearMissThreshold;
+            bool hasNearMiss = startNearMiss || endNearMiss;
+            if (hasNearMiss) nearMissHazards++;
+
+            if (startEval.snapped && endEval.snapped) fullySnappedCount++;
+            else if (startEval.snapped || endEval.snapped) partiallySnappedCount++;
+            else floatingCount++;
+
+            details.Add(new ConnectorPortSnapDetail(
+                conn.Id,
+                conn.Name ?? "Connector",
+                startEval.snapped,
+                endEval.snapped,
+                startEval.shapeName,
+                startEval.portName,
+                Math.Round(startEval.minDistance, 1),
+                endEval.shapeName,
+                endEval.portName,
+                Math.Round(endEval.minDistance, 1),
+                hasNearMiss,
+                startSubpixel || endSubpixel));
+        }
+
+        double penalty = (floatingCount * 30.0) + (partiallySnappedCount * 15.0) + (nearMissHazards * 10.0) + (subpixelDriftCount * 5.0);
+        double maxPenalty = connectors.Count * 35.0;
+        double snappingScore = maxPenalty > 0 ? Math.Clamp(100.0 - (penalty / maxPenalty * 100.0), 0.0, 100.0) : 100.0;
+        snappingScore = Math.Round(snappingScore, 1);
+
+        string category;
+        if (fullySnappedCount == connectors.Count && subpixelDriftCount == 0) category = "Pixel-Perfect Port Snapped";
+        else if (fullySnappedCount == connectors.Count) category = "Snapped (Sub-pixel Float)";
+        else if (floatingCount == 0 && nearMissHazards == 0) category = "Good Partial Snapping";
+        else if (nearMissHazards > 0) category = "Near-Miss Port Misalignment";
+        else category = "Disconnected Floating Connectors";
+
+        string summary = FormatConnectorPortSnappingSummary(
+            connectors.Count, shapes.Count, fullySnappedCount, partiallySnappedCount,
+            floatingCount, nearMissHazards, subpixelDriftCount, snappingScore, category, isSelection);
+
+        return new ConnectorPortSnappingAudit(
+            connectors.Count,
+            shapes.Count,
+            fullySnappedCount,
+            partiallySnappedCount,
+            floatingCount,
+            nearMissHazards,
+            subpixelDriftCount,
+            snappingScore,
+            details,
+            category,
+            isSelection,
+            summary);
+    }
+
+    public static string FormatConnectorPortSnappingSummary(
+        int connectorCount, int shapeCount, int fullySnapped, int partiallySnapped,
+        int floating, int nearMiss, int subpixelDrift, double score, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (connectorCount == 0) return $"Connector port snapping audit ({scopeStr}0 connectors): No connectors found";
+
+        string connLabel = connectorCount == 1 ? "1 connector" : $"{connectorCount} connectors";
+        string shapeLabel = shapeCount == 1 ? "1 shape" : $"{shapeCount} shapes";
+
+        var alerts = new List<string>();
+        if (fullySnapped > 0) alerts.Add($"✓ {fullySnapped} fully snapped");
+        if (partiallySnapped > 0) alerts.Add($"⚠ {partiallySnapped} half-snapped");
+        if (floating > 0) alerts.Add($"🚨 {floating} floating");
+        if (nearMiss > 0) alerts.Add($"⚠ {nearMiss} near-miss");
+        if (subpixelDrift > 0) alerts.Add($"ℹ {subpixelDrift} sub-pixel drift");
+
+        return $"Connector port snapping audit ({scopeStr}{connLabel}, {shapeLabel} · {category} · {score:0.#}% precision) · {string.Join(", ", alerts)}";
+    }
 }
 
 /// <summary>
@@ -7925,3 +8116,38 @@ public sealed record ShapeCompoundGroupAudit(
 
 
 
+
+/// <summary>
+/// Represents evaluated connection port snapping, distance, and subpixel drift for an individual connector endpoint.
+/// </summary>
+public sealed record ConnectorPortSnapDetail(
+    string ConnectorId,
+    string ConnectorName,
+    bool StartSnapped,
+    bool EndSnapped,
+    string? StartSnappedShapeName,
+    string? StartSnappedPort,
+    double StartPortDistance,
+    string? EndSnappedShapeName,
+    string? EndSnappedPort,
+    double EndPortDistance,
+    bool HasNearMissHazard,
+    bool HasSubpixelDrift);
+
+/// <summary>
+/// Represents the result of an audit of diagram connector port snapping accuracy,
+/// canonical perimeter port adherence, near-miss hazards, and subpixel float drift.
+/// </summary>
+public sealed record ConnectorPortSnappingAudit(
+    int TotalConnectors,
+    int TotalShapesEvaluated,
+    int FullySnappedConnectors,
+    int PartiallySnappedConnectors,
+    int FloatingConnectors,
+    int NearMissPortHazards,
+    int SubpixelDriftCount,
+    double PortSnappingScore,
+    IReadOnlyList<ConnectorPortSnapDetail> Details,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

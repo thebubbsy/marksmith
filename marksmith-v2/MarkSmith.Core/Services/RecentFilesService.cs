@@ -4935,6 +4935,247 @@ public sealed class RecentFilesService
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% verified";
         return $"Workspace cross-document anchor advisor ({docLabel}, {linkLabel} · {category} · {score:0.#}% integrity){details}";
     }
+
+    public static WorkspaceTableFormattingAudit AuditWorkspaceTableFormatting(
+        IReadOnlyList<string>? files,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var exists = fileExistsProvider ?? File.Exists;
+        var reader = contentReader ?? File.ReadAllText;
+
+        if (files == null || files.Count == 0)
+        {
+            string emptySummary = "Workspace table formatting advisor: 0 documents · Workspace is empty";
+            return new WorkspaceTableFormattingAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceTableItem>(),
+                Array.Empty<string>(),
+                "Empty Workspace", emptySummary);
+        }
+
+        var tables = new List<WorkspaceTableItem>();
+        var alerts = new List<string>();
+        int validTables = 0;
+        int raggedTables = 0;
+        int missingDelimiterTables = 0;
+        int emptyHeaderOnlyTables = 0;
+
+        foreach (var file in files)
+        {
+            if (string.IsNullOrWhiteSpace(file) || !exists(file)) continue;
+
+            string content;
+            try
+            {
+                content = reader(file);
+            }
+            catch
+            {
+                continue;
+            }
+
+            string fileName = Path.GetFileName(file);
+            var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            bool inCodeFence = false;
+
+            int i = 0;
+            while (i < lines.Length)
+            {
+                string rawLine = lines[i];
+                string trimmed = rawLine.Trim();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inCodeFence = !inCodeFence;
+                    i++;
+                    continue;
+                }
+                if (inCodeFence)
+                {
+                    i++;
+                    continue;
+                }
+
+                if (trimmed.Contains('|') && !trimmed.StartsWith('#') && !trimmed.StartsWith('>'))
+                {
+                    int tableStartLine = i + 1;
+                    var tableBlockLines = new List<string>();
+                    while (i < lines.Length && lines[i].Trim().Contains('|') && !lines[i].Trim().StartsWith("```") && !lines[i].Trim().StartsWith('#'))
+                    {
+                        tableBlockLines.Add(lines[i]);
+                        i++;
+                    }
+
+                    if (tableBlockLines.Count >= 1)
+                    {
+                        List<string> ParseRowCells(string row)
+                        {
+                            string t = row.Trim();
+                            if (t.StartsWith('|')) t = t[1..];
+                            if (t.EndsWith('|')) t = t[..^1];
+                            return t.Split('|').Select(c => c.Trim()).ToList();
+                        }
+
+                        var headerCells = ParseRowCells(tableBlockLines[0]);
+                        int headerColCount = headerCells.Count;
+
+                        bool hasDelimiter = false;
+                        var alignments = new List<string>();
+                        int dataRowStartIndex = 1;
+
+                        if (tableBlockLines.Count >= 2)
+                        {
+                            var secondRowCells = ParseRowCells(tableBlockLines[1]);
+                            bool isDelimiterRow = secondRowCells.Count > 0 && secondRowCells.All(c =>
+                            {
+                                string ct = c.Trim();
+                                return ct.Length >= 1 && ct.All(ch => ch is '-' or ':' or ' ');
+                            });
+
+                            if (isDelimiterRow)
+                            {
+                                hasDelimiter = true;
+                                dataRowStartIndex = 2;
+                                foreach (var cell in secondRowCells)
+                                {
+                                    bool leftColon = cell.StartsWith(':');
+                                    bool rightColon = cell.EndsWith(':');
+                                    if (leftColon && rightColon) alignments.Add("center");
+                                    else if (rightColon) alignments.Add("right");
+                                    else if (leftColon) alignments.Add("left");
+                                    else alignments.Add("default");
+                                }
+                            }
+                        }
+
+                        int dataRowCount = 0;
+                        int raggedRowCount = 0;
+                        for (int r = dataRowStartIndex; r < tableBlockLines.Count; r++)
+                        {
+                            var dataCells = ParseRowCells(tableBlockLines[r]);
+                            dataRowCount++;
+                            if (dataCells.Count != headerColCount)
+                            {
+                                raggedRowCount++;
+                            }
+                        }
+
+                        bool hasRagged = raggedRowCount > 0;
+                        bool isEmptyHeaderOnly = dataRowCount == 0;
+
+                        string? issue = null;
+                        if (!hasDelimiter)
+                        {
+                            missingDelimiterTables++;
+                            issue = "Missing delimiter row (|---|)";
+                            alerts.Add($"{fileName}:{tableStartLine} missing table delimiter separator");
+                        }
+                        else if (hasRagged)
+                        {
+                            raggedTables++;
+                            issue = $"{raggedRowCount} ragged row(s) (expected {headerColCount} cols)";
+                            alerts.Add($"{fileName}:{tableStartLine} has {raggedRowCount} ragged row(s)");
+                        }
+                        else if (isEmptyHeaderOnly)
+                        {
+                            emptyHeaderOnlyTables++;
+                            issue = "Header-only table with no data rows";
+                            alerts.Add($"{fileName}:{tableStartLine} header-only table with 0 data rows");
+                        }
+                        else
+                        {
+                            validTables++;
+                        }
+
+                        string snippet = tableBlockLines[0].Trim();
+                        if (snippet.Length > 50) snippet = snippet[..47] + "...";
+
+                        tables.Add(new WorkspaceTableItem(
+                            file,
+                            fileName,
+                            tableStartLine,
+                            headerColCount,
+                            dataRowCount,
+                            hasDelimiter,
+                            hasRagged,
+                            raggedRowCount,
+                            alignments,
+                            snippet,
+                            issue));
+                    }
+                    continue;
+                }
+
+                i++;
+            }
+        }
+
+        int totalTables = tables.Count;
+        double score;
+        if (totalTables == 0)
+        {
+            score = 100.0;
+        }
+        else
+        {
+            double penalty = (raggedTables * 25.0) + (missingDelimiterTables * 20.0) + (emptyHeaderOnlyTables * 15.0);
+            double maxPen = totalTables * 25.0;
+            score = Math.Round(Math.Clamp(100.0 - (penalty / maxPen * 100.0), 10.0, 100.0), 1);
+        }
+
+        string category;
+        if (totalTables == 0) category = "No Tables Present";
+        else if (validTables == totalTables) category = "Tabular Formatting Compliant";
+        else if (raggedTables > 0) category = "Ragged Table Columns Detected";
+        else if (missingDelimiterTables > 0) category = "Missing Table Delimiters";
+        else category = "Tabular Structural Warnings";
+
+        string summary = FormatWorkspaceTableFormattingSummary(
+            files.Count, totalTables, validTables, raggedTables, missingDelimiterTables,
+            emptyHeaderOnlyTables, score, category);
+
+        return new WorkspaceTableFormattingAudit(
+            files.Count,
+            totalTables,
+            validTables,
+            raggedTables,
+            missingDelimiterTables,
+            emptyHeaderOnlyTables,
+            score,
+            tables,
+            alerts,
+            category,
+            summary);
+    }
+
+    public static WorkspaceTableFormattingAudit AuditWorkspaceTableFormatting(
+        string filePath,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        return AuditWorkspaceTableFormatting(new[] { filePath }, fileExistsProvider, contentReader);
+    }
+
+    public static string FormatWorkspaceTableFormattingSummary(
+        int totalDocs, int totalTables, int validCount, int raggedCount,
+        int missingDelimiters, int emptyHeaderOnly, double score, string category)
+    {
+        if (totalDocs == 0) return "Workspace table formatting advisor: 0 documents · Workspace is empty";
+        if (totalTables == 0) return $"Workspace table formatting advisor ({totalDocs} docs): 0 markdown tables found";
+
+        string docLabel = totalDocs == 1 ? "1 document" : $"{totalDocs} documents";
+        string tableLabel = totalTables == 1 ? "1 table" : $"{totalTables} tables";
+
+        var alerts = new List<string>();
+        if (raggedCount > 0) alerts.Add($"🚨 {raggedCount} ragged");
+        if (missingDelimiters > 0) alerts.Add($"⚠ {missingDelimiters} missing delimiter");
+        if (emptyHeaderOnly > 0) alerts.Add($"ℹ {emptyHeaderOnly} empty header-only");
+        if (validCount > 0) alerts.Add($"✓ {validCount} verified");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% compliant";
+        return $"Workspace table formatting advisor ({docLabel}, {tableLabel} · {category} · {score:0.#}% score){details}";
+    }
 }
 
 /// <summary>
@@ -5492,3 +5733,36 @@ public sealed record WorkspaceCrossDocumentAnchorAudit(
 
 
 
+
+/// <summary>
+/// Represents evaluated table metrics, column consistency, and delimiter compliance for an individual markdown table.
+/// </summary>
+public sealed record WorkspaceTableItem(
+    string FilePath,
+    string FileName,
+    int StartLineNumber,
+    int HeaderColumnCount,
+    int DataRowCount,
+    bool HasDelimiterRow,
+    bool HasRaggedRows,
+    int RaggedRowCount,
+    IReadOnlyList<string> ColumnAlignments,
+    string Snippet,
+    string? IssueDescription);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown tables, column count uniformity,
+/// delimiter rows, alignment syntax, and tabular data integrity.
+/// </summary>
+public sealed record WorkspaceTableFormattingAudit(
+    int TotalDocumentsEvaluated,
+    int TotalTablesFound,
+    int ValidTablesCount,
+    int RaggedTablesCount,
+    int MissingDelimiterTablesCount,
+    int EmptyHeaderOnlyTablesCount,
+    double TabularIntegrityScore,
+    IReadOnlyList<WorkspaceTableItem> Tables,
+    IReadOnlyList<string> FormattingAlerts,
+    string Category,
+    string Summary);

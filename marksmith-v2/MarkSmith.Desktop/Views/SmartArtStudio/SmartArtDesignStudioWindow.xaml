@@ -353,6 +353,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditVennOverlapItem" Text="Audit Venn diagram circular overlap geometry &amp; set inclusion balance" Click="OnAuditVennOverlapClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditProcessSequencePacingItem" Text="Audit chevron &amp; linear process sequence pacing &amp; aspect ratio" Click="OnAuditProcessSequencePacingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

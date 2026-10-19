@@ -1945,6 +1945,44 @@ public class HistoryPolishTests : IDisposable
             coupledAudit.CouplingCategory, coupledAudit.SharedDominantIdentifiers);
         Assert.Equal(coupledAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run172_AuditWordLevelDiffResolution_ValidatesLevenshteinDistanceAndTypoDetection()
+    {
+        var empty = LineDiff.AuditWordLevelDiffResolution(Array.Empty<LineDiff.UnifiedRow>());
+        Assert.Equal(0, empty.TotalDiffRows);
+        Assert.Equal(0, empty.TotalModifiedPairs);
+        Assert.Equal(100.0, empty.WordLevelResolutionScore);
+        Assert.Equal("Unchanged Document", empty.ResolutionCategory);
+
+        var rOld = new LineDiff.UnifiedRow(LineDiff.Kind.Removed, 1, null, "The quik brown fox jumps over the lazy dog.", "- ");
+        var rNew = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 1, "The quick brown fox jumps over the lazy dog.", "+ ");
+        var typoAudit = LineDiff.AuditWordLevelDiffResolution(new[] { rOld, rNew });
+
+        Assert.Equal(2, typoAudit.TotalDiffRows);
+        Assert.Equal(1, typoAudit.TotalModifiedPairs);
+        Assert.Equal(1, typoAudit.MinorTypoCount);
+        Assert.Equal(0, typoAudit.SubstantialRewriteCount);
+        Assert.True(typoAudit.MeanLevenshteinSimilarity >= 0.90);
+        Assert.Equal("High-Resolution Word Edits", typoAudit.ResolutionCategory);
+
+        var pair = typoAudit.Pairs[0];
+        Assert.Equal(1, pair.LevenshteinDistance);
+        Assert.Equal("Minor Typo / Rename", pair.ModificationKind);
+
+        var wsOld = new LineDiff.UnifiedRow(LineDiff.Kind.Removed, 2, null, "    return true;  ", "- ");
+        var wsNew = new LineDiff.UnifiedRow(LineDiff.Kind.Added, null, 2, "return true;", "+ ");
+        var wsAudit = LineDiff.AuditWordLevelDiffResolution(new[] { wsOld, wsNew });
+        Assert.Equal(1, wsAudit.WhitespaceOnlyCount);
+        Assert.Equal("Whitespace Only", wsAudit.Pairs[0].ModificationKind);
+
+        string formatted = LineDiff.FormatWordLevelDiffResolutionSummary(
+            typoAudit.TotalDiffRows, typoAudit.TotalModifiedPairs, typoAudit.PureAdditionCount,
+            typoAudit.PureDeletionCount, typoAudit.WhitespaceOnlyCount, typoAudit.MinorTypoCount,
+            typoAudit.ModerateEditCount, typoAudit.SubstantialRewriteCount, typoAudit.MeanLevenshteinSimilarity,
+            typoAudit.WordLevelResolutionScore, typoAudit.ResolutionCategory);
+        Assert.Equal(typoAudit.Summary, formatted);
+    }
 }
 
 

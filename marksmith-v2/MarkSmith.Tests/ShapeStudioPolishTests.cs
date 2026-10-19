@@ -1968,6 +1968,78 @@ public class ShapeStudioPolishTests
             cleanAudit.GroupContainmentScore, cleanAudit.Category, cleanAudit.IsSelectionScope);
         Assert.Equal(cleanAudit.Summary, formatted);
     }
+
+    [Fact]
+    public void Run172_AuditConnectorPortSnapping_ValidatesPerimeterPortsAndSubpixelDrift()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        var empty = vm.AuditConnectorPortSnapping();
+        Assert.Equal(0, empty.TotalConnectors);
+        Assert.Equal(100.0, empty.PortSnappingScore);
+        Assert.Equal("Empty Canvas", empty.Category);
+
+        var sA = new ShapeCanvasItemViewModel { Id = "sa", Text = "Shape A", X = 100, Y = 100, Width = 100, Height = 60 };
+        var sB = new ShapeCanvasItemViewModel { Id = "sb", Text = "Shape B", X = 400, Y = 100, Width = 100, Height = 60 };
+
+        var connSnapped = new ShapeCanvasItemViewModel
+        {
+            Id = "c1",
+            Text = "Connector 1",
+            ShapeType = "line",
+            X = 200,
+            Y = 130,
+            Width = 200,
+            Height = 0,
+            PathPoints = new List<(double X, double Y)> { (0, 0), (100, 100) }
+        };
+
+        vm.Shapes.Add(sA);
+        vm.Shapes.Add(sB);
+        vm.Shapes.Add(connSnapped);
+
+        var snappedAudit = vm.AuditConnectorPortSnapping();
+        Assert.Equal(1, snappedAudit.TotalConnectors);
+        Assert.Equal(2, snappedAudit.TotalShapesEvaluated);
+        Assert.Equal(1, snappedAudit.FullySnappedConnectors);
+        Assert.Equal(0, snappedAudit.FloatingConnectors);
+        Assert.Equal(0, snappedAudit.NearMissPortHazards);
+        Assert.Equal(100.0, snappedAudit.PortSnappingScore);
+
+        var detail = snappedAudit.Details.First();
+        Assert.True(detail.StartSnapped);
+        Assert.True(detail.EndSnapped);
+        Assert.Equal("Right", detail.StartSnappedPort);
+        Assert.Equal("Left", detail.EndSnappedPort);
+
+        var connFloating = new ShapeCanvasItemViewModel
+        {
+            Id = "c2",
+            Text = "Floating Connector",
+            ShapeType = "line",
+            X = 850.37,
+            Y = 900.82,
+            Width = 50,
+            Height = 50
+        };
+        vm.Shapes.Add(connFloating);
+
+        var mixedAudit = vm.AuditConnectorPortSnapping();
+        Assert.Equal(2, mixedAudit.TotalConnectors);
+        Assert.Equal(1, mixedAudit.FullySnappedConnectors);
+        Assert.Equal(1, mixedAudit.FloatingConnectors);
+        Assert.True(mixedAudit.SubpixelDriftCount >= 1);
+        Assert.True(mixedAudit.PortSnappingScore < 100.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatConnectorPortSnappingSummary(
+            snappedAudit.TotalConnectors, snappedAudit.TotalShapesEvaluated,
+            snappedAudit.FullySnappedConnectors, snappedAudit.PartiallySnappedConnectors,
+            snappedAudit.FloatingConnectors, snappedAudit.NearMissPortHazards,
+            snappedAudit.SubpixelDriftCount, snappedAudit.PortSnappingScore,
+            snappedAudit.Category, snappedAudit.IsSelectionScope);
+        Assert.Equal(snappedAudit.Summary, formatted);
+    }
 }
 
 

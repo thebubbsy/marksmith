@@ -6180,6 +6180,198 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Venn overlap & set inclusion audit ({setLabel} · {chordLabel} · {category} · {score:0.#}% balance) · {string.Join(", ", alerts)}";
     }
+
+    public SmartArtProcessSequenceAudit AuditProcessSequencePacing(string? markdown = null, string? layoutName = null)
+    {
+        string text = markdown ?? MarkdownText ?? string.Empty;
+        string layout = layoutName ?? SelectedLayout?.Name ?? "Linear Process";
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            string emptySummary = "Process sequence pacing audit: 0 steps · Outline is empty";
+            return new SmartArtProcessSequenceAudit(
+                0, 0, 0.0, 0.0, 0.0, 0, 0, 100.0,
+                Array.Empty<ProcessSequenceStepInfo>(),
+                Array.Empty<string>(),
+                "Empty Outline", emptySummary);
+        }
+
+        var lines = text.Replace("\r", "").Split('\n');
+        var stepLines = new List<(int Index, string Title, string Content)>();
+
+        int currentIndex = 0;
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("```") || trimmed.StartsWith(":::")) continue;
+
+            string itemText = trimmed;
+            if (itemText.StartsWith("- ") || itemText.StartsWith("* ") || itemText.StartsWith("+ "))
+            {
+                itemText = itemText[2..].Trim();
+            }
+            else
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(itemText, @"^\d+[\.\)]\s*(.*)$");
+                if (match.Success)
+                {
+                    itemText = match.Groups[1].Value.Trim();
+                }
+                else if (itemText.StartsWith("#"))
+                {
+                    itemText = itemText.TrimStart('#').Trim();
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(itemText)) continue;
+
+            currentIndex++;
+            string title = itemText;
+            string content = "";
+            int colonIdx = itemText.IndexOf(':');
+            if (colonIdx > 0 && colonIdx < itemText.Length - 1)
+            {
+                title = itemText[..colonIdx].Trim();
+                content = itemText[(colonIdx + 1)..].Trim();
+            }
+
+            stepLines.Add((currentIndex, title, content));
+        }
+
+        int totalSteps = stepLines.Count;
+        if (totalSteps == 0)
+        {
+            string emptySummary = "Process sequence pacing audit: 0 steps · No steps detected";
+            return new SmartArtProcessSequenceAudit(
+                0, 0, 0.0, 0.0, 0.0, 0, 0, 100.0,
+                Array.Empty<ProcessSequenceStepInfo>(),
+                Array.Empty<string>(),
+                "No Steps Found", emptySummary);
+        }
+
+        const double CanvasWidth = 800.0;
+        const double ChevronHeight = 160.0;
+        double stepWidth = Math.Max(40.0, (CanvasWidth - Math.Max(0, totalSteps - 1) * 12.0) / totalSteps);
+        double estAspectRatio = Math.Round(stepWidth / ChevronHeight, 2);
+
+        var stepWordCounts = new List<int>();
+
+        foreach (var step in stepLines)
+        {
+            string full = string.IsNullOrWhiteSpace(step.Content) ? step.Title : $"{step.Title} {step.Content}";
+            var words = full.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            stepWordCounts.Add(words.Length);
+        }
+
+        double meanWords = Math.Round(stepWordCounts.Average(), 1);
+        double variance = stepWordCounts.Average(w => (w - meanWords) * (w - meanWords));
+        double stdDev = Math.Round(Math.Sqrt(variance), 1);
+
+        int overloadedCount = 0;
+        int tooBriefCount = 0;
+        var alerts = new List<string>();
+        var stepInfos = new List<ProcessSequenceStepInfo>();
+
+        for (int i = 0; i < stepLines.Count; i++)
+        {
+            var step = stepLines[i];
+            int words = stepWordCounts[i];
+            bool isOverloaded = (words >= 30) || (meanWords >= 4 && words > meanWords * 2.5);
+            bool isTooBrief = (words <= 1 && meanWords >= 5);
+
+            if (isOverloaded)
+            {
+                overloadedCount++;
+                alerts.Add($"Step {step.Index} (\"{step.Title}\") is overloaded ({words} words)");
+            }
+            if (isTooBrief)
+            {
+                tooBriefCount++;
+                alerts.Add($"Step {step.Index} (\"{step.Title}\") is too brief ({words} words)");
+            }
+
+            stepInfos.Add(new ProcessSequenceStepInfo(
+                step.Index,
+                step.Title,
+                words,
+                step.Title.Length + step.Content.Length,
+                Math.Round(stepWidth, 1),
+                estAspectRatio,
+                isOverloaded,
+                isTooBrief));
+        }
+
+        double stepCountFactor = totalSteps switch
+        {
+            >= 3 and <= 6 => 100.0,
+            2 => 85.0,
+            7 => 85.0,
+            8 => 70.0,
+            1 => 50.0,
+            _ => Math.Max(30.0, 100.0 - (totalSteps - 6) * 12.0)
+        };
+
+        double aspectFactor = (estAspectRatio >= 1.5 && estAspectRatio <= 3.2) ? 100.0 :
+                              (estAspectRatio >= 1.0 && estAspectRatio <= 4.0) ? 85.0 : 65.0;
+
+        double varianceFactor = meanWords > 0
+            ? Math.Clamp(100.0 - ((stdDev / meanWords) * 45.0), 30.0, 100.0)
+            : 100.0;
+
+        double pacingScore = Math.Round((stepCountFactor * 0.40) + (aspectFactor * 0.25) + (varianceFactor * 0.35) - (overloadedCount * 10.0), 1);
+        pacingScore = Math.Clamp(pacingScore, 10.0, 100.0);
+
+        string category;
+        if (pacingScore >= 90.0 && overloadedCount == 0) category = "Optimal Linear Flow";
+        else if (totalSteps > 7) category = "Crowded Process (>7 steps)";
+        else if (overloadedCount > 0) category = "Uneven Text Density";
+        else if (totalSteps < 3) category = "Trivial Process (<3 steps)";
+        else category = "Moderate Process Pacing";
+
+        int totalWords = stepWordCounts.Sum();
+        string summary = FormatProcessSequenceSummary(
+            totalSteps, totalWords, meanWords, stdDev, estAspectRatio,
+            overloadedCount, tooBriefCount, pacingScore, category);
+
+        return new SmartArtProcessSequenceAudit(
+            totalSteps,
+            totalWords,
+            meanWords,
+            stdDev,
+            estAspectRatio,
+            overloadedCount,
+            tooBriefCount,
+            pacingScore,
+            stepInfos,
+            alerts,
+            category,
+            summary);
+    }
+
+    public static SmartArtProcessSequenceAudit AuditProcessSequencePacing(
+        string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+        return vm.AuditProcessSequencePacing(markdown, layoutName);
+    }
+
+    public static string FormatProcessSequenceSummary(
+        int totalSteps, int totalWords, double meanWords, double stdDev,
+        double estAspectRatio, int overloadedCount, int tooBriefCount, double score, string category)
+    {
+        if (totalSteps == 0) return "Process sequence pacing audit: 0 steps · Outline is empty";
+
+        string stepLabel = totalSteps == 1 ? "1 step" : $"{totalSteps} steps";
+        string aspectLabel = $"aspect {estAspectRatio:0.##}:1";
+
+        var alerts = new List<string>();
+        if (overloadedCount > 0) alerts.Add($"⚠ {overloadedCount} overloaded step");
+        if (tooBriefCount > 0) alerts.Add($"ℹ {tooBriefCount} brief step");
+        if (alerts.Count == 0) alerts.Add("✓ uniform pacing");
+
+        return $"Process sequence pacing audit ({stepLabel}, {totalWords} words · {meanWords:0.#} w/step, {aspectLabel} · {category} · {score:0.#}% balance) · {string.Join(", ", alerts)}";
+    }
 }
 
 /// <summary>
@@ -6678,3 +6870,34 @@ public sealed record SmartArtVennOverlapAudit(
 
 
 
+
+/// <summary>
+/// Represents evaluated step metrics, estimated chevron aspect ratio, and word density for an individual process step.
+/// </summary>
+public sealed record ProcessSequenceStepInfo(
+    int StepIndex,
+    string StepTitle,
+    int WordCount,
+    int CharacterCount,
+    double EstimatedStepWidth,
+    double EstimatedAspectRatio,
+    bool IsOverloaded,
+    bool IsTooBrief);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt chevron and process arrow sequence pacing,
+/// step aspect ratios, word count variance, and overloaded step traps.
+/// </summary>
+public sealed record SmartArtProcessSequenceAudit(
+    int TotalSteps,
+    int TotalWords,
+    double MeanWordsPerStep,
+    double WordStandardDeviation,
+    double EstimatedChevronAspectRatio,
+    int OverloadedStepCount,
+    int TooBriefStepCount,
+    double PacingBalanceScore,
+    IReadOnlyList<ProcessSequenceStepInfo> Steps,
+    IReadOnlyList<string> PacingAlerts,
+    string SequenceCategory,
+    string Summary);

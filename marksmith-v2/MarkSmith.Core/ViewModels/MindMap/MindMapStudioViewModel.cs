@@ -7573,6 +7573,195 @@ namespace MarkSmith.ViewModels.MindMap
             return $"K-Core decomposition audit ({scope} · {nodeLabel}, {edgeLabel} · {shellLabel} [{breakdown}] · {category}): " +
                    $"C/P ratio {corePeripheryRatio:0.##}{topNucleus}";
         }
+
+        public GraphAssortativityAudit AuditGraphAssortativityAndMixing(bool selectionOnly = false)
+        {
+            var targetNodes = (selectionOnly
+                ? Nodes.Where(n => n.IsSelected).ToList()
+                : Nodes.ToList());
+
+            bool isSelection = selectionOnly;
+            if (targetNodes.Count == 0 && selectionOnly)
+            {
+                targetNodes = Nodes.ToList();
+                isSelection = false;
+            }
+
+            var nodeSet = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var targetLinks = Links.Where(l => nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId)).ToList();
+
+            if (targetNodes.Count == 0)
+            {
+                string emptySummary = FormatAssortativitySummary(0, 0, 0.0, 0, 0, 0, 0.0, 0.0, "Empty Graph", isSelection);
+                return new GraphAssortativityAudit(
+                    0, 0, 0.0, 0, 0, 0, 0.0, 0.0,
+                    Array.Empty<NodeDegreeAssortativityInfo>(),
+                    "Empty Graph", 100.0, isSelection, emptySummary);
+            }
+
+            var adj = new Dictionary<string, List<string>>();
+            foreach (var n in targetNodes) adj[n.Id] = new List<string>();
+            foreach (var l in targetLinks)
+            {
+                if (l.SourceNodeId != l.TargetNodeId)
+                {
+                    adj[l.SourceNodeId].Add(l.TargetNodeId);
+                    adj[l.TargetNodeId].Add(l.SourceNodeId);
+                }
+            }
+
+            int totalNodes = targetNodes.Count;
+            int totalEdges = targetLinks.Count;
+
+            var degrees = targetNodes.ToDictionary(n => n.Id, n => adj[n.Id].Count);
+            double meanDegree = degrees.Values.Count > 0 ? degrees.Values.Average() : 0.0;
+            double degreeVariance = degrees.Values.Count > 0
+                ? degrees.Values.Average(d => (d - meanDegree) * (d - meanDegree))
+                : 0.0;
+            double degreeStdDev = Math.Sqrt(degreeVariance);
+
+            double r = 0.0;
+            if (totalEdges > 0)
+            {
+                double sum_jk = 0.0;
+                double sum_j_plus_k = 0.0;
+                double sum_j2_plus_k2 = 0.0;
+
+                foreach (var l in targetLinks)
+                {
+                    double j = degrees[l.SourceNodeId];
+                    double k = degrees[l.TargetNodeId];
+
+                    sum_jk += j * k;
+                    sum_j_plus_k += 0.5 * (j + k);
+                    sum_j2_plus_k2 += 0.5 * (j * j + k * k);
+                }
+
+                double M = totalEdges;
+                double numerator = (sum_jk / M) - Math.Pow(sum_j_plus_k / M, 2);
+                double denominator = (sum_j2_plus_k2 / M) - Math.Pow(sum_j_plus_k / M, 2);
+
+                if (Math.Abs(denominator) > 1e-9)
+                {
+                    r = Math.Clamp(numerator / denominator, -1.0, 1.0);
+                }
+            }
+
+            int hubThreshold = Math.Max(3, (int)Math.Ceiling(meanDegree + degreeStdDev));
+            int hubHubEdges = 0;
+            int hubLeafEdges = 0;
+            int leafLeafEdges = 0;
+
+            foreach (var l in targetLinks)
+            {
+                int degS = degrees[l.SourceNodeId];
+                int degT = degrees[l.TargetNodeId];
+                bool sHub = degS >= hubThreshold;
+                bool tHub = degT >= hubThreshold;
+                bool sLeaf = degS == 1;
+                bool tLeaf = degT == 1;
+
+                if (sHub && tHub) hubHubEdges++;
+                else if ((sHub && tLeaf) || (tHub && sLeaf)) hubLeafEdges++;
+                else if (sLeaf && tLeaf) leafLeafEdges++;
+            }
+
+            var nodeInfos = new List<NodeDegreeAssortativityInfo>();
+            foreach (var n in targetNodes)
+            {
+                int deg = degrees[n.Id];
+                var neighbors = adj[n.Id];
+                double avgNeighborDeg = neighbors.Count > 0 ? neighbors.Average(nb => degrees[nb]) : 0.0;
+                bool isHub = deg >= hubThreshold;
+                bool isLeaf = deg == 1;
+
+                nodeInfos.Add(new NodeDegreeAssortativityInfo(
+                    n.Id,
+                    n.Title ?? "Untitled",
+                    deg,
+                    Math.Round(avgNeighborDeg, 2),
+                    isHub,
+                    isLeaf));
+            }
+
+            nodeInfos = nodeInfos.OrderByDescending(n => n.Degree).ThenBy(n => n.Title).ToList();
+
+            string category;
+            if (totalNodes <= 2 || totalEdges == 0) category = "Trivial / Isolated Graph";
+            else if (r >= 0.30) category = "Strongly Assortative (Resilient Hub Core)";
+            else if (r >= 0.10) category = "Moderately Assortative";
+            else if (r >= -0.10) category = "Neutral / Scale-Free Mixing";
+            else if (r >= -0.30) category = "Moderately Disassortative";
+            else category = "Strongly Disassortative (Radial Star Hubs)";
+
+            double resilienceScore = totalNodes switch
+            {
+                0 => 100.0,
+                1 => 100.0,
+                2 => totalEdges > 0 ? 90.0 : 50.0,
+                _ => Math.Clamp(50.0 + (r * 35.0) + Math.Min(15.0, hubHubEdges * 5.0) - (hubLeafEdges > hubHubEdges * 3 ? 10.0 : 0.0), 10.0, 100.0)
+            };
+
+            string summary = FormatAssortativitySummary(
+                totalNodes, totalEdges, Math.Round(r, 2), hubHubEdges, hubLeafEdges, leafLeafEdges,
+                Math.Round(meanDegree, 2), Math.Round(resilienceScore, 1), category, isSelection, nodeInfos);
+
+            return new GraphAssortativityAudit(
+                totalNodes,
+                totalEdges,
+                Math.Round(r, 2),
+                hubHubEdges,
+                hubLeafEdges,
+                leafLeafEdges,
+                Math.Round(meanDegree, 2),
+                Math.Round(degreeStdDev, 2),
+                nodeInfos,
+                category,
+                Math.Round(resilienceScore, 1),
+                isSelection,
+                summary);
+        }
+
+        public static GraphAssortativityAudit AuditGraphAssortativityAndMixing(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+        {
+            var vm = new MindMapStudioViewModel();
+            vm.Nodes.Clear();
+            vm.Links.Clear();
+            if (nodes != null)
+            {
+                foreach (var n in nodes) vm.Nodes.Add(new MindMapNodeViewModel(n));
+            }
+            if (links != null)
+            {
+                foreach (var l in links) vm.Links.Add(new MindMapLinkViewModel(l));
+            }
+            return vm.AuditGraphAssortativityAndMixing();
+        }
+
+        public static string FormatAssortativitySummary(
+            int totalNodes, int totalEdges, double r, int hubHub, int hubLeaf, int leafLeaf,
+            double meanDeg, double resilienceScore, string category, bool isSelection = false,
+            IReadOnlyList<NodeDegreeAssortativityInfo>? nodes = null)
+        {
+            string scope = isSelection ? "Selection" : "Galaxy";
+            if (totalNodes == 0) return $"Graph assortativity audit ({scope}): 0 nodes · Empty map";
+
+            string nodeLabel = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            string edgeLabel = totalEdges == 1 ? "1 edge" : $"{totalEdges} edges";
+            string rSign = r >= 0 ? "+" : "";
+
+            string hubDetails = $"Hub-Hub: {hubHub}, Hub-Leaf: {hubLeaf}";
+            string topHubs = "";
+            if (nodes != null && nodes.Count > 0)
+            {
+                var hubs = nodes.Where(n => n.IsHub).Take(3).Select(n => $"{n.Title} (d={n.Degree})");
+                if (hubs.Any()) topHubs = $" · Hubs: {string.Join(", ", hubs)}";
+            }
+
+            return $"Graph assortativity audit ({scope} · {nodeLabel}, {edgeLabel} · r={rSign}{r:0.##} [{category}] · Resilience: {resilienceScore:0.#}%): " +
+                   $"{hubDetails}{topHubs}";
+        }
     }
 
 
@@ -8151,6 +8340,36 @@ namespace MarkSmith.ViewModels.MindMap
         IReadOnlyList<NodeKCoreShellInfo> Nodes,
         IReadOnlyDictionary<int, int> ShellDistribution,
         string CoreStructureCategory,
+        bool IsSelectionScope,
+        string Summary);
+
+    /// <summary>
+    /// Represents degree, average neighbor degree, and degree class for a mind map node in an assortativity audit.
+    /// </summary>
+    public sealed record NodeDegreeAssortativityInfo(
+        string NodeId,
+        string Title,
+        int Degree,
+        double AverageNeighborDegree,
+        bool IsHub,
+        bool IsLeaf);
+
+    /// <summary>
+    /// Represents the result of an audit of graph assortative mixing by degree, degree-degree correlation (Pearson r),
+    /// hub-hub vs hub-leaf edge distribution, and scale-free network resilience across mind map nodes.
+    /// </summary>
+    public sealed record GraphAssortativityAudit(
+        int TotalNodes,
+        int TotalEdges,
+        double PearsonAssortativityCoefficient,
+        int HubToHubEdges,
+        int HubToLeafEdges,
+        int LeafToLeafEdges,
+        double MeanDegree,
+        double DegreeStandardDeviation,
+        IReadOnlyList<NodeDegreeAssortativityInfo> Nodes,
+        string NetworkMixingCategory,
+        double NetworkResilienceScore,
         bool IsSelectionScope,
         string Summary);
 }

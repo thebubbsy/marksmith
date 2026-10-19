@@ -5225,6 +5225,190 @@ public static class LineDiff
 
         return $"Semantic hunk coupling audit ({hunkLabel} [{breakdown}] · {linkLabel} · {category} · {score:0.#}% propagation){tokenSummary}";
     }
+
+    public static WordLevelDiffResolutionAudit AuditWordLevelDiffResolution(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            string emptySummary = "Word-level diff resolution audit: 0 diff rows · Document is unchanged";
+            return new WordLevelDiffResolutionAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 1.0, 100.0,
+                Array.Empty<WordLevelDiffPair>(),
+                "Unchanged Document", emptySummary);
+        }
+
+        var rows = unifiedRows.Where(r => !r.IsGap).ToList();
+        var pairs = new List<WordLevelDiffPair>();
+
+        int pureAdditions = 0;
+        int pureDeletions = 0;
+        int whitespaceOnly = 0;
+        int minorTypos = 0;
+        int moderateEdits = 0;
+        int substantialRewrites = 0;
+
+        int i = 0;
+        while (i < rows.Count)
+        {
+            if (rows[i].IsSame)
+            {
+                i++;
+                continue;
+            }
+
+            var removedChunk = new List<UnifiedRow>();
+            while (i < rows.Count && rows[i].IsRemoved)
+            {
+                removedChunk.Add(rows[i]);
+                i++;
+            }
+
+            var addedChunk = new List<UnifiedRow>();
+            while (i < rows.Count && rows[i].IsAdded)
+            {
+                addedChunk.Add(rows[i]);
+                i++;
+            }
+
+            int paired = Math.Min(removedChunk.Count, addedChunk.Count);
+            for (int k = 0; k < paired; k++)
+            {
+                var r = removedChunk[k];
+                var a = addedChunk[k];
+
+                int dist = ComputeLevenshteinDistance(r.Text, a.Text);
+                int maxLen = Math.Max(1, Math.Max(r.Text.Length, a.Text.Length));
+                double sim = Math.Round(Math.Clamp(1.0 - ((double)dist / maxLen), 0.0, 1.0), 3);
+
+                string kind;
+                if (string.Equals(r.Text.Trim(), a.Text.Trim(), StringComparison.Ordinal))
+                {
+                    kind = "Whitespace Only";
+                    whitespaceOnly++;
+                }
+                else if (sim >= 0.70)
+                {
+                    kind = "Minor Typo / Rename";
+                    minorTypos++;
+                }
+                else if (sim >= 0.35)
+                {
+                    kind = "Moderate Edit";
+                    moderateEdits++;
+                }
+                else
+                {
+                    kind = "Substantial Rewrite";
+                    substantialRewrites++;
+                }
+
+                pairs.Add(new WordLevelDiffPair(
+                    r.OldNumber,
+                    a.NewNumber,
+                    r.Text,
+                    a.Text,
+                    dist,
+                    sim,
+                    kind));
+            }
+
+            if (removedChunk.Count > paired)
+            {
+                pureDeletions += (removedChunk.Count - paired);
+            }
+            if (addedChunk.Count > paired)
+            {
+                pureAdditions += (addedChunk.Count - paired);
+            }
+        }
+
+        double meanSim = pairs.Count > 0 ? Math.Round(pairs.Average(p => p.SimilarityRatio), 2) : 1.0;
+
+        double resolutionScore;
+        if (pairs.Count == 0 && pureAdditions == 0 && pureDeletions == 0) resolutionScore = 100.0;
+        else if (pairs.Count == 0) resolutionScore = 95.0;
+        else
+        {
+            double baseScore = 50.0 + (meanSim * 45.0) + (whitespaceOnly * 5.0) - (substantialRewrites * 5.0);
+            resolutionScore = Math.Round(Math.Clamp(baseScore, 15.0, 100.0), 1);
+        }
+
+        string category;
+        if (pairs.Count == 0 && pureAdditions == 0 && pureDeletions == 0) category = "Unchanged Document";
+        else if (pairs.Count == 0) category = "Pure Insertion / Deletion";
+        else if (meanSim >= 0.85) category = "High-Resolution Word Edits";
+        else if (meanSim >= 0.60) category = "Moderate In-Place Refactoring";
+        else if (meanSim >= 0.35) category = "Substantial Content Changes";
+        else category = "Complete Block Rewrites";
+
+        string summary = FormatWordLevelDiffResolutionSummary(
+            rows.Count, pairs.Count, pureAdditions, pureDeletions, whitespaceOnly,
+            minorTypos, moderateEdits, substantialRewrites, meanSim, resolutionScore, category);
+
+        return new WordLevelDiffResolutionAudit(
+            rows.Count,
+            pairs.Count,
+            pureAdditions,
+            pureDeletions,
+            whitespaceOnly,
+            minorTypos,
+            moderateEdits,
+            substantialRewrites,
+            meanSim,
+            resolutionScore,
+            pairs,
+            category,
+            summary);
+    }
+
+    public static WordLevelDiffResolutionAudit AuditWordLevelDiffResolution(string? oldText, string? newText)
+    {
+        var diff = Diff(oldText ?? string.Empty, newText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditWordLevelDiffResolution(unified);
+    }
+
+    public static string FormatWordLevelDiffResolutionSummary(
+        int totalRows, int pairsCount, int additions, int deletions, int whitespace,
+        int typos, int moderate, int rewrites, double meanSim, double score, string category)
+    {
+        if (pairsCount == 0 && additions == 0 && deletions == 0)
+            return "Word-level diff resolution audit: 0 changes · Document is unchanged";
+
+        if (pairsCount == 0)
+            return $"Word-level diff resolution audit ({additions} added, {deletions} deleted · {category} · {score:0.#}% score): Pure insertions/deletions";
+
+        string pairLabel = pairsCount == 1 ? "1 modified pair" : $"{pairsCount} modified pairs";
+        string breakdown = $"{whitespace} whitespace, {typos} typo/rename, {rewrites} rewrite";
+
+        return $"Word-level diff resolution audit ({pairLabel} [{breakdown}] · {category} · mean sim {meanSim * 100:0.#}% · {score:0.#}% score)";
+    }
+
+    private static int ComputeLevenshteinDistance(string s, string t)
+    {
+        if (string.IsNullOrEmpty(s)) return t?.Length ?? 0;
+        if (string.IsNullOrEmpty(t)) return s.Length;
+
+        int n = s.Length;
+        int m = t.Length;
+        int[] d0 = new int[m + 1];
+        int[] d1 = new int[m + 1];
+
+        for (int j = 0; j <= m; j++) d0[j] = j;
+
+        for (int i = 0; i < n; i++)
+        {
+            d1[0] = i + 1;
+            char sc = s[i];
+            for (int j = 0; j < m; j++)
+            {
+                int cost = (sc == t[j]) ? 0 : 1;
+                d1[j + 1] = Math.Min(Math.Min(d1[j] + 1, d0[j + 1] + 1), d0[j] + cost);
+            }
+            Array.Copy(d1, d0, m + 1);
+        }
+        return d0[m];
+    }
 }
 
 /// <summary>
@@ -5600,3 +5784,34 @@ public sealed record SemanticHunkCouplingAudit(
 
 
 
+
+/// <summary>
+/// Represents evaluated word-level line replacement pairing, edit distance, and similarity for modified diff rows.
+/// </summary>
+public sealed record WordLevelDiffPair(
+    int? OldLineNumber,
+    int? NewLineNumber,
+    string OldText,
+    string NewText,
+    int LevenshteinDistance,
+    double SimilarityRatio,
+    string ModificationKind);
+
+/// <summary>
+/// Represents the result of an audit of word-level diff resolution, intra-line Levenshtein distance,
+/// typo/rename detection, and in-place refactoring clarity.
+/// </summary>
+public sealed record WordLevelDiffResolutionAudit(
+    int TotalDiffRows,
+    int TotalModifiedPairs,
+    int PureAdditionCount,
+    int PureDeletionCount,
+    int WhitespaceOnlyCount,
+    int MinorTypoCount,
+    int ModerateEditCount,
+    int SubstantialRewriteCount,
+    double MeanLevenshteinSimilarity,
+    double WordLevelResolutionScore,
+    IReadOnlyList<WordLevelDiffPair> Pairs,
+    string ResolutionCategory,
+    string Summary);

@@ -1842,6 +1842,48 @@ public class SmartArtStudioPolishTests
             balanced.VennBalanceScore, balanced.Category);
         Assert.Equal(balanced.Summary, formatted);
     }
+
+    [Fact]
+    public void Run172_AuditProcessSequencePacing_ValidatesStepsAndAspectRatios()
+    {
+        var vm = new SmartArtDesignStudioViewModel();
+
+        var empty = vm.AuditProcessSequencePacing("");
+        Assert.Equal(0, empty.TotalSteps);
+        Assert.Equal(100.0, empty.PacingBalanceScore);
+        Assert.Equal("Empty Outline", empty.SequenceCategory);
+
+        string optimalMd = string.Join("\n",
+            "1. Discover: Research customer requirements and metrics.",
+            "2. Design: Architect interactive wireframes and models.",
+            "3. Implement: Build production code with tests.",
+            "4. Deploy: Release automated package updates."
+        );
+        var optimalAudit = vm.AuditProcessSequencePacing(optimalMd);
+        Assert.Equal(4, optimalAudit.TotalSteps);
+        Assert.True(optimalAudit.TotalWords >= 15);
+        Assert.Equal(0, optimalAudit.OverloadedStepCount);
+        Assert.True(optimalAudit.PacingBalanceScore >= 90.0);
+        Assert.Equal("Optimal Linear Flow", optimalAudit.SequenceCategory);
+        Assert.True(optimalAudit.EstimatedChevronAspectRatio >= 1.0);
+
+        string imbalancedMd = string.Join("\n",
+            "- Concept",
+            "- Ultra Massive Detailed Execution Phase: Comprehensive investigations regarding complex engineering specifications and extensive requirements with abundant verbose prose exceeding thirty words in length for testing",
+            "- Ship"
+        );
+        var imbalancedAudit = vm.AuditProcessSequencePacing(imbalancedMd);
+        Assert.Equal(3, imbalancedAudit.TotalSteps);
+        Assert.True(imbalancedAudit.OverloadedStepCount >= 1);
+        Assert.NotEmpty(imbalancedAudit.PacingAlerts);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatProcessSequenceSummary(
+            optimalAudit.TotalSteps, optimalAudit.TotalWords, optimalAudit.MeanWordsPerStep,
+            optimalAudit.WordStandardDeviation, optimalAudit.EstimatedChevronAspectRatio,
+            optimalAudit.OverloadedStepCount, optimalAudit.TooBriefStepCount,
+            optimalAudit.PacingBalanceScore, optimalAudit.SequenceCategory);
+        Assert.Equal(optimalAudit.Summary, formatted);
+    }
 }
 
 

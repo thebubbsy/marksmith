@@ -1967,6 +1967,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnCopyWorkspaceTableFormattingAdvisorClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var audit = RecentFilesService.AuditWorkspaceTableFormatting(files);
+            await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+            SetNotification($"Copied Table Formatting advisor: {audit.Category} · {audit.TabularIntegrityScore:0.#}% score", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Couldn't audit workspace table formatting: {ex.Message}", success: false);
+        }
+    }
+
     private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

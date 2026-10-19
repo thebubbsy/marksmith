@@ -2771,6 +2771,62 @@ namespace MarkSmith.Tests
                 audit.IsSelectionScope, audit.Nodes);
             Assert.Equal(audit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run172_AuditGraphAssortativityAndMixing_ValidatesHubCorrelationAndResilience()
+        {
+            var empty = MindMapStudioViewModel.AuditGraphAssortativityAndMixing(Array.Empty<MindMapNode>(), null);
+            Assert.Equal(0, empty.TotalNodes);
+            Assert.Equal(0, empty.TotalEdges);
+            Assert.Equal(100.0, empty.NetworkResilienceScore);
+            Assert.Equal("Empty Graph", empty.NetworkMixingCategory);
+
+            var nHub = new MindMapNode { Id = "hub", Title = "Central Topic" };
+            var nL1 = new MindMapNode { Id = "l1", Title = "Leaf 1" };
+            var nL2 = new MindMapNode { Id = "l2", Title = "Leaf 2" };
+            var nL3 = new MindMapNode { Id = "l3", Title = "Leaf 3" };
+            var nL4 = new MindMapNode { Id = "l4", Title = "Leaf 4" };
+
+            var l1 = new MindMapLink { Id = "e1", SourceNodeId = "hub", TargetNodeId = "l1" };
+            var l2 = new MindMapLink { Id = "e2", SourceNodeId = "hub", TargetNodeId = "l2" };
+            var l3 = new MindMapLink { Id = "e3", SourceNodeId = "hub", TargetNodeId = "l3" };
+            var l4 = new MindMapLink { Id = "e4", SourceNodeId = "hub", TargetNodeId = "l4" };
+
+            var starAudit = MindMapStudioViewModel.AuditGraphAssortativityAndMixing(
+                new[] { nHub, nL1, nL2, nL3, nL4 },
+                new[] { l1, l2, l3, l4 });
+
+            Assert.Equal(5, starAudit.TotalNodes);
+            Assert.Equal(4, starAudit.TotalEdges);
+            Assert.Equal(-1.0, starAudit.PearsonAssortativityCoefficient);
+            Assert.Equal("Strongly Disassortative (Radial Star Hubs)", starAudit.NetworkMixingCategory);
+            Assert.Equal(4, starAudit.HubToLeafEdges);
+            Assert.Equal(0, starAudit.HubToHubEdges);
+
+            var nH1 = new MindMapNode { Id = "h1", Title = "Hub 1" };
+            var nH2 = new MindMapNode { Id = "h2", Title = "Hub 2" };
+            var nLeaf1 = new MindMapNode { Id = "lf1", Title = "Leaf 1" };
+            var nLeaf2 = new MindMapNode { Id = "lf2", Title = "Leaf 2" };
+
+            var eCore = new MindMapLink { Id = "ec", SourceNodeId = "h1", TargetNodeId = "h2" };
+            var eL1 = new MindMapLink { Id = "el1", SourceNodeId = "h1", TargetNodeId = "lf1" };
+            var eL2 = new MindMapLink { Id = "el2", SourceNodeId = "h2", TargetNodeId = "lf2" };
+
+            var coreAudit = MindMapStudioViewModel.AuditGraphAssortativityAndMixing(
+                new[] { nH1, nH2, nLeaf1, nLeaf2 },
+                new[] { eCore, eL1, eL2 });
+
+            Assert.Equal(4, coreAudit.TotalNodes);
+            Assert.Equal(3, coreAudit.TotalEdges);
+            Assert.True(coreAudit.PearsonAssortativityCoefficient > starAudit.PearsonAssortativityCoefficient);
+
+            string formatted = MindMapStudioViewModel.FormatAssortativitySummary(
+                starAudit.TotalNodes, starAudit.TotalEdges, starAudit.PearsonAssortativityCoefficient,
+                starAudit.HubToHubEdges, starAudit.HubToLeafEdges, starAudit.LeafToLeafEdges,
+                starAudit.MeanDegree, starAudit.NetworkResilienceScore, starAudit.NetworkMixingCategory,
+                starAudit.IsSelectionScope, starAudit.Nodes);
+            Assert.Equal(starAudit.Summary, formatted);
+        }
     }
 }
 

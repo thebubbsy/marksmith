@@ -321,6 +321,9 @@
                                     <MenuFlyoutItem x:Name="CopyWorkspaceCrossDocAnchorsAdvisorItem" Text="Copy workspace cross-document anchor link &amp; heading slug advisor" Click="OnCopyWorkspaceCrossDocAnchorsAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71B;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="CopyWorkspaceTableFormattingAdvisorItem" Text="Copy workspace table formatting &amp; column integrity advisor" Click="OnCopyWorkspaceTableFormattingAdvisorClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF158;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

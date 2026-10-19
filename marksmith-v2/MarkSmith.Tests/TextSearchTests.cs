@@ -2005,6 +2005,49 @@ public class TextSearchTests
         Assert.True(mixedAudit.TotalWords <= 10);
         Assert.True(mixedAudit.FleschReadingEase >= 60.0);
     }
+
+    [Fact]
+    public void Run172_AuditFootnoteReferenceIntegrity_ValidatesAnchorsAndMonotonicity()
+    {
+        var empty = TextSearch.AuditFootnoteReferenceIntegrity("");
+        Assert.Equal(0, empty.TotalAnchors);
+        Assert.Equal(0, empty.TotalDefinitions);
+        Assert.Equal(100.0, empty.FootnoteConsistencyScore);
+        Assert.Equal(empty.Summary, TextSearch.FormatFootnoteReferenceSummary(""));
+
+        string validDoc = string.Join("\n",
+            "This is an introductory concept[^1].",
+            "Here is additional clarification[^2] with further details[^3].",
+            "",
+            "[^1]: First footnote definition.",
+            "[^2]: Second footnote definition.",
+            "[^3]: Third footnote definition."
+        );
+        var validAudit = TextSearch.AuditFootnoteReferenceIntegrity(validDoc);
+        Assert.Equal(3, validAudit.TotalAnchors);
+        Assert.Equal(3, validAudit.TotalDefinitions);
+        Assert.Equal(0, validAudit.MissingDefinitions);
+        Assert.Equal(0, validAudit.UnreferencedDefinitions);
+        Assert.Equal(0, validAudit.NonMonotonicAnchorCount);
+        Assert.Equal(100.0, validAudit.FootnoteConsistencyScore);
+
+        string brokenDoc = string.Join("\n",
+            "First concept[^3].",
+            "Second concept[^1].",
+            "Missing concept[^99].",
+            "",
+            "[^1]: Definition one.",
+            "[^3]: Definition three.",
+            "[^orphan]: Forgotten definition."
+        );
+        var brokenAudit = TextSearch.AuditFootnoteReferenceIntegrity(brokenDoc);
+        Assert.Equal(3, brokenAudit.TotalAnchors);
+        Assert.Equal(3, brokenAudit.TotalDefinitions);
+        Assert.Equal(1, brokenAudit.MissingDefinitions);
+        Assert.Equal(1, brokenAudit.UnreferencedDefinitions);
+        Assert.True(brokenAudit.NonMonotonicAnchorCount >= 1);
+        Assert.True(brokenAudit.FootnoteConsistencyScore < 100.0);
+    }
 }
 
 
