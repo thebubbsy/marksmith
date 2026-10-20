@@ -4432,6 +4432,140 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     }
 
 
+    public SmartArtGearMechanismAudit AuditGearMechanismGeometry(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Gear Process";
+        return AuditGearMechanismGeometry(md, layout, isStatic: false);
+    }
+
+    public static SmartArtGearMechanismAudit AuditGearMechanismGeometry(string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        string layout = layoutName ?? "Gear Process";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatGearMechanismSummary(0, 0, 0, 0, 0, false, 100.0, "Empty Outline", layout);
+            return new SmartArtGearMechanismAudit(
+                0, 0, 0, 0, 0, false, 100.0,
+                Array.Empty<SmartArtGearItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var gears = new List<(string Label, List<string> SubItems)>();
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine.TrimEnd();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            int indent = 0;
+            while (indent < line.Length && (line[indent] == ' ' || line[indent] == '\t')) indent++;
+            string trimmed = line.Trim();
+            if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ "))
+                trimmed = trimmed.Substring(2).Trim();
+
+            if (indent == 0 || gears.Count == 0)
+            {
+                gears.Add((trimmed, new List<string>()));
+            }
+            else
+            {
+                gears[^1].SubItems.Add(trimmed);
+            }
+        }
+
+        int totalGears = gears.Count;
+        if (totalGears == 0)
+        {
+            string emptySummary = FormatGearMechanismSummary(0, 0, 0, 0, 0, false, 100.0, "Empty Outline", layout);
+            return new SmartArtGearMechanismAudit(
+                0, 0, 0, 0, 0, false, 100.0,
+                Array.Empty<SmartArtGearItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        var items = new List<SmartArtGearItem>();
+        int totalSubItems = 0;
+        int undercutHazards = 0;
+        int directionConflicts = 0;
+        bool isLoopLayout = layout.Contains("Cycle", StringComparison.OrdinalIgnoreCase) ||
+                            layout.Contains("Loop", StringComparison.OrdinalIgnoreCase) ||
+                            layout.Contains("Ring", StringComparison.OrdinalIgnoreCase);
+
+        bool hasOddLoopJam = isLoopLayout && (totalGears >= 3) && (totalGears % 2 != 0);
+
+        for (int i = 0; i < totalGears; i++)
+        {
+            var g = gears[i];
+            totalSubItems += g.SubItems.Count;
+
+            int teeth = 12 + ((i % 3) * 4);
+            var match = Regex.Match(g.Label, @"(\d+)\s*(?:teeth|t\b)", RegexOptions.IgnoreCase);
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int explicitTeeth))
+            {
+                teeth = explicitTeeth;
+            }
+            else if (g.SubItems.Count > 0)
+            {
+                teeth = Math.Max(8, g.SubItems.Count * 4);
+            }
+
+            string direction = (i % 2 == 0) ? "Clockwise" : "CounterClockwise";
+            double pitchRadius = teeth * 2.5;
+
+            bool isUndercut = teeth < 10;
+            if (isUndercut) undercutHazards++;
+
+            bool isValid = !isUndercut && !(hasOddLoopJam && i == totalGears - 1);
+            string rec = isUndercut
+                ? $"Increase gear tooth count for '{g.Label}' (currently {teeth}T) above 10T to prevent undercut tooth binding."
+                : (hasOddLoopJam && i == totalGears - 1)
+                    ? "Odd number of gears in closed loop causes mechanical deadlock; introduce an idler gear or open the train."
+                    : "Optimal kinematic pitch radius and meshing tooth profile.";
+
+            items.Add(new SmartArtGearItem(
+                i + 1, g.Label, teeth, pitchRadius, direction, g.SubItems.Count, isValid, rec));
+        }
+
+        int meshingPairs = totalGears > 1 ? (isLoopLayout ? totalGears : totalGears - 1) : 0;
+        if (hasOddLoopJam) directionConflicts++;
+
+        double score = 100.0 - (undercutHazards * 15.0) - (hasOddLoopJam ? 30.0 : 0.0);
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            100.0 when undercutHazards == 0 && !hasOddLoopJam => "Clean Baseline",
+            >= 85.0 => "High Kinematic Harmony",
+            >= 70.0 => "Minor Meshing Warnings",
+            >= 50.0 => "Moderate Kinematic Friction",
+            _ => "Mechanical Jam Deadlock"
+        };
+
+        string summary = FormatGearMechanismSummary(
+            totalGears, totalSubItems, meshingPairs, undercutHazards, directionConflicts,
+            hasOddLoopJam, score, category, layout);
+
+        return new SmartArtGearMechanismAudit(
+            totalGears, totalSubItems, meshingPairs, undercutHazards, directionConflicts,
+            hasOddLoopJam, score, items, category, layout, summary);
+    }
+
+    public static string FormatGearMechanismSummary(
+        int totalGears, int totalSubItems, int meshingPairs, int undercutHazards,
+        int directionConflicts, bool hasOddLoopJam, double score, string category, string layout)
+    {
+        if (totalGears == 0) return $"SmartArt gear geometry audit ({layout}): Empty outline";
+
+        var parts = new List<string>();
+        parts.Add($"{totalGears} gear cog{(totalGears == 1 ? "" : "s")}, {meshingPairs} meshing pair{(meshingPairs == 1 ? "" : "s")}");
+        if (hasOddLoopJam) parts.Add("🚨 odd-cycle gear jam deadlock");
+        if (undercutHazards > 0) parts.Add($"⚠ {undercutHazards} tooth undercut risk");
+        if (!hasOddLoopJam && undercutHazards == 0) parts.Add("✓ smooth kinematic meshing");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt gear mechanism audit ({details} · {category} · {score:0.#}% harmony score)";
+    }
+
     public static string FormatMatrixQuadrantGeometrySummary(
         int quadrantCount, bool is2x2, int totalWords, double avgWords, double cv,
         double score, string category, string layout)
@@ -13255,5 +13389,26 @@ public sealed record SmartArtTargetBullseyeGeometryAudit(
     IReadOnlyList<TargetBullseyeRingItem> Rings,
     string Category,
     string LayoutName,
-    string Summary);
+    string Summary);
+public sealed record SmartArtGearItem(
+    int GearIndex,
+    string Name,
+    int TeethCount,
+    double PitchRadius,
+    string RotationDirection,
+    int SubDriveCount,
+    bool IsMechanicallyValid,
+    string Recommendation);
 
+public sealed record SmartArtGearMechanismAudit(
+    int TotalGears,
+    int TotalSubItems,
+    int MeshingPairs,
+    int UndercutHazardGears,
+    int DirectionConflictCount,
+    bool HasOddLoopJamRisk,
+    double KinematicHarmonyScore,
+    IReadOnlyList<SmartArtGearItem> Items,
+    string Category,
+    string LayoutName,
+    string Summary);

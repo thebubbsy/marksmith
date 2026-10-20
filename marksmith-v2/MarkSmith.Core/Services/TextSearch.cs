@@ -13750,6 +13750,225 @@ public static class TextSearch
     }
 
 
+    public static MarkdownInlineHtmlAudit AuditMarkdownInlineHtmlSanitization(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatInlineHtmlSanitizationSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownInlineHtmlAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownInlineHtmlItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownInlineHtmlItem>();
+
+        var dangerousTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "script", "iframe", "object", "embed", "applet", "style", "link", "form", "input", "button", "meta", "base"
+        };
+
+        var deprecatedTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "font", "center", "marquee", "blink", "big", "strike", "tt"
+        };
+
+        var safeInlinePairedTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "b", "strong", "i", "em", "u", "s", "del", "sub", "sup", "span", "code", "kbd", "mark", "small", "details", "summary", "p", "div", "table", "thead", "tbody", "tr", "th", "td", "ul", "ol", "li", "blockquote", "a", "h1", "h2", "h3", "h4", "h5", "h6"
+        };
+
+        var selfClosingTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "br", "hr", "img", "wbr", "col", "source", "track", "area"
+        };
+
+        int totalConstructs = 0;
+        int allowedSafeTags = 0;
+        int dangerousTagCount = 0;
+        int unescapedRawCount = 0;
+        int deprecatedTagCount = 0;
+
+        var openTagStack = new Stack<(string TagName, int LineNumber, int Column)>();
+        bool inCodeFence = false;
+
+        var autolinkRegex = new Regex(@"<(?:https?://[^\s>]+|mailto:[^\s>]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        var htmlTagRegex = new Regex(@"<(/?)([a-zA-Z0-9\-]+)([^>]*)>", RegexOptions.Compiled);
+        var inlineCodeRegex = new Regex(@"`[^`]+`", RegexOptions.Compiled);
+
+        for (int lineIdx = 0; lineIdx < lines.Length; lineIdx++)
+        {
+            string line = lines[lineIdx];
+            string trimmed = line.TrimStart();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence)
+                continue;
+
+            // Mask inline code with spaces
+            string scrubbed = inlineCodeRegex.Replace(line, m => new string(' ', m.Length));
+
+            // Mask autolinks with spaces so they aren't parsed as HTML
+            scrubbed = autolinkRegex.Replace(scrubbed, m => new string(' ', m.Length));
+
+            // Find all HTML tags on this line
+            var matches = htmlTagRegex.Matches(scrubbed);
+            var tagSpans = new List<(int Index, int Length)>();
+
+            foreach (Match m in matches)
+            {
+                totalConstructs++;
+                tagSpans.Add((m.Index, m.Length));
+
+                bool isClosing = m.Groups[1].Length > 0;
+                string tagName = m.Groups[2].Value.ToLowerInvariant();
+                string attributes = m.Groups[3].Value;
+                int col = m.Index + 1;
+
+                bool hasEventHandler = Regex.IsMatch(attributes, @"\bon[a-zA-Z]+\s*=", RegexOptions.IgnoreCase);
+
+                if (dangerousTags.Contains(tagName) || hasEventHandler)
+                {
+                    dangerousTagCount++;
+                    items.Add(new MarkdownInlineHtmlItem(
+                        lineIdx + 1, col, m.Value,
+                        "DangerousTag", tagName,
+                        line.Trim(),
+                        $"Remove or sanitize potentially dangerous HTML construct <{m.Groups[1].Value}{tagName}> with event handlers or scripts to prevent XSS."));
+                }
+                else if (deprecatedTags.Contains(tagName))
+                {
+                    deprecatedTagCount++;
+                    items.Add(new MarkdownInlineHtmlItem(
+                        lineIdx + 1, col, m.Value,
+                        "DeprecatedTag", tagName,
+                        line.Trim(),
+                        $"Replace obsolete HTML tag <{tagName}> with modern CSS styling or semantic Markdown alternatives."));
+                }
+                else
+                {
+                    allowedSafeTags++;
+                    if (!isClosing && !selfClosingTags.Contains(tagName) && !attributes.EndsWith("/"))
+                    {
+                        if (safeInlinePairedTags.Contains(tagName))
+                        {
+                            openTagStack.Push((tagName, lineIdx + 1, col));
+                        }
+                    }
+                    else if (isClosing)
+                    {
+                        if (openTagStack.Count > 0 && openTagStack.Peek().TagName.Equals(tagName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            openTagStack.Pop();
+                        }
+                    }
+                }
+            }
+
+            // Remove matched tags from scrubbed to check for remaining raw < or >
+            var sb = new StringBuilder(scrubbed);
+            foreach (var span in tagSpans.OrderByDescending(s => s.Index))
+            {
+                for (int i = 0; i < span.Length; i++)
+                {
+                    sb[span.Index + i] = ' ';
+                }
+            }
+            string remaining = sb.ToString();
+
+            // Look for stray < and > in remaining text
+            for (int i = 0; i < remaining.Length; i++)
+            {
+                char c = remaining[i];
+                if (c == '<' || c == '>')
+                {
+                    // Check if part of markdown blockquote (> at start of line)
+                    if (c == '>' && (i == 0 || string.IsNullOrWhiteSpace(remaining.Substring(0, i))))
+                        continue;
+
+                    // Check if part of arrow like -> or =>
+                    if (c == '>' && i > 0 && (remaining[i - 1] == '-' || remaining[i - 1] == '='))
+                        continue;
+                    if (c == '<' && i < remaining.Length - 1 && (remaining[i + 1] == '-' || remaining[i + 1] == '='))
+                        continue;
+
+                    totalConstructs++;
+                    unescapedRawCount++;
+                    int col = i + 1;
+                    int start = Math.Max(0, i - 15);
+                    int len = Math.Min(remaining.Length - start, 30);
+                    string snippet = remaining.Substring(start, len).Trim();
+
+                    items.Add(new MarkdownInlineHtmlItem(
+                        lineIdx + 1, col, c.ToString(),
+                        "UnescapedRawAngleBracket", "",
+                        line.Trim(),
+                        $"Escape unescaped raw angle bracket '{c}' as &{(c == '<' ? "lt" : "gt")}; to avoid Markdown parsing ambiguity."));
+                }
+            }
+        }
+
+        int unclosedCount = openTagStack.Count;
+        while (openTagStack.Count > 0)
+        {
+            var open = openTagStack.Pop();
+            items.Add(new MarkdownInlineHtmlItem(
+                open.LineNumber, open.Column, $"<{open.TagName}>",
+                "UnclosedInlineTag", open.TagName,
+                lines[open.LineNumber - 1].Trim(),
+                $"Provide matching closing tag </{open.TagName}> for unclosed inline tag."));
+        }
+
+        double score = 100.0 - (dangerousTagCount * 25.0) - (unescapedRawCount * 10.0) - (unclosedCount * 8.0) - (deprecatedTagCount * 5.0);
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        int totalIssues = dangerousTagCount + unescapedRawCount + unclosedCount + deprecatedTagCount;
+        string category = score switch
+        {
+            100.0 when totalIssues == 0 => "Clean Baseline",
+            >= 85.0 => "High Hygiene",
+            >= 70.0 => "Minor HTML Warnings",
+            >= 50.0 => "Risky Unescaped Content",
+            _ => "Critical Security Hazard"
+        };
+
+        string summary = FormatInlineHtmlSanitizationSummary(
+            totalConstructs, allowedSafeTags, dangerousTagCount,
+            unescapedRawCount, unclosedCount, deprecatedTagCount,
+            score, category);
+
+        return new MarkdownInlineHtmlAudit(
+            totalConstructs, allowedSafeTags, dangerousTagCount,
+            unescapedRawCount, unclosedCount, deprecatedTagCount,
+            score, items, category, summary);
+    }
+
+    public static string FormatInlineHtmlSanitizationSummary(string? markdownText)
+        => AuditMarkdownInlineHtmlSanitization(markdownText).Summary;
+
+    public static string FormatInlineHtmlSanitizationSummary(
+        int totalConstructs, int allowedSafe, int dangerous, int unescapedRaw,
+        int unclosed, int deprecated, double score, string category)
+    {
+        if (totalConstructs == 0)
+            return "Markdown inline HTML & angle bracket sanitization audit: Clean document · 0 HTML tags or unescaped angle brackets detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalConstructs} construct{(totalConstructs == 1 ? "" : "s")}");
+        if (allowedSafe > 0) parts.Add($"✓ {allowedSafe} safe");
+        if (dangerous > 0) parts.Add($"🚨 {dangerous} dangerous tag{(dangerous == 1 ? "" : "s")}");
+        if (unescapedRaw > 0) parts.Add($"⚠ {unescapedRaw} unescaped bracket{(unescapedRaw == 1 ? "" : "s")}");
+        if (unclosed > 0) parts.Add($"⚠ {unclosed} unclosed tag{(unclosed == 1 ? "" : "s")}");
+        if (deprecated > 0) parts.Add($"ℹ {deprecated} deprecated tag{(deprecated == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown inline HTML sanitization audit ({details} · {category} · {score:0.#}% hygiene score)";
+    }
+
     public static string FormatDefinitionListsSummary(string? markdownText)
         => AuditMarkdownDefinitionLists(markdownText).Summary;
 
@@ -15386,5 +15605,24 @@ public sealed record MarkdownFootnoteBidirectionalAudit(
     double BidirectionalHealthScore,
     IReadOnlyList<MarkdownFootnoteBidirectionalItem> Items,
     string Category,
-    string Summary);
+    string Summary);
+public sealed record MarkdownInlineHtmlItem(
+    int LineNumber,
+    int Column,
+    string MatchedText,
+    string IssueType,
+    string TagName,
+    string Excerpt,
+    string Recommendation);
 
+public sealed record MarkdownInlineHtmlAudit(
+    int TotalAngleBracketConstructs,
+    int AllowedSafeHtmlTags,
+    int DangerousTagCount,
+    int UnescapedRawAngleBracketCount,
+    int UnclosedInlineTagCount,
+    int DeprecatedTagCount,
+    double HtmlSanitizationScore,
+    IReadOnlyList<MarkdownInlineHtmlItem> Items,
+    string Category,
+    string Summary);

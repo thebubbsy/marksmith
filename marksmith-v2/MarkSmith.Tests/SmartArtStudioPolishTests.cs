@@ -3431,4 +3431,50 @@ public class SmartArtStudioPolishTests
         Assert.True(riskAudit.RadialSymmetryScore < 90.0);
     }
 
+    [Fact]
+    public void Run209_AuditGearMechanismGeometry_ValidatesKinematicHarmoniesAndLoops()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditGearMechanismGeometry("", "Gear Process");
+        Assert.Equal(0, emptyAudit.TotalGears);
+        Assert.Equal(100.0, emptyAudit.KinematicHarmonyScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        var linearTrainMd = string.Join("\n",
+            "- Drive Gear (16T)",
+            "  - Input Motor",
+            "- Intermediate Pinion (12T)",
+            "  - Ratio Step",
+            "- Output Spindle (20T)",
+            "  - Tool Head"
+        );
+        var linearAudit = SmartArtDesignStudioViewModel.AuditGearMechanismGeometry(linearTrainMd, "Gear Process");
+        Assert.Equal(3, linearAudit.TotalGears);
+        Assert.Equal(3, linearAudit.TotalSubItems);
+        Assert.Equal(2, linearAudit.MeshingPairs);
+        Assert.False(linearAudit.HasOddLoopJamRisk);
+        Assert.Equal(0, linearAudit.UndercutHazardGears);
+        Assert.Equal(100.0, linearAudit.KinematicHarmonyScore);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatGearMechanismSummary(
+            linearAudit.TotalGears, linearAudit.TotalSubItems, linearAudit.MeshingPairs,
+            linearAudit.UndercutHazardGears, linearAudit.DirectionConflictCount,
+            linearAudit.HasOddLoopJamRisk, linearAudit.KinematicHarmonyScore,
+            linearAudit.Category, "Gear Process");
+        Assert.Equal(linearAudit.Summary, formatted);
+
+        var loopJamMd = string.Join("\n",
+            "- Gear Alpha (16T)",
+            "- Gear Beta (16T)",
+            "- Gear Gamma (16T)"
+        );
+        var loopAudit = SmartArtDesignStudioViewModel.AuditGearMechanismGeometry(loopJamMd, "Gear Cycle");
+        Assert.True(loopAudit.HasOddLoopJamRisk);
+        Assert.True(loopAudit.KinematicHarmonyScore <= 70.0);
+
+        var undercutMd = string.Join("\n",
+            "- Tiny Pinion (4T)"
+        );
+        var undercutAudit = SmartArtDesignStudioViewModel.AuditGearMechanismGeometry(undercutMd, "Gear Process");
+        Assert.True(undercutAudit.UndercutHazardGears >= 1);
+    }
 }

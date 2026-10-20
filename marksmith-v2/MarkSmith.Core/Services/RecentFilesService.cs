@@ -6610,6 +6610,162 @@ public sealed class RecentFilesService
     }
 
 
+    public static WorkspaceFrontmatterComplianceAudit AuditWorkspaceFrontmatterAndDateHygiene(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && !f.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            string emptySummary = FormatWorkspaceFrontmatterSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceFrontmatterComplianceAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceFrontmatterItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var items = new List<WorkspaceFrontmatterItem>();
+        int filesWithFm = 0;
+        int filesMissingFm = 0;
+        int unclosedFm = 0;
+        int validIsoDates = 0;
+        int invalidDateFormats = 0;
+        int missingDateKeys = 0;
+
+        var isoDateRegex = new Regex(@"^\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?$", RegexOptions.Compiled);
+
+        foreach (var file in files)
+        {
+            string fileName = Path.GetFileName(file);
+            bool exists = fileExistsProvider?.Invoke(file) ?? File.Exists(file);
+            if (!exists) continue;
+
+            string content = contentReader?.Invoke(file) ?? (File.Exists(file) ? File.ReadAllText(file) : string.Empty);
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                filesMissingFm++;
+                items.Add(new WorkspaceFrontmatterItem(
+                    file, fileName, false, false, false, false, false, "", 0,
+                    "MissingFrontmatter", "Add YAML frontmatter block (---) with title and ISO-8601 date."));
+                continue;
+            }
+
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            if (lines.Length == 0 || lines[0].Trim() != "---")
+            {
+                filesMissingFm++;
+                items.Add(new WorkspaceFrontmatterItem(
+                    file, fileName, false, false, false, false, false, "", 0,
+                    "NoFrontmatterHeader", "Consider adding YAML frontmatter (title, date, tags) for document cataloging."));
+                continue;
+            }
+
+            int closingIdx = -1;
+            for (int i = 1; i < lines.Length; i++)
+            {
+                string t = lines[i].Trim();
+                if (t == "---" || t == "...")
+                {
+                    closingIdx = i;
+                    break;
+                }
+            }
+
+            if (closingIdx == -1)
+            {
+                filesWithFm++;
+                unclosedFm++;
+                items.Add(new WorkspaceFrontmatterItem(
+                    file, fileName, true, true, false, false, false, "", 0,
+                    "UnclosedFrontmatter", "Close YAML frontmatter header block with '---'."));
+                continue;
+            }
+
+            filesWithFm++;
+            var keys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 1; i < closingIdx; i++)
+            {
+                string line = lines[i].Trim();
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#")) continue;
+                int colonIdx = line.IndexOf(':');
+                if (colonIdx > 0)
+                {
+                    string k = line.Substring(0, colonIdx).Trim();
+                    string v = line.Substring(colonIdx + 1).Trim().Trim('"', '\'');
+                    keys[k] = v;
+                }
+            }
+
+            bool hasTitle = keys.ContainsKey("title") && !string.IsNullOrWhiteSpace(keys["title"]);
+            bool hasDate = keys.ContainsKey("date") && !string.IsNullOrWhiteSpace(keys["date"]);
+            bool isIsoDate = false;
+            string dateVal = "";
+
+            if (hasDate)
+            {
+                dateVal = keys["date"];
+                isIsoDate = isoDateRegex.IsMatch(dateVal);
+                if (isIsoDate) validIsoDates++;
+                else invalidDateFormats++;
+            }
+            else
+            {
+                missingDateKeys++;
+            }
+
+            string rec = (!hasTitle || !hasDate || !isIsoDate)
+                ? $"Standardize metadata: {(hasTitle ? "" : "missing title; ")}{(hasDate ? (isIsoDate ? "" : "format date as YYYY-MM-DD; ") : "missing date;")}".Trim()
+                : "Valid YAML frontmatter with standardized ISO-8601 date.";
+
+            string status = (hasTitle && hasDate && isIsoDate) ? "FullyCompliant" : "MetadataDeficit";
+
+            items.Add(new WorkspaceFrontmatterItem(
+                file, fileName, true, false, hasTitle, hasDate, isIsoDate, dateVal, keys.Count, status, rec));
+        }
+
+        int scanned = files.Count;
+        double score = 100.0 - (unclosedFm * 30.0) - (invalidDateFormats * 15.0) - (missingDateKeys * 10.0) - (filesMissingFm * 5.0);
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            100.0 when unclosedFm == 0 && invalidDateFormats == 0 && missingDateKeys == 0 => "Clean Baseline",
+            >= 85.0 => "High Frontmatter Compliance",
+            >= 70.0 => "Minor Date / Metadata Warnings",
+            >= 50.0 => "Moderate Frontmatter Deficit",
+            _ => "Unstructured Document Metadata"
+        };
+
+        string summary = FormatWorkspaceFrontmatterSummary(
+            scanned, filesWithFm, filesMissingFm, unclosedFm, validIsoDates,
+            invalidDateFormats, missingDateKeys, score, category);
+
+        return new WorkspaceFrontmatterComplianceAudit(
+            scanned, filesWithFm, filesMissingFm, unclosedFm, validIsoDates,
+            invalidDateFormats, missingDateKeys, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceFrontmatterSummary(
+        int totalScanned, int withFm, int missingFm, int unclosedFm, int validIso,
+        int invalidDate, int missingDate, double score, string category)
+    {
+        if (totalScanned == 0) return "Workspace frontmatter & date hygiene audit: Clean baseline · 0 documents scanned";
+
+        var parts = new List<string>();
+        parts.Add($"{totalScanned} doc{(totalScanned == 1 ? "" : "s")} ({withFm} with frontmatter)");
+        if (unclosedFm > 0) parts.Add($"🚨 {unclosedFm} unclosed frontmatter");
+        if (validIso > 0) parts.Add($"✓ {validIso} ISO-8601 date{(validIso == 1 ? "" : "s")}");
+        if (invalidDate > 0) parts.Add($"⚠ {invalidDate} invalid date format{(invalidDate == 1 ? "" : "s")}");
+        if (missingDate > 0) parts.Add($"ℹ {missingDate} missing date");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace frontmatter & date hygiene audit ({details} · {category} · {score:0.#}% compliance score)";
+    }
+
     public static string FormatWorkspaceBacklinksSummary(
         int filesScanned, int totalHeadings, int referencedHeadings, int unreferencedHeadings,
         int totalBacklinks, double cohesionScore, string category)
@@ -12457,5 +12613,29 @@ public sealed record WorkspaceMermaidDiagramHealthAudit(
     double MermaidHealthScore,
     IReadOnlyList<WorkspaceMermaidDiagramItem> Items,
     string Category,
-    string Summary);
+    string Summary);
+public sealed record WorkspaceFrontmatterItem(
+    string FilePath,
+    string FileName,
+    bool HasFrontmatter,
+    bool IsUnclosed,
+    bool HasTitle,
+    bool HasDate,
+    bool IsIso8601Date,
+    string DateValue,
+    int KeyCount,
+    string Status,
+    string Recommendation);
 
+public sealed record WorkspaceFrontmatterComplianceAudit(
+    int TotalFilesScanned,
+    int FilesWithFrontmatter,
+    int FilesMissingFrontmatter,
+    int UnclosedFrontmatterCount,
+    int ValidIsoDateCount,
+    int InvalidDateFormatCount,
+    int MissingDateKeyCount,
+    double FrontmatterComplianceScore,
+    IReadOnlyList<WorkspaceFrontmatterItem> Items,
+    string Category,
+    string Summary);

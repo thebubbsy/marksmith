@@ -6434,6 +6434,123 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Mind map radial sector audit ({scope}{details} · {category} · {score:0.#}% balance score)";
         }
 
+        public GraphNodeBoundingCollisionAudit AuditGraphNodeBoundingCollisions(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var audit = AuditGraphNodeBoundingCollisions(targetNodes.Select(n => n.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphNodeBoundingCollisionAudit AuditGraphNodeBoundingCollisions(
+            IEnumerable<MindMapNode>? nodes,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            int totalNodes = nodeList.Count;
+
+            if (totalNodes <= 1)
+            {
+                string emptySummary = FormatNodeBoundingCollisionsSummary(totalNodes, 0, 0, 0, totalNodes, 0.0, 100.0, "Clean Baseline", isSelection);
+                return new GraphNodeBoundingCollisionAudit(
+                    totalNodes, 0, 0, 0, totalNodes, 0.0, 100.0,
+                    Array.Empty<GraphNodeBoundingCollisionItem>(), "Clean Baseline", isSelection, emptySummary);
+            }
+
+            var items = new List<GraphNodeBoundingCollisionItem>();
+            int evaluatedPairs = 0;
+            int directCollisions = 0;
+            int nearCollisions = 0;
+            double minDistance = double.MaxValue;
+            var collidingNodeIds = new HashSet<string>();
+
+            const double nodeWidth = 140.0;
+            const double nodeHeight = 60.0;
+            const double nearMargin = 20.0;
+
+            for (int i = 0; i < totalNodes; i++)
+            {
+                var a = nodeList[i];
+                for (int j = i + 1; j < totalNodes; j++)
+                {
+                    var b = nodeList[j];
+                    evaluatedPairs++;
+
+                    double dx = Math.Abs(a.X - b.X);
+                    double dy = Math.Abs(a.Y - b.Y);
+                    double dist = Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
+                    if (dist < minDistance) minDistance = dist;
+
+                    double overlapX = nodeWidth - dx;
+                    double overlapY = nodeHeight - dy;
+
+                    if (overlapX > 0 && overlapY > 0)
+                    {
+                        directCollisions++;
+                        collidingNodeIds.Add(a.Id);
+                        collidingNodeIds.Add(b.Id);
+                        items.Add(new GraphNodeBoundingCollisionItem(
+                            a.Id, a.Title, b.Id, b.Title,
+                            dist, overlapX, overlapY, true, "Critical Overlap",
+                            $"Relocate '{a.Title}' or '{b.Title}' to resolve direct bounding box collision ({overlapX:0.#}px × {overlapY:0.#}px)."));
+                    }
+                    else if (overlapX > -nearMargin && overlapY > -nearMargin)
+                    {
+                        nearCollisions++;
+                        items.Add(new GraphNodeBoundingCollisionItem(
+                            a.Id, a.Title, b.Id, b.Title,
+                            dist, Math.Max(0, overlapX), Math.Max(0, overlapY), false, "Crowded Clearance",
+                            $"Increase spacing between '{a.Title}' and '{b.Title}' to provide visual breathing room (dist: {dist:0.#}px)."));
+                    }
+                }
+            }
+
+            if (minDistance == double.MaxValue) minDistance = 0.0;
+            int freeFloating = totalNodes - collidingNodeIds.Count;
+
+            double score = 100.0 - (directCollisions * 20.0) - (nearCollisions * 5.0);
+            score = Math.Clamp(score, 0.0, 100.0);
+
+            string category = score switch
+            {
+                100.0 when directCollisions == 0 => "Clean Baseline",
+                >= 85.0 => "High Spacing Harmony",
+                >= 70.0 => "Minor Crowding",
+                >= 50.0 => "Moderate Overlap Hazards",
+                _ => "Severe Collision Density"
+            };
+
+            string summary = FormatNodeBoundingCollisionsSummary(
+                totalNodes, evaluatedPairs, directCollisions, nearCollisions,
+                freeFloating, minDistance, score, category, isSelection);
+
+            return new GraphNodeBoundingCollisionAudit(
+                totalNodes, evaluatedPairs, directCollisions, nearCollisions,
+                freeFloating, minDistance, score, items, category, isSelection, summary);
+        }
+
+        public static string FormatNodeBoundingCollisionsSummary(
+            int totalNodes, int evaluatedPairs, int directCollisions, int nearCollisions,
+            int freeFloating, double minDistance, double score, string category, bool isSelection)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes <= 1) return $"Mind map collision audit ({scope}{totalNodes} nodes): Clean baseline";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} nodes, {evaluatedPairs} pairs evaluated");
+            if (directCollisions > 0) parts.Add($"🚨 {directCollisions} direct collision{(directCollisions == 1 ? "" : "s")}");
+            if (nearCollisions > 0) parts.Add($"⚠ {nearCollisions} crowded proximity");
+            if (directCollisions == 0 && nearCollisions == 0) parts.Add($"✓ 0 overlaps (min dist: {minDistance:0.#}px)");
+
+            string details = string.Join(" · ", parts);
+            return $"Mind map bounding collision audit ({scope}{details} · {category} · {score:0.#}% clearance score)";
+        }
+
 
         public static string FormatClosenessCentralitySummary(
             int nodeCount, int linkCount, int components, double meanHarmonic, double graphEfficiency,
@@ -15451,4 +15568,30 @@ namespace MarkSmith.ViewModels.MindMap
         bool IsSelectionScope,
         string Summary);
 
-}
+
+    public sealed record GraphNodeBoundingCollisionItem(
+        string NodeIdA,
+        string TitleA,
+        string NodeIdB,
+        string TitleB,
+        double Distance,
+        double OverlapX,
+        double OverlapY,
+        bool IsDirectCollision,
+        string Severity,
+        string Recommendation);
+
+    public sealed record GraphNodeBoundingCollisionAudit(
+        int TotalNodes,
+        int EvaluatedPairs,
+        int DirectCollisionCount,
+        int NearCollisionCount,
+        int FreeFloatingNodes,
+        double MinDistance,
+        double CollisionFreeScore,
+        IReadOnlyList<GraphNodeBoundingCollisionItem> Items,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+}

@@ -4544,5 +4544,34 @@ namespace MarkSmith.Tests
         Assert.True(crowdedAudit.CrowdedSectorCount >= 1);
         Assert.True(crowdedAudit.AngularDistributionScore < 85.0);
     }
+
+    [Fact]
+    public void Run209_AuditGraphNodeBoundingCollisions_DetectsCollisionsAndClearance()
+    {
+        var emptyAudit = MindMapStudioViewModel.AuditGraphNodeBoundingCollisions(null);
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.CollisionFreeScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var n1 = new MindMapNode { Id = "N1", Title = "Top Left", X = 100, Y = 100 };
+        var n2 = new MindMapNode { Id = "N2", Title = "Far Right", X = 500, Y = 100 };
+        var n3 = new MindMapNode { Id = "N3", Title = "Far Bottom", X = 100, Y = 500 };
+        var spacedAudit = MindMapStudioViewModel.AuditGraphNodeBoundingCollisions(new[] { n1, n2, n3 });
+        Assert.Equal(3, spacedAudit.TotalNodes);
+        Assert.Equal(0, spacedAudit.DirectCollisionCount);
+        Assert.Equal(0, spacedAudit.NearCollisionCount);
+        Assert.Equal(100.0, spacedAudit.CollisionFreeScore);
+
+        string formatted = MindMapStudioViewModel.FormatNodeBoundingCollisionsSummary(
+            spacedAudit.TotalNodes, spacedAudit.EvaluatedPairs, spacedAudit.DirectCollisionCount,
+            spacedAudit.NearCollisionCount, spacedAudit.FreeFloatingNodes, spacedAudit.MinDistance,
+            spacedAudit.CollisionFreeScore, spacedAudit.Category, false);
+        Assert.Equal(spacedAudit.Summary, formatted);
+
+        var collidingNode = new MindMapNode { Id = "N4", Title = "Overlapping", X = 120, Y = 110 };
+        var collisionAudit = MindMapStudioViewModel.AuditGraphNodeBoundingCollisions(new[] { n1, collidingNode });
+        Assert.Equal(1, collisionAudit.DirectCollisionCount);
+        Assert.True(collisionAudit.CollisionFreeScore <= 80.0);
+    }
     }
 }

@@ -18867,6 +18867,131 @@ public static class LineDiff
     }
 
 
+    public static DiffTaskWhenAllExceptionAudit AuditTaskWhenAllExceptionPropagation(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditTaskWhenAllExceptionPropagation(unified);
+    }
+
+    public static DiffTaskWhenAllExceptionAudit AuditTaskWhenAllExceptionPropagation(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatTaskWhenAllExceptionSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffTaskWhenAllExceptionAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<TaskWhenAllExceptionHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatTaskWhenAllExceptionSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffTaskWhenAllExceptionAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<TaskWhenAllExceptionHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<TaskWhenAllExceptionHazardItem>();
+        int whenAllCalls = 0;
+        int waitAllCalls = 0;
+        int unhandledWhenAll = 0;
+        int unhandledWaitAll = 0;
+        int fireAndForgetDiscards = 0;
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string line = row.Text.Trim();
+            int lineNum = row.NewNumber ?? (i + 1);
+
+            if (line.StartsWith("//") || line.StartsWith("/*") || line.StartsWith("*"))
+                continue;
+
+            if (Regex.IsMatch(line, @"\bawait\s+Task\.WhenAll\s*\(", RegexOptions.IgnoreCase))
+            {
+                whenAllCalls++;
+                unhandledWhenAll++;
+                hazards.Add(new TaskWhenAllExceptionHazardItem(
+                    lineNum, "DirectAwaitedWhenAllFlattening", "Warning", line,
+                    "Awaiting Task.WhenAll directly only surfaces the first faulted exception and flattens/hides sibling faults; store the Task and inspect task.Exception to observe all AggregateException inner faults."));
+            }
+            else if (Regex.IsMatch(line, @"\bTask\.WhenAll\s*\(", RegexOptions.IgnoreCase))
+            {
+                whenAllCalls++;
+                if (Regex.IsMatch(line, @"^_\s*=\s*Task\.WhenAll", RegexOptions.IgnoreCase))
+                {
+                    fireAndForgetDiscards++;
+                    hazards.Add(new TaskWhenAllExceptionHazardItem(
+                        lineNum, "DiscardedWhenAllFireAndForget", "Critical", line,
+                        "Discarding Task.WhenAll via '_ =' causes unobserved task exceptions on worker threads; attach ContinueWith or await inside a try-catch block."));
+                }
+            }
+
+            if (Regex.IsMatch(line, @"\bTask\.WaitAll\s*\(", RegexOptions.IgnoreCase))
+            {
+                waitAllCalls++;
+                unhandledWaitAll++;
+                hazards.Add(new TaskWhenAllExceptionHazardItem(
+                    lineNum, "BlockingTaskWaitAllAggregateHazard", "Critical", line,
+                    "Task.WaitAll causes thread starvation and unhandled AggregateException crashes; replace with 'await Task.WhenAll' and wrap in AggregateException handler."));
+            }
+
+            if (Regex.IsMatch(line, @"^_\s*=\s*(?:Task\.Run|Task\.Factory\.StartNew)\s*\(", RegexOptions.IgnoreCase))
+            {
+                fireAndForgetDiscards++;
+                hazards.Add(new TaskWhenAllExceptionHazardItem(
+                    lineNum, "FireAndForgetDiscardHazard", "Warning", line,
+                    "Discarded async task run without error observation risks unhandled task faults."));
+            }
+        }
+
+        double score = 100.0 - (unhandledWaitAll * 22.0) - (unhandledWhenAll * 15.0) - (fireAndForgetDiscards * 12.0);
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            100.0 when unhandledWhenAll == 0 && unhandledWaitAll == 0 && fireAndForgetDiscards == 0 => "Clean Baseline",
+            >= 85.0 => "High Async Resilience",
+            >= 70.0 => "Minor Exception Flattening Risks",
+            >= 50.0 => "Moderate Async Exception Hazards",
+            _ => "Critical Thread / AggregateException Risk"
+        };
+
+        string summary = FormatTaskWhenAllExceptionSummary(
+            totalModified, whenAllCalls, waitAllCalls, unhandledWhenAll,
+            unhandledWaitAll, fireAndForgetDiscards, score, category);
+
+        return new DiffTaskWhenAllExceptionAudit(
+            totalModified, whenAllCalls, waitAllCalls, unhandledWhenAll,
+            unhandledWaitAll, fireAndForgetDiscards, score, hazards, category, summary);
+    }
+
+    public static string FormatTaskWhenAllExceptionSummary(
+        int totalModified, int whenAllCalls, int waitAllCalls, int unhandledWhenAll,
+        int unhandledWaitAll, int fireAndForgetDiscards, double score, string category)
+    {
+        if (totalModified == 0)
+            return "Semantic diff Task.WhenAll & AggregateException audit: Clean baseline · 0 modified lines";
+
+        var parts = new List<string>();
+        parts.Add($"{totalModified} modified line{(totalModified == 1 ? "" : "s")}");
+        if (whenAllCalls > 0) parts.Add($"{whenAllCalls} WhenAll");
+        if (waitAllCalls > 0) parts.Add($"🚨 {waitAllCalls} blocking WaitAll");
+        if (unhandledWhenAll > 0) parts.Add($"⚠ {unhandledWhenAll} flattened WhenAll fault risk");
+        if (fireAndForgetDiscards > 0) parts.Add($"⚠ {fireAndForgetDiscards} unobserved discard");
+        if (unhandledWhenAll == 0 && waitAllCalls == 0 && fireAndForgetDiscards == 0) parts.Add("✓ clean async propagation");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff Task.WhenAll & AggregateException audit ({details} · {category} · {score:0.#}% safety score)";
+    }
+
     public static string FormatMemorySpanSafetySummary(
         int totalModified, int asyncSpan, int closureSpan, int memoryEscape, int loopClosure, double score, string category)
     {
@@ -21191,5 +21316,22 @@ public sealed record DiffThreadPoolStarvationAudit(
     double ThreadPoolSafetyScore,
     IReadOnlyList<ThreadPoolStarvationHazardItem> Hazards,
     string Category,
-    string Summary);
+    string Summary);
+public sealed record TaskWhenAllExceptionHazardItem(
+    int LineNumber,
+    string HazardType,
+    string RiskLevel,
+    string CodeSnippet,
+    string Recommendation);
 
+public sealed record DiffTaskWhenAllExceptionAudit(
+    int TotalModifiedLines,
+    int TotalWhenAllCalls,
+    int TotalWaitAllCalls,
+    int UnhandledWhenAllHazards,
+    int UnhandledWaitAllHazards,
+    int FireAndForgetDiscardHazards,
+    double ExceptionPropagationSafetyScore,
+    IReadOnlyList<TaskWhenAllExceptionHazardItem> Hazards,
+    string Category,
+    string Summary);

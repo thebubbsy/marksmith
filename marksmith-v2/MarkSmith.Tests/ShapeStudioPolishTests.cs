@@ -3807,4 +3807,35 @@ public class ShapeStudioPolishTests
         Assert.Equal(trimAudit.Summary, formatted);
     }
 
+    [Fact]
+    public void Run209_AuditIsometricGridSnapping_EvaluatesQuantumAndJitter()
+    {
+        var emptyAudit = ShapeDesignStudioViewModel.AuditIsometricGridSnapping(null, null);
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.GridSnappingScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Snapped1", X = 64, Y = 128, Width = 80, Height = 48 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Snapped2", X = 200, Y = 320, Width = 96, Height = 64 };
+        var snappedAudit = ShapeDesignStudioViewModel.AuditIsometricGridSnapping(new[] { s1, s2 }, new[] { s1, s2 }, quantum: 8.0);
+        Assert.Equal(2, snappedAudit.TotalShapes);
+        Assert.Equal(2, snappedAudit.FullySnappedShapes);
+        Assert.Equal(0, snappedAudit.OffGridPositionShapes);
+        Assert.Equal(0, snappedAudit.NonModularDimensionShapes);
+        Assert.Equal(0, snappedAudit.SubPixelJitterShapes);
+        Assert.Equal(100.0, snappedAudit.GridSnappingScore);
+
+        string formatted = ShapeDesignStudioViewModel.FormatIsometricGridSnappingSummary(
+            snappedAudit.TotalShapes, snappedAudit.FullySnappedShapes, snappedAudit.OffGridPositionShapes,
+            snappedAudit.NonModularDimensionShapes, snappedAudit.SubPixelJitterShapes,
+            snappedAudit.MeanDeviation, snappedAudit.GridSnappingScore, snappedAudit.Category, false, 8.0);
+        Assert.Equal(snappedAudit.Summary, formatted);
+
+        var sJitter = new ShapeCanvasItemViewModel { Id = "s3", Name = "Jitter", X = 65.4, Y = 129.2, Width = 79.5, Height = 47.1 };
+        var jitterAudit = ShapeDesignStudioViewModel.AuditIsometricGridSnapping(new[] { sJitter }, new[] { sJitter }, quantum: 8.0);
+        Assert.True(jitterAudit.SubPixelJitterShapes >= 1);
+        Assert.True(jitterAudit.OffGridPositionShapes >= 1);
+        Assert.True(jitterAudit.NonModularDimensionShapes >= 1);
+        Assert.True(jitterAudit.GridSnappingScore < 80.0);
+    }
 }

@@ -3873,4 +3873,47 @@ public class TextSearchTests
         Assert.True(brokenAudit.BidirectionalHealthScore < 70.0);
     }
 
+    [Fact]
+    public void Run209_AuditMarkdownInlineHtmlSanitization_ValidatesHygieneAndConstructs()
+    {
+        var emptyAudit = TextSearch.AuditMarkdownInlineHtmlSanitization("");
+        Assert.Equal(0, emptyAudit.TotalAngleBracketConstructs);
+        Assert.Equal(100.0, emptyAudit.HtmlSanitizationScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var safeMd = string.Join("\n",
+            "This is **markdown** with <b>safe bold</b> and <i>italic</i>.",
+            "Here is an autolink <https://github.com/marksmith> and email <test@example.com>.",
+            "Inline code `<div>safe inside code</div>` should be ignored.",
+            "```html",
+            "<script>alert('inside fence')</script>",
+            "```"
+        );
+        var safeAudit = TextSearch.AuditMarkdownInlineHtmlSanitization(safeMd);
+        Assert.True(safeAudit.AllowedSafeHtmlTags >= 2);
+        Assert.Equal(0, safeAudit.DangerousTagCount);
+        Assert.Equal(0, safeAudit.UnescapedRawAngleBracketCount);
+        Assert.Equal(100.0, safeAudit.HtmlSanitizationScore);
+
+        string formatted = TextSearch.FormatInlineHtmlSanitizationSummary(
+            safeAudit.TotalAngleBracketConstructs, safeAudit.AllowedSafeHtmlTags,
+            safeAudit.DangerousTagCount, safeAudit.UnescapedRawAngleBracketCount,
+            safeAudit.UnclosedInlineTagCount, safeAudit.DeprecatedTagCount,
+            safeAudit.HtmlSanitizationScore, safeAudit.Category);
+        Assert.Equal(safeAudit.Summary, formatted);
+
+        var hazardousMd = string.Join("\n",
+            "Dangerous script: <script>malicious()</script>",
+            "Event handler: <button onclick=\"run()\">Click</button>",
+            "Deprecated: <font color=\"red\">text</font>",
+            "Unclosed tag: <b>bold without end",
+            "Raw brackets: 5 < 10 and 20 > 15"
+        );
+        var hazardousAudit = TextSearch.AuditMarkdownInlineHtmlSanitization(hazardousMd);
+        Assert.True(hazardousAudit.DangerousTagCount >= 2);
+        Assert.True(hazardousAudit.DeprecatedTagCount >= 1);
+        Assert.True(hazardousAudit.UnclosedInlineTagCount >= 1);
+        Assert.True(hazardousAudit.UnescapedRawAngleBracketCount >= 2);
+        Assert.True(hazardousAudit.HtmlSanitizationScore < 50.0);
+    }
 }

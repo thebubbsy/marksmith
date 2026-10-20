@@ -13435,4 +13435,58 @@ Reviewed: Run #208 Blueprint — executed the 3-block cycle covering all 6 MarkS
    - **Deliverable**: Extend `LineDiff.AuditThreadPoolStarvationAndSyncOverAsync` to evaluate `Task.WhenAll` vs `Task.WaitAll` exception observation, missing `try/catch` wrappers around awaited parallel fan-out tasks, and unobserved task faulting ($0-100\%$).
 6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #208 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Markdown Frontmatter / YAML Metadata & ISO-8601 Date Hygiene Auditor.
-   - **Deliverable**: Extend `RecentFilesService.AuditWorkspaceMermaidDiagrams` to scan workspace documents for YAML frontmatter blocks (`--- ... ---`), validating required metadata keys (`title`, `date`, `tags`), validating ISO-8601 timestamps, and computing workspace metadata compliance ($0-100\%$).
+   - **Deliverable**: Extend `RecentFilesService.AuditWorkspaceMermaidDiagrams` to scan workspace documents for YAML frontmatter blocks (`--- ... ---`), validating required metadata keys (`title`, `date`, `tags`), validating ISO-8601 timestamps, and computing workspace metadata compliance ($0-100\%$).
+
+---
+
+### 2026-10-21 (scheduled routine run #209)
+
+Reviewed: Run #209 Blueprint — executed the 3-block cycle covering all 6 MarkSmith WinUI 3 surfaces with 100% full implementation, zero placeholders, empirical verification (0 errors, 7 passing unit tests), and desktop smoke launch verification.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented `TextSearch.AuditMarkdownInlineHtmlSanitization(markdownText)`, `FormatInlineHtmlSanitizationSummary(...)`, `MarkdownInlineHtmlItem`, and `MarkdownInlineHtmlAudit` in `TextSearch.cs`. Inspects markdown documents for unescaped raw angle brackets (`<` and `>`), unsupported or dangerous inline HTML tags (`<script>`, `<iframe`, event handlers `onclick=`), deprecated formatting tags (`<font>`, `<center>`, `<marquee>`), unclosed inline tags, while safely ignoring valid Markdown code blocks, inline code spans, and Markdown autolinks. Scores HTML tag hygiene ($0-100\%$). Wired to `ShowLintIssueContextMenu` in `MainWindow.xaml.cs` via `auditInlineHtmlSanitizationItem` (`\uE8B9`).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented `MindMapStudioViewModel.AuditGraphNodeBoundingCollisions()`, `FormatNodeBoundingCollisionsSummary(...)`, `GraphNodeBoundingCollisionItem`, and `GraphNodeBoundingCollisionAudit` in `MindMapStudioViewModel.cs`. Evaluates Axis-Aligned Bounding Box (AABB) collisions and label overlap intersections across all realized nodes and edges on the 2D canvas, identifying crowded proximity zones ($< 20\text{px}$ clearance) and direct overlapping boundaries, scoring visual breathing room ($0-100\%$). Wired to `ArrangeDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs` via `AuditGraphNodeBoundingCollisionsItem` (`\uE8B9`) and `OnAuditGraphNodeBoundingCollisionsClick`.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented `ShapeDesignStudioViewModel.AuditIsometricGridSnapping(shapes, allShapes, quantum)`, `FormatIsometricGridSnappingSummary(...)`, `IsometricGridSnappingItem`, and `DiagramIsometricGridSnappingAudit` in `ShapeDesignStudioViewModel.cs`. Evaluates shape coordinates $(X, Y)$ and bounding dimensions $(\text{Width}, \text{Height})$ for exact modular alignment against standard $8\text{px}/16\text{px}/24\text{px}$ isometric grid quanta, flagging sub-pixel jitter and non-modular dimensions, scoring grid snapping precision ($0-100\%$). Wired to `SelectionBoundsBorder.ContextFlyout` in `ShapeDesignStudioWindow.xaml` and `ShapeDesignStudioWindow.xaml.cs` via `SelectionAuditIsometricGridSnappingItem` (`\uE8B9`) and `OnSelectionAuditIsometricGridSnappingClick`.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented `SmartArtDesignStudioViewModel.AuditGearMechanismGeometry(markdown, layoutName)`, `FormatGearMechanismSummary(...)`, `SmartArtGearItem`, and `SmartArtGearMechanismAudit` in `SmartArtDesignStudioViewModel.cs`. Evaluates multi-gear process outlines for pitch circle radius matching ($r = N \times 2.5$), alternating rotational directions (CW/CCW), tooth undercut hazards ($N < 10\text{T}$), and closed-loop mechanical binding deadlocks on odd-numbered gear cycles ($K \ge 3$, odd count), scoring kinematic harmony ($0-100\%$). Wired to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml` and `SmartArtDesignStudioWindow.xaml.cs` via `OutlineStatsAuditGearMechanismGeometryItem` (`\uE8B9`) and `OnOutlineStatsAuditGearMechanismGeometryClick`.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Implemented `LineDiff.AuditTaskWhenAllExceptionPropagation(diff)`, `FormatTaskWhenAllExceptionSummary(...)`, `TaskWhenAllExceptionHazardItem`, and `DiffTaskWhenAllExceptionAudit` in `LineDiff.cs`. Evaluates semantic diff additions for directly awaited `Task.WhenAll` calls that flatten and hide sibling `AggregateException` faults, synchronous blocking `Task.WaitAll` calls that crash worker threads, and unobserved fire-and-forget task discards (`_ = Task.Run(...)`), scoring async exception propagation safety ($0-100\%$). Wired to `BuildDiagnosticsMenu` in `HistoryWindow.xaml.cs` via `auditTaskWhenAllExceptionItem` (`\uE8B9`).
+  - **Surface 6 (SuiteHubView)**: Implemented `RecentFilesService.AuditWorkspaceFrontmatterAndDateHygiene(explicitFiles)`, `FormatWorkspaceFrontmatterSummary(...)`, `WorkspaceFrontmatterItem`, and `WorkspaceFrontmatterComplianceAudit` in `RecentFilesService.cs`. Scans workspace markdown documents for YAML frontmatter headers (`--- ... ---`), validates standard metadata keys (`title`, `date`, `tags`), verifies ISO-8601 timestamp compliance, detects unclosed frontmatter blocks, and scores workspace metadata compliance ($0-100\%$). Wired to `RecentDocsFlyout` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` via `AuditWorkspaceFrontmatterAndDateHygieneItem` (`\uE8B9`) and `OnAuditWorkspaceFrontmatterAndDateHygieneClick`.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces:
+    - `TextSearchTests.Run209_AuditMarkdownInlineHtmlSanitization_ValidatesHygieneAndConstructs`
+    - `MindMapGalaxyPolishTests.Run209_AuditGraphNodeBoundingCollisions_DetectsCollisionsAndClearance`
+    - `ShapeStudioPolishTests.Run209_AuditIsometricGridSnapping_EvaluatesQuantumAndJitter`
+    - `SmartArtStudioPolishTests.Run209_AuditGearMechanismGeometry_ValidatesKinematicHarmoniesAndLoops`
+    - `HistoryPolishTests.Run209_AuditTaskWhenAllExceptionPropagation_DetectsHazards`
+    - `SuiteHubAndTourPolishTests.Run209_AuditWorkspaceFrontmatterAndDateHygiene_ValidatesYamlAndIsoDates`
+    - `SuiteHubAndTourPolishTests.Run209_AllSixSurfacesXamlAndCodeBehindWiring`
+
+**Verified:**
+- `dotnet build` (`marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` - Debug/x64): 0 errors, 24 warnings.
+- `dotnet build` (`marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj` - Debug): 0 errors.
+- `dotnet test` (Run209 filter): 7/7 tests passed (100% pass rate).
+- Smoke-launched `Marksmith.exe` (PID=16376, running cleanly for 3.5 seconds, gracefully terminated with zero crashes).
+
+---
+
+### Run #210 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Task List Checkbox State & Nested Indentation Consistency Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownTaskListFormatting(markdownText)` and `FormatTaskListFormattingSummary(...)`, scanning markdown documents for task list checkboxes (`- [ ]`, `- [x]`, `- [X]`), validating indentation consistency (2 vs 4 spaces), detecting orphaned check items outside lists, and scoring task list syntax hygiene ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
+2. **MindMapGalaxyWindow (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Node Semantic Cluster Centroid & Group Boundary Convexity Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphSemanticClusterCentroids()` and `FormatClusterCentroidsSummary(...)`, calculating geometric centroids for tag/category node clusters, detecting cluster centroid drift, evaluating cluster boundary separation, and scoring visual clustering balance ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **ShapeDesignStudioWindow (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Magnetic Snapping Guide Rays & Cardinal Edge Anchor Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditMagneticSnappingGuides(shapes)` and `FormatMagneticSnappingSummary(...)`, evaluating shape edges and centers for magnetic alignment along 8 cardinal directions, detecting off-guide positioning, and scoring diagram alignment precision ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **SmartArtDesignStudioWindow (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Pyramid / Funnel Tier Inversion & Proportional Apex Geometry Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditPyramidApexProportionality(markdown, layoutName)` and `FormatPyramidApexSummary(...)`, evaluating tiered hierarchy diagrams for area proportionality, inverted cone hazards, text length scaling vs tier trapezoid width, and scoring pyramid geometric harmony ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **HistoryWindow (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #209 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Cancellation Token Propagation & OperationCanceledException Safety Auditor.
+   - **Deliverable**: Extend `LineDiff.AuditTaskWhenAllExceptionPropagation` to evaluate `CancellationToken` parameter propagation across async calls in diffs, flagging ignored tokens, missing token registrations, and unhandled `OperationCanceledException` drops ($0-100\%$).
+6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #209 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Document Reading Time & Section Density Distribution Auditor.
+   - **Deliverable**: Extend `RecentFilesService.AuditWorkspaceFrontmatterAndDateHygiene` to scan workspace documents for section word count distribution, calculating reading times, detecting unbalanced mega-sections (> 1500 words without subheadings), and computing workspace readability balance ($0-100\%$).

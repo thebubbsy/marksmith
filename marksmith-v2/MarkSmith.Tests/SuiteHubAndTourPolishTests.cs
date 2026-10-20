@@ -6956,4 +6956,80 @@ Some paragraph in between.
         Assert.Contains("AuditWorkspaceMermaidDiagrams", suiteCs);
     }
 
+    [Fact]
+    public void Run209_AuditWorkspaceFrontmatterAndDateHygiene_ValidatesYamlAndIsoDates()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceFrontmatterAndDateHygiene(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(100.0, emptyAudit.FrontmatterComplianceScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var files = new[] { "doc1.md", "doc2.md", "doc3.md" };
+        var contents = new Dictionary<string, string>
+        {
+            ["doc1.md"] = "---\ntitle: First Doc\ndate: 2026-10-21\ntags: [arch, docs]\n---\n# Header",
+            ["doc2.md"] = "---\ntitle: Second Doc\ndate: 10/21/2026\n---\n# Header",
+            ["doc3.md"] = "---\ntitle: Third Doc\n# Unclosed frontmatter"
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceFrontmatterAndDateHygiene(
+            files,
+            fileExistsProvider: f => true,
+            contentReader: f => contents.TryGetValue(f, out var c) ? c : "");
+
+        Assert.Equal(3, audit.TotalFilesScanned);
+        Assert.Equal(3, audit.FilesWithFrontmatter);
+        Assert.Equal(1, audit.ValidIsoDateCount);
+        Assert.Equal(1, audit.InvalidDateFormatCount);
+        Assert.Equal(1, audit.UnclosedFrontmatterCount);
+        Assert.True(audit.FrontmatterComplianceScore < 70.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceFrontmatterSummary(
+            audit.TotalFilesScanned, audit.FilesWithFrontmatter, audit.FilesMissingFrontmatter,
+            audit.UnclosedFrontmatterCount, audit.ValidIsoDateCount, audit.InvalidDateFormatCount,
+            audit.MissingDateKeyCount, audit.FrontmatterComplianceScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run209_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Inline HTML Sanitization & Raw Angle Brackets
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditInlineHtmlSanitizationItem", mainCs);
+        Assert.Contains("AuditMarkdownInlineHtmlSanitization", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Node Bounding Box Collisions & Label Overlaps
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphNodeBoundingCollisionsItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphNodeBoundingCollisionsClick", galaxyCs);
+        Assert.Contains("AuditGraphNodeBoundingCollisions", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Isometric Grid Snapping & Offset Quanta
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditIsometricGridSnappingItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditIsometricGridSnappingClick", shapeCs);
+        Assert.Contains("AuditIsometricGridSnapping", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Gear & Cogwheel Intermeshing Teeth & Pitch Radii
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditGearMechanismGeometryItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditGearMechanismGeometryClick", smartArtCs);
+        Assert.Contains("AuditGearMechanismGeometry", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Task.WhenAll & AggregateException Hazards
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditTaskWhenAllExceptionItem", historyCs);
+        Assert.Contains("AuditTaskWhenAllExceptionPropagation", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown YAML Frontmatter & ISO-8601 Date Hygiene
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceFrontmatterAndDateHygieneItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceFrontmatterAndDateHygieneClick", suiteCs);
+        Assert.Contains("AuditWorkspaceFrontmatterAndDateHygiene", suiteCs);
+    }
 }

@@ -835,6 +835,9 @@
                                     <MenuFlyoutItem x:Name="SelectionAuditTrimetricAlignmentItem" Text="Audit trimetric projection &amp; tri-axial angle alignment" Click="OnSelectionAuditTrimetricAlignmentClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="SelectionAuditIsometricGridSnappingItem" Text="Audit diagram isometric 8px/16px grid snapping &amp; offset quanta" Click="OnSelectionAuditIsometricGridSnappingClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                     <MenuFlyoutItem x:Name="SelectionAuditRadialAlignmentItem" Text="Audit diagram radial &amp; concentric ring alignment" Click="OnSelectionAuditRadialAlignmentClick">
                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                     </MenuFlyoutItem>

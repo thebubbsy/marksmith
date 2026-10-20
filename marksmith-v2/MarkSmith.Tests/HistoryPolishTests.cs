@@ -3578,4 +3578,41 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal(riskyAudit.Summary, formatted);
     }
 
+    [Fact]
+    public void Run209_AuditTaskWhenAllExceptionPropagation_DetectsHazards()
+    {
+        var cleanCode = string.Join("\n",
+            "public async Task<int> ProcessAsync()",
+            "{",
+            "    var res = await Service.GetDataAsync();",
+            "    return res;",
+            "}"
+        );
+        var cleanAudit = LineDiff.AuditTaskWhenAllExceptionPropagation("", cleanCode);
+        Assert.Equal(100.0, cleanAudit.ExceptionPropagationSafetyScore);
+        Assert.Equal(0, cleanAudit.UnhandledWhenAllHazards);
+        Assert.Equal(0, cleanAudit.UnhandledWaitAllHazards);
+
+        var hazardousCode = string.Join("\n",
+            "public void RunHazards()",
+            "{",
+            "    await Task.WhenAll(taskA, taskB);",
+            "    Task.WaitAll(taskA, taskB);",
+            "    _ = Task.Run(() => BackgroundWork());",
+            "    _ = Task.WhenAll(taskA, taskB);",
+            "}"
+        );
+        var hazardousAudit = LineDiff.AuditTaskWhenAllExceptionPropagation("", hazardousCode);
+        Assert.True(hazardousAudit.UnhandledWhenAllHazards >= 1);
+        Assert.True(hazardousAudit.UnhandledWaitAllHazards >= 1);
+        Assert.True(hazardousAudit.FireAndForgetDiscardHazards >= 2);
+        Assert.True(hazardousAudit.ExceptionPropagationSafetyScore < 60.0);
+
+        string formatted = LineDiff.FormatTaskWhenAllExceptionSummary(
+            hazardousAudit.TotalModifiedLines, hazardousAudit.TotalWhenAllCalls,
+            hazardousAudit.TotalWaitAllCalls, hazardousAudit.UnhandledWhenAllHazards,
+            hazardousAudit.UnhandledWaitAllHazards, hazardousAudit.FireAndForgetDiscardHazards,
+            hazardousAudit.ExceptionPropagationSafetyScore, hazardousAudit.Category);
+        Assert.Equal(hazardousAudit.Summary, formatted);
+    }
 }

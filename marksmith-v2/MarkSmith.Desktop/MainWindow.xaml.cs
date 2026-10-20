@@ -12179,7 +12179,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             _ = Services.ClipboardWriter.TrySetTextAsync(summary);
             AnnounceStatus(summary);
         };
-        menu.Items.Add(auditFootnoteBidirectionalLinksItem);
+        menu.Items.Add(auditFootnoteBidirectionalLinksItem);
+        var auditInlineHtmlSanitizationItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Inline HTML Sanitization & Raw Angle Brackets",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditInlineHtmlSanitizationItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownInlineHtmlSanitization(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditInlineHtmlSanitizationItem);
+
 
 
         menu.ShowAt(anchor);

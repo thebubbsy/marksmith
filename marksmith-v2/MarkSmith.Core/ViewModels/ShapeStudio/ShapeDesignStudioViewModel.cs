@@ -10632,6 +10632,115 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     }
 
 
+    public DiagramIsometricGridSnappingAudit AuditIsometricGridSnapping(bool selectionOnly = false, double quantum = 8.0)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditIsometricGridSnapping(targetShapes, Shapes.ToList(), isSelection, quantum);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramIsometricGridSnappingAudit AuditIsometricGridSnapping(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes,
+        bool isSelection = false,
+        double quantum = 8.0)
+    {
+        var list = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var targets = (targetShapes ?? list).Where(s => s != null && !s.IsLine).ToList();
+
+        int totalShapes = targets.Count;
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatIsometricGridSnappingSummary(0, 0, 0, 0, 0, 0.0, 100.0, "Clean Baseline", isSelection, quantum);
+            return new DiagramIsometricGridSnappingAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<IsometricGridSnappingItem>(), "Clean Baseline", isSelection, emptySummary);
+        }
+
+        var items = new List<IsometricGridSnappingItem>();
+        int fullySnapped = 0;
+        int offGridPositions = 0;
+        int nonModularDimensions = 0;
+        int subPixelJitters = 0;
+        double totalDeviation = 0.0;
+
+        foreach (var shape in targets)
+        {
+            double x = shape.X;
+            double y = shape.Y;
+            double w = shape.Width;
+            double h = shape.Height;
+
+            double devX = Math.Abs(x - (Math.Round(x / quantum) * quantum));
+            double devY = Math.Abs(y - (Math.Round(y / quantum) * quantum));
+            double devW = Math.Abs(w - (Math.Round(w / quantum) * quantum));
+            double devH = Math.Abs(h - (Math.Round(h / quantum) * quantum));
+
+            double maxDev = Math.Max(Math.Max(devX, devY), Math.Max(devW, devH));
+            totalDeviation += (devX + devY + devW + devH);
+
+            bool posSnapped = devX < 0.01 && devY < 0.01;
+            bool dimSnapped = devW < 0.01 && devH < 0.01;
+            bool hasSubPixel = Math.Abs(x - Math.Floor(x)) > 0.01 || Math.Abs(y - Math.Floor(y)) > 0.01 ||
+                               Math.Abs(w - Math.Floor(w)) > 0.01 || Math.Abs(h - Math.Floor(h)) > 0.01;
+
+            if (!posSnapped) offGridPositions++;
+            if (!dimSnapped) nonModularDimensions++;
+            if (hasSubPixel) subPixelJitters++;
+            if (posSnapped && dimSnapped && !hasSubPixel) fullySnapped++;
+
+            string rec = (posSnapped && dimSnapped && !hasSubPixel)
+                ? "Perfect alignment with isometric grid."
+                : $"Snap shape coordinates (dx:{devX:0.#}, dy:{devY:0.#}) and dimensions (dw:{devW:0.#}, dh:{devH:0.#}) to nearest {quantum}px quantum.";
+
+            items.Add(new IsometricGridSnappingItem(
+                shape.Id.ToString(), shape.ShapeType.ToString(),
+                x, y, w, h, maxDev, posSnapped, dimSnapped, rec));
+        }
+
+        double meanDev = totalShapes > 0 ? totalDeviation / (totalShapes * 4.0) : 0.0;
+        double score = 100.0 - (offGridPositions * 10.0) - (nonModularDimensions * 5.0) - (subPixelJitters * 8.0);
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            100.0 when offGridPositions == 0 && nonModularDimensions == 0 => "Clean Baseline",
+            >= 85.0 => "High Grid Precision",
+            >= 70.0 => "Minor Snapping Drift",
+            >= 50.0 => "Moderate Off-Grid Placements",
+            _ => "Unsnapped Sub-Pixel Chaos"
+        };
+
+        string summary = FormatIsometricGridSnappingSummary(
+            totalShapes, fullySnapped, offGridPositions, nonModularDimensions,
+            subPixelJitters, meanDev, score, category, isSelection, quantum);
+
+        return new DiagramIsometricGridSnappingAudit(
+            totalShapes, fullySnapped, offGridPositions, nonModularDimensions,
+            subPixelJitters, meanDev, score, items, category, isSelection, summary);
+    }
+
+    public static string FormatIsometricGridSnappingSummary(
+        int totalShapes, int fullySnapped, int offGridPositions, int nonModularDimensions,
+        int subPixelJitters, double meanDev, double score, string category, bool isSelection, double quantum)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Diagram grid snapping audit ({scope}0 shapes): Clean Baseline";
+
+        var parts = new List<string>();
+        parts.Add($"{totalShapes} shape{(totalShapes == 1 ? "" : "s")} ({quantum:0}px quantum)");
+        if (fullySnapped > 0) parts.Add($"✓ {fullySnapped} fully snapped");
+        if (offGridPositions > 0) parts.Add($"⚠ {offGridPositions} off-grid pos");
+        if (nonModularDimensions > 0) parts.Add($"ℹ {nonModularDimensions} non-modular size");
+        if (subPixelJitters > 0) parts.Add($"🚨 {subPixelJitters} sub-pixel jitter");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram isometric grid snapping audit ({scope}{details} · {category} · {score:0.#}% precision score)";
+    }
+
     public static string FormatIsometricAlignmentSummary(
         int totalShapes, int totalRays, int alignedRays, int driftRays, int offAxisRays,
         double score, string category, bool isSelection)
@@ -15058,5 +15167,28 @@ public sealed record DiagramTrimetricAlignmentAudit(
     IReadOnlyList<TrimetricShapeRayItem> Rays,
     string Category,
     bool IsSelectionScope,
-    string Summary);
+    string Summary);
+public sealed record IsometricGridSnappingItem(
+    string ShapeId,
+    string ShapeName,
+    double X,
+    double Y,
+    double Width,
+    double Height,
+    double OffsetDeviation,
+    bool IsPositionSnapped,
+    bool IsDimensionSnapped,
+    string Recommendation);
 
+public sealed record DiagramIsometricGridSnappingAudit(
+    int TotalShapes,
+    int FullySnappedShapes,
+    int OffGridPositionShapes,
+    int NonModularDimensionShapes,
+    int SubPixelJitterShapes,
+    double MeanDeviation,
+    double GridSnappingScore,
+    IReadOnlyList<IsometricGridSnappingItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

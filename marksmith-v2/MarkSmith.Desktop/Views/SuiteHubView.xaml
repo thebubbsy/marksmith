@@ -426,6 +426,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceMermaidDiagramsItem" Text="Audit workspace mermaid diagram syntax, entity encoding &amp; unescaped labels" Click="OnAuditWorkspaceMermaidDiagramsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceFrontmatterAndDateHygieneItem" Text="Audit workspace markdown YAML frontmatter &amp; ISO-8601 date hygiene" Click="OnAuditWorkspaceFrontmatterAndDateHygieneClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditWorkspaceCrossFileLinksItem" Text="Audit workspace markdown cross-file links &amp; anchor reference integrity" Click="OnAuditWorkspaceCrossFileLinksClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
