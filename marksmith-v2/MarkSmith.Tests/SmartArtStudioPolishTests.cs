@@ -3018,4 +3018,50 @@ public class SmartArtStudioPolishTests
         Assert.True(imbalancedAudit.TreeBalanceScore <= 80.0);
     }
 
+
+    [Fact]
+    public void Run198_AuditProcessFlowChevronUniformity_ValidatesMonotonicSizingAndNotches()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditProcessFlowChevronUniformity("");
+        Assert.Equal(0, emptyAudit.TotalSteps);
+        Assert.Equal(100.0, emptyAudit.ProcessCadenceScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        // 2. Uniform 4-step process flow
+        var uniformMd = string.Join("\n",
+            "* Step 1: Research",
+            "* Step 2: Prototype",
+            "* Step 3: Implement",
+            "* Step 4: Validate"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditProcessFlowChevronUniformity(uniformMd, "Chevron Process");
+        Assert.Equal(4, audit.TotalSteps);
+        Assert.Equal(0, audit.OutlierCount);
+        Assert.False(audit.IsCrowdedFlow);
+        Assert.True(audit.ProcessCadenceScore >= 95.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatChevronUniformitySummary(
+            audit.TotalSteps, audit.TotalWords, audit.AverageStepLength,
+            audit.MinStepLength, audit.MaxStepLength, audit.LengthVarianceRatio,
+            audit.OutlierCount, audit.IsCrowdedFlow, audit.ProcessCadenceScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Crowded sequence (> 8 steps) with extreme length variance
+        var crowdedMd = string.Join("\n",
+            "* A",
+            "* B",
+            "* C",
+            "* D",
+            "* E",
+            "* F",
+            "* G",
+            "* H",
+            "* Supercalifragilisticexpialidocious Ultra Long Enterprise Transformation Phase"
+        );
+        var crowdedAudit = SmartArtDesignStudioViewModel.AuditProcessFlowChevronUniformity(crowdedMd);
+        Assert.True(crowdedAudit.IsCrowdedFlow);
+        Assert.True(crowdedAudit.ProcessCadenceScore < 80.0);
+    }
 }

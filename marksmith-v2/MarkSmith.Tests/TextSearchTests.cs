@@ -3394,4 +3394,47 @@ public class TextSearchTests
         Assert.Equal(1, brokenAudit.OrphanDefinitionCount);
         Assert.True(brokenAudit.StructuralIntegrityScore < 80.0);
     }
+
+    [Fact]
+    public void Run198_AuditMarkdownMathDelimiters_ValidatesBalancingAndEscapedDollars()
+    {
+        // 1. Empty markdown
+        var emptyAudit = TextSearch.AuditMarkdownMathDelimiters("");
+        Assert.Equal(0, emptyAudit.TotalMathExpressions);
+        Assert.Equal(100.0, emptyAudit.MathRenderingFidelityScore);
+        Assert.Equal("No Math Detected", emptyAudit.Category);
+
+        // 2. Clean markdown with inline math, display math, and escaped currency
+        var cleanDoc = string.Join("\n",
+            "# Physics Notes",
+            "Energy equation: $E = mc^2$ in relativity.",
+            @"Display formula: $$\int_0^\infty e^{-x} dx = 1$$",
+            "The cost of the book is \\$50 or \\$75."
+        );
+
+        var cleanAudit = TextSearch.AuditMarkdownMathDelimiters(cleanDoc);
+        Assert.True(cleanAudit.TotalMathExpressions >= 2);
+        Assert.Equal(0, cleanAudit.UnclosedDelimiterCount);
+        Assert.Equal(0, cleanAudit.UnbalancedBraceCount);
+        Assert.Equal(0, cleanAudit.UnescapedCurrencyCount);
+        Assert.Equal(100.0, cleanAudit.MathRenderingFidelityScore);
+
+        string formatted = TextSearch.FormatMathDelimiterFidelitySummary(
+            cleanAudit.TotalMathExpressions, cleanAudit.InlineMathCount, cleanAudit.DisplayMathCount,
+            cleanAudit.ValidMathCount, cleanAudit.UnclosedDelimiterCount,
+            cleanAudit.UnescapedCurrencyCount, cleanAudit.UnbalancedBraceCount,
+            cleanAudit.MathRenderingFidelityScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Broken doc with unclosed delimiter, unescaped currency and unbalanced braces
+        var brokenDoc = string.Join("\n",
+            "Broken formula: $x + y with no closing marker",
+            "Price is $99.99 right here.",
+            "Unbalanced braces in KaTeX: $\\frac{a}{b$"
+        );
+
+        var brokenAudit = TextSearch.AuditMarkdownMathDelimiters(brokenDoc);
+        Assert.True(brokenAudit.UnclosedDelimiterCount > 0 || brokenAudit.UnescapedCurrencyCount > 0 || brokenAudit.UnbalancedBraceCount > 0);
+        Assert.True(brokenAudit.MathRenderingFidelityScore < 90.0);
+    }
 }

@@ -7414,6 +7414,7 @@ namespace MarkSmith.ViewModels.MindMap
                     emptySummary);
             }
 
+
             var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
 
             var relevantLinks = Links
@@ -7586,6 +7587,13 @@ namespace MarkSmith.ViewModels.MindMap
             return $"K-Core decomposition audit ({scope} · {nodeLabel}, {edgeLabel} · {shellLabel} [{breakdown}] · {category}): " +
                    $"C/P ratio {corePeripheryRatio:0.##}{topNucleus}";
         }
+
+        public GraphKCoreDecompositionAudit AuditGraphKCoreDecompositionAndNuclei(bool selectionOnly = false)
+            => AuditKCoreDecompositionAndShells(selectionOnly);
+
+        public static GraphKCoreDecompositionAudit AuditGraphKCoreDecompositionAndNuclei(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+            => AuditKCoreDecompositionAndShells(nodes, links);
 
         public GraphAssortativityAudit AuditGraphAssortativityAndMixing(bool selectionOnly = false)
         {

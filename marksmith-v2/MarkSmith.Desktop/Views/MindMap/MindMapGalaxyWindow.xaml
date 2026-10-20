@@ -351,6 +351,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphArticulationPointsItem" Text="Audit graph biconnected components, cut vertices &amp; bridge fragility" Click="OnAuditGraphArticulationPointsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphKCoreDecompositionItem" Text="Audit graph k-core decomposition, structural shell tiers &amp; nucleus clusters" Click="OnAuditGraphKCoreDecompositionClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditGraphClosenessCentralityItem" Text="Audit graph node closeness &amp; harmonic centrality distribution" Click="OnAuditGraphClosenessCentralityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

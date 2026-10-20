@@ -3200,4 +3200,56 @@ public class HistoryPolishTests : IDisposable
         Assert.True(badAudit.MemorySafetyHygieneScore < 60.0);
     }
 
+
+    [Fact]
+    public void Run198_AuditStringAllocationAndMemoryPressureHazards_DetectsSubstringAndConcatenation()
+    {
+        // 1. Clean code
+        var cleanCode = string.Join("\n",
+            "public class CleanSpanParser",
+            "{",
+            "    public void Parse(ReadOnlySpan<char> input)",
+            "    {",
+            "        var slice = input.Slice(0, 5);",
+            "        var sb = new StringBuilder();",
+            "        sb.Append(slice);",
+            "    }",
+            "}"
+        );
+
+        var cleanAudit = LineDiff.AuditStringAllocationAndMemoryPressureHazards("", cleanCode);
+        Assert.Equal(0, cleanAudit.TotalHazards);
+        Assert.Equal(100.0, cleanAudit.AllocationEfficiencyScore);
+        Assert.Equal("Optimal Zero-Allocation Hygiene", cleanAudit.Category);
+
+        string formatted = LineDiff.FormatStringAllocationSummary(
+            cleanAudit.TotalModifiedLines, cleanAudit.TotalHazards, cleanAudit.SubstringCount,
+            cleanAudit.SplitCount, cleanAudit.ConcatInLoopCount,
+            cleanAudit.InterpolatedLogCount, cleanAudit.CaseConversionComparisonCount,
+            cleanAudit.AllocationEfficiencyScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 2. High allocation code
+        var badCode = string.Join("\n",
+            "public class HeavyAllocation",
+            "{",
+            "    public void Process(string s)",
+            "    {",
+            "        var sub = s.Substring(2, 4);",
+            "        var parts = s.Split(',');",
+            "        for (int i = 0; i < 100; i++)",
+            "        {",
+            "            s += i.ToString();",
+            "        }",
+            "    }",
+            "}"
+        );
+
+        var badAudit = LineDiff.AuditStringAllocationAndMemoryPressureHazards("", badCode);
+        Assert.True(badAudit.SubstringCount >= 1);
+        Assert.True(badAudit.SplitCount >= 1);
+        Assert.True(badAudit.ConcatInLoopCount >= 1);
+        Assert.True(badAudit.TotalHazards >= 3);
+        Assert.True(badAudit.AllocationEfficiencyScore < 75.0);
+    }
 }

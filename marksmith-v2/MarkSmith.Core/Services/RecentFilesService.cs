@@ -7038,6 +7038,7 @@ public sealed class RecentFilesService
     "dialectAlignmentScore": 100.0,
     "category": "Default Baseline"
   }
+
 }
 """;
         }
@@ -9580,6 +9581,200 @@ public sealed class RecentFilesService
         return $"Workspace task list & action item audit ({details} · {category} · {score:0.#}% hygiene score)";
     }
 
+    public static WorkspaceHeadingSlugAndTocAudit AuditWorkspaceHeadingSlugsAndTocAnchors(
+        string? workspaceDirectory = null,
+        IEnumerable<string>? explicitFiles = null,
+        Func<string, string[]?>? readAllLines = null)
+    {
+        string root = workspaceDirectory ?? Directory.GetCurrentDirectory();
+        var files = (explicitFiles != null)
+            ? explicitFiles.ToList()
+            : (Directory.Exists(root)
+                ? Directory.GetFiles(root, "*.md", SearchOption.AllDirectories).ToList()
+                : new List<string>());
+
+        int totalDocsAudited = files.Count;
+        if (totalDocsAudited == 0)
+        {
+            string emptySummary = FormatWorkspaceHeadingSlugsSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "No Documents Found");
+            return new WorkspaceHeadingSlugAndTocAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<HeadingSlugItem>(), "No Documents Found", emptySummary);
+        }
+
+        var items = new List<HeadingSlugItem>();
+        int docsWithHeadings = 0;
+        int totalHeadings = 0;
+        int duplicateSlugsCount = 0;
+        int brokenTocAnchorsCount = 0;
+        int tocOrphanCount = 0;
+        var uniqueSlugsGlobal = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in files)
+        {
+            string[]? lines = null;
+            try
+            {
+                lines = readAllLines != null
+                    ? readAllLines(file)
+                    : (File.Exists(file) ? File.ReadAllLines(file) : null);
+            }
+            catch
+            {
+                // skip unreadable file
+            }
+
+            if (lines == null || lines.Length == 0) continue;
+
+            string fileName = Path.GetFileName(file);
+            bool docHasHeadings = false;
+            var docSlugs = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var headingsInDoc = new List<(int LineNumber, string Title, int Level, string BaseSlug, string FinalSlug)>();
+            var internalAnchorsInDoc = new List<(int LineNumber, string Anchor)>();
+
+            bool inCodeBlock = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.Trim();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inCodeBlock = !inCodeBlock;
+                    continue;
+                }
+                if (inCodeBlock) continue;
+
+                var headingMatch = Regex.Match(line, @"^(?<hashes>#{1,6})\s+(?<title>.+)$");
+                if (headingMatch.Success)
+                {
+                    docHasHeadings = true;
+                    int level = headingMatch.Groups["hashes"].Length;
+                    string title = headingMatch.Groups["title"].Value.Trim();
+
+                    string baseSlug = GenerateHeadingSlug(title);
+                    if (!docSlugs.ContainsKey(baseSlug))
+                    {
+                        docSlugs[baseSlug] = 1;
+                        headingsInDoc.Add((i + 1, title, level, baseSlug, baseSlug));
+                    }
+                    else
+                    {
+                        int occurrence = docSlugs[baseSlug]++;
+                        string finalSlug = $"{baseSlug}-{occurrence}";
+                        duplicateSlugsCount++;
+                        headingsInDoc.Add((i + 1, title, level, baseSlug, finalSlug));
+                    }
+                }
+
+                var anchorMatches = Regex.Matches(line, @"\[(?<text>[^\]]+)\]\(#(?<anchor>[^\)]+)\)");
+                foreach (Match am in anchorMatches)
+                {
+                    string anchor = am.Groups["anchor"].Value.Trim().ToLowerInvariant();
+                    internalAnchorsInDoc.Add((i + 1, anchor));
+                }
+            }
+
+            if (docHasHeadings) docsWithHeadings++;
+            totalHeadings += headingsInDoc.Count;
+
+            var docDefinedSlugs = new HashSet<string>(headingsInDoc.Select(h => h.FinalSlug), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var a in internalAnchorsInDoc)
+            {
+                if (!docDefinedSlugs.Contains(a.Anchor))
+                {
+                    brokenTocAnchorsCount++;
+                }
+            }
+
+            foreach (var h in headingsInDoc)
+            {
+                uniqueSlugsGlobal.Add(h.FinalSlug);
+                bool isDup = docSlugs.TryGetValue(h.BaseSlug, out int occ) && occ > 1 && h.FinalSlug != h.BaseSlug;
+                int refCount = internalAnchorsInDoc.Count(a => string.Equals(a.Anchor, h.FinalSlug, StringComparison.OrdinalIgnoreCase));
+                bool isOrphan = (headingsInDoc.Count >= 4 && refCount == 0);
+                if (isOrphan) tocOrphanCount++;
+
+                string status = !isDup && refCount > 0
+                    ? "Referenced Anchor"
+                    : (isDup ? "Duplicate Slug Disambiguated" : (isOrphan ? "TOC Orphan Heading" : "Defined Heading"));
+
+                string rec = isDup
+                    ? $"Disambiguate duplicate heading '{h.Title}' to avoid indexed anchor collision (#{h.FinalSlug})"
+                    : (refCount == 0 && headingsInDoc.Count >= 5
+                        ? $"Add Table of Contents link to heading '{h.Title}'"
+                        : "Consistent heading slug and anchor resolution");
+
+                items.Add(new HeadingSlugItem(
+                    file, fileName, h.LineNumber, h.Title, h.Level,
+                    h.FinalSlug, isDup, docSlugs[h.BaseSlug],
+                    refCount, isOrphan, status, rec));
+            }
+        }
+
+        double score = 100.0;
+        score -= (brokenTocAnchorsCount * 20.0);
+        score -= (duplicateSlugsCount * 8.0);
+        if (totalHeadings > 0 && tocOrphanCount > 0 && totalHeadings >= 10)
+        {
+            double orphanRatio = (double)tocOrphanCount / totalHeadings;
+            score -= (orphanRatio * 15.0);
+        }
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal Heading & TOC Integrity",
+            >= 80.0 => "High Navigational Consistency",
+            >= 60.0 => "Moderate Anchor Drift",
+            >= 40.0 => "Broken TOC Anchors Detected",
+            _ => "Severe Navigational Desynchronization"
+        };
+
+        string summary = FormatWorkspaceHeadingSlugsSummary(
+            totalDocsAudited, docsWithHeadings, totalHeadings, uniqueSlugsGlobal.Count,
+            duplicateSlugsCount, brokenTocAnchorsCount, tocOrphanCount, score, category);
+
+        return new WorkspaceHeadingSlugAndTocAudit(
+            totalDocsAudited, docsWithHeadings, totalHeadings, uniqueSlugsGlobal.Count,
+            duplicateSlugsCount, brokenTocAnchorsCount, tocOrphanCount, score,
+            items, category, summary);
+    }
+
+    public static string GenerateHeadingSlug(string headingTitle)
+    {
+        if (string.IsNullOrWhiteSpace(headingTitle)) return "heading";
+        string lower = headingTitle.ToLowerInvariant();
+        lower = Regex.Replace(lower, @"[*_`~]", "");
+        lower = Regex.Replace(lower, @"[^\w\s-]", "");
+        lower = Regex.Replace(lower, @"[\s_]+", "-").Trim('-');
+        return string.IsNullOrEmpty(lower) ? "heading" : lower;
+    }
+
+    public static string FormatWorkspaceHeadingSlugsSummary(
+        int totalDocs, int docsWithHeadings, int totalHeadings, int uniqueSlugs,
+        int duplicateSlugs, int brokenAnchors, int orphanHeadings,
+        double score, string category)
+    {
+        if (totalDocs == 0) return "Workspace heading slug & TOC audit: 0 documents audited";
+        if (totalHeadings == 0)
+            return $"Workspace heading slug & TOC audit ({totalDocs} docs): 0 headings found · 100% score";
+
+        var parts = new List<string>
+        {
+            $"{totalDocs} doc{(totalDocs == 1 ? string.Empty : "s")} ({docsWithHeadings} with headings)",
+            $"{totalHeadings} heading{(totalHeadings == 1 ? string.Empty : "s")}"
+        };
+        if (duplicateSlugs > 0) parts.Add($"⚠️ {duplicateSlugs} duplicate slug{(duplicateSlugs == 1 ? string.Empty : "s")}");
+        if (brokenAnchors > 0) parts.Add($"⚠️ {brokenAnchors} broken TOC anchor{(brokenAnchors == 1 ? string.Empty : "s")}");
+        if (orphanHeadings > 0) parts.Add($"{orphanHeadings} unlinked heading{(orphanHeadings == 1 ? string.Empty : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace heading slug & TOC audit ({details} · {category} · {score:0.#}% consistency score)";
+    }
+
 }
 
 /// <summary>
@@ -9676,6 +9871,8 @@ public sealed class DocumentFamilyCoverageInfo
 
     public bool HasSource => Extensions.Contains(".md") || Extensions.Contains(".markdown");
     public bool HasCompiled => Extensions.Contains(".docx") || Extensions.Contains(".pdf") || Extensions.Contains(".html") || Extensions.Contains(".epub") || Extensions.Contains(".pptx");
+
+
 }
 
 /// <summary>
@@ -10861,3 +11058,37 @@ public sealed record WorkspaceImageAssetsAudit(
     string Category,
     string Summary);
 
+
+/// <summary>
+/// Represents evaluated metrics, line number, heading text, level, generated slug, and TOC reference status in a workspace document.
+/// </summary>
+public sealed record HeadingSlugItem(
+    string FilePath,
+    string FileName,
+    int LineNumber,
+    string HeadingText,
+    int HeadingLevel,
+    string GeneratedSlug,
+    bool IsDuplicateSlug,
+    int TotalOccurrences,
+    int ReferencingTocCount,
+    bool IsTocOrphan,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown heading slugs, duplicate anchor disambiguation,
+/// Table of Contents internal fragment consistency, and orphaned heading navigation.
+/// </summary>
+public sealed record WorkspaceHeadingSlugAndTocAudit(
+    int TotalDocumentsAudited,
+    int DocumentsWithHeadingsCount,
+    int TotalHeadingsFound,
+    int UniqueSlugsCount,
+    int DuplicateSlugsCount,
+    int BrokenTocAnchorsCount,
+    int TocOrphanHeadingsCount,
+    double HeadingNavigationScore,
+    IReadOnlyList<HeadingSlugItem> Items,
+    string Category,
+    string Summary);

@@ -5082,6 +5082,14 @@ namespace MarkSmith.Views.SmartArtStudio
             Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
+    private void OnOutlineStatsAuditChevronUniformityClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditProcessFlowChevronUniformity();
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"✓ {result.Summary}";
+    }
+
 
         #endregion
 

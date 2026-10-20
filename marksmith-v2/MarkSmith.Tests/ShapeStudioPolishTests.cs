@@ -3302,4 +3302,67 @@ public class ShapeStudioPolishTests
         Assert.True(badAudit.AccessibilityScore <= 80.0);
     }
 
+
+    [Fact]
+    public void Run198_AuditConnectorArrowheadAndPortAttachments_EvaluatesSnappedAndDanglingPorts()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditConnectorArrowheadAndPortAttachments();
+        Assert.Equal(0, emptyAudit.TotalConnectors);
+        Assert.Equal(100.0, emptyAudit.RoutingPrecisionScore);
+        Assert.Equal("No Connectors", emptyAudit.Category);
+
+        // 2. Shape box and snapped connector between box1 and box2
+        var box1 = new ShapeCanvasItemViewModel
+        {
+            Id = "b1",
+            Name = "Service Box 1",
+            X = 50,
+            Y = 50,
+            Width = 100,
+            Height = 80,
+            ShapeType = "Rectangle"
+        };
+        var box2 = new ShapeCanvasItemViewModel
+        {
+            Id = "b2",
+            Name = "Service Box 2",
+            X = 250,
+            Y = 50,
+            Width = 100,
+            Height = 80,
+            ShapeType = "Rectangle"
+        };
+        var conn = new ShapeCanvasItemViewModel
+        {
+            Id = "c1",
+            Name = "Data Flow",
+            X = 150,
+            Y = 90,
+            Width = 100,
+            Height = 0,
+            ShapeType = "Line",
+            Prst = "line",
+            ArrowheadStart = "None",
+            ArrowheadEnd = "None"
+        };
+        vm.Shapes.Add(box1);
+        vm.Shapes.Add(box2);
+        vm.Shapes.Add(conn);
+
+        var audit = vm.AuditConnectorArrowheadAndPortAttachments();
+        Assert.Equal(3, audit.TotalShapes);
+        Assert.Equal(1, audit.TotalConnectors);
+        Assert.Equal(2, audit.SnappedPortsCount);
+        Assert.Equal(100.0, audit.RoutingPrecisionScore);
+
+        string formatted = ShapeDesignStudioViewModel.FormatConnectorAttachmentSummary(
+            audit.TotalShapes, audit.TotalConnectors, audit.SnappedPortsCount,
+            audit.DanglingArrowheadsCount, audit.NonOrthogonalBendsCount,
+            audit.RoutingPrecisionScore, audit.Category, audit.IsSelectionScope);
+        Assert.Equal(audit.Summary, formatted);
+    }
 }

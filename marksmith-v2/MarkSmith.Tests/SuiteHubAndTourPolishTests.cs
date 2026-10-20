@@ -6145,4 +6145,88 @@ Some paragraph in between.
         Assert.Contains("AuditWorkspaceInterDocumentLinks", suiteCs);
     }
 
+
+    [Fact]
+    public void Run198_AuditWorkspaceHeadingSlugsAndTocAnchors_ValidatesSlugsAndTocFragments()
+    {
+        var doc1 = string.Join("\n",
+            "# System Architecture",
+            "See [Architecture](#system-architecture).",
+            "Broken anchor link: [Missing Section](#nonexistent-section)",
+            "## Database Design",
+            "See [Database](#database-design)."
+        );
+
+        var doc2 = string.Join("\n",
+            "# User Manual",
+            "# User Manual",
+            "Duplicate heading above causes disambiguation slug."
+        );
+
+        var fileSystem = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\arch.md"] = doc1.Split('\n'),
+            [@"C:\workspace\manual.md"] = doc2.Split('\n')
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceHeadingSlugsAndTocAnchors(
+            workspaceDirectory: @"C:\workspace",
+            explicitFiles: fileSystem.Keys,
+            readAllLines: p => fileSystem.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(2, audit.TotalDocumentsAudited);
+        Assert.Equal(2, audit.DocumentsWithHeadingsCount);
+        Assert.Equal(4, audit.TotalHeadingsFound);
+        Assert.True(audit.DuplicateSlugsCount >= 1);
+        Assert.True(audit.BrokenTocAnchorsCount >= 1);
+        Assert.True(audit.HeadingNavigationScore < 85.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceHeadingSlugsSummary(
+            audit.TotalDocumentsAudited, audit.DocumentsWithHeadingsCount, audit.TotalHeadingsFound,
+            audit.UniqueSlugsCount, audit.DuplicateSlugsCount, audit.BrokenTocAnchorsCount,
+            audit.TocOrphanHeadingsCount, audit.HeadingNavigationScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run198_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown inline math delimiter balance, escaped dollar signs & LaTeX equation validator
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditMathDelimiterBalanceItem", mainCs);
+        Assert.Contains("AuditMarkdownMathDelimiters", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph coreness decomposition, k-core shell tiers & dense nucleus cluster auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphKCoreDecompositionItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphKCoreDecompositionClick", galaxyCs);
+        Assert.Contains("AuditGraphKCoreDecompositionAndNuclei", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram connector arrowhead alignment, endpoint orthogonality & snap port attachment auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditConnectorArrowheadsItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditConnectorArrowheadsClick", shapeCs);
+        Assert.Contains("AuditConnectorArrowheadAndPortAttachments", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt chevron & horizontal process flow monotonic sizing & chevron notch uniformity auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditChevronUniformityItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditChevronUniformityClick", smartArtCs);
+        Assert.Contains("AuditProcessFlowChevronUniformity", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic diff string allocation & substring memory pressure analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditStringAllocation", historyCs);
+        Assert.Contains("AuditStringAllocationAndMemoryPressureHazards", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace markdown heading slug uniqueness & Table of Contents anchor consistency auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceHeadingSlugsItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceHeadingSlugsClick", suiteCs);
+        Assert.Contains("AuditWorkspaceHeadingSlugsAndTocAnchors", suiteCs);
+    }
 }

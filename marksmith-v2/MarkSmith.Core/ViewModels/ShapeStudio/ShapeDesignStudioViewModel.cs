@@ -7028,6 +7028,193 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Diagram shape color contrast audit ({scope}{details} · {category} · {score:0.#}% accessibility score)";
     }
 
+    public DiagramConnectorPortAttachmentAudit AuditConnectorArrowheadAndPortAttachments(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes = null, bool selectionOnly = false)
+    {
+        var targetShapes = (shapes ?? Shapes).ToList();
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        if (isSelection)
+        {
+            targetShapes = selected;
+        }
+
+        var connectors = targetShapes.Where(s =>
+            s.IsLine ||
+            s.ShapeType == "Line" ||
+            s.Prst == "line" ||
+            s.Prst == "straightConnector1" ||
+            s.Prst == "bentConnector3" ||
+            s.Prst == "curvedConnector3").ToList();
+
+        var nonConnectors = (shapes ?? Shapes).Where(s =>
+            !s.IsLine &&
+            s.ShapeType != "Line" &&
+            s.Prst != "line" &&
+            s.Prst != "straightConnector1" &&
+            s.Prst != "bentConnector3" &&
+            s.Prst != "curvedConnector3").ToList();
+
+        int nShapes = targetShapes.Count;
+        int nConnectors = connectors.Count;
+
+        if (nConnectors == 0)
+        {
+            string emptySummary = FormatConnectorAttachmentSummary(nShapes, 0, 0, 0, 0, 100.0, "No Connectors", isSelection);
+            return new DiagramConnectorPortAttachmentAudit(
+                nShapes, 0, 0, 0, 0, 100.0,
+                Array.Empty<ConnectorAttachmentPortItem>(),
+                "No Connectors", isSelection, emptySummary);
+        }
+
+        var ports = new List<(string ShapeId, string ShapeName, string PortName, double X, double Y)>();
+        foreach (var shape in nonConnectors)
+        {
+            double left = shape.X;
+            double top = shape.Y;
+            double right = shape.X + shape.Width;
+            double bottom = shape.Y + shape.Height;
+            double cx = shape.X + shape.Width / 2.0;
+            double cy = shape.Y + shape.Height / 2.0;
+
+            ports.Add((shape.Id, shape.Name ?? shape.Id, "Top", cx, top));
+            ports.Add((shape.Id, shape.Name ?? shape.Id, "Bottom", cx, bottom));
+            ports.Add((shape.Id, shape.Name ?? shape.Id, "Left", left, cy));
+            ports.Add((shape.Id, shape.Name ?? shape.Id, "Right", right, cy));
+        }
+
+        int snappedPortsCount = 0;
+        int danglingArrowheadsCount = 0;
+        int nonOrthogonalBendsCount = 0;
+        var items = new List<ConnectorAttachmentPortItem>();
+
+        foreach (var conn in connectors)
+        {
+            double x1 = conn.X;
+            double y1 = conn.Y;
+            double x2 = conn.X + conn.Width;
+            double y2 = conn.Y + conn.Height;
+
+            bool hasStartArrow = !string.IsNullOrEmpty(conn.ArrowheadStart) && conn.ArrowheadStart != "None";
+            bool hasEndArrow = !string.IsNullOrEmpty(conn.ArrowheadEnd) && conn.ArrowheadEnd != "None";
+
+            double minStartDist = double.MaxValue;
+            string startPortName = "Unattached";
+            foreach (var p in ports)
+            {
+                double d = Math.Sqrt(Math.Pow(x1 - p.X, 2) + Math.Pow(y1 - p.Y, 2));
+                if (d < minStartDist)
+                {
+                    minStartDist = d;
+                    startPortName = $"{p.ShapeName}.{p.PortName}";
+                }
+            }
+
+            double minEndDist = double.MaxValue;
+            string endPortName = "Unattached";
+            foreach (var p in ports)
+            {
+                double d = Math.Sqrt(Math.Pow(x2 - p.X, 2) + Math.Pow(y2 - p.Y, 2));
+                if (d < minEndDist)
+                {
+                    minEndDist = d;
+                    endPortName = $"{p.ShapeName}.{p.PortName}";
+                }
+            }
+
+            const double SnapTolerance = 14.0;
+            const double DanglingThreshold = 35.0;
+
+            bool isStartSnapped = minStartDist <= SnapTolerance;
+            bool isEndSnapped = minEndDist <= SnapTolerance;
+
+            if (isStartSnapped) snappedPortsCount++;
+            if (isEndSnapped) snappedPortsCount++;
+
+            bool startDangling = hasStartArrow && minStartDist > DanglingThreshold;
+            bool endDangling = hasEndArrow && minEndDist > DanglingThreshold;
+            bool hasDangling = startDangling || endDangling;
+            if (hasDangling) danglingArrowheadsCount++;
+
+            double dx = Math.Abs(x2 - x1);
+            double dy = Math.Abs(y2 - y1);
+            bool isOrthogonal = dx <= 2.0 || dy <= 2.0;
+            if (!isOrthogonal && (conn.Prst == "bentConnector3" || conn.ShapeType == "Orthogonal"))
+            {
+                nonOrthogonalBendsCount++;
+            }
+
+            string routingStatus = (isStartSnapped && isEndSnapped)
+                ? "Fully Snapped"
+                : (hasDangling ? "Dangling Arrowhead" : (isStartSnapped || isEndSnapped ? "Partially Snapped" : "Floating Connector"));
+
+            string recommendation = hasDangling
+                ? "Align arrowhead endpoint to shape boundary port to avoid floating arrow"
+                : (!isStartSnapped || !isEndSnapped
+                    ? "Snap connector endpoint to nearest shape anchor port"
+                    : "Optimal port attachment and connector routing");
+
+            items.Add(new ConnectorAttachmentPortItem(
+                conn.Id, conn.Name ?? conn.Id,
+                hasStartArrow, hasEndArrow,
+                isStartSnapped, isEndSnapped,
+                startPortName, endPortName,
+                isOrthogonal, hasDangling,
+                routingStatus, recommendation));
+        }
+
+        int totalPossiblePorts = nConnectors * 2;
+        double attachmentRatio = totalPossiblePorts > 0 ? (double)snappedPortsCount / totalPossiblePorts : 1.0;
+        double precisionScore = attachmentRatio * 80.0 + 20.0;
+        precisionScore -= (danglingArrowheadsCount * 12.0);
+        precisionScore -= (nonOrthogonalBendsCount * 8.0);
+        precisionScore = Math.Round(Math.Clamp(precisionScore, 0.0, 100.0), 1);
+
+        string category = precisionScore switch
+        {
+            >= 90.0 => "High Precision Docking",
+            >= 75.0 => "Acceptable Port Snapping",
+            >= 60.0 => "Moderate Attachment Drift",
+            >= 40.0 => "Severe Port Misalignment",
+            _ => "Dangling Unattached Connectors"
+        };
+
+        string summary = FormatConnectorAttachmentSummary(
+            nShapes, nConnectors, snappedPortsCount, danglingArrowheadsCount,
+            nonOrthogonalBendsCount, precisionScore, category, isSelection);
+
+        return new DiagramConnectorPortAttachmentAudit(
+            nShapes, nConnectors, snappedPortsCount, danglingArrowheadsCount,
+            nonOrthogonalBendsCount, precisionScore, items, category, isSelection, summary);
+    }
+
+    public static string FormatConnectorAttachmentSummary(
+        int totalShapes, int totalConnectors, int snappedPorts, int danglingArrows,
+        int nonOrthogonalBends, double score, string category, bool isSelection = false)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalConnectors == 0)
+            return $"Connector port attachment & arrowhead audit ({scope}{totalShapes} shapes): 0 connectors on canvas";
+
+        string connSuffix = totalConnectors == 1 ? string.Empty : "s";
+        string portSuffix = snappedPorts == 1 ? string.Empty : "s";
+        string arrowSuffix = danglingArrows == 1 ? string.Empty : "s";
+        string bendSuffix = nonOrthogonalBends == 1 ? string.Empty : "s";
+
+        var parts = new List<string>
+        {
+            $"{totalConnectors} connector{connSuffix}",
+            $"{snappedPorts} port{portSuffix} snapped"
+        };
+        if (danglingArrows > 0) parts.Add($"⚠️ {danglingArrows} dangling arrow{arrowSuffix}");
+        if (nonOrthogonalBends > 0) parts.Add($"{nonOrthogonalBends} non-orthogonal bend{bendSuffix}");
+
+        string details = string.Join(" · ", parts);
+        return $"Connector port attachment & arrowhead audit ({scope}{details} · {category} · {score:0.#}% precision score)";
+    }
+
+
+
 
     public static string FormatAspectRatioSummary(
         int totalShapes, int conformingCount, int driftCount, int freeformCount,
@@ -13177,3 +13364,37 @@ public sealed record DiagramShapeZOrderStackingAudit(
     bool IsSelectionScope,
     string Summary);
 
+
+
+/// <summary>
+/// Represents evaluated arrowhead styles, snap port attachment, and orthogonality for an individual diagram connector.
+/// </summary>
+public sealed record ConnectorAttachmentPortItem(
+    string ConnectorId,
+    string ConnectorName,
+    bool HasStartArrow,
+    bool HasEndArrow,
+    bool IsStartSnapped,
+    bool IsEndSnapped,
+    string StartPortName,
+    string EndPortName,
+    bool IsOrthogonal,
+    bool HasDanglingArrow,
+    string RoutingStatus,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of diagram connector arrowheads, snap port attachment accuracy,
+/// endpoint drift, and orthogonality compliance.
+/// </summary>
+public sealed record DiagramConnectorPortAttachmentAudit(
+    int TotalShapes,
+    int TotalConnectors,
+    int SnappedPortsCount,
+    int DanglingArrowheadsCount,
+    int NonOrthogonalBendsCount,
+    double RoutingPrecisionScore,
+    IReadOnlyList<ConnectorAttachmentPortItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

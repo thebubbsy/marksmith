@@ -431,6 +431,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditCycleRadialAngularItem" Text="Audit SmartArt cycle &amp; radial node angular distribution, polar spacing &amp; equidistance" Click="OnOutlineStatsAuditCycleRadialAngularClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditChevronUniformityItem" Text="Audit SmartArt chevron &amp; horizontal process flow monotonic sizing &amp; chevron notch uniformity" Click="OnOutlineStatsAuditChevronUniformityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

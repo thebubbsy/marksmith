@@ -3213,6 +3213,135 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string branchStr = maxDepth > 1 ? $" · Max branch: {maxBranching} (avg {avgBranching:0.#})" : "";
         return $"Hierarchy branching audit ({itemLabel} across {maxDepth} levels{branchStr} · {treeBalance}): Recommended: {recommendedCategory}";
     }
+    public SmartArtProcessFlowChevronAudit AuditProcessFlowChevronUniformity()
+    {
+        var audit = AuditProcessFlowChevronUniformity(MarkdownText, SelectedLayout?.DisplayName);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static SmartArtProcessFlowChevronAudit AuditProcessFlowChevronUniformity(string? markdown, string? layoutName = null)
+    {
+        string layout = layoutName ?? "Chevron Process";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatChevronUniformitySummary(0, 0, 0.0, 0, 0, 1.0, 0, false, 100.0, "Empty Outline");
+            return new SmartArtProcessFlowChevronAudit(
+                0, 0, 0.0, 0, 0, 1.0, 0, false, 100.0,
+                Array.Empty<ProcessFlowStepItem>(),
+                "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var steps = new List<(string Title, int LineNumber, List<string> SubItems)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string raw = lines[i];
+            string trimmed = raw.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            int indent = raw.Length - raw.TrimStart().Length;
+            string clean = trimmed.TrimStart('-', '*', '+', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', ' ');
+
+            if (indent <= 1)
+            {
+                steps.Add((clean, i + 1, new List<string>()));
+            }
+            else if (steps.Count > 0)
+            {
+                steps[^1].SubItems.Add(clean);
+            }
+        }
+
+        int totalSteps = steps.Count;
+        if (totalSteps == 0)
+        {
+            string emptySummary = FormatChevronUniformitySummary(0, 0, 0.0, 0, 0, 1.0, 0, false, 100.0, "No Steps Found");
+            return new SmartArtProcessFlowChevronAudit(
+                0, 0, 0.0, 0, 0, 1.0, 0, false, 100.0,
+                Array.Empty<ProcessFlowStepItem>(),
+                "No Steps Found", emptySummary);
+        }
+
+        var stepLengths = steps.Select(s => s.Title.Length).ToList();
+        double avgLength = stepLengths.Average();
+        int minLength = stepLengths.Min();
+        int maxLength = stepLengths.Max();
+        double varianceRatio = minLength > 0 ? (double)maxLength / minLength : maxLength;
+
+        int totalWords = steps.Sum(s => s.Title.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length);
+        int outlierCount = 0;
+        bool isCrowded = totalSteps >= 8;
+
+        var items = new List<ProcessFlowStepItem>();
+        for (int i = 0; i < totalSteps; i++)
+        {
+            var s = steps[i];
+            int charCount = s.Title.Length;
+            int words = s.Title.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+            double relRatio = avgLength > 0 ? (double)charCount / avgLength : 1.0;
+            bool isOutlier = relRatio > 2.5 || relRatio < 0.35;
+            if (isOutlier) outlierCount++;
+
+            bool hasMatingNotch = (i < totalSteps - 1);
+
+            string status = isOutlier ? "Irregular Step Volume" : (string.IsNullOrWhiteSpace(s.Title) ? "Empty Step" : "Uniform Step");
+            string recommendation = isOutlier
+                ? (relRatio > 2.0 ? "Condense step text to prevent horizontal chevron crowding" : "Expand brief title for balanced stage presence")
+                : (hasMatingNotch ? "Standard sequential chevron notch-to-point mating" : "Terminal process stage");
+
+            items.Add(new ProcessFlowStepItem(
+                i + 1, s.Title, s.SubItems.Count, charCount, words,
+                Math.Round(relRatio, 2), isOutlier, hasMatingNotch,
+                status, recommendation));
+        }
+
+        double score = 100.0;
+        if (totalSteps == 1) score -= 15.0;
+        if (isCrowded) score -= (totalSteps - 7) * 8.0;
+        if (varianceRatio > 2.5) score -= Math.Min(35.0, (varianceRatio - 2.5) * 10.0);
+        score -= (outlierCount * 8.0);
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "High Process Cadence",
+            >= 75.0 => "Balanced Sequential Flow",
+            >= 60.0 => "Moderate Length Variance",
+            >= 40.0 => "Irregular Process Sizing",
+            _ => "Asymmetric Process Flow"
+        };
+
+        string summary = FormatChevronUniformitySummary(
+            totalSteps, totalWords, avgLength, minLength, maxLength,
+            varianceRatio, outlierCount, isCrowded, score, category);
+
+        return new SmartArtProcessFlowChevronAudit(
+            totalSteps, totalWords, Math.Round(avgLength, 1), minLength, maxLength,
+            Math.Round(varianceRatio, 2), outlierCount, isCrowded, score,
+            items, category, summary);
+    }
+
+    public static string FormatChevronUniformitySummary(
+        int totalSteps, int totalWords, double avgLength, int minLength, int maxLength,
+        double varianceRatio, int outlierCount, bool isCrowded, double score, string category)
+    {
+        if (totalSteps == 0) return "Process flow & chevron uniformity audit: Empty outline · 0 stages detected";
+
+        var parts = new List<string>
+        {
+            $"{totalSteps} stage{(totalSteps == 1 ? string.Empty : "s")} ({totalWords} words)",
+            $"avg len={avgLength:0.#} chars (range {minLength}-{maxLength})",
+            $"ratio={varianceRatio:0.#}x"
+        };
+        if (outlierCount > 0) parts.Add($"⚠️ {outlierCount} length outlier{(outlierCount == 1 ? string.Empty : "s")}");
+        if (isCrowded) parts.Add("⚠️ crowded layout");
+
+        string details = string.Join(" · ", parts);
+        return $"Process flow & chevron uniformity audit ({details} · {category} · {score:0.#}% cadence score)";
+    }
+
 
     /// <summary>
     /// Audits the container density and slide fit of the active outline against standard slide dimensions.
@@ -11578,3 +11707,36 @@ public sealed record SmartArtCycleRadialAngularAudit(
     string Category,
     string Summary);
 
+
+/// <summary>
+/// Represents evaluated metrics, stage title, volume, and notch mating status for an individual process flow step.
+/// </summary>
+public sealed record ProcessFlowStepItem(
+    int StepIndex,
+    string Title,
+    int SubItemCount,
+    int CharacterCount,
+    int WordCount,
+    double RelativeLengthRatio,
+    bool IsLengthOutlier,
+    bool HasMatingNotch,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt chevron and horizontal process flow sizing,
+/// chevron notch-to-point mating uniformity, step volume variance, and sequence cadence.
+/// </summary>
+public sealed record SmartArtProcessFlowChevronAudit(
+    int TotalSteps,
+    int TotalWords,
+    double AverageStepLength,
+    int MinStepLength,
+    int MaxStepLength,
+    double LengthVarianceRatio,
+    int OutlierCount,
+    bool IsCrowdedFlow,
+    double ProcessCadenceScore,
+    IReadOnlyList<ProcessFlowStepItem> Items,
+    string Category,
+    string Summary);

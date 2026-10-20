@@ -4067,5 +4067,44 @@ namespace MarkSmith.Tests
             Assert.True(lineAudit.StructuralRedundancyScore < 85.0);
         }
 
+    
+        [Fact]
+        public void Run198_AuditGraphKCoreDecompositionAndNuclei_ComputesCoresAndShells()
+        {
+            // 1. Empty galaxy
+            var emptyAudit = MindMapStudioViewModel.AuditGraphKCoreDecompositionAndNuclei(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.MaxCoreness);
+            Assert.Equal("Empty Graph", emptyAudit.CoreStructureCategory);
+
+            // 2. Triangle clique (coreness 2) + tail (coreness 1)
+            var n1 = new MindMapNode { Id = "1", Title = "Core Alpha" };
+            var n2 = new MindMapNode { Id = "2", Title = "Core Beta" };
+            var n3 = new MindMapNode { Id = "3", Title = "Core Gamma" };
+            var n4 = new MindMapNode { Id = "4", Title = "Peripheral Delta" };
+
+            var links = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "l1", SourceNodeId = "1", TargetNodeId = "2" },
+                new MindMapLink { Id = "l2", SourceNodeId = "2", TargetNodeId = "3" },
+                new MindMapLink { Id = "l3", SourceNodeId = "3", TargetNodeId = "1" },
+                new MindMapLink { Id = "l4", SourceNodeId = "3", TargetNodeId = "4" }
+            };
+
+            var audit = MindMapStudioViewModel.AuditGraphKCoreDecompositionAndNuclei(
+                new[] { n1, n2, n3, n4 }, links);
+            Assert.Equal(4, audit.TotalNodes);
+            Assert.Equal(4, audit.TotalEdges);
+            Assert.Equal(2, audit.MaxCoreness);
+            Assert.True(audit.NucleusNodeCount >= 3);
+            Assert.True(audit.PeripheralNodeCount >= 1);
+
+            string formatted = MindMapStudioViewModel.FormatKCoreSummary(
+                audit.TotalNodes, audit.TotalEdges, audit.MaxCoreness,
+                audit.NucleusNodeCount, audit.PeripheralNodeCount,
+                audit.CorePeripheryRatio, audit.CoreStructureCategory, audit.IsSelectionScope,
+                audit.Nodes);
+            Assert.Equal(audit.Summary, formatted);
+        }
     }
 }

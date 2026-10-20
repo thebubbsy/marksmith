@@ -11686,6 +11686,244 @@ public static class TextSearch
     }
 
 
+    public static MarkdownMathDelimiterAudit AuditMarkdownMathDelimiters(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatMathDelimiterFidelitySummary(0, 0, 0, 0, 0, 0, 0, 100.0, "No Math Detected");
+            return new MarkdownMathDelimiterAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownMathDelimiterItem>(),
+                "No Math Detected",
+                emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        var items = new List<MarkdownMathDelimiterItem>();
+        bool inFencedBlock = false;
+        string? activeFence = null;
+
+        int inlineCount = 0;
+        int displayCount = 0;
+        int validCount = 0;
+        int unclosedCount = 0;
+        int unescapedCurrencyCount = 0;
+        int totalUnbalancedBraces = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                string fenceMarker = trimmed.Substring(0, 3);
+                if (!inFencedBlock)
+                {
+                    inFencedBlock = true;
+                    activeFence = fenceMarker;
+                    continue;
+                }
+                else if (activeFence == fenceMarker)
+                {
+                    inFencedBlock = false;
+                    activeFence = null;
+                    continue;
+                }
+            }
+
+            if (inFencedBlock) continue;
+
+            var processedLine = Regex.Replace(line, @"`+[^`\n]+`+", m => new string(' ', m.Length));
+
+            var latexBlockMatches = Regex.Matches(processedLine, @"\\\[(?<content>[\s\S]*?)\\\]");
+            foreach (Match m in latexBlockMatches)
+            {
+                displayCount++;
+                string content = m.Groups["content"].Value;
+                int braces = CountUnbalancedBraces(content);
+                bool valid = braces == 0;
+                if (valid) validCount++;
+                else totalUnbalancedBraces += Math.Abs(braces);
+
+                items.Add(new MarkdownMathDelimiterItem(
+                    i + 1, m.Index + 1, "Display LaTeX (\\[...\\])", content.Trim(),
+                    true, braces == 0, false, false, Math.Abs(braces),
+                    valid ? "Valid" : "Syntax Issue",
+                    valid ? "Well-formed display equation" : "Check curly braces nesting in LaTeX formula"));
+            }
+
+            processedLine = Regex.Replace(processedLine, @"\\\[[\s\S]*?\\\]", m => new string(' ', m.Length));
+
+            var displayMathMatches = Regex.Matches(processedLine, @"\$\$(?<content>[^\$\n]+)\$\$");
+            foreach (Match m in displayMathMatches)
+            {
+                displayCount++;
+                string content = m.Groups["content"].Value;
+                int braces = CountUnbalancedBraces(content);
+                bool valid = braces == 0;
+                if (valid) validCount++;
+                else totalUnbalancedBraces += Math.Abs(braces);
+
+                items.Add(new MarkdownMathDelimiterItem(
+                    i + 1, m.Index + 1, "Display Math ($$...$$)", content.Trim(),
+                    true, braces == 0, false, false, Math.Abs(braces),
+                    valid ? "Valid" : "Syntax Issue",
+                    valid ? "Well-formed display formula" : "Check curly braces nesting in math formula"));
+            }
+
+            processedLine = Regex.Replace(processedLine, @"\$\$[^\$\n]+\$\$", m => new string(' ', m.Length));
+
+            var inlineMathMatches = Regex.Matches(processedLine, @"(?<!\\)\$(?<content>[^\$\n]+)(?<!\\)\$");
+            foreach (Match m in inlineMathMatches)
+            {
+                string content = m.Groups["content"].Value;
+                bool hasLeadingTrailingSpace = content.StartsWith(" ") || content.EndsWith(" ");
+
+                if (Regex.IsMatch(content, @"^\d+(\.\d+)?\s*(to|-)\s*\d+") || Regex.IsMatch(content, @"^\d+(\.\d+)?$"))
+                {
+                    unescapedCurrencyCount++;
+                    items.Add(new MarkdownMathDelimiterItem(
+                        i + 1, m.Index + 1, "Ambiguous Currency ($...$)", content,
+                        true, true, true, hasLeadingTrailingSpace, 0,
+                        "Ambiguous Currency",
+                        "Escape dollar signs with \\$ for monetary values to prevent math parsing"));
+                    continue;
+                }
+
+                inlineCount++;
+                int braces = CountUnbalancedBraces(content);
+                bool valid = braces == 0 && !hasLeadingTrailingSpace;
+                if (valid) validCount++;
+                else if (braces != 0) totalUnbalancedBraces += Math.Abs(braces);
+
+                string status = valid ? "Valid" : (hasLeadingTrailingSpace ? "Whitespace Issue" : "Syntax Issue");
+                string recommendation = valid
+                    ? "Well-formed inline math"
+                    : (hasLeadingTrailingSpace
+                        ? "Remove leading/trailing space immediately inside $ delimiters for standard KaTeX rendering"
+                        : "Check curly braces nesting in inline formula");
+
+                items.Add(new MarkdownMathDelimiterItem(
+                    i + 1, m.Index + 1, "Inline Math ($...$)", content.Trim(),
+                    true, braces == 0, false, hasLeadingTrailingSpace, Math.Abs(braces),
+                    status, recommendation));
+            }
+
+            processedLine = Regex.Replace(processedLine, @"(?<!\\)\$[^\$\n]+(?<!\\)\$", m => new string(' ', m.Length));
+
+            var remainingDollarMatches = Regex.Matches(processedLine, @"(?<!\\)\$");
+            foreach (Match m in remainingDollarMatches)
+            {
+                string remainder = line.Substring(m.Index);
+                if (Regex.IsMatch(remainder, @"^\$\d+([.,]\d+)?(\b|\s)"))
+                {
+                    unescapedCurrencyCount++;
+                    items.Add(new MarkdownMathDelimiterItem(
+                        i + 1, m.Index + 1, "Unescaped Currency ($)", remainder.Split(new[] { ' ', '\t' })[0],
+                        false, true, true, false, 0,
+                        "Unescaped Currency",
+                        "Escape currency dollar sign with \\$ to prevent accidental math delimiter parsing"));
+                }
+                else
+                {
+                    unclosedCount++;
+                    items.Add(new MarkdownMathDelimiterItem(
+                        i + 1, m.Index + 1, "Unclosed Math Delimiter ($)", "$",
+                        false, false, false, false, 0,
+                        "Unclosed Delimiter",
+                        "Close matching $ delimiter or escape with \\$"));
+                }
+            }
+        }
+
+        int totalMath = inlineCount + displayCount;
+        double score = 100.0;
+        if (totalMath == 0 && unclosedCount == 0 && unescapedCurrencyCount == 0)
+        {
+            score = 100.0;
+        }
+        else
+        {
+            score -= (unclosedCount * 15.0);
+            score -= (totalUnbalancedBraces * 10.0);
+            score -= (unescapedCurrencyCount * 5.0);
+            int whitespaceErrors = items.Count(it => it.HasLeadingTrailingSpace);
+            score -= (whitespaceErrors * 5.0);
+            score = Math.Clamp(score, 0.0, 100.0);
+        }
+        score = Math.Round(score, 1);
+
+        string category = score switch
+        {
+            100.0 when totalMath == 0 => "No Math Detected",
+            >= 95.0 => "Optimal Math Fidelity",
+            >= 80.0 => "High Math Fidelity",
+            >= 60.0 => "Moderate Math Fidelity",
+            >= 40.0 => "Needs Review",
+            _ => "Severe Math Delimiter Issues"
+        };
+
+        string summary = FormatMathDelimiterFidelitySummary(
+            totalMath, inlineCount, displayCount, validCount,
+            unclosedCount, unescapedCurrencyCount, totalUnbalancedBraces,
+            score, category);
+
+        return new MarkdownMathDelimiterAudit(
+            totalMath, inlineCount, displayCount, validCount,
+            unclosedCount, unescapedCurrencyCount, totalUnbalancedBraces,
+            score, items, category, summary);
+    }
+
+    private static int CountUnbalancedBraces(string text)
+    {
+        int depth = 0;
+        bool inEscape = false;
+        foreach (char c in text)
+        {
+            if (inEscape)
+            {
+                inEscape = false;
+                continue;
+            }
+            if (c == '\\')
+            {
+                inEscape = true;
+                continue;
+            }
+            if (c == '{') depth++;
+            else if (c == '}') depth--;
+        }
+        return depth;
+    }
+
+    public static string FormatMathDelimiterFidelitySummary(string? markdownText)
+        => AuditMarkdownMathDelimiters(markdownText).Summary;
+
+    public static string FormatMathDelimiterFidelitySummary(
+        int totalMath, int inlineCount, int displayCount, int validCount,
+        int unclosedCount, int currencyCount, int unbalancedBraces,
+        double score, string category)
+    {
+        if (totalMath == 0 && unclosedCount == 0 && currencyCount == 0)
+            return "Markdown math delimiter audit: Clean document · 0 math expressions detected";
+
+        string mathSuffix = totalMath == 1 ? string.Empty : "s";
+        string braceSuffix = unbalancedBraces == 1 ? string.Empty : "s";
+
+        var parts = new List<string>
+        {
+            $"{totalMath} math formula{mathSuffix} ({inlineCount} inline, {displayCount} display)",
+            $"{validCount} valid"
+        };
+        if (unclosedCount > 0) parts.Add($"⚠️ {unclosedCount} unclosed");
+        if (currencyCount > 0) parts.Add($"{currencyCount} unescaped currency");
+        if (unbalancedBraces > 0) parts.Add($"{unbalancedBraces} unbalanced brace{braceSuffix}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown math delimiter audit ({details} · {category} · {score:0.#}% fidelity score)";
+    }
+
 }
 
 /// <summary>
@@ -13023,3 +13261,37 @@ public sealed record MarkdownFootnoteDefinitionAudit(
     string Category,
     string Summary);
 
+
+
+/// <summary>
+/// Represents evaluated metrics, line number, delimiter type, and balance status for an individual markdown math item.
+/// </summary>
+public sealed record MarkdownMathDelimiterItem(
+    int LineNumber,
+    int Column,
+    string DelimiterType,
+    string MathExpression,
+    bool IsClosed,
+    bool IsBalanced,
+    bool IsUnescapedCurrency,
+    bool HasLeadingTrailingSpace,
+    int UnbalancedBraceCount,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of markdown inline and display math delimiters ($...$, $$...$$, \[...\], \(...\)),
+/// unescaped currency dollar signs, delimiter pairing, whitespace compliance, and LaTeX equation rendering fidelity.
+/// </summary>
+public sealed record MarkdownMathDelimiterAudit(
+    int TotalMathExpressions,
+    int InlineMathCount,
+    int DisplayMathCount,
+    int ValidMathCount,
+    int UnclosedDelimiterCount,
+    int UnescapedCurrencyCount,
+    int UnbalancedBraceCount,
+    double MathRenderingFidelityScore,
+    IReadOnlyList<MarkdownMathDelimiterItem> Items,
+    string Category,
+    string Summary);

@@ -17845,6 +17845,173 @@ public static class LineDiff
         return $"Semantic diff memory safety audit ({details} · {category} · {score:0.#}% hygiene score)";
     }
 
+    public static DiffStringAllocationAudit AuditStringAllocationAndMemoryPressureHazards(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditStringAllocationAndMemoryPressureHazards(unified);
+    }
+
+    public static DiffStringAllocationAudit AuditStringAllocationAndMemoryPressureHazards(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatStringAllocationSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffStringAllocationAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<StringAllocationHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatStringAllocationSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffStringAllocationAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<StringAllocationHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        int substringCount = 0;
+        int splitCount = 0;
+        int concatInLoopCount = 0;
+        int interpolatedLogCount = 0;
+        int caseConversionComparisonCount = 0;
+        var items = new List<StringAllocationHazardItem>();
+        int loopDepth = 0;
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string line = row.Text;
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+            string op = row.Kind.ToString();
+
+            if (Regex.IsMatch(line, @"\b(for|while|foreach)\b"))
+            {
+                loopDepth = Math.Max(loopDepth, 1);
+            }
+
+            if (Regex.IsMatch(line, @"(?<!\w)string\.Substring\(|\.Substring\("))
+            {
+                substringCount++;
+                items.Add(new StringAllocationHazardItem(
+                    lineNum, op, "Heap Substring Allocation",
+                    line.Trim(), 2,
+                    "Calling Substring() allocates a new System.String heap object on every invocation",
+                    "Consider AsSpan() or slice syntax [^..] to slice strings without heap allocations",
+                    "High Memory Pressure"));
+            }
+
+            if (Regex.IsMatch(line, @"\.Split\(\s*(new\s*(char|string)\[|\'|\"")"))
+            {
+                splitCount++;
+                items.Add(new StringAllocationHazardItem(
+                    lineNum, op, "String.Split Array Heap Allocation",
+                    line.Trim(), 2,
+                    "String.Split() allocates both a new string array and new string objects for each segment",
+                    "Use MemoryExtensions.Split or SpanLineEnumerator for zero-alloc token parsing",
+                    "Allocation Spike"));
+            }
+
+            if ((loopDepth > 0 || Regex.IsMatch(line, @"\b(for|while|foreach)\b")) && Regex.IsMatch(line, @"\+=\s*(\w+|\""|\')"))
+            {
+                concatInLoopCount++;
+                items.Add(new StringAllocationHazardItem(
+                    lineNum, op, "String Concatenation in Loop",
+                    line.Trim(), 3,
+                    "Repeated string concatenation inside loops causes quadratic O(N^2) heap allocations and GC thrashing",
+                    "Use StringBuilder or string.Create with pre-sized buffer",
+                    "Severe GC Thrashing"));
+            }
+
+            if (line.Contains('}') && loopDepth > 0)
+            {
+                loopDepth--;
+            }
+
+            if (Regex.IsMatch(line, @"\bLog(Debug|Information|Warning|Error|Trace|Critical)\s*\(\s*\$\"""))
+            {
+                interpolatedLogCount++;
+                items.Add(new StringAllocationHazardItem(
+                    lineNum, op, "Interpolated String in Logging Hot Path",
+                    line.Trim(), 1,
+                    "Logging with $\"\" formats strings eagerly before checking log level enablement, causing wasteful heap churn",
+                    "Use structured logging message templates with named parameters or LoggerMessage source generators",
+                    "Eager String Formatting"));
+            }
+
+            if (Regex.IsMatch(line, @"\.(ToLower|ToUpper|ToLowerInvariant|ToUpperInvariant)\s*\(\s*\)\s*(==|!=|\.Equals)"))
+            {
+                caseConversionComparisonCount++;
+                items.Add(new StringAllocationHazardItem(
+                    lineNum, op, "Case-Conversion String Comparison",
+                    line.Trim(), 1,
+                    "Converting string case creates a transient copy solely for comparison",
+                    "Use string.Equals(..., StringComparison.OrdinalIgnoreCase) or Compare",
+                    "Transient Allocation"));
+            }
+        }
+
+        int totalHazards = substringCount + splitCount + concatInLoopCount + interpolatedLogCount + caseConversionComparisonCount;
+        double efficiencyScore = 100.0;
+        efficiencyScore -= (concatInLoopCount * 15.0);
+        efficiencyScore -= (substringCount * 6.0);
+        efficiencyScore -= (splitCount * 6.0);
+        efficiencyScore -= (interpolatedLogCount * 4.0);
+        efficiencyScore -= (caseConversionComparisonCount * 3.0);
+        efficiencyScore = Math.Round(Math.Clamp(efficiencyScore, 0.0, 100.0), 1);
+
+        string category = efficiencyScore switch
+        {
+            >= 90.0 => "Optimal Zero-Allocation Hygiene",
+            >= 75.0 => "Low Memory Pressure",
+            >= 60.0 => "Moderate String Allocation Churn",
+            >= 40.0 => "High Heap Churn Risk",
+            _ => "Severe GC Pressure Anti-Pattern"
+        };
+
+        string summary = FormatStringAllocationSummary(
+            totalModified, totalHazards, substringCount, splitCount,
+            concatInLoopCount, interpolatedLogCount, caseConversionComparisonCount,
+            efficiencyScore, category);
+
+        return new DiffStringAllocationAudit(
+            totalModified, totalHazards, substringCount, splitCount,
+            concatInLoopCount, interpolatedLogCount, caseConversionComparisonCount,
+            efficiencyScore, items, category, summary);
+    }
+
+    public static string FormatStringAllocationSummary(
+        int totalLines, int totalHazards, int substringCount, int splitCount,
+        int loopConcatCount, int logInterpolationCount, int caseConversionCount,
+        double score, string category)
+    {
+        if (totalLines == 0) return "Semantic diff string allocation audit: 0 modified lines · Clean baseline";
+        if (totalHazards == 0)
+            return $"Semantic diff string allocation audit ({totalLines} lines): 0 allocation hazards · Clean baseline · 100% score";
+
+        string hazardSuffix = totalHazards == 1 ? string.Empty : "s";
+        var parts = new List<string>
+        {
+            $"{totalHazards} hazard{hazardSuffix}"
+        };
+        if (substringCount > 0) parts.Add($"{substringCount} substring");
+        if (splitCount > 0) parts.Add($"{splitCount} split");
+        if (loopConcatCount > 0) parts.Add($"⚠️ {loopConcatCount} loop concat");
+        if (logInterpolationCount > 0) parts.Add($"{logInterpolationCount} log interp");
+        if (caseConversionCount > 0) parts.Add($"{caseConversionCount} case compare");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff string allocation audit ({details} · {category} · {score:0.#}% efficiency score)";
+    }
+
+
+
 
     public static string FormatCacheLocalitySummary(
         int totalLines, int totalHazards, int falseSharing, int multiDimArrays,
@@ -19841,3 +20008,34 @@ public sealed record DiffSynchronizationHazardsAudit(
     string Category,
     string Summary);
 
+
+
+/// <summary>
+/// Represents an identified heap string allocation, substring copy, or logging interpolation hazard on a diff line.
+/// </summary>
+public sealed record StringAllocationHazardItem(
+    int LineNumber,
+    string DiffOperation,
+    string HazardKind,
+    string CodeSnippet,
+    int Severity,
+    string ImpactDescription,
+    string RemediationHint,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff hunks for string allocations, Substring heap churn,
+/// String.Split pressure, loop string concatenation, and case-conversion comparisons.
+/// </summary>
+public sealed record DiffStringAllocationAudit(
+    int TotalModifiedLines,
+    int TotalHazards,
+    int SubstringCount,
+    int SplitCount,
+    int ConcatInLoopCount,
+    int InterpolatedLogCount,
+    int CaseConversionComparisonCount,
+    double AllocationEfficiencyScore,
+    IReadOnlyList<StringAllocationHazardItem> Items,
+    string Category,
+    string Summary);

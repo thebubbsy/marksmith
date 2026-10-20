@@ -4159,6 +4159,14 @@ namespace MarkSmith.Views.MindMap
             _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
+        private void OnAuditGraphKCoreDecompositionClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphKCoreDecompositionAndNuclei();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
 
         private void OnAuditGraphClosenessCentralityClick(object sender, RoutedEventArgs e)
         {
@@ -5367,6 +5375,14 @@ namespace MarkSmith.Views.MindMap
             };
             auditArticulationPointsItem.Click += OnAuditGraphArticulationPointsClick;
             menu.Items.Add(auditArticulationPointsItem);
+            var auditKCoreDecompositionItem = new MenuFlyoutItem
+            {
+                Text = "Audit graph k-core decomposition, structural shell tiers & nucleus clusters",
+                Icon = new FontIcon { Glyph = "\uE8B9" }
+            };
+            auditKCoreDecompositionItem.Click += OnAuditGraphKCoreDecompositionClick;
+            menu.Items.Add(auditKCoreDecompositionItem);
+
 
             var auditClosenessCentralityItem = new MenuFlyoutItem
             {

@@ -12044,6 +12044,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditFootnoteDefsItem);
+        var auditMathDelimiterBalanceItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Math Delimiters & LaTeX Equation Integrity",
+            Icon = new FontIcon { Glyph = "\uE8EF" }
+        };
+        auditMathDelimiterBalanceItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownMathDelimiters(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditMathDelimiterBalanceItem);
 
         menu.ShowAt(anchor);
     }

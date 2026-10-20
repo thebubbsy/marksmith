@@ -399,6 +399,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceImageAssetsItem" Text="Audit workspace markdown image asset paths, local file existence &amp; broken media anchors" Click="OnAuditWorkspaceImageAssetsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceHeadingSlugsItem" Text="Audit workspace markdown heading slugs &amp; table of contents anchor consistency" Click="OnAuditWorkspaceHeadingSlugsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
