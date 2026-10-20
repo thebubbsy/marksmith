@@ -2970,4 +2970,52 @@ public class SmartArtStudioPolishTests
         Assert.True(crowdAudit.PolarSymmetryScore < 80.0);
     }
 
+    [Fact]
+    public void Run197_AuditHierarchyTreeDepthAndBranchingBalance_ValidatesTreeSymmetry()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditHierarchyTreeDepthAndBranchingBalance("");
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.TreeBalanceScore);
+
+        // 2. Symmetrical 2-level balanced tree
+        var balancedMd = string.Join("\n",
+            "* Root Strategy",
+            "  * Objective Alpha",
+            "    * Key Result A1",
+            "    * Key Result A2",
+            "  * Objective Beta",
+            "    * Key Result B1",
+            "    * Key Result B2"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditHierarchyTreeDepthAndBranchingBalance(balancedMd, "Hierarchy Org Chart");
+        Assert.Equal(7, audit.TotalNodes);
+        Assert.Equal(3, audit.MaxDepth);
+        Assert.Equal(4, audit.LeafCount);
+        Assert.Equal(3, audit.InternalNodeCount);
+        Assert.Equal(0, audit.ImbalancedNodeCount);
+        Assert.True(audit.TreeBalanceScore >= 95.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatHierarchyBranchingSummary(
+            audit.TotalNodes, audit.MaxDepth, audit.LeafCount, audit.InternalNodeCount,
+            audit.AverageBranchingFactor, audit.MinLeafDepth, audit.MaxLeafDepth,
+            audit.ImbalancedNodeCount, audit.TreeBalanceScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Severely imbalanced single-branch stick
+        var stickMd = string.Join("\n",
+            "* Level 0",
+            "  * Level 1",
+            "    * Level 2",
+            "      * Level 3",
+            "        * Level 4"
+        );
+
+        var imbalancedAudit = SmartArtDesignStudioViewModel.AuditHierarchyTreeDepthAndBranchingBalance(stickMd, "Hierarchy");
+        Assert.Equal(5, imbalancedAudit.TotalNodes);
+        Assert.Equal(5, imbalancedAudit.MaxDepth);
+        Assert.True(imbalancedAudit.TreeBalanceScore <= 80.0);
+    }
+
 }

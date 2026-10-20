@@ -2425,6 +2425,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnAuditWorkspaceInterDocLinksClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceInterDocumentLinks(files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification($"Cross-Doc Links: {result.TotalLinksAudited} links ({result.ValidLinksCount} valid, {result.MissingFileCount} missing files, {result.MissingAnchorCount} missing anchors) across {result.DocumentsWithLinksCount} docs", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Links");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Audit failed: {ex.Message}", success: false);
+        }
+    }
+
     private async void OnAuditWorkspaceImageAssetsClick(object sender, RoutedEventArgs e)
     {
         try

@@ -6640,6 +6640,14 @@ namespace MarkSmith.Views.ShapeStudio
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
+        private void OnSelectionAuditColorContrastClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditShapeColorContrastAccessibility();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
         private void OnSelectionAuditShapeZOrderStackingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;

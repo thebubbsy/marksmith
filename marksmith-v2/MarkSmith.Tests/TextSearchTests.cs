@@ -3343,4 +3343,55 @@ public class TextSearchTests
         Assert.True(brokenAudit.ResolutionFidelityScore < 80.0);
     }
 
+    [Fact]
+    public void Run197_AuditMarkdownFootnoteDefinitions_ValidatesPairingAndFlagsOrphans()
+    {
+        // 1. Empty markdown
+        var emptyAudit = TextSearch.AuditMarkdownFootnoteDefinitions("");
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(0, emptyAudit.TotalCallouts);
+        Assert.Equal(100.0, emptyAudit.StructuralIntegrityScore);
+        Assert.Equal("No Footnotes", emptyAudit.Category);
+
+        // 2. Clean doc with paired footnotes
+        var doc = string.Join("\n",
+            "# Document With Footnotes",
+            "Here is an initial point[^1] and a secondary note[^2].",
+            "Also a named reference[^note-alpha].",
+            "",
+            "[^1]: First detailed reference content.",
+            "[^2]: Second detailed reference content.",
+            "[^note-alpha]: Named footnote explanation."
+        );
+
+        var audit = TextSearch.AuditMarkdownFootnoteDefinitions(doc);
+        Assert.Equal(3, audit.TotalDefinitions);
+        Assert.Equal(3, audit.TotalCallouts);
+        Assert.Equal(3, audit.ResolvedCount);
+        Assert.Equal(0, audit.UnresolvedCalloutCount);
+        Assert.Equal(0, audit.OrphanDefinitionCount);
+        Assert.Equal(0, audit.DuplicateDefinitionCount);
+        Assert.True(audit.IsMonotonicNumeric);
+        Assert.Equal(100.0, audit.StructuralIntegrityScore);
+
+        string formatted = TextSearch.FormatFootnoteDefinitionSummary(
+            audit.TotalDefinitions, audit.TotalCallouts, audit.ResolvedCount,
+            audit.UnresolvedCalloutCount, audit.OrphanDefinitionCount,
+            audit.DuplicateDefinitionCount, audit.StructuralIntegrityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Broken callout and orphan definition
+        var brokenDoc = string.Join("\n",
+            "An unlinked callout[^unresolved_marker].",
+            "[^unused_footnote]: Standalone unreferenced footnote text."
+        );
+
+        var brokenAudit = TextSearch.AuditMarkdownFootnoteDefinitions(brokenDoc);
+        Assert.Equal(1, brokenAudit.TotalDefinitions);
+        Assert.Equal(1, brokenAudit.TotalCallouts);
+        Assert.Equal(0, brokenAudit.ResolvedCount);
+        Assert.Equal(1, brokenAudit.UnresolvedCalloutCount);
+        Assert.Equal(1, brokenAudit.OrphanDefinitionCount);
+        Assert.True(brokenAudit.StructuralIntegrityScore < 80.0);
+    }
 }

@@ -12270,6 +12270,226 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Mind Map cycle audit ({scope}{details} · {category} · {score:0.#}% DAG score)";
         }
 
+        public GraphBiconnectedComponentsAudit AuditGraphArticulationPointsAndBiconnectedComponents(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphArticulationPointsAndBiconnectedComponents(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphBiconnectedComponentsAudit AuditGraphArticulationPointsAndBiconnectedComponents(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+            int totalNodes = nodeList.Count;
+            int totalEdges = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatBiconnectedComponentsSummary(0, 0, 0, 0, 0, 0, 100.0, "Empty Galaxy", isSelection);
+                return new GraphBiconnectedComponentsAudit(
+                    0, 0, 0, 0, 0, 0, 100.0,
+                    Array.Empty<GraphArticulationPointItem>(),
+                    Array.Empty<GraphBiconnectedBlockItem>(),
+                    "Empty Galaxy", isSelection, emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id, n => n);
+            var adj = new Dictionary<string, List<string>>();
+            foreach (var n in nodeList) adj[n.Id] = new List<string>();
+
+            var edgeSet = new HashSet<(string U, string V)>();
+            foreach (var l in linkList)
+            {
+                if (adj.ContainsKey(l.SourceNodeId) && adj.ContainsKey(l.TargetNodeId) && l.SourceNodeId != l.TargetNodeId)
+                {
+                    adj[l.SourceNodeId].Add(l.TargetNodeId);
+                    adj[l.TargetNodeId].Add(l.SourceNodeId);
+
+                    string u = string.CompareOrdinal(l.SourceNodeId, l.TargetNodeId) < 0 ? l.SourceNodeId : l.TargetNodeId;
+                    string v = string.CompareOrdinal(l.SourceNodeId, l.TargetNodeId) < 0 ? l.TargetNodeId : l.SourceNodeId;
+                    edgeSet.Add((u, v));
+                }
+            }
+
+            var tin = new Dictionary<string, int>();
+            var low = new Dictionary<string, int>();
+            var cutVertices = new HashSet<string>();
+            var bridges = new HashSet<(string U, string V)>();
+            var edgeStack = new Stack<(string U, string V)>();
+            var blocks = new List<GraphBiconnectedBlockItem>();
+            int timer = 0;
+            int componentCount = 0;
+
+            void Dfs(string u, string? parent)
+            {
+                tin[u] = low[u] = ++timer;
+                int children = 0;
+
+                foreach (var v in adj[u])
+                {
+                    if (v == parent) continue;
+
+                    if (tin.ContainsKey(v))
+                    {
+                        low[u] = Math.Min(low[u], tin[v]);
+                        if (tin[v] < tin[u])
+                        {
+                            edgeStack.Push((u, v));
+                        }
+                    }
+                    else
+                    {
+                        edgeStack.Push((u, v));
+                        children++;
+                        Dfs(v, u);
+                        low[u] = Math.Min(low[u], low[v]);
+
+                        if (low[v] >= tin[u])
+                        {
+                            if (parent != null || children > 1)
+                            {
+                                cutVertices.Add(u);
+                            }
+
+                            var blockNodes = new HashSet<string> { u };
+                            int blockEdges = 0;
+                            while (edgeStack.Count > 0)
+                            {
+                                var edge = edgeStack.Pop();
+                                blockNodes.Add(edge.U);
+                                blockNodes.Add(edge.V);
+                                blockEdges++;
+                                if (edge.U == u && edge.V == v) break;
+                            }
+                            blocks.Add(new GraphBiconnectedBlockItem(
+                                blocks.Count + 1, blockNodes.Count, blockEdges,
+                                blockNodes.ToList(), blockNodes.Count <= 2));
+                        }
+
+                        if (low[v] > tin[u])
+                        {
+                            string bu = string.CompareOrdinal(u, v) < 0 ? u : v;
+                            string bv = string.CompareOrdinal(u, v) < 0 ? v : u;
+                            bridges.Add((bu, bv));
+                        }
+                    }
+                }
+            }
+
+            foreach (var n in nodeList)
+            {
+                if (!tin.ContainsKey(n.Id))
+                {
+                    componentCount++;
+                    Dfs(n.Id, null);
+
+                    if (adj[n.Id].Count == 0)
+                    {
+                        blocks.Add(new GraphBiconnectedBlockItem(
+                            blocks.Count + 1, 1, 0, new[] { n.Id }, true));
+                    }
+                }
+            }
+
+            var articulationItems = new List<GraphArticulationPointItem>();
+            int internalNodes = nodeList.Count(n => adj[n.Id].Count > 1);
+
+            foreach (var n in nodeList)
+            {
+                bool isCut = cutVertices.Contains(n.Id);
+                int degree = adj[n.Id].Count;
+                int incidentBridges = adj[n.Id].Count(neighbor =>
+                {
+                    string bu = string.CompareOrdinal(n.Id, neighbor) < 0 ? n.Id : neighbor;
+                    string bv = string.CompareOrdinal(n.Id, neighbor) < 0 ? neighbor : n.Id;
+                    return bridges.Contains((bu, bv));
+                });
+                int blockCount = blocks.Count(b => b.NodeIds.Contains(n.Id));
+
+                string severity = isCut
+                    ? (blockCount > 3 || incidentBridges >= 2 ? "Critical" : (blockCount > 2 ? "High" : "Medium"))
+                    : "None";
+                string status = isCut ? "Articulation Cut Vertex" : (degree == 0 ? "Isolated Node" : (degree == 1 ? "Leaf Node" : "Standard Internal Node"));
+                string rec = isCut
+                    ? $"Add redundant cross-link bypassing node '{n.Title}' to prevent graph partition"
+                    : "Node has resilient multi-path connectivity";
+
+                articulationItems.Add(new GraphArticulationPointItem(
+                    n.Id, n.Title ?? n.Id, isCut, degree, incidentBridges, blockCount, severity, status, rec));
+            }
+
+            double score = 100.0;
+            if (totalNodes > 2)
+            {
+                if (internalNodes > 0)
+                {
+                    double ratio = (double)cutVertices.Count / internalNodes;
+                    score -= ratio * 50.0;
+                }
+                score -= bridges.Count * 8.0;
+            }
+            score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+            string category;
+            if (cutVertices.Count == 0 && bridges.Count == 0) category = "High Structural Redundancy (≥95%)";
+            else if (score >= 80.0) category = "Good Structural Resilience (80-94%)";
+            else if (score >= 60.0) category = "Moderate Network Vulnerability (60-79%)";
+            else if (score >= 40.0) category = "High Partition Risk (40-59%)";
+            else category = "Critical Single Point of Failure (<40%)";
+
+            string summary = FormatBiconnectedComponentsSummary(
+                totalNodes, edgeSet.Count, cutVertices.Count, bridges.Count,
+                blocks.Count, componentCount, score, category, isSelection);
+
+            return new GraphBiconnectedComponentsAudit(
+                totalNodes, edgeSet.Count, cutVertices.Count, bridges.Count,
+                blocks.Count, componentCount, score,
+                articulationItems, blocks, category, isSelection, summary);
+        }
+
+        public static string FormatBiconnectedComponentsSummary(
+            int totalNodes, int totalEdges, int cutVertices, int bridges,
+            int blocks, int components, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Mind Map biconnectivity audit: {scope}Empty galaxy · 0 nodes";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            var parts = new List<string>
+            {
+                $"{nodeStr}",
+                $"{totalEdges} edge{(totalEdges == 1 ? "" : "s")}"
+            };
+
+            if (cutVertices == 0)
+                parts.Add("0 cut vertices");
+            else
+                parts.Add($"⚠️ {cutVertices} cut vertice{(cutVertices == 1 ? "" : "s")}");
+
+            if (bridges > 0)
+                parts.Add($"⚠️ {bridges} bridge{(bridges == 1 ? "" : "s")}");
+
+            parts.Add($"{blocks} block{(blocks == 1 ? "" : "s")}");
+            if (components > 1)
+                parts.Add($"{components} components");
+
+            string details = string.Join(" · ", parts);
+            return $"Mind Map biconnectivity & cut vertices audit ({scope}{details} · {category} · {score:0.#}% redundancy score)";
+        }
+
 
         public static string FormatMstBackboneSummary(
             int totalNodes, int totalEdges, int mstEdges, int cycleEdges,
@@ -13608,6 +13828,48 @@ namespace MarkSmith.ViewModels.MindMap
     /// Represents the result of an audit of mind map graph directed cycles, feedback arc set (FAS),
     /// directed acyclic graph (DAG) compliance, and recursive loop mitigation.
     /// </summary>
+    /// <summary>
+    /// Represents an individual maximal biconnected subgraph block within the mind map graph.
+    /// </summary>
+    public sealed record GraphBiconnectedBlockItem(
+        int BlockIndex,
+        int NodeCount,
+        int EdgeCount,
+        IReadOnlyList<string> NodeIds,
+        bool IsTrivialSingleEdge);
+
+    /// <summary>
+    /// Represents evaluated articulation cut status, incident bridge bottlenecks, degree, and removal impact for an individual mind map node.
+    /// </summary>
+    public sealed record GraphArticulationPointItem(
+        string NodeId,
+        string NodeTitle,
+        bool IsCutVertex,
+        int Degree,
+        int IncidentBridgeCount,
+        int BiconnectedBlockCount,
+        string Severity,
+        string Status,
+        string Recommendation);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph biconnected components, cut vertices (articulation points),
+    /// bridge bottlenecks, and network structural redundancy via Hopcroft-Tarjan DFS.
+    /// </summary>
+    public sealed record GraphBiconnectedComponentsAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int CutVerticesCount,
+        int BridgesCount,
+        int BiconnectedBlockCount,
+        int ConnectedComponentsCount,
+        double StructuralRedundancyScore,
+        IReadOnlyList<GraphArticulationPointItem> ArticulationPoints,
+        IReadOnlyList<GraphBiconnectedBlockItem> Blocks,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
     public sealed record GraphCycleFeedbackAudit(
         int TotalNodes,
         int TotalEdges,

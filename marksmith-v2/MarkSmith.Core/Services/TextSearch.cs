@@ -11464,6 +11464,227 @@ public static class TextSearch
         return $"Markdown task list audit ({details} · {category} · {score:0.#}% hygiene score)";
     }
 
+    public static MarkdownFootnoteDefinitionAudit AuditMarkdownFootnoteDefinitions(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatFootnoteDefinitionSummary(0, 0, 0, 0, 0, 0, 100.0, "No Footnotes");
+            return new MarkdownFootnoteDefinitionAudit(
+                0, 0, 0, 0, 0, 0, 0, true, 100.0,
+                Array.Empty<MarkdownFootnoteDefinitionItem>(),
+                "No Footnotes",
+                emptySummary);
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var maskedLines = new string[lines.Length];
+        bool inCodeFence = false;
+        bool inFrontmatter = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (i == 0 && (trimmed == "---" || trimmed == "+++"))
+            {
+                inFrontmatter = true;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+            if (inFrontmatter)
+            {
+                maskedLines[i] = string.Empty;
+                if (trimmed == "---" || trimmed == "+++")
+                    inFrontmatter = false;
+                continue;
+            }
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+            if (inCodeFence)
+            {
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            maskedLines[i] = line;
+        }
+
+        var defRegex = new System.Text.RegularExpressions.Regex(@"^[ ]{0,3}\[\^([^\]]+)\]:\s*(.*)$");
+        var calloutRegex = new System.Text.RegularExpressions.Regex(@"\[\^([^\]]+)\]");
+
+        var defDict = new Dictionary<string, List<(int Line, string Excerpt)>>(StringComparer.OrdinalIgnoreCase);
+        var calloutList = new List<(string Id, int Line, int Col)>();
+        var items = new List<MarkdownFootnoteDefinitionItem>();
+
+        var defLineIndices = new HashSet<int>();
+
+        for (int i = 0; i < maskedLines.Length; i++)
+        {
+            string line = maskedLines[i];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var defMatch = defRegex.Match(line);
+            if (defMatch.Success)
+            {
+                defLineIndices.Add(i);
+                string id = defMatch.Groups[1].Value.Trim();
+                string excerpt = defMatch.Groups[2].Value.Trim();
+                if (!defDict.TryGetValue(id, out var list))
+                {
+                    list = new List<(int Line, string Excerpt)>();
+                    defDict[id] = list;
+                }
+                list.Add((i + 1, excerpt));
+            }
+        }
+
+        for (int i = 0; i < maskedLines.Length; i++)
+        {
+            if (defLineIndices.Contains(i)) continue;
+            string line = maskedLines[i];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var matches = calloutRegex.Matches(line);
+            foreach (System.Text.RegularExpressions.Match m in matches)
+            {
+                string id = m.Groups[1].Value.Trim();
+                calloutList.Add((id, i + 1, m.Index + 1));
+            }
+        }
+
+        var referencedDefIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int resolvedCallouts = 0;
+        int unresolvedCallouts = 0;
+        int numericCount = 0;
+        var numericCalloutValues = new List<int>();
+
+        foreach (var c in calloutList)
+        {
+            bool hasDef = defDict.ContainsKey(c.Id);
+            bool isNum = int.TryParse(c.Id, out int numVal);
+            if (isNum)
+            {
+                numericCount++;
+                numericCalloutValues.Add(numVal);
+            }
+
+            if (hasDef)
+            {
+                resolvedCallouts++;
+                referencedDefIds.Add(c.Id);
+                items.Add(new MarkdownFootnoteDefinitionItem(
+                    c.Line, c.Col, c.Id,
+                    IsDefinition: false, IsCallout: true, IsResolved: true,
+                    IsOrphan: false, IsDuplicate: false, IsNumeric: isNum, NumericValue: numVal,
+                    Excerpt: $"Callout [^{c.Id}]", Status: "Resolved", Recommendation: "Valid footnote callout"));
+            }
+            else
+            {
+                unresolvedCallouts++;
+                items.Add(new MarkdownFootnoteDefinitionItem(
+                    c.Line, c.Col, c.Id,
+                    IsDefinition: false, IsCallout: true, IsResolved: false,
+                    IsOrphan: false, IsDuplicate: false, IsNumeric: isNum, NumericValue: numVal,
+                    Excerpt: $"Callout [^{c.Id}]", Status: "Missing Definition",
+                    Recommendation: $"Add definition [^{c.Id}]: ... at the bottom of the document"));
+            }
+        }
+
+        int totalDefs = 0;
+        int orphanDefs = 0;
+        int duplicateDefs = 0;
+
+        foreach (var kvp in defDict)
+        {
+            string id = kvp.Key;
+            var occurrences = kvp.Value;
+            bool isReferenced = referencedDefIds.Contains(id);
+            bool isNum = int.TryParse(id, out int numVal);
+
+            for (int k = 0; k < occurrences.Count; k++)
+            {
+                totalDefs++;
+                var occ = occurrences[k];
+                bool isDup = k > 0;
+                if (isDup) duplicateDefs++;
+                if (!isReferenced) orphanDefs++;
+
+                string status = isDup ? "Duplicate Definition" : (!isReferenced ? "Orphan Definition" : "Valid Definition");
+                string rec = isDup
+                    ? $"Consolidate or remove duplicate definition for [^{id}]"
+                    : (!isReferenced ? $"Add callout [^{id}] in document body or remove unreferenced definition" : "Valid footnote definition");
+
+                items.Add(new MarkdownFootnoteDefinitionItem(
+                    occ.Line, 1, id,
+                    IsDefinition: true, IsCallout: false, IsResolved: isReferenced,
+                    IsOrphan: !isReferenced, IsDuplicate: isDup, IsNumeric: isNum, NumericValue: numVal,
+                    Excerpt: occ.Excerpt, Status: status, Recommendation: rec));
+            }
+        }
+
+        bool isMonotonic = true;
+        for (int i = 1; i < numericCalloutValues.Count; i++)
+        {
+            if (numericCalloutValues[i] != numericCalloutValues[i - 1] + 1)
+            {
+                isMonotonic = false;
+                break;
+            }
+        }
+
+        double score = 100.0;
+        score -= unresolvedCallouts * 20.0;
+        score -= orphanDefs * 10.0;
+        score -= duplicateDefs * 15.0;
+        if (numericCalloutValues.Count > 1 && !isMonotonic)
+            score -= 10.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalDefs == 0 && calloutList.Count == 0) category = "No Footnotes";
+        else if (score >= 95.0) category = "Pristine Footnote Linkage (≥95%)";
+        else if (score >= 80.0) category = "Good Footnote Linkage (80-94%)";
+        else if (score >= 60.0) category = "Marginal Footnote Linkage (60-79%)";
+        else category = "Broken Footnote Linkage (<60%)";
+
+        string summary = FormatFootnoteDefinitionSummary(
+            totalDefs, calloutList.Count, resolvedCallouts, unresolvedCallouts, orphanDefs, duplicateDefs, score, category);
+
+        return new MarkdownFootnoteDefinitionAudit(
+            totalDefs, calloutList.Count, resolvedCallouts, unresolvedCallouts,
+            orphanDefs, duplicateDefs, numericCount, isMonotonic, score,
+            items, category, summary);
+    }
+
+    public static string FormatFootnoteDefinitionSummary(string? markdownText)
+        => AuditMarkdownFootnoteDefinitions(markdownText).Summary;
+
+    public static string FormatFootnoteDefinitionSummary(
+        int totalDefs, int totalCallouts, int resolved, int unresolved,
+        int orphans, int duplicates, double score, string category)
+    {
+        if (totalDefs == 0 && totalCallouts == 0)
+            return "Markdown footnote definition audit: Clean document · 0 footnotes detected";
+
+        var parts = new List<string>
+        {
+            $"{totalDefs} def{(totalDefs == 1 ? "" : "s")}",
+            $"{totalCallouts} callout{(totalCallouts == 1 ? "" : "s")} ({resolved} resolved)"
+        };
+        if (unresolved > 0) parts.Add($"⚠️ {unresolved} unresolved");
+        if (orphans > 0) parts.Add($"{orphans} orphan{(orphans == 1 ? "" : "s")}");
+        if (duplicates > 0) parts.Add($"{duplicates} duplicate{(duplicates == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown footnote definition audit ({details} · {category} · {score:0.#}% integrity score)";
+    }
+
 
 }
 
@@ -12763,6 +12984,42 @@ public sealed record MarkdownLinkReferenceAudit(
     int DuplicateDefinitionCount,
     double ResolutionFidelityScore,
     IReadOnlyList<MarkdownLinkReferenceItem> Items,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, line number, identifier, and pairing status for an individual markdown footnote item.
+/// </summary>
+public sealed record MarkdownFootnoteDefinitionItem(
+    int LineNumber,
+    int Column,
+    string Identifier,
+    bool IsDefinition,
+    bool IsCallout,
+    bool IsResolved,
+    bool IsOrphan,
+    bool IsDuplicate,
+    bool IsNumeric,
+    int NumericValue,
+    string Excerpt,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of markdown footnote definitions ([^id]: text), footnote callouts ([^id]),
+/// unreferenced orphan definitions, unresolved callouts, duplicate labels, and numbering sequence integrity.
+/// </summary>
+public sealed record MarkdownFootnoteDefinitionAudit(
+    int TotalDefinitions,
+    int TotalCallouts,
+    int ResolvedCount,
+    int UnresolvedCalloutCount,
+    int OrphanDefinitionCount,
+    int DuplicateDefinitionCount,
+    int NumericFootnoteCount,
+    bool IsMonotonicNumeric,
+    double StructuralIntegrityScore,
+    IReadOnlyList<MarkdownFootnoteDefinitionItem> Items,
     string Category,
     string Summary);
 

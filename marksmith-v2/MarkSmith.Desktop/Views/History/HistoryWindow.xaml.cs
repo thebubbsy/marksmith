@@ -3769,6 +3769,18 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditSynchronization);
+                var auditMemorySafety = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff memory safety, buffer overruns, unsafe pointers & span hazards",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditMemorySafety.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditMemorySafetyAndUnsafePointerHazards(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditMemorySafety);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

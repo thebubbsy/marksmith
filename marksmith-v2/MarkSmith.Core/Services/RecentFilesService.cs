@@ -9315,6 +9315,250 @@ public sealed class RecentFilesService
         return $"Workspace media asset audit ({details} · {category} · {score:0.#}% integrity score)";
     }
 
+    public static WorkspaceCrossDocumentLinkAudit AuditWorkspaceInterDocumentLinks(
+        IEnumerable<string>? filePaths,
+        string? workspaceRoot = null,
+        Func<string, bool>? fileExists = null,
+        Func<string, string[]?>? readAllLines = null)
+    {
+        var rawList = (filePaths ?? Enumerable.Empty<string>())
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var mdFiles = rawList
+            .Where(p => p.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
+                        p.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        int totalDocsAudited = mdFiles.Count;
+        if (totalDocsAudited == 0)
+        {
+            string emptySummary = FormatWorkspaceInterDocumentLinksSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Workspace");
+            return new WorkspaceCrossDocumentLinkAudit(
+                0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<CrossDocumentLinkItem>(), "Clean Workspace", emptySummary);
+        }
+
+        var items = new List<CrossDocumentLinkItem>();
+        int docsWithLinks = 0;
+        int crossDocLinks = 0;
+        int internalFragmentLinks = 0;
+        int validLinks = 0;
+        int missingFiles = 0;
+        int missingAnchors = 0;
+
+        var headingCache = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+
+        HashSet<string> GetHeadingSlugs(string filePath)
+        {
+            if (headingCache.TryGetValue(filePath, out var cached)) return cached;
+
+            var slugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string[]? lines = null;
+            try
+            {
+                lines = readAllLines != null ? readAllLines(filePath) : (File.Exists(filePath) ? File.ReadAllLines(filePath) : null);
+            }
+            catch { }
+
+            if (lines != null)
+            {
+                foreach (var line in lines)
+                {
+                    string trimmed = line.Trim();
+                    if (trimmed.StartsWith("#"))
+                    {
+                        var m = System.Text.RegularExpressions.Regex.Match(trimmed, @"^#+\s+(.*)$");
+                        if (m.Success)
+                        {
+                            string heading = m.Groups[1].Value.Trim();
+                            string slug = heading.ToLowerInvariant();
+                            slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[^\w\s\-]", "");
+                            slug = System.Text.RegularExpressions.Regex.Replace(slug, @"\s+", "-");
+                            slugs.Add(slug);
+                            slugs.Add(heading.ToLowerInvariant().Replace(" ", "-"));
+                        }
+                    }
+                }
+            }
+
+            headingCache[filePath] = slugs;
+            return slugs;
+        }
+
+        var linkRegex = new System.Text.RegularExpressions.Regex(@"(?<!!)\[(?<text>[^\]]*)\]\((?<target>[^)]+)\)");
+
+        foreach (var file in mdFiles)
+        {
+            string[]? lines = null;
+            try
+            {
+                lines = readAllLines != null ? readAllLines(file) : (File.Exists(file) ? File.ReadAllLines(file) : null);
+            }
+            catch { }
+
+            if (lines == null || lines.Length == 0) continue;
+
+            string sourceDir = Path.GetDirectoryName(file) ?? workspaceRoot ?? "";
+            string fileName = Path.GetFileName(file);
+            bool docHasLinks = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var matches = linkRegex.Matches(line);
+                foreach (System.Text.RegularExpressions.Match m in matches)
+                {
+                    string linkText = m.Groups["text"].Value;
+                    string rawTarget = m.Groups["target"].Value.Trim();
+
+                    if (rawTarget.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                        rawTarget.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                        rawTarget.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ||
+                        rawTarget.StartsWith("ftp://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    docHasLinks = true;
+
+                    if (rawTarget.StartsWith("#"))
+                    {
+                        internalFragmentLinks++;
+                        string anchor = rawTarget.TrimStart('#').ToLowerInvariant();
+                        var selfSlugs = GetHeadingSlugs(file);
+                        bool anchorResolved = selfSlugs.Contains(anchor);
+                        if (anchorResolved) validLinks++;
+                        else missingAnchors++;
+
+                        items.Add(new CrossDocumentLinkItem(
+                            file, fileName, i + 1, linkText, rawTarget, file, anchor,
+                            IsCrossDocument: false, TargetFileExists: true, TargetAnchorResolved: anchorResolved,
+                            Status: anchorResolved ? "Resolved Internal Anchor" : "Missing Internal Anchor Heading",
+                            Recommendation: anchorResolved ? "Valid fragment anchor" : $"Heading matching '#{anchor}' not found in current document"));
+                    }
+                    else
+                    {
+                        crossDocLinks++;
+                        string targetDocPath;
+                        string? targetAnchor = null;
+
+                        int hashIdx = rawTarget.IndexOf('#');
+                        if (hashIdx >= 0)
+                        {
+                            targetDocPath = rawTarget.Substring(0, hashIdx).Trim();
+                            targetAnchor = rawTarget.Substring(hashIdx + 1).Trim().ToLowerInvariant();
+                        }
+                        else
+                        {
+                            targetDocPath = rawTarget;
+                        }
+
+                        string resolvedFullPath;
+                        try
+                        {
+                            resolvedFullPath = Path.IsPathRooted(targetDocPath)
+                                ? Path.GetFullPath(targetDocPath)
+                                : Path.GetFullPath(Path.Combine(sourceDir, targetDocPath));
+                        }
+                        catch
+                        {
+                            resolvedFullPath = Path.Combine(sourceDir, targetDocPath);
+                        }
+
+                        bool exists = fileExists != null ? fileExists(resolvedFullPath) : File.Exists(resolvedFullPath);
+                        bool anchorResolved = true;
+
+                        if (!exists)
+                        {
+                            missingFiles++;
+                            items.Add(new CrossDocumentLinkItem(
+                                file, fileName, i + 1, linkText, rawTarget, resolvedFullPath, targetAnchor,
+                                IsCrossDocument: true, TargetFileExists: false, TargetAnchorResolved: false,
+                                Status: "Missing Target File",
+                                Recommendation: $"Target document '{targetDocPath}' was not found on disk"));
+                        }
+                        else
+                        {
+                            if (!string.IsNullOrEmpty(targetAnchor))
+                            {
+                                var targetSlugs = GetHeadingSlugs(resolvedFullPath);
+                                anchorResolved = targetSlugs.Contains(targetAnchor);
+                                if (!anchorResolved) missingAnchors++;
+                            }
+
+                            if (anchorResolved) validLinks++;
+
+                            string status = anchorResolved
+                                ? "Resolved Cross-Document Link"
+                                : "Missing Anchor Heading in Target Document";
+                            string rec = anchorResolved
+                                ? "Valid cross-document link"
+                                : $"Target document exists but anchor '#{targetAnchor}' was not found in headings";
+
+                            items.Add(new CrossDocumentLinkItem(
+                                file, fileName, i + 1, linkText, rawTarget, resolvedFullPath, targetAnchor,
+                                IsCrossDocument: true, TargetFileExists: true, TargetAnchorResolved: anchorResolved,
+                                Status: status, Recommendation: rec));
+                        }
+                    }
+                }
+            }
+
+            if (docHasLinks) docsWithLinks++;
+        }
+
+        int totalLinksAudited = items.Count;
+        if (totalLinksAudited == 0)
+        {
+            string emptySummary = FormatWorkspaceInterDocumentLinksSummary(totalDocsAudited, 0, 0, 0, 0, 0, 100.0, "No Links Found");
+            return new WorkspaceCrossDocumentLinkAudit(
+                totalDocsAudited, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                items, "No Links Found", emptySummary);
+        }
+
+        double score = 100.0;
+        score -= missingFiles * 25.0;
+        score -= missingAnchors * 15.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (score >= 95.0) category = "Flawless Hyperlink Network (≥95%)";
+        else if (score >= 80.0) category = "High Hypertext Integrity (80-94%)";
+        else if (score >= 60.0) category = "Moderate Linking Consistency (60-79%)";
+        else if (score >= 40.0) category = "Broken Hyperlink Hazards (40-59%)";
+        else category = "Critical Broken Hypertext Network (<40%)";
+
+        string summary = FormatWorkspaceInterDocumentLinksSummary(
+            totalDocsAudited, docsWithLinks, totalLinksAudited, validLinks, missingFiles, missingAnchors, score, category);
+
+        return new WorkspaceCrossDocumentLinkAudit(
+            totalDocsAudited, docsWithLinks, totalLinksAudited, crossDocLinks, internalFragmentLinks,
+            validLinks, missingFiles, missingAnchors, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceInterDocumentLinksSummary(
+        int totalDocs, int docsWithLinks, int totalLinks, int validLinks,
+        int missingFiles, int missingAnchors, double score, string category)
+    {
+        if (totalLinks == 0)
+            return $"Workspace inter-document link audit: Clean workspace · {totalDocs} documents · 0 cross-document links detected";
+
+        var parts = new List<string>
+        {
+            $"{totalDocs} docs ({docsWithLinks} with links)",
+            $"{totalLinks} links ({validLinks} valid)"
+        };
+        if (missingFiles > 0) parts.Add($"⚠️ {missingFiles} missing files");
+        if (missingAnchors > 0) parts.Add($"⚠️ {missingAnchors} missing anchors");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace inter-document link audit ({details} · {category} · {score:0.#}% integrity score)";
+    }
+
 
     public static string FormatWorkspaceTaskListSummary(
         int totalDocs, int docsWithTasks, int totalTasks, int completedTasks,
@@ -10567,6 +10811,41 @@ public sealed record WorkspaceImageAssetItem(
 /// Represents the result of an audit of workspace markdown image asset paths, local file existence on disk,
 /// broken media anchors, remote URL dependencies, data URIs, and alt-text accessibility.
 /// </summary>
+/// <summary>
+/// Represents evaluated source file, target file, anchor heading, and resolution status for an individual cross-document markdown link.
+/// </summary>
+public sealed record CrossDocumentLinkItem(
+    string SourceFilePath,
+    string SourceFileName,
+    int LineNumber,
+    string LinkText,
+    string RawTarget,
+    string TargetFilePath,
+    string? TargetAnchor,
+    bool IsCrossDocument,
+    bool TargetFileExists,
+    bool TargetAnchorResolved,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown cross-document hyperlinks, internal fragment anchors,
+/// target file existence, anchor heading resolution, and hypertext network integrity.
+/// </summary>
+public sealed record WorkspaceCrossDocumentLinkAudit(
+    int TotalDocumentsAudited,
+    int DocumentsWithLinksCount,
+    int TotalLinksAudited,
+    int CrossDocumentLinksCount,
+    int InternalFragmentLinksCount,
+    int ValidLinksCount,
+    int MissingFileCount,
+    int MissingAnchorCount,
+    double HyperlinkIntegrityScore,
+    IReadOnlyList<CrossDocumentLinkItem> Items,
+    string Category,
+    string Summary);
+
 public sealed record WorkspaceImageAssetsAudit(
     int TotalDocumentsAudited,
     int DocumentsWithImagesCount,

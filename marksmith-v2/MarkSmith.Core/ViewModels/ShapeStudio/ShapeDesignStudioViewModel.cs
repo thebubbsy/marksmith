@@ -6847,6 +6847,187 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Diagram Z-order audit ({scope}{details} · {category} · {score:0.#}% layering score)";
     }
 
+    public DiagramShapeColorContrastAccessibilityAudit AuditShapeColorContrastAccessibility(bool selectionOnly = false)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0)
+            ? selected
+            : Shapes.ToList();
+
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditShapeColorContrastAccessibility(targetShapes, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramShapeColorContrastAccessibilityAudit AuditShapeColorContrastAccessibility(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        bool isSelection = false)
+    {
+        var list = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        var validShapes = list.Where(s => s.Width >= 2.0 && s.Height >= 2.0).ToList();
+        int totalShapes = validShapes.Count;
+
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatColorContrastSummary(0, 0, 0, 0, 0, 0, 0.0, 100.0, "Empty Canvas", isSelection);
+            return new DiagramShapeColorContrastAccessibilityAudit(
+                0, 0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ShapeColorContrastAccessibilityItem>(),
+                "Empty Canvas", isSelection, emptySummary);
+        }
+
+        static (byte R, byte G, byte B) ParseHex(string? raw, (byte R, byte G, byte B) fallback)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return fallback;
+            string clean = raw.Trim().TrimStart('#');
+            if (clean.Equals("transparent", StringComparison.OrdinalIgnoreCase) || clean.Equals("none", StringComparison.OrdinalIgnoreCase))
+                return fallback;
+            if (clean.Length == 3 &&
+                byte.TryParse(new string(clean[0], 2), System.Globalization.NumberStyles.HexNumber, null, out byte r3) &&
+                byte.TryParse(new string(clean[1], 2), System.Globalization.NumberStyles.HexNumber, null, out byte g3) &&
+                byte.TryParse(new string(clean[2], 2), System.Globalization.NumberStyles.HexNumber, null, out byte b3))
+            {
+                return (r3, g3, b3);
+            }
+            if (clean.Length == 6 &&
+                byte.TryParse(clean.Substring(0, 2), System.Globalization.NumberStyles.HexNumber, null, out byte r6) &&
+                byte.TryParse(clean.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, null, out byte g6) &&
+                byte.TryParse(clean.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, null, out byte b6))
+            {
+                return (r6, g6, b6);
+            }
+            if (clean.Length == 8 &&
+                byte.TryParse(clean.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, null, out byte r8) &&
+                byte.TryParse(clean.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, null, out byte g8) &&
+                byte.TryParse(clean.Substring(6, 2), System.Globalization.NumberStyles.HexNumber, null, out byte b8))
+            {
+                return (r8, g8, b8);
+            }
+            return fallback;
+        }
+
+        static double RelativeLuminance((byte R, byte G, byte B) c)
+        {
+            double Lin(byte b)
+            {
+                double v = b / 255.0;
+                return v <= 0.04045 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4);
+            }
+            return 0.2126 * Lin(c.R) + 0.7152 * Lin(c.G) + 0.0722 * Lin(c.B);
+        }
+
+        static double ContrastRatio(double l1, double l2)
+        {
+            double lighter = Math.Max(l1, l2);
+            double darker = Math.Min(l1, l2);
+            return Math.Round((lighter + 0.05) / (darker + 0.05), 2);
+        }
+
+        var canvasBg = ParseHex(CanvasBackgroundHex, (27, 27, 31));
+        double lCanvas = RelativeLuminance(canvasBg);
+
+        var items = new List<ShapeColorContrastAccessibilityItem>();
+        int evaluatedTextCount = 0;
+        int passingAaCount = 0;
+        int passingAaaCount = 0;
+        int failingAaCount = 0;
+        int failingBoundaryCount = 0;
+        var textContrastRatios = new List<double>();
+
+        foreach (var s in validShapes)
+        {
+            var fillRgb = ParseHex(s.Fill, (255, 255, 255));
+            var textRgb = ParseHex(s.TextColor, (18, 18, 18));
+            var strokeRgb = ParseHex(s.Fill, (100, 100, 100));
+
+            double lFill = RelativeLuminance(fillRgb);
+            double lText = RelativeLuminance(textRgb);
+            double lStroke = RelativeLuminance(strokeRgb);
+
+            double textContrast = ContrastRatio(lText, lFill);
+            double boundaryContrast = Math.Max(ContrastRatio(lFill, lCanvas), ContrastRatio(lStroke, lCanvas));
+
+            bool hasText = !string.IsNullOrWhiteSpace(s.Text) || !string.IsNullOrWhiteSpace(s.Name);
+            bool meetsAa = textContrast >= 4.5;
+            bool meetsAaa = textContrast >= 7.0;
+            bool meetsBoundary = boundaryContrast >= 3.0;
+
+            if (hasText)
+            {
+                evaluatedTextCount++;
+                textContrastRatios.Add(textContrast);
+                if (meetsAa) passingAaCount++;
+                else failingAaCount++;
+                if (meetsAaa) passingAaaCount++;
+            }
+
+            if (!meetsBoundary) failingBoundaryCount++;
+
+            string severity = (!meetsAa && hasText)
+                ? (textContrast < 2.5 ? "Critical" : "High")
+                : (!meetsBoundary ? "Medium" : (meetsAaa ? "None" : "Low"));
+
+            string status = (!meetsAa && hasText)
+                ? $"Fails WCAG AA ({textContrast:0.0}:1)"
+                : (hasText && !meetsAaa ? $"Passes AA ({textContrast:0.0}:1)" : (hasText ? $"Passes AAA ({textContrast:0.0}:1)" : $"Graphic Only ({boundaryContrast:0.0}:1)"));
+
+            string rec = (!meetsAa && hasText)
+                ? $"Adjust fill '{s.Fill}' or text color to achieve ≥4.5:1 contrast"
+                : (!meetsBoundary ? $"Increase shape stroke/fill contrast vs canvas (≥3.0:1)" : "Accessible color contrast conforming to WCAG 2.1");
+
+            items.Add(new ShapeColorContrastAccessibilityItem(
+                s.Id ?? "", s.Name ?? s.Id ?? "Shape", s.ShapeType,
+                s.Fill ?? "#FFFFFF", s.TextColor ?? "#121212", s.Fill ?? "#333333",
+                textContrast, boundaryContrast, hasText, meetsAa, meetsAaa, meetsBoundary,
+                severity, status, rec));
+        }
+
+        double avgContrast = textContrastRatios.Count > 0 ? Math.Round(textContrastRatios.Average(), 1) : 0.0;
+        double score = 100.0;
+        score -= failingAaCount * 20.0;
+        score -= (evaluatedTextCount - passingAaaCount) * 5.0;
+        score -= failingBoundaryCount * 8.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (score >= 95.0) category = "Flawless Contrast Accessibility (≥95%)";
+        else if (score >= 80.0) category = "High WCAG AA Compliance (80-94%)";
+        else if (score >= 60.0) category = "Moderate Visual Contrast (60-79%)";
+        else if (score >= 40.0) category = "Low Contrast Illegibility (40-59%)";
+        else category = "Critical Accessibility Violations (<40%)";
+
+        string summary = FormatColorContrastSummary(
+            totalShapes, evaluatedTextCount, passingAaCount, passingAaaCount, failingAaCount,
+            failingBoundaryCount, avgContrast, score, category, isSelection);
+
+        return new DiagramShapeColorContrastAccessibilityAudit(
+            totalShapes, evaluatedTextCount, passingAaCount, passingAaaCount,
+            failingAaCount, failingBoundaryCount, avgContrast, score,
+            items, category, isSelection, summary);
+    }
+
+    public static string FormatColorContrastSummary(
+        int totalShapes, int evaluatedTextShapes, int passingAa, int passingAaa,
+        int failingAa, int failingBoundary, double avgContrast, double score, string category, bool isSelection = false)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes == 0)
+            return $"Diagram shape color contrast audit: {scope}Empty canvas · 0 shapes";
+
+        var parts = new List<string>
+        {
+            $"{totalShapes} shapes ({evaluatedTextShapes} text)",
+            $"{passingAa} AA ({passingAaa} AAA)"
+        };
+        if (failingAa > 0) parts.Add($"⚠️ {failingAa} low contrast");
+        if (failingBoundary > 0) parts.Add($"⚠️ {failingBoundary} boundary blend");
+        if (evaluatedTextShapes > 0) parts.Add($"avg ratio {avgContrast:0.0}:1");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram shape color contrast audit ({scope}{details} · {category} · {score:0.#}% accessibility score)";
+    }
+
 
     public static string FormatAspectRatioSummary(
         int totalShapes, int conformingCount, int driftCount, int freeformCount,
@@ -12945,6 +13126,44 @@ public sealed record ShapeZOrderOcclusionItem(
 /// Represents the result of an audit of diagram shape Z-order layering, stacking depth,
 /// overlap occlusion, completely obscured shapes, and visual layering cleanliness.
 /// </summary>
+/// <summary>
+/// Represents evaluated fill/text/stroke colors, relative luminance, WCAG 2.1 AA/AAA contrast ratios, and boundary blend for an individual shape.
+/// </summary>
+public sealed record ShapeColorContrastAccessibilityItem(
+    string ShapeId,
+    string ShapeName,
+    string ShapeType,
+    string FillColor,
+    string TextColor,
+    string StrokeColor,
+    double TextContrastRatio,
+    double BoundaryContrastRatio,
+    bool HasText,
+    bool MeetsWcagAa,
+    bool MeetsWcagAaa,
+    bool MeetsBoundaryContrast,
+    string Severity,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape fill and stroke color contrast accessibility,
+/// WCAG 2.1 AA (4.5:1) / AAA (7:1) typography readability, and canvas boundary visibility.
+/// </summary>
+public sealed record DiagramShapeColorContrastAccessibilityAudit(
+    int TotalShapes,
+    int EvaluatedTextShapes,
+    int PassingAaCount,
+    int PassingAaaCount,
+    int FailingAaCount,
+    int FailingBoundaryCount,
+    double AverageTextContrastRatio,
+    double AccessibilityScore,
+    IReadOnlyList<ShapeColorContrastAccessibilityItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
 public sealed record DiagramShapeZOrderStackingAudit(
     int TotalShapes,
     int OccludedShapeCount,

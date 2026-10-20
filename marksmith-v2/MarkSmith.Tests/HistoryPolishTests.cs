@@ -3148,4 +3148,56 @@ public class HistoryPolishTests : IDisposable
         Assert.True(badAudit.ConcurrencyHygieneScore < 40.0);
     }
 
+    [Fact]
+    public void Run197_AuditMemorySafetyAndUnsafePointerHazards_DetectsStackallocAndLeaks()
+    {
+        // 1. Safe managed C# code
+        var cleanCode = string.Join("\n",
+            "public class SafeRenderer",
+            "{",
+            "    public void Render(ReadOnlySpan<byte> data)",
+            "    {",
+            "        foreach (var b in data)",
+            "        {",
+            "            Console.WriteLine(b);",
+            "        }",
+            "    }",
+            "}"
+        );
+
+        var cleanAudit = LineDiff.AuditMemorySafetyAndUnsafePointerHazards("", cleanCode);
+        Assert.Equal(0, cleanAudit.TotalHazards);
+        Assert.Equal(100.0, cleanAudit.MemorySafetyHygieneScore);
+
+        string formatted = LineDiff.FormatMemorySafetySummary(
+            cleanAudit.TotalModifiedLines, cleanAudit.TotalHazards, cleanAudit.StackallocLoopCount,
+            cleanAudit.UnsafePointerArithmeticCount, cleanAudit.UnmanagedAllocLeakCount,
+            cleanAudit.SpanEscapingStackCount,
+            cleanAudit.MemorySafetyHygieneScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 2. Dangerous memory code: stackalloc in loop, Marshal.AllocHGlobal without free, unsafe pointer arithmetic
+        var badCode = string.Join("\n",
+            "public class HazardService",
+            "{",
+            "    public unsafe void Process()",
+            "    {",
+            "        for (int i = 0; i < 1000; i++)",
+            "        {",
+            "            Span<byte> buffer = stackalloc byte[2048];",
+            "        }",
+            "        IntPtr ptr = Marshal.AllocHGlobal(4096);",
+            "        ptr += 16;",
+            "    }",
+            "}"
+        );
+
+        var badAudit = LineDiff.AuditMemorySafetyAndUnsafePointerHazards("", badCode);
+        Assert.True(badAudit.StackallocLoopCount >= 1);
+        Assert.True(badAudit.UnmanagedAllocLeakCount >= 1);
+        Assert.True(badAudit.UnsafePointerArithmeticCount >= 1);
+        Assert.True(badAudit.TotalHazards >= 3);
+        Assert.True(badAudit.MemorySafetyHygieneScore < 60.0);
+    }
+
 }

@@ -6058,4 +6058,91 @@ Some paragraph in between.
         Assert.Contains("AuditWorkspaceImageAssetPaths", suiteCs);
     }
 
+    [Fact]
+    public void Run197_AuditWorkspaceInterDocumentLinks_ValidatesRelativeLinksAndAnchors()
+    {
+        var doc1 = string.Join("\n",
+            "# Architecture Manual",
+            "See the [Getting Started Guide](guide.md) for setup instructions.",
+            "Check the [Deployment Anchor](guide.md#deployment-steps) for release steps."
+        );
+
+        var doc2 = string.Join("\n",
+            "# Getting Started Guide",
+            "## Deployment Steps",
+            "Instructions here.",
+            "Broken file link: [Missing Document](nonexistent.md)",
+            "Broken anchor link: [Bad Section](guide.md#missing-heading)"
+        );
+
+        var fileSystem = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\manual.md"] = doc1.Split('\n'),
+            [@"C:\workspace\guide.md"] = doc2.Split('\n')
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceInterDocumentLinks(
+            fileSystem.Keys,
+            workspaceRoot: @"C:\workspace",
+            fileExists: p => fileSystem.ContainsKey(p),
+            readAllLines: p => fileSystem.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(2, audit.TotalDocumentsAudited);
+        Assert.Equal(2, audit.DocumentsWithLinksCount);
+        Assert.Equal(4, audit.TotalLinksAudited);
+        Assert.Equal(4, audit.CrossDocumentLinksCount);
+        Assert.Equal(2, audit.ValidLinksCount);
+        Assert.Equal(1, audit.MissingFileCount);
+        Assert.Equal(1, audit.MissingAnchorCount);
+        Assert.True(audit.HyperlinkIntegrityScore < 70.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceInterDocumentLinksSummary(
+            audit.TotalDocumentsAudited, audit.DocumentsWithLinksCount, audit.TotalLinksAudited,
+            audit.ValidLinksCount, audit.MissingFileCount, audit.MissingAnchorCount,
+            audit.HyperlinkIntegrityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run197_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Footnote Reference Definition, Anchor Pairing & Unreferenced Footnote Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditFootnoteDefsItem", mainCs);
+        Assert.Contains("AuditMarkdownFootnoteDefinitions", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Biconnected Components, Cut Vertices & Network Vulnerability Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphBiconnectedComponentsItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphBiconnectedComponentsClick", galaxyCs);
+        Assert.Contains("AuditGraphArticulationPointsAndBiconnectedComponents", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Fill & Stroke Color Contrast Accessibility Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditColorContrastItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditColorContrastClick", shapeCs);
+        Assert.Contains("AuditShapeColorContrastAccessibility", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Hierarchy Tree Depth Balance, Subtree Branching Factor & Leaf Node Uniformity Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditHierarchyTreeBalanceItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditHierarchyBranchingClick", smartArtCs);
+        Assert.Contains("AuditHierarchyTreeDepthAndBranchingBalance", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Memory Safety, Buffer Overruns, Unsafe Pointers & Span Memory Leak Hazards Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditMemorySafety", historyCs);
+        Assert.Contains("AuditMemorySafetyAndUnsafePointerHazards", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Cross-Document Anchor Reference Resolution & Inter-Document Linking Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceInterDocLinksItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceInterDocLinksClick", suiteCs);
+        Assert.Contains("AuditWorkspaceInterDocumentLinks", suiteCs);
+    }
+
 }

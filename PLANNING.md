@@ -12784,3 +12784,57 @@ Reviewed: the Run #196 Blueprint above — implemented all 6 planned features ac
    - **Refinement Target**: Workspace Markdown Cross-Document Anchor Reference Resolution & Inter-Document Linking Auditor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceInterDocumentLinks(...)` and `FormatWorkspaceInterDocumentLinksSummary(...)` to scan cross-document markdown links (`[text](other-doc.md#heading)`), resolving target files and anchor headings across workspace files, detecting missing anchor targets or orphan cross-links, and scoring workspace hypertext network integrity ($0-100\%$). Wire to `RecentDocsFlyout`.
 
+### 2026-10-20 (scheduled routine run #197)
+
+Reviewed: the Run #197 Blueprint above — implemented all 6 planned features across all WinUI 3 surfaces following the AI-Executable 3-Block Cycle + Execution Phase Protocol.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented TextSearch.AuditMarkdownFootnoteDefinitions(...), FormatFootnoteDefinitionSummary(...), MarkdownFootnoteDefinitionItem, and MarkdownFootnoteDefinitionAudit in TextSearch.cs. Audits document markdown for footnote callouts ([^1], [^note]) and footnote definitions ([^1]: ...), detecting orphan definitions without references, broken callouts missing definitions, non-monotonic numbering, and duplicate definitions, scoring footnote structural integrity (0-100%). Wired to ShowLinksContextMenu in MainWindow.xaml.cs via uditFootnoteDefsItem with clipboard copy and notification announcement (\uE8B9).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented MindMapStudioViewModel.AuditGraphArticulationPointsAndBiconnectedComponents(...), FormatBiconnectedComponentsSummary(...), GraphArticulationPointItem, GraphBiconnectedBlockItem, and GraphBiconnectedComponentsAudit in MindMapStudioViewModel.cs. Executes Hopcroft-Tarjan DFS traversal to identify critical bridge edges, cut vertices (articulation points), and 2-connected biconnected blocks whose removal partitions the mind map network, scoring structural redundancy and fault tolerance (0-100%). Wired to ArrangeDropDownButton.Flyout in MindMapGalaxyWindow.xaml and MindMapGalaxyWindow.xaml.cs via AuditGraphBiconnectedComponentsItem (\uE8B9) and OnAuditGraphBiconnectedComponentsClick.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented ShapeDesignStudioViewModel.AuditShapeColorContrastAccessibility(...), FormatColorContrastSummary(...), ShapeColorContrastAccessibilityItem, and DiagramShapeColorContrastAccessibilityAudit in ShapeDesignStudioViewModel.cs. Computes WCAG 2.1 relative luminance and contrast ratios ( / L_2$) for text labels vs shape fills and shape boundaries vs canvas background (#1B1B1F), verifying AA ($\ge 4.5:1$) and AAA ($\ge 7.0:1$) compliance, flagging illegible low-contrast text and invisible shape outlines, and scoring contrast accessibility (0-100%). Wired to SelectionBoundsBorder.ContextFlyout in ShapeDesignStudioWindow.xaml and ShapeDesignStudioWindow.xaml.cs via SelectionAuditColorContrastItem (\uE7A0) and OnSelectionAuditColorContrastClick.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented SmartArtDesignStudioViewModel.AuditHierarchyTreeDepthAndBranchingBalance(...), FormatHierarchyBranchingSummary(...), HierarchyTreeNodeItem, and SmartArtHierarchyTreeBalanceAudit in SmartArtDesignStudioViewModel.cs. Parses hierarchical tree structures, calculates maximum depth, leaf count, average branching factor, leaf depth variance, detects single-child redundant linear chains and overcrowded fan-outs (>6 children), and scores hierarchy tree balance (0-100%). Wired to OutlineStatsFlyout in SmartArtDesignStudioWindow.xaml and SmartArtDesignStudioWindow.xaml.cs via OutlineStatsAuditHierarchyTreeBalanceItem (\uE8B9) and OnOutlineStatsAuditHierarchyBranchingClick.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Implemented LineDiff.AuditMemorySafetyAndUnsafePointerHazards(...), FormatMemorySafetySummary(...), MemorySafetyHazardItem, and DiffMemorySafetyAudit in LineDiff.cs. Analyzes semantic diff hunks for dangerous C# memory patterns: stack allocations inside loops (stackalloc in for/while/foreach), unmanaged memory allocations without deallocation (Marshal.AllocHGlobal / AllocCoTaskMem / NativeMemory.Alloc), unsafe pointer arithmetic bypassing bounds checks, escaping Span<T> stack buffers, and unbounded buffer copies, scoring memory safety hygiene (0-100%). Wired to TimelineHeaderBorder.ContextFlyout in HistoryWindow.xaml.cs via uditMemorySafety.
+  - **Surface 6 (SuiteHubView)**: Implemented RecentFilesService.AuditWorkspaceInterDocumentLinks(...), FormatWorkspaceInterDocumentLinksSummary(...), CrossDocumentLinkItem, and WorkspaceCrossDocumentLinkAudit in RecentFilesService.cs. Scans inter-document cross-references ([label](path.md#heading)), resolves target markdown files and anchor heading fragments across the workspace directory tree, flags broken file targets and missing heading slugs, and scores workspace hypertext network integrity (0-100%). Wired to RecentDocsFlyout in SuiteHubView.xaml and SuiteHubView.xaml.cs via AuditWorkspaceInterDocLinksItem (\uE8B9) and OnAuditWorkspaceInterDocLinksClick.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces:
+    - TextSearchTests.Run197_AuditMarkdownFootnoteDefinitions_ValidatesPairingAndFlagsOrphans
+    - MindMapGalaxyPolishTests.Run197_AuditGraphArticulationPointsAndBiconnectedComponents_DetectsCutVerticesAndBlocks
+    - ShapeStudioPolishTests.Run197_AuditShapeColorContrastAccessibility_EvaluatesWcagAaAndAaaCompliance
+    - SmartArtStudioPolishTests.Run197_AuditHierarchyTreeDepthAndBranchingBalance_ValidatesTreeSymmetry
+    - HistoryPolishTests.Run197_AuditMemorySafetyAndUnsafePointerHazards_DetectsStackallocAndLeaks
+    - SuiteHubAndTourPolishTests.Run197_AuditWorkspaceInterDocumentLinks_ValidatesRelativeLinksAndAnchors
+    - SuiteHubAndTourPolishTests.Run197_AllSixSurfacesXamlAndCodeBehindWiring
+  - Reconciled event handler and method name collisions in MindMapGalaxyWindow.
+
+**Verified:**
+- dotnet build (marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj - Debug/x64): 0 errors, 23 warnings (all existing).
+- dotnet build (marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj - Debug): 0 errors.
+- dotnet test (PolishTests filter): 891/891 tests passed (100% pass rate).
+- dotnet test (TextSearchTests filter): 113/113 tests passed (100% pass rate).
+- dotnet test (SuiteHubAndTourPolishTests filter): 169/169 tests passed (100% pass rate).
+- Smoke-launched Marksmith.exe (PID=23724, Responding=True, ran for 4 seconds and cleanly terminated with zero crashes).
+
+---
+
+### Run #198 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (MainWindow.xaml.cs, TextSearch.cs)**:
+   - **Feature**: Markdown Inline Math Delimiter Balance, Escaped Dollar Signs & LaTeX Equation Validator.
+   - **Deliverable**: Add TextSearch.AuditMarkdownMathDelimiters(markdownText) and FormatMathDelimiterSummary(...), scanning document markdown for unescaped inline math delimiters ($...$), block equations ($$...), and KaTeX syntax validity, detecting unmatched delimiters, unescaped currency dollar signs, and syntax anomalies, scoring math rendering fidelity (-100\%$). Wire to ShowLinksContextMenu.
+2. **MindMapGalaxyWindow (MindMapGalaxyWindow.xaml, MindMapGalaxyWindow.xaml.cs, MindMapStudioViewModel.cs)**:
+   - **Feature**: Graph Coreness Decomposition, K-Core Shell Tiers & Dense Nucleus Cluster Auditor.
+   - **Deliverable**: Add MindMapStudioViewModel.AuditGraphKCoreDecompositionAndNuclei() and FormatKCoreSummary(...), computing iterative degree pruning to partition the mind map into k-core subgraphs, identifying central structural nuclei and peripheral leaf tentacles, scoring coreness density balance (-100\%$). Wire to ArrangeDropDownButton.Flyout.
+3. **ShapeDesignStudioWindow (ShapeDesignStudioWindow.xaml, ShapeDesignStudioWindow.xaml.cs, ShapeDesignStudioViewModel.cs)**:
+   - **Feature**: Diagram Connector Arrowhead Alignment, Endpoint Orthogonality & Port Attachment Auditor.
+   - **Deliverable**: Add ShapeDesignStudioViewModel.AuditConnectorArrowheadAndPortAttachments(shapes) and FormatConnectorAttachmentSummary(...), evaluating diagram arrow connections, verifying connector termination points adhere to snap port boundaries, detecting dangling arrowheads or non-orthogonal bends, and scoring connector routing precision (-100\%$). Wire to SelectionBoundsBorder.ContextFlyout.
+4. **SmartArtDesignStudioWindow (SmartArtDesignStudioWindow.xaml, SmartArtDesignStudioWindow.xaml.cs, SmartArtDesignStudioViewModel.cs)**:
+   - **Feature**: SmartArt Chevron & Horizontal Process Flow Monotonic Sizing & Chevron Notch Uniformity Auditor.
+   - **Deliverable**: Add SmartArtDesignStudioViewModel.AuditProcessFlowChevronUniformity(markdown, layoutName) and FormatChevronUniformitySummary(...), analyzing horizontal arrow/chevron sequential stages, verifying equal step widths, notch-to-point mating consistency, detecting irregular step lengths, and scoring process flow visual cadence (-100\%$). Wire to OutlineStatsFlyout.
+5. **HistoryWindow (HistoryWindow.xaml.cs, LineDiff.cs) [Carried Forward from Run #197 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff String Allocation & Substring Memory Pressure Analyzer.
+   - **Deliverable**: Add LineDiff.AuditStringAllocationAndMemoryPressureHazards(unifiedRows) and FormatStringAllocationSummary(...) to analyze diff hunks for high-frequency string allocations in hot paths (e.g., repeated string.Substring, string.Split, interpolated string logging, missing string.Create / ReadOnlySpan<char> / SearchValues), scoring string allocation efficiency (-100\%$). Wire to TimelineHeaderBorder context flyout.
+6. **SuiteHubView (SuiteHubView.xaml, SuiteHubView.xaml.cs, RecentFilesService.cs) [Carried Forward from Run #197 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Heading Slug Uniqueness & Table of Contents Anchor Consistency Auditor.
+   - **Deliverable**: Add RecentFilesService.AuditWorkspaceHeadingSlugsAndTocAnchors(...) and FormatWorkspaceHeadingSlugsSummary(...) to scan heading definitions and internal TOC anchor references across workspace documents, detecting duplicate heading anchor slugs (#heading-1), mismatched TOC targets, and scoring heading navigational consistency (-100\%$). Wire to RecentDocsFlyout.

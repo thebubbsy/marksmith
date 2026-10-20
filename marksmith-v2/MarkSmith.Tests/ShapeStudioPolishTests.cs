@@ -3243,4 +3243,63 @@ public class ShapeStudioPolishTests
         Assert.True(badAudit.LayeringCleanlinessScore < 80.0);
     }
 
+    [Fact]
+    public void Run197_AuditShapeColorContrastAccessibility_EvaluatesWcagAaAndAaaCompliance()
+    {
+        // 1. Empty canvas
+        var emptyAudit = ShapeDesignStudioViewModel.AuditShapeColorContrastAccessibility(null);
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.AccessibilityScore);
+
+        // 2. High contrast accessible shape (White fill with dark text and dark canvas)
+        var sHigh = new ShapeCanvasItemViewModel
+        {
+            Id = "s1",
+            Name = "Primary Callout",
+            X = 0,
+            Y = 0,
+            Width = 100,
+            Height = 60,
+            Fill = "#FFFFFF",
+            Text = "Accessible Text",
+            TextColor = "#000000"
+        };
+
+        var cleanAudit = ShapeDesignStudioViewModel.AuditShapeColorContrastAccessibility(new[] { sHigh });
+        Assert.Equal(1, cleanAudit.TotalShapes);
+        Assert.Equal(1, cleanAudit.EvaluatedTextShapes);
+        Assert.Equal(1, cleanAudit.PassingAaCount);
+        Assert.Equal(1, cleanAudit.PassingAaaCount);
+        Assert.Equal(0, cleanAudit.FailingAaCount);
+        Assert.True(cleanAudit.AverageTextContrastRatio >= 7.0);
+        Assert.Equal(100.0, cleanAudit.AccessibilityScore);
+
+        string formatted = ShapeDesignStudioViewModel.FormatColorContrastSummary(
+            cleanAudit.TotalShapes, cleanAudit.EvaluatedTextShapes, cleanAudit.PassingAaCount,
+            cleanAudit.PassingAaaCount, cleanAudit.FailingAaCount, cleanAudit.FailingBoundaryCount,
+            cleanAudit.AverageTextContrastRatio, cleanAudit.AccessibilityScore,
+            cleanAudit.Category, cleanAudit.IsSelectionScope);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Low contrast inaccessible shape (Light grey text on white fill)
+        var sLow = new ShapeCanvasItemViewModel
+        {
+            Id = "s2",
+            Name = "Muted Legend",
+            X = 120,
+            Y = 0,
+            Width = 100,
+            Height = 60,
+            Fill = "#FFFFFF",
+            Text = "Faint Caption",
+            TextColor = "#CCCCCC"
+        };
+
+        var badAudit = ShapeDesignStudioViewModel.AuditShapeColorContrastAccessibility(new[] { sLow });
+        Assert.Equal(1, badAudit.TotalShapes);
+        Assert.Equal(1, badAudit.EvaluatedTextShapes);
+        Assert.Equal(1, badAudit.FailingAaCount);
+        Assert.True(badAudit.AccessibilityScore <= 80.0);
+    }
+
 }

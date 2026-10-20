@@ -4015,5 +4015,57 @@ namespace MarkSmith.Tests
             Assert.True(cycleAudit.AcyclicComplianceScore < 80.0);
         }
 
+        [Fact]
+        public void Run197_AuditGraphArticulationPointsAndBiconnectedComponents_DetectsCutVerticesAndBlocks()
+        {
+            // 1. Empty galaxy
+            var emptyAudit = MindMapStudioViewModel.AuditGraphArticulationPointsAndBiconnectedComponents(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.CutVerticesCount);
+            Assert.Equal(100.0, emptyAudit.StructuralRedundancyScore);
+
+            // 2. Triangle cycle (Biconnected block, 0 articulation points)
+            var nA = new MindMapNode { Id = "a", Title = "Cluster Alpha" };
+            var nB = new MindMapNode { Id = "b", Title = "Cluster Beta" };
+            var nC = new MindMapNode { Id = "c", Title = "Cluster Gamma" };
+
+            var triangleLinks = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "l1", SourceNodeId = "a", TargetNodeId = "b" },
+                new MindMapLink { Id = "l2", SourceNodeId = "b", TargetNodeId = "c" },
+                new MindMapLink { Id = "l3", SourceNodeId = "c", TargetNodeId = "a" }
+            };
+
+            var cleanAudit = MindMapStudioViewModel.AuditGraphArticulationPointsAndBiconnectedComponents(
+                new[] { nA, nB, nC }, triangleLinks);
+            Assert.Equal(3, cleanAudit.TotalNodes);
+            Assert.Equal(3, cleanAudit.TotalEdges);
+            Assert.Equal(0, cleanAudit.CutVerticesCount);
+            Assert.Equal(0, cleanAudit.BridgesCount);
+            Assert.Equal(1, cleanAudit.BiconnectedBlockCount);
+            Assert.Equal(100.0, cleanAudit.StructuralRedundancyScore);
+
+            string formatted = MindMapStudioViewModel.FormatBiconnectedComponentsSummary(
+                cleanAudit.TotalNodes, cleanAudit.TotalEdges, cleanAudit.CutVerticesCount,
+                cleanAudit.BridgesCount, cleanAudit.BiconnectedBlockCount, cleanAudit.ConnectedComponentsCount,
+                cleanAudit.StructuralRedundancyScore, cleanAudit.Category, cleanAudit.IsSelectionScope);
+            Assert.Equal(cleanAudit.Summary, formatted);
+
+            // 3. Tree / Line graph with cut vertices (A - B - C) -> B is articulation point
+            var lineLinks = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "l1", SourceNodeId = "a", TargetNodeId = "b" },
+                new MindMapLink { Id = "l2", SourceNodeId = "b", TargetNodeId = "c" }
+            };
+
+            var lineAudit = MindMapStudioViewModel.AuditGraphArticulationPointsAndBiconnectedComponents(
+                new[] { nA, nB, nC }, lineLinks);
+            Assert.Equal(3, lineAudit.TotalNodes);
+            Assert.Equal(2, lineAudit.TotalEdges);
+            Assert.Equal(1, lineAudit.CutVerticesCount);
+            Assert.Equal(2, lineAudit.BridgesCount);
+            Assert.True(lineAudit.StructuralRedundancyScore < 85.0);
+        }
+
     }
 }

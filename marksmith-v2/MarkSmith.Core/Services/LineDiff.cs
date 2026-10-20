@@ -17684,6 +17684,167 @@ public static class LineDiff
         return $"Semantic diff concurrency audit ({details} · {category} · {score:0.#}% hygiene score)";
     }
 
+    public static DiffMemorySafetyAudit AuditMemorySafetyAndUnsafePointerHazards(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditMemorySafetyAndUnsafePointerHazards(unified);
+    }
+
+    public static DiffMemorySafetyAudit AuditMemorySafetyAndUnsafePointerHazards(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            string emptySummary = FormatMemorySafetySummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffMemorySafetyAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MemorySafetyHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && !r.IsRemoved && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatMemorySafetySummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffMemorySafetyAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MemorySafetyHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<MemorySafetyHazardItem>();
+        int stackallocLoopCount = 0;
+        int pointerArithmeticCount = 0;
+        int unmanagedAllocLeakCount = 0;
+        int spanEscapingCount = 0;
+        int unboundedCopyCount = 0;
+
+        int activeLoopDepth = 0;
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string trimmed = row.Text.Trim();
+            int lineNum = row.NewNumber ?? (i + 1);
+
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*"))
+                continue;
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\b(for|foreach|while)\b\s*\("))
+            {
+                activeLoopDepth++;
+            }
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\bstackalloc\b"))
+            {
+                if (activeLoopDepth > 0 || System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\b(for|foreach|while)\b.*stackalloc"))
+                {
+                    stackallocLoopCount++;
+                    hazards.Add(new MemorySafetyHazardItem(
+                        lineNum, "Insert", "StackallocInsideLoop", trimmed, 5,
+                        "Allocating stack memory (stackalloc) inside an iterative loop risks unbounded stack growth and StackOverflowException",
+                        "Move stackalloc outside the loop, use ArrayPool<T>.Shared.Rent, or limit allocation size with fixed buffers",
+                        "Critical Stackalloc Loop Hazard"));
+                }
+                else if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"return\s+.*stackalloc") ||
+                         System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"=>\s*.*stackalloc"))
+                {
+                    spanEscapingCount++;
+                    hazards.Add(new MemorySafetyHazardItem(
+                        lineNum, "Insert", "StackMemoryEscapingScope", trimmed, 5,
+                        "Returning or exposing stackalloc memory outside local method frame causes dangling pointer read corruption",
+                        "Allocate on heap, return ReadOnlyMemory<T>, or pass destination Span<T> as a caller-owned argument",
+                        "Critical Escaped Stack Memory Hazard"));
+                }
+            }
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\b\w+\s*(\+\+|\-\-|\+=|\-=)\s*") &&
+                (trimmed.Contains("byte*") || trimmed.Contains("char*") || trimmed.Contains("int*") || trimmed.Contains("void*") || trimmed.Contains("ptr")))
+            {
+                pointerArithmeticCount++;
+                hazards.Add(new MemorySafetyHazardItem(
+                    lineNum, "Insert", "UnboundedPointerArithmetic", trimmed, 4,
+                    "Raw unsafe pointer arithmetic bypassing runtime array bounds checks risks arbitrary buffer overrun vulnerabilities",
+                    "Replace raw pointer indexing with bounds-checked Span<T> or ReadOnlySpan<T> slicing",
+                    "High Pointer Overrun Hazard"));
+            }
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\bMarshal\.(AllocHGlobal|AllocCoTaskMem)\b") ||
+                System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\bNativeMemory\.Alloc\b"))
+            {
+                unmanagedAllocLeakCount++;
+                hazards.Add(new MemorySafetyHazardItem(
+                    lineNum, "Insert", "UnmanagedMemoryAlloc", trimmed, 4,
+                    "Direct unmanaged memory allocation requires guaranteed deallocation in a finally block or SafeHandle to prevent memory leaks",
+                    "Wrap unmanaged handles in SafeBuffer / SafeHandle, or enforce deallocation via try/finally",
+                    "Unmanaged Allocation Hazard"));
+            }
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\bBuffer\.(MemoryCopy|BlockCopy)\b") ||
+                System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\bNativeMemory\.Copy\b"))
+            {
+                unboundedCopyCount++;
+                hazards.Add(new MemorySafetyHazardItem(
+                    lineNum, "Insert", "UncheckedMemoryCopy", trimmed, 3,
+                    "Direct byte-level memory copies can overrun destination buffers if capacity is improperly validated",
+                    "Ensure source and destination lengths are validated before memory copy, or use ReadOnlySpan.CopyTo",
+                    "Buffer Copy Hazard"));
+            }
+
+            if (trimmed.Contains("}") && activeLoopDepth > 0)
+            {
+                activeLoopDepth--;
+            }
+        }
+
+        int totalHazards = hazards.Count;
+        double score = 100.0;
+        score -= stackallocLoopCount * 25.0;
+        score -= spanEscapingCount * 25.0;
+        score -= pointerArithmeticCount * 15.0;
+        score -= unmanagedAllocLeakCount * 15.0;
+        score -= unboundedCopyCount * 10.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (score >= 95.0) category = "Flawless Memory Safety (≥95%)";
+        else if (score >= 80.0) category = "High Memory Hygiene (80-94%)";
+        else if (score >= 60.0) category = "Moderate Memory Risk (60-79%)";
+        else if (score >= 40.0) category = "High Memory Corruption Hazard (40-59%)";
+        else category = "Critical Buffer / Pointer Hazard (<40%)";
+
+        string summary = FormatMemorySafetySummary(
+            totalModified, totalHazards, stackallocLoopCount, pointerArithmeticCount, unmanagedAllocLeakCount, spanEscapingCount, score, category);
+
+        return new DiffMemorySafetyAudit(
+            totalModified, totalHazards, stackallocLoopCount, pointerArithmeticCount,
+            unmanagedAllocLeakCount, spanEscapingCount, unboundedCopyCount,
+            score, hazards, category, summary);
+    }
+
+    public static string FormatMemorySafetySummary(
+        int modifiedLines, int totalHazards, int stackallocLoops, int pointerArithmetic,
+        int unmanagedLeaks, int spanEscaping, double score, string category)
+    {
+        if (totalHazards == 0)
+            return $"Semantic diff memory safety audit: Clean baseline · {modifiedLines} modified lines · 0 memory safety hazards";
+
+        var parts = new List<string>
+        {
+            $"{modifiedLines} lines",
+            $"⚠️ {totalHazards} memory hazards"
+        };
+        if (stackallocLoops > 0) parts.Add($"{stackallocLoops} stackalloc in loops");
+        if (pointerArithmetic > 0) parts.Add($"{pointerArithmetic} pointer arithmetic");
+        if (unmanagedLeaks > 0) parts.Add($"{unmanagedLeaks} unmanaged alloc leaks");
+        if (spanEscaping > 0) parts.Add($"{spanEscaping} stack memory escape");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff memory safety audit ({details} · {category} · {score:0.#}% hygiene score)";
+    }
+
 
     public static string FormatCacheLocalitySummary(
         int totalLines, int totalHazards, int falseSharing, int multiDimArrays,
@@ -19637,6 +19798,36 @@ public sealed record SynchronizationHazardItem(
 /// Represents the result of an audit of semantic diff hunks for thread synchronization primitives,
 /// lock (this) / lock (typeof) anti-patterns, await inside locks, nested locks, and deadlock inversion hazards.
 /// </summary>
+/// <summary>
+/// Represents an identified memory corruption, buffer overrun, unsafe pointer arithmetic, or escaping stackalloc hazard on a diff line.
+/// </summary>
+public sealed record MemorySafetyHazardItem(
+    int LineNumber,
+    string DiffOperation,
+    string HazardKind,
+    string CodeSnippet,
+    int Severity,
+    string ImpactDescription,
+    string RemediationHint,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff hunks for memory safety hazards,
+/// stackalloc inside loops, escaping stack memory, unsafe pointer arithmetic, unmanaged leaks, and buffer copies.
+/// </summary>
+public sealed record DiffMemorySafetyAudit(
+    int TotalModifiedLines,
+    int TotalHazards,
+    int StackallocLoopCount,
+    int UnsafePointerArithmeticCount,
+    int UnmanagedAllocLeakCount,
+    int SpanEscapingStackCount,
+    int UnboundedMemoryCopyCount,
+    double MemorySafetyHygieneScore,
+    IReadOnlyList<MemorySafetyHazardItem> Items,
+    string Category,
+    string Summary);
+
 public sealed record DiffSynchronizationHazardsAudit(
     int TotalModifiedLines,
     int TotalHazards,

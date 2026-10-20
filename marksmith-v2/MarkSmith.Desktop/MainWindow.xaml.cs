@@ -12031,6 +12031,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditLinkReferencesItem);
+        var auditFootnoteDefsItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Footnote Reference Definitions & Anchor Integrity",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditFootnoteDefsItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnoteDefinitions(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditFootnoteDefsItem);
 
         menu.ShowAt(anchor);
     }

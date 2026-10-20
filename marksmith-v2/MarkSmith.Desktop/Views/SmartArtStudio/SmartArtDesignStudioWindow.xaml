@@ -425,6 +425,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditVennOverlapSymmetryItem" Text="Audit SmartArt Venn diagram set overlap, intersect symmetry &amp; boolean cardinality" Click="OnOutlineStatsAuditVennOverlapSymmetryClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyTreeBalanceItem" Text="Audit SmartArt hierarchy tree depth balance, subtree branching &amp; leaf node uniformity" Click="OnOutlineStatsAuditHierarchyBranchingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditCycleRadialAngularItem" Text="Audit SmartArt cycle &amp; radial node angular distribution, polar spacing &amp; equidistance" Click="OnOutlineStatsAuditCycleRadialAngularClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>

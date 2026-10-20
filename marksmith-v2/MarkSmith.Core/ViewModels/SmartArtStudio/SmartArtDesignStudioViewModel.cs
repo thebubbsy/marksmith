@@ -10126,6 +10126,194 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt radial cycle audit ({details} · {category} · {score:0.#}% symmetry score)";
     }
 
+    public SmartArtHierarchyTreeBalanceAudit AuditHierarchyTreeDepthAndBranchingBalance()
+    {
+        var audit = AuditHierarchyTreeDepthAndBranchingBalance(MarkdownText, SelectedLayout?.DisplayName);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static SmartArtHierarchyTreeBalanceAudit AuditHierarchyTreeDepthAndBranchingBalance(string? markdown, string? layoutName = null)
+    {
+        string layout = layoutName ?? "Hierarchy";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatHierarchyBranchingSummary(0, 0, 0, 0, 0.0, 0, 0, 0, 100.0, "Empty Outline");
+            return new SmartArtHierarchyTreeBalanceAudit(
+                0, 0, 0, 0, 0.0, 0, 0, 0, 100.0,
+                Array.Empty<HierarchyTreeNodeItem>(), "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var rawNodes = new List<(int Index, string Title, int Indent)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            int indent = 0;
+            while (indent < line.Length && (line[indent] == ' ' || line[indent] == '\t'))
+            {
+                indent += line[indent] == '\t' ? 4 : 1;
+            }
+
+            string trimmed = line.Trim();
+            if (trimmed.StartsWith("* ") || trimmed.StartsWith("- ") || trimmed.StartsWith("+ "))
+            {
+                trimmed = trimmed.Substring(2).Trim();
+            }
+            else if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^\d+[\.\)]\s+"))
+            {
+                trimmed = System.Text.RegularExpressions.Regex.Replace(trimmed, @"^\d+[\.\)]\s+", "").Trim();
+            }
+
+            if (!string.IsNullOrEmpty(trimmed))
+            {
+                rawNodes.Add((rawNodes.Count + 1, trimmed, indent));
+            }
+        }
+
+        int totalNodes = rawNodes.Count;
+        if (totalNodes == 0)
+        {
+            string emptySummary = FormatHierarchyBranchingSummary(0, 0, 0, 0, 0.0, 0, 0, 0, 100.0, "Empty Outline");
+            return new SmartArtHierarchyTreeBalanceAudit(
+                0, 0, 0, 0, 0.0, 0, 0, 0, 100.0,
+                Array.Empty<HierarchyTreeNodeItem>(), "Empty Outline", emptySummary);
+        }
+
+        var nodeDepths = new int[totalNodes];
+        var parentIndices = new int[totalNodes];
+        var childrenMap = new Dictionary<int, List<int>>();
+        for (int i = 0; i < totalNodes; i++) childrenMap[i] = new List<int>();
+
+        var depthStack = new Stack<(int Index, int Indent, int Depth)>();
+
+        for (int i = 0; i < totalNodes; i++)
+        {
+            var node = rawNodes[i];
+            while (depthStack.Count > 0 && depthStack.Peek().Indent >= node.Indent)
+            {
+                depthStack.Pop();
+            }
+
+            int depth = depthStack.Count + 1;
+            int parentIdx = depthStack.Count > 0 ? depthStack.Peek().Index : -1;
+
+            nodeDepths[i] = depth;
+            parentIndices[i] = parentIdx;
+
+            if (parentIdx >= 0)
+            {
+                childrenMap[parentIdx].Add(i);
+            }
+
+            depthStack.Push((i, node.Indent, depth));
+        }
+
+        int maxDepth = nodeDepths.Max();
+        var subtreeSizes = new int[totalNodes];
+        for (int i = totalNodes - 1; i >= 0; i--)
+        {
+            int size = 1;
+            foreach (var ch in childrenMap[i]) size += subtreeSizes[ch];
+            subtreeSizes[i] = size;
+        }
+
+        var items = new List<HierarchyTreeNodeItem>();
+        int leafCount = 0;
+        int internalCount = 0;
+        int totalChildren = 0;
+        int minLeafDepth = int.MaxValue;
+        int maxLeafDepth = 0;
+        int imbalancedCount = 0;
+
+        for (int i = 0; i < totalNodes; i++)
+        {
+            var node = rawNodes[i];
+            int depth = nodeDepths[i];
+            int chCount = childrenMap[i].Count;
+            bool isLeaf = chCount == 0;
+
+            if (isLeaf)
+            {
+                leafCount++;
+                if (depth < minLeafDepth) minLeafDepth = depth;
+                if (depth > maxLeafDepth) maxLeafDepth = depth;
+            }
+            else
+            {
+                internalCount++;
+                totalChildren += chCount;
+            }
+
+            bool isOvercrowded = chCount > 6;
+            bool isSingleChain = chCount == 1 && parentIndices[i] >= 0 && childrenMap[parentIndices[i]].Count == 1;
+
+            if (isOvercrowded || isSingleChain) imbalancedCount++;
+
+            string status = isLeaf
+                ? $"Leaf Node (Depth {depth})"
+                : (isOvercrowded ? $"Overcrowded Parent ({chCount} children)" : (isSingleChain ? "Single-Child Redundant Chain" : $"Branching Node ({chCount} children)"));
+
+            string rec = isOvercrowded
+                ? "Subdivide broad category with intermediate sub-categories"
+                : (isSingleChain ? "Consolidate linear chain into parent description" : "Well-balanced hierarchy node");
+
+            items.Add(new HierarchyTreeNodeItem(
+                node.Index, node.Title, depth, chCount, isLeaf, subtreeSizes[i],
+                isOvercrowded, isSingleChain, status, rec));
+        }
+
+        if (minLeafDepth == int.MaxValue) minLeafDepth = 0;
+        double avgBranching = internalCount > 0 ? Math.Round((double)totalChildren / internalCount, 1) : 0.0;
+
+        double score = 100.0;
+        if (maxLeafDepth - minLeafDepth > 1)
+        {
+            score -= (maxLeafDepth - minLeafDepth - 1) * 10.0;
+        }
+        score -= imbalancedCount * 8.0;
+        if (totalNodes > 1 && internalCount == 0) score -= 15.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (score >= 95.0) category = "Flawless Hierarchy Balance (≥95%)";
+        else if (score >= 80.0) category = "Well-Balanced Tree (80-94%)";
+        else if (score >= 60.0) category = "Moderate Tree Skew (60-79%)";
+        else if (score >= 40.0) category = "Suboptimal Branching Balance (40-59%)";
+        else category = "Severely Imbalanced Hierarchy (<40%)";
+
+        string summary = FormatHierarchyBranchingSummary(
+            totalNodes, maxDepth, leafCount, internalCount, avgBranching, minLeafDepth, maxLeafDepth, imbalancedCount, score, category);
+
+        return new SmartArtHierarchyTreeBalanceAudit(
+            totalNodes, maxDepth, leafCount, internalCount, avgBranching, minLeafDepth, maxLeafDepth,
+            imbalancedCount, score, items, category, summary);
+    }
+
+    public static string FormatHierarchyBranchingSummary(
+        int totalNodes, int maxDepth, int leafCount, int internalNodes,
+        double avgBranching, int minLeaf, int maxLeaf, int imbalanced,
+        double score, string category)
+    {
+        if (totalNodes == 0)
+            return "SmartArt hierarchy balance audit: Empty outline · 0 nodes";
+
+        var parts = new List<string>
+        {
+            $"{totalNodes} nodes (depth {maxDepth})",
+            $"{leafCount} leaves · {internalNodes} branches",
+            $"avg branching {avgBranching:0.0}"
+        };
+        if (imbalanced > 0) parts.Add($"⚠️ {imbalanced} imbalanced");
+        if (maxLeaf > minLeaf) parts.Add($"leaf depth {minLeaf}-{maxLeaf}");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt hierarchy balance audit ({details} · {category} · {score:0.#}% balance score)";
+    }
+
 
     public static string FormatVennOverlapSummary(
         int primarySets, int intersections, int totalItems, int totalWords,
@@ -11343,6 +11531,39 @@ public sealed record RadialAngularNodeItem(
 /// Represents the result of an audit of SmartArt cycle and radial node angular distribution, polar spacing equidistance,
 /// angular jitter, node crowding, and polar geometric symmetry.
 /// </summary>
+/// <summary>
+/// Represents evaluated metrics, depth level, children count, and balance status for an individual hierarchy tree node.
+/// </summary>
+public sealed record HierarchyTreeNodeItem(
+    int NodeIndex,
+    string Title,
+    int DepthLevel,
+    int ChildrenCount,
+    bool IsLeaf,
+    int SubtreeSize,
+    bool IsOvercrowded,
+    bool IsSingleChildChain,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt hierarchy tree depth balance, subtree branching factors,
+/// leaf node uniformity, single-child chains, and structural hierarchy symmetry.
+/// </summary>
+public sealed record SmartArtHierarchyTreeBalanceAudit(
+    int TotalNodes,
+    int MaxDepth,
+    int LeafCount,
+    int InternalNodeCount,
+    double AverageBranchingFactor,
+    int MinLeafDepth,
+    int MaxLeafDepth,
+    int ImbalancedNodeCount,
+    double TreeBalanceScore,
+    IReadOnlyList<HierarchyTreeNodeItem> Items,
+    string Category,
+    string Summary);
+
 public sealed record SmartArtCycleRadialAngularAudit(
     int TotalNodes,
     int TotalSubItems,
